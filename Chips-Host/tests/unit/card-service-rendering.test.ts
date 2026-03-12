@@ -70,6 +70,23 @@ const loadThemeRenderContext = async (
   };
 };
 
+const createRichtextCardService = async (
+  themeId = 'chips-official.default-theme'
+): Promise<{ service: CardService; workspace: string }> => {
+  const workspace = await createTempDir('chips-card-runtime-');
+  const runtime = new PluginRuntime(workspace, {
+    locale: 'zh-CN',
+    themeId
+  });
+  await runtime.load();
+  const install = await runtime.install(path.resolve(process.cwd(), '../Chips-BaseCardPlugin/richtext-BCP'));
+  await runtime.enable(install.manifest.id);
+  return {
+    service: new CardService({ runtime, workspaceRoot: process.cwd() }),
+    workspace
+  };
+};
+
 afterEach(async () => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -83,15 +100,7 @@ describe('CardService rendering', () => {
   it('renders card through unified rendering engine', async () => {
     const cardFile = await createCardArchive();
     const themeContext = await loadThemeRenderContext();
-    const workspace = await createTempDir('chips-card-runtime-');
-    const runtime = new PluginRuntime(workspace, {
-      locale: 'zh-CN',
-      themeId: 'chips-official.default-theme'
-    });
-    await runtime.load();
-    const install = await runtime.install(path.resolve(process.cwd(), '../Chips-BaseCardPlugin/richtext-BCP'));
-    await runtime.enable(install.manifest.id);
-    const service = new CardService({ runtime, workspaceRoot: process.cwd() });
+    const { service } = await createRichtextCardService();
 
     const view = await service.render(cardFile, {
       target: 'card-iframe',
@@ -105,21 +114,14 @@ describe('CardService rendering', () => {
     expect(view.body).toContain('Intro');
     expect(view.body).toContain('Hello Chips.');
     expect(view.body).toContain('chips.basecard.richtext');
+    expect(view.body).toContain('chips.composite:node-select');
     expect(view.contentFiles).toEqual(['details.yaml', 'intro.yaml']);
   }, 30_000);
 
   it('can run consistency verification during card render', async () => {
     const cardFile = await createCardArchive();
     const themeContext = await loadThemeRenderContext();
-    const workspace = await createTempDir('chips-card-runtime-');
-    const runtime = new PluginRuntime(workspace, {
-      locale: 'zh-CN',
-      themeId: 'chips-official.default-theme'
-    });
-    await runtime.load();
-    const install = await runtime.install(path.resolve(process.cwd(), '../Chips-BaseCardPlugin/richtext-BCP'));
-    await runtime.enable(install.manifest.id);
-    const service = new CardService({ runtime, workspaceRoot: process.cwd() });
+    const { service } = await createRichtextCardService();
 
     const view = await service.render(cardFile, {
       target: 'offscreen-render',
@@ -138,15 +140,7 @@ describe('CardService rendering', () => {
       '../ThemePack/Chips-theme-default-dark',
       'chips-official.default-dark-theme'
     );
-    const workspace = await createTempDir('chips-card-runtime-');
-    const runtime = new PluginRuntime(workspace, {
-      locale: 'zh-CN',
-      themeId: 'chips-official.default-dark-theme'
-    });
-    await runtime.load();
-    const install = await runtime.install(path.resolve(process.cwd(), '../Chips-BaseCardPlugin/richtext-BCP'));
-    await runtime.enable(install.manifest.id);
-    const service = new CardService({ runtime, workspaceRoot: process.cwd() });
+    const { service } = await createRichtextCardService('chips-official.default-dark-theme');
 
     const view = await service.render(cardFile, {
       target: 'card-iframe',
@@ -155,5 +149,71 @@ describe('CardService rendering', () => {
 
     expect(view.body).toContain('color-scheme: dark;');
     expect(view.body).not.toContain('color-scheme: light;');
+  }, 30_000);
+
+  it('reads and updates normalized base card config through the formal card service contract', async () => {
+    const cardFile = await createCardArchive();
+    const { service } = await createRichtextCardService();
+
+    const baseCard = await service.getBaseCard(cardFile, 'intro');
+    expect(baseCard.nodeId).toBe('intro');
+    expect(baseCard.cardType).toBe('RichTextCard');
+    expect(baseCard.pluginId).toBe('chips.basecard.richtext');
+    expect(baseCard.title).toBe('Intro');
+    expect(baseCard.config).toMatchObject({
+      id: 'intro',
+      title: 'Intro',
+      body: '<p>Hello Chips.</p>',
+      locale: 'zh-CN'
+    });
+
+    const updated = await service.updateBaseCard(cardFile, 'intro', {
+      id: 'intro',
+      title: 'Updated Intro',
+      body: '<p>Updated body.</p>',
+      locale: 'en-US'
+    });
+    expect(updated.title).toBe('Updated Intro');
+    expect(updated.config).toMatchObject({
+      id: 'intro',
+      title: 'Updated Intro',
+      body: '<p>Updated body.</p>',
+      locale: 'en-US'
+    });
+
+    const reread = await service.getBaseCard(cardFile, 'intro');
+    expect(reread.title).toBe('Updated Intro');
+    expect(reread.config).toMatchObject({
+      id: 'intro',
+      title: 'Updated Intro',
+      body: '<p>Updated body.</p>',
+      locale: 'en-US'
+    });
+
+    const extractedDir = await createTempDir('chips-card-updated-');
+    await zip.extract(cardFile, extractedDir);
+    const introYaml = await fs.readFile(path.join(extractedDir, 'content/intro.yaml'), 'utf-8');
+    const metadataYaml = await fs.readFile(path.join(extractedDir, '.card/metadata.yaml'), 'utf-8');
+    expect(introYaml).toContain('card_type: "RichTextCard"');
+    expect(introYaml).toContain('title: "Updated Intro"');
+    expect(introYaml).toContain('locale: "en-US"');
+    expect(introYaml).toContain('body: "<p>Updated body.</p>"');
+    expect(metadataYaml).toContain('modified_at:');
+  }, 30_000);
+
+  it('renders formal base card editor iframe documents through host-owned plugin loading', async () => {
+    const cardFile = await createCardArchive();
+    const themeContext = await loadThemeRenderContext();
+    const { service } = await createRichtextCardService();
+
+    const editor = await service.renderBaseCardEditor(cardFile, 'intro', themeContext.theme, themeContext.themeCssText);
+    expect(editor.protocolVersion).toBe('1.0.0');
+    expect(editor.baseCard.nodeId).toBe('intro');
+    expect(editor.baseCard.pluginId).toBe('chips.basecard.richtext');
+    expect(editor.body).toContain('chips.basecard-editor:ready');
+    expect(editor.body).toContain('chips.basecard-editor:config-change');
+    expect(editor.body).toContain('chips.basecard-editor:fatal-error');
+    expect(editor.body).toContain('__chipsBasecardPluginBundle__');
+    expect(editor.body).toContain('chips-basecard-editor-root');
   }, 30_000);
 });

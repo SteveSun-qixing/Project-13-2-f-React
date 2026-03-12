@@ -2,13 +2,13 @@ import type { CoreClient } from "../types/client";
 
 export interface ModuleState {
   slot: string;
-  moduleId: string;
-  active: boolean;
+  module: Record<string, unknown>;
+  mountedAt?: number;
   [key: string]: unknown;
 }
 
 export interface ModuleApi {
-  mount(slot: string, moduleId: string): Promise<ModuleState>;
+  mount(slot: string, module: Record<string, unknown>): Promise<void>;
   unmount(slot: string): Promise<void>;
   query(slot: string): Promise<ModuleState | undefined>;
   list(): Promise<ModuleState[]>;
@@ -16,18 +16,19 @@ export interface ModuleApi {
 
 export function createModuleApi(client: CoreClient): ModuleApi {
   return {
-    async mount(slot, moduleId) {
-      return client.invoke("module.mount", { slot, moduleId });
+    async mount(slot, module) {
+      await client.invoke("module.mount", { slot, module });
     },
     async unmount(slot) {
-      return client.invoke("module.unmount", { slot });
+      await client.invoke("module.unmount", { slot });
     },
     async query(slot) {
-      return client.invoke("module.query", { slot });
+      const { module } = await client.invoke<{ slot: string }, { module: ModuleState | null }>("module.query", { slot });
+      return module ?? undefined;
     },
     async list() {
-      return client.invoke("module.list", {});
+      const { modules } = await client.invoke<Record<string, never>, { modules: ModuleState[] }>("module.list", {});
+      return modules;
     },
   };
 }
-

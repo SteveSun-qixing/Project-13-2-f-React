@@ -73,6 +73,20 @@ export interface FrameRenderResult {
   origin: string;
 }
 
+export interface BaseCardRecord {
+  nodeId: string;
+  cardType: string;
+  pluginId: string;
+  title: string;
+  contentPath: string;
+  config: Record<string, unknown>;
+}
+
+export interface BaseCardEditorRenderResult extends FrameRenderResult {
+  protocolVersion: string;
+  baseCard: BaseCardRecord;
+}
+
 export type CompositeMode = "view" | "preview";
 
 export interface CompositeNodeError {
@@ -83,9 +97,38 @@ export interface CompositeNodeError {
   details?: unknown;
 }
 
+export interface CompositeNodeSelection {
+  nodeId: string;
+  cardType: string;
+  pluginId?: string;
+  title?: string;
+  trigger?: string;
+}
+
+export interface BaseCardEditorConfigChange {
+  nodeId: string;
+  cardType: string;
+  pluginId: string;
+  config: Record<string, unknown>;
+}
+
+export interface BaseCardEditorReadyPayload {
+  nodeId: string;
+  cardType: string;
+  pluginId: string;
+  protocolVersion: string;
+}
+
+export interface BaseCardEditorConfigSyncedPayload {
+  nodeId: string;
+  config: Record<string, unknown>;
+}
+
 export interface CardApi {
   parse(cardFile: string): Promise<CardDocument>;
-  validate(card: CardDocument): Promise<ValidationResult>;
+  validate(cardFile: string): Promise<ValidationResult>;
+  getBaseCard(cardFile: string, nodeId: string): Promise<BaseCardRecord>;
+  updateBaseCard(cardFile: string, nodeId: string, config: Record<string, unknown>): Promise<BaseCardRecord>;
   render(cardFile: string, options?: CardRenderOptions): Promise<CardRenderResult>;
   coverFrame: {
     render(options: { cardFile: string; cardName?: string }): Promise<FrameRenderResult>;
@@ -93,11 +136,20 @@ export interface CardApi {
   compositeWindow: {
     render(options: { cardFile: string; mode?: CompositeMode }): Promise<FrameRenderResult>;
     onReady(frame: HTMLIFrameElement, handler: () => void): () => void;
+    onNodeSelect(frame: HTMLIFrameElement, handler: (payload: CompositeNodeSelection) => void): () => void;
     onNodeError(
       frame: HTMLIFrameElement,
       handler: (payload: CompositeNodeError) => void,
     ): () => void;
     onFatalError(frame: HTMLIFrameElement, handler: (error: import("../types/errors").StandardError) => void): () => void;
+  };
+  baseCardEditor: {
+    render(options: { cardFile: string; nodeId: string; title?: string }): Promise<BaseCardEditorRenderResult>;
+    onReady(frame: HTMLIFrameElement, handler: (payload: BaseCardEditorReadyPayload) => void): () => void;
+    onConfigChange(frame: HTMLIFrameElement, handler: (payload: BaseCardEditorConfigChange) => void): () => void;
+    onConfigSynced(frame: HTMLIFrameElement, handler: (payload: BaseCardEditorConfigSyncedPayload) => void): () => void;
+    onFatalError(frame: HTMLIFrameElement, handler: (error: import("../types/errors").StandardError) => void): () => void;
+    syncConfig(frame: HTMLIFrameElement, config: Record<string, unknown>): void;
   };
 }
 
@@ -109,11 +161,40 @@ export function createCardApi(client: CoreClient): CardApi {
       }
       return client.invoke("card.parse", { cardFile });
     },
-    async validate(card) {
-      if (!card) {
-        throw createError("INVALID_ARGUMENT", "card.validate: card document is required.");
+    async validate(cardFile) {
+      if (!cardFile) {
+        throw createError("INVALID_ARGUMENT", "card.validate: cardFile is required.");
       }
-      return client.invoke("card.validate", { card });
+      return client.invoke("card.validate", { cardFile });
+    },
+    async getBaseCard(cardFile, nodeId) {
+      if (!cardFile) {
+        throw createError("INVALID_ARGUMENT", "card.getBaseCard: cardFile is required.");
+      }
+      if (!nodeId) {
+        throw createError("INVALID_ARGUMENT", "card.getBaseCard: nodeId is required.");
+      }
+      const { baseCard } = await client.invoke<
+        { cardFile: string; nodeId: string },
+        { baseCard: BaseCardRecord }
+      >("card.getBaseCard", { cardFile, nodeId });
+      return baseCard;
+    },
+    async updateBaseCard(cardFile, nodeId, config) {
+      if (!cardFile) {
+        throw createError("INVALID_ARGUMENT", "card.updateBaseCard: cardFile is required.");
+      }
+      if (!nodeId) {
+        throw createError("INVALID_ARGUMENT", "card.updateBaseCard: nodeId is required.");
+      }
+      if (!config || typeof config !== "object" || Array.isArray(config)) {
+        throw createError("INVALID_ARGUMENT", "card.updateBaseCard: config must be an object.");
+      }
+      const { baseCard } = await client.invoke<
+        { cardFile: string; nodeId: string; config: Record<string, unknown> },
+        { baseCard: BaseCardRecord }
+      >("card.updateBaseCard", { cardFile, nodeId, config });
+      return baseCard;
     },
     async render(cardFile, options) {
       if (!cardFile) {
@@ -137,23 +218,7 @@ export function createCardApi(client: CoreClient): CardApi {
           },
         );
 
-        if (typeof document === "undefined") {
-          throw createError(
-            "RUNTIME_ENV_UNSUPPORTED",
-            "card.coverFrame.render requires a DOM environment.",
-          );
-        }
-
-        const frame = document.createElement("iframe");
-        frame.setAttribute("sandbox", "allow-same-origin allow-scripts allow-forms");
-        frame.setAttribute("loading", "lazy");
-        frame.title = cardName ?? view.title ?? "Card Cover";
-        frame.srcdoc = view.body;
-
-        return {
-          frame,
-          origin: window.location.origin,
-        };
+        return createFrameRenderResult(view.body, cardName ?? view.title ?? "Card Cover");
       },
     },
     compositeWindow: {
@@ -182,26 +247,17 @@ export function createCardApi(client: CoreClient): CardApi {
           },
         );
 
-        if (typeof document === "undefined") {
-          throw createError(
-            "RUNTIME_ENV_UNSUPPORTED",
-            "card.compositeWindow.render requires a DOM environment.",
-          );
-        }
-
-        const frame = document.createElement("iframe");
-        frame.setAttribute("sandbox", "allow-same-origin allow-scripts allow-forms");
-        frame.setAttribute("loading", "lazy");
-        frame.title = view.title ?? "Card";
-        frame.srcdoc = view.body;
-
-        return {
-          frame,
-          origin: window.location.origin,
-        };
+        return createFrameRenderResult(view.body, view.title ?? "Card");
       },
       onReady(frame, handler) {
         return subscribeToCompositeReady(frame, handler);
+      },
+      onNodeSelect(frame, handler) {
+        return subscribeToCompositeEvent<CompositeNodeSelection>(
+          frame,
+          "chips.composite:node-select",
+          handler,
+        );
       },
       onNodeError(frame, handler) {
         return subscribeToCompositeEvent<CompositeNodeError>(
@@ -221,6 +277,81 @@ export function createCardApi(client: CoreClient): CardApi {
         );
       },
     },
+    baseCardEditor: {
+      async render({ cardFile, nodeId, title }) {
+        if (!cardFile) {
+          throw createError("INVALID_ARGUMENT", "card.baseCardEditor.render: cardFile is required.");
+        }
+        if (!nodeId) {
+          throw createError("INVALID_ARGUMENT", "card.baseCardEditor.render: nodeId is required.");
+        }
+
+        const { editor } = await client.invoke<
+          { cardFile: string; nodeId: string },
+          {
+            editor: {
+              title: string;
+              body: string;
+              protocolVersion: string;
+              baseCard: BaseCardRecord;
+            };
+          }
+        >("card.renderBaseCardEditor", { cardFile, nodeId });
+
+        const result = createFrameRenderResult(editor.body, title ?? editor.title ?? "Base Card Editor");
+        return {
+          ...result,
+          protocolVersion: editor.protocolVersion,
+          baseCard: editor.baseCard,
+        };
+      },
+      onReady(frame, handler) {
+        return subscribeToFrameEvent(frame, "chips.basecard-editor:ready", handler);
+      },
+      onConfigChange(frame, handler) {
+        return subscribeToFrameEvent(frame, "chips.basecard-editor:config-change", handler);
+      },
+      onConfigSynced(frame, handler) {
+        return subscribeToFrameEvent(frame, "chips.basecard-editor:config-synced", handler);
+      },
+      onFatalError(frame, handler) {
+        return subscribeToFrameEvent(frame, "chips.basecard-editor:fatal-error", (payload: unknown) => {
+          handler(normalizeCompositeError(payload));
+        });
+      },
+      syncConfig(frame, config) {
+        if (!config || typeof config !== "object" || Array.isArray(config)) {
+          throw createError("INVALID_ARGUMENT", "card.baseCardEditor.syncConfig: config must be an object.");
+        }
+        frame.contentWindow?.postMessage(
+          {
+            type: "chips.basecard-editor:sync-config",
+            payload: { config },
+          },
+          window.location.origin,
+        );
+      },
+    },
+  };
+}
+
+function createFrameRenderResult(body: string, title: string): FrameRenderResult {
+  if (typeof document === "undefined" || typeof window === "undefined") {
+    throw createError(
+      "RUNTIME_ENV_UNSUPPORTED",
+      "Rendering iframe documents requires a DOM environment.",
+    );
+  }
+
+  const frame = document.createElement("iframe");
+  frame.setAttribute("sandbox", "allow-same-origin allow-scripts allow-forms");
+  frame.setAttribute("loading", "lazy");
+  frame.title = title;
+  frame.srcdoc = body;
+
+  return {
+    frame,
+    origin: window.location.origin,
   };
 }
 
@@ -273,7 +404,7 @@ function subscribeToCompositeReady(
   };
 }
 
-function subscribeToCompositeEvent<T = void>(
+function subscribeToFrameEvent<T = void>(
   frame: HTMLIFrameElement,
   type: string,
   handler: (payload: T) => void,
@@ -281,7 +412,7 @@ function subscribeToCompositeEvent<T = void>(
   if (typeof window === "undefined") {
     throw createError(
       "RUNTIME_ENV_UNSUPPORTED",
-      "Composite window events require a DOM environment.",
+      "Frame events require a DOM environment.",
     );
   }
 
@@ -303,6 +434,14 @@ function subscribeToCompositeEvent<T = void>(
   return () => {
     window.removeEventListener("message", listener);
   };
+}
+
+function subscribeToCompositeEvent<T = void>(
+  frame: HTMLIFrameElement,
+  type: string,
+  handler: (payload: T) => void,
+): () => void {
+  return subscribeToFrameEvent(frame, type, handler);
 }
 
 function normalizeCompositeError(payload: unknown): import("../types/errors").StandardError {

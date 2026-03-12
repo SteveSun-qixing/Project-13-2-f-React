@@ -170,6 +170,101 @@ describe('Host services integration', () => {
     ).rejects.toMatchObject({ code: 'SCHEMA_VALIDATION_FAILED' });
   });
 
+  it('supports base card read, editor render, and update routes', async () => {
+    const install = await runtime.invoke<{ pluginId: string }>('plugin.install', {
+      manifestPath: path.resolve(process.cwd(), '../Chips-BaseCardPlugin/richtext-BCP/manifest.yaml')
+    });
+    await runtime.invoke('plugin.enable', { pluginId: install.pluginId });
+
+    const source = path.join(workspace, 'editor-card-source');
+    await fs.mkdir(path.join(source, '.card'), { recursive: true });
+    await fs.mkdir(path.join(source, 'content'), { recursive: true });
+    await fs.writeFile(path.join(source, '.card/metadata.yaml'), 'card_id: card.editor.demo\nname: Editor Demo\n', 'utf-8');
+    await fs.writeFile(
+      path.join(source, '.card/structure.yaml'),
+      'structure:\n  - id: "intro"\n    type: "RichTextCard"\n',
+      'utf-8'
+    );
+    await fs.writeFile(path.join(source, '.card/cover.html'), '<h1>cover</h1>', 'utf-8');
+    await fs.writeFile(
+      path.join(source, 'content/intro.yaml'),
+      'card_type: "RichTextCard"\ncontent_source: "inline"\ncontent_text: |\n  <h1>Editor Intro</h1>\n  <p>Editable body.</p>\n',
+      'utf-8'
+    );
+
+    const cardFile = path.join(workspace, 'editor-demo.card');
+    const zip = new StoreZipService();
+    await zip.compress(source, cardFile);
+
+    const baseCard = await runtime.invoke<{
+      baseCard: {
+        nodeId: string;
+        cardType: string;
+        pluginId: string;
+        title: string;
+        config: Record<string, unknown>;
+      };
+    }>('card.getBaseCard', {
+      cardFile,
+      nodeId: 'intro'
+    });
+    expect(baseCard.baseCard.nodeId).toBe('intro');
+    expect(baseCard.baseCard.pluginId).toBe('chips.basecard.richtext');
+    expect(baseCard.baseCard.title).toBe('Editor Intro');
+    expect(baseCard.baseCard.config).toMatchObject({
+      title: 'Editor Intro',
+      body: '<p>Editable body.</p>'
+    });
+
+    const editor = await runtime.invoke<{
+      editor: {
+        protocolVersion: string;
+        body: string;
+      };
+    }>('card.renderBaseCardEditor', {
+      cardFile,
+      nodeId: 'intro'
+    });
+    expect(editor.editor.protocolVersion).toBe('1.0.0');
+    expect(editor.editor.body).toContain('chips.basecard-editor:ready');
+
+    const updated = await runtime.invoke<{
+      baseCard: {
+        title: string;
+        config: Record<string, unknown>;
+      };
+    }>('card.updateBaseCard', {
+      cardFile,
+      nodeId: 'intro',
+      config: {
+        id: 'intro',
+        title: 'Edited Intro',
+        body: '<p>Edited body.</p>',
+        locale: 'en-US'
+      }
+    });
+    expect(updated.baseCard.title).toBe('Edited Intro');
+    expect(updated.baseCard.config).toMatchObject({
+      title: 'Edited Intro',
+      body: '<p>Edited body.</p>',
+      locale: 'en-US'
+    });
+
+    const reread = await runtime.invoke<{
+      baseCard: {
+        config: Record<string, unknown>;
+      };
+    }>('card.getBaseCard', {
+      cardFile,
+      nodeId: 'intro'
+    });
+    expect(reread.baseCard.config).toMatchObject({
+      title: 'Edited Intro',
+      body: '<p>Edited body.</p>',
+      locale: 'en-US'
+    });
+  }, 30_000);
+
   it('creates window records via window service', async () => {
     const opened = await runtime.invoke<{ window: { id: string; chrome?: { backgroundColor?: string } } }>('window.open', {
       config: {

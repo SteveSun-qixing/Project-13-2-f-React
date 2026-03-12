@@ -75,7 +75,14 @@ const createPal = (): PALAdapter => ({
         id: 'watch-1',
         async close() {}
       };
-    }
+    },
+    async exists() {
+      return false;
+    },
+    async mkdir() {},
+    async delete() {},
+    async copy() {},
+    async move() {}
   },
   dialog: {
     async openFile() {
@@ -164,6 +171,42 @@ const createPal = (): PALAdapter => ({
       return [];
     },
     async clear() {}
+  },
+  launcher: {
+    async getDefaultPath(name) {
+      return {
+        launcherPath: `/virtual/${name}.lnk`,
+        location: 'desktop'
+      };
+    },
+    async create(options) {
+      return {
+        pluginId: options.pluginId,
+        name: options.name,
+        location: 'desktop',
+        launcherPath: options.launcherPath ?? `/virtual/${options.name}.lnk`,
+        executablePath: options.executablePath,
+        args: [...options.args],
+        iconPath: options.iconPath
+      };
+    },
+    async getRecord(options) {
+      return {
+        pluginId: options.pluginId,
+        name: options.name,
+        location: 'desktop',
+        launcherPath: options.launcherPath ?? `/virtual/${options.name}.lnk`,
+        executablePath: '',
+        args: []
+      };
+    },
+    async remove(options) {
+      return {
+        removed: true,
+        launcherPath: options.launcherPath ?? `/virtual/${options.name}.lnk`,
+        location: 'desktop'
+      };
+    }
   },
   power: {
     async getState() {

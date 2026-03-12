@@ -72,6 +72,7 @@
 - 每个基础卡片节点在复合文档内部保持独立 iframe，以便失败隔离和尺寸回传；
 - 节点加载完成后向复合窗口回传高度；
 - 全部节点就绪后发送 `chips.composite:ready`；
+- 用户点击或聚焦基础卡片节点时，复合窗口必须向应用层发送 `chips.composite:node-select`，负载至少包含 `nodeId / cardType / pluginId / title`；
 - 单节点失败时发送 `chips.composite:node-error`，同时在对应位置输出降级内容；
 - 整体严重错误时发送 `chips.composite:fatal-error`。
 

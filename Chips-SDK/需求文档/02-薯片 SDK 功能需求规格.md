@@ -129,7 +129,9 @@
 
   ```ts
   client.card.parse(cardFile: string): Promise<CardDocument>;
-  client.card.validate(cardDoc: CardDocument): Promise<ValidationResult>;
+  client.card.validate(cardFile: string): Promise<ValidationResult>;
+  client.card.getBaseCard(cardFile: string, nodeId: string): Promise<BaseCardRecord>;
+  client.card.updateBaseCard(cardFile: string, nodeId: string, config: Record<string, unknown>): Promise<BaseCardRecord>;
   client.card.render(cardFile: string, options?: RenderOptions): Promise<CardRenderView>;
 
   client.box.pack(inputDir: string, options?: PackOptions): Promise<string>;    // 返回 box 文件路径
@@ -284,7 +286,7 @@
   client.window.open(config: WindowConfig): Promise<WindowState>;
   client.window.focus(id: string): Promise<void>;
 
-  client.module.mount(slot: string, moduleId: string): Promise<ModuleState>;
+  client.module.mount(slot: string, module: Record<string, unknown>): Promise<void>;
   client.module.unmount(slot: string): Promise<void>;
   ```
 
