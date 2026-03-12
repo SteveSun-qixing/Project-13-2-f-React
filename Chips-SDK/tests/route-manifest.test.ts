@@ -5,7 +5,10 @@ const manifest: RouteManifest = {
   routes: {
     "file.read": { action: "file.read" },
     "file.write": { action: "file.write" },
+    "card.getBaseCard": { action: "card.getBaseCard" },
     "card.render": { action: "card.render" },
+    "card.renderBaseCardEditor": { action: "card.renderBaseCardEditor" },
+    "card.updateBaseCard": { action: "card.updateBaseCard" },
   },
 };
 
@@ -24,7 +27,11 @@ describe("route-manifest tooling", () => {
     expect(fileActions).toEqual(["file.read", "file.write"]);
 
     const cardActions = listActionsByNamespace("card", manifest);
-    expect(cardActions).toEqual(["card.render"]);
+    expect(cardActions).toEqual([
+      "card.getBaseCard",
+      "card.render",
+      "card.renderBaseCardEditor",
+      "card.updateBaseCard",
+    ]);
   });
 });
-

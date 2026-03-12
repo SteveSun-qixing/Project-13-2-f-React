@@ -54,6 +54,41 @@ describe('KernelRouter', () => {
     ).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
   });
 
+  it('allows namespace manage permissions to satisfy specific route permissions', async () => {
+    const router = new KernelRouter();
+    router.register({
+      key: 'file.copy',
+      schemaIn: 'schemas/file.copy.request.json',
+      schemaOut: 'schemas/file.copy.response.json',
+      permission: ['file.manage'],
+      timeoutMs: 1000,
+      idempotent: false,
+      retries: 0,
+      handler: async () => ({ ok: true })
+    });
+    router.register({
+      key: 'file.stat',
+      schemaIn: 'schemas/file.stat.request.json',
+      schemaOut: 'schemas/file.stat.response.json',
+      permission: ['file.read'],
+      timeoutMs: 1000,
+      idempotent: true,
+      retries: 0,
+      handler: async () => ({ ok: true })
+    });
+
+    const manageContext: RouteInvocationContext = {
+      ...context('req-manage'),
+      caller: {
+        ...context('req-manage').caller,
+        permissions: ['file.manage']
+      }
+    };
+
+    await expect(router.invoke('file.copy', {}, manageContext)).resolves.toEqual({ ok: true });
+    await expect(router.invoke('file.stat', {}, manageContext)).resolves.toEqual({ ok: true });
+  });
+
   it('retries retryable errors for idempotent actions', async () => {
     const router = new KernelRouter();
     let calls = 0;

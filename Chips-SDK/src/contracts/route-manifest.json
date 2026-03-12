@@ -9,11 +9,20 @@
     "box.unpack": {
       "action": "box.unpack"
     },
+    "card.getBaseCard": {
+      "action": "card.getBaseCard"
+    },
     "card.parse": {
       "action": "card.parse"
     },
     "card.render": {
       "action": "card.render"
+    },
+    "card.renderBaseCardEditor": {
+      "action": "card.renderBaseCardEditor"
+    },
+    "card.updateBaseCard": {
+      "action": "card.updateBaseCard"
     },
     "card.validate": {
       "action": "card.validate"
@@ -54,8 +63,23 @@
     "credential.set": {
       "action": "credential.set"
     },
+    "file.copy": {
+      "action": "file.copy"
+    },
+    "file.delete": {
+      "action": "file.delete"
+    },
+    "file.exists": {
+      "action": "file.exists"
+    },
     "file.list": {
       "action": "file.list"
+    },
+    "file.mkdir": {
+      "action": "file.mkdir"
+    },
+    "file.move": {
+      "action": "file.move"
     },
     "file.read": {
       "action": "file.read"

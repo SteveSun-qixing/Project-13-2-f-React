@@ -38,9 +38,9 @@ npm run dev        # 启动开发服务器（等价 chips dev server）
 ├─ src/
 │  ├─ main.tsx          # React 入口（挂载到 index.html）
 │  ├─ App.tsx           # 根组件
+│  ├─ i18n.ts           # 本地词典与运行时语言适配
 │  ├─ components/       # 示例组件
-│  ├─ hooks/            # 示例 hooks（如 useChipsBridge）
-│  └─ layouts/          # 布局与外壳组件
+│  └─ hooks/            # 示例 hooks（如 useChipsBridge）
 ├─ config/
 │  ├─ app-config.ts     # 应用级配置（Feature Flag 等）
 │  └─ logging.ts        # 日志封装（预留接入 Host 日志服务）
@@ -49,7 +49,7 @@ npm run dev        # 启动开发服务器（等价 chips dev server）
 │  └─ en-US.json        # 英文文案
 ├─ tests/
 │  ├─ unit/             # 单元/组件测试
-│  └─ e2e/              # 端到端测试
+│  └─ e2e/              # 主流程 smoke / 项目级回归测试种子
 └─ assets/
    └─ icons/            # 图标等静态资源
 ```
@@ -59,10 +59,23 @@ npm run dev        # 启动开发服务器（等价 chips dev server）
 - 前端框架：React（参见生态设计原稿与应用插件开发指南）
 - UI 能力：`@chips/component-library`（组件库对外使用总览）
 - 多语言：所有界面文案通过 `i18n/*.json` 管理，不在组件内硬编码文本
-- 主题系统：通过组件库 `ChipsThemeProvider` 接入主题运行时，并监听 `theme.changed` 事件，不在业务代码中硬编码颜色/圆角/阴影
+- 主题系统：通过组件库 `ChipsThemeProvider` 接入主题运行时，并监听 `theme.changed` 事件，不在业务代码中硬编码主题颜色链路
 - 系统能力调用：仅通过 `window.chips.*`（Bridge API），不越层直接访问 Host 内部模块
+- 快捷方式图标：将应用图标放在 `assets/icons/app-icon.ico`，Host 在为应用插件创建系统快捷方式时会优先读取该文件
 
-## 5. 下一步开发建议
+## 5. 快捷方式与启动上下文
+
+- `manifest.yaml` 已预置 `ui.launcher.displayName` 与 `ui.launcher.icon`，用于 Host 创建应用快捷方式；
+- 当前 Host 正式入口：
+  - Windows：桌面快捷方式
+  - macOS：`~/Applications/Chips Apps/*.app`，并显示于启动台
+- 模板示例已包含 `window.chips.platform.getLaunchContext()` 读取逻辑，可用于区分：
+  - `app-shortcut`
+  - `file-association`
+  - `chipsdev.run`
+- 如果你的应用需要在被快捷方式或文件关联拉起时恢复状态，应优先从 `launchContext.launchParams` 中读取参数，而不是解析命令行。
+
+## 6. 下一步开发建议
 
 1. 根据业务需要在 `src/features/` 或 `src/components/` 中扩展页面与组件；
 2. 通过组件库与主题系统接入真实 UI 并补充交互测试；

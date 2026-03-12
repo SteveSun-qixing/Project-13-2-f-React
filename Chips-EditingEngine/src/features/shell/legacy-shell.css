@@ -1,0 +1,393 @@
+.legacy-shell {
+  min-height: 100vh;
+  padding: 18px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.legacy-shell__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 4px 10px;
+  -webkit-app-region: drag;
+}
+
+.legacy-shell__topbar button,
+.legacy-shell__topbar input,
+.legacy-shell__topbar select,
+.legacy-shell__topbar textarea,
+.legacy-shell__topbar [role="button"] {
+  -webkit-app-region: no-drag;
+}
+
+.legacy-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.legacy-shell__brand h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.legacy-shell__brand p {
+  margin: 4px 0 0;
+  color: rgba(27, 27, 24, 0.72);
+}
+
+.legacy-shell__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.06);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.legacy-shell__actions,
+.legacy-shell__inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.legacy-shell__launch-banner {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(34, 76, 118, 0.08);
+  border: 1px solid rgba(34, 76, 118, 0.18);
+  color: rgba(22, 57, 92, 0.9);
+  font-size: 13px;
+}
+
+.legacy-shell__workbench {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 360px;
+  gap: 14px;
+}
+
+.legacy-shell__workbench-side,
+.legacy-shell__workbench-main,
+.legacy-shell__floating-window,
+.legacy-shell__recent-card,
+.legacy-shell__box-panel,
+.legacy-shell__muted-card,
+.legacy-shell__empty-tab,
+.legacy-shell__canvas-controls,
+.legacy-shell__dock-item {
+  border-radius: 18px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: color-mix(in srgb, var(--chips-sys-color-surface, #ffffff) 90%, transparent);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.legacy-shell__workbench-side {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.legacy-shell__workbench-main {
+  min-height: 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.legacy-shell__tabs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.legacy-shell__tab,
+.legacy-shell__empty-tab {
+  min-height: 52px;
+  padding: 6px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.legacy-shell__tab--active {
+  border-color: rgba(34, 76, 118, 0.28);
+  background: rgba(34, 76, 118, 0.09);
+}
+
+.legacy-shell__tab-main,
+.legacy-shell__tab-close,
+.legacy-shell__library-item,
+.legacy-shell__dock-item {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.legacy-shell__tab-main {
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.legacy-shell__tab-main span,
+.legacy-shell__dock-item span,
+.legacy-shell__floating-title span,
+.legacy-shell__library-item span,
+.legacy-shell__box-panel span {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.legacy-shell__tab-close {
+  width: 30px;
+  border-radius: 10px;
+}
+
+.legacy-shell__workbench-stage,
+.legacy-shell__empty-stage {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.legacy-shell__document-surface {
+  min-height: 100%;
+  height: 100%;
+  padding: 6px;
+  border-radius: 18px;
+}
+
+.legacy-shell__document-surface--droppable {
+  outline: 1px dashed rgba(34, 76, 118, 0.18);
+  outline-offset: -10px;
+}
+
+.legacy-shell__panel-stack,
+.legacy-shell__tool-body {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.legacy-shell__tool-body {
+  height: 100%;
+  overflow: auto;
+}
+
+.legacy-shell__panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.legacy-shell__panel-header--tight h3,
+.legacy-shell__panel-header--tight p {
+  margin: 0;
+}
+
+.legacy-shell__panel-header--tight p {
+  margin-top: 4px;
+  font-size: 13px;
+  color: rgba(27, 27, 24, 0.72);
+}
+
+.legacy-shell__recent-card,
+.legacy-shell__box-panel,
+.legacy-shell__muted-card {
+  padding: 14px;
+}
+
+.legacy-shell__box-panel,
+.legacy-shell__muted-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legacy-shell__library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 10px;
+}
+
+.legacy-shell__library-item {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.legacy-shell__library-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.legacy-shell__canvas-shell {
+  min-height: 0;
+  flex: 1;
+}
+
+.legacy-shell__canvas-board {
+  position: relative;
+  min-height: calc(100vh - 176px);
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.36)),
+    linear-gradient(90deg, rgba(17, 17, 17, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(17, 17, 17, 0.03) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
+  background-position: 0 0, -1px -1px, -1px -1px;
+}
+
+.legacy-shell__canvas-grid {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.22), transparent 30%);
+  pointer-events: none;
+}
+
+.legacy-shell__canvas-stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+.legacy-shell__floating-window {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.legacy-shell__floating-window--active {
+  box-shadow: 0 18px 42px rgba(13, 26, 38, 0.16);
+  border-color: rgba(34, 76, 118, 0.26);
+}
+
+.legacy-shell__floating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.06);
+  cursor: move;
+  user-select: none;
+}
+
+.legacy-shell__floating-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.legacy-shell__floating-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.legacy-shell__floating-actions button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(17, 17, 17, 0.06);
+  cursor: pointer;
+}
+
+.legacy-shell__floating-content {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.legacy-shell__canvas-controls {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.legacy-shell__dock {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-right: 220px;
+}
+
+.legacy-shell__dock-item {
+  min-width: 180px;
+  padding: 10px 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+@media (max-width: 1280px) {
+  .legacy-shell__workbench {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .legacy-shell__workbench-side--right {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .legacy-shell {
+    padding: 14px;
+  }
+
+  .legacy-shell__topbar,
+  .legacy-shell__panel-header,
+  .legacy-shell__brand {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .legacy-shell__workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .legacy-shell__canvas-board {
+    min-height: 72vh;
+  }
+}

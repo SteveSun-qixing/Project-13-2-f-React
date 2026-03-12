@@ -1,0 +1,58 @@
+id: com.chips.editing-engine
+name: 编辑引擎
+version: 0.1.0
+type: app
+entry: dist/index.html
+
+description: 薯片生态编辑引擎应用插件，负责承载编辑器壳层、布局系统、工具窗口与后续卡片编辑能力迁移。
+
+author:
+  name: Chips Ecosystem
+  email: dev@chips.local
+
+keywords:
+  - chips
+  - editing-engine
+  - editor
+  - workspace
+  - app
+
+permissions:
+  - card.read
+  - card.write
+  - file.manage
+  - file.read
+  - box.read
+  - zip.manage
+  - theme.read
+  - theme.write
+  - i18n.read
+  - i18n.write
+  - plugin.read
+  - config.read
+  - config.write
+  - platform.read
+
+engines:
+  chips: "^1.0.0"
+
+os:
+  - darwin
+  - win32
+  - linux
+
+ui:
+  layout:
+    owner: page
+    unit: cpx
+    baseWidth: 1440
+  launcher:
+    displayName: 编辑引擎
+    icon: assets/icons/app-icon.ico
+  window:
+    chrome:
+      titleBarStyle: hidden
+      titleBarOverlay:
+        color: "#00000000"
+        symbolColor: "#425466"
+        height: 44

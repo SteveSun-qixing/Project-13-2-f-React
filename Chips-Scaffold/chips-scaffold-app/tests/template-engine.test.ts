@@ -42,14 +42,28 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
     const pkgPath = path.join(targetDir, "package.json");
     const indexHtmlPath = path.join(targetDir, "index.html");
     const eslintConfigPath = path.join(targetDir, ".eslintrc.cjs");
+    const iconPath = path.join(targetDir, "assets/icons/app-icon.ico");
+    const iconIcnsPath = path.join(targetDir, "assets/icons/app-icon.icns");
+    const iconPngPath = path.join(targetDir, "assets/icons/app-icon.png");
+    const templateMetaLeakPath = path.join(targetDir, "template.json");
+    const readmePath = path.join(targetDir, "README.md");
 
     await stat(manifestPath);
     await stat(pkgPath);
     await stat(indexHtmlPath);
     await stat(eslintConfigPath);
+    await stat(iconPath);
+    await stat(iconIcnsPath);
+    await stat(iconPngPath);
+    await assert.rejects(
+      stat(templateMetaLeakPath),
+      /ENOENT/,
+      "模板元数据文件 template.json 不应泄漏到生成工程",
+    );
 
     const manifestContent = await readFile(manifestPath, "utf8");
     const packageContent = JSON.parse(await readFile(pkgPath, "utf8"));
+    const readmeContent = await readFile(readmePath, "utf8");
     assert.ok(
       manifestContent.includes("type: app"),
       "manifest.yaml 应声明 type: app",
@@ -57,6 +71,14 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
     assert.ok(
       manifestContent.includes("titleBarStyle: hidden"),
       "manifest.yaml 应包含标准应用窗口 chrome 配置",
+    );
+    assert.ok(
+      manifestContent.includes("launcher:"),
+      "manifest.yaml 应声明应用启动入口配置",
+    );
+    assert.ok(
+      manifestContent.includes("icon: assets/icons/app-icon.ico"),
+      "manifest.yaml 应声明快捷方式图标资源",
     );
     assert.equal(
       packageContent.dependencies["@chips/component-library"],
@@ -77,6 +99,10 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
       packageContent.devDependencies["chips-sdk"],
       "^0.1.0",
       "模板必须保持 SDK 正式 semver 依赖，由生态根工作区解析本地包",
+    );
+    assert.ok(
+      !readmeContent.includes("src/layouts/"),
+      "README 目录结构不应描述模板未生成的 src/layouts/",
     );
   } finally {
     await rm(tmpRoot, { recursive: true, force: true });

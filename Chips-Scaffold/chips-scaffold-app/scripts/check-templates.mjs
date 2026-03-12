@@ -32,10 +32,12 @@ async function main() {
     "index.html.tpl",
     "src/main.tsx.tpl",
     "src/App.tsx.tpl",
+    "src/i18n.ts.tpl",
     "config/app-config.ts.tpl",
     "config/logging.ts.tpl",
     "i18n/zh-CN.json.tpl",
     "i18n/en-US.json.tpl",
+    "assets/icons/app-icon.ico",
     "tests/unit/app.test.tsx.tpl",
     "tests/e2e/basic-flow.test.ts.tpl"
   ];

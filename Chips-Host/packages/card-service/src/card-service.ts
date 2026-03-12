@@ -5,7 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createError } from '../../../src/shared/errors';
 import type { PluginRecord, PluginRuntime } from '../../../src/runtime';
-import { parseYamlLite } from '../../../src/shared/yaml-lite';
+import { parseYamlLite, stringifyYamlLite, type YamlValue } from '../../../src/shared/yaml-lite';
 import { createId } from '../../../src/shared/utils';
 import type { RenderConsistencyResult, RenderNodeDiagnostic, RenderTarget, RenderViewport, ThemeSnapshot } from '../../unified-rendering/src';
 import { StoreZipService } from '../../zip-service/src';
@@ -32,6 +32,22 @@ export interface RenderedCardView {
   semanticHash: string;
   diagnostics: RenderNodeDiagnostic[];
   consistency?: RenderConsistencyResult;
+}
+
+export interface BaseCardRecord {
+  nodeId: string;
+  cardType: string;
+  pluginId: string;
+  title: string;
+  contentPath: string;
+  config: Record<string, unknown>;
+}
+
+export interface RenderedBaseCardEditor {
+  title: string;
+  body: string;
+  protocolVersion: string;
+  baseCard: BaseCardRecord;
 }
 
 export interface CardServiceOptions {
@@ -77,8 +93,38 @@ interface RenderedBaseCardNode {
   error?: FrameErrorPayload;
 }
 
+interface ResolvedBaseCardNode {
+  nodeId: string;
+  cardType: string;
+  plugin: RenderablePluginRecord;
+  content: ParsedContentFile;
+  config: Record<string, unknown>;
+  title: string;
+}
+
 interface BaseCardPluginModule {
+  normalizeBasecardConfig?: (ctx: {
+    nodeId: string;
+    cardType: string;
+    rawConfig: Record<string, unknown>;
+    rawContentPath: string;
+    cardRoot: string;
+  }) => Promise<unknown> | unknown;
+  serializeBasecardConfig?: (ctx: {
+    nodeId: string;
+    cardType: string;
+    config: Record<string, unknown>;
+    previousRawConfig: Record<string, unknown>;
+    rawContentPath: string;
+    cardRoot: string;
+  }) => Promise<unknown> | unknown;
   renderBasecardView?: (ctx: { container: unknown; config: unknown; themeCssText?: string }) => unknown;
+  renderBasecardEditor?: (ctx: {
+    container: unknown;
+    initialConfig: unknown;
+    themeCssText?: string;
+    onChange: (next: unknown) => void;
+  }) => unknown;
 }
 
 interface RenderablePluginRecord extends PluginRecord {
@@ -95,6 +141,8 @@ const escapeHtml = (value: string): string => {
 };
 
 const escapeInlineJson = (value: unknown): string => JSON.stringify(value).replace(/</g, '\\u003c');
+const escapeInlineSource = (value: string): string => value.replace(/<\/(script|style)/gi, '<\\/$1');
+const BASECARD_EDITOR_PROTOCOL_VERSION = '1.0.0';
 
 const createConsistencySnapshot = (semanticHash: string): RenderConsistencyResult => ({
   consistent: true,
@@ -282,6 +330,22 @@ const createBasecardThemeCss = (theme: ThemeSnapshot, themeCssText?: string): st
   );
 };
 
+const createBasecardEditorThemeCss = (theme: ThemeSnapshot, themeCssText?: string): string => {
+  return joinStyleBlocks(
+    themeCssText,
+    createThemeVariablesCss(theme),
+    [
+      'html, body { margin: 0; padding: 0; min-height: 100%; }',
+      'body {',
+      '  background: var(--chips-sys-color-surface, #ffffff);',
+      '  color: var(--chips-sys-color-on-surface, #111111);',
+      '  font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
+      '}',
+      '#chips-basecard-editor-root { min-height: 100vh; box-sizing: border-box; }'
+    ].join('\n')
+  );
+};
+
 const createCompositeThemeCss = (theme: ThemeSnapshot, themeCssText?: string): string => {
   return joinStyleBlocks(
     themeCssText,
@@ -337,6 +401,11 @@ const createChildFrameDocument = (nodeId: string, cardType: string, title: strin
     '  <script>',
     '    (() => {',
     `      const nodeId = ${safeNodeId};`,
+    `      const cardType = ${JSON.stringify(cardType)};`,
+    `      const title = ${JSON.stringify(contentTitle)};`,
+    '      const emitSelect = (trigger) => {',
+    "        window.parent?.postMessage({ type: 'chips.basecard:select', payload: { nodeId, cardType, title, trigger } }, '*');",
+    '      };',
     '      const emitHeight = () => {',
     '        const height = Math.max(',
     '          64,',
@@ -352,9 +421,138 @@ const createChildFrameDocument = (nodeId: string, cardType: string, title: strin
     '        window.setTimeout(emitHeight, 50);',
     '        window.setTimeout(emitHeight, 200);',
     '      });',
+    "      document.addEventListener('pointerdown', () => emitSelect('pointerdown'));",
+    "      document.addEventListener('focusin', () => emitSelect('focusin'));",
     "      if ('ResizeObserver' in window && document.body) {",
     '        const observer = new ResizeObserver(() => emitHeight());',
     '        observer.observe(document.body);',
+    '      }',
+    '    })();',
+    '  </script>',
+    '</body>',
+    '</html>'
+  ].join('\n');
+};
+
+const createBasecardEditorDocument = (options: {
+  title: string;
+  cardType: string;
+  pluginId: string;
+  nodeId: string;
+  initialConfig: Record<string, unknown>;
+  themeCssText: string;
+  pluginBundleCode: string;
+}): string => {
+  const { title, cardType, pluginId, nodeId, initialConfig, themeCssText, pluginBundleCode } = options;
+
+  return [
+    '<!doctype html>',
+    '<html lang="zh-CN">',
+    '<head>',
+    '  <meta charset="utf-8" />',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    '  <meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src file: http: https: data:; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; font-src data: file:;" />',
+    `  <title>${escapeHtml(title)}</title>`,
+    `  <style>${escapeInlineSource(themeCssText)}</style>`,
+    '</head>',
+    `<body data-node-id="${escapeHtml(nodeId)}" data-card-type="${escapeHtml(cardType)}" data-plugin-id="${escapeHtml(pluginId)}">`,
+    '  <div id="chips-basecard-editor-root"></div>',
+    '  <script>',
+    `    window.__CHIPS_BASECARD_EDITOR_BOOTSTRAP__ = ${escapeInlineJson({
+      nodeId,
+      cardType,
+      pluginId,
+      initialConfig,
+      protocolVersion: BASECARD_EDITOR_PROTOCOL_VERSION
+    })};`,
+    '  </script>',
+    `  <script>${escapeInlineSource(pluginBundleCode)}</script>`,
+    '  <script>',
+    '    (() => {',
+    '      const bootstrap = window.__CHIPS_BASECARD_EDITOR_BOOTSTRAP__ ?? {};',
+    '      const root = document.getElementById("chips-basecard-editor-root");',
+    '      const pluginApi = window.__chipsBasecardPluginBundle__ ?? {};',
+    '      let dispose = () => undefined;',
+    '      let readySent = false;',
+    '      const emit = (type, payload) => {',
+    "        window.parent?.postMessage({ type, payload }, '*');",
+    '      };',
+    '      const toErrorPayload = (error) => {',
+    '        if (error && typeof error === "object") {',
+    '          const record = error;',
+    '          return {',
+    '            code: typeof record.code === "string" && record.code ? record.code : "BASECARD_EDITOR_RUNTIME_ERROR",',
+    '            message: typeof record.message === "string" && record.message ? record.message : String(error),',
+    '            details: record',
+    '          };',
+    '        }',
+    '        return {',
+    '          code: "BASECARD_EDITOR_RUNTIME_ERROR",',
+    '          message: String(error),',
+    '          details: { error: String(error) }',
+    '        };',
+    '      };',
+    '      const mountEditor = (config, reason) => {',
+    '        if (!root) {',
+    "          throw new Error('Base card editor root is missing.');",
+    '        }',
+    '        if (typeof pluginApi.renderBasecardEditor !== "function") {',
+    `          throw new Error('Plugin ${pluginId} does not export renderBasecardEditor.');`,
+    '        }',
+    '        dispose();',
+    '        const maybeDispose = pluginApi.renderBasecardEditor({',
+    '          container: root,',
+    '          initialConfig: config,',
+    `          themeCssText: ${JSON.stringify(themeCssText)},`,
+    '          onChange: (next) => {',
+    "            emit('chips.basecard-editor:config-change', {",
+    '              nodeId: bootstrap.nodeId,',
+    '              cardType: bootstrap.cardType,',
+    '              pluginId: bootstrap.pluginId,',
+    '              config: next',
+    '            });',
+    '          }',
+    '        });',
+    '        dispose = typeof maybeDispose === "function" ? maybeDispose : () => undefined;',
+    '        if (!readySent) {',
+    '          readySent = true;',
+    "          emit('chips.basecard-editor:ready', {",
+    '            nodeId: bootstrap.nodeId,',
+    '            cardType: bootstrap.cardType,',
+    '            pluginId: bootstrap.pluginId,',
+    '            protocolVersion: bootstrap.protocolVersion',
+    '          });',
+    '        }',
+    "        if (reason === 'sync') {",
+    "          emit('chips.basecard-editor:config-synced', { nodeId: bootstrap.nodeId, config });",
+    '        }',
+    '      };',
+    '      window.addEventListener("message", (event) => {',
+    '        if (event.source !== window.parent) {',
+    '          return;',
+    '        }',
+    '        const data = event.data;',
+    '        if (!data || typeof data !== "object" || data.type !== "chips.basecard-editor:sync-config") {',
+    '          return;',
+    '        }',
+    '        const payload = data.payload ?? {};',
+    '        const nextConfig = payload.config;',
+    '        if (!nextConfig || typeof nextConfig !== "object" || Array.isArray(nextConfig)) {',
+    '          return;',
+    '        }',
+    '        try {',
+    "          mountEditor(nextConfig, 'sync');",
+    '        } catch (error) {',
+    "          emit('chips.basecard-editor:fatal-error', toErrorPayload(error));",
+    '        }',
+    '      });',
+    '      window.addEventListener("beforeunload", () => {',
+    '        dispose();',
+    '      });',
+    '      try {',
+    "        mountEditor(bootstrap.initialConfig ?? {}, 'initial');",
+    '      } catch (error) {',
+    "        emit('chips.basecard-editor:fatal-error', toErrorPayload(error));",
     '      }',
     '    })();',
     '  </script>',
@@ -376,7 +574,7 @@ const createCompositeDocument = (
       if (node.frameHtml) {
         return [
           `<section class="chips-composite__node" data-node-id="${escapeHtml(node.nodeId)}" data-card-type="${escapeHtml(node.cardType)}" data-plugin-id="${escapeHtml(node.pluginId ?? '')}" data-state="ready">`,
-          `  <iframe class="chips-composite__frame" data-node-id="${escapeHtml(node.nodeId)}" title="${escapeHtml(node.title || node.cardType)}" loading="lazy" sandbox="allow-scripts allow-popups" srcdoc="${escapeHtml(node.frameHtml)}"></iframe>`,
+          `  <iframe class="chips-composite__frame" data-node-id="${escapeHtml(node.nodeId)}" data-plugin-id="${escapeHtml(node.pluginId ?? '')}" title="${escapeHtml(node.title || node.cardType)}" loading="lazy" sandbox="allow-scripts allow-popups" srcdoc="${escapeHtml(node.frameHtml)}"></iframe>`,
           '</section>'
         ].join('\n');
       }
@@ -463,7 +661,21 @@ const createCompositeDocument = (
     '      }',
     '      window.addEventListener("message", (event) => {',
     '        const data = event.data;',
-    '        if (!data || typeof data !== "object" || data.type !== "chips.basecard:height") {',
+    '        if (!data || typeof data !== "object") {',
+    '          return;',
+    '        }',
+        '        if (data.type === "chips.basecard:select") {',
+    '          const payload = data.payload ?? {};',
+    '          const nodeId = typeof payload.nodeId === "string" ? payload.nodeId : "";',
+    '          if (!nodeId) {',
+    '            return;',
+    '          }',
+    '          const frame = frameByNodeId.get(nodeId);',
+    '          const pluginId = frame?.dataset.pluginId ?? "";',
+    "          emit('chips.composite:node-select', { ...payload, pluginId });",
+    '          return;',
+    '        }',
+    '        if (data.type !== "chips.basecard:height") {',
     '          return;',
     '        }',
     '        const payload = data.payload ?? {};',
@@ -545,6 +757,7 @@ export class CardService {
   private readonly runtime?: Pick<PluginRuntime, 'query'>;
   private readonly workspaceRoot: string;
   private readonly moduleCache = new Map<string, Promise<BaseCardPluginModule>>();
+  private readonly browserBundleCache = new Map<string, Promise<string>>();
 
   public constructor(
     options: CardServiceOptions = {},
@@ -582,6 +795,120 @@ export class CardService {
       structure: ctx.structure,
       contentFiles: ctx.contentFiles
     }));
+  }
+
+  public async getBaseCard(cardFile: string, nodeId: string): Promise<BaseCardRecord> {
+    return this.withExtractedCard(cardFile, async (ctx) => {
+      const resolved = await this.resolveBaseCardNode(ctx, nodeId);
+      return {
+        nodeId: resolved.nodeId,
+        cardType: resolved.cardType,
+        pluginId: resolved.plugin.manifest.id,
+        title: resolved.title,
+        contentPath: resolved.content.path,
+        config: resolved.config
+      };
+    });
+  }
+
+  public async updateBaseCard(cardFile: string, nodeId: string, config: Record<string, unknown>): Promise<BaseCardRecord> {
+    const check = await this.validate(cardFile);
+    if (!check.valid) {
+      throw createError('CARD_SCHEMA_INVALID', 'Card format validation failed', check.errors);
+    }
+
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'chips-card-update-'));
+    const stagedOutputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'chips-card-save-'));
+    try {
+      await this.zip.extract(cardFile, tempDir);
+      const metadataPath = path.join(tempDir, '.card/metadata.yaml');
+      const structurePath = path.join(tempDir, '.card/structure.yaml');
+      const metadata = asRecord(parseYamlLite(await fs.readFile(metadataPath, 'utf-8')));
+      const structure = asRecord(parseYamlLite(await fs.readFile(structurePath, 'utf-8')));
+      const contentFiles = await this.readFiles(path.join(tempDir, 'content'));
+      const contentByNodeId = await this.readContentFiles(tempDir, contentFiles);
+      const ctx: CardPackageContext = {
+        rootDir: tempDir,
+        metadata,
+        structure,
+        contentFiles,
+        contentByNodeId
+      };
+
+      const resolved = await this.resolveBaseCardNode(ctx, nodeId);
+      const nextConfig = asRecord(config);
+      if (Object.keys(nextConfig).length === 0) {
+        throw createError('CARD_SCHEMA_INVALID', 'Base card config must be a non-empty object.', {
+          nodeId
+        });
+      }
+
+      const serialized = await this.serializeNodeConfig(resolved.plugin, resolved.content, tempDir, resolved.cardType, nextConfig);
+      await fs.writeFile(resolved.content.absolutePath, `${stringifyYamlLite(serialized as Record<string, YamlValue>)}\n`, 'utf-8');
+
+      const nextMetadata = {
+        ...metadata,
+        modified_at: new Date().toISOString()
+      };
+      await fs.writeFile(metadataPath, `${stringifyYamlLite(nextMetadata as Record<string, YamlValue>)}\n`, 'utf-8');
+
+      const stagedCardFile = path.join(stagedOutputDir, `${path.basename(cardFile, path.extname(cardFile))}.card`);
+      await this.zip.compress(tempDir, stagedCardFile);
+      await fs.copyFile(stagedCardFile, cardFile);
+
+      const normalized = await this.normalizeNodeConfig(resolved.plugin, {
+        ...resolved.content,
+        raw: `${stringifyYamlLite(serialized as Record<string, YamlValue>)}\n`,
+        parsed: serialized
+      }, tempDir, resolved.cardType);
+
+      return {
+        nodeId: resolved.nodeId,
+        cardType: resolved.cardType,
+        pluginId: resolved.plugin.manifest.id,
+        title: asString(asRecord(normalized).title) ?? resolved.nodeId,
+        contentPath: resolved.content.path,
+        config: normalized
+      };
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+      await fs.rm(stagedOutputDir, { recursive: true, force: true });
+    }
+  }
+
+  public async renderBaseCardEditor(
+    cardFile: string,
+    nodeId: string,
+    theme: ThemeSnapshot,
+    themeCssText?: string
+  ): Promise<RenderedBaseCardEditor> {
+    return this.withExtractedCard(cardFile, async (ctx) => {
+      const resolved = await this.resolveBaseCardNode(ctx, nodeId);
+      const title = resolved.title || resolved.cardType || resolved.nodeId;
+      const editorBody = await this.renderBasecardEditorDocument(
+        resolved.plugin,
+        resolved.nodeId,
+        resolved.cardType,
+        title,
+        resolved.config,
+        theme,
+        themeCssText
+      );
+
+      return {
+        title,
+        body: editorBody,
+        protocolVersion: BASECARD_EDITOR_PROTOCOL_VERSION,
+        baseCard: {
+          nodeId: resolved.nodeId,
+          cardType: resolved.cardType,
+          pluginId: resolved.plugin.manifest.id,
+          title,
+          contentPath: resolved.content.path,
+          config: resolved.config
+        }
+      };
+    });
   }
 
   public async render(cardFile: string, options?: CardRenderOptions): Promise<RenderedCardView> {
@@ -714,6 +1041,46 @@ export class CardService {
     }
   }
 
+  private async resolveBaseCardNode(ctx: CardPackageContext, nodeId: string): Promise<ResolvedBaseCardNode> {
+    const normalizedNodeId = nodeId.trim();
+    if (!normalizedNodeId) {
+      throw createError('CARD_NODE_NOT_FOUND', 'Base card nodeId must not be empty.');
+    }
+
+    const structureNodes = parseStructureNodes(ctx.structure, ctx.contentByNodeId);
+    const structureNode =
+      structureNodes.find((node) => node.id === normalizedNodeId) ??
+      ({
+        id: normalizedNodeId,
+        type: asString(ctx.contentByNodeId.get(normalizedNodeId)?.parsed.card_type) ?? ''
+      } satisfies StructureNode);
+    const content = ctx.contentByNodeId.get(normalizedNodeId);
+    if (!content) {
+      throw createError('CARD_CONTENT_MISSING', `Content file is missing for node ${normalizedNodeId}.`, {
+        nodeId: normalizedNodeId
+      });
+    }
+
+    const cardType = structureNode.type || asString(content.parsed.card_type) || 'UnknownCard';
+    const plugin = this.resolveCardPlugin(cardType);
+    if (!plugin) {
+      throw createError('CARD_PLUGIN_NOT_FOUND', `No enabled base card plugin can render ${cardType}.`, {
+        nodeId: normalizedNodeId,
+        cardType
+      });
+    }
+
+    const config = await this.normalizeNodeConfig(plugin, content, ctx.rootDir, cardType);
+    return {
+      nodeId: normalizedNodeId,
+      cardType,
+      plugin,
+      content,
+      config,
+      title: asString(asRecord(config).title) ?? normalizedNodeId
+    };
+  }
+
   private resolveCardPlugin(cardType: string): RenderablePluginRecord | undefined {
     const plugins = this.runtime?.query({ type: 'card' }) ?? [];
     const candidates = this.buildCardTypeCandidates(cardType);
@@ -759,7 +1126,8 @@ export class CardService {
   private async normalizeNodeConfig(
     plugin: RenderablePluginRecord,
     file: ParsedContentFile,
-    cardRoot: string
+    cardRoot: string,
+    cardType = asString(file.parsed.card_type) ?? 'UnknownCard'
   ): Promise<Record<string, unknown>> {
     const rawConfig: Record<string, unknown> = {
       ...file.parsed,
@@ -771,13 +1139,69 @@ export class CardService {
       const normalized = extractRichTextTitle(richTextHtml);
       return {
         id: file.id,
-        title: normalized.title || file.id,
+        title: asString(rawConfig.title) ?? normalized.title ?? file.id,
         body: normalized.body || richTextHtml,
         locale: asString(rawConfig.locale) ?? 'zh-CN'
       };
     }
 
+    const module = await this.loadPluginModule(plugin);
+    if (typeof module.normalizeBasecardConfig === 'function') {
+      return asRecord(
+        await module.normalizeBasecardConfig({
+          nodeId: file.id,
+          cardType,
+          rawConfig,
+          rawContentPath: file.path,
+          cardRoot
+        })
+      );
+    }
+
     return rawConfig;
+  }
+
+  private async serializeNodeConfig(
+    plugin: RenderablePluginRecord,
+    file: ParsedContentFile,
+    cardRoot: string,
+    cardType: string,
+    config: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    if (plugin.manifest.id === 'chips.basecard.richtext') {
+      const {
+        content_source: _contentSource,
+        content_text: _contentText,
+        content_file: _contentFile,
+        ...rest
+      } = file.parsed;
+      return {
+        ...rest,
+        id: asString(config.id) ?? file.id,
+        card_type: asString(file.parsed.card_type) ?? cardType,
+        title: asString(config.title) ?? file.id,
+        body: typeof config.body === 'string' ? config.body : '',
+        locale: asString(config.locale) ?? asString(file.parsed.locale) ?? 'zh-CN'
+      };
+    }
+
+    const module = await this.loadPluginModule(plugin);
+    if (typeof module.serializeBasecardConfig === 'function') {
+      const serialized = await module.serializeBasecardConfig({
+        nodeId: file.id,
+        cardType,
+        config,
+        previousRawConfig: {
+          ...file.parsed,
+          id: asString(file.parsed.id) ?? file.id
+        },
+        rawContentPath: file.path,
+        cardRoot
+      });
+      return asRecord(serialized);
+    }
+
+    return config;
   }
 
   private async renderBasecardHtml(
@@ -824,12 +1248,16 @@ export class CardService {
     overrideGlobal('NodeFilter', win.NodeFilter);
 
     try {
-      module.renderBasecardView({
+      const cleanup = module.renderBasecardView({
         container,
         config,
         themeCssText: createBasecardThemeCss(theme, themeCssText)
       });
-      return container.innerHTML;
+      const html = container.innerHTML;
+      if (typeof cleanup === 'function') {
+        cleanup();
+      }
+      return html;
     } finally {
       for (const [key, descriptor] of previousDescriptors.entries()) {
         if (typeof descriptor === 'undefined') {
@@ -840,6 +1268,35 @@ export class CardService {
       }
       dom.window.close();
     }
+  }
+
+  private async renderBasecardEditorDocument(
+    plugin: RenderablePluginRecord,
+    nodeId: string,
+    cardType: string,
+    title: string,
+    initialConfig: Record<string, unknown>,
+    theme: ThemeSnapshot,
+    themeCssText: string | undefined
+  ): Promise<string> {
+    const module = await this.loadPluginModule(plugin);
+    if (typeof module.renderBasecardEditor !== 'function') {
+      throw createError('CARD_PLUGIN_INVALID', `Plugin ${plugin.manifest.id} does not export renderBasecardEditor.`, {
+        pluginId: plugin.manifest.id,
+        entry: plugin.manifest.entry
+      });
+    }
+
+    const pluginBundleCode = await this.bundlePluginEntryForBrowser(plugin);
+    return createBasecardEditorDocument({
+      title,
+      nodeId,
+      cardType,
+      pluginId: plugin.manifest.id,
+      initialConfig,
+      themeCssText: createBasecardEditorThemeCss(theme, themeCssText),
+      pluginBundleCode
+    });
   }
 
   private async loadPluginModule(plugin: RenderablePluginRecord): Promise<BaseCardPluginModule> {
@@ -976,6 +1433,50 @@ export class CardService {
     } catch {
       return undefined;
     }
+  }
+
+  private async bundlePluginEntryForBrowser(plugin: RenderablePluginRecord): Promise<string> {
+    const entryPath = await this.resolvePluginEntryPath(plugin);
+    const cacheKey = `${plugin.manifest.id}:${entryPath}`;
+    const cached = this.browserBundleCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const pending = (async () => {
+      try {
+        const { build } = require('esbuild') as {
+          build: (options: Record<string, unknown>) => Promise<{ outputFiles?: Array<{ text: string }> }>;
+        };
+        const result = await build({
+          entryPoints: [entryPath],
+          bundle: true,
+          platform: 'browser',
+          format: 'iife',
+          globalName: '__chipsBasecardPluginBundle__',
+          write: false,
+          absWorkingDir: plugin.installPath,
+          logLevel: 'silent'
+        });
+        const code = result.outputFiles?.[0]?.text;
+        if (!code) {
+          throw createError('CARD_PLUGIN_LOAD_FAILED', `Failed to bundle plugin entry ${entryPath} for editor runtime.`, {
+            pluginId: plugin.manifest.id,
+            entryPath
+          });
+        }
+        return code;
+      } catch (error) {
+        throw createError('CARD_PLUGIN_LOAD_FAILED', `Failed to bundle plugin entry ${entryPath} for editor runtime.`, {
+          pluginId: plugin.manifest.id,
+          entryPath,
+          error
+        });
+      }
+    })();
+
+    this.browserBundleCache.set(cacheKey, pending);
+    return pending;
   }
 
   private async withExtractedCard<T>(cardFile: string, task: (ctx: CardPackageContext) => Promise<T>): Promise<T> {

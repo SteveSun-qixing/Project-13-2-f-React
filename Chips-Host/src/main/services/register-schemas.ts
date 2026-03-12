@@ -67,12 +67,50 @@ const validateCardRenderRequest: SchemaValidator = (input: unknown) => {
   return { valid: true };
 };
 
+const validateBaseCardNodeRequest: SchemaValidator = (input: unknown) => {
+  if (!isRecord(input)) {
+    return { valid: false, errors: ['Input must be an object'] };
+  }
+
+  const errors: string[] = [];
+  if (typeof input.cardFile !== 'string' || input.cardFile.trim().length === 0) {
+    errors.push('cardFile must be a non-empty string');
+  }
+  if (typeof input.nodeId !== 'string' || input.nodeId.trim().length === 0) {
+    errors.push('nodeId must be a non-empty string');
+  }
+
+  return errors.length > 0 ? { valid: false, errors } : { valid: true };
+};
+
+const validateBaseCardUpdateRequest: SchemaValidator = (input: unknown) => {
+  const base = validateBaseCardNodeRequest(input);
+  if (!base.valid) {
+    return base;
+  }
+
+  const record = input as Record<string, unknown>;
+  if (!isRecord(record.config)) {
+    return {
+      valid: false,
+      errors: ['config must be an object']
+    };
+  }
+
+  return { valid: true };
+};
+
 export const registerHostSchemas = (): void => {
   registerPair('file.read', ['path']);
   registerPair('file.write', ['path', 'content']);
   registerPair('file.stat', ['path']);
   registerPair('file.list', ['dir']);
   registerPair('file.watch', ['path']);
+  registerPair('file.exists', ['path']);
+  registerPair('file.mkdir', ['path']);
+  registerPair('file.delete', ['path']);
+  registerPair('file.copy', ['source', 'destination']);
+  registerPair('file.move', ['source', 'destination']);
 
   registerPair('resource.resolve', ['resourceId']);
   registerPair('resource.readMetadata', ['resourceId']);
@@ -166,9 +204,15 @@ export const registerHostSchemas = (): void => {
   registerPair('credential.rotate', ['ref']);
 
   registerPair('card.parse', ['cardFile']);
+  schemaRegistry.register('schemas/card.getBaseCard.request.json', validateBaseCardNodeRequest);
+  schemaRegistry.register('schemas/card.getBaseCard.response.json', objectWithKeys(['baseCard']));
   schemaRegistry.register('schemas/card.render.request.json', validateCardRenderRequest);
   schemaRegistry.register('schemas/card.render.response.json', objectWithKeys(['view']));
+  schemaRegistry.register('schemas/card.renderBaseCardEditor.request.json', validateBaseCardNodeRequest);
+  schemaRegistry.register('schemas/card.renderBaseCardEditor.response.json', objectWithKeys(['editor']));
   registerPair('card.validate', ['cardFile']);
+  schemaRegistry.register('schemas/card.updateBaseCard.request.json', validateBaseCardUpdateRequest);
+  schemaRegistry.register('schemas/card.updateBaseCard.response.json', objectWithKeys(['baseCard']));
 
   registerPair('box.pack', ['boxDir', 'outputPath']);
   registerPair('box.unpack', ['boxFile', 'outputDir']);

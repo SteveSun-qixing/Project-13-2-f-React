@@ -3,24 +3,23 @@ import { ChipsButton } from "@chips/component-library";
 
 interface ExamplePanelProps {
   title: string;
+  description: string;
+  actionLabel: string;
 }
 
-export function ExamplePanel({ title }: ExamplePanelProps) {
+export function ExamplePanel({ title, description, actionLabel }: ExamplePanelProps) {
   return (
     <section
       data-chips-app="app-standard.example-panel"
       style={{
         padding: 16,
-        borderRadius: 8,
+        borderRadius: "var(--chips-sys-radius-md, 8px)",
         border: "1px solid var(--chips-border-subtle, rgba(17,17,17,0.08))",
       }}
     >
       <h2 style={{ fontSize: 14, marginBottom: 8 }}>{title}</h2>
-      <p style={{ fontSize: 12, marginBottom: 12 }}>
-        这是由脚手架生成的示例面板组件，你可以在此基础上扩展业务 UI。
-      </p>
-      <ChipsButton variant="secondary">了解更多</ChipsButton>
+      <p style={{ fontSize: 12, marginBottom: 12 }}>{description}</p>
+      <ChipsButton variant="secondary">{actionLabel}</ChipsButton>
     </section>
   );
 }
-

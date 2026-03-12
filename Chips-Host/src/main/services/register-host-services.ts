@@ -1050,6 +1050,77 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
             return { event };
           })
         )
+      },
+      exists: {
+        descriptor: descriptor<{ path: string }, { exists: boolean }>(
+          'file.exists',
+          ['file.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'file.exists', async (input) => {
+            const exists = await ctx.pal.fs.exists(input.path);
+            return { exists };
+          })
+        )
+      },
+      mkdir: {
+        descriptor: descriptor<{ path: string; options?: { recursive?: boolean } }, { ack: true }>(
+          'file.mkdir',
+          ['file.manage'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'file.mkdir', async (input) => {
+            await ctx.pal.fs.mkdir(input.path, input.options);
+            return { ack: true };
+          })
+        )
+      },
+      delete: {
+        descriptor: descriptor<{ path: string; options?: { recursive?: boolean } }, { ack: true }>(
+          'file.delete',
+          ['file.manage'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'file.delete', async (input) => {
+            await ctx.pal.fs.delete(input.path, input.options);
+            return { ack: true };
+          })
+        )
+      },
+      copy: {
+        descriptor: descriptor<
+          { source: string; destination: string; options?: { overwrite?: boolean } },
+          { ack: true }
+        >(
+          'file.copy',
+          ['file.manage'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'file.copy', async (input) => {
+            await ctx.pal.fs.copy(input.source, input.destination, input.options);
+            return { ack: true };
+          })
+        )
+      },
+      move: {
+        descriptor: descriptor<
+          { source: string; destination: string; options?: { overwrite?: boolean } },
+          { ack: true }
+        >(
+          'file.move',
+          ['file.manage'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'file.move', async (input) => {
+            await ctx.pal.fs.move(input.source, input.destination, input.options);
+            return { ack: true };
+          })
+        )
       }
     }
   };
@@ -2549,6 +2620,31 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           })
         )
       },
+      getBaseCard: {
+        descriptor: descriptor<
+          { cardFile: string; nodeId: string },
+          {
+            baseCard: {
+              nodeId: string;
+              cardType: string;
+              pluginId: string;
+              title: string;
+              contentPath: string;
+              config: Record<string, unknown>;
+            };
+          }
+        >(
+          'card.getBaseCard',
+          ['card.read'],
+          10_000,
+          true,
+          0,
+          withMetrics(state, 'card.getBaseCard', async (input) => {
+            const baseCard = await ctx.getCardService().getBaseCard(input.cardFile, input.nodeId);
+            return { baseCard };
+          })
+        )
+      },
       render: {
         descriptor: descriptor<
           {
@@ -2577,6 +2673,42 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           })
         )
       },
+      renderBaseCardEditor: {
+        descriptor: descriptor<
+          { cardFile: string; nodeId: string },
+          {
+            editor: {
+              title: string;
+              body: string;
+              protocolVersion: string;
+              baseCard: {
+                nodeId: string;
+                cardType: string;
+                pluginId: string;
+                title: string;
+                contentPath: string;
+                config: Record<string, unknown>;
+              };
+            };
+          }
+        >(
+          'card.renderBaseCardEditor',
+          ['card.read'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'card.renderBaseCardEditor', async (input) => {
+            const themeContext = resolveThemeContext(state, []);
+            const editor = await ctx.getCardService().renderBaseCardEditor(
+              input.cardFile,
+              input.nodeId,
+              themeContext.renderTheme,
+              themeContext.css
+            );
+            return { editor };
+          })
+        )
+      },
       validate: {
         descriptor: descriptor<{ cardFile: string }, { valid: boolean; errors: string[] }>(
           'card.validate',
@@ -2587,6 +2719,31 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           withMetrics(state, 'card.validate', async (input) => {
             const result = await ctx.getCardService().validate(input.cardFile);
             return result;
+          })
+        )
+      },
+      updateBaseCard: {
+        descriptor: descriptor<
+          { cardFile: string; nodeId: string; config: Record<string, unknown> },
+          {
+            baseCard: {
+              nodeId: string;
+              cardType: string;
+              pluginId: string;
+              title: string;
+              contentPath: string;
+              config: Record<string, unknown>;
+            };
+          }
+        >(
+          'card.updateBaseCard',
+          ['card.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'card.updateBaseCard', async (input) => {
+            const baseCard = await ctx.getCardService().updateBaseCard(input.cardFile, input.nodeId, input.config);
+            return { baseCard };
           })
         )
       }

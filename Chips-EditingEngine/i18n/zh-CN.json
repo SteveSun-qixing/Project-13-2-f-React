@@ -1,0 +1,266 @@
+{
+  "editingEngine": {
+    "shell": {
+      "eyebrow": "Editing Engine Runtime",
+      "subtitle": "编辑引擎当前以工作台模式承接新生态运行时、工作区目录、文档预览与治理入口，作为后续完整迁移的正式壳层。",
+      "loadingTitle": "正在连接薯片运行时",
+      "loadingDescription": "正在读取当前主题、语言、插件上下文与布局偏好，请稍候。",
+      "heroTitle": "编辑引擎工作区主链路正在迁入新生态",
+      "heroDescription": "当前页面已经具备工作区文件会话、资源树浏览、设置注册中心和卡片预览能力，后续会继续接入编辑面板、命令域与自动保存链路。"
+    },
+    "sections": {
+      "workspace": "工作区",
+      "preview": "内容预览",
+      "inspector": "检查器",
+      "session": "当前会话",
+      "workspaceExplorer": "工作区资源树",
+      "openDocuments": "已打开文档",
+      "recentTargets": "最近目标",
+      "settingsCenter": "设置中心"
+    },
+    "metrics": {
+      "layout": "布局模式",
+      "theme": "当前主题",
+      "capabilities": "平台能力",
+      "themeReady": "主题链路已通过 Host 运行时生效。",
+      "themeFallback": "当前主题未出现在可见列表，正在使用运行时快照。",
+      "capabilitiesDescription": "当前 Host 已向编辑引擎公开的平台能力开关统计。"
+    },
+    "runtime": {
+      "layoutDescription": "当前工作区默认布局由运行时配置治理，切换后立即持久化。",
+      "localeDescription": "语言切换会直接调用 i18n.setCurrent 并在运行时重渲染。",
+      "versionDescription": "当前正在运行的应用插件版本，来自 Host 插件上下文。",
+      "environmentDescription": "平台信息来自 platform.getInfo，用于后续窗口、文件与交互能力治理。",
+      "openDocumentCountDescription": "当前工作区会话中已装载的卡片或箱子文档数量。"
+    },
+    "fields": {
+      "pluginId": "插件 ID",
+      "sessionId": "会话 ID",
+      "launchTarget": "启动目标",
+      "documentName": "文档名称",
+      "documentType": "文档类型",
+      "documentPath": "文档路径",
+      "documentStatus": "文档状态",
+      "locale": "当前语言",
+      "version": "插件版本",
+      "environment": "环境版本",
+      "openDocumentCount": "已打开文档数",
+      "platform": "运行平台",
+      "themeName": "主题名称",
+      "themeId": "主题 ID",
+      "recentTargetCount": "最近目标数",
+      "activeDocument": "当前激活文档",
+      "selectedBaseCard": "当前基础卡片",
+      "editorSaveState": "保存状态",
+      "editorDirtyState": "变更状态",
+      "editorHistory": "撤销 / 重做",
+      "editorPanelState": "面板状态",
+      "editorPanelWidth": "面板宽度"
+    },
+    "documents": {
+      "card": "卡片文件",
+      "box": "箱子文件",
+      "valid": "校验通过",
+      "invalid": "校验失败",
+      "boxReady": "箱子结构已加载",
+      "boxContainsPrefix": "该箱子包含 ",
+      "boxContainsSuffix": " 个卡片引用。"
+    },
+    "workspace": {
+      "empty": "当前没有激活文档。你可以通过打开文件或启动上下文恢复目标文件。",
+      "noOpenDocuments": "当前会话还没有打开任何文档。",
+      "noRecentTargets": "最近目标列表为空。",
+      "sidebarDescription": "浏览当前工作区目录结构，并快速回到最近处理过的文档。",
+      "repositoryEmptyTitle": "尚未建立工作区目录",
+      "repositoryEmptyDescription": "打开一个卡片或箱子文件后，编辑引擎会基于其所在目录建立正式工作区浏览树。",
+      "recentTargetsDescription": "打开文件后，最近目标会自动纳入工作区会话历史。",
+      "previewDescription": "预览区承接当前打开文档的内容展示，后续编辑面板将挂载在这一主工作区链路之上。",
+      "previewEmptyDescription": "打开一个卡片或箱子文件后，这里会显示正式预览内容与文档标签。",
+      "emptyTitle": "尚未打开任何文档",
+      "emptyDescription": "打开一个卡片或箱子文件后，编辑引擎会在这里恢复旧编辑器的工作台或无限画布体验。",
+      "recent": "最近目标"
+    },
+    "layout": {
+      "workbench": "工作台",
+      "infiniteCanvas": "无限画布"
+    },
+    "actions": {
+      "refresh": "刷新运行时快照",
+      "undo": "撤销",
+      "redo": "重做",
+      "openDocument": "打开文件",
+      "refreshDocument": "刷新当前文档",
+      "closeDocument": "关闭",
+      "openSettings": "设置中心",
+      "refreshWorkspace": "刷新工作区",
+      "refreshExplorer": "刷新资源树",
+      "collapseEditorPanel": "收起面板",
+      "expandEditorPanel": "展开面板",
+      "panelWidthCompact": "窄",
+      "panelWidthStandard": "标准",
+      "panelWidthExpanded": "宽",
+      "switchToViewMode": "切换为查看模式",
+      "switchToEditMode": "切换为编辑模式",
+      "addBaseCardPrefix": "添加{name}",
+      "moveBaseCardUp": "上移基础卡片",
+      "moveBaseCardDown": "下移基础卡片",
+      "removeBaseCard": "删除基础卡片",
+      "clearRecentTargets": "清空最近目标"
+    },
+    "tabs": {
+      "repository": "目录浏览",
+      "recentTargets": "最近目标"
+    },
+    "inspector": {
+      "description": "检查器汇总当前文档、会话与运行时状态，作为后续编辑域与命令域迁移的观测面。",
+      "document": "当前文档",
+      "editing": "编辑会话",
+      "session": "当前会话",
+      "runtime": "运行时"
+    },
+    "settings": {
+      "title": "编辑引擎设置中心",
+      "description": "所有运行时治理动作都通过正式 Host 接口执行，并即时作用于当前编辑引擎会话。",
+      "close": "关闭设置",
+      "tabs": {
+        "theme": "主题",
+        "locale": "语言",
+        "layout": "布局",
+        "workspace": "工作区",
+        "about": "关于",
+        "editor": "编辑"
+      },
+      "common": {
+        "currentValue": "当前值"
+      },
+      "theme": {
+        "label": "主题切换",
+        "description": "使用主题系统正式链路切换当前工作区主题，并保持与 Host 窗口视觉一致。"
+      },
+      "locale": {
+        "label": "界面语言",
+        "description": "使用多语言正式链路切换当前界面语言，并在运行时直接重渲染。"
+      },
+      "layout": {
+        "label": "默认布局",
+        "description": "选择编辑引擎默认布局模式；布局偏好会写入运行时配置治理。"
+      },
+      "workspace": {
+        "activeDocument": "当前激活文档",
+        "recentTargets": "最近目标数量",
+        "clearRecentTargets": "清空最近目标"
+      },
+      "categories": {
+        "workspace": {
+          "title": "工作区",
+          "description": "管理当前会话中的文档、最近目标与文件打开动作。"
+        },
+        "layout": {
+          "title": "布局",
+          "description": "切换编辑引擎默认布局，并保持工作区会话不丢失。"
+        },
+        "theme": {
+          "title": "主题",
+          "description": "使用薯片主题系统切换当前工作区主题。"
+        },
+        "locale": {
+          "title": "语言",
+          "description": "切换当前界面语言并立即刷新正式文案。"
+        },
+        "runtime": {
+          "title": "运行时",
+          "description": "查看插件、平台和会话上下文的正式摘要。"
+        },
+        "editor": {
+          "title": "编辑面板",
+          "description": "治理编辑面板的展开状态、宽度以及选中基础卡片时的自动展开行为。"
+        }
+      },
+      "editor": {
+        "visibilityLabel": "面板显示状态",
+        "visibilityDescription": "控制工作台右侧编辑面板默认保持展开还是收起。",
+        "widthLabel": "面板宽度",
+        "widthDescription": "使用正式工作台治理状态切换编辑面板宽度。",
+        "autoOpenLabel": "选中节点时自动展开",
+        "autoOpenDescription": "启用后，在预览区选中基础卡片会自动展开右侧编辑面板。"
+      }
+    },
+    "aria": {
+      "workspaceSplit": "编辑引擎工作区分栏",
+      "previewSplit": "编辑引擎预览与检查器分栏"
+    },
+    "values": {
+      "notAvailable": "当前未提供",
+      "noLaunchTarget": "当前启动上下文没有目标文件",
+      "previewMode": "当前运行于 chipsdev server 预览模式；主题、语言和布局写入将以 Host 真实运行时为准。",
+      "panelCollapsed": "已收起",
+      "panelExpanded": "已展开"
+    },
+    "workspaceExplorer": {
+      "emptyTitle": "当前没有可浏览的工作区目录",
+      "emptyDescription": "打开卡片或箱子后，编辑引擎会自动建立工作区资源树。",
+      "loading": "正在读取工作区目录结构。"
+    },
+    "preview": {
+      "empty": "当前还没有打开任何卡片或箱子文件。",
+      "boxSummaryTitle": "箱子结构：{type}",
+      "boxSummaryDescription": "该箱子包含 {count} 个卡片引用。"
+    },
+    "editor": {
+      "panelTitle": "基础卡片编辑面板",
+      "previewHint": "在预览区点击任意基础卡片，即可通过正式 Host 宿主链路加载对应编辑器。",
+      "selectedPrefix": "当前正在编辑：",
+      "emptyTitle": "尚未选中基础卡片",
+      "emptyDescription": "请先在左侧预览中点击一个基础卡片节点，编辑引擎会加载对应插件的正式编辑面板。",
+      "loadingTitle": "正在加载编辑面板",
+      "loadingDescription": "Host 正在解析基础卡片配置并生成正式编辑器 iframe 文档。",
+      "saving": "正在自动保存",
+      "idle": "等待编辑",
+      "pendingSave": "检测到修改，正在准备保存",
+      "saveSucceeded": "已写回卡片文件",
+      "saveFailed": "保存失败",
+      "historyEmpty": "撤销 0 / 重做 0",
+      "undoCountPrefix": "撤销 ",
+      "redoCountPrefix": "重做 ",
+      "dirty": "存在未确认变更",
+      "clean": "当前状态已同步",
+      "editMode": "编辑模式",
+      "viewMode": "查看模式",
+      "viewModeTitle": "当前处于查看模式",
+      "viewModeDescription": "查看模式下仍可浏览预览内容，但不会挂载基础卡片编辑器，也不会接收结构编辑命令。"
+    },
+    "editorState": {
+      "idle": "等待编辑",
+      "pending": "准备保存",
+      "saving": "正在保存",
+      "saved": "已保存",
+      "error": "保存失败"
+    },
+    "layoutDescriptions": {
+      "workbench": "适用于文件树、预览区、编辑面板协同的高密度工作流。",
+      "infiniteCanvas": "适用于自由摆放卡片、拖拽编排与空间化创作。"
+    },
+    "panelWidth": {
+      "compact": "窄面板",
+      "standard": "标准面板",
+      "expanded": "宽面板"
+    },
+    "legacy": {
+      "subtitle": "沿用旧编辑器上层交互语义，接入新薯片生态底层。",
+      "fileManagerTitle": "文件管理器",
+      "editPanelTitle": "编辑面板",
+      "editPanelDescription": "展示当前文档、基础卡片选中状态与编辑会话核心信息。",
+      "cardLibraryTitle": "卡箱库",
+      "cardLibraryDescription": "从这里添加基础卡片，或拖入当前卡片窗口。",
+      "cardLibraryEmpty": "当前没有可用的基础卡片模板。",
+      "recentDescription": "保留旧编辑器最近目标语义，便于快速回到最近处理过的文件。",
+      "editorPanelWidth": "编辑面板宽度",
+      "resetCanvas": "重置画布",
+      "toolBadge": {
+        "FileManager": "工具窗口",
+        "EditPanel": "工具窗口",
+        "CardBoxLibrary": "工具窗口"
+      }
+    }
+  }
+}

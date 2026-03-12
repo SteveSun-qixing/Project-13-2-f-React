@@ -25,6 +25,7 @@ export interface BridgeContextOptions {
 }
 
 export const HOST_INTERNAL_PERMISSIONS = [
+  'file.manage',
   'file.read',
   'file.write',
   'resource.read',

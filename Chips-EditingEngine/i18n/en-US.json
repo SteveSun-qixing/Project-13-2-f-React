@@ -1,0 +1,266 @@
+{
+  "editingEngine": {
+    "shell": {
+      "eyebrow": "Editing Engine Runtime",
+      "subtitle": "The editing engine now uses a workbench shell to host runtime governance, workspace browsing, document preview, and future editing domains on top of the new ecosystem.",
+      "loadingTitle": "Connecting to Chips runtime",
+      "loadingDescription": "Loading the active theme, locale, plugin context, and preferred layout.",
+      "heroTitle": "The editing engine workspace flow is moving into the new ecosystem",
+      "heroDescription": "This screen now includes workspace document sessions, a resource tree, a formal settings registry, and card preview support. Editor panels, command flows, and autosave will be added on top of this foundation."
+    },
+    "sections": {
+      "workspace": "Workspace",
+      "preview": "Preview",
+      "inspector": "Inspector",
+      "session": "Current session",
+      "workspaceExplorer": "Workspace explorer",
+      "openDocuments": "Open documents",
+      "recentTargets": "Recent targets",
+      "settingsCenter": "Settings center"
+    },
+    "metrics": {
+      "layout": "Layout mode",
+      "theme": "Active theme",
+      "capabilities": "Platform capabilities",
+      "themeReady": "The theme chain is active through Host runtime.",
+      "themeFallback": "The active theme is not visible in the current list, so the shell is using the runtime snapshot.",
+      "capabilitiesDescription": "Current platform capability switches exposed by Host to the editing engine."
+    },
+    "runtime": {
+      "layoutDescription": "The preferred workspace layout is governed by runtime config and persists immediately when changed.",
+      "localeDescription": "Locale changes call i18n.setCurrent and re-render immediately at runtime.",
+      "versionDescription": "The running plugin version from Host plugin context.",
+      "environmentDescription": "Platform info from platform.getInfo that will drive future window, file, and interaction governance.",
+      "openDocumentCountDescription": "The number of card or box documents currently loaded into this workspace session."
+    },
+    "fields": {
+      "pluginId": "Plugin ID",
+      "sessionId": "Session ID",
+      "launchTarget": "Launch target",
+      "documentName": "Document name",
+      "documentType": "Document type",
+      "documentPath": "Document path",
+      "documentStatus": "Document status",
+      "locale": "Current locale",
+      "version": "Plugin version",
+      "environment": "Environment",
+      "openDocumentCount": "Open document count",
+      "platform": "Platform",
+      "themeName": "Theme name",
+      "themeId": "Theme ID",
+      "recentTargetCount": "Recent target count",
+      "activeDocument": "Active document",
+      "selectedBaseCard": "Selected base card",
+      "editorSaveState": "Save state",
+      "editorDirtyState": "Dirty state",
+      "editorHistory": "Undo / redo",
+      "editorPanelState": "Panel state",
+      "editorPanelWidth": "Panel width"
+    },
+    "documents": {
+      "card": "Card file",
+      "box": "Box file",
+      "valid": "Validation passed",
+      "invalid": "Validation failed",
+      "boxReady": "Box structure loaded",
+      "boxContainsPrefix": "This box contains ",
+      "boxContainsSuffix": " card references."
+    },
+    "workspace": {
+      "empty": "There is no active document yet. Open a file or restore a launch target from the runtime context.",
+      "noOpenDocuments": "No document is open in the current session.",
+      "noRecentTargets": "No recent target has been stored yet.",
+      "sidebarDescription": "Browse the active workspace structure and return to recently handled documents.",
+      "repositoryEmptyTitle": "No workspace directory yet",
+      "repositoryEmptyDescription": "Once you open a card or box file, the editing engine builds a formal workspace browser from its containing directory.",
+      "recentTargetsDescription": "Recent targets are recorded automatically after documents enter the workspace session.",
+      "previewDescription": "The preview stage hosts the current document view and will later become the main anchor for editing panels.",
+      "previewEmptyDescription": "Open a card or box file to render the formal preview and document tabs here.",
+      "emptyTitle": "No document open yet",
+      "emptyDescription": "Open a card or box file to restore the legacy editing experience inside the new Chips runtime.",
+      "recent": "Recent targets"
+    },
+    "layout": {
+      "workbench": "Workbench",
+      "infiniteCanvas": "Infinite canvas"
+    },
+    "actions": {
+      "refresh": "Refresh runtime snapshot",
+      "undo": "Undo",
+      "redo": "Redo",
+      "openDocument": "Open file",
+      "refreshDocument": "Refresh current document",
+      "closeDocument": "Close",
+      "openSettings": "Settings center",
+      "refreshWorkspace": "Refresh workspace",
+      "refreshExplorer": "Refresh explorer",
+      "collapseEditorPanel": "Collapse panel",
+      "expandEditorPanel": "Expand panel",
+      "panelWidthCompact": "Compact",
+      "panelWidthStandard": "Standard",
+      "panelWidthExpanded": "Expanded",
+      "switchToViewMode": "Switch to view mode",
+      "switchToEditMode": "Switch to edit mode",
+      "addBaseCardPrefix": "Add {name}",
+      "moveBaseCardUp": "Move base card up",
+      "moveBaseCardDown": "Move base card down",
+      "removeBaseCard": "Remove base card",
+      "clearRecentTargets": "Clear recents"
+    },
+    "tabs": {
+      "repository": "Repository",
+      "recentTargets": "Recent"
+    },
+    "inspector": {
+      "description": "The inspector surfaces document, session, and runtime details for future editing and command-domain migration.",
+      "document": "Document",
+      "editing": "Editing session",
+      "session": "Session",
+      "runtime": "Runtime"
+    },
+    "settings": {
+      "title": "Editing engine settings",
+      "description": "All runtime governance actions execute through formal Host interfaces and take effect immediately in the current editing-engine session.",
+      "close": "Close settings",
+      "tabs": {
+        "theme": "Theme",
+        "locale": "Locale",
+        "layout": "Layout",
+        "workspace": "Workspace",
+        "about": "About",
+        "editor": "Editor"
+      },
+      "common": {
+        "currentValue": "Current value"
+      },
+      "theme": {
+        "label": "Theme switch",
+        "description": "Use the formal theme runtime path so the editing engine stays aligned with the Host window appearance."
+      },
+      "locale": {
+        "label": "Interface locale",
+        "description": "Switch the current interface locale through the formal i18n runtime path."
+      },
+      "layout": {
+        "label": "Preferred layout",
+        "description": "Choose the preferred editing-engine layout. The selection persists through config governance."
+      },
+      "workspace": {
+        "activeDocument": "Active document",
+        "recentTargets": "Recent target count",
+        "clearRecentTargets": "Clear recent targets"
+      },
+      "categories": {
+        "workspace": {
+          "title": "Workspace",
+          "description": "Manage open documents, recent targets, and file-opening actions in the current session."
+        },
+        "layout": {
+          "title": "Layout",
+          "description": "Switch the default editing-engine layout while preserving the active workspace session."
+        },
+        "theme": {
+          "title": "Theme",
+          "description": "Switch the active workspace theme through the Chips theme system."
+        },
+        "locale": {
+          "title": "Locale",
+          "description": "Switch the interface language and re-render formal copy immediately."
+        },
+        "runtime": {
+          "title": "Runtime",
+          "description": "Inspect the formal summary of plugin, platform, and session context."
+        },
+        "editor": {
+          "title": "Editor panel",
+          "description": "Govern the editor panel visibility, width, and auto-open behavior when a base card is selected."
+        }
+      },
+      "editor": {
+        "visibilityLabel": "Panel visibility",
+        "visibilityDescription": "Control whether the right-side editor panel stays expanded or collapsed by default.",
+        "widthLabel": "Panel width",
+        "widthDescription": "Switch the editor panel width through formal workbench governance state.",
+        "autoOpenLabel": "Auto-open on selection",
+        "autoOpenDescription": "When enabled, selecting a base card in preview expands the editor panel automatically."
+      }
+    },
+    "aria": {
+      "workspaceSplit": "Editing engine workspace split view",
+      "previewSplit": "Editing engine preview and inspector split view"
+    },
+    "values": {
+      "notAvailable": "Not available",
+      "noLaunchTarget": "No target file was provided in launch context",
+      "previewMode": "The shell is currently running in chipsdev server preview mode. Theme, locale, and persisted layout writes take effect in real Host runtime.",
+      "panelCollapsed": "Collapsed",
+      "panelExpanded": "Expanded"
+    },
+    "workspaceExplorer": {
+      "emptyTitle": "No workspace directory is available yet",
+      "emptyDescription": "After you open a card or a box, the editing engine will build the workspace resource tree automatically.",
+      "loading": "Loading the workspace directory structure."
+    },
+    "preview": {
+      "empty": "No card or box is currently open.",
+      "boxSummaryTitle": "Box structure: {type}",
+      "boxSummaryDescription": "This box contains {count} card references."
+    },
+    "editor": {
+      "panelTitle": "Base card editor",
+      "previewHint": "Click a base card inside the preview to load its formal editor through the Host-owned contract.",
+      "selectedPrefix": "Currently editing: ",
+      "emptyTitle": "No base card selected",
+      "emptyDescription": "Select a base card node in the preview so the editing engine can mount the plugin editor.",
+      "loadingTitle": "Loading editor panel",
+      "loadingDescription": "The Host is resolving the base-card config and preparing the formal editor iframe document.",
+      "saving": "Autosaving",
+      "idle": "Waiting for edits",
+      "pendingSave": "Changes detected, preparing to save",
+      "saveSucceeded": "Saved back to the card file",
+      "saveFailed": "Save failed",
+      "historyEmpty": "Undo 0 / Redo 0",
+      "undoCountPrefix": "Undo ",
+      "redoCountPrefix": "Redo ",
+      "dirty": "Unconfirmed changes pending",
+      "clean": "Editor state is synchronized",
+      "editMode": "Edit mode",
+      "viewMode": "View mode",
+      "viewModeTitle": "Document is in view mode",
+      "viewModeDescription": "Preview browsing stays available, but the base-card editor and structure commands are disabled in view mode."
+    },
+    "editorState": {
+      "idle": "Idle",
+      "pending": "Pending save",
+      "saving": "Saving",
+      "saved": "Saved",
+      "error": "Save failed"
+    },
+    "layoutDescriptions": {
+      "workbench": "Designed for dense workflows where file trees, previews, and editor panels work together.",
+      "infiniteCanvas": "Designed for spatial creation with free placement, drag orchestration, and canvas-first exploration."
+    },
+    "panelWidth": {
+      "compact": "Compact panel",
+      "standard": "Standard panel",
+      "expanded": "Expanded panel"
+    },
+    "legacy": {
+      "subtitle": "Preserve the legacy editor interaction model on top of the new Chips ecosystem runtime.",
+      "fileManagerTitle": "File manager",
+      "editPanelTitle": "Edit panel",
+      "editPanelDescription": "Shows the active document, the selected base card, and the current editing session state.",
+      "cardLibraryTitle": "Card library",
+      "cardLibraryDescription": "Add base cards here or drag them into the active card window.",
+      "cardLibraryEmpty": "No base card template is currently available.",
+      "recentDescription": "Recent targets preserve the legacy quick-return workflow.",
+      "editorPanelWidth": "Editor panel width",
+      "resetCanvas": "Reset canvas",
+      "toolBadge": {
+        "FileManager": "Tool window",
+        "EditPanel": "Tool window",
+        "CardBoxLibrary": "Tool window"
+      }
+    }
+  }
+}

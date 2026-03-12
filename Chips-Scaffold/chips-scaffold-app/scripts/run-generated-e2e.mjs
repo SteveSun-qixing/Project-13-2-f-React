@@ -106,6 +106,14 @@ async function main() {
     if (generatedPackage.volta?.extends !== "../../package.json") {
       throw new Error("E2E: chipsdev create 应为新工程写入根工作区 volta.extends");
     }
+    try {
+      await readFile(path.join(projectDir, "template.json"), "utf8");
+      throw new Error("E2E: 生成工程不应包含模板内部元数据文件 template.json");
+    } catch (error) {
+      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+        throw error;
+      }
+    }
   } finally {
     await rm(sandboxRoot, { recursive: true, force: true });
   }

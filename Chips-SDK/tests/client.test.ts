@@ -11,7 +11,7 @@ describe("createClient", () => {
       transport: async (action, payload) => {
         calls.push({ action, payload });
         if (action === "file.read") {
-          return "content";
+          return { content: "content" };
         }
         throw { code: "SERVICE_NOT_FOUND", message: "not found" };
       },
@@ -40,6 +40,61 @@ describe("createClient", () => {
     expect(captured).toBeDefined();
     expect(captured?.code).toBe("INTERNAL_ERROR");
     expect(captured?.message).toContain("boom");
+  });
+
+  it("unwraps file and zip responses", async () => {
+    const calls: Array<{ action: string; payload: unknown }> = [];
+    const client = createClient({
+      environment: "node",
+      transport: async (action, payload) => {
+        calls.push({ action, payload });
+        if (action === "file.stat") {
+          return {
+            meta: {
+              path: "/tmp/demo.txt",
+              size: 4,
+              isFile: true,
+              isDirectory: false,
+              mtimeMs: 123,
+            },
+          };
+        }
+        if (action === "file.list") {
+          return { entries: ["a.txt", "nested"] };
+        }
+        if (action === "file.exists") {
+          return { exists: true };
+        }
+        if (action === "zip.list") {
+          return {
+            entries: [{ path: "content/demo.yaml", size: 12, isDirectory: false }],
+          };
+        }
+        return { ack: true };
+      },
+    });
+
+    await expect(client.file.stat("/tmp/demo.txt")).resolves.toEqual({
+      path: "/tmp/demo.txt",
+      size: 4,
+      isFile: true,
+      isDirectory: false,
+      mtimeMs: 123,
+    });
+    await expect(client.file.list("/tmp")).resolves.toEqual(["a.txt", "nested"]);
+    await expect(client.file.exists("/tmp/demo.txt")).resolves.toBe(true);
+    await expect(client.file.mkdir("/tmp/demo-dir")).resolves.toBeUndefined();
+    await expect(client.file.delete("/tmp/demo-dir")).resolves.toBeUndefined();
+    await expect(client.file.copy("/tmp/a", "/tmp/b")).resolves.toBeUndefined();
+    await expect(client.file.move("/tmp/b", "/tmp/c")).resolves.toBeUndefined();
+    await expect(client.zip.compress("/tmp/card", "/tmp/card.zip")).resolves.toBeUndefined();
+    await expect(client.zip.extract("/tmp/card.zip", "/tmp/out")).resolves.toBeUndefined();
+    await expect(client.zip.list("/tmp/card.zip")).resolves.toEqual([
+      { path: "content/demo.yaml", size: 12, isDirectory: false },
+    ]);
+
+    expect(calls.map((item) => item.action)).toContain("file.exists");
+    expect(calls.map((item) => item.action)).toContain("zip.list");
   });
 
   it("unwraps i18n responses and preserves theme snapshots", async () => {
@@ -117,6 +172,84 @@ describe("createClient", () => {
     await expect(client.plugin.getLayoutPlugin("grid-layout")).resolves.toBeUndefined();
   });
 
+  it("unwraps plugin shortcut and launch responses", async () => {
+    const shortcut = {
+      pluginId: "app.viewer",
+      name: "Card Viewer",
+      location: "desktop",
+      launcherPath: "/Users/test/Desktop/Card Viewer.lnk",
+      executablePath: "/Applications/Chips Host",
+      args: ["--chips-launch-plugin=app.viewer"],
+      exists: true,
+    };
+    const launchResult = {
+      window: { id: "window-1" },
+      session: { sessionId: "session-1", sessionNonce: "nonce-1", permissions: ["plugin.manage"] },
+    };
+    const client = createClient({
+      environment: "node",
+      transport: async (action) => {
+        if (action === "plugin.getShortcut" || action === "plugin.createShortcut") {
+          return { shortcut };
+        }
+        if (action === "plugin.removeShortcut") {
+          return { removed: true, launcherPath: shortcut.launcherPath, location: "desktop" };
+        }
+        if (action === "plugin.launch") {
+          return launchResult;
+        }
+        throw { code: "SERVICE_NOT_FOUND", message: action };
+      },
+    });
+
+    await expect(client.plugin.getShortcut("app.viewer")).resolves.toEqual(shortcut);
+    await expect(client.plugin.createShortcut("app.viewer")).resolves.toEqual(shortcut);
+    await expect(client.plugin.removeShortcut("app.viewer")).resolves.toEqual({
+      removed: true,
+      launcherPath: shortcut.launcherPath,
+      location: "desktop",
+    });
+    await expect(client.plugin.launch("app.viewer", { trigger: "shortcut" })).resolves.toEqual(launchResult);
+  });
+
+  it("unwraps module query/list responses and uses the Host module.mount payload contract", async () => {
+    const calls: Array<{ action: string; payload: unknown }> = [];
+    const moduleState = {
+      slot: "editor.sidebar",
+      module: { id: "chips.editor.sidebar", kind: "panel" },
+      mountedAt: 123,
+    };
+    const client = createClient({
+      environment: "node",
+      transport: async (action, payload) => {
+        calls.push({ action, payload });
+        if (action === "module.mount" || action === "module.unmount") {
+          return { ack: true };
+        }
+        if (action === "module.query") {
+          return { module: moduleState };
+        }
+        if (action === "module.list") {
+          return { modules: [moduleState] };
+        }
+        throw { code: "SERVICE_NOT_FOUND", message: action };
+      },
+    });
+
+    await expect(client.module.mount("editor.sidebar", { id: "chips.editor.sidebar", kind: "panel" })).resolves.toBeUndefined();
+    await expect(client.module.query("editor.sidebar")).resolves.toEqual(moduleState);
+    await expect(client.module.list()).resolves.toEqual([moduleState]);
+    await expect(client.module.unmount("editor.sidebar")).resolves.toBeUndefined();
+
+    expect(calls[0]).toEqual({
+      action: "module.mount",
+      payload: {
+        slot: "editor.sidebar",
+        module: { id: "chips.editor.sidebar", kind: "panel" },
+      },
+    });
+  });
+
   it("throws BRIDGE_UNAVAILABLE when no transport and no window.chips", async () => {
     const client = createClient({
       environment: "node",
@@ -170,6 +303,45 @@ describe("createClient", () => {
       } else {
         delete (globalThis as { window?: Window }).window;
       }
+    }
+  });
+
+  it("reads launch context from the plugin bridge platform helper", () => {
+    const previousWindow = globalThis.window;
+    globalThis.window = {
+      chips: {
+        platform: {
+          getLaunchContext() {
+            return {
+              pluginId: "app.viewer",
+              sessionId: "session-1",
+              launchParams: {
+                targetPath: "/tmp/demo.card",
+                trigger: "shortcut",
+              },
+            };
+          },
+        },
+      },
+    } as unknown as Window;
+
+    try {
+      const client = createClient({
+        environment: "plugin",
+        transport: async () => {
+          throw new Error("transport should not be used");
+        },
+      });
+      expect(client.platform.getLaunchContext()).toEqual({
+        pluginId: "app.viewer",
+        sessionId: "session-1",
+        launchParams: {
+          targetPath: "/tmp/demo.card",
+          trigger: "shortcut",
+        },
+      });
+    } finally {
+      globalThis.window = previousWindow;
     }
   });
 

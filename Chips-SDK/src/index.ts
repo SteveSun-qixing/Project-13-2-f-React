@@ -2,10 +2,16 @@ export { createClient } from "./core/client";
 export type { Client, ClientConfig } from "./types/client";
 export type {
   CardApi,
+  BaseCardEditorConfigChange,
+  BaseCardEditorConfigSyncedPayload,
+  BaseCardEditorReadyPayload,
+  BaseCardEditorRenderResult,
+  BaseCardRecord,
   CardDocument,
   CardRenderOptions,
   CardRenderResult,
   CardRenderView,
+  CompositeNodeSelection,
   CompositeMode,
   FrameRenderResult,
 } from "./api/card";
@@ -16,6 +22,7 @@ export type {
   FileReadOptions,
   FileStat,
 } from "./api/file";
+export type { ZipApi, ZipEntry } from "./api/zip";
 export type { ThemeApi, ThemeMeta, ThemeState, ResolvedTheme, ThemeContract } from "./api/theme";
 export type { ConfigApi } from "./api/config";
 export type { I18nApi } from "./api/i18n";

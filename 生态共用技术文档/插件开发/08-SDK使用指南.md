@@ -43,9 +43,36 @@ npm install
 
 ## 文件操作
 
-SDK提供卡片文件的读写能力。
+SDK 提供两层正式能力：
 
-解析卡片使用 `client.card.parse()` 方法，传入卡片文件路径或卡片ID。返回卡片对象，包含元数据、内容列表等。方法签名：
+- 语义层：`client.card.*`，面向解析、渲染、基础卡片编辑器挂载等高层场景；
+- 基础层：`client.file.*` 与 `client.zip.*`，面向基础设施级应用的底层文件/压缩编排。
+
+对 EditingEngine、资源管理器这类需要直接治理 `.card/.box` 文档结构的应用，推荐优先使用 `client.file` + `client.zip`，而不是要求 Host 为每一个业务动作都新增专用 route。
+
+### file API
+
+```typescript
+client.file.read(path: string, options?: { encoding?: 'utf-8' | 'binary' }): Promise<string | Uint8Array>
+client.file.write(path: string, content: string | Uint8Array, options?: { encoding?: 'utf-8' | 'binary' }): Promise<void>
+client.file.stat(path: string): Promise<FileStat>
+client.file.list(dir: string): Promise<FileEntry[]>
+client.file.exists(path: string): Promise<boolean>
+client.file.mkdir(path: string, options?: { recursive?: boolean }): Promise<void>
+client.file.delete(path: string, options?: { recursive?: boolean }): Promise<void>
+client.file.copy(source: string, destination: string, options?: { overwrite?: boolean }): Promise<void>
+client.file.move(source: string, destination: string, options?: { overwrite?: boolean }): Promise<void>
+```
+
+### zip API
+
+```typescript
+client.zip.compress(inputDir: string, outputZip: string): Promise<void>
+client.zip.extract(zipPath: string, outputDir: string): Promise<void>
+client.zip.list(zipPath: string): Promise<Array<{ path: string; size: number; isDirectory: boolean }>>
+```
+
+解析卡片使用 `client.card.parse()` 方法，传入卡片文件路径。返回卡片对象，包含元数据、内容列表等。方法签名：
 
 ```typescript
 client.card.parse(cardPath: string): Promise<CardDocument>
@@ -54,7 +81,7 @@ client.card.parse(cardPath: string): Promise<CardDocument>
 验证卡片使用 `client.card.validate()` 方法，验证卡片结构是否符合规范。方法签名：
 
 ```typescript
-client.card.validate(cardDoc: CardDocument): Promise<ValidationResult>
+client.card.validate(cardFile: string): Promise<ValidationResult>
 ```
 
 渲染卡片使用 `client.card.render()` 方法，传入卡片文件路径。返回渲染后的视图对象。方法签名：
@@ -63,7 +90,33 @@ client.card.validate(cardDoc: CardDocument): Promise<ValidationResult>
 client.card.render(cardFile: string, options?: RenderOptions): Promise<CardView>
 ```
 
-> 注意：旧版 `cards.read`、`cards.create`、`cards.update`、`cards.delete` 方法已归档，请使用 `card.parse/render/validate` 接口。
+基础卡片编辑链路使用以下正式方法：
+
+```typescript
+client.card.getBaseCard(cardFile: string, nodeId: string): Promise<BaseCardRecord>
+client.card.updateBaseCard(cardFile: string, nodeId: string, config: Record<string, unknown>): Promise<BaseCardRecord>
+client.card.baseCardEditor.render(options: {
+  cardFile: string;
+  nodeId: string;
+  title?: string;
+}): Promise<BaseCardEditorRenderResult>
+```
+
+其中 `baseCardEditor` 额外提供：
+
+- `onReady(frame, handler)`
+- `onConfigChange(frame, handler)`
+- `onConfigSynced(frame, handler)`
+- `onFatalError(frame, handler)`
+- `syncConfig(frame, config)`
+
+> 注意：旧版 `cards.read`、`cards.create`、`cards.update`、`cards.delete` 方法已归档，请使用 `card.parse/getBaseCard/render/renderBaseCardEditor/updateBaseCard/validate` 以及 `file.* / zip.*` 正式接口。
+
+补充约束（2026-03-11）：
+
+- `card.updateBaseCard` 只覆盖“单个基础卡片配置编辑”；
+- 基础卡片增删改序、文档模式切换、批量内容写回等文档结构级动作，推荐由基础设施级应用通过 `client.file` + `client.zip` 直接完成；
+- 若插件声明了 `file.manage`，SDK 调用 `file.read/write/stat/list/exists/mkdir/delete/copy/move` 时都可通过权限校验；普通业务插件仍建议按最小权限声明精确权限。
 
 ## 内容渲染
 
@@ -136,6 +189,7 @@ client.card.compositeWindow.render({
 - `coverFrame` 返回卡片封面 iframe（下方显示卡片名称）。
 - `compositeWindow` 返回复合卡片 iframe 窗口。
 - `compositeWindow.mode` 只允许 `view | preview`。
+- `compositeWindow` 提供 `onReady / onNodeSelect / onNodeError / onFatalError` 事件订阅，用于承接编辑引擎等上层工作流。
 - 基础卡片分发、模板编译、iframe 拼接由 Host 内置渲染运行时完成；SDK 仅封装调用入口。
 
 ## 插件管理
@@ -169,6 +223,33 @@ SDK 提供插件管理与查询能力，直接映射 Host `plugin.*` 服务动�
   client.plugin.uninstall(pluginId: string): Promise<void>;
   ```
 
+- 启动应用插件：  
+
+  ```typescript
+  client.plugin.launch(
+    pluginId: string,
+    launchParams?: Record<string, unknown>
+  ): Promise<{
+    window: { id: string };
+    session: { sessionId: string; sessionNonce: string; permissions: string[] };
+  }>;
+  ```
+
+- 查询 / 创建 / 删除应用快捷方式：  
+
+  ```typescript
+  client.plugin.getShortcut(pluginId: string): Promise<PluginShortcutRecord>;
+  client.plugin.createShortcut(
+    pluginId: string,
+    options?: { replace?: boolean }
+  ): Promise<PluginShortcutRecord>;
+  client.plugin.removeShortcut(pluginId: string): Promise<{
+    removed: boolean;
+    launcherPath: string;
+    location: "desktop" | "launchpad";
+  }>;
+  ```
+
 - 按运行时记录查询插件（运维/工具场景）：  
 
   ```typescript
@@ -182,7 +263,29 @@ SDK 提供插件管理与查询能力，直接映射 Host `plugin.*` 服务动�
 
 - 权限边界：
   - `client.plugin.list/get/getSelf/getCardPlugin/getLayoutPlugin/query` 统一要求 `plugin.read`；
-  - `client.plugin.install/enable/disable/uninstall` 统一要求 `plugin.manage`。
+  - `client.plugin.getShortcut` 统一要求 `plugin.read`；
+  - `client.plugin.install/enable/disable/uninstall/launch/createShortcut/removeShortcut` 统一要求 `plugin.manage`。
+
+`PluginShortcutRecord` 的正式字段如下：
+
+```typescript
+interface PluginShortcutRecord {
+  pluginId: string;
+  name: string;
+  location: "desktop" | "launchpad";
+  launcherPath: string;
+  executablePath: string;
+  args: string[];
+  iconPath?: string;
+  exists: boolean;
+}
+```
+
+说明：
+
+- Windows 统一返回 `location: "desktop"`；
+- macOS 统一返回 `location: "launchpad"`，实际文件由 Host 写入 `~/Applications/Chips Apps/*.app`；
+- `args` 为 Host 最终写入快捷方式的参数快照，便于治理界面与诊断工具展示。
 
 ## 主题能力
 
@@ -240,6 +343,26 @@ client.platform.getPathForFile(file: unknown): string
 - 该能力用于把拖拽或文件选择得到的 `File` 对象解析为本地路径；
 - Electron Host 环境会直接复用 `window.chips.platform.getPathForFile`；
 - 非支持环境返回空字符串，调用方应把空字符串视为“当前环境不支持该能力”。
+
+对于应用插件被快捷方式、文件关联或开发入口拉起后的恢复场景，SDK 同时透出启动上下文：
+
+```typescript
+client.platform.getLaunchContext(): {
+  pluginId?: string;
+  sessionId?: string;
+  launchParams: Record<string, unknown>;
+}
+```
+
+使用建议：
+
+- 该接口为同步只读接口，返回的是 preload 在窗口创建时注入的当前会话上下文；
+- 典型触发值包括：
+  - `launchParams.trigger === "app-shortcut"`
+  - `launchParams.trigger === "file-association"`
+  - `launchParams.trigger === "chipsdev.run"`
+- 文件处理型应用应优先从 `launchParams.targetPath` 恢复打开目标；
+- 该接口仅描述“当前窗口如何被打开”，不应用作持久化存储。
 
 ## 认证授权
 

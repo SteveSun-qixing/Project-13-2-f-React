@@ -12,6 +12,7 @@ import type {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const INTERNAL_TEMPLATE_FILES = new Set(["template.json"]);
 
 function resolveTemplatesRoot(): string {
   const candidates = [
@@ -172,6 +173,9 @@ async function copyTemplateDir(
   let filesCreated = 0;
   const entries = await fs.readdir(templateDir, { withFileTypes: true });
   for (const entry of entries) {
+    if (INTERNAL_TEMPLATE_FILES.has(entry.name)) {
+      continue;
+    }
     const sourcePath = path.join(templateDir, entry.name);
     const renderedName = renderTemplateString(entry.name, context).replace(
       /\.tpl$/,

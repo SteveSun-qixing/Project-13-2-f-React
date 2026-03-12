@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ChipsThemeProvider, ChipsButton, ChipsInput } from "@chips/component-library";
 import { ExamplePanel } from "./components/ExamplePanel";
+import { createTranslator, normalizeLocale, type AppLocale } from "./i18n";
 
 type ThemeInfo = {
   themeId?: string;
@@ -8,41 +9,99 @@ type ThemeInfo = {
   version?: string;
 };
 
-function useChipsThemeInfo() {
+type ThemeState = {
+  themeId: string;
+  version: string;
+};
+
+const DEFAULT_THEME_STATE: ThemeState = {
+  themeId: "chips-official.default-theme",
+  version: "1.0.0",
+};
+
+function readDocumentThemeState(): ThemeState {
+  if (typeof document === "undefined") {
+    return DEFAULT_THEME_STATE;
+  }
+
+  const root = document.documentElement;
+  const themeId = root.getAttribute("data-chips-theme-id");
+  const version = root.getAttribute("data-chips-theme-version");
+
+  return {
+    themeId: typeof themeId === "string" && themeId.trim().length > 0 ? themeId : DEFAULT_THEME_STATE.themeId,
+    version: typeof version === "string" && version.trim().length > 0 ? version : DEFAULT_THEME_STATE.version,
+  };
+}
+
+function useRuntimeState() {
   const [themeInfo, setThemeInfo] = useState<ThemeInfo | null>(null);
+  const [themeState, setThemeState] = useState<ThemeState>(() => readDocumentThemeState());
+  const [locale, setLocale] = useState<AppLocale>("zh-CN");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const bridge = typeof window !== "undefined" ? (window as any).chips : undefined;
     if (!bridge || typeof bridge.invoke !== "function") {
-      setError("Bridge API 未就绪（window.chips.invoke 不可用）");
+      setError("BRIDGE_UNAVAILABLE");
       return;
     }
 
     let cancelled = false;
+    const unsubscribe = typeof bridge.on === "function"
+      ? bridge.on("language.changed", (payload: unknown) => {
+          if (cancelled) {
+            return;
+          }
+          const nextLocale =
+            typeof payload === "string"
+              ? payload
+              : payload && typeof payload === "object" && "locale" in payload
+                ? (payload as { locale?: string }).locale
+                : undefined;
+          setLocale(normalizeLocale(nextLocale));
+        })
+      : () => undefined;
 
-    bridge
-      .invoke("theme.getCurrent", {})
-      .then((info: ThemeInfo) => {
-        if (!cancelled) {
-          setThemeInfo(info);
+    Promise.all([
+      bridge.invoke("theme.getCurrent", {}),
+      bridge.invoke("i18n.getCurrent", {}),
+    ])
+      .then(([info, currentLocale]: [ThemeInfo, { locale?: string } | string]) => {
+        if (cancelled) {
+          return;
         }
+        setThemeInfo(info);
+        setThemeState({
+          themeId: info?.themeId || DEFAULT_THEME_STATE.themeId,
+          version: info?.version || DEFAULT_THEME_STATE.version,
+        });
+        const nextLocale =
+          typeof currentLocale === "string"
+            ? currentLocale
+            : currentLocale?.locale;
+        setLocale(normalizeLocale(nextLocale));
       })
       .catch((err: { code?: string; message?: string }) => {
         if (!cancelled) {
-          setError(err?.message || "获取主题信息失败");
+          setError(err?.message || "RUNTIME_STATE_LOAD_FAILED");
         }
       });
 
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
-  return { themeInfo, error };
+  return { themeInfo, themeState, locale, error };
 }
 
-function Header() {
+interface HeaderProps {
+  subtitle: string;
+}
+
+function Header({ subtitle }: HeaderProps) {
   return (
     <header
       data-chips-app="app-standard.header"
@@ -53,15 +112,31 @@ function Header() {
       }}
     >
       <h1 style={{ margin: 0, fontSize: 18 }}>{{ DISPLAY_NAME }}</h1>
-      <p style={{ margin: "4px 0 0", fontSize: 12, opacity: 0.8 }}>
-        由 chips-scaffold-app 生成的标准应用插件示例。
-      </p>
+      <p style={{ margin: "4px 0 0", fontSize: 12, opacity: 0.8 }}>{subtitle}</p>
     </header>
   );
 }
 
-function MainContent() {
-  const { themeInfo, error } = useChipsThemeInfo();
+interface MainContentProps {
+  error: string | null;
+  themeInfo: ThemeInfo | null;
+  launchContext: {
+    pluginId?: string;
+    sessionId?: string;
+    launchParams: Record<string, unknown>;
+  };
+  translate: (key: string) => string;
+}
+
+function MainContent({ error, themeInfo, launchContext, translate }: MainContentProps) {
+  const resolvedError =
+    error === null
+      ? null
+      : error === "BRIDGE_UNAVAILABLE"
+        ? translate("app-standard.bridge.unavailable")
+        : error === "RUNTIME_STATE_LOAD_FAILED"
+          ? translate("app-standard.bridge.loadError")
+          : error;
 
   return (
     <main
@@ -69,39 +144,60 @@ function MainContent() {
       style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}
     >
       <section>
-        <h2 style={{ fontSize: 14, marginBottom: 8 }}>示例表单</h2>
+        <h2 style={{ fontSize: 14, marginBottom: 8 }}>{translate("app-standard.sections.sampleForm")}</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <ChipsInput placeholderKey="app-standard.sample.input.placeholder" />
-          <ChipsButton variant="primary">提交</ChipsButton>
+          <ChipsInput placeholder={translate("app-standard.sample.input.placeholder")} />
+          <ChipsButton variant="primary">{translate("app-standard.actions.submit")}</ChipsButton>
         </div>
       </section>
 
       <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <h2 style={{ fontSize: 14, marginBottom: 8 }}>Bridge API 示例</h2>
-        {error ? (
-          <p style={{ color: "var(--chips-color-danger, #d93025)", fontSize: 12 }}>{error}</p>
+        <h2 style={{ fontSize: 14, marginBottom: 8 }}>{translate("app-standard.sections.bridgeExample")}</h2>
+        {resolvedError ? (
+          <p style={{ color: "var(--chips-color-danger, #d93025)", fontSize: 12 }}>{resolvedError}</p>
         ) : (
-          <p style={{ fontSize: 12 }}>
-            当前主题：
-            <code>
-              {themeInfo?.themeId || "未知"} / {themeInfo?.displayName || "Unknown"}
-            </code>
-          </p>
+          <>
+            <p style={{ fontSize: 12 }}>
+              {translate("app-standard.bridge.themeLabel")}：
+              <code>
+                {themeInfo?.themeId || translate("app-standard.bridge.unknownTheme")} / {themeInfo?.displayName || translate("app-standard.bridge.unknownDisplayName")}
+              </code>
+            </p>
+            <p style={{ fontSize: 12 }}>
+              {translate("app-standard.bridge.launchLabel")}：
+              <code>
+                {launchContext.pluginId || translate("app-standard.bridge.unknownTheme")} / {String(launchContext.launchParams.trigger ?? "manual")}
+              </code>
+            </p>
+          </>
         )}
       </section>
 
-      <ExamplePanel title="组件库示例面板" />
+      <ExamplePanel
+        title={translate("app-standard.examplePanel.title")}
+        description={translate("app-standard.examplePanel.description")}
+        actionLabel={translate("app-standard.actions.learnMore")}
+      />
     </main>
   );
 }
 
 export function App() {
   const themeEventSource = typeof window !== "undefined" ? (window as any).chips : undefined;
+  const { themeInfo, themeState, locale, error } = useRuntimeState();
+  const translate = useMemo(() => createTranslator(locale), [locale]);
+  const launchContext = useMemo(() => {
+    const bridge = typeof window !== "undefined" ? (window as any).chips : undefined;
+    if (!bridge?.platform || typeof bridge.platform.getLaunchContext !== "function") {
+      return { launchParams: {} };
+    }
+    return bridge.platform.getLaunchContext();
+  }, []);
 
   return (
     <ChipsThemeProvider
-      themeId="chips-official.default-theme"
-      version="1.0.0"
+      themeId={themeState.themeId}
+      version={themeState.version}
       eventSource={themeEventSource}
       eventName="theme.changed"
     >
@@ -115,8 +211,8 @@ export function App() {
           color: "var(--chips-sys-color-on-surface, #111111)",
         }}
       >
-        <Header />
-        <MainContent />
+        <Header subtitle={translate("app-standard.header.subtitle")} />
+        <MainContent error={error} themeInfo={themeInfo} launchContext={launchContext} translate={translate} />
       </div>
     </ChipsThemeProvider>
   );

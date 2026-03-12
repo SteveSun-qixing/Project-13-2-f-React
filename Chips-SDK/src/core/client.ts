@@ -10,6 +10,7 @@ import type {
 } from "../types/client";
 import type { StandardError } from "../types/errors";
 import { createFileApi } from "../api/file";
+import { createZipApi } from "../api/zip";
 import { createCardApi } from "../api/card";
 import { createThemeApi } from "../api/theme";
 import { createConfigApi } from "../api/config";
@@ -146,6 +147,7 @@ export function createClient(config: ClientConfig = {}): Client {
   return {
     ...core,
     file: createFileApi(core),
+    zip: createZipApi(core),
     card: createCardApi(core),
     theme: createThemeApi(core),
     config: createConfigApi(core),

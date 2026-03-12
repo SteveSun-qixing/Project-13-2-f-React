@@ -49,6 +49,7 @@ const createContextFactory = () => {
 
 const createPal = (state: PalState): PALAdapter => {
   let ipcSequence = 0;
+  const launchers = new Map<string, { pluginId: string; name: string; launcherPath: string; executablePath: string; args: string[]; iconPath?: string }>();
 
   return {
     window: {
@@ -106,6 +107,50 @@ const createPal = (state: PalState): PALAdapter => {
           id: 'watch-1',
           async close() {}
         };
+      },
+      async exists(inputPath) {
+        try {
+          await fs.access(inputPath);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      async mkdir(inputPath, options) {
+        await fs.mkdir(inputPath, { recursive: options?.recursive ?? true });
+      },
+      async delete(inputPath, options) {
+        await fs.rm(inputPath, { recursive: options?.recursive ?? true, force: false });
+      },
+      async copy(source, destination, options) {
+        await fs.mkdir(path.dirname(destination), { recursive: true });
+        await fs.cp(source, destination, {
+          recursive: true,
+          force: options?.overwrite ?? true,
+          errorOnExist: !(options?.overwrite ?? true),
+        });
+      },
+      async move(source, destination, options) {
+        try {
+          await fs.access(destination);
+          if (options?.overwrite ?? true) {
+            await fs.rm(destination, { recursive: true, force: true });
+          }
+        } catch {}
+        if (options?.overwrite === false) {
+          try {
+            await fs.access(destination);
+            throw new Error(`Destination already exists: ${destination}`);
+          } catch (error) {
+            if (!(error instanceof Error) || !error.message.startsWith("Destination already exists:")) {
+              // ignore access failures
+            } else {
+              throw error;
+            }
+          }
+        }
+        await fs.mkdir(path.dirname(destination), { recursive: true });
+        await fs.rename(source, destination);
       }
     },
     dialog: {
@@ -235,6 +280,61 @@ const createPal = (state: PalState): PALAdapter => {
       },
       async clear() {
         state.shortcuts = [];
+      }
+    },
+    launcher: {
+      async getDefaultPath(name) {
+        const launcherPath = path.join(os.tmpdir(), 'chips-pal-launchers', `${name}.lnk`);
+        return {
+          launcherPath,
+          location: 'desktop' as const
+        };
+      },
+      async create(options) {
+        const launcherPath = options.launcherPath ?? path.join(os.tmpdir(), 'chips-pal-launchers', `${options.name}.lnk`);
+        await fs.mkdir(path.dirname(launcherPath), { recursive: true });
+        await fs.writeFile(launcherPath, 'launcher', 'utf-8');
+        const record = {
+          pluginId: options.pluginId,
+          name: options.name,
+          location: 'desktop' as const,
+          launcherPath,
+          executablePath: options.executablePath,
+          args: [...options.args],
+          iconPath: options.iconPath
+        };
+        launchers.set(record.launcherPath, {
+          pluginId: options.pluginId,
+          name: options.name,
+          launcherPath: record.launcherPath,
+          executablePath: options.executablePath,
+          args: [...options.args],
+          iconPath: options.iconPath
+        });
+        return record;
+      },
+      async getRecord(options) {
+        const launcherPath = options.launcherPath ?? path.join(os.tmpdir(), 'chips-pal-launchers', `${options.name}.lnk`);
+        const existing = launchers.get(launcherPath);
+        return {
+          pluginId: existing?.pluginId ?? options.pluginId,
+          name: existing?.name ?? options.name,
+          location: 'desktop',
+          launcherPath,
+          executablePath: existing?.executablePath ?? '',
+          args: existing?.args ?? [],
+          iconPath: existing?.iconPath
+        };
+      },
+      async remove(options) {
+        const launcherPath = options.launcherPath ?? path.join(os.tmpdir(), 'chips-pal-launchers', `${options.name}.lnk`);
+        const removed = launchers.delete(launcherPath);
+        await fs.rm(launcherPath, { force: true });
+        return {
+          removed,
+          launcherPath,
+          location: 'desktop'
+        };
       }
     },
     power: {
@@ -372,6 +472,71 @@ describe('Host services PAL routing', () => {
     expect(state.dialogSaveArgs).toHaveLength(1);
     expect(state.dialogMessageArgs).toHaveLength(1);
     expect(state.dialogConfirmArgs).toHaveLength(1);
+  });
+
+  it('forwards extended file routes to PAL fs implementation', async () => {
+    const state: PalState = {
+      clipboardText: '',
+      clipboardImageBase64: null,
+      clipboardFiles: [],
+      dialogOpenArgs: [],
+      dialogSaveArgs: [],
+      dialogMessageArgs: [],
+      dialogConfirmArgs: [],
+      shellOpenPath: [],
+      shellOpenExternal: [],
+      shellShowInFolder: [],
+      notifications: [],
+      trayActive: false,
+      shortcuts: [],
+      preventSleep: false,
+      ipcChannels: new Map()
+    };
+    const kernel = new Kernel();
+    const runtime = new PluginRuntime(workspace, { locale: 'zh-CN', themeId: 'chips-official.default-theme' });
+    await runtime.load();
+    registerHostSchemas();
+    await registerHostServices({
+      kernel,
+      pal: createPal(state),
+      workspacePath: workspace,
+      logger: new StructuredLogger(),
+      getCardService: () => new CardService(),
+      getBoxService: () => new BoxService(),
+      getZipService: () => new StoreZipService(),
+      runtime
+    });
+
+    const context = createContextFactory();
+    const fileRead = ['file.read'];
+    const fileManage = ['file.manage'];
+    const sourceDir = path.join(workspace, 'source-dir');
+    const sourceFile = path.join(sourceDir, 'demo.txt');
+    const copiedFile = path.join(workspace, 'copies', 'demo.txt');
+    const movedFile = path.join(workspace, 'moved', 'demo.txt');
+    const createdDir = path.join(workspace, 'created');
+
+    await fs.mkdir(sourceDir, { recursive: true });
+    await fs.writeFile(sourceFile, 'demo', 'utf-8');
+
+    await expect(kernel.invoke('file.exists', { path: sourceFile }, context(fileRead))).resolves.toEqual({ exists: true });
+    await expect(
+      kernel.invoke('file.mkdir', { path: createdDir, options: { recursive: true } }, context(fileManage))
+    ).resolves.toEqual({ ack: true });
+    await expect(
+      kernel.invoke('file.copy', { source: sourceFile, destination: copiedFile }, context(fileManage))
+    ).resolves.toEqual({ ack: true });
+    await expect(
+      kernel.invoke('file.move', { source: copiedFile, destination: movedFile }, context(fileManage))
+    ).resolves.toEqual({ ack: true });
+    await expect(
+      kernel.invoke('file.delete', { path: movedFile }, context(fileManage))
+    ).resolves.toEqual({ ack: true });
+
+    await expect(fs.access(createdDir)).resolves.toBeUndefined();
+    await expect(fs.readFile(sourceFile, 'utf-8')).resolves.toBe('demo');
+    await expect(fs.access(copiedFile)).rejects.toBeDefined();
+    await expect(fs.access(movedFile)).rejects.toBeDefined();
   });
 
   it('keeps interactive dialog routes open beyond the generic 2 second timeout window', async () => {
@@ -551,5 +716,106 @@ describe('Host services PAL routing', () => {
     expect(received.message.encoding).toBe('base64');
     expect(received.message.transport).toBe('shared-memory');
     expect(listed.channels.map((item) => item.channelId)).toContain(createdChannel.channel.channelId);
+  });
+
+  it('creates plugin shortcuts and launches app plugins through formal routes', async () => {
+    const state: PalState = {
+      clipboardText: '',
+      clipboardImageBase64: null,
+      clipboardFiles: [],
+      dialogOpenArgs: [],
+      dialogSaveArgs: [],
+      dialogMessageArgs: [],
+      dialogConfirmArgs: [],
+      shellOpenPath: [],
+      shellOpenExternal: [],
+      shellShowInFolder: [],
+      notifications: [],
+      trayActive: false,
+      shortcuts: [],
+      preventSleep: false,
+      ipcChannels: new Map()
+    };
+    const pluginRoot = path.join(workspace, 'launch-plugin');
+    await fs.mkdir(path.join(pluginRoot, 'dist'), { recursive: true });
+    await fs.mkdir(path.join(pluginRoot, 'assets', 'icons'), { recursive: true });
+    await fs.writeFile(path.join(pluginRoot, 'dist', 'index.html'), '<!doctype html><title>Launch App</title>', 'utf-8');
+    await fs.writeFile(path.join(pluginRoot, 'assets', 'icons', 'app-icon.ico'), 'icon-binary', 'utf-8');
+    await fs.writeFile(path.join(pluginRoot, 'assets', 'icons', 'app-icon.icns'), 'icon-binary-icns', 'utf-8');
+    await fs.writeFile(
+      path.join(pluginRoot, 'manifest.yaml'),
+      [
+        'id: chips.launch.app',
+        'version: 1.0.0',
+        'type: app',
+        'name: Launch App',
+        'entry: dist/index.html',
+        'ui:',
+        '  launcher:',
+        '    displayName: Launch App',
+        '    icon: assets/icons/app-icon.ico',
+        'permissions:',
+        '  - plugin.manage',
+        ''
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const kernel = new Kernel();
+    const runtime = new PluginRuntime(workspace, { locale: 'zh-CN', themeId: 'chips-official.default-theme' });
+    await runtime.load();
+    registerHostSchemas();
+    await registerHostServices({
+      kernel,
+      pal: createPal(state),
+      workspacePath: workspace,
+      logger: new StructuredLogger(),
+      getCardService: () => new CardService(),
+      getBoxService: () => new BoxService(),
+      getZipService: () => new StoreZipService(),
+      runtime
+    });
+    const context = createContextFactory();
+    const manageContext = context(['plugin.manage', 'plugin.read']);
+
+    const installed = await kernel.invoke<{ manifestPath: string }, { pluginId: string }>(
+      'plugin.install',
+      { manifestPath: path.join(pluginRoot, 'manifest.yaml') },
+      manageContext
+    );
+    await kernel.invoke('plugin.enable', { pluginId: installed.pluginId }, manageContext);
+
+    const createdShortcut = await kernel.invoke<
+      { pluginId: string; replace?: boolean },
+      { shortcut: { exists: boolean; launcherPath: string; iconPath?: string } }
+    >('plugin.createShortcut', { pluginId: installed.pluginId }, manageContext);
+    const queriedShortcut = await kernel.invoke<
+      { pluginId: string },
+      { shortcut: { exists: boolean; launcherPath: string } }
+    >('plugin.getShortcut', { pluginId: installed.pluginId }, context(['plugin.read']));
+    const launched = await kernel.invoke<
+      { pluginId: string; launchParams: Record<string, unknown> },
+      { window: { id: string }; session: { sessionId: string } }
+    >(
+      'plugin.launch',
+      {
+        pluginId: installed.pluginId,
+        launchParams: {
+          targetPath: '/tmp/demo.card',
+          trigger: 'unit-test'
+        }
+      },
+      manageContext
+    );
+
+    expect(createdShortcut.shortcut.exists).toBe(true);
+    expect(createdShortcut.shortcut.launcherPath).toContain('Launch App');
+    expect(createdShortcut.shortcut.iconPath).toContain(path.join('assets', 'icons'));
+    expect(createdShortcut.shortcut.iconPath).toMatch(
+      process.platform === 'darwin' ? /app-icon\.icns$/ : /app-icon\.ico$/
+    );
+    expect(queriedShortcut.shortcut.exists).toBe(true);
+    expect(launched.window.id).toBe('window-1');
+    expect(launched.session.sessionId).toBeTypeOf('string');
   });
 });

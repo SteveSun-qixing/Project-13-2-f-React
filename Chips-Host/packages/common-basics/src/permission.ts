@@ -9,6 +9,18 @@ export class PermissionGuard {
     }
 
     const grantedSet = new Set(granted);
-    return required.every((permission) => grantedSet.has(permission));
+    return required.every((permission) => {
+      if (grantedSet.has(permission)) {
+        return true;
+      }
+
+      const separatorIndex = permission.indexOf('.');
+      if (separatorIndex <= 0) {
+        return false;
+      }
+
+      const namespace = permission.slice(0, separatorIndex);
+      return grantedSet.has(`${namespace}.manage`);
+    });
   }
 }

@@ -1,0 +1,17 @@
+.workspace-explorer__tree-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.workspace-explorer__tree-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-explorer__tree-path {
+  font-size: 12px;
+  opacity: 0.68;
+  word-break: break-all;
+}

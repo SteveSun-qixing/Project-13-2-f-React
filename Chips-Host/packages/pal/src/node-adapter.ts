@@ -481,6 +481,72 @@ class NodeFileSystem implements PALFileSystem {
     return list;
   }
 
+  public async exists(inputPath: string): Promise<boolean> {
+    const normalizedPath = this.normalize(inputPath);
+    try {
+      await fs.access(normalizedPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  public async mkdir(inputPath: string, options?: { recursive?: boolean }): Promise<void> {
+    const normalizedPath = this.normalize(inputPath);
+    await fs.mkdir(normalizedPath, { recursive: options?.recursive ?? true });
+  }
+
+  public async delete(inputPath: string, options?: { recursive?: boolean }): Promise<void> {
+    const normalizedPath = this.normalize(inputPath);
+    await fs.rm(normalizedPath, {
+      recursive: options?.recursive ?? true,
+      force: false
+    });
+  }
+
+  public async copy(sourcePath: string, destinationPath: string, options?: { overwrite?: boolean }): Promise<void> {
+    const normalizedSource = this.normalize(sourcePath);
+    const normalizedDestination = this.normalize(destinationPath);
+    const overwrite = options?.overwrite ?? true;
+
+    await fs.mkdir(path.dirname(normalizedDestination), { recursive: true });
+    await fs.cp(normalizedSource, normalizedDestination, {
+      force: overwrite,
+      errorOnExist: !overwrite,
+      recursive: true
+    });
+  }
+
+  public async move(sourcePath: string, destinationPath: string, options?: { overwrite?: boolean }): Promise<void> {
+    const normalizedSource = this.normalize(sourcePath);
+    const normalizedDestination = this.normalize(destinationPath);
+    const overwrite = options?.overwrite ?? true;
+
+    if (!overwrite) {
+      const destinationExists = await this.exists(normalizedDestination);
+      if (destinationExists) {
+        throw createError('PAL_FS_MOVE_TARGET_EXISTS', `Destination already exists: ${normalizedDestination}`, {
+          source: normalizedSource,
+          destination: normalizedDestination
+        });
+      }
+    } else if (await this.exists(normalizedDestination)) {
+      await fs.rm(normalizedDestination, { recursive: true, force: true });
+    }
+
+    await fs.mkdir(path.dirname(normalizedDestination), { recursive: true });
+
+    try {
+      await fs.rename(normalizedSource, normalizedDestination);
+    } catch (error) {
+      await this.copy(normalizedSource, normalizedDestination, { overwrite });
+      await this.delete(normalizedSource, { recursive: true });
+      if (!(await this.exists(normalizedDestination))) {
+        throw error;
+      }
+    }
+  }
+
   public async watch(inputPath: string, onEvent: (event: FileWatchEvent) => void): Promise<FileWatchSubscription> {
     const normalizedPath = this.normalize(inputPath);
     const watchId = createId();
