@@ -1,18 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import { CardTypeGrid } from './CardTypeGrid';
 import { LayoutTypeGrid } from './LayoutTypeGrid';
-import { cardTypes as allCardTypes, layoutTypes as allLayoutTypes } from './data';
+import { layoutTypes as allLayoutTypes } from './data';
 import { useTranslation } from '../../hooks/useTranslation';
 import { DragProvider } from './DragContext';
+import { useInstalledCardTypes } from '../../services/card-plugin-catalog';
 import './CardBoxLibrary.css';
 
 type TabType = 'cards' | 'boxes';
 
 export default function CardBoxLibrary() {
   const { t } = useTranslation();
+  const { cardTypes, loading } = useInstalledCardTypes();
   const [activeTab, setActiveTab] = useState<TabType>('cards');
 
-  const currentCardCount = allCardTypes.length;
+  const currentCardCount = cardTypes.length;
   const currentLayoutCount = allLayoutTypes.length;
 
   const hasContent = useMemo(() => {
@@ -48,7 +50,13 @@ export default function CardBoxLibrary() {
         <div className="card-box-library__content">
           {activeTab === 'cards' ? (
             hasContent ? (
-              <CardTypeGrid types={allCardTypes} />
+              <CardTypeGrid types={cardTypes} />
+            ) : loading ? (
+              <div className="card-box-library__empty">
+                <span className="card-box-library__empty-icon">⏳</span>
+                <span className="card-box-library__empty-text">{t('card_box.loading_cards') || '正在加载已安装的基础卡片'}</span>
+                <span className="card-box-library__empty-hint">{t('card_box.loading_hint') || '请稍候，正在从 Host 同步插件列表'}</span>
+              </div>
             ) : (
               <div className="card-box-library__empty">
                 <span className="card-box-library__empty-icon">📭</span>

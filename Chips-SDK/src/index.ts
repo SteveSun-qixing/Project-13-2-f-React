@@ -1,6 +1,17 @@
 export { createClient } from "./core/client";
 export type { Client, ClientConfig } from "./types/client";
 export type {
+  BasecardChangePayload,
+  BasecardErrorPayload,
+  BasecardHeightPayload,
+  BasecardReadyPayload,
+  BasecardRenderEditorResult,
+  BasecardRenderViewResult,
+  BasecardSelectPayload,
+  BasecardSession,
+  BasecardSessionOpenOptions,
+  BasecardValidationIssue,
+  BasecardValidationResult,
   CardApi,
   CardCoverRenderResult,
   CardCoverView,

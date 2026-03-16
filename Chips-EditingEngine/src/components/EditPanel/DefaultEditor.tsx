@@ -90,9 +90,9 @@ export const DefaultEditor = forwardRef<DefaultEditorRef, DefaultEditorProps>((p
 
   const cardTypeName = useMemo(() => {
     const typeNames: Record<string, string> = {
-      RichTextCard: t('card_window.type_rich_text') || 'RichTextCard',
+      'base.richtext': t('card_window.type_rich_text') || '富文本基础卡片',
       MarkdownCard: t('card_window.type_markdown') || 'MarkdownCard',
-      ImageCard: t('card_window.type_image') || 'ImageCard',
+      'base.image': t('card_window.type_image') || '图片基础卡片',
       VideoCard: t('card_window.type_video') || 'VideoCard',
       AudioCard: t('card_window.type_audio') || 'AudioCard',
       CodeBlockCard: t('card_window.type_code') || 'CodeBlockCard',

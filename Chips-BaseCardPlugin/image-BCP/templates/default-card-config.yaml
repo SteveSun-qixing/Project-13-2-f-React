@@ -1,4 +1,4 @@
-card_type: "ImageCard"
+card_type: "base.image"
 theme: ""
 images: []
 layout_type: "single"

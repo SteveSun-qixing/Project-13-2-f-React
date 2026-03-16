@@ -160,7 +160,7 @@ describe('CoverPanel', () => {
     const previewFrame = document.body.querySelector('.cover-panel__preview-pane iframe') as HTMLIFrameElement | null;
     const srcDoc = previewFrame?.srcdoc ?? previewFrame?.getAttribute('srcdoc') ?? '';
 
-    expect(mockFileService.readBinary).toHaveBeenCalledWith('/workspace/demo.card/.card/cardcover/cover-image.png');
+    expect(mockFileService.readBinary).toHaveBeenCalledWith('/workspace/demo.card/cardcover/cover-image.png');
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(srcDoc).toContain('blob:cover-preview');
   });

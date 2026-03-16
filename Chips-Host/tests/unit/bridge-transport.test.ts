@@ -29,7 +29,7 @@ describe('BridgeTransport', () => {
     await bridge.plugin.list();
     await bridge.plugin.get('plugin-1');
     await bridge.plugin.getSelf();
-    await bridge.plugin.getCardPlugin('RichTextCard');
+    await bridge.plugin.getCardPlugin('base.richtext');
     await bridge.plugin.getLayoutPlugin('grid-layout');
     await bridge.window.open({ title: 'demo' });
     await bridge.window.getState('w1');

@@ -3,7 +3,6 @@ import { getCardService, type CompositeCard, type CardServiceState } from '../co
 import { globalEventEmitter } from '../core/event-emitter';
 import type { BasecardResourceOperations } from '../basecard-runtime/contracts';
 import type { CardCoverResource } from '../utils/card-cover';
-import { workspaceService } from '../services/workspace-service';
 
 export interface CardState {
     openCards: Map<string, CompositeCard>;
@@ -21,7 +20,7 @@ export interface CardContextType extends CardState {
     updateCardCover: (cardId: string, cover: { html: string; ratio?: string; resources?: CardCoverResource[] }) => void;
     createCard: (name: string, initialBasicCard?: { type: string; data?: Record<string, unknown> }) => Promise<CompositeCard>;
     saveCard: (id: string) => Promise<void>;
-    addBasicCard: (cardId: string, type: string, data?: Record<string, unknown>, position?: number) => CompositeCard['structure']['basicCards'][number] | null;
+    addBasicCard: (cardId: string, type: string, data?: Record<string, unknown>, position?: number) => Promise<CompositeCard['structure']['basicCards'][number] | null>;
     removeBasicCard: (cardId: string, basicCardId: string) => void;
     moveBasicCard: (cardId: string, basicCardId: string, newPosition: number) => void;
     updateBasicCard: (
@@ -81,38 +80,6 @@ export function CardProvider({ children }: { children: ReactNode }) {
             globalEventEmitter.off('card:created', handleCardCreated);
             globalEventEmitter.off('card:opened', handleCardOpened);
             globalEventEmitter.off('card:closed', handleCardClosed);
-        };
-    }, [cardService]);
-
-    useEffect(() => {
-        const handleWorkspaceFileRenamed = (payload: {
-            file?: {
-                id?: string;
-                type?: string;
-                name?: string;
-                path?: string;
-                modifiedAt?: string;
-            };
-        }) => {
-            const file = payload?.file;
-            if (!file || file.type !== 'card' || typeof file.id !== 'string') {
-                return;
-            }
-
-            const displayName = typeof file.name === 'string'
-                ? file.name.replace(/\.card$/i, '').trim()
-                : '';
-
-            cardService.syncCardWorkspaceSnapshot(file.id, {
-                name: displayName,
-                path: file.path,
-                modifiedAt: file.modifiedAt,
-            });
-        };
-
-        workspaceService.on('workspace:file-renamed', handleWorkspaceFileRenamed);
-        return () => {
-            workspaceService.off('workspace:file-renamed', handleWorkspaceFileRenamed);
         };
     }, [cardService]);
 

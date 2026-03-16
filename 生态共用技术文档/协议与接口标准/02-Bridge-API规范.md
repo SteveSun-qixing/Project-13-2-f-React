@@ -114,7 +114,7 @@ card 子域采用 vNext 动作口径：
 | `card.validate({ cardFile })` | 验证卡片格式合法性 | 是 |
 | `card.render({ cardFile, options? })` | 调用 Host L9 统一渲染链路并返回渲染结果 | 否 |
 | `card.renderCover({ cardFile })` | 调用 Host 正式封面渲染链路并返回封面视图 | 否 |
-| `card.renderEditor({ cardType, initialConfig?, baseCardId? })` | 调用 Host 基础卡片编辑器装载链路并返回编辑器文档 | 否 |
+| `card.renderEditor({ cardType, initialConfig?, baseCardId?, cardRootDir? })` | 调用 Host 基础卡片编辑器装载链路并返回编辑器文档 | 否 |
 
 `card.render.options` 推荐字段：
 
@@ -138,7 +138,8 @@ card 子域采用 vNext 动作口径：
 `card.renderCover` 返回 `view.title/view.coverUrl/view.ratio`，正式约束如下：
 
 - `view.coverUrl` 必须指向受控的 `.card/cover.html` 入口，供 SDK 作为 iframe `src` 使用；
-- `.card/cover.html` 中的相对路径必须相对于 `.card/` 目录解析，可继续引用 `.card/cardcover/*`；
+- 封面资源文件保存在卡片根目录，例如 `cardcover/cover-image.png`；
+- `.card/cover.html` 必须具备指向卡片根目录的基准路径，使 `./cardcover/*` 按卡片根目录解析；
 - 封面链路不注入复合卡片壳层，也不自动注入主题 CSS、多语言文案或基础卡片节点运行时；
 - 应用层不得把 `view.coverUrl` 再改写为任意 `srcdoc` 或内联 HTML 字符串。
 
@@ -156,12 +157,46 @@ card 子域采用 vNext 动作口径：
 - 基础卡片编辑器必须通过 `card.renderEditor` 由 Host 按 `capabilities.cardTypes` 路由；
 - `initialConfig` 由应用层提供当前基础卡片内容快照，Host 负责注入插件编辑器运行时；
 - `baseCardId` 用于编辑器事件回传与上层状态同步。
+- `cardRootDir` 用于编辑器内部资源导入与资源解析，正式规则是“按卡片根目录记录与解析资源路径”。
 
 边界补充：
 
-- 官方 `Chips-EditingEngine` 的正式编辑态链路不再把 `card.renderEditor` 作为主路径；
-- 该应用使用共享文档中单独定义的本地基础卡片运行时；
+- 官方 `Chips-EditingEngine` 的正式编辑态链路不再把 `card.renderEditor` 作为主装配路径；
+- 该应用改为使用 Host `basecard.openSession` 获取权威会话结果；
+- 编辑引擎查看态仍通过 `basecard.renderView` 获取单卡 iframe；
+- 编辑引擎编辑态改为通过 `basecard.renderEditor` 获取 Host 托管单卡编辑 iframe；
 - `card.render/card.renderEditor` 继续作为 Bridge 对外公开的 Host 托管通用能力。
+
+### basecard子域（基础卡片会话相关）
+
+`basecard` 子域用于 Host 托管的单基础卡片会话能力，当前主要服务官方编辑引擎，也可供未来正式纳入生态决议的宿主使用。
+
+| 动作 | 说明 | 幂等 |
+|---|---|---|
+| `basecard.openSession({ cardType, baseCardId?, sourceConfig?, cardRootDir? })` | 打开基础卡片会话并返回规范化结果 | 否 |
+| `basecard.renderView({ sessionId, interactionPolicy? })` | 生成单基础卡片查看态 iframe 文档 | 否 |
+| `basecard.renderEditor({ sessionId, resources? })` | 生成单基础卡片编辑器 iframe 文档，并可桥接资源解析/导入/删除能力 | 否 |
+| `basecard.closeSession({ sessionId })` | 关闭基础卡片会话 | 否 |
+
+`basecard.openSession` 返回的正式字段至少包括：
+
+- `sessionId`
+- `pluginId`
+- `cardType`
+- `baseCardId`
+- `displayName`
+- `normalizedConfig`
+- `validation`
+- `referencedResources`
+- `commitDebounceMs`
+- `supportsEditor`
+
+正式约束：
+
+- Host 必须通过插件导出 `getBasecardDescriptor/createInitialBasecardConfig/normalizeBasecardConfig/validateBasecardConfig/collectReferencedResources` 完成会话初始化；
+- `referencedResources` 必须使用卡片根目录相对路径；
+- 若传入 `cardRootDir`，Host 生成的查看态与编辑器文档必须保证内部相对资源按卡片根目录解析；
+- 宿主不得绕过 `basecard.openSession` 自行实现插件规范化和校验。
 
 复合卡片预览 iframe 事件协议：
 

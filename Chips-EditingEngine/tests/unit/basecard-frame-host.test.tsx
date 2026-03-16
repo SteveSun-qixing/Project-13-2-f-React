@@ -1,49 +1,60 @@
 // @vitest-environment jsdom
 
-import React, { act, useMemo, useState } from 'react';
+import React, { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BasecardFrameHost } from '../../src/basecard-runtime/frame-host';
 
+const mockOpenSession = vi.fn();
+const mockCloseSession = vi.fn();
 const mockRenderView = vi.fn();
+let readyHandler: ((payload: Record<string, unknown>) => void) | null = null;
+let heightHandler: ((payload: Record<string, unknown>) => void) | null = null;
+let selectHandler: ((payload: Record<string, unknown>) => void) | null = null;
 
-vi.mock('../../src/basecard-runtime/registry', () => ({
-  getBasecardDescriptor: () => ({
-    pluginId: 'mock.basecard',
-    cardType: 'base.mock',
-    displayName: 'Mock Basecard',
-    commitDebounceMs: 260,
-    createInitialConfig: (baseCardId: string) => ({ id: baseCardId }),
-    normalizeConfig: (input: Record<string, unknown>, baseCardId: string) => ({
-      ...input,
-      id: baseCardId,
-    }),
-    validateConfig: () => ({
-      valid: true,
-      errors: {},
-    }),
-    renderView: mockRenderView,
-  }),
-  normalizeBasecardConfig: (_cardType: string, baseCardId: string, input: Record<string, unknown>) => ({
-    ...input,
-    id: baseCardId,
+vi.mock('../../src/services/bridge-client', () => ({
+  getChipsClient: () => ({
+    card: {
+      basecard: {
+        openSession: mockOpenSession,
+        closeSession: mockCloseSession,
+        renderView: mockRenderView,
+        onReady: (_frame: HTMLIFrameElement, handler: (payload: Record<string, unknown>) => void) => {
+          readyHandler = handler;
+          return () => {
+            readyHandler = null;
+          };
+        },
+        onHeight: (_frame: HTMLIFrameElement, handler: (payload: Record<string, unknown>) => void) => {
+          heightHandler = handler;
+          return () => {
+            heightHandler = null;
+          };
+        },
+        onSelect: (_frame: HTMLIFrameElement, handler: (payload: Record<string, unknown>) => void) => {
+          selectHandler = handler;
+          return () => {
+            selectHandler = null;
+          };
+        },
+        onInteraction: () => () => undefined,
+        onError: () => () => undefined,
+      },
+    },
   }),
 }));
 
 function ParentHarness() {
   const [readyRevision, setReadyRevision] = useState(0);
-  const stableConfig = useMemo(() => ({
-    id: 'base-1',
-    body: '<p>demo</p>',
-  }), []);
 
   return (
     <div data-ready-revision={String(readyRevision)}>
       <BasecardFrameHost
+        cardId="card-1"
+        cardPath="/workspace/demo.card"
         baseCardId="base-1"
         cardType="base.mock"
-        config={stableConfig}
-        resourceBaseUrl="file:///workspace/demo.card/"
+        config={{ id: 'base-1', body: '<p>demo</p>' }}
         selectable
         interactionPolicy="delegate"
         themeCacheKey="theme-1"
@@ -59,41 +70,66 @@ function ParentHarness() {
   );
 }
 
+let updateConfigBody: ((body: string) => void) | null = null;
+
+function RefreshHarness() {
+  const [config, setConfig] = useState({ id: 'base-1', body: '<p>demo</p>' });
+
+  updateConfigBody = (body: string) => {
+    setConfig({ id: 'base-1', body });
+  };
+
+  return (
+    <BasecardFrameHost
+      cardId="card-1"
+      cardPath="/workspace/demo.card"
+      baseCardId="base-1"
+      cardType="base.mock"
+      config={config}
+      selectable
+      interactionPolicy="delegate"
+      themeCacheKey="theme-1"
+      onSelect={() => undefined}
+      onInteraction={() => undefined}
+    />
+  );
+}
+
 describe('BasecardFrameHost', () => {
   let container: HTMLDivElement;
   let root: Root;
-  const createObjectURL = vi.fn(() => 'blob:pending-cover');
-  const revokeObjectURL = vi.fn();
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    Object.defineProperty(URL, 'createObjectURL', {
-      configurable: true,
-      writable: true,
-      value: createObjectURL,
-    });
-    Object.defineProperty(URL, 'revokeObjectURL', {
-      configurable: true,
-      writable: true,
-      value: revokeObjectURL,
-    });
 
+    readyHandler = null;
+    heightHandler = null;
+    selectHandler = null;
+    updateConfigBody = null;
+    mockOpenSession.mockReset();
+    mockCloseSession.mockReset();
     mockRenderView.mockReset();
-    createObjectURL.mockClear();
-    revokeObjectURL.mockClear();
-    mockRenderView.mockImplementation(({ container: mountContainer }: { container: HTMLElement }) => {
-      const marker = mountContainer.ownerDocument.createElement('div');
-      marker.textContent = 'mounted';
-      mountContainer.appendChild(marker);
-      return () => {
-        while (mountContainer.firstChild) {
-          mountContainer.removeChild(mountContainer.firstChild);
-        }
-      };
+
+    mockOpenSession.mockResolvedValue({
+      sessionId: 'session-1',
+      pluginId: 'mock.basecard',
+      cardType: 'base.mock',
+      baseCardId: 'base-1',
+      displayName: 'Mock Basecard',
+      normalizedConfig: { id: 'base-1', body: '<p>demo</p>' },
+      validation: { valid: true, issues: [] },
+      referencedResources: [],
+      commitDebounceMs: 260,
+      supportsEditor: true,
     });
+    mockCloseSession.mockResolvedValue({ closed: true });
+    mockRenderView.mockImplementation(async () => ({
+      frame: document.createElement('iframe'),
+      origin: window.location.origin,
+    }));
   });
 
   afterEach(async () => {
@@ -107,93 +143,55 @@ describe('BasecardFrameHost', () => {
     await act(async () => {
       root.render(<ParentHarness />);
       await Promise.resolve();
-    });
-
-    const frame = container.querySelector('iframe') as HTMLIFrameElement | null;
-    expect(frame).not.toBeNull();
-    expect(frame?.srcdoc).toContain('<base href="file:///workspace/demo.card/" />');
-
-    const frameWindow = frame?.contentWindow as (Window & { requestAnimationFrame?: (cb: FrameRequestCallback) => number }) | null;
-    expect(frameWindow).not.toBeNull();
-    Object.defineProperty(frameWindow, 'requestAnimationFrame', {
-      configurable: true,
-      writable: true,
-      value: ((callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      }) as (cb: FrameRequestCallback) => number,
-    });
-
-    await act(async () => {
-      frame?.dispatchEvent(new Event('load'));
       await Promise.resolve();
     });
 
-    const host = container.querySelector('.basecard-frame-host') as HTMLDivElement | null;
-    expect(mockRenderView).toHaveBeenCalled();
+    expect(container.querySelector('iframe')).not.toBeNull();
+
+    await act(async () => {
+      readyHandler?.({ cardType: 'base.mock' });
+      heightHandler?.({ height: 148 });
+      await Promise.resolve();
+    });
+
+    expect(mockRenderView).toHaveBeenCalledTimes(1);
     expect(container.querySelector('.basecard-frame-host__overlay[data-state="loading"]')).toBeNull();
     expect(container.querySelector('.basecard-frame-host__overlay[data-state="error"]')).toBeNull();
     expect(container.querySelector('[data-ready-revision="1"]')).not.toBeNull();
-    expect(host?.style.minHeight).toBe('0px');
-    expect(frame?.style.minHeight).toBe('0px');
+    expect(container.querySelector('iframe')).not.toBeNull();
+
+    await act(async () => {
+      selectHandler?.({ nodeId: 'base-1' });
+      await Promise.resolve();
+    });
   });
 
-  it('resolves pending imported resources for preview rendering before they are persisted', async () => {
-    mockRenderView.mockReset();
-    mockRenderView.mockImplementation(({ container: mountContainer, resolveResourceUrl }: {
-      container: HTMLElement;
-      resolveResourceUrl?: (resourcePath: string) => Promise<string>;
-    }) => {
-      void resolveResourceUrl?.('cover.png').then((src) => {
-        const image = mountContainer.ownerDocument.createElement('img');
-        image.setAttribute('data-preview-image', 'true');
-        image.src = src;
-        mountContainer.appendChild(image);
-      });
-
-      return () => {
-        while (mountContainer.firstChild) {
-          mountContainer.removeChild(mountContainer.firstChild);
-        }
-      };
+  it('preserves preview height and avoids loading overlay flashes during config refresh', async () => {
+    await act(async () => {
+      root.render(<RefreshHarness />);
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     await act(async () => {
-      root.render(
-        <BasecardFrameHost
-          baseCardId="base-1"
-          cardType="base.mock"
-          config={{ id: 'base-1' }}
-          resourceBaseUrl="file:///workspace/demo.card/"
-          pendingResourceImports={new Map([
-            ['cover.png', { path: 'cover.png', data: new Uint8Array([1, 2, 3]), mimeType: 'image/png' }],
-          ])}
-          interactionPolicy="native"
-        />,
-      );
+      readyHandler?.({ cardType: 'base.mock' });
+      heightHandler?.({ height: 148 });
       await Promise.resolve();
     });
 
-    const frame = container.querySelector('iframe') as HTMLIFrameElement | null;
-    const frameWindow = frame?.contentWindow as (Window & { requestAnimationFrame?: (cb: FrameRequestCallback) => number }) | null;
-    expect(frameWindow).not.toBeNull();
-    Object.defineProperty(frameWindow, 'requestAnimationFrame', {
-      configurable: true,
-      writable: true,
-      value: ((callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      }) as (cb: FrameRequestCallback) => number,
-    });
+    const initialFrame = container.querySelector('iframe') as HTMLIFrameElement | null;
+    expect(initialFrame?.style.height).toBe('148px');
+    expect(container.querySelector('.basecard-frame-host__overlay[data-state="loading"]')).toBeNull();
 
     await act(async () => {
-      frame?.dispatchEvent(new Event('load'));
+      updateConfigBody?.('<p>updated</p>');
       await Promise.resolve();
       await Promise.resolve();
     });
 
-    const previewImage = frame?.contentDocument?.querySelector('[data-preview-image="true"]') as HTMLImageElement | null;
-    expect(previewImage).not.toBeNull();
-    expect(previewImage?.getAttribute('src')?.startsWith('blob:')).toBe(true);
+    const refreshedFrame = container.querySelector('iframe') as HTMLIFrameElement | null;
+    expect(mockRenderView).toHaveBeenCalledTimes(2);
+    expect(refreshedFrame?.style.height).toBe('148px');
+    expect(container.querySelector('.basecard-frame-host__overlay[data-state="loading"]')).toBeNull();
   });
 });

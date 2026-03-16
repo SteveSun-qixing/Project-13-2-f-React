@@ -21,6 +21,10 @@ afterEach(async () => {
 describe('route manifest contract', () => {
   it('contains required route actions for host services', async () => {
     const required = [
+      'basecard.openSession',
+      'basecard.renderView',
+      'basecard.renderEditor',
+      'basecard.closeSession',
       'file.read',
       'file.write',
       'file.stat',

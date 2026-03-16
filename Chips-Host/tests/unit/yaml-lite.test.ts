@@ -21,9 +21,9 @@ content_warning: []
     const parsed = parseYamlLite(`
 structure:
   - id: "6at8Obawde"
-    type: "RichTextCard"
+    type: "base.richtext"
   - id: "Qzea3RKc0A"
-    type: "RichTextCard"
+    type: "base.richtext"
 
 manifest:
   card_count: 2
@@ -35,11 +35,11 @@ manifest:
       structure: [
         {
           id: '6at8Obawde',
-          type: 'RichTextCard'
+          type: 'base.richtext'
         },
         {
           id: 'Qzea3RKc0A',
-          type: 'RichTextCard'
+          type: 'base.richtext'
         }
       ],
       manifest: {

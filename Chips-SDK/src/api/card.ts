@@ -83,6 +83,7 @@ export interface CardEditorRenderOptions {
   cardType: string;
   initialConfig?: Record<string, unknown>;
   baseCardId?: string;
+  cardRootDir?: string;
   resources?: CardEditorResourceBridge;
 }
 
@@ -187,6 +188,110 @@ export interface CardEditorErrorPayload {
   message: string;
 }
 
+export interface BasecardSessionOpenOptions {
+  cardType: string;
+  baseCardId?: string;
+  sourceConfig?: Record<string, unknown>;
+  cardRootDir?: string;
+}
+
+export interface BasecardValidationIssue {
+  path: string;
+  message: string;
+  code?: string;
+}
+
+export interface BasecardValidationResult {
+  valid: boolean;
+  issues: BasecardValidationIssue[];
+}
+
+export interface BasecardSession {
+  sessionId: string;
+  pluginId: string;
+  cardType: string;
+  baseCardId: string;
+  displayName: string;
+  normalizedConfig: Record<string, unknown>;
+  validation: BasecardValidationResult;
+  referencedResources: string[];
+  commitDebounceMs: number;
+  supportsEditor: boolean;
+}
+
+export interface BasecardView {
+  title: string;
+  body: string;
+  sessionId: string;
+  pluginId: string;
+  cardType: string;
+  baseCardId: string;
+}
+
+export interface BasecardEditorView extends BasecardView {
+  normalizedConfig: Record<string, unknown>;
+  validation: BasecardValidationResult;
+  referencedResources: string[];
+}
+
+export interface BasecardRenderViewResult {
+  view: BasecardView;
+}
+
+export interface BasecardRenderEditorResult {
+  view: BasecardEditorView;
+}
+
+export interface BasecardRenderEditorOptions {
+  sessionId: string;
+  resources?: CardEditorResourceBridge;
+}
+
+export interface BasecardReadyPayload {
+  sessionId?: string;
+  baseCardId?: string;
+  nodeId?: string;
+  cardType?: string;
+  pluginId?: string;
+  normalizedConfig?: Record<string, unknown>;
+  validation?: BasecardValidationResult;
+  referencedResources?: string[];
+}
+
+export interface BasecardHeightPayload {
+  sessionId?: string;
+  baseCardId?: string;
+  nodeId?: string;
+  cardType?: string;
+  height: number;
+}
+
+export interface BasecardSelectPayload {
+  baseCardId?: string;
+  nodeId?: string;
+  cardType?: string;
+  source?: string;
+}
+
+export interface BasecardChangePayload {
+  sessionId?: string;
+  baseCardId?: string;
+  cardType: string;
+  pluginId: string;
+  normalizedConfig: Record<string, unknown>;
+  validation: BasecardValidationResult;
+  referencedResources: string[];
+}
+
+export interface BasecardErrorPayload {
+  sessionId?: string;
+  baseCardId?: string;
+  cardType: string;
+  pluginId: string;
+  code: string;
+  message: string;
+}
+
 export interface CardApi {
   parse(cardFile: string): Promise<CardDocument>;
   validate(card: CardDocument): Promise<ValidationResult>;
@@ -224,6 +329,18 @@ export interface CardApi {
     onReady(frame: HTMLIFrameElement, handler: () => void): () => void;
     onChange(frame: HTMLIFrameElement, handler: (payload: CardEditorChangePayload) => void): () => void;
     onError(frame: HTMLIFrameElement, handler: (payload: CardEditorErrorPayload) => void): () => void;
+  };
+  basecard: {
+    openSession(options: BasecardSessionOpenOptions): Promise<BasecardSession>;
+    closeSession(sessionId: string): Promise<{ closed: boolean }>;
+    renderView(options: { sessionId: string; interactionPolicy?: CompositeInteractionPolicy }): Promise<FrameRenderResult>;
+    renderEditor(options: BasecardRenderEditorOptions): Promise<FrameRenderResult>;
+    onReady(frame: HTMLIFrameElement, handler: (payload: BasecardReadyPayload) => void): () => void;
+    onHeight(frame: HTMLIFrameElement, handler: (payload: BasecardHeightPayload) => void): () => void;
+    onSelect(frame: HTMLIFrameElement, handler: (payload: BasecardSelectPayload) => void): () => void;
+    onInteraction(frame: HTMLIFrameElement, handler: (payload: CompositeInteractionPayload) => void): () => void;
+    onChange(frame: HTMLIFrameElement, handler: (payload: BasecardChangePayload) => void): () => void;
+    onError(frame: HTMLIFrameElement, handler: (payload: BasecardErrorPayload) => void): () => void;
   };
 }
 
@@ -363,7 +480,7 @@ export function createCardApi(client: CoreClient): CardApi {
       },
     },
     editorPanel: {
-      async render({ cardType, initialConfig, baseCardId, resources }) {
+      async render({ cardType, initialConfig, baseCardId, cardRootDir, resources }) {
         if (!cardType) {
           throw createError(
             "INVALID_ARGUMENT",
@@ -377,6 +494,7 @@ export function createCardApi(client: CoreClient): CardApi {
             cardType,
             initialConfig: initialConfig ?? {},
             baseCardId,
+            cardRootDir,
           },
         );
 
@@ -401,13 +519,124 @@ export function createCardApi(client: CoreClient): CardApi {
         return subscribeToFrameMessage<CardEditorErrorPayload>(frame, "chips.card-editor:error", handler);
       },
     },
+    basecard: {
+      async openSession({ cardType, baseCardId, sourceConfig, cardRootDir }) {
+        if (!cardType) {
+          throw createError(
+            "INVALID_ARGUMENT",
+            "card.basecard.openSession: cardType is required.",
+          );
+        }
+
+        const { session } = await client.invoke<
+          BasecardSessionOpenOptions,
+          { session: BasecardSession }
+        >("basecard.openSession", {
+          cardType,
+          baseCardId,
+          sourceConfig: sourceConfig ?? {},
+          cardRootDir,
+        });
+
+        return session;
+      },
+      async closeSession(sessionId) {
+        if (!sessionId) {
+          throw createError(
+            "INVALID_ARGUMENT",
+            "card.basecard.closeSession: sessionId is required.",
+          );
+        }
+
+        return client.invoke<{ sessionId: string }, { closed: boolean }>("basecard.closeSession", {
+          sessionId,
+        });
+      },
+      async renderView({ sessionId, interactionPolicy }) {
+        if (!sessionId) {
+          throw createError(
+            "INVALID_ARGUMENT",
+            "card.basecard.renderView: sessionId is required.",
+          );
+        }
+        if (
+          typeof interactionPolicy !== "undefined" &&
+          interactionPolicy !== "native" &&
+          interactionPolicy !== "delegate"
+        ) {
+          throw createError(
+            "INVALID_ARGUMENT",
+            "card.basecard.renderView: interactionPolicy must be 'native' or 'delegate'.",
+          );
+        }
+
+        const { view } = await client.invoke<
+          { sessionId: string; interactionPolicy?: CompositeInteractionPolicy },
+          BasecardRenderViewResult
+        >("basecard.renderView", {
+          sessionId,
+          interactionPolicy,
+        });
+
+        if (typeof document === "undefined") {
+          throw createError(
+            "RUNTIME_ENV_UNSUPPORTED",
+            "card.basecard.renderView requires a DOM environment.",
+          );
+        }
+
+        return createFrameFromView(view.body, view.title ?? view.cardType ?? "Basecard");
+      },
+      async renderEditor({ sessionId, resources }) {
+        if (!sessionId) {
+          throw createError(
+            "INVALID_ARGUMENT",
+            "card.basecard.renderEditor: sessionId is required.",
+          );
+        }
+
+        const { view } = await client.invoke<{ sessionId: string }, BasecardRenderEditorResult>(
+          "basecard.renderEditor",
+          { sessionId },
+        );
+
+        if (typeof document === "undefined") {
+          throw createError(
+            "RUNTIME_ENV_UNSUPPORTED",
+            "card.basecard.renderEditor requires a DOM environment.",
+          );
+        }
+
+        const frameResult = createFrameFromView(view.body, view.title ?? `${view.cardType} Editor`);
+        attachBasecardEditorResourceBridge(frameResult.frame, resources);
+        return frameResult;
+      },
+      onReady(frame, handler) {
+        return subscribeToFrameReady<BasecardReadyPayload>(frame, "chips.basecard:ready", handler);
+      },
+      onHeight(frame, handler) {
+        return subscribeToFrameMessage<BasecardHeightPayload>(frame, "chips.basecard:height", handler);
+      },
+      onSelect(frame, handler) {
+        return subscribeToFrameMessage<BasecardSelectPayload>(frame, "chips.basecard:select", handler);
+      },
+      onInteraction(frame, handler) {
+        return subscribeToFrameMessage<CompositeInteractionPayload>(frame, "chips.basecard:interaction", handler);
+      },
+      onChange(frame, handler) {
+        return subscribeToFrameMessage<BasecardChangePayload>(frame, "chips.basecard:change", handler);
+      },
+      onError(frame, handler) {
+        return subscribeToFrameMessage<BasecardErrorPayload>(frame, "chips.basecard:error", handler);
+      },
+    },
   };
 }
 
 function createFrameFromView(body: string, title: string): FrameRenderResult {
   const frame = document.createElement("iframe");
-  frame.setAttribute("sandbox", "allow-scripts allow-forms");
-  frame.setAttribute("loading", "lazy");
+  frame.setAttribute("sandbox", "allow-scripts allow-forms allow-same-origin");
+  frame.setAttribute("loading", "eager");
   frame.title = title;
   frame.srcdoc = body;
 
@@ -417,18 +646,23 @@ function createFrameFromView(body: string, title: string): FrameRenderResult {
   };
 }
 
-type CardEditorResourceAction = "resolve" | "import" | "delete";
+type FrameEditorResourceEventNames = {
+  request: string;
+  response: string;
+  release: string;
+};
 
 type CardEditorResourceRequestPayload = {
   requestId: string;
-  action: CardEditorResourceAction;
-  resourcePath?: string;
-  preferredPath?: string;
-  file?: File;
+  action: "resolve" | "import" | "delete";
+  resourcePath?: unknown;
+  preferredPath?: unknown;
+  file?: unknown;
 };
 
-function attachCardEditorResourceBridge(
+function attachFrameEditorResourceBridge(
   frame: HTMLIFrameElement,
+  eventNames: FrameEditorResourceEventNames,
   resources?: CardEditorResourceBridge,
 ): void {
   if (typeof window === "undefined" || !resources) {
@@ -453,7 +687,7 @@ function attachCardEditorResourceBridge(
     if (!data || typeof data !== "object") return;
 
     const record = data as { type?: string; payload?: unknown };
-    if (record.type === "chips.card-editor:resource-release") {
+    if (record.type === eventNames.release) {
       const payload = record.payload as { resourcePath?: unknown } | undefined;
       const resourcePath = normalizeRelativeResourcePath(payload?.resourcePath);
       if (resourcePath) {
@@ -462,7 +696,7 @@ function attachCardEditorResourceBridge(
       return;
     }
 
-    if (record.type !== "chips.card-editor:resource-request") {
+    if (record.type !== eventNames.request) {
       return;
     }
 
@@ -476,7 +710,7 @@ function attachCardEditorResourceBridge(
       .then((result) => {
         source.postMessage(
           {
-            type: "chips.card-editor:resource-response",
+            type: eventNames.response,
             payload: {
               requestId: payload.requestId,
               ok: true,
@@ -489,7 +723,7 @@ function attachCardEditorResourceBridge(
       .catch((error) => {
         source.postMessage(
           {
-            type: "chips.card-editor:resource-response",
+            type: eventNames.response,
             payload: {
               requestId: payload.requestId,
               ok: false,
@@ -502,6 +736,36 @@ function attachCardEditorResourceBridge(
   };
 
   window.addEventListener("message", listener);
+}
+
+function attachCardEditorResourceBridge(
+  frame: HTMLIFrameElement,
+  resources?: CardEditorResourceBridge,
+): void {
+  attachFrameEditorResourceBridge(
+    frame,
+    {
+      request: "chips.card-editor:resource-request",
+      response: "chips.card-editor:resource-response",
+      release: "chips.card-editor:resource-release",
+    },
+    resources,
+  );
+}
+
+function attachBasecardEditorResourceBridge(
+  frame: HTMLIFrameElement,
+  resources?: CardEditorResourceBridge,
+): void {
+  attachFrameEditorResourceBridge(
+    frame,
+    {
+      request: "chips.basecard:resource-request",
+      response: "chips.basecard:resource-response",
+      release: "chips.basecard:resource-release",
+    },
+    resources,
+  );
 }
 
 async function handleCardEditorResourceRequest(
@@ -518,9 +782,7 @@ async function handleCardEditorResourceRequest(
         return resources.resolveResourceUrl(resourcePath);
       }
       if (resources.rootPath) {
-        return {
-          url: createFileUrl(joinPath(resources.rootPath, resourcePath)),
-        }.url;
+        return createFileUrl(joinPath(resources.rootPath, resourcePath));
       }
       throw createError(
         "RUNTIME_ENV_UNSUPPORTED",
@@ -673,6 +935,56 @@ function subscribeToCompositeEvent<T = void>(
   return subscribeToFrameMessage(frame, type, handler);
 }
 
+function subscribeToFrameReady<T = void>(
+  frame: HTMLIFrameElement,
+  type: string,
+  handler: (payload: T) => void,
+): () => void {
+  let settled = false;
+
+  const invokeOnce = (payload: T) => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    handler(payload);
+  };
+
+  const disposeMessage = subscribeToFrameMessage<T>(frame, type, (payload) => {
+    invokeOnce(payload);
+  });
+
+  const handleLoad = () => {
+    invokeOnce({} as T);
+  };
+
+  const canListenToLoad =
+    typeof (frame as { addEventListener?: unknown }).addEventListener === "function" &&
+    typeof (frame as { removeEventListener?: unknown }).removeEventListener === "function";
+
+  if (canListenToLoad) {
+    frame.addEventListener("load", handleLoad);
+  }
+
+  try {
+    const readyState = frame.contentDocument?.readyState;
+    if (readyState === "interactive" || readyState === "complete") {
+      queueMicrotask(() => {
+        invokeOnce({} as T);
+      });
+    }
+  } catch {
+    // ignore cross-context access errors and rely on load/message events
+  }
+
+  return () => {
+    if (canListenToLoad) {
+      frame.removeEventListener("load", handleLoad);
+    }
+    disposeMessage();
+  };
+}
+
 function subscribeToFrameMessage<T = void>(
   frame: HTMLIFrameElement,
   type: string,
@@ -685,11 +997,12 @@ function subscribeToFrameMessage<T = void>(
     );
   }
 
-  const contentWindow = frame.contentWindow;
   const expectedOrigin = window.location.origin;
 
   const listener = (event: MessageEvent) => {
-    if (!event || event.source !== contentWindow) return;
+    if (!event) return;
+    const contentWindow = frame.contentWindow;
+    if (!contentWindow || event.source !== contentWindow) return;
     if (event.origin !== expectedOrigin && event.origin !== "null") return;
     const data = event.data;
     if (!data || typeof data !== "object") return;

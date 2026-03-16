@@ -6,10 +6,14 @@ import './EditPanel.css';
 
 interface EditPanelProps {
   position?: 'right' | 'left';
+  width?: number;
+  defaultExpanded?: boolean;
 }
 
 export default function EditPanel({
   position = 'right',
+  width = 320,
+  defaultExpanded: _defaultExpanded = true,
 }: EditPanelProps) {
   const { t } = useTranslation();
   const { activeCardId, selectedBaseCardId, getCard, updateBasicCard } = useCard();
@@ -19,6 +23,11 @@ export default function EditPanel({
     ? activeCard.structure.basicCards.find(bc => bc.id === selectedBaseCardId)
     : null;
 
+  const panelStyle = {
+    '--panel-width': `${width}px`,
+    width: `${width}px`,
+  } as React.CSSProperties;
+
   const panelClass = [
     'edit-panel',
     'edit-panel--expanded',
@@ -26,7 +35,7 @@ export default function EditPanel({
   ].join(' ');
 
   return (
-    <div className={panelClass} role="complementary" aria-label={t('edit_panel.title') || '编辑面板'}>
+    <div className={panelClass} style={panelStyle} role="complementary" aria-label={t('edit_panel.title') || '编辑面板'}>
       <div className="edit-panel__content">
         {activeCard && selectedBaseCard ? (
           <PluginHost

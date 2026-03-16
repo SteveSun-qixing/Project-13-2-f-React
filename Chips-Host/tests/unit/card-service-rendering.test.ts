@@ -13,6 +13,7 @@ import { toRenderThemeSnapshot } from '../../src/main/theme-runtime/render-bridg
 type JsdomWindowLike = typeof globalThis & {
   parent?: unknown;
   dispatchEvent?: (event: unknown) => boolean;
+  addEventListener?: (type: string, listener: (event: unknown) => void) => void;
   document?: {
     querySelector?: (selector: string) => {
       style?: {
@@ -70,7 +71,7 @@ const createCardDirectory = async (): Promise<string> => {
   );
   await fs.writeFile(
     path.join(sourceDir, '.card/structure.yaml'),
-    ['structure:', '  - id: "intro"', '    type: "RichTextCard"', '  - id: "details"', '    type: "RichTextCard"'].join(
+    ['structure:', '  - id: "intro"', '    type: "base.richtext"', '  - id: "details"', '    type: "base.richtext"'].join(
       '\n'
     ),
     'utf-8'
@@ -78,14 +79,14 @@ const createCardDirectory = async (): Promise<string> => {
   await fs.writeFile(path.join(sourceDir, '.card/cover.html'), '<h1>cover</h1>', 'utf-8');
   await fs.writeFile(
     path.join(sourceDir, 'content/intro.yaml'),
-    ['card_type: "RichTextCard"', 'content_source: "inline"', 'content_text: |', '  <h1>Intro</h1>', '  <p>Hello Chips.</p>'].join(
+    ['card_type: "base.richtext"', 'content_source: "inline"', 'content_text: |', '  <h1>Intro</h1>', '  <p>Hello Chips.</p>'].join(
       '\n'
     ),
     'utf-8'
   );
   await fs.writeFile(
     path.join(sourceDir, 'content/details.yaml'),
-    ['card_type: "RichTextCard"', 'content_source: "inline"', 'content_text: |', '  <h1>Details</h1>', '  <p>Second node body.</p>'].join(
+    ['card_type: "base.richtext"', 'content_source: "inline"', 'content_text: |', '  <h1>Details</h1>', '  <p>Second node body.</p>'].join(
       '\n'
     ),
     'utf-8'
@@ -114,13 +115,13 @@ const createPartiallyBrokenCardDirectory = async (): Promise<string> => {
   );
   await fs.writeFile(
     path.join(sourceDir, '.card/structure.yaml'),
-    ['structure:', '  - id: "intro"', '    type: "RichTextCard"', '  - id: "missing"', '    type: "RichTextCard"'].join('\n'),
+    ['structure:', '  - id: "intro"', '    type: "base.richtext"', '  - id: "missing"', '    type: "base.richtext"'].join('\n'),
     'utf-8',
   );
   await fs.writeFile(path.join(sourceDir, '.card/cover.html'), '<h1>cover</h1>', 'utf-8');
   await fs.writeFile(
     path.join(sourceDir, 'content/intro.yaml'),
-    ['card_type: "RichTextCard"', 'content_source: "inline"', 'content_text: |', '  <h1>Intro</h1>', '  <p>Hello Chips.</p>'].join('\n'),
+    ['card_type: "base.richtext"', 'content_source: "inline"', 'content_text: |', '  <h1>Intro</h1>', '  <p>Hello Chips.</p>'].join('\n'),
     'utf-8',
   );
 
@@ -226,7 +227,6 @@ describe('CardService rendering', () => {
     expect(view.semanticHash.length).toBeGreaterThan(10);
     expect(view.body).toContain('data-target="card-iframe"');
     expect(view.body).toContain('data-mode="view"');
-    expect(view.body).toContain('&lt;base href=&quot;file://');
     expect(view.body).toContain('Intro');
     expect(view.body).toContain('Hello Chips.');
     expect(view.body).toContain('chips.basecard.richtext');
@@ -324,7 +324,6 @@ describe('CardService rendering', () => {
 
     expect(view.title).toBe('Test Card');
     expect(view.body).toContain('data-target="card-iframe"');
-    expect(view.body).toContain('&lt;base href=&quot;file://');
     expect(view.body).toContain('Second node body.');
     expect(view.contentFiles).toEqual(['details.yaml', 'intro.yaml']);
   }, 30_000);
@@ -342,7 +341,7 @@ describe('CardService rendering', () => {
     const service = new CardService({ runtime, workspaceRoot: process.cwd() });
 
     const view = await service.renderEditor({
-      cardType: 'RichTextCard',
+      cardType: 'base.richtext',
       baseCardId: 'intro',
       initialConfig: {
         id: 'intro',
@@ -352,24 +351,134 @@ describe('CardService rendering', () => {
       ...themeContext
     });
 
-    expect(view.cardType).toBe('RichTextCard');
+    expect(view.cardType).toBe('base.richtext');
     expect(view.pluginId).toBe('chips.basecard.richtext');
     expect(view.baseCardId).toBe('intro');
     expect(view.body).toContain('data-base-card-id="intro"');
     expect(view.body).toContain('renderBasecardEditor');
     expect(view.body).toContain('chips.card-editor:change');
-    expect(view.body).toContain('chips.card-editor:resource-request');
-    expect(view.body).toContain('chips.card-editor:resource-response');
-    expect(view.body).toContain('chips.card-editor:resource-release');
-    expect(view.body).toContain("resolveResourceUrl(resourcePath)");
-    expect(view.body).toContain("requestResource('import'");
-    expect(view.body).toContain("requestResource('delete'");
     expect(view.body).toContain("img-src file: http: https: data: blob:");
     expect(view.body).toContain('overflow: hidden;');
     expect(view.body).toContain('#chips-basecard-editor-root { width: 100%; height: 100%; min-height: 0; box-sizing: border-box; display: flex; overflow: hidden; }');
     expect(view.body).toContain('.chips-basecard-editor__toolbar-shell { flex: 0 0 auto; width: 100%; }');
     expect(view.body).not.toContain('chips-basecard-editor__floating-toolbar');
     expect(view.body).not.toContain('chips-basecard-toolbar-offset');
+  }, 30_000);
+
+  it('emits ready and height messages from Host-managed basecard view documents without srcdoc syntax errors', async () => {
+    const themeContext = await loadThemeRenderContext();
+    const workspace = await createTempDir('chips-card-runtime-');
+    const runtime = new PluginRuntime(workspace, {
+      locale: 'zh-CN',
+      themeId: 'chips-official.default-theme'
+    });
+    await runtime.load();
+    const install = await runtime.install(path.resolve(process.cwd(), '../Chips-BaseCardPlugin/richtext-BCP'));
+    await runtime.enable(install.manifest.id);
+    const service = new CardService({ runtime, workspaceRoot: process.cwd() });
+
+    const session = await service.openBasecardSession({
+      cardType: 'base.richtext',
+      baseCardId: 'intro',
+      sourceConfig: {
+        id: 'intro',
+        body: '<p>第一段</p><p>第二段</p><p>第三段</p>',
+        locale: 'zh-CN',
+      },
+    });
+
+    const view = await service.renderBasecardSessionView(
+      session.sessionId,
+      themeContext.theme,
+      themeContext.themeCssText,
+      'delegate',
+    );
+
+    const postedMessages: Array<{ type?: string; payload?: unknown }> = [];
+    const dom = new JSDOM(view.body, {
+      runScripts: 'dangerously',
+      beforeParse(window: JsdomWindowLike) {
+        Object.defineProperty(window, 'parent', {
+          configurable: true,
+          value: {
+            postMessage(message: { type?: string; payload?: unknown }) {
+              postedMessages.push(message);
+            },
+          },
+        });
+      },
+    });
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      expect(view.body).toContain("img-src file: http: https: data: blob:");
+      expect(postedMessages.some((message) => message.type === 'chips.basecard:ready')).toBe(true);
+      const heightMessage = postedMessages.find((message) => message.type === 'chips.basecard:height');
+      expect(heightMessage).toBeTruthy();
+      expect((heightMessage?.payload as { height: number }).height).toBeGreaterThanOrEqual(64);
+    } finally {
+      dom.window.close();
+      service.closeBasecardSession(session.sessionId);
+    }
+  }, 30_000);
+
+  it('emits ready and resize messages from Host-managed card editor documents without srcdoc syntax errors', async () => {
+    const themeContext = await loadThemeRenderContext();
+    const workspace = await createTempDir('chips-card-runtime-');
+    const runtime = new PluginRuntime(workspace, {
+      locale: 'zh-CN',
+      themeId: 'chips-official.default-theme'
+    });
+    await runtime.load();
+    const install = await runtime.install(path.resolve(process.cwd(), '../Chips-BaseCardPlugin/richtext-BCP'));
+    await runtime.enable(install.manifest.id);
+    const service = new CardService({ runtime, workspaceRoot: process.cwd() });
+
+    const view = await service.renderEditor({
+      cardType: 'base.richtext',
+      baseCardId: 'intro',
+      initialConfig: {
+        id: 'intro',
+        body: '<p>编辑态内容</p>',
+        locale: 'zh-CN',
+      },
+      ...themeContext,
+    });
+
+    const postedMessages: Array<{ type?: string; payload?: unknown }> = [];
+    const runtimeErrors: string[] = [];
+    const dom = new JSDOM(view.body, {
+      runScripts: 'dangerously',
+      beforeParse(window: JsdomWindowLike) {
+        window.addEventListener?.('error', (event: unknown) => {
+          const errorEvent = event as { error?: { stack?: string }; message?: string };
+          runtimeErrors.push(
+            String(errorEvent.error?.stack ?? errorEvent.message ?? errorEvent.error ?? 'unknown')
+          );
+        });
+        Object.defineProperty(window, 'parent', {
+          configurable: true,
+          value: {
+            postMessage(message: { type?: string; payload?: unknown }) {
+              postedMessages.push(message);
+            },
+          },
+        });
+      },
+    });
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(runtimeErrors).toEqual([]);
+      expect(postedMessages.some((message) => message.type === 'chips.card-editor:ready')).toBe(true);
+      const resizeMessage = postedMessages.find((message) => message.type === 'chips.card-editor:resize');
+      expect(resizeMessage).toBeTruthy();
+      expect((resizeMessage?.payload as { height: number }).height).toBeGreaterThanOrEqual(240);
+    } finally {
+      dom.window.close();
+    }
   }, 30_000);
 
   it('preserves dark theme color-scheme from theme package css', async () => {
@@ -631,7 +740,7 @@ describe('CardService rendering', () => {
             type: 'chips.basecard:interaction',
             payload: {
               nodeId: 'intro',
-              cardType: 'RichTextCard',
+              cardType: 'base.richtext',
               device: 'wheel',
               intent: 'scroll',
               deltaX: 12,
@@ -652,7 +761,7 @@ describe('CardService rendering', () => {
       expect(interactionMessage?.payload).toMatchObject({
         cardId: 'test-card-id',
         nodeId: 'intro',
-        cardType: 'RichTextCard',
+        cardType: 'base.richtext',
         source: 'basecard-frame',
         device: 'wheel',
         intent: 'scroll',
@@ -735,7 +844,7 @@ describe('CardService rendering', () => {
             type: 'chips.basecard:interaction',
             payload: {
               nodeId: 'intro',
-              cardType: 'RichTextCard',
+              cardType: 'base.richtext',
               device: 'wheel',
               intent: 'scroll',
               deltaX: 12,

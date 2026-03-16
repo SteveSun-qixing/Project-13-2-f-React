@@ -8,6 +8,7 @@
 
 - 在查看器中以标题 + 正文的形式渲染文本内容；
 - 在编辑引擎中提供对应的编辑面板；
+- 向 Host 导出正式基础卡片契约，用于会话打开、配置归一、校验与资源收集；
 - 使用 YAML 配置文件保存文本内容；
 - 使用多语言文案与基础错误处理。
 
@@ -22,6 +23,7 @@
 ├─ chips.config.mjs
 ├─ src/
 │  ├─ index.ts
+│  ├─ runtime-contract.ts
 │  ├─ render/
 │  │  ├─ view.tsx
 │  │  └─ runtime.ts
@@ -65,3 +67,9 @@ npm run dev
 ## 配置结构
 
 文本型基础卡片配置类型在 `src/schema/card-config.ts` 中定义，对应 YAML 文件示例位于 `templates/default-card-config.yaml`。
+
+## Host 正式契约
+
+- 基础卡片插件必须通过 `src/runtime-contract.ts` 导出正式契约；
+- Host 只按 `manifest.yaml` 中声明的正式 `{{ CARD_TYPE }}` 路由插件；
+- 不保留旧类型别名、兼容回退或隐式归一逻辑。

@@ -49,7 +49,7 @@ describe('EditPanel', () => {
             basicCards: [
               {
                 id: 'base-1',
-                type: 'RichTextCard',
+                type: 'base.richtext',
                 data: { id: 'base-1', title: 'Intro' },
               },
             ],
@@ -67,10 +67,10 @@ describe('EditPanel', () => {
 
     expect(container.querySelector('.edit-panel__header')).toBeNull();
     expect(container.querySelector('.edit-panel__content')).not.toBeNull();
-    expect((container.querySelector('.edit-panel') as HTMLDivElement | null)?.style.width).toBe('');
+    expect((container.querySelector('.edit-panel') as HTMLDivElement | null)?.style.width).toBe('320px');
 
     const pluginHost = container.querySelector('[data-testid="plugin-host-stub"]') as HTMLDivElement | null;
-    expect(pluginHost?.dataset.cardType).toBe('RichTextCard');
+    expect(pluginHost?.dataset.cardType).toBe('base.richtext');
     expect(pluginHost?.dataset.baseCardId).toBe('base-1');
   });
 

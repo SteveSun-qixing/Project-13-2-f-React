@@ -101,6 +101,26 @@ vi.mock('../../src/services/workspace-service', () => ({
   workspaceService: mockState.workspaceServiceMock,
 }));
 
+vi.mock('../../src/services/basecard-service', () => ({
+  basecardService: {
+    normalizeSnapshot: vi.fn(async (options: { cardType: string; baseCardId?: string }) => ({
+      pluginId: 'chips.basecard.richtext',
+      cardType: 'base.richtext',
+      baseCardId: options.baseCardId ?? 'base-new',
+      displayName: '富文本基础卡片',
+      normalizedConfig: {
+        id: options.baseCardId ?? 'base-new',
+        body: '<p></p>',
+        locale: 'zh-CN',
+      },
+      validation: { valid: true, issues: [] },
+      referencedResources: [],
+      commitDebounceMs: 260,
+      supportsEditor: true,
+    })),
+  },
+}));
+
 vi.mock('../../src/layouts/InfiniteCanvas', () => ({
   InfiniteCanvas: ({ onDropCreate }: { onDropCreate?: (data: unknown, worldPosition: { x: number; y: number }, target?: unknown) => void }) => {
     mockState.capturedCanvasDrop = onDropCreate ?? null;
@@ -201,7 +221,7 @@ describe('App canvas drop integration', () => {
       await mockState.capturedCanvasDrop?.(
         {
           type: 'card',
-          typeId: 'RichTextCard',
+          typeId: 'base.richtext',
           name: ' Rich Text Card ',
         },
         { x: 240, y: 160 },
@@ -213,7 +233,7 @@ describe('App canvas drop integration', () => {
       expect.objectContaining({
         type: 'base.richtext',
         config: expect.objectContaining({
-          body: '<p>123456789</p>',
+          body: '<p></p>',
           locale: 'zh-CN',
         }),
       }),
@@ -251,7 +271,7 @@ describe('App canvas drop integration', () => {
       await mockState.capturedCanvasDrop?.(
         {
           type: 'card',
-          typeId: 'RichTextCard',
+          typeId: 'base.richtext',
           name: 'Rich Text',
         },
         { x: 420, y: 260 },
@@ -272,9 +292,9 @@ describe('App canvas drop integration', () => {
     expect(mockState.cardState.setActiveCard).toHaveBeenCalledWith('card-1');
     expect(mockState.cardState.addBasicCard).toHaveBeenCalledWith(
       'card-1',
-      'RichTextCard',
+      'base.richtext',
       {
-        body: '<p>123456789</p>',
+        body: '<p></p>',
         locale: 'zh-CN',
       },
       1,

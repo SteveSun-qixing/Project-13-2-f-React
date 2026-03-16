@@ -23,7 +23,7 @@ describe('renderer hooks', () => {
     await pluginClient.list({ type: 'app' });
     await pluginClient.get('chips.demo');
     await pluginClient.getSelf();
-    await pluginClient.getCardPlugin('RichTextCard');
+    await pluginClient.getCardPlugin('base.richtext');
     await pluginClient.getLayoutPlugin('grid-layout');
     await pluginClient.install('/tmp/demo.plugin.json');
     await pluginClient.query({ type: 'app' });
@@ -38,7 +38,7 @@ describe('renderer hooks', () => {
     expect(invoke).toHaveBeenCalledWith('plugin.list', { type: 'app' });
     expect(invoke).toHaveBeenCalledWith('plugin.get', { pluginId: 'chips.demo' });
     expect(invoke).toHaveBeenCalledWith('plugin.getSelf', {});
-    expect(invoke).toHaveBeenCalledWith('plugin.getCardPlugin', { cardType: 'RichTextCard' });
+    expect(invoke).toHaveBeenCalledWith('plugin.getCardPlugin', { cardType: 'base.richtext' });
     expect(invoke).toHaveBeenCalledWith('plugin.getLayoutPlugin', { layoutType: 'grid-layout' });
     expect(invoke).toHaveBeenCalledWith('plugin.install', { manifestPath: '/tmp/demo.plugin.json' });
     expect(invoke).toHaveBeenCalledWith('plugin.query', { type: 'app' });

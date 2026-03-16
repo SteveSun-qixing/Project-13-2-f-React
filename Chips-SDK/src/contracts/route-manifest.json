@@ -1,5 +1,17 @@
 {
   "routes": {
+    "basecard.closeSession": {
+      "action": "basecard.closeSession"
+    },
+    "basecard.openSession": {
+      "action": "basecard.openSession"
+    },
+    "basecard.renderEditor": {
+      "action": "basecard.renderEditor"
+    },
+    "basecard.renderView": {
+      "action": "basecard.renderView"
+    },
     "box.inspect": {
       "action": "box.inspect"
     },

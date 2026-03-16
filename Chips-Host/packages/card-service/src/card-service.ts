@@ -31,8 +31,55 @@ export interface CardEditorRenderOptions {
   cardType: string;
   initialConfig?: Record<string, unknown>;
   baseCardId?: string;
+  cardRootDir?: string;
   theme?: ThemeSnapshot;
   themeCssText?: string;
+}
+
+export interface BasecardSessionOpenOptions {
+  cardType: string;
+  baseCardId?: string;
+  sourceConfig?: Record<string, unknown>;
+  cardRootDir?: string;
+}
+
+export interface BasecardValidationIssue {
+  path: string;
+  message: string;
+  code?: string;
+}
+
+export interface BasecardValidationResult {
+  valid: boolean;
+  issues: BasecardValidationIssue[];
+}
+
+export interface BasecardSessionView {
+  sessionId: string;
+  pluginId: string;
+  cardType: string;
+  baseCardId: string;
+  displayName: string;
+  normalizedConfig: Record<string, unknown>;
+  validation: BasecardValidationResult;
+  referencedResources: string[];
+  commitDebounceMs: number;
+  supportsEditor: boolean;
+}
+
+export interface RenderedBasecardSessionView {
+  title: string;
+  body: string;
+  sessionId: string;
+  pluginId: string;
+  cardType: string;
+  baseCardId: string;
+}
+
+export interface RenderedBasecardSessionEditorView extends RenderedBasecardSessionView {
+  normalizedConfig: Record<string, unknown>;
+  validation: BasecardValidationResult;
+  referencedResources: string[];
 }
 
 export interface RenderedCardView {
@@ -109,16 +156,55 @@ interface PersistentCardRootCacheEntry {
 }
 
 interface BaseCardPluginModule {
+  getBasecardDescriptor?: () => {
+    cardType?: string;
+    displayName?: string;
+    commitDebounceMs?: number;
+  };
+  createInitialBasecardConfig?: (baseCardId: string) => unknown;
+  normalizeBasecardConfig?: (input: unknown, baseCardId: string) => unknown;
+  validateBasecardConfig?: (config: unknown) => {
+    valid?: boolean;
+    issues?: Array<{ path?: string; message?: string; code?: string }>;
+  };
+  collectReferencedResources?: (config: unknown) => unknown;
   renderBasecardView?: (ctx: { container: unknown; config: unknown; themeCssText?: string }) => unknown;
   renderBasecardEditor?: (ctx: {
     container: unknown;
     initialConfig: unknown;
     onChange: (next: unknown) => void;
-    resolveResourceUrl?: (resourcePath: string) => Promise<string>;
-    releaseResourceUrl?: (resourcePath: string) => Promise<void> | void;
-    importResource?: (input: { file: File; preferredPath?: string }) => Promise<{ path: string }>;
-    deleteResource?: (resourcePath: string) => Promise<void>;
+    resolveResourceUrl?: (resourcePath: string) => Promise<unknown>;
+    releaseResourceUrl?: (resourcePath: string) => Promise<unknown> | unknown;
+    importResource?: (input: { file: File; preferredPath?: string }) => Promise<unknown>;
+    deleteResource?: (resourcePath: string) => Promise<unknown>;
   }) => unknown;
+}
+
+interface BasecardRuntimeDescriptor {
+  cardType: string;
+  displayName: string;
+  commitDebounceMs: number;
+}
+
+interface ResolvedBasecardPluginRuntime {
+  plugin: RenderablePluginRecord;
+  module: BaseCardPluginModule;
+  descriptor: BasecardRuntimeDescriptor;
+}
+
+interface BasecardSessionRecord {
+  sessionId: string;
+  plugin: RenderablePluginRecord;
+  module: BaseCardPluginModule;
+  descriptor: BasecardRuntimeDescriptor;
+  pluginId: string;
+  cardType: string;
+  baseCardId: string;
+  normalizedConfig: Record<string, unknown>;
+  validation: BasecardValidationResult;
+  referencedResources: string[];
+  cardRootDir?: string;
+  resourceBaseUrl?: string;
 }
 
 interface RenderablePluginRecord extends PluginRecord {
@@ -136,15 +222,72 @@ const escapeHtml = (value: string): string => {
 
 const escapeInlineJson = (value: unknown): string => JSON.stringify(value).replace(/</g, '\\u003c');
 
+const cloneRecord = (value: Record<string, unknown>): Record<string, unknown> => JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+
+const toBasecardValidationResult = (input: unknown): BasecardValidationResult => {
+  if (!input || typeof input !== 'object') {
+    return { valid: true, issues: [] };
+  }
+
+  const record = input as { valid?: unknown; issues?: unknown };
+  const issues = Array.isArray(record.issues)
+    ? record.issues
+        .map((issue) => {
+          if (!issue || typeof issue !== 'object') {
+            return null;
+          }
+          const entry = issue as { path?: unknown; message?: unknown; code?: unknown };
+          return {
+            path: typeof entry.path === 'string' ? entry.path : '',
+            message: typeof entry.message === 'string' ? entry.message : '',
+            code: typeof entry.code === 'string' ? entry.code : undefined,
+          } satisfies BasecardValidationIssue;
+        })
+        .filter((issue) => Boolean(issue && issue.message))
+        .map((issue) => issue as BasecardValidationIssue)
+    : [];
+
+  return {
+    valid: record.valid === false ? false : issues.length === 0,
+    issues,
+  };
+};
+
+const normalizeReferencedResources = (input: unknown): string[] => {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const normalized = new Set<string>();
+  for (const item of input) {
+    if (typeof item !== 'string') {
+      continue;
+    }
+    const trimmed = item.trim();
+    if (!trimmed) {
+      continue;
+    }
+    normalized.add(trimmed.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^\/+/, '').replace(/\/{2,}/g, '/'));
+  }
+  return [...normalized].sort((left, right) => left.localeCompare(right));
+};
+
+const toResourceBaseUrl = (cardRootDir: string | undefined): string | undefined => {
+  if (!cardRootDir) {
+    return undefined;
+  }
+
+  const absoluteRoot = path.resolve(cardRootDir);
+  return pathToFileURL(absoluteRoot.endsWith(path.sep) ? absoluteRoot : `${absoluteRoot}${path.sep}`).href;
+};
+
 type CompositeInteractionPolicy = 'native' | 'delegate';
 
 const createChildInteractionBridgeScript = (
-  cardType: string,
   interactionPolicy: CompositeInteractionPolicy
 ): string => {
   return [
     `      const interactionPolicy = ${JSON.stringify(interactionPolicy)};`,
-    `      const cardType = ${JSON.stringify(cardType)};`,
     '      const delegateInteractions = interactionPolicy === "delegate";',
     '      const normalizeZoomDelta = (raw) => {',
     '        const value = Number(raw);',
@@ -788,7 +931,7 @@ const createChildFrameDocument = (
   title: string,
   contentHtml: string,
   interactionPolicy: CompositeInteractionPolicy,
-  resourceBaseUrl?: string,
+  resourceBaseUrl?: string
 ): string => {
   const safeNodeId = JSON.stringify(nodeId);
   const contentTitle = title || cardType;
@@ -800,14 +943,15 @@ const createChildFrameDocument = (
     '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     '  <meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src file: http: https: data: blob:; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; font-src data: file:;" />',
-    ...(resourceBaseUrl ? [`  <base href="${escapeHtml(resourceBaseUrl)}" />`] : []),
     `  <title>${escapeHtml(contentTitle)}</title>`,
+    ...(resourceBaseUrl ? [`  <base href="${escapeHtml(resourceBaseUrl)}" />`] : []),
     '</head>',
     `<body data-node-id="${escapeHtml(nodeId)}" data-card-type="${escapeHtml(cardType)}" data-interaction-policy="${escapeHtml(interactionPolicy)}">`,
     contentHtml,
     '  <script>',
     '    (() => {',
     `      const nodeId = ${safeNodeId};`,
+    `      const cardType = ${JSON.stringify(cardType)};`,
     '      const emitHeight = () => {',
     '        const height = Math.max(',
     '          64,',
@@ -816,12 +960,16 @@ const createChildFrameDocument = (
     '          document.documentElement?.offsetHeight ?? 0,',
     '          document.body?.offsetHeight ?? 0',
     '        );',
-    "        window.parent?.postMessage({ type: 'chips.basecard:height', payload: { nodeId, height } }, '*');",
+    "        window.parent?.postMessage({ type: 'chips.basecard:height', payload: { nodeId, cardType, height } }, '*');",
     '      };',
     '      const emitSelect = (source) => {',
-    "        window.parent?.postMessage({ type: 'chips.basecard:select', payload: { nodeId, source } }, '*');",
+    "        window.parent?.postMessage({ type: 'chips.basecard:select', payload: { nodeId, cardType, source } }, '*');",
+    '      };',
+    '      const emitReady = () => {',
+    "        window.parent?.postMessage({ type: 'chips.basecard:ready', payload: { nodeId, cardType } }, '*');",
     '      };',
     "      window.addEventListener('load', () => {",
+    '        emitReady();',
     '        emitHeight();',
     '        window.setTimeout(emitHeight, 50);',
     '        window.setTimeout(emitHeight, 200);',
@@ -831,7 +979,7 @@ const createChildFrameDocument = (
     '        const observer = new ResizeObserver(() => emitHeight());',
     '        observer.observe(document.body);',
     '      }',
-    createChildInteractionBridgeScript(cardType, interactionPolicy),
+    createChildInteractionBridgeScript(interactionPolicy),
     '    })();',
     '  </script>',
     '</body>',
@@ -840,22 +988,32 @@ const createChildFrameDocument = (
 };
 
 const createEditorFrameDocument = (options: {
+  sessionId?: string;
   cardType: string;
   title: string;
   pluginBundleCode: string;
   initialConfig: Record<string, unknown>;
+  normalizedConfig: Record<string, unknown>;
+  validation: BasecardValidationResult;
+  referencedResources: string[];
   pluginId: string;
   baseCardId?: string;
   themeCssText: string;
+  resourceBaseUrl?: string;
 }): string => {
   const {
+    sessionId,
     cardType,
     title,
     pluginBundleCode,
     initialConfig,
+    normalizedConfig,
+    validation,
+    referencedResources,
     pluginId,
     baseCardId,
-    themeCssText
+    themeCssText,
+    resourceBaseUrl
   } = options;
 
   return [
@@ -867,6 +1025,216 @@ const createEditorFrameDocument = (options: {
     '  <meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src file: http: https: data: blob:; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; font-src data: file:;" />',
     `  <title>${escapeHtml(title)}</title>`,
     `  <style>${themeCssText}</style>`,
+    ...(resourceBaseUrl ? [`  <base href="${escapeHtml(resourceBaseUrl)}" />`] : []),
+    '</head>',
+    `<body data-card-type="${escapeHtml(cardType)}" data-plugin-id="${escapeHtml(pluginId)}" data-base-card-id="${escapeHtml(baseCardId ?? '')}">`,
+    '  <div id="chips-basecard-editor-root"></div>',
+    '  <script>',
+    pluginBundleCode,
+    '  </script>',
+    '  <script>',
+    '    (() => {',
+    `      const initialConfig = ${escapeInlineJson(initialConfig)};`,
+    `      const normalizedInitialConfig = ${escapeInlineJson(normalizedConfig)};`,
+    `      const initialValidation = ${escapeInlineJson(validation)};`,
+    `      const initialReferencedResources = ${escapeInlineJson(referencedResources)};`,
+    `      const sessionId = ${JSON.stringify(sessionId ?? '')};`,
+    `      const cardType = ${JSON.stringify(cardType)};`,
+    `      const pluginId = ${JSON.stringify(pluginId)};`,
+    `      const baseCardId = ${JSON.stringify(baseCardId ?? '')};`,
+    '      const container = document.getElementById("chips-basecard-editor-root");',
+    '      const emit = (type, payload) => {',
+    "        window.parent?.postMessage({ type, payload }, '*');",
+    '      };',
+    '      let resourceRequestCounter = 0;',
+    '      const pendingResourceRequests = new Map();',
+    '      const nextResourceRequestId = (action) => `${action}-${Date.now()}-${++resourceRequestCounter}`;',
+    '      const requestResource = (action, payload) => {',
+    '        return new Promise((resolve, reject) => {',
+    '          const requestId = nextResourceRequestId(action);',
+    '          const timer = window.setTimeout(() => {',
+    '            pendingResourceRequests.delete(requestId);',
+    '            reject(new Error(`Basecard editor resource request timed out: ${action}`));',
+    '          }, 30000);',
+    '          pendingResourceRequests.set(requestId, { resolve, reject, timer });',
+    '          emit("chips.basecard:resource-request", {',
+    '            requestId,',
+    '            action,',
+    '            sessionId,',
+    '            baseCardId,',
+    '            cardType,',
+    '            pluginId,',
+    '            ...payload,',
+    '          });',
+    '        });',
+    '      };',
+    '      window.addEventListener("message", (event) => {',
+    '        if (event.source !== window.parent) {',
+    '          return;',
+    '        }',
+    '        const data = event.data;',
+    '        if (!data || typeof data !== "object" || data.type !== "chips.basecard:resource-response") {',
+    '          return;',
+    '        }',
+    '        const payload = data.payload || {};',
+    '        const requestId = typeof payload.requestId === "string" ? payload.requestId : "";',
+    '        const pending = pendingResourceRequests.get(requestId);',
+    '        if (!pending) {',
+    '          return;',
+    '        }',
+    '        window.clearTimeout(pending.timer);',
+    '        pendingResourceRequests.delete(requestId);',
+    '        if (payload.ok === false) {',
+    '          const message = typeof payload.message === "string" && payload.message.length > 0',
+    '            ? payload.message',
+    '            : "Basecard editor resource request failed.";',
+    '          pending.reject(new Error(message));',
+    '          return;',
+    '        }',
+    '        pending.resolve(payload.result);',
+    '      });',
+    '      const releaseResourceUrl = (resourcePath) => {',
+    '        emit("chips.basecard:resource-release", {',
+    '          sessionId,',
+    '          baseCardId,',
+    '          cardType,',
+    '          pluginId,',
+    '          resourcePath,',
+    '        });',
+    '      };',
+    '      const normalizeConfig = (value) => {',
+    '        const plugin = globalThis.ChipsBasecardPlugin || {};',
+    '        if (typeof plugin.normalizeBasecardConfig === "function") {',
+    '          return plugin.normalizeBasecardConfig(value, baseCardId);',
+    '        }',
+    '        return value && typeof value === "object" ? value : {};',
+    '      };',
+    '      const validateConfig = (value) => {',
+    '        const plugin = globalThis.ChipsBasecardPlugin || {};',
+    '        if (typeof plugin.validateBasecardConfig === "function") {',
+    '          return plugin.validateBasecardConfig(value) || { valid: true, issues: [] };',
+    '        }',
+    '        return { valid: true, issues: [] };',
+    '      };',
+    '      const collectReferencedResources = (value) => {',
+    '        const plugin = globalThis.ChipsBasecardPlugin || {};',
+    '        if (typeof plugin.collectReferencedResources === "function") {',
+    '          const resources = plugin.collectReferencedResources(value);',
+    '          return Array.isArray(resources) ? resources : [];',
+    '        }',
+    '        return [];',
+    '      };',
+    '      const emitAuthoritativeChange = (rawConfig) => {',
+    '        const authoritativeConfig = normalizeConfig(rawConfig);',
+    '        const authoritativeValidation = validateConfig(authoritativeConfig);',
+    '        const authoritativeResources = collectReferencedResources(authoritativeConfig);',
+    '        emit("chips.basecard:change", {',
+    '          sessionId,',
+    '          baseCardId,',
+    '          cardType,',
+    '          pluginId,',
+    '          normalizedConfig: authoritativeConfig,',
+    '          validation: authoritativeValidation,',
+    '          referencedResources: authoritativeResources,',
+    '        });',
+    '      };',
+    '      const emitHeight = () => {',
+    '        const height = Math.max(',
+    '          240,',
+    '          document.documentElement?.scrollHeight ?? 0,',
+    '          document.body?.scrollHeight ?? 0,',
+    '          document.documentElement?.offsetHeight ?? 0,',
+    '          document.body?.offsetHeight ?? 0',
+    '        );',
+    "        emit('chips.basecard:height', { sessionId, baseCardId, cardType, height });",
+    '      };',
+    '      try {',
+    '        const plugin = globalThis.ChipsBasecardPlugin || {};',
+    '        if (typeof plugin.renderBasecardEditor !== "function") {',
+    "          throw new Error('Plugin does not export renderBasecardEditor.');",
+    '        }',
+    '        plugin.renderBasecardEditor({',
+    '          container,',
+    '          initialConfig,',
+    '          resolveResourceUrl(resourcePath) {',
+    '            return requestResource("resolve", { resourcePath });',
+    '          },',
+    '          releaseResourceUrl,',
+    '          importResource(input) {',
+    '            return requestResource("import", { preferredPath: input?.preferredPath, file: input?.file });',
+    '          },',
+    '          deleteResource(resourcePath) {',
+    '            return requestResource("delete", { resourcePath });',
+    '          },',
+    '          onChange(next) {',
+    '            emitAuthoritativeChange(next);',
+    '            window.setTimeout(emitHeight, 0);',
+    '          }',
+    '        });',
+    '        emit("chips.basecard:ready", {',
+    '          sessionId,',
+    '          baseCardId,',
+    '          cardType,',
+    '          pluginId,',
+    '          normalizedConfig: normalizedInitialConfig,',
+    '          validation: initialValidation,',
+    '          referencedResources: initialReferencedResources,',
+    '        });',
+    '        emitHeight();',
+    "        if ('ResizeObserver' in window && document.body) {",
+    '          const observer = new ResizeObserver(() => emitHeight());',
+    '          observer.observe(document.body);',
+    '        }',
+    '      } catch (error) {',
+    '        const message = error instanceof Error ? error.message : String(error);',
+    "        emit('chips.basecard:error', { sessionId, baseCardId, cardType, pluginId, code: 'CARD_EDITOR_RENDER_FAILED', message });",
+    '        const pre = document.createElement("pre");',
+    '        pre.textContent = message;',
+    '        pre.style.margin = "0";',
+    '        pre.style.padding = "20px";',
+    '        pre.style.whiteSpace = "pre-wrap";',
+    '        pre.style.color = "var(--chips-sys-color-error, #d92d20)";',
+    '        container?.replaceChildren(pre);',
+    '        emitHeight();',
+    '      }',
+    '    })();',
+    '  </script>',
+    '</body>',
+    '</html>'
+  ].join('\n');
+};
+
+const createCardEditorFrameDocument = (options: {
+  cardType: string;
+  title: string;
+  pluginBundleCode: string;
+  initialConfig: Record<string, unknown>;
+  pluginId: string;
+  baseCardId?: string;
+  themeCssText: string;
+  resourceBaseUrl?: string;
+}): string => {
+  const {
+    cardType,
+    title,
+    pluginBundleCode,
+    initialConfig,
+    pluginId,
+    baseCardId,
+    themeCssText,
+    resourceBaseUrl,
+  } = options;
+
+  return [
+    '<!doctype html>',
+    '<html lang="zh-CN">',
+    '<head>',
+    '  <meta charset="utf-8" />',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    '  <meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src file: http: https: data: blob:; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; font-src data: file:;" />',
+    `  <title>${escapeHtml(title)}</title>`,
+    `  <style>${themeCssText}</style>`,
+    ...(resourceBaseUrl ? [`  <base href="${escapeHtml(resourceBaseUrl)}" />`] : []),
     '</head>',
     `<body data-card-type="${escapeHtml(cardType)}" data-plugin-id="${escapeHtml(pluginId)}" data-base-card-id="${escapeHtml(baseCardId ?? '')}">`,
     '  <div id="chips-basecard-editor-root"></div>',
@@ -1316,6 +1684,7 @@ export class CardService {
   private readonly moduleCache = new Map<string, Promise<BaseCardPluginModule>>();
   private readonly browserBundleCache = new Map<string, Promise<string>>();
   private readonly persistentCardRootCache = new Map<string, PersistentCardRootCacheEntry>();
+  private readonly basecardSessions = new Map<string, BasecardSessionRecord>();
 
   public constructor(
     options: CardServiceOptions = {},
@@ -1446,43 +1815,154 @@ export class CardService {
     }
   }
 
-  public async renderEditor(options: CardEditorRenderOptions): Promise<RenderedCardEditorView> {
-    const cardType = options.cardType.trim();
-    if (!cardType) {
-      throw createError('INVALID_ARGUMENT', 'cardType is required for card editor render.');
+  public async openBasecardSession(options: BasecardSessionOpenOptions): Promise<BasecardSessionView> {
+    const prepared = await this.prepareBasecardSession(options);
+    const sessionId = createId();
+
+    this.basecardSessions.set(sessionId, {
+      sessionId,
+      plugin: prepared.plugin,
+      module: prepared.module,
+      descriptor: prepared.descriptor,
+      pluginId: prepared.plugin.manifest.id,
+      cardType: prepared.cardType,
+      baseCardId: prepared.baseCardId,
+      normalizedConfig: cloneRecord(prepared.normalizedConfig),
+      validation: prepared.validation,
+      referencedResources: [...prepared.referencedResources],
+      cardRootDir: prepared.cardRootDir,
+      resourceBaseUrl: prepared.resourceBaseUrl,
+    });
+
+    return {
+      sessionId,
+      pluginId: prepared.plugin.manifest.id,
+      cardType: prepared.cardType,
+      baseCardId: prepared.baseCardId,
+      displayName: prepared.descriptor.displayName,
+      normalizedConfig: cloneRecord(prepared.normalizedConfig),
+      validation: prepared.validation,
+      referencedResources: [...prepared.referencedResources],
+      commitDebounceMs: prepared.descriptor.commitDebounceMs,
+      supportsEditor: typeof prepared.module.renderBasecardEditor === 'function',
+    };
+  }
+
+  public async renderBasecardSessionView(
+    sessionId: string,
+    theme: ThemeSnapshot,
+    themeCssText?: string,
+    interactionPolicy: CompositeInteractionPolicy = 'native'
+  ): Promise<RenderedBasecardSessionView> {
+    const session = this.requireBasecardSession(sessionId);
+    const title = `${session.descriptor.displayName}`;
+    const contentHtml = await this.renderBasecardHtml(
+      session.plugin,
+      session.normalizedConfig,
+      theme,
+      themeCssText
+    );
+
+    return {
+      title,
+      body: createChildFrameDocument(
+        session.baseCardId,
+        session.cardType,
+        title,
+        contentHtml,
+        interactionPolicy,
+        session.resourceBaseUrl,
+      ),
+      sessionId,
+      pluginId: session.pluginId,
+      cardType: session.cardType,
+      baseCardId: session.baseCardId,
+    };
+  }
+
+  public async renderBasecardSessionEditor(
+    sessionId: string,
+    theme: ThemeSnapshot,
+    themeCssText?: string,
+  ): Promise<RenderedBasecardSessionEditorView> {
+    const session = this.requireBasecardSession(sessionId);
+    if (typeof session.module.renderBasecardEditor !== 'function') {
+      throw createError('CARD_PLUGIN_EDITOR_UNAVAILABLE', `Plugin ${session.pluginId} does not provide a basecard editor.`, {
+        pluginId: session.pluginId,
+        cardType: session.cardType,
+      });
     }
 
+    const pluginBundleCode = await this.bundlePluginForBrowser(session.plugin);
+    const title = `${session.descriptor.displayName} Editor`;
+
+    return {
+      title,
+      body: createEditorFrameDocument({
+        sessionId,
+        cardType: session.cardType,
+        title,
+        pluginBundleCode,
+        initialConfig: cloneRecord(session.normalizedConfig),
+        normalizedConfig: cloneRecord(session.normalizedConfig),
+        validation: session.validation,
+        referencedResources: [...session.referencedResources],
+        pluginId: session.pluginId,
+        baseCardId: session.baseCardId,
+        themeCssText: createBasecardEditorThemeCss(theme, themeCssText),
+        resourceBaseUrl: session.resourceBaseUrl,
+      }),
+      sessionId,
+      pluginId: session.pluginId,
+      cardType: session.cardType,
+      baseCardId: session.baseCardId,
+      normalizedConfig: cloneRecord(session.normalizedConfig),
+      validation: session.validation,
+      referencedResources: [...session.referencedResources],
+    };
+  }
+
+  public closeBasecardSession(sessionId: string): { closed: boolean } {
+    return { closed: this.basecardSessions.delete(sessionId) };
+  }
+
+  public async renderEditor(options: CardEditorRenderOptions): Promise<RenderedCardEditorView> {
     const theme = options.theme;
     if (!theme) {
       throw createError('THEME_NOT_FOUND', 'Card editor render requires a resolved theme snapshot.');
     }
 
-    const plugin = this.resolveCardPlugin(cardType);
-    if (!plugin) {
-      throw createError('CARD_PLUGIN_NOT_FOUND', `No enabled base card plugin can edit ${cardType}.`, {
-        cardType
+    const prepared = await this.prepareBasecardSession({
+      cardType: options.cardType,
+      baseCardId: options.baseCardId,
+      sourceConfig: options.initialConfig,
+      cardRootDir: options.cardRootDir,
+    });
+    if (typeof prepared.module.renderBasecardEditor !== 'function') {
+      throw createError('CARD_PLUGIN_EDITOR_UNAVAILABLE', `Plugin ${prepared.plugin.manifest.id} does not provide a basecard editor.`, {
+        pluginId: prepared.plugin.manifest.id,
+        cardType: prepared.cardType,
       });
     }
 
-    const initialConfig = this.normalizeEditorInitialConfig(cardType, options.initialConfig);
-    const pluginBundleCode = await this.bundlePluginForBrowser(plugin);
-    const baseCardId = asString(options.baseCardId) ?? asString(initialConfig.id);
-    const title = `${cardType} Editor`;
+    const pluginBundleCode = await this.bundlePluginForBrowser(prepared.plugin);
+    const title = `${prepared.descriptor.displayName} Editor`;
 
     return {
       title,
-      body: createEditorFrameDocument({
-        cardType,
+      body: createCardEditorFrameDocument({
+        cardType: prepared.cardType,
         title,
         pluginBundleCode,
-        initialConfig,
-        pluginId: plugin.manifest.id,
-        baseCardId,
-        themeCssText: createBasecardEditorThemeCss(theme, options.themeCssText)
+        initialConfig: cloneRecord(prepared.normalizedConfig),
+        pluginId: prepared.plugin.manifest.id,
+        baseCardId: prepared.baseCardId,
+        themeCssText: createBasecardEditorThemeCss(theme, options.themeCssText),
+        resourceBaseUrl: prepared.resourceBaseUrl,
       }),
-      cardType,
-      pluginId: plugin.manifest.id,
-      baseCardId
+      cardType: prepared.cardType,
+      pluginId: prepared.plugin.manifest.id,
+      baseCardId: prepared.baseCardId,
     };
   }
 
@@ -1533,9 +2013,14 @@ export class CardService {
     }
 
     try {
-      const config = await this.normalizeNodeConfig(plugin, content, ctx.rootDir);
-      const title = asString(asRecord(config).title) ?? node.id;
-      const contentHtml = await this.renderBasecardHtml(plugin, config, theme, themeCssText);
+      const session = await this.prepareBasecardSession({
+        cardType,
+        baseCardId: node.id,
+        sourceConfig: content.parsed,
+        cardRootDir: ctx.rootDir,
+      });
+      const title = asString(asRecord(session.normalizedConfig).title) ?? node.id;
+      const contentHtml = await this.renderBasecardHtml(plugin, session.normalizedConfig, theme, themeCssText);
       if (!contentHtml.trim()) {
         throw createError('CARD_PLUGIN_EMPTY_RENDER', `Plugin ${plugin.manifest.id} returned empty content.`, {
           nodeId: node.id,
@@ -1545,16 +2030,16 @@ export class CardService {
 
       return {
         nodeId: node.id,
-        cardType,
+        cardType: session.cardType,
         title,
         pluginId: plugin.manifest.id,
         frameHtml: createChildFrameDocument(
           node.id,
-          cardType,
+          session.cardType,
           title,
           contentHtml,
           interactionPolicy,
-          pathToFileURL(`${ctx.rootDir}${path.sep}`).href,
+          session.resourceBaseUrl,
         )
       };
     } catch (error) {
@@ -1578,8 +2063,12 @@ export class CardService {
   }
 
   private resolveCardPlugin(cardType: string): RenderablePluginRecord | undefined {
+    const normalizedCardType = cardType.trim();
+    if (!normalizedCardType) {
+      return undefined;
+    }
+
     const plugins = this.runtime?.query({ type: 'card' }) ?? [];
-    const candidates = this.buildCardTypeCandidates(cardType);
 
     return plugins
       .filter(
@@ -1588,105 +2077,147 @@ export class CardService {
       )
       .find((record) => {
         const capabilities = new Set(record.manifest.capabilities ?? []);
-        return candidates.some((candidate) => capabilities.has(candidate));
+        return capabilities.has(normalizedCardType);
       });
   }
 
-  private buildCardTypeCandidates(cardType: string): string[] {
-    const trimmed = cardType.trim();
-    const compact = trimmed.replace(/\s+/g, '');
-    const stripped = compact.replace(/Card$/i, '');
-    const normalized = stripped.replace(/[^A-Za-z0-9]+/g, '');
-    const lower = normalized.toLowerCase();
-
-    const candidates = new Set<string>();
-    if (trimmed) {
-      candidates.add(trimmed);
-      candidates.add(trimmed.toLowerCase());
+  private requireBasecardSession(sessionId: string): BasecardSessionRecord {
+    const trimmed = sessionId.trim();
+    const session = this.basecardSessions.get(trimmed);
+    if (!session) {
+      throw createError('BASECARD_SESSION_NOT_FOUND', `Basecard session is not active: ${sessionId}`, {
+        sessionId,
+      });
     }
-    if (compact) {
-      candidates.add(compact);
-      candidates.add(compact.toLowerCase());
-    }
-    if (stripped) {
-      candidates.add(stripped);
-      candidates.add(stripped.toLowerCase());
-    }
-    if (lower) {
-      candidates.add(`base.${lower}`);
-    }
-
-    return [...candidates];
+    return session;
   }
 
-  private async normalizeNodeConfig(
+  private async resolveBasecardPluginRuntime(cardType: string): Promise<ResolvedBasecardPluginRuntime> {
+    const plugin = this.resolveCardPlugin(cardType);
+    if (!plugin) {
+      throw createError('CARD_PLUGIN_NOT_FOUND', `No enabled base card plugin can render ${cardType}.`, {
+        cardType,
+      });
+    }
+
+    const module = await this.loadPluginModule(plugin);
+    const descriptor = this.resolveBasecardDescriptor(module, plugin, cardType);
+    return { plugin, module, descriptor };
+  }
+
+  private resolveBasecardDescriptor(
+    module: BaseCardPluginModule,
     plugin: RenderablePluginRecord,
-    file: ParsedContentFile,
-    cardRoot: string
-  ): Promise<Record<string, unknown>> {
-    const rawConfig: Record<string, unknown> = {
-      ...file.parsed,
-      id: asString(file.parsed.id) ?? file.id
-    };
-
-    if (plugin.manifest.id === 'chips.basecard.richtext') {
-      if (
-        typeof rawConfig.body === 'string' &&
-        !asString(rawConfig.content_text)
-      ) {
-        return {
-          id: file.id,
-          body: rawConfig.body,
-          locale: asString(rawConfig.locale) ?? 'zh-CN'
-        };
-      }
-
-      const richTextHtml = await loadHtmlFromRichTextConfig(rawConfig, file, cardRoot);
-      return {
-        id: file.id,
-        body: richTextHtml || '<p></p>',
-        locale: asString(rawConfig.locale) ?? 'zh-CN'
-      };
+    requestedCardType: string,
+  ): BasecardRuntimeDescriptor {
+    if (typeof module.getBasecardDescriptor !== 'function') {
+      throw createError('CARD_PLUGIN_CONTRACT_INVALID', `Plugin ${plugin.manifest.id} does not export getBasecardDescriptor.`, {
+        pluginId: plugin.manifest.id,
+        entry: plugin.manifest.entry,
+      });
     }
 
-    return rawConfig;
+    const rawDescriptor = module.getBasecardDescriptor();
+    const cardType = typeof rawDescriptor?.cardType === 'string' && rawDescriptor.cardType.trim()
+      ? rawDescriptor.cardType.trim()
+      : requestedCardType.trim();
+    if (requestedCardType.trim().length > 0 && cardType !== requestedCardType.trim()) {
+      throw createError(
+        'CARD_PLUGIN_CONTRACT_INVALID',
+        `Plugin ${plugin.manifest.id} descriptor cardType must exactly match requested cardType.`,
+        {
+          pluginId: plugin.manifest.id,
+          requestedCardType,
+          descriptorCardType: cardType,
+        },
+      );
+    }
+    const displayName = typeof rawDescriptor?.displayName === 'string' && rawDescriptor.displayName.trim()
+      ? rawDescriptor.displayName.trim()
+      : cardType;
+
+    return {
+      cardType,
+      displayName,
+      commitDebounceMs:
+        typeof rawDescriptor?.commitDebounceMs === 'number' && Number.isFinite(rawDescriptor.commitDebounceMs)
+          ? Math.max(0, Math.round(rawDescriptor.commitDebounceMs))
+          : 260,
+    };
   }
 
-  private normalizeEditorInitialConfig(
-    cardType: string,
-    input: Record<string, unknown> | undefined
-  ): Record<string, unknown> {
-    const rawConfig = {
-      ...(input ?? {})
-    };
-
-    if (
-      cardType === 'RichTextCard' ||
-      cardType === 'base.richtext' ||
-      asString(rawConfig.card_type) === 'RichTextCard'
-    ) {
-      if (typeof rawConfig.body === 'string') {
-        return {
-          id: asString(rawConfig.id) ?? createId(),
-          body: rawConfig.body,
-          locale: asString(rawConfig.locale) ?? 'zh-CN'
-        };
-      }
-
-      const richTextHtml =
-        typeof rawConfig.body === 'string'
-          ? rawConfig.body
-          : typeof rawConfig.content_text === 'string'
-            ? rawConfig.content_text
-            : '';
-      return {
-        id: asString(rawConfig.id) ?? createId(),
-        body: richTextHtml || '<p></p>',
-        locale: asString(rawConfig.locale) ?? 'zh-CN'
-      };
+  private async prepareBasecardSession(
+    options: BasecardSessionOpenOptions,
+  ): Promise<{
+    plugin: RenderablePluginRecord;
+    module: BaseCardPluginModule;
+    descriptor: BasecardRuntimeDescriptor;
+    cardType: string;
+    baseCardId: string;
+    normalizedConfig: Record<string, unknown>;
+    validation: BasecardValidationResult;
+    referencedResources: string[];
+    cardRootDir?: string;
+    resourceBaseUrl?: string;
+  }> {
+    const trimmedCardType = options.cardType.trim();
+    if (!trimmedCardType) {
+      throw createError('INVALID_ARGUMENT', 'cardType is required for basecard session.');
     }
 
-    return rawConfig;
+    const { plugin, module, descriptor } = await this.resolveBasecardPluginRuntime(trimmedCardType);
+    if (typeof module.normalizeBasecardConfig !== 'function') {
+      throw createError('CARD_PLUGIN_CONTRACT_INVALID', `Plugin ${plugin.manifest.id} does not export normalizeBasecardConfig.`, {
+        pluginId: plugin.manifest.id,
+        entry: plugin.manifest.entry,
+      });
+    }
+    if (typeof module.validateBasecardConfig !== 'function') {
+      throw createError('CARD_PLUGIN_CONTRACT_INVALID', `Plugin ${plugin.manifest.id} does not export validateBasecardConfig.`, {
+        pluginId: plugin.manifest.id,
+        entry: plugin.manifest.entry,
+      });
+    }
+    if (typeof module.collectReferencedResources !== 'function') {
+      throw createError('CARD_PLUGIN_CONTRACT_INVALID', `Plugin ${plugin.manifest.id} does not export collectReferencedResources.`, {
+        pluginId: plugin.manifest.id,
+        entry: plugin.manifest.entry,
+      });
+    }
+
+    const baseCardId = asString(options.baseCardId)
+      ?? asString(options.sourceConfig?.id)
+      ?? createId();
+
+    let sourceConfig = options.sourceConfig ?? {};
+    if ((!sourceConfig || Object.keys(sourceConfig).length === 0) && typeof module.createInitialBasecardConfig === 'function') {
+      const created = module.createInitialBasecardConfig(baseCardId);
+      if (created && typeof created === 'object' && !Array.isArray(created)) {
+        sourceConfig = created as Record<string, unknown>;
+      }
+    }
+
+    const rawNormalized = module.normalizeBasecardConfig(sourceConfig, baseCardId);
+    const normalizedConfig =
+      rawNormalized && typeof rawNormalized === 'object' && !Array.isArray(rawNormalized)
+        ? cloneRecord(rawNormalized as Record<string, unknown>)
+        : { id: baseCardId };
+    const validation = toBasecardValidationResult(module.validateBasecardConfig(normalizedConfig));
+    const referencedResources = normalizeReferencedResources(module.collectReferencedResources(normalizedConfig));
+    const cardRootDir = asString(options.cardRootDir) ? path.resolve(options.cardRootDir as string) : undefined;
+
+    return {
+      plugin,
+      module,
+      descriptor,
+      cardType: descriptor.cardType,
+      baseCardId,
+      normalizedConfig,
+      validation,
+      referencedResources,
+      cardRootDir,
+      resourceBaseUrl: toResourceBaseUrl(cardRootDir),
+    };
   }
 
   private async renderBasecardHtml(

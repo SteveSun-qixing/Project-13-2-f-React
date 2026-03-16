@@ -7,21 +7,23 @@ import {
 
 describe('basecard registry', () => {
   it('creates richtext starter content through the descriptor for new base cards', () => {
-    expect(createInitialBasecardConfig('RichTextCard', 'base-1')).toMatchObject({
+    expect(createInitialBasecardConfig('base.richtext', 'base-1')).toMatchObject({
       id: 'base-1',
-      body: '<p>123456789</p>',
+      body: '<p></p>',
       locale: 'zh-CN',
     });
   });
 
   it('creates an empty image config through the descriptor for new image base cards', () => {
-    expect(createInitialBasecardConfig('ImageCard', 'base-2')).toMatchObject({
-      card_type: 'ImageCard',
+    expect(createInitialBasecardConfig('base.image', 'base-2')).toMatchObject({
+      card_type: 'base.image',
       images: [],
       layout_type: 'single',
-      layout: {
-        height_mode: 'auto',
-        fixed_height: 720,
+      layout_options: {
+        grid_mode: '2x2',
+        single_width_percent: 100,
+        single_alignment: 'center',
+        spacing_mode: 'comfortable',
       },
     });
   });
@@ -33,7 +35,7 @@ describe('basecard registry', () => {
     }
 
     const normalized = normalizeBasecardConfig('base.image', 'base-3', {
-      card_type: 'ImageCard',
+      card_type: 'base.image',
       images: [
         {
           id: 'image-1',
@@ -49,7 +51,7 @@ describe('basecard registry', () => {
       layout_type: 'grid',
     });
 
-    expect(normalized.card_type).toBe('ImageCard');
+    expect(normalized.card_type).toBe('base.image');
     expect((normalized.images as Array<Record<string, unknown>>)[0]).toMatchObject({
       id: 'image-1',
       source: 'file',

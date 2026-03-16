@@ -44,7 +44,7 @@
 ## 配置模型
 
 ```yaml
-card_type: "ImageCard"
+card_type: "base.image"
 theme: ""
 images:
   - id: "img-cover"

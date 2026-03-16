@@ -4,6 +4,7 @@ export interface CardCoverResource {
 }
 
 export const DEFAULT_COVER_RATIO = '3:4';
+export const CARD_ROOT_BASE_HREF = '../';
 
 function escapeHtml(value: string): string {
     return value
@@ -57,7 +58,7 @@ export function parseCoverRatio(value: string): { width: number; height: number 
 
 export function createDefaultCoverHtml(cardName: string): string {
     const safeCardName = escapeHtml(cardName);
-    return [
+    return ensureCoverHtmlUsesCardRootBase([
         '<!doctype html>',
         '<html lang="zh-CN">',
         '<head>',
@@ -80,12 +81,12 @@ export function createDefaultCoverHtml(cardName: string): string {
         '</head>',
         `  <body>${safeCardName}</body>`,
         '</html>',
-    ].join('\n');
+    ].join('\n'));
 }
 
 export function createImageCoverHtml(imageSrc: string): string {
     const safeImageSrc = escapeHtml(imageSrc);
-    return [
+    return ensureCoverHtmlUsesCardRootBase([
         '<!doctype html>',
         '<html lang="zh-CN">',
         '<head>',
@@ -107,6 +108,39 @@ export function createImageCoverHtml(imageSrc: string): string {
         `  <body data-chips-cover-mode="image" data-chips-cover-image-source="${safeImageSrc}">`,
         `    <img src="${safeImageSrc}" alt="" />`,
         '  </body>',
+        '</html>',
+    ].join('\n'));
+}
+
+export function ensureCoverHtmlUsesCardRootBase(html: string): string {
+    const trimmed = html.trim();
+    if (!trimmed) {
+        return trimmed;
+    }
+
+    if (/<base\b/i.test(trimmed)) {
+        return trimmed;
+    }
+
+    const baseTag = `  <base href="${CARD_ROOT_BASE_HREF}" data-chips-cover-base="card-root" />`;
+
+    if (/<\/head>/i.test(trimmed)) {
+        return trimmed.replace(/<\/head>/i, `${baseTag}\n</head>`);
+    }
+
+    if (/<body\b/i.test(trimmed)) {
+        return trimmed.replace(/<body\b/i, `<head>\n${baseTag}\n</head>\n<body`);
+    }
+
+    return [
+        '<!doctype html>',
+        '<html lang="zh-CN">',
+        '<head>',
+        '  <meta charset="utf-8" />',
+        '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+        baseTag,
+        '</head>',
+        `<body>${trimmed}</body>`,
         '</html>',
     ].join('\n');
 }

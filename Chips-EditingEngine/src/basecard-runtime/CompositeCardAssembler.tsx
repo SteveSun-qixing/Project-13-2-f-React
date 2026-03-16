@@ -6,6 +6,7 @@ import './basecard-runtime.css';
 
 export interface CompositeCardAssemblerProps {
   cardId: string;
+  cardPath: string;
   baseCards: BasicCardData[];
   resourceBaseUrl?: string;
   layout?: CardStructure['layout'];
@@ -35,6 +36,7 @@ function measureCompositeLayoutHeight(container: HTMLDivElement): number {
 
 export function CompositeCardAssembler({
   cardId,
+  cardPath,
   baseCards,
   resourceBaseUrl,
   layout,
@@ -143,6 +145,8 @@ export function CompositeCardAssembler({
           data-base-card-id={baseCard.id}
         >
           <BasecardFrameHost
+            cardId={cardId}
+            cardPath={cardPath}
             baseCardId={baseCard.id}
             cardType={baseCard.type}
             config={baseCard.data}

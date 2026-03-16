@@ -4,7 +4,15 @@ import { createBasecardEditorRoot } from "./panel";
 export function mountBasecardEditor(
   ctx: BasecardEditorContext
 ): () => void {
-  const { container, initialConfig, onChange } = ctx;
+  const {
+    container,
+    initialConfig,
+    onChange,
+    resolveResourceUrl,
+    releaseResourceUrl,
+    importResource,
+    deleteResource,
+  } = ctx;
 
   while (container.firstChild) {
     container.removeChild(container.firstChild);
@@ -13,6 +21,10 @@ export function mountBasecardEditor(
   const root = createBasecardEditorRoot({
     initialConfig,
     onChange,
+    resolveResourceUrl,
+    releaseResourceUrl,
+    importResource,
+    deleteResource,
   });
 
   container.appendChild(root);
@@ -23,4 +35,3 @@ export function mountBasecardEditor(
     }
   };
 }
-

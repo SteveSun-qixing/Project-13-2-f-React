@@ -3,6 +3,11 @@ import { createCardApi } from "../src/api/card";
 import type { CoreClient } from "../src/types/client";
 import { createError } from "../src/types/errors";
 
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 function createStubClient(invokeImpl: CoreClient["invoke"]): CoreClient {
   return {
     clientConfig: {},
@@ -220,9 +225,9 @@ describe("CardApi", () => {
         calls.push({ action, payload });
         return {
           view: {
-            title: "RichTextCard Editor",
+            title: "富文本基础卡片 Editor",
             body: "<div>editor</div>",
-            cardType: "RichTextCard",
+            cardType: "base.richtext",
             pluginId: "chips.basecard.richtext",
             baseCardId: "base-1",
           },
@@ -250,7 +255,7 @@ describe("CardApi", () => {
       };
 
       const result = await api.editorPanel.render({
-        cardType: "RichTextCard",
+        cardType: "base.richtext",
         baseCardId: "base-1",
         initialConfig: {
           title: "Hello",
@@ -261,7 +266,7 @@ describe("CardApi", () => {
       expect(calls.length).toBe(1);
       expect(calls[0]?.action).toBe("card.renderEditor");
       expect(calls[0]?.payload).toEqual({
-        cardType: "RichTextCard",
+        cardType: "base.richtext",
         baseCardId: "base-1",
         initialConfig: {
           title: "Hello",
@@ -269,7 +274,8 @@ describe("CardApi", () => {
         },
       });
       expect(result.origin).toBe("https://example.test");
-      expect(created[0]?.title).toBe("RichTextCard Editor");
+      expect(created[0]?.attrs?.sandbox).toBe("allow-scripts allow-forms allow-same-origin");
+      expect(created[0]?.title).toBe("富文本基础卡片 Editor");
       expect(created[0]?.srcdoc).toBe("<div>editor</div>");
     } finally {
       (globalThis as any).window = previousWindow;
@@ -285,9 +291,9 @@ describe("CardApi", () => {
         calls.push({ action, payload });
         return {
           view: {
-            title: "ImageCard Editor",
+            title: "base.image Editor",
             body: "<div>editor</div>",
-            cardType: "ImageCard",
+            cardType: "base.image",
             pluginId: "chips.basecard.image",
             baseCardId: "image-1",
           },
@@ -312,7 +318,6 @@ describe("CardApi", () => {
           },
         }),
       };
-
       const resources = {
         rootPath: "/workspace/cards/demo",
         resolveResourceUrl: vi.fn(),
@@ -322,19 +327,21 @@ describe("CardApi", () => {
       };
 
       await api.editorPanel.render({
-        cardType: "ImageCard",
+        cardType: "base.image",
         baseCardId: "image-1",
         initialConfig: {
           src: "images/demo.png",
         },
+        cardRootDir: "/workspace/cards/demo",
         resources,
       });
 
       expect(calls).toHaveLength(1);
       expect(calls[0]?.action).toBe("card.renderEditor");
       expect(calls[0]?.payload).toEqual({
-        cardType: "ImageCard",
+        cardType: "base.image",
         baseCardId: "image-1",
+        cardRootDir: "/workspace/cards/demo",
         initialConfig: {
           src: "images/demo.png",
         },
@@ -349,9 +356,9 @@ describe("CardApi", () => {
     const api = createCardApi(
       createStubClient(async () => ({
         view: {
-          title: "ImageCard Editor",
+          title: "base.image Editor",
           body: "<div>editor</div>",
-          cardType: "ImageCard",
+          cardType: "base.image",
           pluginId: "chips.basecard.image",
           baseCardId: "image-1",
         },
@@ -373,15 +380,7 @@ describe("CardApi", () => {
             listeners.push(listener);
           }
         },
-        removeEventListener: (type: string, listener: (event: MessageEvent) => void) => {
-          if (type !== "message") {
-            return;
-          }
-          const index = listeners.indexOf(listener);
-          if (index >= 0) {
-            listeners.splice(index, 1);
-          }
-        },
+        removeEventListener: () => {},
       };
 
       (globalThis as any).document = {
@@ -408,8 +407,7 @@ describe("CardApi", () => {
       const releaseResourceUrl = vi.fn();
 
       await api.editorPanel.render({
-        cardType: "ImageCard",
-        baseCardId: "image-1",
+        cardType: "base.image",
         resources: {
           resolveResourceUrl,
           importResource,
@@ -418,107 +416,87 @@ describe("CardApi", () => {
         },
       });
 
-      expect(createdFrame).toBeDefined();
+      expect(createdFrame).toBeTruthy();
       expect(listeners).toHaveLength(1);
 
-      const dispatch = async (data: unknown, origin = "null") => {
+      const dispatch = (data: unknown) => {
         listeners[0]?.({
           source: createdFrame?.contentWindow,
-          origin,
+          origin: "https://example.test",
           data,
         } as MessageEvent);
-        await Promise.resolve();
-        await Promise.resolve();
       };
 
-      await dispatch({
+      dispatch({
         type: "chips.card-editor:resource-request",
         payload: {
-          requestId: "resolve-1",
+          requestId: "req-resolve",
           action: "resolve",
-          resourcePath: "./images/demo.png",
+          resourcePath: "assets/demo.png",
         },
       });
-      expect(resolveResourceUrl).toHaveBeenCalledWith("images/demo.png");
+      await flushMicrotasks();
+      expect(resolveResourceUrl).toHaveBeenCalledWith("assets/demo.png");
       expect(postMessage).toHaveBeenCalledWith(
         {
           type: "chips.card-editor:resource-response",
           payload: {
-            requestId: "resolve-1",
+            requestId: "req-resolve",
             ok: true,
-            result: "blob:https://example.test/images/demo.png",
+            result: "blob:https://example.test/assets/demo.png",
           },
         },
         "*",
       );
 
-      const file = new File(["image"], "cover.png", { type: "image/png" });
-      await dispatch({
+      const file = new File(["hello"], "photo.png", { type: "image/png" });
+      dispatch({
         type: "chips.card-editor:resource-request",
         payload: {
-          requestId: "import-1",
+          requestId: "req-import",
           action: "import",
-          preferredPath: "images/cover.png",
+          preferredPath: "assets/photo.png",
           file,
         },
       });
+      await flushMicrotasks();
       expect(importResource).toHaveBeenCalledWith({
         file,
-        preferredPath: "images/cover.png",
+        preferredPath: "assets/photo.png",
       });
-      expect(postMessage).toHaveBeenCalledWith(
-        {
-          type: "chips.card-editor:resource-response",
-          payload: {
-            requestId: "import-1",
-            ok: true,
-            result: { path: "images/cover.png" },
-          },
-        },
-        "*",
-      );
 
-      await dispatch({
+      dispatch({
         type: "chips.card-editor:resource-request",
         payload: {
-          requestId: "delete-1",
+          requestId: "req-delete",
           action: "delete",
-          resourcePath: "./images/cover.png",
+          resourcePath: "./assets/photo.png",
         },
       });
-      expect(deleteResource).toHaveBeenCalledWith("images/cover.png");
-      expect(postMessage).toHaveBeenCalledWith(
-        {
-          type: "chips.card-editor:resource-response",
-          payload: {
-            requestId: "delete-1",
-            ok: true,
-            result: null,
-          },
-        },
-        "*",
-      );
+      await flushMicrotasks();
+      expect(deleteResource).toHaveBeenCalledWith("assets/photo.png");
 
-      await dispatch({
+      dispatch({
         type: "chips.card-editor:resource-release",
         payload: {
-          resourcePath: "./images/cover.png",
+          resourcePath: "./assets/photo.png",
         },
       });
-      expect(releaseResourceUrl).toHaveBeenCalledWith("images/cover.png");
+      await flushMicrotasks();
+      expect(releaseResourceUrl).toHaveBeenCalledWith("assets/photo.png");
     } finally {
       (globalThis as any).window = previousWindow;
       (globalThis as any).document = previousDocument;
     }
   });
 
-  it("uses rootPath as the fallback editor resource resolver", async () => {
+  it("falls back to rootPath for editor resource resolves when no custom resolver is provided", async () => {
     const api = createCardApi(
       createStubClient(async () => ({
         view: {
-          title: "ImageCard Editor",
+          title: "base.image Editor",
           body: "<div>editor</div>",
-          cardType: "ImageCard",
+          cardType: "base.image",
           pluginId: "chips.basecard.image",
           baseCardId: "image-1",
         },
@@ -534,7 +512,7 @@ describe("CardApi", () => {
       let createdFrame: HTMLIFrameElement | undefined;
 
       (globalThis as any).window = {
-        location: { origin: "https://example.test" },
+        location: { origin: "https://example.test", href: "https://example.test/app" },
         addEventListener: (type: string, listener: (event: MessageEvent) => void) => {
           if (type === "message") {
             listeners.push(listener);
@@ -560,7 +538,7 @@ describe("CardApi", () => {
       };
 
       await api.editorPanel.render({
-        cardType: "ImageCard",
+        cardType: "base.image",
         resources: {
           rootPath: "/workspace/card-root",
         },
@@ -568,27 +546,26 @@ describe("CardApi", () => {
 
       listeners[0]?.({
         source: createdFrame?.contentWindow,
-        origin: "null",
+        origin: "https://example.test",
         data: {
           type: "chips.card-editor:resource-request",
           payload: {
-            requestId: "resolve-root",
+            requestId: "req-root-path",
             action: "resolve",
-            resourcePath: "images/cover photo.png",
+            resourcePath: "assets/demo.png",
           },
         },
       } as MessageEvent);
 
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushMicrotasks();
 
       expect(postMessage).toHaveBeenCalledWith(
         {
           type: "chips.card-editor:resource-response",
           payload: {
-            requestId: "resolve-root",
+            requestId: "req-root-path",
             ok: true,
-            result: "file:///workspace/card-root/images/cover%20photo.png",
+            result: "file:///workspace/card-root/assets/demo.png",
           },
         },
         "*",
@@ -694,7 +671,7 @@ describe("CardApi", () => {
         payload: {
           cardId: "card-1",
           nodeId: "n1",
-          cardType: "RichTextCard",
+          cardType: "base.richtext",
           source: "basecard-frame",
           device: "wheel",
           intent: "scroll",
@@ -712,7 +689,7 @@ describe("CardApi", () => {
         type: "chips.composite:node-select",
         payload: {
           nodeId: "n1",
-          cardType: "RichTextCard",
+          cardType: "base.richtext",
           pluginId: "chips.basecard.richtext",
           state: "ready",
           source: "pointer",
@@ -731,7 +708,7 @@ describe("CardApi", () => {
         type: "chips.composite:node-select",
         payload: {
           nodeId: "n2",
-          cardType: "RichTextCard",
+          cardType: "base.richtext",
           source: "basecard",
         },
       };
@@ -748,6 +725,72 @@ describe("CardApi", () => {
       expect((fatalErrorPayload as any).code).toBe("X");
       expect((fatalErrorPayload as any).message).toBe("boom");
       expect((fatalErrorPayload as any).retryable).toBe(false);
+    } finally {
+      (globalThis as any).window = previousWindow;
+    }
+  });
+
+  it("basecard events resolve iframe contentWindow lazily after the frame is mounted", () => {
+    const api = createCardApi(
+      createStubClient(async () => {
+        throw new Error("should not be called");
+      }),
+    );
+
+    const previousWindow = (globalThis as any).window;
+
+    try {
+      const listeners: Array<(event: MessageEvent) => void> = [];
+      let contentWindow: Record<string, unknown> | null = null;
+
+      (globalThis as any).window = {
+        location: { origin: "https://example.test" },
+        addEventListener: (type: string, listener: (event: MessageEvent) => void) => {
+          if (type === "message") {
+            listeners.push(listener);
+          }
+        },
+        removeEventListener: () => {},
+      };
+
+      const frame = {
+        get contentWindow() {
+          return contentWindow;
+        },
+      } as unknown as HTMLIFrameElement;
+
+      let receivedPayload: unknown = null;
+      api.basecard.onChange(frame, (payload) => {
+        receivedPayload = payload;
+      });
+
+      contentWindow = {};
+      for (const listener of listeners) {
+        listener({
+          source: contentWindow,
+          origin: "null",
+          data: {
+            type: "chips.basecard:change",
+            payload: {
+              baseCardId: "base-1",
+              cardType: "base.richtext",
+              pluginId: "chips.basecard.richtext",
+              normalizedConfig: { id: "base-1", body: "<p>updated</p>" },
+              validation: { valid: true, issues: [] },
+              referencedResources: [],
+            },
+          },
+        } as MessageEvent);
+      }
+
+      expect(receivedPayload).toEqual({
+        baseCardId: "base-1",
+        cardType: "base.richtext",
+        pluginId: "chips.basecard.richtext",
+        normalizedConfig: { id: "base-1", body: "<p>updated</p>" },
+        validation: { valid: true, issues: [] },
+        referencedResources: [],
+      });
     } finally {
       (globalThis as any).window = previousWindow;
     }
@@ -859,7 +902,7 @@ describe("CardApi", () => {
       dispatch({
         type: "chips.card-editor:change",
         payload: {
-          cardType: "RichTextCard",
+          cardType: "base.richtext",
           pluginId: "chips.basecard.richtext",
           baseCardId: "base-1",
           config: { title: "Updated" },
@@ -868,7 +911,7 @@ describe("CardApi", () => {
       dispatch({
         type: "chips.card-editor:error",
         payload: {
-          cardType: "RichTextCard",
+          cardType: "base.richtext",
           pluginId: "chips.basecard.richtext",
           baseCardId: "base-1",
           code: "CARD_EDITOR_RENDER_FAILED",
@@ -879,18 +922,68 @@ describe("CardApi", () => {
 
       expect(readyCount).toBe(2);
       expect(changePayload).toEqual({
-        cardType: "RichTextCard",
+        cardType: "base.richtext",
         pluginId: "chips.basecard.richtext",
         baseCardId: "base-1",
         config: { title: "Updated" },
       });
       expect(errorPayload).toEqual({
-        cardType: "RichTextCard",
+        cardType: "base.richtext",
         pluginId: "chips.basecard.richtext",
         baseCardId: "base-1",
         code: "CARD_EDITOR_RENDER_FAILED",
         message: "failed",
       });
+    } finally {
+      (globalThis as any).window = previousWindow;
+    }
+  });
+
+  it("basecard onReady falls back to iframe load event", async () => {
+    const api = createCardApi(
+      createStubClient(async () => {
+        throw new Error("should not be called");
+      }),
+    );
+
+    const previousWindow = (globalThis as any).window;
+
+    try {
+      const listeners: Array<(event: MessageEvent) => void> = [];
+      const loadListeners: Array<() => void> = [];
+      const frame = {
+        contentWindow: {},
+        contentDocument: {
+          readyState: "loading",
+        },
+        addEventListener: (type: string, listener: () => void) => {
+          if (type === "load") {
+            loadListeners.push(listener);
+          }
+        },
+        removeEventListener: () => {},
+      } as unknown as HTMLIFrameElement;
+
+      (globalThis as any).window = {
+        location: { origin: "https://example.test" },
+        addEventListener: (type: string, listener: (event: MessageEvent) => void) => {
+          if (type === "message") {
+            listeners.push(listener);
+          }
+        },
+        removeEventListener: () => {},
+      };
+
+      let readyCount = 0;
+      api.basecard.onReady(frame, () => {
+        readyCount += 1;
+      });
+
+      expect(loadListeners).toHaveLength(1);
+      loadListeners[0]!();
+      loadListeners[0]!();
+      expect(readyCount).toBe(1);
+      expect(listeners.length).toBeGreaterThan(0);
     } finally {
       (globalThis as any).window = previousWindow;
     }

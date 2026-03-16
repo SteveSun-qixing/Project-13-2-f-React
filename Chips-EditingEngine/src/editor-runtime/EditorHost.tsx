@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getBasecardDescriptor } from '../basecard-runtime/registry';
+import type {
+  BasecardChangePayload,
+  BasecardErrorPayload,
+  BasecardValidationResult,
+} from 'chips-sdk';
+import { getChipsClient } from '../services/bridge-client';
 import { globalEventEmitter } from '../core/event-emitter';
 import { useTranslation } from '../hooks/useTranslation';
 import { fileService } from '../services/file-service';
 import type { BasecardPendingResourceImport, BasecardResourceOperations } from '../basecard-runtime/contracts';
-import type { EditorSessionSnapshot } from './contracts';
-import { useEditorRuntime } from './context';
 
 function joinPath(...parts: string[]): string {
   return parts.filter(Boolean).join('/').replace(/\\/g, '/').replace(/\/+/g, '/');
@@ -39,11 +42,40 @@ function sanitizeImportedFileName(fileName: string): string {
   return sanitized.length > 0 ? sanitized : 'resource';
 }
 
+function cloneBytes(bytes: Uint8Array): Uint8Array {
+  return new Uint8Array(bytes);
+}
+
+function cloneResourceImport(resource: BasecardPendingResourceImport): BasecardPendingResourceImport {
+  return {
+    path: resource.path,
+    data: cloneBytes(resource.data),
+    mimeType: resource.mimeType,
+  };
+}
+
 function createObjectUrl(resource: BasecardPendingResourceImport): string {
   const type = resource.mimeType?.trim() || 'application/octet-stream';
   const buffer = new ArrayBuffer(resource.data.byteLength);
   new Uint8Array(buffer).set(resource.data);
   return URL.createObjectURL(new Blob([buffer], { type }));
+}
+
+interface PendingCommitState {
+  config: Record<string, unknown>;
+  referencedResources: string[];
+  validation: BasecardValidationResult;
+}
+
+interface MountedSessionState {
+  sessionId: string;
+  pluginId: string;
+  cardType: string;
+  baseCardId: string;
+  commitDebounceMs: number;
+  lastSeenPropSignature: string;
+  authoritativeSignature: string;
+  cleanupTasks: Array<() => void>;
 }
 
 export interface EditorHostProps {
@@ -56,7 +88,7 @@ export interface EditorHostProps {
     config: Record<string, unknown>,
     resourceOperations?: BasecardResourceOperations,
   ) => Promise<void> | void;
-  onPluginLoaded?: (pluginInfo: { cardType: string; baseCardId: string }) => void;
+  onPluginLoaded?: (pluginInfo: { cardType: string; baseCardId: string; pluginId: string }) => void;
   onPluginError?: (error: Error) => void;
 }
 
@@ -71,35 +103,44 @@ export function EditorHost({
   onPluginError,
 }: EditorHostProps) {
   const { t } = useTranslation();
-  const store = useEditorRuntime();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const descriptor = useMemo(() => getBasecardDescriptor(cardType), [cardType]);
-  const sourceSignature = useMemo(() => JSON.stringify(sourceConfig), [sourceConfig]);
-  const sessionKey = useMemo(() => store.createKey(cardId, baseCardId), [baseCardId, cardId, store]);
-
-  const [snapshot, setSnapshot] = useState<EditorSessionSnapshot | null>(() => {
-    if (!descriptor) {
-      return null;
-    }
-
-    return store.ensureSession({
-      cardId,
-      baseCardId,
-      cardType: descriptor.cardType,
-      sourceConfig,
-      descriptor,
-    });
-  });
-  const [loadError, setLoadError] = useState<Error | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [renderRevision, setRenderRevision] = useState(0);
-  const mountRevision = snapshot?.mountRevision ?? 0;
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const onConfigChangeRef = useRef(onConfigChange);
+  const onPluginLoadedRef = useRef(onPluginLoaded);
+  const onPluginErrorRef = useRef(onPluginError);
+  const mountedSessionRef = useRef<MountedSessionState | null>(null);
+  const commitTimerRef = useRef<number | null>(null);
+  const latestCommitStateRef = useRef<PendingCommitState | null>(null);
+  const pendingImportsRef = useRef(new Map<string, BasecardPendingResourceImport>());
+  const pendingDeletionsRef = useRef(new Set<string>());
   const resolvedResourceUrlsRef = useRef(new Map<string, string>());
   const pendingResourceResolvesRef = useRef(new Map<string, Promise<string>>());
+  const sourceSignature = useMemo(() => JSON.stringify(sourceConfig), [sourceConfig]);
+  const sessionIdentity = useMemo(() => `${cardId}::${baseCardId}::${cardType}::${cardPath}`, [baseCardId, cardId, cardPath, cardType]);
+  const mountEditorSessionRef = useRef<(() => Promise<void>) | null>(null);
 
-  const syncSnapshot = useCallback(() => {
-    setSnapshot(store.getSnapshot(sessionKey));
-  }, [sessionKey, store]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  const [renderRevision, setRenderRevision] = useState(0);
+
+  useEffect(() => {
+    onConfigChangeRef.current = onConfigChange;
+  }, [onConfigChange]);
+
+  useEffect(() => {
+    onPluginLoadedRef.current = onPluginLoaded;
+  }, [onPluginLoaded]);
+
+  useEffect(() => {
+    onPluginErrorRef.current = onPluginError;
+  }, [onPluginError]);
+
+  const clearCommitTimer = useCallback(() => {
+    if (commitTimerRef.current !== null) {
+      window.clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+  }, []);
 
   const releaseResolvedResourceUrl = useCallback((resourcePath: string) => {
     const url = resolvedResourceUrlsRef.current.get(resourcePath);
@@ -119,32 +160,6 @@ export function EditorHost({
     pendingResourceResolvesRef.current.clear();
   }, []);
 
-  useEffect(() => {
-    return () => {
-      releaseAllResolvedResourceUrls();
-    };
-  }, [releaseAllResolvedResourceUrls, sessionKey, cardPath]);
-
-  useEffect(() => {
-    if (!descriptor) {
-      setSnapshot(null);
-      return;
-    }
-
-    const nextSnapshot = store.ensureSession({
-      cardId,
-      baseCardId,
-      cardType: descriptor.cardType,
-      sourceConfig,
-      descriptor,
-    });
-    setSnapshot(nextSnapshot);
-
-    return store.subscribe(sessionKey, () => {
-      syncSnapshot();
-    });
-  }, [baseCardId, cardId, cardType, descriptor, sessionKey, sourceConfig, sourceSignature, store, syncSnapshot]);
-
   const reportEditorActivity = useCallback(() => {
     globalEventEmitter.emit('card:editor-activity', {
       cardId,
@@ -153,19 +168,6 @@ export function EditorHost({
       at: Date.now(),
     });
   }, [baseCardId, cardId, cardType]);
-
-  const commitSession = useCallback(async () => {
-    if (!descriptor || !onConfigChange || !snapshot?.dirty || !snapshot.validation.valid) {
-      return;
-    }
-
-    await store.commit(sessionKey, descriptor, async ({ config, resourceOperations }) => {
-      reportEditorActivity();
-      const hasResourceOperations =
-        resourceOperations.imports.length > 0 || resourceOperations.deletions.length > 0;
-      await onConfigChange(config, hasResourceOperations ? resourceOperations : undefined);
-    });
-  }, [descriptor, onConfigChange, reportEditorActivity, sessionKey, snapshot?.dirty, snapshot?.validation.valid, store]);
 
   const resolveResourceUrl = useCallback(async (resourcePath: string) => {
     const normalizedResourcePath = normalizeResourcePath(resourcePath);
@@ -184,7 +186,7 @@ export function EditorHost({
     }
 
     const resolver = (async () => {
-      const pendingImport = store.getPendingResourceImport(sessionKey, normalizedResourcePath);
+      const pendingImport = pendingImportsRef.current.get(normalizedResourcePath);
       const nextUrl = pendingImport
         ? createObjectUrl(pendingImport)
         : createObjectUrl({
@@ -201,7 +203,7 @@ export function EditorHost({
 
     pendingResourceResolvesRef.current.set(normalizedResourcePath, resolver);
     return resolver;
-  }, [cardPath, releaseResolvedResourceUrl, sessionKey, store]);
+  }, [cardPath, releaseResolvedResourceUrl]);
 
   const pickAvailableResourcePath = useCallback(async (fileName: string) => {
     const sanitizedName = sanitizeImportedFileName(fileName);
@@ -213,8 +215,8 @@ export function EditorHost({
     let candidate = sanitizedName;
 
     while (true) {
-      const pendingImport = store.getPendingResourceImport(sessionKey, candidate);
-      const pendingDelete = store.hasPendingResourceDeletion(sessionKey, candidate);
+      const pendingImport = pendingImportsRef.current.has(candidate);
+      const pendingDelete = pendingDeletionsRef.current.has(candidate);
       const existsOnDisk = pendingDelete ? false : await fileService.exists(joinPath(cardPath, candidate));
       if (!pendingImport && !existsOnDisk) {
         return candidate;
@@ -223,22 +225,25 @@ export function EditorHost({
       counter += 1;
       candidate = `${basename}-${counter}${extension}`;
     }
-  }, [cardPath, sessionKey, store]);
+  }, [cardPath]);
 
   const importResource = useCallback(async (input: { file: File; preferredPath?: string }) => {
     const nextPath = await pickAvailableResourcePath(input.preferredPath ?? input.file.name);
     const arrayBuffer = await input.file.arrayBuffer();
-    releaseResolvedResourceUrl(nextPath);
-    store.queueResourceImport(sessionKey, {
+    const pendingImport = {
       path: nextPath,
       data: new Uint8Array(arrayBuffer),
       mimeType: input.file.type || undefined,
-    });
+    } satisfies BasecardPendingResourceImport;
+
+    releaseResolvedResourceUrl(nextPath);
+    pendingImportsRef.current.set(nextPath, pendingImport);
+    pendingDeletionsRef.current.delete(nextPath);
 
     return {
       path: nextPath,
     };
-  }, [pickAvailableResourcePath, releaseResolvedResourceUrl, sessionKey, store]);
+  }, [pickAvailableResourcePath, releaseResolvedResourceUrl]);
 
   const deleteResource = useCallback(async (resourcePath: string) => {
     const normalizedResourcePath = normalizeResourcePath(resourcePath);
@@ -247,168 +252,315 @@ export function EditorHost({
     }
 
     releaseResolvedResourceUrl(normalizedResourcePath);
-    store.queueResourceDeletion(sessionKey, normalizedResourcePath);
-  }, [releaseResolvedResourceUrl, sessionKey, store]);
+    if (!pendingImportsRef.current.delete(normalizedResourcePath)) {
+      pendingDeletionsRef.current.add(normalizedResourcePath);
+    }
+  }, [releaseResolvedResourceUrl]);
 
-  useEffect(() => {
-    if (!descriptor || !snapshot?.dirty || !snapshot.validation.valid) {
+  const buildResourceOperations = useCallback((referencedResources: string[]): BasecardResourceOperations | undefined => {
+    const referencedSet = new Set(
+      referencedResources
+        .map((resourcePath) => normalizeResourcePath(resourcePath))
+        .filter((resourcePath): resourcePath is string => Boolean(resourcePath)),
+    );
+
+    const imports = [...pendingImportsRef.current.values()]
+      .filter((resource) => referencedSet.has(resource.path))
+      .map(cloneResourceImport);
+    const deletions = [...pendingDeletionsRef.current.values()]
+      .filter((resourcePath) => !referencedSet.has(resourcePath));
+
+    if (imports.length === 0 && deletions.length === 0) {
+      return undefined;
+    }
+
+    return {
+      imports,
+      deletions,
+    };
+  }, []);
+
+  const clearCommittedResourceOperations = useCallback((resourceOperations?: BasecardResourceOperations) => {
+    if (!resourceOperations) {
       return;
     }
 
-    const commitDelayMs = snapshot.hasPendingResourceChanges
-      ? 0
-      : snapshot.commitDebounceMs;
-    const timerId = window.setTimeout(() => {
-      void commitSession().catch((error) => {
+    return Promise.all([
+      ...resourceOperations.imports.map(async (resource) => {
+        const resourcePath = normalizeResourcePath(resource.path);
+        if (!resourcePath) {
+          pendingImportsRef.current.delete(resource.path);
+          return;
+        }
+
+        const persisted = await fileService.exists(joinPath(cardPath, resourcePath)).catch(() => false);
+        if (persisted) {
+          pendingImportsRef.current.delete(resourcePath);
+        }
+      }),
+      ...resourceOperations.deletions.map(async (resourcePath) => {
+        const normalizedResourcePath = normalizeResourcePath(resourcePath);
+        if (!normalizedResourcePath) {
+          pendingDeletionsRef.current.delete(resourcePath);
+          return;
+        }
+
+        const stillExists = await fileService.exists(joinPath(cardPath, normalizedResourcePath)).catch(() => false);
+        if (!stillExists) {
+          pendingDeletionsRef.current.delete(normalizedResourcePath);
+        }
+      }),
+    ]).then(() => undefined);
+  }, [cardPath]);
+
+  const commitPendingChange = useCallback(async () => {
+    clearCommitTimer();
+
+    const currentSession = mountedSessionRef.current;
+    const pendingCommitState = latestCommitStateRef.current;
+    const handleConfigChange = onConfigChangeRef.current;
+    if (!currentSession || !pendingCommitState || !handleConfigChange || !pendingCommitState.validation.valid) {
+      return;
+    }
+
+    const resourceOperations = buildResourceOperations(pendingCommitState.referencedResources);
+    await Promise.resolve(
+      handleConfigChange(
+        pendingCommitState.config,
+        resourceOperations,
+      ),
+    );
+
+    currentSession.authoritativeSignature = JSON.stringify(pendingCommitState.config);
+    currentSession.lastSeenPropSignature = currentSession.authoritativeSignature;
+    await clearCommittedResourceOperations(resourceOperations);
+  }, [buildResourceOperations, clearCommitTimer, clearCommittedResourceOperations]);
+
+  const scheduleCommit = useCallback(() => {
+    const currentSession = mountedSessionRef.current;
+    const pendingCommitState = latestCommitStateRef.current;
+    if (!currentSession || !pendingCommitState || !pendingCommitState.validation.valid) {
+      return;
+    }
+
+    clearCommitTimer();
+    const hasPendingResourceMutations = pendingImportsRef.current.size > 0 || pendingDeletionsRef.current.size > 0;
+    const commitDelayMs = hasPendingResourceMutations ? 0 : currentSession.commitDebounceMs;
+    commitTimerRef.current = window.setTimeout(() => {
+      void commitPendingChange().catch((error) => {
         const normalizedError = error instanceof Error ? error : new Error(String(error));
         setLoadError(normalizedError);
-        onPluginError?.(normalizedError);
+        onPluginErrorRef.current?.(normalizedError);
       });
     }, commitDelayMs);
+  }, [clearCommitTimer, commitPendingChange]);
 
-    return () => {
-      window.clearTimeout(timerId);
-    };
-  }, [
-    commitSession,
-    descriptor,
-    onPluginError,
-    snapshot?.commitDebounceMs,
-    snapshot?.dirty,
-    snapshot?.hasPendingResourceChanges,
-    snapshot?.revision,
-    snapshot?.validation.valid,
-  ]);
+  const closeMountedSession = useCallback(async () => {
+    clearCommitTimer();
+    const currentSession = mountedSessionRef.current;
+    mountedSessionRef.current = null;
 
-  useEffect(() => {
-    return () => {
-      void commitSession().catch(() => undefined);
-    };
-  }, [commitSession]);
+    if (!currentSession) {
+      return;
+    }
 
-  useEffect(() => {
-    const flushPendingSession = () => {
-      void commitSession().catch(() => undefined);
-    };
+    currentSession.cleanupTasks.forEach((cleanup) => cleanup());
+    await getChipsClient().card.basecard.closeSession(currentSession.sessionId).catch(() => ({ closed: false }));
+  }, [clearCommitTimer]);
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        flushPendingSession();
-      }
-    };
-
-    window.addEventListener('pagehide', flushPendingSession);
-    window.addEventListener('beforeunload', flushPendingSession);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('pagehide', flushPendingSession);
-      window.removeEventListener('beforeunload', flushPendingSession);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [commitSession]);
-
-  useEffect(() => {
+  const mountEditorSession = useCallback(async () => {
     const container = containerRef.current;
     if (!container) {
       const error = new Error('Editor panel container is unavailable.');
       setLoadError(error);
-      onPluginError?.(error);
+      onPluginErrorRef.current?.(error);
       return;
     }
 
-    while (container.firstChild) {
-      container.removeChild(container.firstChild);
-    }
-
-    if (!descriptor) {
-      const error = new Error(`未注册基础卡片编辑器: ${cardType}`);
-      setLoadError(error);
-      setIsLoading(false);
-      onPluginError?.(error);
-      return;
-    }
-
-    const activeSnapshot = store.getSnapshot(sessionKey);
-    if (!descriptor.renderEditor || !activeSnapshot) {
-      const error = new Error(`基础卡片未提供编辑器实现: ${descriptor.cardType}`);
-      setLoadError(error);
-      setIsLoading(false);
-      onPluginError?.(error);
-      return;
-    }
+    await closeMountedSession();
 
     setIsLoading(true);
     setLoadError(null);
 
-    let disposed = false;
-    let cleanup: (() => void) | void;
+    const session = await getChipsClient().card.basecard.openSession({
+      cardType,
+      baseCardId,
+      sourceConfig,
+      cardRootDir: cardPath,
+    });
 
-    try {
-      cleanup = descriptor.renderEditor({
-        container,
-        initialConfig: activeSnapshot.draftConfig,
-        onChange(nextConfig) {
-          if (disposed) {
-            return;
-          }
-
-          reportEditorActivity();
-          store.updateDraft(sessionKey, descriptor, nextConfig);
-        },
+    const frameResult = await getChipsClient().card.basecard.renderEditor({
+      sessionId: session.sessionId,
+      resources: {
         resolveResourceUrl,
         releaseResourceUrl(resourcePath) {
           const normalizedResourcePath = normalizeResourcePath(resourcePath);
           if (!normalizedResourcePath) {
             return;
           }
-
           releaseResolvedResourceUrl(normalizedResourcePath);
         },
         importResource,
         deleteResource,
-      });
+      },
+    });
 
-      setIsLoading(false);
-      onPluginLoaded?.({
-        cardType: descriptor.cardType,
-        baseCardId,
-      });
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error));
-      setLoadError(normalizedError);
-      setIsLoading(false);
-      onPluginError?.(normalizedError);
-    }
+    const frame = frameResult.frame;
+    frame.className = 'plugin-host__frame';
+    frame.scrolling = 'no';
+    frame.style.border = '0';
 
-    return () => {
-      disposed = true;
-      if (typeof cleanup === 'function') {
-        cleanup();
-      }
+    const cleanupTasks: Array<() => void> = [];
 
-      while (container.firstChild) {
-        container.removeChild(container.firstChild);
-      }
+    cleanupTasks.push(
+      getChipsClient().card.basecard.onReady(frame, () => {
+        setIsLoading(false);
+        setLoadError(null);
+        onPluginLoadedRef.current?.({
+          cardType: session.cardType,
+          baseCardId: session.baseCardId,
+          pluginId: session.pluginId,
+        });
+      }),
+    );
+    cleanupTasks.push(
+      getChipsClient().card.basecard.onHeight(frame, () => {
+        frame.style.height = '100%';
+      }),
+    );
+    cleanupTasks.push(
+      getChipsClient().card.basecard.onChange(frame, (payload: BasecardChangePayload) => {
+        latestCommitStateRef.current = {
+          config: payload.normalizedConfig,
+          referencedResources: payload.referencedResources,
+          validation: payload.validation,
+        };
+        reportEditorActivity();
+        scheduleCommit();
+      }),
+    );
+    cleanupTasks.push(
+      getChipsClient().card.basecard.onError(frame, (payload: BasecardErrorPayload) => {
+        const normalizedError = new Error(payload.message);
+        setLoadError(normalizedError);
+        setIsLoading(false);
+        onPluginErrorRef.current?.(normalizedError);
+      }),
+    );
+
+    container.replaceChildren(frame);
+    frameRef.current = frame;
+    latestCommitStateRef.current = {
+      config: session.normalizedConfig,
+      referencedResources: session.referencedResources,
+      validation: session.validation,
+    };
+    mountedSessionRef.current = {
+      sessionId: session.sessionId,
+      pluginId: session.pluginId,
+      cardType: session.cardType,
+      baseCardId: session.baseCardId,
+      commitDebounceMs: session.commitDebounceMs,
+      lastSeenPropSignature: sourceSignature,
+      authoritativeSignature: JSON.stringify(session.normalizedConfig),
+      cleanupTasks,
     };
   }, [
     baseCardId,
+    cardPath,
     cardType,
-    descriptor,
-    onPluginError,
-    onPluginLoaded,
-    renderRevision,
+    closeMountedSession,
+    deleteResource,
+    importResource,
+    releaseResolvedResourceUrl,
     reportEditorActivity,
     resolveResourceUrl,
-    importResource,
-    deleteResource,
-    releaseResolvedResourceUrl,
-    sessionKey,
-    mountRevision,
-    store,
+    scheduleCommit,
+    sourceConfig,
+    sourceSignature,
   ]);
 
-  const errorText = loadError?.message || snapshot?.errorMessage || t('plugin_host.error') || '加载失败';
+  mountEditorSessionRef.current = mountEditorSession;
+
+  useEffect(() => {
+    let disposed = false;
+    const openEditorSession = mountEditorSessionRef.current;
+
+    if (!openEditorSession) {
+      return;
+    }
+
+    void openEditorSession().catch((error) => {
+      if (disposed) {
+        return;
+      }
+
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      setLoadError(normalizedError);
+      setIsLoading(false);
+      onPluginErrorRef.current?.(normalizedError);
+    });
+
+    return () => {
+      disposed = true;
+      void commitPendingChange().catch(() => undefined);
+      void closeMountedSession().catch(() => undefined);
+      releaseAllResolvedResourceUrls();
+      latestCommitStateRef.current = null;
+      pendingImportsRef.current.clear();
+      pendingDeletionsRef.current.clear();
+      const container = containerRef.current;
+      if (container) {
+        container.replaceChildren();
+      }
+      frameRef.current = null;
+    };
+  }, [closeMountedSession, commitPendingChange, releaseAllResolvedResourceUrls, renderRevision, sessionIdentity]);
+
+  useEffect(() => {
+    const mountedSession = mountedSessionRef.current;
+    if (!mountedSession) {
+      return;
+    }
+
+    if (
+      sourceSignature === mountedSession.lastSeenPropSignature ||
+      sourceSignature === mountedSession.authoritativeSignature
+    ) {
+      return;
+    }
+
+    void mountEditorSession().catch((error) => {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      setLoadError(normalizedError);
+      setIsLoading(false);
+      onPluginErrorRef.current?.(normalizedError);
+    });
+  }, [mountEditorSession, sourceSignature]);
+
+  useEffect(() => {
+    const flushPendingChange = () => {
+      void commitPendingChange().catch(() => undefined);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingChange();
+      }
+    };
+
+    window.addEventListener('pagehide', flushPendingChange);
+    window.addEventListener('beforeunload', flushPendingChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pagehide', flushPendingChange);
+      window.removeEventListener('beforeunload', flushPendingChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [commitPendingChange]);
+
+  const errorText = loadError?.message || t('plugin_host.error') || '加载失败';
 
   return (
     <div className="plugin-host">
@@ -421,7 +573,7 @@ export function EditorHost({
         </div>
       )}
 
-      {!isLoading && (loadError || snapshot?.errorMessage) && (
+      {!isLoading && loadError && (
         <div className="plugin-host__error">
           <div className="plugin-host__error-icon">⚠️</div>
           <p className="plugin-host__error-text">{errorText}</p>

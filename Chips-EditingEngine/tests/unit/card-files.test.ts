@@ -17,12 +17,47 @@ const { mockFileService } = vi.hoisted(() => ({
     exists: vi.fn<[string], Promise<boolean>>(),
     ensureDir: vi.fn<[string], Promise<void>>(),
     list: vi.fn<[string], Promise<MockEntry[]>>(),
+    stat: vi.fn<[string], Promise<{ size: number; isDirectory: boolean; isFile: boolean; mtimeMs?: number }>>(),
     delete: vi.fn<[string], Promise<void>>(),
   },
 }));
 
 vi.mock('../../src/services/file-service', () => ({
   fileService: mockFileService,
+}));
+
+vi.mock('../../src/services/basecard-service', () => ({
+  basecardService: {
+    normalizeSnapshot: vi.fn(async (options: {
+      cardType: string;
+      baseCardId?: string;
+      sourceConfig?: Record<string, unknown>;
+    }) => {
+      const baseCardId = options.baseCardId ?? 'generated-basecard';
+      const sourceConfig = options.sourceConfig ?? {};
+      const body = typeof sourceConfig.body === 'string'
+        ? sourceConfig.body
+        : typeof sourceConfig.content_text === 'string'
+          ? sourceConfig.content_text
+          : '<p></p>';
+
+      return {
+        pluginId: 'chips.basecard.richtext',
+        cardType: 'base.richtext',
+        baseCardId,
+        displayName: '富文本基础卡片',
+        normalizedConfig: {
+          id: baseCardId,
+          body,
+          locale: typeof sourceConfig.locale === 'string' ? sourceConfig.locale : 'zh-CN',
+        },
+        validation: { valid: true, issues: [] },
+        referencedResources: [],
+        commitDebounceMs: 260,
+        supportsEditor: true,
+      };
+    }),
+  },
 }));
 
 describe('unpacked .card files', () => {
@@ -58,13 +93,13 @@ describe('unpacked .card files', () => {
       structure: [
         {
           id: 'intro',
-          type: 'RichTextCard',
+          type: 'base.richtext',
           created_at: '2026-03-13T00:00:00.000Z',
           modified_at: '2026-03-13T00:00:00.000Z',
         },
         {
           id: 'details',
-          type: 'RichTextCard',
+          type: 'base.richtext',
           created_at: '2026-03-13T00:00:00.000Z',
           modified_at: '2026-03-13T00:00:00.000Z',
         },
@@ -77,7 +112,7 @@ describe('unpacked .card files', () => {
     }));
 
     setFile('/workspace/demo.card/content/intro.yaml', yaml.stringify({
-      card_type: 'RichTextCard',
+      card_type: 'base.richtext',
       content_text: '<h1>Intro</h1><p>Hello Chips.</p>',
     }));
 
@@ -160,6 +195,27 @@ describe('unpacked .card files', () => {
         }));
     });
 
+    mockFileService.stat.mockImplementation(async (targetPath) => {
+      if (files.has(targetPath)) {
+        const content = files.get(targetPath) ?? '';
+        return {
+          size: Buffer.byteLength(content),
+          isDirectory: false,
+          isFile: true,
+        };
+      }
+
+      if (directories.has(targetPath)) {
+        return {
+          size: 0,
+          isDirectory: true,
+          isFile: false,
+        };
+      }
+
+      throw new Error(`Missing path: ${targetPath}`);
+    });
+
     mockFileService.delete.mockImplementation(async (targetPath) => {
       files.delete(targetPath);
     });
@@ -172,7 +228,7 @@ describe('unpacked .card files', () => {
 
     const result = await initializer.createCard('new-card', '新卡片', {
       id: 'intro',
-      type: 'RichTextCard',
+      type: 'base.richtext',
       config: {
         id: 'intro',
         body: '<p>你好</p>',
@@ -194,6 +250,7 @@ describe('unpacked .card files', () => {
     expect(structure.structure).toHaveLength(1);
     expect(content.body).toBe('<p>你好</p>');
     expect(files.get('/workspace/new-card.card/.card/cover.html')).toContain('新卡片');
+    expect(files.get('/workspace/new-card.card/.card/cover.html')).toContain('<base href="../"');
   });
 
   it('opens unpacked .card directories and persists normalized base card updates', async () => {
@@ -217,7 +274,9 @@ describe('unpacked .card files', () => {
 
     service.removeBasicCard('demo-card', 'details');
     service.updateBasicCard('demo-card', 'intro', {
+      id: 'intro',
       body: '<p>已更新</p>',
+      locale: 'zh-CN',
     });
     await service.saveCard('demo-card');
 
@@ -234,6 +293,7 @@ describe('unpacked .card files', () => {
     expect(files.has('/workspace/demo.card/content/details.yaml')).toBe(false);
     expect(files.has('/workspace/demo.card/content/legacy-unused.yaml')).toBe(false);
     expect(files.get('/workspace/demo.card/.card/cover.html')).toContain('生态介绍');
+    expect(files.get('/workspace/demo.card/.card/cover.html')).toContain('<base href="../"');
   });
 
   it('persists cover html, cover ratio and uploaded cover resources into the unpacked .card structure', async () => {
@@ -254,9 +314,21 @@ describe('unpacked .card files', () => {
     await service.saveCard('demo-card');
 
     const metadata = yaml.parse(files.get('/workspace/demo.card/.card/metadata.yaml') ?? '');
+    const structure = yaml.parse(files.get('/workspace/demo.card/.card/structure.yaml') ?? '');
     expect(metadata.cover_ratio).toBe('16:9');
+    expect(files.get('/workspace/demo.card/.card/cover.html')).toContain('<base href="../"');
     expect(files.get('/workspace/demo.card/.card/cover.html')).toContain('./cardcover/cover-image.png');
-    expect(files.get('/workspace/demo.card/.card/cardcover/cover-image.png')).toBe(Buffer.from([137, 80, 78, 71]).toString('base64'));
+    expect(files.get('/workspace/demo.card/cardcover/cover-image.png')).toBe(Buffer.from([137, 80, 78, 71]).toString('base64'));
+    expect(structure.manifest).toMatchObject({
+      resource_count: 1,
+      resources: [
+        {
+          path: 'cardcover/cover-image.png',
+          size: 4,
+          type: 'image/png',
+        },
+      ],
+    });
   });
 
   it('writes imported base card resources into the card root and finalizes deletions on save', async () => {
@@ -328,10 +400,14 @@ describe('unpacked .card files', () => {
     await service.openCard('demo-card', '/workspace/demo.card');
 
     service.updateBasicCard('demo-card', 'intro', {
+      id: 'intro',
       body: '<p>first</p>',
+      locale: 'zh-CN',
     });
     service.updateBasicCard('demo-card', 'intro', {
+      id: 'intro',
       body: '<p>second</p>',
+      locale: 'zh-CN',
     });
 
     const pendingCard = service.getCard('demo-card');
@@ -357,6 +433,40 @@ describe('unpacked .card files', () => {
     expect(persistedIntro).toMatchObject({
       id: 'intro',
       body: '<p>second</p>',
+      locale: 'zh-CN',
+    });
+  });
+
+  it('replaces base card data with the authoritative normalized payload instead of merging legacy fields', async () => {
+    seedCardDirectory();
+    const service = createCardService();
+    await service.openCard('demo-card', '/workspace/demo.card');
+
+    const card = service.getCard('demo-card');
+    const intro = card?.structure.basicCards.find((item) => item.id === 'intro');
+    if (!intro) {
+      throw new Error('Expected intro base card to exist.');
+    }
+
+    intro.data = {
+      id: 'intro',
+      body: '<p>legacy</p>',
+      locale: 'zh-CN',
+      content_text: '<p>legacy-content-text</p>',
+      legacyFlag: true,
+    };
+
+    service.updateBasicCard('demo-card', 'intro', {
+      id: 'intro',
+      body: '<p>normalized</p>',
+      locale: 'zh-CN',
+    });
+    await service.saveCard('demo-card');
+
+    const persistedIntro = yaml.parse(files.get('/workspace/demo.card/content/intro.yaml') ?? '');
+    expect(persistedIntro).toEqual({
+      id: 'intro',
+      body: '<p>normalized</p>',
       locale: 'zh-CN',
     });
   });

@@ -19,7 +19,7 @@ import type { BasicCardConfig } from './core/card-initializer';
 import type { DragData } from './components/CardBoxLibrary/types';
 import { generateId62 } from './utils/id';
 import { setLocale } from './i18n';
-import { createInitialBasecardConfig, normalizeBasecardType } from './basecard-runtime/registry';
+import { basecardService } from './services/basecard-service';
 
 const EngineSettingsDialog = lazy(() => import('./components/EngineSettings/EngineSettingsDialog').then(m => ({ default: m.EngineSettingsDialog })));
 
@@ -28,24 +28,41 @@ interface ThemeRuntimeState {
   version: string;
 }
 
-function createInitialBasicCardPayload(typeId: string, baseCardId = ''): Record<string, unknown> {
-  const config = createInitialBasecardConfig(typeId, baseCardId);
-  if (baseCardId) {
-    return config;
-  }
+async function createInitialBasecardDraft(typeId: string, baseCardId = ''): Promise<{
+  cardType: string;
+  config: Record<string, unknown>;
+}> {
+  const snapshot = await basecardService.normalizeSnapshot({
+    cardType: typeId,
+    baseCardId: baseCardId || undefined,
+    sourceConfig: {},
+  });
 
-  const { id: _ignoredId, ...rest } = config;
-  return rest;
+  const config = baseCardId
+    ? snapshot.normalizedConfig
+    : (() => {
+        const { id: _ignoredId, ...rest } = snapshot.normalizedConfig;
+        return rest;
+      })();
+
+  return {
+    cardType: snapshot.cardType,
+    config,
+  };
 }
 
-function createInitialBasicCard(typeId: string): BasicCardConfig {
+async function createInitialBasicCardPayload(typeId: string, baseCardId = ''): Promise<Record<string, unknown>> {
+  return (await createInitialBasecardDraft(typeId, baseCardId)).config;
+}
+
+async function createInitialBasicCard(typeId: string): Promise<BasicCardConfig> {
   const baseCardId = generateId62();
-  const normalizedType = normalizeBasecardType(typeId);
+  const snapshot = await createInitialBasecardDraft(typeId, baseCardId);
 
   return {
     id: baseCardId,
-    type: normalizedType,
-    config: createInitialBasicCardPayload(normalizedType, baseCardId),
+    type: snapshot.cardType,
+    config: snapshot.config,
   };
 }
 
@@ -255,10 +272,11 @@ function MainWorkspace() {
       }
 
       setActiveCard(target.cardId);
-      const nextBasicCard = addBasicCard(
+      const initialBasecard = await createInitialBasecardDraft(data.typeId);
+      const nextBasicCard = await addBasicCard(
         target.cardId,
-        data.typeId,
-        createInitialBasicCardPayload(data.typeId),
+        initialBasecard.cardType,
+        initialBasecard.config,
         target.insertionIndex,
       );
       if (nextBasicCard) {
@@ -279,7 +297,7 @@ function MainWorkspace() {
       const cardName = data.name.trim() || (t('common.untitled_card') || '未命名卡片');
       await workspaceService.createCard(
         cardName,
-        createInitialBasicCard(data.typeId),
+        await createInitialBasicCard(data.typeId),
         undefined,
         undefined,
         {

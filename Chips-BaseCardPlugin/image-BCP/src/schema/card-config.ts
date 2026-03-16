@@ -27,7 +27,7 @@ export interface LayoutOptions {
 }
 
 export interface BasecardConfig {
-  card_type: "ImageCard";
+  card_type: "base.image";
   theme?: string;
   images: ImageItem[];
   layout_type: LayoutType;
@@ -47,7 +47,7 @@ export const defaultLayoutOptions: Required<LayoutOptions> = {
 };
 
 export const defaultBasecardConfig: BasecardConfig = {
-  card_type: "ImageCard",
+  card_type: "base.image",
   theme: "",
   images: [],
   layout_type: "single",
@@ -60,10 +60,6 @@ function asString(value: unknown): string | undefined {
 
 function asPositiveNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function asNonNegativeNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 function normalizeImageItem(input: unknown, index: number): ImageItem {
@@ -124,7 +120,7 @@ export function normalizeBasecardConfig(input: Record<string, unknown> | null | 
         : defaultLayoutOptions.spacing_mode;
 
   return {
-    card_type: "ImageCard",
+    card_type: "base.image",
     theme: asString(record.theme) ?? defaultBasecardConfig.theme,
     images: normalizedImages,
     layout_type: layoutType,
@@ -141,8 +137,8 @@ export function normalizeBasecardConfig(input: Record<string, unknown> | null | 
 export function validateBasecardConfig(config: BasecardConfig): ConfigValidationResult {
   const errors: Record<string, string> = {};
 
-  if (config.card_type !== "ImageCard") {
-    errors.card_type = "card_type 必须为 ImageCard";
+  if (config.card_type !== "base.image") {
+    errors.card_type = "card_type 必须为 base.image";
   }
 
   config.images.forEach((image, index) => {

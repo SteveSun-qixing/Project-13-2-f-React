@@ -3,7 +3,7 @@
 本文件说明 [default-card-config.yaml](/Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f/Chips-BaseCardPlugin/image-BCP/templates/default-card-config.yaml) 中各字段的正式含义与填写约束。
 
 - `card_type`
-  - 固定为 `"ImageCard"`。
+  - 固定为 `"base.image"`。
 - `theme`
   - 可选主题标识；留空时继承上层主题。
 - `images`

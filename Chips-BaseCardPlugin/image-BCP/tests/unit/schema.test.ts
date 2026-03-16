@@ -7,7 +7,7 @@ import {
 describe("image basecard schema", () => {
   it("normalizes root-relative resource paths and layout defaults", () => {
     const normalized = normalizeBasecardConfig({
-      card_type: "ImageCard",
+      card_type: "base.image",
       images: [
         {
           id: "image-1",
@@ -25,7 +25,7 @@ describe("image basecard schema", () => {
 
   it("coerces multi-image single layout requests to grid", () => {
     const normalized = normalizeBasecardConfig({
-      card_type: "ImageCard",
+      card_type: "base.image",
       images: [
         {
           id: "image-1",
@@ -46,7 +46,7 @@ describe("image basecard schema", () => {
 
   it("maps legacy zero-gap input to the zero-spacing mode", () => {
     const normalized = normalizeBasecardConfig({
-      card_type: "ImageCard",
+      card_type: "base.image",
       images: [
         {
           id: "image-1",
@@ -71,7 +71,7 @@ describe("image basecard schema", () => {
   it("treats an empty image list as a valid initial draft", () => {
     const result = validateBasecardConfig(
       normalizeBasecardConfig({
-        card_type: "ImageCard",
+        card_type: "base.image",
         images: [],
         layout_type: "single",
       }),
@@ -84,7 +84,7 @@ describe("image basecard schema", () => {
   it("rejects invalid remote image URLs", () => {
     const result = validateBasecardConfig(
       normalizeBasecardConfig({
-        card_type: "ImageCard",
+        card_type: "base.image",
         images: [
           {
             id: "image-1",

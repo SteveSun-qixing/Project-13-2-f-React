@@ -753,11 +753,16 @@ const collectManifestAssetPaths = (manifest) => {
   }
 
   const layout = isPlainObject(manifest?.ui) && isPlainObject(manifest.ui.layout) ? manifest.ui.layout : undefined;
+  const launcher = isPlainObject(manifest?.ui) && isPlainObject(manifest.ui.launcher) ? manifest.ui.launcher : undefined;
   for (const field of ['contract', 'minFunctionalSet']) {
     const value = layout?.[field];
     if (typeof value === 'string' && value.trim().length > 0) {
       assets.push(value.trim());
     }
+  }
+
+  if (typeof launcher?.icon === 'string' && launcher.icon.trim().length > 0) {
+    assets.push(launcher.icon.trim());
   }
 
   if (typeof manifest?.preview === 'string' && manifest.preview.trim().length > 0) {

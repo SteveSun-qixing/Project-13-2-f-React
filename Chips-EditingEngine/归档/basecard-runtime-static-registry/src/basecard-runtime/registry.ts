@@ -8,26 +8,17 @@ const basecardDescriptors = [
 ] satisfies BasecardDescriptor[];
 
 const descriptorMap = new Map<string, BasecardDescriptor>();
-const aliasMap = new Map<string, string>();
 
 for (const descriptor of basecardDescriptors) {
   descriptorMap.set(descriptor.cardType, descriptor);
-  aliasMap.set(descriptor.cardType, descriptor.cardType);
-  for (const alias of descriptor.aliases ?? []) {
-    aliasMap.set(alias, descriptor.cardType);
-  }
 }
 
 export function getRegisteredBasecardDescriptors(): BasecardDescriptor[] {
   return basecardDescriptors;
 }
 
-export function normalizeBasecardType(cardType: string): string {
-  return aliasMap.get(cardType) ?? cardType;
-}
-
 export function getBasecardDescriptor(cardType: string): BasecardDescriptor | null {
-  return descriptorMap.get(normalizeBasecardType(cardType)) ?? null;
+  return descriptorMap.get(cardType) ?? null;
 }
 
 export function assertBasecardDescriptor(cardType: string): BasecardDescriptor {

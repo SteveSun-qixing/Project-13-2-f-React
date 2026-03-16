@@ -19,7 +19,7 @@ type RectInput = {
 
 function createConfig(overrides?: Partial<BasecardConfig>): BasecardConfig {
   return {
-    card_type: "ImageCard",
+    card_type: "base.image",
     theme: "",
     images: [],
     layout_type: "single",

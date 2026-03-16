@@ -2,10 +2,15 @@ import type { BasecardConfig } from "../schema/card-config";
 import { defaultBasecardConfig } from "../schema/card-config";
 import { sanitizeRichTextHtml } from "../shared/utils";
 import { createTranslator } from "../shared/i18n";
+import type { BasecardResourceImportRequest } from "../index";
 
 export interface BasecardEditorProps {
   initialConfig: BasecardConfig;
   onChange: (next: BasecardConfig) => void;
+  resolveResourceUrl?: (resourcePath: string) => Promise<string>;
+  releaseResourceUrl?: (resourcePath: string) => Promise<void> | void;
+  importResource?: (input: BasecardResourceImportRequest) => Promise<{ path: string } | { path: string; url?: string; name?: string; size?: number; mimeType?: string }>;
+  deleteResource?: (resourcePath: string) => Promise<void>;
 }
 
 type EditorRoot = HTMLElement & {
@@ -496,6 +501,34 @@ function plainTextToRichTextHtml(text: string): string {
     .join("");
 }
 
+function pickSingleFile(accept: string): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    input.style.pointerEvents = "none";
+    input.style.width = "1px";
+    input.style.height = "1px";
+
+    const cleanup = () => {
+      input.removeEventListener("change", handleChange);
+      input.remove();
+    };
+
+    const handleChange = () => {
+      const file = input.files?.[0] ?? null;
+      cleanup();
+      resolve(file);
+    };
+
+    input.addEventListener("change", handleChange, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
 function getCurrentBlockTag(editor: HTMLElement): string {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) {
@@ -981,9 +1014,25 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): HTMLElemen
   const imageButton = createToolbarButton(
     t("basecard.toolbar.image"),
     t("basecard.toolbar.image"),
-    () => {
+    async () => {
       const selectionRange = cloneEditorSelection(bodyEditor);
-      const src = (window.prompt(t("basecard.prompt.imageUrl"), "https://") ?? "").trim();
+      let src = "";
+      const selectedFile = props.importResource
+        ? await pickSingleFile("image/*")
+        : null;
+      const importedResource = selectedFile
+        ? await props.importResource?.({
+            file: selectedFile,
+            preferredPath: selectedFile.name,
+          })
+        : null;
+
+      if (typeof importedResource?.path === "string" && importedResource.path.trim().length > 0) {
+        src = importedResource.path.trim();
+      } else {
+        src = (window.prompt(t("basecard.prompt.imageUrl"), "https://") ?? "").trim();
+      }
+
       if (!src) {
         return;
       }

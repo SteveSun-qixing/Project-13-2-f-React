@@ -30,7 +30,7 @@ function restoreStyle(target: HTMLElement, snapshot: StyleSnapshot): void {
 export function mountBasecardEditor(
   ctx: BasecardEditorContext
 ): () => void {
-  const { container, initialConfig, onChange } = ctx;
+  const { container, initialConfig, onChange, resolveResourceUrl, releaseResourceUrl, importResource, deleteResource } = ctx;
   const ownerDocument = container.ownerDocument;
   const html = ownerDocument.documentElement as HTMLElement;
   const body = ownerDocument.body as HTMLElement;
@@ -62,6 +62,10 @@ export function mountBasecardEditor(
   const root = createBasecardEditorRoot({
     initialConfig,
     onChange,
+    resolveResourceUrl,
+    releaseResourceUrl,
+    importResource,
+    deleteResource,
   }) as HTMLElement & {
     __chipsDispose?: () => void;
   };

@@ -27,6 +27,12 @@
   background: transparent;
 }
 
+.basecard-frame-host__mount {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+}
+
 .basecard-frame-host__frame {
   display: block;
   width: 100%;

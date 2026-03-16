@@ -739,33 +739,6 @@ const removePluginShortcut = async (
   return removed;
 };
 
-const buildCardTypeCandidates = (cardType: string): string[] => {
-  const trimmed = cardType.trim();
-  const compact = trimmed.replace(/\s+/g, '');
-  const stripped = compact.replace(/Card$/i, '');
-  const normalized = stripped.replace(/[^A-Za-z0-9]+/g, '');
-  const lower = normalized.toLowerCase();
-
-  const candidates = new Set<string>();
-  if (trimmed) {
-    candidates.add(trimmed);
-    candidates.add(trimmed.toLowerCase());
-  }
-  if (compact) {
-    candidates.add(compact);
-    candidates.add(compact.toLowerCase());
-  }
-  if (stripped) {
-    candidates.add(stripped);
-    candidates.add(stripped.toLowerCase());
-  }
-  if (lower) {
-    candidates.add(`base.${lower}`);
-  }
-
-  return [...candidates];
-};
-
 const resolveThemeChain = (state: RuntimeState, inputIds: string[]): ThemeRecord[] => {
   const chain = inputIds.length > 0 ? inputIds : [state.currentThemeId];
   if (chain.length > 6) {
@@ -1672,13 +1645,16 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           true,
           0,
           withMetrics(state, 'plugin.getCardPlugin', async (input) => {
-            const candidates = buildCardTypeCandidates(input.cardType);
+            const normalizedCardType = input.cardType.trim();
+            if (!normalizedCardType) {
+              return { plugin: undefined };
+            }
             const plugin = ctx.runtime
               .query({ type: 'card' })
               .filter((record) => record.enabled && typeof record.manifest.entry === 'string' && record.manifest.entry.length > 0)
               .find((record) => {
                 const capabilities = new Set(record.manifest.capabilities ?? []);
-                return candidates.some((candidate) => capabilities.has(candidate));
+                return capabilities.has(normalizedCardType);
               });
             return { plugin: plugin ? toPluginInfoView(plugin) : undefined };
           })
@@ -2741,6 +2717,7 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
             cardType: string;
             initialConfig?: Record<string, unknown>;
             baseCardId?: string;
+            cardRootDir?: string;
           },
           { view: unknown }
         >(
@@ -2755,6 +2732,7 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
               cardType: input.cardType,
               initialConfig: input.initialConfig,
               baseCardId: input.baseCardId,
+              cardRootDir: typeof input.cardRootDir === 'string' ? input.cardRootDir : undefined,
               theme: themeContext.renderTheme,
               themeCssText: themeContext.css
             });
@@ -2775,6 +2753,96 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           })
         )
       }
+    }
+  };
+
+  const basecardService: ServiceRegistration = {
+    name: 'basecard',
+    actions: {
+      openSession: {
+        descriptor: descriptor<
+          {
+            cardType: string;
+            baseCardId?: string;
+            sourceConfig?: Record<string, unknown>;
+            cardRootDir?: string;
+          },
+          { session: unknown }
+        >(
+          'basecard.openSession',
+          ['card.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'basecard.openSession', async (input) => {
+            const session = await ctx.getCardService().openBasecardSession({
+              cardType: input.cardType,
+              baseCardId: input.baseCardId,
+              sourceConfig: input.sourceConfig,
+              cardRootDir: typeof input.cardRootDir === 'string' ? input.cardRootDir : undefined,
+            });
+            return { session };
+          })
+        )
+      },
+      renderView: {
+        descriptor: descriptor<
+          { sessionId: string; interactionPolicy?: 'native' | 'delegate' },
+          { view: unknown }
+        >(
+          'basecard.renderView',
+          ['card.read'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'basecard.renderView', async (input) => {
+            const themeContext = resolveThemeContext(state, []);
+            const view = await ctx.getCardService().renderBasecardSessionView(
+              input.sessionId,
+              themeContext.renderTheme,
+              themeContext.css,
+              input.interactionPolicy === 'delegate' ? 'delegate' : 'native',
+            );
+            return { view };
+          })
+        )
+      },
+      renderEditor: {
+        descriptor: descriptor<
+          { sessionId: string },
+          { view: unknown }
+        >(
+          'basecard.renderEditor',
+          ['card.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'basecard.renderEditor', async (input) => {
+            const themeContext = resolveThemeContext(state, []);
+            const view = await ctx.getCardService().renderBasecardSessionEditor(
+              input.sessionId,
+              themeContext.renderTheme,
+              themeContext.css,
+            );
+            return { view };
+          })
+        )
+      },
+      closeSession: {
+        descriptor: descriptor<
+          { sessionId: string },
+          { closed: boolean }
+        >(
+          'basecard.closeSession',
+          ['card.write'],
+          10_000,
+          true,
+          0,
+          withMetrics(state, 'basecard.closeSession', async (input) => {
+            return ctx.getCardService().closeBasecardSession(input.sessionId);
+          })
+        )
+      },
     }
   };
 
@@ -3018,6 +3086,7 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
     logService,
     credentialService,
     cardService,
+    basecardService,
     boxService,
     zipService,
     serializerService,

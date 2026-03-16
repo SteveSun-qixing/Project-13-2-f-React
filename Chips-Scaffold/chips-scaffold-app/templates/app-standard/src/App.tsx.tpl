@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { ChipsThemeProvider, ChipsButton, ChipsInput } from "@chips/component-library";
+import { createClient } from "chips-sdk";
 import { ExamplePanel } from "./components/ExamplePanel";
+
+const chipsClient = createClient();
 
 type ThemeInfo = {
   themeId?: string;
@@ -13,16 +16,10 @@ function useChipsThemeInfo() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const bridge = typeof window !== "undefined" ? (window as any).chips : undefined;
-    if (!bridge || typeof bridge.invoke !== "function") {
-      setError("Bridge API 未就绪（window.chips.invoke 不可用）");
-      return;
-    }
-
     let cancelled = false;
 
-    bridge
-      .invoke("theme.getCurrent", {})
+    chipsClient.theme
+      .getCurrent()
       .then((info: ThemeInfo) => {
         if (!cancelled) {
           setThemeInfo(info);
@@ -77,7 +74,7 @@ function MainContent() {
       </section>
 
       <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <h2 style={{ fontSize: 14, marginBottom: 8 }}>Bridge API 示例</h2>
+        <h2 style={{ fontSize: 14, marginBottom: 8 }}>SDK 调用示例</h2>
         {error ? (
           <p style={{ color: "var(--chips-color-danger, #d93025)", fontSize: 12 }}>{error}</p>
         ) : (

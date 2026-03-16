@@ -151,13 +151,13 @@ describe('Host services integration', () => {
     await fs.writeFile(path.join(source, '.card/metadata.yaml'), 'card_id: card.render.demo\nname: Render Demo\n', 'utf-8');
     await fs.writeFile(
       path.join(source, '.card/structure.yaml'),
-      'structure:\n  - id: "intro"\n    type: "RichTextCard"\n',
+      'structure:\n  - id: "intro"\n    type: "base.richtext"\n',
       'utf-8'
     );
     await fs.writeFile(path.join(source, '.card/cover.html'), '<h1>cover</h1>', 'utf-8');
     await fs.writeFile(
       path.join(source, 'content/intro.yaml'),
-      'card_type: "RichTextCard"\ncontent_source: "inline"\ncontent_text: |\n  <h1>Render Intro</h1>\n  <p>Rendered through host service.</p>\n',
+      'card_type: "base.richtext"\ncontent_source: "inline"\ncontent_text: |\n  <h1>Render Intro</h1>\n  <p>Rendered through host service.</p>\n',
       'utf-8'
     );
 
@@ -259,7 +259,7 @@ describe('Host services integration', () => {
   it('returns control-plane health report', async () => {
     const report = await runtime.invoke<{ status: string; report: { routes: number; services: number } }>('control-plane.health', {});
     expect(report.status).toBe('ok');
-    expect(report.report.services).toBe(16);
+    expect(report.report.services).toBe(17);
     expect(report.report.routes).toBeGreaterThan(30);
   });
 

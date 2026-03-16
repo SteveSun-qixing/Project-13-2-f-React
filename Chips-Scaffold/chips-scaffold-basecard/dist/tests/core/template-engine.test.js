@@ -79,6 +79,13 @@ async function removeDirIfExists(dir) {
         (0, vitest_1.expect)(pkg.devDependencies["@typescript-eslint/parser"]).toBe("^7.18.0");
         (0, vitest_1.expect)(pkg.devDependencies["chips-sdk"]).toBe("^0.1.0");
         const readme = await node_fs_1.promises.readFile(path.join(targetDir, "README.md"), "utf8");
+        const runtimeContract = await node_fs_1.promises.readFile(path.join(targetDir, "src", "runtime-contract.ts"), "utf8");
+        const entrySource = await node_fs_1.promises.readFile(path.join(targetDir, "src", "index.ts"), "utf8");
         (0, vitest_1.expect)(readme).toMatch(/Standard Basecard Plugin/);
+        (0, vitest_1.expect)(runtimeContract).toMatch(/export function getBasecardDescriptor/);
+        (0, vitest_1.expect)(runtimeContract).toMatch(/export function collectReferencedResources/);
+        (0, vitest_1.expect)(entrySource).toMatch(/from "\.\/runtime-contract"/);
+        (0, vitest_1.expect)(entrySource).toMatch(/getBasecardDescriptor/);
+        (0, vitest_1.expect)(entrySource).toMatch(/collectReferencedResources/);
     });
 });

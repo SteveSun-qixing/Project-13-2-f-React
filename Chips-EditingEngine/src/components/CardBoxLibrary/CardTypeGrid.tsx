@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import type { CardTypeDefinition, CardLibraryDragData } from './types';
-import { cardTypes as allCardTypes } from './data';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDrag } from './DragContext';
 import './CardTypeGrid.css';
@@ -13,7 +12,7 @@ export function CardTypeGrid({ types }: CardTypeGridProps) {
   const { t } = useTranslation();
   const { startDrag } = useDrag();
 
-  const displayTypes = useMemo(() => types ?? allCardTypes, [types]);
+  const displayTypes = useMemo(() => types ?? [], [types]);
 
   const handleDragStart = (type: CardTypeDefinition, event: React.DragEvent) => {
     const data: CardLibraryDragData = {

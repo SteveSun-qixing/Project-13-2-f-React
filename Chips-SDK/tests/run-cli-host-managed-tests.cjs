@@ -26,6 +26,36 @@ const run = (args, cwd, env = process.env) =>
     });
   });
 
+const runCommand = (command, args, cwd, env = process.env) =>
+  new Promise((resolve, reject) => {
+    const child = childProcess.spawn(command, args, {
+      cwd,
+      stdio: 'inherit',
+      env
+    });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+    });
+  });
+
+const ensurePackagedTheme = async (themeProjectPath, packageFileName, env) => {
+  const packagePath = path.join(themeProjectPath, 'dist', packageFileName);
+
+  try {
+    await fs.access(packagePath);
+    return packagePath;
+  } catch {
+    await runCommand('npm', ['run', 'build'], themeProjectPath, env);
+    await run(['package'], themeProjectPath, env);
+    return packagePath;
+  }
+};
+
 const main = async () => {
   console.log('Running chipsdev host-managed command tests...');
 
@@ -52,12 +82,10 @@ const main = async () => {
 
     await run(['theme', 'current'], projectRoot, env);
 
-    const darkThemeManifestPath = path.join(
-      ecosystemRoot,
-      'ThemePack',
-      'Chips-theme-default-dark',
-      'dist',
-      'theme.theme.chips-official-default-dark-theme-1.0.0.cpk'
+    const darkThemeManifestPath = await ensurePackagedTheme(
+      path.join(ecosystemRoot, 'ThemePack', 'Chips-theme-default-dark'),
+      'theme.theme.chips-official-default-dark-theme-1.0.0.cpk',
+      env
     );
     await run(['plugin', 'install', darkThemeManifestPath], projectRoot, env);
     await run(['plugin', 'enable', 'theme.theme.chips-official-default-dark-theme'], projectRoot, env);

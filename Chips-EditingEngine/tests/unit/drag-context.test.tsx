@@ -27,7 +27,7 @@ function DragContextProbe() {
 
           startDrag({
             type: 'card',
-            typeId: 'RichTextCard',
+            typeId: 'base.richtext',
             name: 'Rich Text',
           }, event);
         }}
@@ -84,7 +84,7 @@ describe('DragContext global drag markers', () => {
     expect(document.body.dataset.chipsLibraryDragType).toBe('card');
     expect(document.body.dataset.chipsLibraryDragPayload).toBe(JSON.stringify({
       type: 'card',
-      typeId: 'RichTextCard',
+      typeId: 'base.richtext',
       name: 'Rich Text',
     }));
 

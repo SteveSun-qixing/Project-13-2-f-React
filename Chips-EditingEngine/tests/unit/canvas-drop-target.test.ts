@@ -26,7 +26,7 @@ function createOpenCards(
 ): Map<string, CompositeCard> {
   const basicCards = baseCardIds.map((id) => ({
     id,
-    type: 'RichTextCard',
+    type: 'base.richtext',
     data: {},
     createdAt: '2026-03-14T00:00:00.000Z',
     modifiedAt: '2026-03-14T00:00:00.000Z',
@@ -156,7 +156,7 @@ describe('resolveCompositeCardDropTarget', () => {
     const target = resolveCompositeCardDropTarget({
       dragData: {
         type: 'card',
-        typeId: 'RichTextCard',
+        typeId: 'base.richtext',
         name: 'Rich Text',
       },
       eventTarget: fallbackChild,
@@ -181,7 +181,7 @@ describe('resolveCompositeCardDropTarget', () => {
     const target = resolveCompositeCardDropTarget({
       dragData: {
         type: 'card',
-        typeId: 'RichTextCard',
+        typeId: 'base.richtext',
         name: 'Rich Text',
       },
       eventTarget: nodeHandles.get('base-2') ?? null,
@@ -215,7 +215,7 @@ describe('resolveCompositeCardDropTarget', () => {
     const target = resolveCompositeCardDropTarget({
       dragData: {
         type: 'card',
-        typeId: 'RichTextCard',
+        typeId: 'base.richtext',
         name: 'Rich Text',
       },
       eventTarget: nodeHandles.get('base-2') ?? null,
@@ -249,7 +249,7 @@ describe('resolveCompositeCardDropTarget', () => {
     const target = resolveCompositeCardDropTarget({
       dragData: {
         type: 'card',
-        typeId: 'RichTextCard',
+        typeId: 'base.richtext',
         name: 'Rich Text',
       },
       eventTarget: nodeHandles.get('base-3') ?? null,
@@ -279,7 +279,7 @@ describe('resolveCompositeCardDropTarget', () => {
     const target = resolveCompositeCardDropTarget({
       dragData: {
         type: 'card',
-        typeId: 'RichTextCard',
+        typeId: 'base.richtext',
         name: 'Rich Text',
       },
       eventTarget: fallbackChild,

@@ -33,7 +33,10 @@ SDK封装了生态的核心能力，提供给开发者使用。
 
 - `CompositeCardWindow` 与 `editorPanel` 仍然是 SDK 对外公开的通用 Host 托管链路；
 - 官方编辑引擎的编辑态预览与编辑链路不再把这两条接口作为主路径；
-- 官方编辑引擎改为在应用内使用本地基础卡片运行时，但仍复用同一套基础卡片插件导出、主题 token 和 `cardType` 匹配规则。
+- 官方编辑引擎改为在应用内装配复合卡片；
+- 单基础卡片查看态仍通过 Host `basecard.renderView` 获取；
+- 单基础卡片编辑态通过 Host `basecard.openSession` 获取权威配置，再通过 Host `basecard.renderEditor` 获取正式编辑 iframe；
+- 两条链路继续复用同一套基础卡片插件导出、主题 token 和 `cardType` 匹配规则。
 
 ## 协议标准
 
@@ -51,19 +54,23 @@ SDK封装了生态的核心能力，提供给开发者使用。
 - `card.renderCover` / `client.card.coverFrame.render(...)`：封面显示链路
 - `card.renderEditor` / `client.card.editorPanel.render(...)`：基础卡片编辑器链路
 
+此外还存在一条基础卡片会话链路：
+
+- `basecard.openSession/renderView/renderEditor/closeSession`：Host 托管的单基础卡片会话链路
+
 其中封面显示链路的正式约束是：
 
 - Host 读取 `.card/cover.html` 并返回受控 `coverUrl`
 - SDK 使用 `coverUrl` 创建 iframe,不允许把封面 HTML 直接当作字符串注入
 - 封面内容只由 `cover.html` 决定,不自动接入主题和多语言系统
-- `.card/cover.html` 中的相对路径按 `.card/` 目录解析
+- 封面资源文件保存在卡片根目录，`cover.html` 通过基准路径按卡片根目录解析内部资源
 
 其中编辑器链路的正式资源约束是：
 
 - 编辑器内部资源操作通过 `chips.card-editor:resource-request/resource-response/resource-release` 协议完成
 - `resourcePath` 一律使用相对于卡片根目录的路径
 - 当前正式动作只有 `resolve | import | delete`
-- `import` 返回的 `path` 也是卡片根目录相对路径,例如 `cover.png`
+- `import` 返回的 `path` 也是卡片根目录相对路径,例如 `assets/cover.png`
 - SDK `editorPanel.render({ resources })` 可以在本地桥接这组资源协议,但 `resources` 本身不进入 Host 正式 `card.renderEditor` 路由输入
 
 ## 集成使用场景
@@ -76,6 +83,7 @@ SDK 支持多种集成使用场景：
   - 在主题、配置、多语言相关的生态内部模块中，通过统一接口访问 Host 服务域能力。
 - 官方编辑引擎场景：
   - 编辑态复合卡片预览与编辑链路在应用内完成，不再把 `compositeWindow/editorPanel` 作为正式主链路；
+  - 编辑引擎通过 `basecard.*` 会话接口从 Host 加载已安装基础卡片插件；
   - 但编辑引擎仍通过 SDK/Bridge 访问文件、主题、多语言、插件安装等通用能力。
 - 第三方应用场景（以卡片显示为主）：
   - 在博客系统中，通过 SDK 调用卡片渲染能力，将卡片内容以 iframe 或其他形式嵌入页面；

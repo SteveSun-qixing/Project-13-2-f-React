@@ -96,11 +96,68 @@ const validateCardRenderEditorRequest: SchemaValidator = (input: unknown) => {
     errors.push('baseCardId must be a non-empty string when provided');
   }
 
+  if (typeof input.cardRootDir !== 'undefined' && (typeof input.cardRootDir !== 'string' || input.cardRootDir.trim().length === 0)) {
+    errors.push('cardRootDir must be a non-empty string when provided');
+  }
+
   if (typeof input.initialConfig !== 'undefined' && !isRecord(input.initialConfig)) {
     errors.push('initialConfig must be an object when provided');
   }
 
   return errors.length > 0 ? { valid: false, errors } : { valid: true };
+};
+
+const validateBasecardOpenSessionRequest: SchemaValidator = (input: unknown) => {
+  if (!isRecord(input)) {
+    return { valid: false, errors: ['Input must be an object'] };
+  }
+
+  const errors: string[] = [];
+  if (typeof input.cardType !== 'string' || input.cardType.trim().length === 0) {
+    errors.push('cardType must be a non-empty string');
+  }
+  if (typeof input.baseCardId !== 'undefined' && (typeof input.baseCardId !== 'string' || input.baseCardId.trim().length === 0)) {
+    errors.push('baseCardId must be a non-empty string when provided');
+  }
+  if (typeof input.cardRootDir !== 'undefined' && (typeof input.cardRootDir !== 'string' || input.cardRootDir.trim().length === 0)) {
+    errors.push('cardRootDir must be a non-empty string when provided');
+  }
+  if (typeof input.sourceConfig !== 'undefined' && !isRecord(input.sourceConfig)) {
+    errors.push('sourceConfig must be an object when provided');
+  }
+
+  return errors.length > 0 ? { valid: false, errors } : { valid: true };
+};
+
+const validateBasecardRenderViewRequest: SchemaValidator = (input: unknown) => {
+  if (!isRecord(input)) {
+    return { valid: false, errors: ['Input must be an object'] };
+  }
+
+  const errors: string[] = [];
+  if (typeof input.sessionId !== 'string' || input.sessionId.trim().length === 0) {
+    errors.push('sessionId must be a non-empty string');
+  }
+  if (
+    typeof input.interactionPolicy !== 'undefined' &&
+    (typeof input.interactionPolicy !== 'string' || !CARD_INTERACTION_POLICIES.has(input.interactionPolicy))
+  ) {
+    errors.push('interactionPolicy is invalid');
+  }
+
+  return errors.length > 0 ? { valid: false, errors } : { valid: true };
+};
+
+const validateBasecardSessionIdRequest: SchemaValidator = (input: unknown) => {
+  if (!isRecord(input)) {
+    return { valid: false, errors: ['Input must be an object'] };
+  }
+
+  if (typeof input.sessionId !== 'string' || input.sessionId.trim().length === 0) {
+    return { valid: false, errors: ['sessionId must be a non-empty string'] };
+  }
+
+  return { valid: true };
 };
 
 export const registerHostSchemas = (): void => {
@@ -212,6 +269,14 @@ export const registerHostSchemas = (): void => {
   schemaRegistry.register('schemas/card.renderEditor.request.json', validateCardRenderEditorRequest);
   schemaRegistry.register('schemas/card.renderEditor.response.json', objectWithKeys(['view']));
   registerPair('card.validate', ['cardFile']);
+  schemaRegistry.register('schemas/basecard.openSession.request.json', validateBasecardOpenSessionRequest);
+  schemaRegistry.register('schemas/basecard.openSession.response.json', objectWithKeys(['session']));
+  schemaRegistry.register('schemas/basecard.renderView.request.json', validateBasecardRenderViewRequest);
+  schemaRegistry.register('schemas/basecard.renderView.response.json', objectWithKeys(['view']));
+  schemaRegistry.register('schemas/basecard.renderEditor.request.json', validateBasecardSessionIdRequest);
+  schemaRegistry.register('schemas/basecard.renderEditor.response.json', objectWithKeys(['view']));
+  schemaRegistry.register('schemas/basecard.closeSession.request.json', validateBasecardSessionIdRequest);
+  schemaRegistry.register('schemas/basecard.closeSession.response.json', objectWithKeys(['closed']));
 
   registerPair('box.pack', ['boxDir', 'outputPath']);
   registerPair('box.unpack', ['boxFile', 'outputDir']);

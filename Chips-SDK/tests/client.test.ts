@@ -140,7 +140,7 @@ describe("createClient", () => {
     await expect(client.plugin.list({ type: "theme" })).resolves.toEqual([plugin]);
     await expect(client.plugin.get(plugin.id)).resolves.toEqual(plugin);
     await expect(client.plugin.getSelf()).resolves.toEqual(plugin);
-    await expect(client.plugin.getCardPlugin("RichTextCard")).resolves.toBeUndefined();
+    await expect(client.plugin.getCardPlugin("base.richtext")).resolves.toBeUndefined();
     await expect(client.plugin.getLayoutPlugin("grid-layout")).resolves.toBeUndefined();
   });
 
@@ -186,9 +186,9 @@ describe("createClient", () => {
         if (action === "card.renderEditor") {
           return {
             view: {
-              title: "RichTextCard Editor",
+              title: "富文本基础卡片 Editor",
               body: "<html><body><div id='root'></div></body></html>",
-              cardType: "RichTextCard",
+              cardType: "base.richtext",
               pluginId: "chips.basecard.richtext",
               baseCardId: "base-1",
             },
@@ -201,14 +201,14 @@ describe("createClient", () => {
     const result = await client.invoke<CardEditorRenderOptions, CardEditorRenderResult>(
       "card.renderEditor",
       {
-        cardType: "RichTextCard",
+        cardType: "base.richtext",
         initialConfig: { title: "Hello", body: "<p>World</p>" },
         baseCardId: "base-1",
       },
     );
 
     expect(result.view.pluginId).toBe("chips.basecard.richtext");
-    expect(result.view.cardType).toBe("RichTextCard");
+    expect(result.view.cardType).toBe("base.richtext");
     expect(result.view.baseCardId).toBe("base-1");
   });
 

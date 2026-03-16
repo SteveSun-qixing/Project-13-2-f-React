@@ -11,8 +11,11 @@
     "validate": "chipsdev validate"
   },
   "devDependencies": {
+    "jsdom": "^28.1.0",
     "typescript": "^5.8.2",
     "vitest": "^3.0.8",
-    "chips-sdk": "file:../../../../../Chips-SDK"
+    "eslint": "^8.57.1",
+    "@typescript-eslint/parser": "^7.18.0",
+    "chips-sdk": "^0.1.0"
   }
 }

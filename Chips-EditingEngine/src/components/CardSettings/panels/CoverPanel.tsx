@@ -192,7 +192,7 @@ export function CoverPanel({
       return undefined;
     }
 
-    const resourcePath = joinPath(cardPath, '.card', initialGeneratedImageSource.replace(/^\.\//, ''));
+    const resourcePath = joinPath(cardPath, initialGeneratedImageSource.replace(/^\.\//, ''));
 
     void (async () => {
       try {

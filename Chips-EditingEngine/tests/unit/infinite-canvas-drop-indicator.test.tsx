@@ -108,7 +108,7 @@ describe('InfiniteCanvas drop indicator overlay', () => {
     document.body.dataset.chipsLibraryDragType = 'card';
     document.body.dataset.chipsLibraryDragPayload = JSON.stringify({
       type: 'card',
-      typeId: 'RichTextCard',
+      typeId: 'base.richtext',
       name: 'Rich Text',
     });
 

@@ -66,6 +66,19 @@ describe("template-engine", () => {
       path.join(targetDir, "README.md"),
       "utf8"
     );
+    const runtimeContract = await fs.readFile(
+      path.join(targetDir, "src", "runtime-contract.ts"),
+      "utf8"
+    );
+    const entrySource = await fs.readFile(
+      path.join(targetDir, "src", "index.ts"),
+      "utf8"
+    );
     expect(readme).toMatch(/Standard Basecard Plugin/);
+    expect(runtimeContract).toMatch(/export function getBasecardDescriptor/);
+    expect(runtimeContract).toMatch(/export function collectReferencedResources/);
+    expect(entrySource).toMatch(/from "\.\/runtime-contract"/);
+    expect(entrySource).toMatch(/getBasecardDescriptor/);
+    expect(entrySource).toMatch(/collectReferencedResources/);
   });
 });

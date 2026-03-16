@@ -1,10 +1,15 @@
 import type { BasecardConfig } from "../schema/card-config";
 import { defaultBasecardConfig } from "../schema/card-config";
 import { isNonEmptyString } from "../shared/utils";
+import type { BasecardResourceImportRequest } from "../index";
 
 export interface BasecardEditorProps {
   initialConfig: BasecardConfig;
   onChange: (next: BasecardConfig) => void;
+  resolveResourceUrl?: (resourcePath: string) => Promise<string>;
+  releaseResourceUrl?: (resourcePath: string) => Promise<void> | void;
+  importResource?: (input: BasecardResourceImportRequest) => Promise<{ path: string } | { path: string; url?: string; name?: string; size?: number; mimeType?: string }>;
+  deleteResource?: (resourcePath: string) => Promise<void>;
 }
 
 export function createBasecardEditorRoot(
@@ -89,4 +94,3 @@ export function createBasecardEditorRoot(
   root.appendChild(form);
   return root;
 }
-
