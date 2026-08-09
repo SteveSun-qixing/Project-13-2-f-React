@@ -16,16 +16,15 @@
     "Chips-BaseCardPlugin/*",
     "Chips-BoxLayoutPlugin/*",
     "Chips-ModulePlugin/*",
-    "Chips-ComponentLibrary/packages/*",
-    "Chips-ComponentLibrary/packages/adapters/*",
     "Chips-Scaffold/*",
-    "ThemePack/*"
+    "Chips-Ui"
   ],
   "scripts": {
     "materials:inventory": "node ./scripts/collect-finished-product-materials.mjs",
     "verify:workspace": "node ./scripts/verify-ecosystem-workspace.mjs"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
     "chips-host": "0.1.0",
     "chips-sdk": "0.1.0"
   },

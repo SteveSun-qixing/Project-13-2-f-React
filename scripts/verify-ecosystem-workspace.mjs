@@ -9,30 +9,29 @@ const expectedWorkspacePatterns = [
   "Chips-*",
   "Chips-BaseCardPlugin/*",
   "Chips-ModulePlugin/*",
-  "Chips-ComponentLibrary/packages/*",
-  "Chips-ComponentLibrary/packages/adapters/*",
-  "Chips-Scaffold/*",
-  "ThemePack/*"
+  "Chips-Scaffold/*"
 ];
 
 const requiredWorkspaceSpecs = new Map([
   ["Chips-CardViewer/package.json", new Map([
-    ["dependencies.@chips/component-library", "^0.1.0"],
+    ["dependencies.antd", "6.5.4"],
+    ["dependencies.@chips/ui", "0.1.0"],
+    ["devDependencies.chips-sdk", "^0.1.0"]
+  ])],
+  ["Chips-PhotoViewer/package.json", new Map([
+    ["dependencies.antd", "6.5.4"],
+    ["dependencies.@chips/ui", "0.1.0"],
     ["devDependencies.chips-sdk", "^0.1.0"]
   ])],
   ["Chips-BaseCardPlugin/richtext-BCP/package.json", new Map([
     ["devDependencies.chips-sdk", "^0.1.0"]
-  ])],
-  ["Chips-ComponentLibrary/packages/component-library/package.json", new Map([
-    ["dependencies.@chips/hooks", "0.1.0"],
-    ["dependencies.@chips/components", "0.1.0"],
-    ["dependencies.@chips/card-runtime", "0.1.0"]
   ])]
 ]);
 
 const requiredTemplateSpecs = new Map([
   ["Chips-Scaffold/chips-scaffold-app/templates/app-standard/package.json.tpl", [
-    "\"@chips/component-library\": \"^0.1.0\"",
+    "\"@chips/ui\": \"0.1.0\"",
+    "\"antd\": \"6.5.4\"",
     "\"chips-sdk\": \"^0.1.0\""
   ]],
   ["Chips-Scaffold/chips-scaffold-basecard/templates/card-standard/package.json.tpl", [
