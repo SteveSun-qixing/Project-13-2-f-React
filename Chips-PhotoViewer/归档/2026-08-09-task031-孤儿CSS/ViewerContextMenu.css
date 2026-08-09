@@ -1,0 +1,8 @@
+/* 右键菜单（设计建议文档第 5 章功能矩阵）：苹果化弹层，圆角细描边柔和阴影 */
+.pv-context-menu .ant-dropdown-menu {
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.1);
+}

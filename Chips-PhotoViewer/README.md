@@ -55,13 +55,13 @@ npm run run
 
 ```bash
 cd /Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f/Chips-PhotoViewer
-chipsdev run
+chipsdev-r run
 ```
 
 说明：
 
-- `chipsdev` 由生态根工作区提供，不需要全局安装；
-- `Chips-PhotoViewer/package.json` 已通过 `volta.extends` 继承生态根工具链配置，支持在当前子工程目录直接执行 `chipsdev`。
+- `chipsdev-r` 由生态根工作区提供，不需要全局安装；
+- `Chips-PhotoViewer/package.json` 已通过 `volta.extends` 继承生态根工具链配置，支持在当前子工程目录直接执行 `chipsdev-r`。
 
 开发服务器模式：
 

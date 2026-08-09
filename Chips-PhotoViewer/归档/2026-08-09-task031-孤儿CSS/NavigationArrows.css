@@ -1,0 +1,66 @@
+/* 浮动导航箭头（设计建议文档 3.8 节）：左右居中圆形毛玻璃按钮，位于画布内 */
+.pv-nav-arrows {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pv-nav-arrow {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  color: #1d1d1f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  pointer-events: auto;
+  animation: pv-nav-arrow-in 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition:
+    background-color 0.2s cubic-bezier(0.25, 0.1, 0.25, 1),
+    transform 0.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pv-nav-arrow--left {
+  left: 20px;
+  transform: translateY(-50%);
+}
+
+.pv-nav-arrow--right {
+  right: 20px;
+  transform: translateY(-50%);
+}
+
+.pv-nav-arrow .anticon {
+  font-size: 18px;
+}
+
+.pv-nav-arrow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.pv-nav-arrow:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.pv-nav-arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
+@keyframes pv-nav-arrow-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

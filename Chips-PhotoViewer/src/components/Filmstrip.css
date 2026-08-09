@@ -1,0 +1,77 @@
+/* 缩略图条（设计建议文档 3.9 节）：底部居中悬浮毛玻璃条，横向滚动，当前项高亮 */
+.pv-filmstrip {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 72px;
+  max-width: min(calc(100% - 48px), 720px);
+  padding: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.1);
+  transform: translateX(-50%);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  transition: opacity 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.pv-filmstrip::-webkit-scrollbar {
+  display: none;
+}
+
+.pv-filmstrip--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pv-filmstrip__item {
+  position: relative;
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.06);
+  transition:
+    border-color 0.2s cubic-bezier(0.25, 0.1, 0.25, 1),
+    transform 0.2s cubic-bezier(0.25, 0.1, 0.25, 1),
+    opacity 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.pv-filmstrip__item--current {
+  border-color: #0a84ff;
+}
+
+.pv-filmstrip__item:hover:not(:disabled) {
+  transform: scale(1.06);
+  opacity: 0.9;
+}
+
+.pv-filmstrip__thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.pv-filmstrip__placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #c7c7cc;
+  font-size: 20px;
+}

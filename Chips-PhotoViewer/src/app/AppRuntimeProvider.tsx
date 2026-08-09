@@ -12,7 +12,7 @@ import {
   type LaunchImageResource,
   type LaunchImageTarget,
 } from "../utils/launch-resource";
-import { formatMessage, resolveLocale, resolveLocaleDirection, type SupportedLocale } from "../i18n/messages";
+import { formatMessage } from "../lib/messages";
 import { chipsClient } from "../runtime/chips-client";
 import { readLaunchContext } from "../runtime/launch-context";
 import {
@@ -35,6 +35,17 @@ export interface ViewerFeedback {
   message: string;
 }
 
+export interface PhotoViewerCameraActions {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  fitToWindow: () => void;
+  actualSize: () => void;
+  rotateClockwise?: () => void;
+  rotateCounterclockwise?: () => void;
+}
+
+export type PhotoViewerZoomActions = PhotoViewerCameraActions;
+
 export type HostKind = "desktop" | "web" | "mobile" | "headless";
 
 export interface PhotoViewerRuntimeEnvironment {
@@ -56,7 +67,7 @@ export interface PhotoViewerRuntimeValue {
   environment: PhotoViewerRuntimeEnvironment;
   activeSceneId: PhotoViewerSceneId;
   activeScene: PhotoViewerSceneDefinition;
-  locale: SupportedLocale;
+  locale: string;
   hostKind: HostKind;
   imageTarget: LaunchImageTarget | null;
   currentImageIndex: number;
@@ -66,19 +77,76 @@ export interface PhotoViewerRuntimeValue {
   isResolving: boolean;
   isSaving: boolean;
   isImageLoaded: boolean;
+  infoOpen: boolean;
+  thumbCacheRevision: number;
   t(key: string, params?: Record<string, string | number>): string;
   openImageFile(filePath: string): Promise<void>;
   openFile(): Promise<void>;
   saveImage(): Promise<void>;
   previousImage(): void;
   nextImage(): void;
+  jumpTo(index: number): void;
+  reloadCurrent(): void;
+  getResolvedThumbUri(sourceId: string): string | null;
   dropFile(file: File | null): Promise<void>;
   handleImageLoad(dimensions: ImageDimensions): void;
   handleImageError(): void;
   setFeedback(feedback: ViewerFeedback | null): void;
+  zoomActions: PhotoViewerZoomActions;
+  setZoomActions(actions: PhotoViewerZoomActions | null): void;
+  registerZoomActions(actions: PhotoViewerZoomActions | null): void;
+  fullscreen?: () => void | Promise<void>;
+  rotateClockwise?: () => void;
+  rotateCounterclockwise?: () => void;
+  showInfo?: () => void;
+  hideInfo?: () => void;
+  copyImage?: () => void | Promise<void>;
+  firstImage?: () => void;
+  lastImage?: () => void;
 }
 
 const AppRuntimeContext = React.createContext<PhotoViewerRuntimeValue | null>(null);
+
+const RESOURCE_URI_CACHE_MAX_SIZE = 8;
+
+class ResourceUriCache {
+  private readonly entries = new Map<string, string>();
+
+  get(sourceId: string): string | null {
+    const uri = this.entries.get(sourceId);
+    if (uri === undefined) {
+      return null;
+    }
+
+    this.entries.delete(sourceId);
+    this.entries.set(sourceId, uri);
+    return uri;
+  }
+
+  set(sourceId: string, uri: string): void {
+    this.entries.delete(sourceId);
+    this.entries.set(sourceId, uri);
+
+    if (this.entries.size > RESOURCE_URI_CACHE_MAX_SIZE) {
+      const oldestSourceId = this.entries.keys().next().value;
+      if (typeof oldestSourceId === "string") {
+        this.entries.delete(oldestSourceId);
+      }
+    }
+  }
+
+  delete(sourceId: string): void {
+    this.entries.delete(sourceId);
+  }
+}
+
+const resourceUriCache = new ResourceUriCache();
+
+function preloadImage(uri: string): void {
+  const image = new Image();
+  image.decoding = "async";
+  image.src = uri;
+}
 
 function resolveErrorMessage(error: unknown, fallbackMessage: string): string {
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -89,21 +157,6 @@ function resolveErrorMessage(error: unknown, fallbackMessage: string): string {
   }
 
   return fallbackMessage;
-}
-
-function resolveLanguagePayload(payload: unknown): string | null {
-  if (typeof payload === "string") {
-    return payload;
-  }
-
-  if (payload && typeof payload === "object" && "locale" in payload) {
-    const locale = (payload as { locale?: unknown }).locale;
-    if (typeof locale === "string" && locale.trim().length > 0) {
-      return locale;
-    }
-  }
-
-  return null;
 }
 
 function resolveFileName(filePath: string): string {
@@ -178,9 +231,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     [traceId],
   );
   const [launchContext, setLaunchContext] = React.useState<PlatformLaunchContext>(() => readLaunchContext(client));
-  const [locale, setLocale] = React.useState<SupportedLocale>(() =>
-    resolveLocale(typeof document !== "undefined" ? document.documentElement.lang : undefined),
-  );
+  const locale = "zh-CN";
   const [hostKind, setHostKind] = React.useState<HostKind>("desktop");
   const [imageTarget, setImageTarget] = React.useState<LaunchImageTarget | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
@@ -190,13 +241,32 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   const [isResolving, setIsResolving] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isImageLoaded, setIsImageLoaded] = React.useState(false);
+  const [infoOpen, setInfoOpen] = React.useState(false);
+  const [thumbCacheRevision, setThumbCacheRevision] = React.useState(0);
   const hasResolvedLaunchContextRef = React.useRef(false);
+  const cameraActionsRef = React.useRef<PhotoViewerCameraActions | null>(null);
+
+  const registerZoomActions = React.useCallback((actions: PhotoViewerZoomActions | null): void => {
+    cameraActionsRef.current = actions;
+  }, []);
+
+  const zoomActionsHandle = React.useMemo<PhotoViewerZoomActions>(
+    () => ({
+      zoomIn: () => cameraActionsRef.current?.zoomIn(),
+      zoomOut: () => cameraActionsRef.current?.zoomOut(),
+      fitToWindow: () => cameraActionsRef.current?.fitToWindow(),
+      actualSize: () => cameraActionsRef.current?.actualSize(),
+      rotateClockwise: () => cameraActionsRef.current?.rotateClockwise?.(),
+      rotateCounterclockwise: () => cameraActionsRef.current?.rotateCounterclockwise?.(),
+    }),
+    [],
+  );
 
   const text = React.useCallback(
     (key: string, params?: Record<string, string | number>): string => {
-      return formatMessage(locale, key, params);
+      return formatMessage(key, params);
     },
-    [locale],
+    [],
   );
 
   const openImageTarget = React.useCallback(
@@ -274,13 +344,41 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       const selected = await client.platform.openFile({
         title: text("photo-viewer.dialogs.openFileTitle"),
         mode: "file",
-        allowMultiple: false,
+        allowMultiple: true,
         mustExist: true,
       });
-      const filePath = Array.isArray(selected) ? selected[0] : undefined;
-      if (filePath) {
-        await openImageFile(filePath);
+      if (!selected || selected.length === 0) {
+        return;
       }
+
+      if (selected.length === 1) {
+        await openImageFile(selected[0]);
+        return;
+      }
+
+      const images: LaunchImageResource[] = selected.map((filePath) => ({
+        sourceId: filePath,
+        filePath,
+        fileName: resolveFileName(filePath),
+      }));
+
+      const unsupported = images.find((image) => !isSupportedImageResource(image));
+      if (unsupported) {
+        setFeedback({
+          tone: "error",
+          message: text("photo-viewer.errors.unsupportedFile", {
+            extensions: SUPPORTED_IMAGE_EXTENSION_LABEL,
+          }),
+        });
+        logger.warn("多选图片中包含不受支持的格式", {
+          sourceId: unsupported.sourceId,
+          fileName: unsupported.fileName,
+          total: images.length,
+        });
+        return;
+      }
+
+      openImageTarget({ images, initialIndex: 0 });
     } catch (error) {
       logger.error("调用系统文件选择器失败", error);
       setFeedback({
@@ -288,7 +386,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
         message: resolveErrorMessage(error, text("photo-viewer.errors.openFailed")),
       });
     }
-  }, [client, logger, openImageFile, text]);
+  }, [client, logger, openImageFile, openImageTarget, text]);
 
   const saveImage = React.useCallback(async (): Promise<void> => {
     if (!imageSource) {
@@ -378,6 +476,108 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     setCurrentImageIndex((current) => Math.min(imageTarget.images.length - 1, current + 1));
   }, [imageTarget]);
 
+  const firstImage = React.useCallback((): void => {
+    if (!imageTarget || imageTarget.images.length <= 1) {
+      return;
+    }
+
+    setCurrentImageIndex(0);
+  }, [imageTarget]);
+
+  const lastImage = React.useCallback((): void => {
+    if (!imageTarget || imageTarget.images.length <= 1) {
+      return;
+    }
+
+    setCurrentImageIndex(imageTarget.images.length - 1);
+  }, [imageTarget]);
+
+  const jumpTo = React.useCallback((index: number): void => {
+    if (!imageTarget) {
+      return;
+    }
+
+    setCurrentImageIndex(clampImageIndex(imageTarget, index));
+  }, [imageTarget]);
+
+  const reloadCurrent = React.useCallback((): void => {
+    if (!imageTarget) {
+      return;
+    }
+
+    const resource = imageTarget.images[currentImageIndex];
+    if (!resource) {
+      return;
+    }
+
+    resourceUriCache.delete(resource.sourceId.trim());
+    setImageTarget({ ...imageTarget });
+  }, [currentImageIndex, imageTarget]);
+
+  const getResolvedThumbUri = React.useCallback((sourceId: string): string | null => {
+    return resourceUriCache.get(sourceId);
+  }, []);
+
+  const fullscreen = React.useCallback((): void => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+
+    void document.documentElement.requestFullscreen().catch(() => undefined);
+  }, []);
+
+  const rotateClockwise = React.useCallback((): void => {
+    cameraActionsRef.current?.rotateClockwise?.();
+  }, []);
+
+  const rotateCounterclockwise = React.useCallback((): void => {
+    cameraActionsRef.current?.rotateCounterclockwise?.();
+  }, []);
+
+  const showInfo = React.useCallback((): void => {
+    setInfoOpen(true);
+  }, []);
+
+  const hideInfo = React.useCallback((): void => {
+    setInfoOpen(false);
+  }, []);
+
+  const copyImage = React.useCallback(async (): Promise<void> => {
+    if (!imageSource) {
+      setFeedback({
+        tone: "error",
+        message: text("photo-viewer.status.copyFailed"),
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(imageSource.resourceUri);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const mimeType = blob.type || "image/png";
+      const file = new File([blob], imageSource.fileName || "image", { type: mimeType });
+      await navigator.clipboard.write([new ClipboardItem({ [mimeType]: file })]);
+      setFeedback({
+        tone: "success",
+        message: text("photo-viewer.status.copied"),
+      });
+      logger.info("图片已复制到剪贴板", {
+        sourceId: imageSource.sourceId,
+        mimeType,
+      });
+    } catch (error) {
+      logger.error("复制图片失败", error);
+      setFeedback({
+        tone: "error",
+        message: text("photo-viewer.status.copyFailed"),
+      });
+    }
+  }, [imageSource, logger, text]);
+
   const resolveDroppedFilePath = React.useCallback(
     (file: File): string => {
       const bridgePath = client.platform.getPathForFile(file);
@@ -452,26 +652,38 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     setImageDimensions(null);
     setFeedback(null);
 
+    const applyResolvedUri = (resolvedUri: string): void => {
+      setImageSource({
+        sourceId,
+        filePath: resource.filePath,
+        fileName: resolveImageCandidateName(resource),
+        resourceUri: resolvedUri,
+        revision: Date.now(),
+      });
+      logger.info("图片资源已准备完成", {
+        sourceId,
+        filePath: resource.filePath,
+        resourceUri: resolvedUri,
+        index: boundedIndex,
+        total: imageTarget.images.length,
+      });
+    };
+
+    const cachedUri = resourceUriCache.get(sourceId);
+    if (cachedUri !== null) {
+      applyResolvedUri(cachedUri);
+      return;
+    }
+
     void client.resource.resolve(sourceId)
       .then((resolved) => {
         if (cancelled) {
           return;
         }
 
-        setImageSource({
-          sourceId,
-          filePath: resource.filePath,
-          fileName: resolveImageCandidateName(resource),
-          resourceUri: resolved.uri,
-          revision: Date.now(),
-        });
-        logger.info("图片资源已准备完成", {
-          sourceId,
-          filePath: resource.filePath,
-          resourceUri: resolved.uri,
-          index: boundedIndex,
-          total: imageTarget.images.length,
-        });
+        resourceUriCache.set(sourceId, resolved.uri);
+        setThumbCacheRevision((revision) => revision + 1);
+        applyResolvedUri(resolved.uri);
       })
       .catch((error) => {
         if (cancelled) {
@@ -493,19 +705,70 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   }, [client, currentImageIndex, imageTarget, logger, text]);
 
   React.useEffect(() => {
+    if (!imageTarget || imageTarget.images.length <= 1) {
+      return;
+    }
+
+    const currentResource = imageTarget.images[currentImageIndex];
+    if (!currentResource) {
+      return;
+    }
+
+    let cancelled = false;
+    const neighborIndexes = [
+      currentImageIndex - 1,
+      currentImageIndex + 1,
+    ].filter((index) => index >= 0 && index < imageTarget.images.length);
+
+    for (const index of neighborIndexes) {
+      const neighbor = imageTarget.images[index];
+      const neighborSourceId = neighbor?.sourceId.trim();
+      if (!neighborSourceId) {
+        continue;
+      }
+
+      const cachedUri = resourceUriCache.get(neighborSourceId);
+      if (cachedUri !== null) {
+        preloadImage(cachedUri);
+        continue;
+      }
+
+      void client.resource.resolve(neighborSourceId)
+        .then((resolved) => {
+          if (cancelled) {
+            return;
+          }
+
+          resourceUriCache.set(neighborSourceId, resolved.uri);
+          setThumbCacheRevision((revision) => revision + 1);
+          preloadImage(resolved.uri);
+        })
+        .catch((error) => {
+          logger.warn("预加载相邻图片失败", {
+            sourceId: neighborSourceId,
+            error,
+          });
+        });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, currentImageIndex, imageTarget, logger]);
+
+  React.useEffect(() => {
     let cancelled = false;
 
-    Promise.all([client.i18n.getCurrent(), client.platform.getInfo()])
-      .then(([currentLocale, platformInfo]) => {
+    client.platform.getInfo()
+      .then((platformInfo) => {
         if (cancelled) {
           return;
         }
 
-        setLocale(resolveLocale(currentLocale));
         setHostKind(platformInfo.hostKind as HostKind);
       })
       .catch((error) => {
-        logger.warn("初始化语言或平台信息失败，继续使用文档快照", error);
+        logger.warn("初始化平台信息失败，继续使用桌面模式", error);
       });
 
     return () => {
@@ -536,32 +799,66 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   }, [client, logger, openImageTarget]);
 
   React.useEffect(() => {
-    const unsubscribe = client.i18n.onChanged((payload) => {
-      const nextLocale = resolveLanguagePayload(payload);
-      if (nextLocale) {
-        setLocale(resolveLocale(nextLocale));
-      }
-    });
-
-    return unsubscribe;
-  }, [client]);
-
-  React.useEffect(() => {
-    if (!imageTarget || imageTarget.images.length <= 1) {
-      return;
-    }
-
     function handleKeyDown(event: KeyboardEvent): void {
-      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+      if (event.isComposing) {
+        return;
+      }
+
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const hasModifier = event.metaKey || event.ctrlKey;
+
+      if (event.key === "Escape") {
+        if (document.fullscreenElement) {
+          event.preventDefault();
+          void document.exitFullscreen().catch(() => undefined);
+          return;
+        }
+
+        if (infoOpen) {
+          event.preventDefault();
+          setInfoOpen(false);
+        }
+        return;
+      }
+
+      if (hasModifier && !event.altKey && event.key.toLowerCase() === "l") {
+        if (!imageSource) {
+          return;
+        }
+
+        event.preventDefault();
+        const actions = cameraActionsRef.current;
+        actions?.zoomIn();
+        actions?.zoomIn();
+        return;
+      }
+
+      if (!imageTarget || imageTarget.images.length <= 1) {
         return;
       }
 
       if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        previousImage();
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        nextImage();
+        if (hasModifier && !event.altKey) {
+          event.preventDefault();
+          firstImage();
+        } else if (!hasModifier && !event.altKey && !event.shiftKey) {
+          event.preventDefault();
+          previousImage();
+        }
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        if (hasModifier && !event.altKey) {
+          event.preventDefault();
+          lastImage();
+        } else if (!hasModifier && !event.altKey && !event.shiftKey) {
+          event.preventDefault();
+          nextImage();
+        }
       }
     }
 
@@ -569,7 +866,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [imageTarget, nextImage, previousImage]);
+  }, [firstImage, imageSource, imageTarget, infoOpen, lastImage, nextImage, previousImage]);
 
   React.useEffect(() => {
     if (!feedback || feedback.tone === "error") {
@@ -584,37 +881,6 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       window.clearTimeout(timeoutId);
     };
   }, [feedback]);
-
-  React.useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const previousLang = document.documentElement.getAttribute("lang");
-    const previousDir = document.documentElement.getAttribute("dir");
-    const previousLocale = document.documentElement.getAttribute("data-chips-locale");
-    document.documentElement.setAttribute("lang", locale);
-    document.documentElement.setAttribute("dir", resolveLocaleDirection(locale));
-    document.documentElement.setAttribute("data-chips-locale", locale);
-
-    return () => {
-      if (previousLang === null) {
-        document.documentElement.removeAttribute("lang");
-      } else {
-        document.documentElement.setAttribute("lang", previousLang);
-      }
-      if (previousDir === null) {
-        document.documentElement.removeAttribute("dir");
-      } else {
-        document.documentElement.setAttribute("dir", previousDir);
-      }
-      if (previousLocale === null) {
-        document.documentElement.removeAttribute("data-chips-locale");
-      } else {
-        document.documentElement.setAttribute("data-chips-locale", previousLocale);
-      }
-    };
-  }, [locale]);
 
   const activeSceneId = getSceneIdForImage(Boolean(imageTarget));
   const activeScene = getSceneDefinition(activeSceneId);
@@ -647,42 +913,73 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     isResolving,
     isSaving,
     isImageLoaded,
+    infoOpen,
+    thumbCacheRevision,
     t: text,
     openImageFile,
     openFile,
     saveImage,
     previousImage,
     nextImage,
+    jumpTo,
+    reloadCurrent,
+    getResolvedThumbUri,
     dropFile,
     handleImageLoad,
     handleImageError,
     setFeedback,
+    zoomActions: zoomActionsHandle,
+    setZoomActions: registerZoomActions,
+    registerZoomActions,
+    fullscreen,
+    rotateClockwise,
+    rotateCounterclockwise,
+    showInfo,
+    hideInfo,
+    copyImage,
+    firstImage,
+    lastImage,
   }), [
     activeScene,
     activeSceneId,
     client,
+    copyImage,
     currentImageIndex,
     dropFile,
     environment,
     feedback,
+    firstImage,
+    fullscreen,
+    getResolvedThumbUri,
     handleImageError,
     handleImageLoad,
+    hideInfo,
     hostKind,
     imageDimensions,
     imageSource,
     imageTarget,
+    infoOpen,
     isImageLoaded,
     isResolving,
     isSaving,
+    jumpTo,
+    lastImage,
     launchContext,
     locale,
     nextImage,
     openFile,
     openImageFile,
     previousImage,
+    registerZoomActions,
+    reloadCurrent,
+    rotateClockwise,
+    rotateCounterclockwise,
     saveImage,
+    showInfo,
     text,
+    thumbCacheRevision,
     traceId,
+    zoomActionsHandle,
   ]);
 
   return <AppRuntimeContext.Provider value={value}>{children}</AppRuntimeContext.Provider>;

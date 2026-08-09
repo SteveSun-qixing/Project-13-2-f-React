@@ -20,6 +20,8 @@ export const MAX_ZOOM_SCALE = 8;
 export const ZOOM_STEP_RATIO = 1.25;
 export const FIT_VIEWPORT_EDGE_RATIO = 1;
 
+export type Rotation = 0 | 90 | 180 | 270;
+
 export function normalizeImageExtension(filePath: string): string {
   const normalized = filePath.trim().toLowerCase();
   const slashIndex = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
@@ -41,7 +43,11 @@ export function clampScale(value: number): number {
   return Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, value));
 }
 
-export function getFitScale(natural: ImageDimensions | null, viewport: ViewportSize | null): number {
+export function getFitScale(
+  natural: ImageDimensions | null,
+  viewport: ViewportSize | null,
+  rotation: Rotation = 0,
+): number {
   if (!natural || !viewport) {
     return 1;
   }
@@ -50,18 +56,36 @@ export function getFitScale(natural: ImageDimensions | null, viewport: ViewportS
     return 1;
   }
 
-  const widthBasedScale = (viewport.width * FIT_VIEWPORT_EDGE_RATIO) / natural.width;
-  const heightBasedScale = (viewport.height * FIT_VIEWPORT_EDGE_RATIO) / natural.height;
+  const isSwappedRotation = rotation === 90 || rotation === 270;
+  const fitWidth = isSwappedRotation ? natural.height : natural.width;
+  const fitHeight = isSwappedRotation ? natural.width : natural.height;
+  const widthBasedScale = (viewport.width * FIT_VIEWPORT_EDGE_RATIO) / fitWidth;
+  const heightBasedScale = (viewport.height * FIT_VIEWPORT_EDGE_RATIO) / fitHeight;
 
-  if (natural.width > natural.height) {
-    return clampScale(widthBasedScale);
+  let scale: number;
+  if (fitWidth > fitHeight) {
+    scale = widthBasedScale;
+  } else if (fitHeight > fitWidth) {
+    scale = heightBasedScale;
+  } else {
+    scale = Math.min(widthBasedScale, heightBasedScale);
   }
 
-  if (natural.height > natural.width) {
-    return clampScale(heightBasedScale);
-  }
+  return Math.min(clampScale(scale), 1);
+}
 
-  return clampScale(Math.min(widthBasedScale, heightBasedScale));
+export function clampPan(pan: InteractionPoint, viewport: ViewportSize, content: ViewportSize): InteractionPoint {
+  const clampAxis = (value: number, viewportLength: number, contentLength: number): number => {
+    if (contentLength <= viewportLength) {
+      return 0;
+    }
+    return Math.min(0, Math.max(viewportLength - contentLength, value));
+  };
+
+  return {
+    x: clampAxis(pan.x, viewport.width, content.width),
+    y: clampAxis(pan.y, viewport.height, content.height),
+  };
 }
 
 export function getNextZoomScale(currentScale: number, direction: "in" | "out"): number {

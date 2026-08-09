@@ -7,17 +7,17 @@ export type PhotoViewerSceneId = (typeof PHOTO_VIEWER_SCENE_IDS)[keyof typeof PH
 
 export interface PhotoViewerSceneDefinition {
   id: PhotoViewerSceneId;
-  titleKey: string;
+  title: string;
 }
 
 export const photoViewerScenes: PhotoViewerSceneDefinition[] = [
   {
     id: PHOTO_VIEWER_SCENE_IDS.empty,
-    titleKey: "photo-viewer.scenes.empty.title",
+    title: "空图片查看场景",
   },
   {
     id: PHOTO_VIEWER_SCENE_IDS.image,
-    titleKey: "photo-viewer.scenes.image.title",
+    title: "图片查看场景",
   },
 ];
 
