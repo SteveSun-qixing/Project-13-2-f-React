@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Alert, Button, Input } from "antd";
+import { ArrowLeftOutlined, LogoutOutlined } from "@ant-design/icons";
 import type { Client } from "chips-sdk";
 import { chipsClient } from "../../runtime/chips-client";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { useAuth } from "../contexts/AuthContext";
-import { useAppRuntime } from "../../app/AppRuntimeProvider";
-import { useAppText } from "../../i18n/useAppText";
 import {
   configureCommunityApiBaseUrl,
   getCommunityApiBaseUrl,
@@ -15,7 +15,6 @@ import {
   saveCommunityServerUrl,
 } from "../lib/server-config";
 import { getErrorMessage } from "../lib/ui";
-import { Icon } from "../runtime/icons/Icon";
 import "./SettingsPage.css";
 
 type SaveStatus =
@@ -24,16 +23,11 @@ type SaveStatus =
   | { kind: "success"; message: string }
   | { kind: "error"; message: string };
 
-function nextLocale(locale: string): string {
-  return locale === "zh-CN" ? "en-US" : "zh-CN";
-}
-
 export default function SettingsPage() {
   const { t } = useAppPreferences();
   const client: Client = chipsClient;
   const { user, logout } = useAuth();
-  const runtime = useAppRuntime();
-  const { locale } = useAppText();
+  const navigate = useNavigate();
   const [serverUrl, setServerUrl] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
 
@@ -83,10 +77,6 @@ export default function SettingsPage() {
     }
   };
 
-  const switchLocale = () => {
-    void runtime.setLocale(nextLocale(locale));
-  };
-
   return (
     <div className="page-container settings-page">
       <header className="settings-page__header">
@@ -96,18 +86,19 @@ export default function SettingsPage() {
           <p className="muted">{t("client.settings.subtitle")}</p>
         </div>
 
-        <Link to={user ? `/@${user.username}` : "/"} className="button button--secondary">
-          <Icon name="arrow-left" size={16} />
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate(user ? `/@${user.username}` : "/")}
+        >
           {t("common.back")}
-        </Link>
+        </Button>
       </header>
 
       <section className="panel settings-card">
         <div className="field">
           <label htmlFor="server-url">{t("client.settings.serverUrl")}</label>
-          <input
+          <Input
             id="server-url"
-            className="input"
             type="url"
             value={serverUrl}
             onChange={(event) => setServerUrl(event.target.value)}
@@ -118,38 +109,21 @@ export default function SettingsPage() {
         </div>
 
         <div className="settings-card__actions">
-          <button
-            type="button"
-            className="button button--primary"
+          <Button
+            type="primary"
             onClick={() => void handleSave()}
-            disabled={saveStatus.kind === "saving"}
+            loading={saveStatus.kind === "saving"}
           >
             {saveStatus.kind === "saving" ? t("common.loading") : t("client.settings.save")}
-          </button>
+          </Button>
         </div>
 
         {saveStatus.kind === "success" ? (
-          <div className="inline-notice inline-notice--success" role="status">
-            {saveStatus.message}
-          </div>
+          <Alert type="success" message={saveStatus.message} showIcon />
         ) : null}
         {saveStatus.kind === "error" ? (
-          <div className="inline-notice inline-notice--danger" role="alert">
-            {saveStatus.message}
-          </div>
+          <Alert type="error" message={saveStatus.message} showIcon />
         ) : null}
-      </section>
-
-      <section className="panel settings-card">
-        <div className="settings-card__row">
-          <div>
-            <strong>{t("app.shell.languageSwitch", { locale: nextLocale(locale) })}</strong>
-            <p className="muted">{locale}</p>
-          </div>
-          <button type="button" className="button button--secondary" onClick={switchLocale}>
-            {t("app.shell.languageSwitch", { locale: nextLocale(locale) })}
-          </button>
-        </div>
       </section>
 
       <section className="panel settings-card">
@@ -159,14 +133,14 @@ export default function SettingsPage() {
             <p className="muted">{user ? user.username : t("auth.loginSubtitle")}</p>
           </div>
           {user ? (
-            <button type="button" className="button button--ghost" onClick={() => void handleLogout()}>
-              <Icon name="logout" />
+            <Button type="text" danger onClick={() => void handleLogout()}>
+              <LogoutOutlined />
               {t("client.settings.logout")}
-            </button>
+            </Button>
           ) : (
-            <Link to="/login" className="button button--primary">
+            <Button type="primary" onClick={() => navigate("/login")}>
               {t("nav.login")}
-            </Link>
+            </Button>
           )}
         </div>
       </section>

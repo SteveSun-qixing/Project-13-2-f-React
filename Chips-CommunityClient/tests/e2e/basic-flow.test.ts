@@ -14,9 +14,9 @@ describe("薯片社区客户端预览与质量脚本 smoke", () => {
   it("应生成完整 verify 脚本与预览 smoke 校验入口", () => {
     const pkg = JSON.parse(readProjectFile("package.json"));
     expect(pkg.scripts.typecheck).toBe("tsc -p tsconfig.json --noEmit");
-    expect(pkg.scripts["preview:smoke"]).toContain("chipsdev preview --mode mock --target app");
+    expect(pkg.scripts["preview:smoke"]).toContain("chipsdev-r preview --mode mock --target app");
     expect(pkg.scripts["preview:smoke"]).toContain("reports/preview/app-preview-smoke.json");
-    expect(pkg.scripts["quality:gate"]).toContain("chipsdev quality gate");
+    expect(pkg.scripts["quality:gate"]).toContain("chipsdev-r quality gate");
     expect(pkg.scripts["quality:gate"]).toContain("reports/quality/quality-gate.json");
     expect(pkg.scripts.verify).toContain("npm run preview:smoke");
     expect(pkg.scripts.verify).toContain("npm run quality:gate");
@@ -28,13 +28,10 @@ describe("薯片社区客户端预览与质量脚本 smoke", () => {
     const sourceBundle = [
       readProjectFile("src/App.tsx"),
       readProjectFile("src/app/AppRoot.tsx"),
-      readProjectFile("src/app/AppRuntimeProvider.tsx"),
       readProjectFile("src/app/AppShell.tsx"),
       readProjectFile("src/app/scene-registry.ts"),
-      readProjectFile("src/commands/app-commands.ts"),
+      readProjectFile("src/commands/app-commands.tsx"),
       readProjectFile("src/commands/useAppCommands.ts"),
-      readProjectFile("src/i18n/locales.ts"),
-      readProjectFile("src/i18n/useAppText.ts"),
       readProjectFile("src/runtime/community-runtime.ts"),
     ].join("\n");
 
@@ -42,6 +39,9 @@ describe("薯片社区客户端预览与质量脚本 smoke", () => {
     expect(manifest).toContain("id: com.chips.community-client");
     expect(manifest).toContain("name: 薯片社区");
     expect(manifest).not.toMatch(/^commands\s*:/m);
+    expect(manifest).not.toContain("theme.read");
+    expect(manifest).not.toContain("i18n.read");
+    expect(manifest).not.toContain("i18n.write");
     expect(previewSmoke).toContain("chipsdev.preview");
     expect(previewSmoke).toContain("reportOnly");
     expect(previewSmoke).toContain("manifest.runtimeTargets");
@@ -50,9 +50,7 @@ describe("薯片社区客户端预览与质量脚本 smoke", () => {
     expect(sourceBundle).toContain("AuthProvider");
     expect(sourceBundle).toContain("CommunityPreferencesProvider");
     expect(sourceBundle).toContain("useAppCommands");
-    expect(sourceBundle).toContain("resolveAppToolbarCommands");
-    expect(sourceBundle).toContain("resolveAppMenuGroups");
-    expect(sourceBundle).toContain("resolveAppPaletteItems");
+    expect(sourceBundle).toContain("createAppCommands");
     expect(sourceBundle).toContain("COMMUNITY_REFRESH_TOKEN_REF");
     const forbiddenIdentityPattern = new RegExp([
       "app-" + "standard",

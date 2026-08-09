@@ -1,5 +1,3 @@
-.app-shell {
-  min-height: 100vh;
-  color: var(--ccps-sys-text);
-  background: var(--ccps-sys-canvas);
+.app-shell__main {
+  padding: 40px 0 28px;
 }

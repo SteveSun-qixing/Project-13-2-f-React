@@ -1,11 +1,13 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Button } from "antd";
+import { SettingOutlined } from "@ant-design/icons";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { useAuth } from "../contexts/AuthContext";
-import { Icon } from "../runtime/icons/Icon";
 
 export function SiteHeader() {
   const { t } = useAppPreferences();
   const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
   const showCreatorNav = isAuthenticated && user?.role !== "admin";
 
   return (
@@ -33,19 +35,17 @@ export function SiteHeader() {
             aria-label={t("app.scenes.settings.title")}
             title={t("app.scenes.settings.title")}
           >
-            <Icon name="settings" size={18} />
+            <SettingOutlined style={{ fontSize: 18 }} />
           </Link>
           {isAuthenticated && user ? (
             <>
-              <Link to={`/@${user.username}`} className="button button--ghost">{user.username}</Link>
-              <button type="button" className="button button--secondary" onClick={() => void logout()}>
-                {t("common.logout")}
-              </button>
+              <Button onClick={() => navigate(`/@${user.username}`)}>{user.username}</Button>
+              <Button onClick={() => void logout()}>{t("common.logout")}</Button>
             </>
           ) : (
             <>
-              <Link to="/login" className="button button--ghost">{t("nav.login")}</Link>
-              <Link to="/register" className="button button--primary">{t("nav.register")}</Link>
+              <Button type="text" onClick={() => navigate("/login")}>{t("nav.login")}</Button>
+              <Button type="primary" onClick={() => navigate("/register")}>{t("nav.register")}</Button>
             </>
           )}
         </div>

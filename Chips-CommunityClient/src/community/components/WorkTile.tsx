@@ -1,11 +1,11 @@
 import { useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { CheckOutlined } from "@ant-design/icons";
 import type { Client } from "chips-sdk";
 import { chipsClient } from "../../runtime/chips-client";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { getCommunityApiBaseUrl } from "../api/client";
 import { createCommunityTransferService } from "../lib/transfer";
 import { getErrorMessage, getInitial, getWorkCoverStyle, resolveCommunityUrl } from "../lib/ui";
-import { Icon } from "../runtime/icons/Icon";
 import type { CommunityWorkItem } from "../types/community";
 
 interface WorkTileProps {
@@ -106,7 +106,7 @@ export function WorkTile({ item, manageMode = false, selected = false, onToggleS
               className={`work-tile__selection-badge${selected ? " is-selected" : ""}`}
               aria-hidden="true"
             >
-              {selected ? <Icon name="check" size={16} /> : null}
+              {selected ? <CheckOutlined /> : null}
             </span>
           ) : null}
         </div>

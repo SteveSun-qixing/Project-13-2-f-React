@@ -1,24 +1,28 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Alert, Button, Form, Input } from "antd";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { isNetworkError } from "../api/client";
 import { getErrorMessage, getPostAuthPath } from "../lib/ui";
 import "./AuthForm.css";
 
+interface RegisterFormValues {
+  username: string;
+  password: string;
+  confirmPassword: string;
+}
+
 export default function RegisterPage() {
   const { t } = useAppPreferences();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (values: RegisterFormValues) => {
+    const { username, password, confirmPassword } = values;
 
     if (!username || !password) {
       setError(t("auth.validation.required"));
@@ -71,52 +75,25 @@ export default function RegisterPage() {
           <p className="muted">{t("auth.registerSubtitle")}</p>
         </div>
 
-        {error ? <div className="inline-notice inline-notice--danger">{error}</div> : null}
+        {error ? <Alert type="error" message={error} showIcon /> : null}
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="field">
-            <label htmlFor="username">{t("auth.username")}</label>
-            <input
-              id="username"
-              type="text"
-              className="input"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              autoComplete="username"
-              disabled={loading}
-            />
-          </div>
+        <Form<RegisterFormValues> layout="vertical" className="auth-form" disabled={loading} onFinish={(values) => void handleSubmit(values)}>
+          <Form.Item name="username" label={t("auth.username")}>
+            <Input autoComplete="username" />
+          </Form.Item>
 
-          <div className="field">
-            <label htmlFor="password">{t("auth.password")}</label>
-            <input
-              id="password"
-              type="password"
-              className="input"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="new-password"
-              disabled={loading}
-            />
-          </div>
+          <Form.Item name="password" label={t("auth.password")}>
+            <Input.Password autoComplete="new-password" />
+          </Form.Item>
 
-          <div className="field">
-            <label htmlFor="confirmPassword">{t("auth.confirmPassword")}</label>
-            <input
-              id="confirmPassword"
-              type="password"
-              className="input"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              autoComplete="new-password"
-              disabled={loading}
-            />
-          </div>
+          <Form.Item name="confirmPassword" label={t("auth.confirmPassword")}>
+            <Input.Password autoComplete="new-password" />
+          </Form.Item>
 
-          <button type="submit" className="button button--primary auth-form__submit" disabled={loading}>
+          <Button type="primary" htmlType="submit" loading={loading} block>
             {loading ? t("common.loading") : t("auth.registerAction")}
-          </button>
-        </form>
+          </Button>
+        </Form>
 
         <p className="auth-card__footer">
           {t("auth.hasAccount")} <Link to="/login">{t("auth.toLogin")}</Link>

@@ -1,4 +1,7 @@
-import { useEffect, useId, useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useState } from "react";
+import { Alert, Button, Form, Input, Modal, Upload } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
+import type { UploadProps } from "antd";
 import type { PublicUserProfile } from "../api/auth";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { getErrorMessage, getInitial } from "../lib/ui";
@@ -10,6 +13,11 @@ export interface ProfileSettingsPayload {
   displayName: string;
   bio: string;
   avatarFile: File | null;
+}
+
+interface ProfileSettingsFormValues {
+  displayName: string;
+  bio: string;
 }
 
 interface ProfileSettingsDialogProps {
@@ -26,13 +34,7 @@ export function ProfileSettingsDialog({
   onSubmit,
 }: ProfileSettingsDialogProps) {
   const { t } = useAppPreferences();
-  const titleId = useId();
-  const descriptionId = useId();
-  const nameInputId = useId();
-  const bioInputId = useId();
-  const avatarInputId = useId();
-  const [displayName, setDisplayName] = useState(user.displayName || user.username);
-  const [bio, setBio] = useState(user.bio ?? "");
+  const [form] = Form.useForm<ProfileSettingsFormValues>();
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -43,11 +45,13 @@ export function ProfileSettingsDialog({
       return;
     }
 
-    setDisplayName(user.displayName || user.username);
-    setBio(user.bio ?? "");
+    form.setFieldsValue({
+      displayName: user.displayName || user.username,
+      bio: user.bio ?? "",
+    });
     setAvatarFile(null);
     setError("");
-  }, [isOpen, user.bio, user.displayName, user.username]);
+  }, [form, isOpen, user.bio, user.displayName, user.username]);
 
   useEffect(() => {
     if (!avatarFile) {
@@ -62,74 +66,44 @@ export function ProfileSettingsDialog({
     };
   }, [avatarFile]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const originalOverflow = document.body.style.overflow;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isSubmitting) {
-        onClose();
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, isSubmitting, onClose]);
-
-  if (!isOpen) {
-    return null;
-  }
-
-  const avatarAlt = displayName.trim() || user.username;
+  const avatarAlt = user.displayName || user.username;
   const avatarSrc = avatarPreviewUrl || user.avatarUrl;
 
-  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextFile = event.target.files?.[0];
-    if (!nextFile) {
-      return;
-    }
-
-    if (!ACCEPTED_AVATAR_TYPES.includes(nextFile.type)) {
+  const handleAvatarSelect: UploadProps["beforeUpload"] = (file) => {
+    if (!ACCEPTED_AVATAR_TYPES.includes(file.type)) {
       setAvatarFile(null);
       setError(t("profile.settingsImageTypeInvalid"));
-      event.target.value = "";
-      return;
+      return Upload.LIST_IGNORE;
     }
 
-    if (nextFile.size > MAX_AVATAR_FILE_SIZE) {
+    if (file.size > MAX_AVATAR_FILE_SIZE) {
       setAvatarFile(null);
       setError(t("profile.settingsImageTooLarge"));
-      event.target.value = "";
-      return;
+      return Upload.LIST_IGNORE;
     }
 
-    setAvatarFile(nextFile);
+    setAvatarFile(file as File);
     setError("");
+    return Upload.LIST_IGNORE;
   };
 
-  const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.target === event.currentTarget && !isSubmitting) {
-      onClose();
-    }
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const normalizedDisplayName = displayName.trim();
-    const normalizedBio = bio.trim();
-
-    if (!normalizedDisplayName) {
-      setError(t("profile.settingsNameRequired"));
+  const handleCancel = () => {
+    if (isSubmitting) {
       return;
     }
+    onClose();
+  };
+
+  const handleOk = async () => {
+    let values: ProfileSettingsFormValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return;
+    }
+
+    const normalizedDisplayName = values.displayName.trim();
+    const normalizedBio = values.bio.trim();
 
     setIsSubmitting(true);
     setError("");
@@ -148,92 +122,66 @@ export function ProfileSettingsDialog({
   };
 
   return (
-    <div className="profile-settings-backdrop" onClick={handleBackdropClick}>
-      <div
-        className="panel profile-settings-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={descriptionId}
-      >
-        <div className="profile-settings-dialog__header">
-          <div className="profile-settings-dialog__avatar-preview">
-            {avatarSrc ? (
-              <img src={avatarSrc} alt={avatarAlt} />
-            ) : (
-              <span>{getInitial(avatarAlt)}</span>
-            )}
-          </div>
-
-          <div className="profile-settings-dialog__header-copy">
-            <span className="eyebrow">{t("profile.settingsEyebrow")}</span>
-            <h2 id={titleId}>{t("profile.settingsTitle")}</h2>
-            <p id={descriptionId} className="muted">
-              {t("profile.settingsSubtitle")}
-            </p>
-          </div>
+    <Modal
+      open={isOpen}
+      title={t("profile.settingsTitle")}
+      onOk={() => void handleOk()}
+      onCancel={handleCancel}
+      confirmLoading={isSubmitting}
+      maskClosable={!isSubmitting}
+      keyboard={!isSubmitting}
+      okText={isSubmitting ? t("profile.settingsSaving") : t("common.save")}
+      cancelText={t("common.cancel")}
+      width={560}
+    >
+      <div className="profile-settings-dialog__header">
+        <div className="profile-settings-dialog__avatar-preview">
+          {avatarSrc ? (
+            <img src={avatarSrc} alt={avatarAlt} />
+          ) : (
+            <span>{getInitial(avatarAlt)}</span>
+          )}
         </div>
 
-        <form className="profile-settings-dialog__form" onSubmit={handleSubmit}>
-          <div className="profile-settings-dialog__avatar-row">
-            <div className="profile-settings-dialog__avatar-copy">
-              <label htmlFor={avatarInputId}>{t("profile.settingsAvatar")}</label>
-              <p className="profile-settings-dialog__avatar-hint">
-                {avatarFile
-                  ? t("profile.settingsAvatarSelected", { name: avatarFile.name })
-                  : t("profile.settingsAvatarHint")}
-              </p>
-            </div>
-
-            <input
-              id={avatarInputId}
-              className="sr-only"
-              type="file"
-              accept={ACCEPTED_AVATAR_TYPES.join(",")}
-              onChange={handleAvatarChange}
-            />
-            <label htmlFor={avatarInputId} className="button button--secondary profile-settings-dialog__avatar-button">
-              {t("profile.settingsAvatarAction")}
-            </label>
-          </div>
-
-          <div className="field">
-            <label htmlFor={nameInputId}>{t("profile.settingsName")}</label>
-            <input
-              id={nameInputId}
-              className="input"
-              type="text"
-              maxLength={100}
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor={bioInputId}>{t("profile.settingsBio")}</label>
-            <textarea
-              id={bioInputId}
-              className="input profile-settings-dialog__textarea"
-              maxLength={200}
-              value={bio}
-              onChange={(event) => setBio(event.target.value)}
-              disabled={isSubmitting}
-            />
-          </div>
-
-          {error ? <div className="inline-notice inline-notice--danger">{error}</div> : null}
-
-          <div className="profile-settings-dialog__actions">
-            <button type="button" className="button button--ghost" onClick={onClose} disabled={isSubmitting}>
-              {t("common.cancel")}
-            </button>
-            <button type="submit" className="button button--primary" disabled={isSubmitting}>
-              {isSubmitting ? t("profile.settingsSaving") : t("common.save")}
-            </button>
-          </div>
-        </form>
+        <div className="profile-settings-dialog__header-copy">
+          <span className="eyebrow">{t("profile.settingsEyebrow")}</span>
+          <p className="muted">{t("profile.settingsSubtitle")}</p>
+        </div>
       </div>
-    </div>
+
+      <div className="profile-settings-dialog__avatar-row">
+        <div className="profile-settings-dialog__avatar-copy">
+          <span className="profile-settings-dialog__avatar-hint">
+            {avatarFile
+              ? t("profile.settingsAvatarSelected", { name: avatarFile.name })
+              : t("profile.settingsAvatarHint")}
+          </span>
+        </div>
+
+        <Upload
+          accept={ACCEPTED_AVATAR_TYPES.join(",")}
+          showUploadList={false}
+          beforeUpload={handleAvatarSelect}
+        >
+          <Button icon={<UploadOutlined />}>{t("profile.settingsAvatarAction")}</Button>
+        </Upload>
+      </div>
+
+      <Form form={form} layout="vertical" disabled={isSubmitting}>
+        <Form.Item
+          name="displayName"
+          label={t("profile.settingsName")}
+          rules={[{ required: true, message: t("profile.settingsNameRequired") }]}
+        >
+          <Input maxLength={100} />
+        </Form.Item>
+
+        <Form.Item name="bio" label={t("profile.settingsBio")}>
+          <Input.TextArea rows={4} maxLength={200} />
+        </Form.Item>
+      </Form>
+
+      {error ? <Alert type="error" message={error} showIcon /> : null}
+    </Modal>
   );
 }

@@ -1,12 +1,19 @@
 import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Alert, Button } from "antd";
+import {
+  ArrowLeftOutlined,
+  CheckOutlined,
+  FileTextOutlined,
+  UploadOutlined,
+  WarningOutlined,
+} from "@ant-design/icons";
 import type { Client } from "chips-sdk";
 import { chipsClient } from "../../runtime/chips-client";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { useAuth } from "../contexts/AuthContext";
 import { createCommunityTransferService, type TransferJobProgress } from "../lib/transfer";
 import { getErrorMessage } from "../lib/ui";
-import { Icon } from "../runtime/icons/Icon";
 import "./WorkspacePage.css";
 
 type UploadKind = "card" | "box";
@@ -51,6 +58,7 @@ export default function WorkspacePage() {
   const { t } = useAppPreferences();
   const client: Client = chipsClient;
   const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const profileHref = useMemo(() => (user ? `/@${user.username}` : "/login"), [user]);
   const transferRef = useRef(createCommunityTransferService(client));
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({ kind: "idle" });
@@ -208,15 +216,14 @@ export default function WorkspacePage() {
           <p className="muted">{t("workspace.subtitle")}</p>
         </div>
 
-        <Link to={profileHref} className="button button--secondary">
-          <Icon name="arrow-left" size={16} />
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(profileHref)}>
           {t("workspace.backToProfile")}
-        </Link>
+        </Button>
       </header>
 
       <section className="panel workspace-upload">
         <div className="workspace-upload__icon" aria-hidden="true">
-          <Icon name="upload" size={28} />
+          <UploadOutlined style={{ fontSize: 28 }} />
         </div>
         <div className="workspace-upload__copy">
           <h2>{t("workspace.uploadTitle")}</h2>
@@ -224,45 +231,41 @@ export default function WorkspacePage() {
         </div>
 
         <div className="workspace-upload__action">
-          <button
-            type="button"
-            className="button button--primary"
+          <Button
+            type="primary"
             onClick={() => void handleUpload()}
-            disabled={!isAuthenticated || uploadStatus.kind === "working"}
+            loading={uploadStatus.kind === "working"}
+            disabled={!isAuthenticated}
           >
             {uploadStatus.kind === "working" ? t("workspace.uploading") : t("workspace.uploadAction")}
-          </button>
+          </Button>
         </div>
 
         {!isAuthenticated ? (
-          <div className="inline-notice inline-notice--danger">{t("workspace.uploadRequiresLogin")}</div>
+          <Alert type="error" message={t("workspace.uploadRequiresLogin")} showIcon />
         ) : null}
 
         {uploadStatus.kind === "working" ? (
-          <div className="inline-notice" role="status">
-            {uploadStatus.label}
-          </div>
+          <Alert type="info" message={uploadStatus.label} />
         ) : null}
 
         {uploadStatus.kind === "success" ? (
-          <div className="inline-notice inline-notice--success" role="status">
-            <span>{uploadStatus.message}</span>
-            {uploadStatus.communityUrl ? (
-              <button
-                type="button"
-                className="button button--ghost button--sm"
-                onClick={() => void handleOpenCommunityUrl()}
-              >
-                {uploadStatus.openLabel}
-              </button>
-            ) : null}
-          </div>
+          <Alert
+            type="success"
+            showIcon
+            message={uploadStatus.message}
+            action={
+              uploadStatus.communityUrl ? (
+                <Button size="small" type="text" onClick={() => void handleOpenCommunityUrl()}>
+                  {uploadStatus.openLabel}
+                </Button>
+              ) : null
+            }
+          />
         ) : null}
 
         {uploadStatus.kind === "error" ? (
-          <div className="inline-notice inline-notice--danger" role="alert">
-            {uploadStatus.message}
-          </div>
+          <Alert type="error" message={uploadStatus.message} showIcon />
         ) : null}
 
         {results.length > 0 ? (
@@ -272,7 +275,7 @@ export default function WorkspacePage() {
                 key={`${item.fileName}-${item.kind}`}
                 className={`workspace-upload__result${item.ok ? " workspace-upload__result--ok" : " workspace-upload__result--fail"}`}
               >
-                <Icon name={item.ok ? "check" : "warning"} size={16} />
+                {item.ok ? <CheckOutlined /> : <WarningOutlined />}
                 <div className="workspace-upload__result-body">
                   <span className="workspace-upload__result-name">{item.fileName}</span>
                   <span className="workspace-upload__result-message">{item.message}</span>
@@ -292,7 +295,7 @@ export default function WorkspacePage() {
 
       <section className="panel workspace-client-publish">
         <div className="workspace-client-publish__icon" aria-hidden="true">
-          <Icon name="document" size={28} />
+          <FileTextOutlined style={{ fontSize: 28 }} />
         </div>
         <div className="workspace-client-publish__copy">
           <h2>{t("workspace.clientOnlyTitle")}</h2>

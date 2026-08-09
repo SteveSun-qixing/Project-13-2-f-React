@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   HashRouter,
   Navigate,
@@ -7,9 +7,11 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
+import { Result } from "antd";
 import type { Client } from "chips-sdk";
+import { AppChrome, type MenuBarGroup } from "@chips/ui";
 import { chipsClient } from "../runtime/chips-client";
-import { CommunityPreferencesProvider } from "../community/contexts/PreferencesContext";
+import { CommunityPreferencesProvider, useAppPreferences } from "../community/contexts/PreferencesContext";
 import { AuthProvider, useAuth } from "../community/contexts/AuthContext";
 import { SiteHeader } from "../community/components/SiteHeader";
 import { SiteFooter } from "../community/components/SiteFooter";
@@ -28,45 +30,14 @@ import {
   loadCommunityServerUrl,
   setRefreshTokenReader,
 } from "../runtime/community-runtime";
-import { useAppText } from "../i18n/useAppText";
 import { useAppCommands } from "../commands/useAppCommands";
-import { APP_COMMAND_HANDLER_IDS } from "../commands/app-commands";
-
-function CommandRouterBridge() {
-  const navigate = useNavigate();
-  const commands = useAppCommands();
-  const handledInvocationRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!commands.lastInvoked) {
-      return;
-    }
-
-    const invocationKey =
-      commands.lastInvoked.invocationId ??
-      `${commands.lastInvoked.commandId}:${commands.lastInvoked.source}`;
-    if (handledInvocationRef.current === invocationKey) {
-      return;
-    }
-    handledInvocationRef.current = invocationKey;
-
-    if (commands.lastInvoked.handlerId === APP_COMMAND_HANDLER_IDS.openWorkspace) {
-      navigate("/workspace");
-    }
-    if (commands.lastInvoked.handlerId === APP_COMMAND_HANDLER_IDS.openSettings) {
-      navigate("/settings");
-    }
-  }, [commands.lastInvoked, navigate]);
-
-  return null;
-}
 
 function isProfileRoute(pathname: string): boolean {
   return /^\/@[^/]+\/?$/.test(pathname);
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { text: t } = useAppText();
+  const { t } = useAppPreferences();
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
@@ -82,7 +53,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function GuestRoute({ children }: { children: ReactNode }) {
-  const { text: t } = useAppText();
+  const { t } = useAppPreferences();
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
@@ -97,7 +68,7 @@ function GuestRoute({ children }: { children: ReactNode }) {
 }
 
 function RootRedirect() {
-  const { text: t } = useAppText();
+  const { t } = useAppPreferences();
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
@@ -116,14 +87,11 @@ function RootRedirect() {
 }
 
 function NotFoundPage() {
-  const { text: t } = useAppText();
+  const { t } = useAppPreferences();
 
   return (
     <div className="page-container">
-      <section className="panel empty-panel">
-        <h1>404</h1>
-        <p>{t("detail.notFound")}</p>
-      </section>
+      <Result status="404" title="404" subTitle={t("detail.notFound")} />
     </div>
   );
 }
@@ -133,7 +101,7 @@ function AppRoutes() {
   const shouldShowFooter = !isProfileRoute(location.pathname);
 
   return (
-    <div className="app-shell">
+    <>
       <SiteHeader />
       <main className="app-shell__main">
         <Routes>
@@ -170,13 +138,30 @@ function AppRoutes() {
         </Routes>
       </main>
       {shouldShowFooter ? <SiteFooter /> : null}
-    </div>
+    </>
+  );
+}
+
+function AppChromeShell() {
+  const navigate = useNavigate();
+  const commands = useAppCommands({
+    openWorkspace: () => navigate("/workspace"),
+    openSettings: () => navigate("/settings"),
+  });
+
+  const menus: MenuBarGroup[] = [{ menuId: "app", label: "应用", commands }];
+  const toolbarItems = commands.filter((command) => command.toolbarId === "main");
+
+  return (
+    <AppChrome appName="薯片社区" menus={menus} toolbarItems={toolbarItems} paletteShortcut="Mod+P">
+      <AppRoutes />
+    </AppChrome>
   );
 }
 
 function CommunityBootstrap({ children }: { children: ReactNode }) {
   const client: Client = chipsClient;
-  const { text: t } = useAppText();
+  const { t } = useAppPreferences();
   const [ready, setReady] = useState(false);
   const bootstrapRef = useRef<Promise<void> | null>(null);
 
@@ -220,23 +205,16 @@ function CommunityBootstrap({ children }: { children: ReactNode }) {
 
 export function AppShell() {
   const client: Client = chipsClient;
-  const { text: t } = useAppText();
 
-  const shell = useMemo(
-    () => (
+  return (
+    <CommunityPreferencesProvider>
       <CommunityBootstrap>
         <AuthProvider client={client}>
           <HashRouter>
-            <CommunityPreferencesProvider>
-              <CommandRouterBridge />
-              <AppRoutes />
-            </CommunityPreferencesProvider>
+            <AppChromeShell />
           </HashRouter>
         </AuthProvider>
       </CommunityBootstrap>
-    ),
-    [client, t],
+    </CommunityPreferencesProvider>
   );
-
-  return shell;
 }

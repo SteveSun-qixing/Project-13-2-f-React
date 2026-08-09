@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
+import { Button } from "antd";
 import type { Client } from "chips-sdk";
 import { chipsClient } from "../../runtime/chips-client";
 import { authApi, type PublicUserProfile } from "../api/auth";
@@ -336,9 +337,9 @@ export default function ProfilePage() {
     pageBody = (
       <section className="panel error-panel profile-state">
         <h1>{state.error || t("profile.notFound")}</h1>
-        <button type="button" className="button button--secondary" onClick={() => setReloadKey((value) => value + 1)}>
+        <Button onClick={() => setReloadKey((value) => value + 1)}>
           {t("common.retry")}
-        </button>
+        </Button>
       </section>
     );
   } else {

@@ -1,9 +1,11 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Button } from "antd";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import "./AboutPage.css";
 
 export default function AboutPage() {
   const { t } = useAppPreferences();
+  const navigate = useNavigate();
 
   const sections = [
     ["about.sectionProduct", "about.sectionProductBody"],
@@ -18,7 +20,9 @@ export default function AboutPage() {
         <span className="eyebrow">{t("about.title")}</span>
         <h1>{t("about.title")}</h1>
         <p className="muted">{t("about.subtitle")}</p>
-        <Link to="/" className="button button--secondary">{t("about.backHome")}</Link>
+        <div>
+          <Button onClick={() => navigate("/")}>{t("about.backHome")}</Button>
+        </div>
       </section>
 
       <section className="about-grid">

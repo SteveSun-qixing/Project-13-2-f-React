@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Button } from "antd";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { useAuth } from "../contexts/AuthContext";
 import "./HomePage.css";
@@ -18,6 +19,7 @@ const floatingCards = [
 export default function HomePage() {
   const { t } = useAppPreferences();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const primaryHref = user ? `/@${user.username}` : "/register";
 
   return (
@@ -30,16 +32,16 @@ export default function HomePage() {
           <p className="home-simple__belief">{t("home.belief")}</p>
 
           <nav className="home-simple__actions" aria-label={t("home.actionLabel")}>
-            <Link to={primaryHref} className="home-simple__button home-simple__button--primary">
+            <Button type="primary" size="large" onClick={() => navigate(primaryHref)}>
               {user ? t("home.openProfile") : t("home.heroPrimary")}
-            </Link>
-            <Link to="/about" className="home-simple__button home-simple__button--soft">
+            </Button>
+            <Button size="large" onClick={() => navigate("/about")}>
               {t("home.heroSecondary")}
-            </Link>
+            </Button>
             {!user ? (
-              <Link to="/login" className="home-simple__button home-simple__button--quiet">
+              <Button type="text" size="large" onClick={() => navigate("/login")}>
                 {t("home.heroLogin")}
-              </Link>
+              </Button>
             ) : null}
           </nav>
         </div>

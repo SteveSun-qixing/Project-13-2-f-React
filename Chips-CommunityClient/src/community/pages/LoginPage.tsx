@@ -1,15 +1,19 @@
-import React, { useState } from "react";
-import { useNavigate, Link, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Alert, Button, Form, Input } from "antd";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { isNetworkError } from "../api/client";
 import { getErrorMessage, getPostAuthPath } from "../lib/ui";
 import "./AuthForm.css";
 
+interface LoginFormValues {
+  username: string;
+  password: string;
+}
+
 export default function LoginPage() {
   const { t } = useAppPreferences();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -17,9 +21,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username || !password) {
+  const handleSubmit = async (values: LoginFormValues) => {
+    if (!values.username || !values.password) {
       setError(t("auth.validation.required"));
       return;
     }
@@ -28,7 +31,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const profile = await login(username, password);
+      const profile = await login(values.username, values.password);
       const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
       navigate(getPostAuthPath(profile, from), { replace: true });
     } catch (nextError) {
@@ -51,39 +54,21 @@ export default function LoginPage() {
           <p className="muted">{t("auth.loginSubtitle")}</p>
         </div>
 
-        {error ? <div className="inline-notice inline-notice--danger">{error}</div> : null}
+        {error ? <Alert type="error" message={error} showIcon /> : null}
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="field">
-            <label htmlFor="username">{t("auth.username")}</label>
-            <input
-              id="username"
-              type="text"
-              className="input"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              autoComplete="username"
-              disabled={loading}
-            />
-          </div>
+        <Form<LoginFormValues> layout="vertical" className="auth-form" disabled={loading} onFinish={(values) => void handleSubmit(values)}>
+          <Form.Item name="username" label={t("auth.username")}>
+            <Input autoComplete="username" />
+          </Form.Item>
 
-          <div className="field">
-            <label htmlFor="password">{t("auth.password")}</label>
-            <input
-              id="password"
-              type="password"
-              className="input"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              disabled={loading}
-            />
-          </div>
+          <Form.Item name="password" label={t("auth.password")}>
+            <Input.Password autoComplete="current-password" />
+          </Form.Item>
 
-          <button type="submit" className="button button--primary auth-form__submit" disabled={loading}>
+          <Button type="primary" htmlType="submit" loading={loading} block>
             {loading ? t("common.loading") : t("auth.loginAction")}
-          </button>
-        </form>
+          </Button>
+        </Form>
 
         <p className="auth-card__footer">
           {t("auth.noAccount")} <Link to="/register">{t("auth.toRegister")}</Link>

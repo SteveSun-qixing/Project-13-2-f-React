@@ -1,5 +1,10 @@
-import React, { createContext, useContext, useEffect, useMemo } from "react";
-import { useAppText, type AppTextResolver } from "../../i18n/useAppText";
+import React, { createContext, useContext, useMemo } from "react";
+import { formatMessage } from "../../lib/messages";
+
+type TextParams = Record<string, string | number>;
+export type AppTextResolver = (key: string, params?: TextParams) => string;
+
+const APP_LOCALE = "zh-CN";
 
 interface CommunityPreferencesValue {
   locale: string;
@@ -11,29 +16,22 @@ interface CommunityPreferencesValue {
 const CommunityPreferencesContext = createContext<CommunityPreferencesValue | null>(null);
 
 export function CommunityPreferencesProvider({ children }: { children: React.ReactNode }) {
-  const { locale, text } = useAppText();
-
-  useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-    document.documentElement.lang = locale;
-  }, [locale]);
-
   const value = useMemo<CommunityPreferencesValue>(() => ({
-    locale,
-    t: text,
+    locale: APP_LOCALE,
+    t(key, params) {
+      return formatMessage(key, params);
+    },
     formatDate(input) {
-      return new Intl.DateTimeFormat(locale, {
+      return new Intl.DateTimeFormat(APP_LOCALE, {
         year: "numeric",
         month: "short",
         day: "numeric",
       }).format(new Date(input));
     },
     formatNumber(input) {
-      return new Intl.NumberFormat(locale).format(input);
+      return new Intl.NumberFormat(APP_LOCALE).format(input);
     },
-  }), [locale, text]);
+  }), []);
 
   return (
     <CommunityPreferencesContext.Provider value={value}>

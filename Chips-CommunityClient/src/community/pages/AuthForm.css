@@ -31,9 +31,9 @@
 
 .auth-card__footer {
   margin-top: 22px;
-  color: var(--ccps-sys-text-muted);
+  color: #6e6e73;
 }
 
 .auth-card__footer a {
-  color: var(--ccps-sys-accent);
+  color: #0a84ff;
 }

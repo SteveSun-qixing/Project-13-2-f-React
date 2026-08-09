@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Button } from "antd";
 import type { Client } from "chips-sdk";
 import { chipsClient } from "../../runtime/chips-client";
 import { useAppPreferences } from "../contexts/PreferencesContext";
@@ -24,9 +25,9 @@ export default function AdminRedirectPage() {
       <section className="panel error-panel">
         <h1>{t("admin.redirectTitle")}</h1>
         <p>{t("admin.redirectBody")}</p>
-        <button type="button" className="button button--primary" onClick={() => void handleOpen()}>
+        <Button type="primary" onClick={() => void handleOpen()}>
           {t("admin.redirectAction")}
-        </button>
+        </Button>
       </section>
     </div>
   );

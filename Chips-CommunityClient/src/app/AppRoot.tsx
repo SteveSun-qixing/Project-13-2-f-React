@@ -1,10 +1,20 @@
-import { AppProviders } from "./AppProviders";
+import React from "react";
+import { App as AntdApp, ConfigProvider } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme, ChipsProvider, CommandProvider } from "@chips/ui";
 import { AppShell } from "./AppShell";
+import { chipsClient } from "../runtime/chips-client";
 
-export function AppRoot() {
+export function AppRoot(): React.ReactElement {
   return (
-    <AppProviders>
-      <AppShell />
-    </AppProviders>
+    <ConfigProvider locale={zhCN} theme={appleTheme}>
+      <AntdApp>
+        <ChipsProvider client={chipsClient}>
+          <CommandProvider>
+            <AppShell />
+          </CommandProvider>
+        </ChipsProvider>
+      </AntdApp>
+    </ConfigProvider>
   );
 }

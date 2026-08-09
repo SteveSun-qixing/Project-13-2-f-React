@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Button, Empty } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
 import { useAppPreferences } from "../contexts/PreferencesContext";
-import { Icon } from "../runtime/icons/Icon";
 import { getCommunityWorkSelectionKey, type CommunityWorkItem } from "../types/community";
 import { WorkTile } from "./WorkTile";
 
@@ -28,6 +29,7 @@ export function WorkGrid({
   onDeleteSelectedWorks,
 }: WorkGridProps) {
   const { t } = useAppPreferences();
+  const navigate = useNavigate();
   const workCount = items.length;
 
   return (
@@ -39,17 +41,19 @@ export function WorkGrid({
 
         {isOwner ? (
           <div className="works-section__actions">
-            <Link to="/workspace" className="button button--primary button--icon" aria-label={t("profile.openWorkspace")}>
-              <Icon name="plus" />
-            </Link>
-            <button
-              type="button"
-              className={`button ${manageMode ? "button--primary" : "button--secondary"}`}
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              aria-label={t("profile.openWorkspace")}
+              onClick={() => navigate("/workspace")}
+            />
+            <Button
+              type={manageMode ? "primary" : "default"}
               onClick={onToggleManageMode}
               disabled={isDeleting || workCount === 0}
             >
               {manageMode ? t("profile.manageDone") : t("profile.manageAction")}
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>
@@ -66,14 +70,15 @@ export function WorkGrid({
             <span className="works-section__manage-count">
               {t("profile.manageSelectedCount", { count: selectedWorkKeys.size })}
             </span>
-            <button
-              type="button"
-              className="button button--secondary"
+            <Button
+              type="default"
+              danger
               onClick={onDeleteSelectedWorks}
-              disabled={isDeleting || selectedWorkKeys.size === 0}
+              loading={isDeleting}
+              disabled={selectedWorkKeys.size === 0}
             >
               {isDeleting ? t("profile.manageDeleting") : t("profile.manageDelete")}
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -91,7 +96,9 @@ export function WorkGrid({
           ))}
         </div>
       ) : (
-        <div className="works-section__empty">{t("profile.empty")}</div>
+        <div className="works-section__empty">
+          <Empty description={t("profile.empty")} />
+        </div>
       )}
     </section>
   );

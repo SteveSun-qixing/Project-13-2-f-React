@@ -14,10 +14,10 @@
   width: 44px;
   height: 44px;
   border-radius: 999px;
-  border: 3px solid color-mix(in srgb, var(--ccps-sys-border-strong) 72%, transparent);
-  border-top-color: var(--ccps-sys-accent);
-  border-right-color: color-mix(in srgb, var(--ccps-sys-accent-strong) 68%, white 32%);
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--ccps-sys-accent) 18%, transparent);
+  border: 3px solid color-mix(in srgb, rgba(0,0,0,0.16) 72%, transparent);
+  border-top-color: #0a84ff;
+  border-right-color: color-mix(in srgb, #4da6ff 68%, white 32%);
+  box-shadow: 0 12px 28px color-mix(in srgb, #0a84ff 18%, transparent);
   animation: detail-spin 0.82s linear infinite;
 }
 
@@ -39,7 +39,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  color: var(--ccps-sys-text-soft);
+  color: #86868b;
 }
 
 .detail-actions {
@@ -75,12 +75,12 @@
 
 .detail-list dt {
   font-size: 13px;
-  color: var(--ccps-sys-text-soft);
+  color: #86868b;
 }
 
 .detail-list dd {
   margin: 0;
-  color: var(--ccps-sys-text);
+  color: #1d1d1f;
 }
 
 .reference-list {
@@ -95,7 +95,7 @@
   gap: 16px;
   padding: 18px;
   border-radius: 22px;
-  border: 1px solid var(--ccps-sys-border);
+  border: 1px solid rgba(0,0,0,0.08);
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -105,7 +105,7 @@
 }
 
 .reference-card__copy span {
-  color: var(--ccps-sys-text-soft);
+  color: #86868b;
   word-break: break-word;
 }
 
@@ -121,7 +121,7 @@
   display: grid;
   place-items: center;
   text-align: center;
-  color: var(--ccps-sys-text-muted);
+  color: #6e6e73;
 }
 
 @keyframes detail-spin {

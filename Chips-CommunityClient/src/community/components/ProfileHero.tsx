@@ -1,7 +1,8 @@
+import { Button } from "antd";
+import { LogoutOutlined, SettingOutlined } from "@ant-design/icons";
 import type { PublicUserProfile } from "../api/auth";
 import { useAppPreferences } from "../contexts/PreferencesContext";
 import { getInitial } from "../lib/ui";
-import { Icon } from "../runtime/icons/Icon";
 
 interface ProfileHeroProps {
   user: PublicUserProfile;
@@ -30,24 +31,14 @@ export function ProfileHero({ user, isOwner, onOpenSettings, onLogout }: Profile
         <div className={`profile-hero__content${isOwner ? " profile-hero__content--owner" : ""}`}>
           {isOwner ? (
             <div className="profile-hero__toolbar">
-              <button
-                type="button"
-                className="button button--secondary profile-hero__settings"
-                onClick={onOpenSettings}
-                aria-label={t("profile.settingsOpen")}
-              >
-                <Icon name="settings" />
+              <Button onClick={onOpenSettings} aria-label={t("profile.settingsOpen")}>
+                <SettingOutlined />
                 <span>{t("profile.settingsOpen")}</span>
-              </button>
-              <button
-                type="button"
-                className="button button--ghost profile-hero__logout"
-                onClick={onLogout}
-                aria-label={t("common.logout")}
-              >
-                <Icon name="logout" />
+              </Button>
+              <Button type="text" onClick={onLogout} aria-label={t("common.logout")}>
+                <LogoutOutlined />
                 <span>{t("common.logout")}</span>
-              </button>
+              </Button>
             </div>
           ) : null}
           <h1>{displayName}</h1>

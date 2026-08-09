@@ -22,7 +22,7 @@ npm run build
 npm run package
 
 # 在真实 Host 中启动客户端（需先安装启用社区传输模块与卡片查看器）
-chipsdev run
+chipsdev-r run
 ```
 
 启动后请在客户端设置页（`/settings`）确认社区服务器地址：本地联调使用 `http://127.0.0.1:3000`，生产使用 `https://www.chipscard.space`。
@@ -39,7 +39,7 @@ chipsdev run
 - `npm run quality:gate`：生成生态质量门禁摘要，报告写入 `reports/quality/quality-gate.json`。
 - `npm run verify`：串联执行完整本地验证总门禁。
 
-`reports/` 是本地验证产物目录，默认不纳入版本管理。真实 Host 窗口联调使用 `chipsdev run`。
+`reports/` 是本地验证产物目录，默认不纳入版本管理。真实 Host 窗口联调使用 `chipsdev-r run`。
 
 ## 命令行入口
 
@@ -59,22 +59,22 @@ Chips-CommunityClient/
 ├─ chips.config.mjs
 ├─ index.html             入口页与 CSP（connect-src 放行社区服务器来源）
 ├─ config/                应用配置与日志
-├─ i18n/                  zh-CN / en-US 文案资源
 ├─ src/
-│  ├─ app/                AppProviders / AppRuntimeProvider / AppShell（路由外壳）
-│  ├─ commands/           命令注册与事件订阅
+│  ├─ app/                AppRoot / AppShell（AppChrome + 路由外壳）
+│  ├─ commands/           本地命令定义与注册（CommandItem + useCommandRegistry）
 │  ├─ community/
 │  │  ├─ api/             社区 API 客户端（认证 / 内容 / 房间）
 │  │  ├─ contexts/        AuthContext / PreferencesContext
 │  │  ├─ lib/             传输服务、服务器配置、工具函数
 │  │  ├─ pages/           移植页面与客户端专属页面
 │  │  ├─ components/      顶部导航、页脚、作品网格等
-│  │  └─ styles/          全局样式（网页版 token 系统移植）
-│  ├─ i18n/               localeBundles 与文本解析
+│  │  └─ styles/          全局样式（布局与私有样式）
+│  ├─ lib/                中文文案表（messages.ts）
 │  ├─ runtime/            chipsClient 单例、社区运行时绑定
 │  ├─ preview/            预览 smoke 脚本
 │  └─ testing/            测试辅助
 ├─ tests/                 unit / e2e
+├─ 归档/                  旧多语言 / 主题 / 运行时代码归档
 └─ 技术文档/               客户端技术文档
 ```
 
@@ -84,8 +84,8 @@ Chips-CommunityClient/
 - 系统能力统一通过 `chips-sdk` client 单例消费，不直接访问 Electron / Node 私有 API。
 - 会话凭据：`refreshToken` 存 Host credential（ref `community.refreshToken`），`accessToken` 仅存内存，401 自动刷新。
 - 卡片传输统一走 `community.card.transfer` 模块，客户端不自建上传下载协议。
-- 用户可见文案统一维护在 `i18n/*.json`，渲染期经多语言系统解析。
-- 视觉表达走社区 token 系统（`--ccps-*`）与组件库主题基线，不写硬编码颜色。
+- 用户可见文案统一维护在 `src/lib/messages.ts`（简体中文直写，全生态仅中文）。
+- 视觉走 `@chips/ui` 的 `appleTheme` 与 antd 组件体系；私有样式只保留页面布局与装饰。
 
 ## 相关文档
 
