@@ -1,0 +1,137 @@
+{
+  "app": {
+    "title": "Rich Text Editor",
+    "documentUntitled": "Untitled Document",
+    "statusOpening": "Opening…",
+    "statusSaved": "Saved",
+    "statusSaving": "Saving…",
+    "statusUnsaved": "Unsaved",
+    "statusError": "Save Failed",
+    "storageInline": "Inline Body",
+    "storageFile": "Markdown File",
+    "autosaveReady": "Autosave is active",
+    "autosavePending": "There are pending changes",
+    "autosaveUnavailable": "No saved path is bound yet",
+    "saveSuccess": "Card file saved to {path}",
+    "saveCancelled": "Save cancelled",
+    "saveFailed": "Failed to save the card file",
+    "cardStructureInvalid": "The current content does not match the card file structure, so saving was blocked.",
+    "openFailed": "Failed to open the card file",
+    "newDocumentReady": "A new rich text card draft is ready",
+    "editorLoading": "Loading the rich text base card editor…",
+    "editorReady": "Editor ready",
+    "editorError": "Failed to mount the rich text base card editor",
+    "unsupportedFile": "This file is not a composite card that contains exactly one rich text base card, so it cannot be edited here.",
+    "unsupportedPath": "Please choose a .card file.",
+    "discardPromptTitle": "Discard current changes?",
+    "discardPromptMessage": "The current document has unsaved changes. Continuing will discard them.",
+    "dialogOpenTitle": "Open composite card file",
+    "dialogSaveTitle": "Save composite card file",
+    "importUnavailable": "This document is not bound to a saved file yet. Longer Markdown content will be written into a formal resource file after the first save.",
+    "resourceUnavailable": "This resource is not in the formal work directory yet. Saving will finalize it.",
+    "launchOpenRecovered": "Recovered the target card from launch context",
+    "initialDraftTitle": "Start writing",
+    "filePathEmpty": "Not saved to a file yet",
+    "commandRegistrationFailed": "Command registration failed: {code}",
+    "editorCommandOwned": "This editing command is handled by the rich text base card editor.",
+    "menuButtonLabel": "Open the action menu",
+    "menuGroupFile": "File",
+    "menuGroupInfo": "Info",
+    "menuGroupView": "View",
+    "menuGroupEdit": "Edit",
+    "menuGroupFormat": "Format",
+    "menuActionNew": "New",
+    "menuActionOpen": "Open",
+    "menuActionSave": "Save",
+    "menuActionSaveAs": "Save As",
+    "menuActionInfo": "Current Info",
+    "commands": {
+      "new": {
+        "title": "New",
+        "description": "Create a new rich text card draft.",
+        "ariaLabel": "Create a new rich text card"
+      },
+      "open": {
+        "title": "Open",
+        "description": "Open an existing .card rich text card file.",
+        "ariaLabel": "Open a rich text card file"
+      },
+      "save": {
+        "title": "Save",
+        "description": "Save the current rich text card file.",
+        "ariaLabel": "Save the current rich text card"
+      },
+      "saveAs": {
+        "title": "Save As",
+        "description": "Choose a path and save a copy of the current rich text card.",
+        "ariaLabel": "Save the current rich text card as"
+      },
+      "export": {
+        "title": "Export",
+        "description": "Export the current composite card file.",
+        "ariaLabel": "Export the current composite card"
+      },
+      "preview": {
+        "title": "Preview",
+        "description": "Open the saved card file with the system default handler.",
+        "ariaLabel": "Preview the saved card"
+      },
+      "info": {
+        "title": "Current Info",
+        "description": "View the current composite card, body, and runtime information.",
+        "ariaLabel": "View current document info"
+      },
+      "undo": {
+        "title": "Undo",
+        "description": "Undo the previous editor input operation.",
+        "ariaLabel": "Undo input"
+      },
+      "redo": {
+        "title": "Redo",
+        "description": "Redo an editor input operation.",
+        "ariaLabel": "Redo input"
+      },
+      "find": {
+        "title": "Find",
+        "description": "Find text inside the editor body.",
+        "ariaLabel": "Find body text"
+      },
+      "format": {
+        "title": "Format",
+        "description": "Open rich text format actions inside the editor.",
+        "ariaLabel": "Open format actions"
+      },
+      "disabled": {
+        "needsSavedFile": "Save the current card file first",
+        "editorOwned": "Handled inside the rich text editor"
+      }
+    },
+    "infoDialogTitle": "Current Document Info",
+    "infoDialogDescription": "Shows the current composite card, rich text body, and runtime status.",
+    "infoClose": "Close",
+    "infoSectionCard": "Current Card",
+    "infoSectionRichText": "Rich Text",
+    "infoSectionRuntime": "Runtime",
+    "infoFieldTitle": "Title",
+    "infoFieldPath": "File Path",
+    "infoFieldCardId": "Card ID",
+    "infoFieldBaseCardId": "Base Card ID",
+    "infoFieldCreatedAt": "Created At",
+    "infoFieldModifiedAt": "Modified At",
+    "infoFieldContentFormat": "Content Format",
+    "infoFieldContentSource": "Storage Mode",
+    "infoFieldContentFile": "Content Resource",
+    "infoFieldLocale": "Content Locale",
+    "infoFieldTheme": "Content Theme",
+    "infoFieldResourceCount": "Resource Count",
+    "infoFieldSaveStatus": "Save Status",
+    "infoFieldEditorStatus": "Editor Status",
+    "infoFieldAutosave": "Autosave",
+    "infoFieldThemePack": "Current Theme",
+    "infoFieldLastSavedAt": "Last Saved",
+    "infoFollowHostTheme": "Follow host theme",
+    "infoNone": "None",
+    "infoNotSavedYet": "Not saved yet",
+    "infoUnknown": "Unknown"
+  }
+}

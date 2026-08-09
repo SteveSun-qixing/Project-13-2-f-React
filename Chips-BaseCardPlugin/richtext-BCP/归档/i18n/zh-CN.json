@@ -1,0 +1,22 @@
+{
+  "basecard.toolbar.bold": "加粗",
+  "basecard.toolbar.italic": "斜体",
+  "basecard.toolbar.code": "行内代码",
+  "basecard.toolbar.block": "段落样式",
+  "basecard.toolbar.orderedList": "有序列表",
+  "basecard.toolbar.unorderedList": "无序列表",
+  "basecard.toolbar.blockquote": "引用",
+  "basecard.toolbar.clear": "清除格式",
+  "basecard.toolbar.link": "链接",
+  "basecard.toolbar.divider": "分隔线",
+  "basecard.block.paragraph": "正文",
+  "basecard.block.h1": "标题 1",
+  "basecard.block.h2": "标题 2",
+  "basecard.block.h3": "标题 3",
+  "basecard.prompt.linkUrl": "输入链接地址",
+  "basecard.validation.bodyRequired": "内容不能为空。",
+  "basecard.validation.importUnavailable": "当前宿主未提供 Markdown 文件保存能力。",
+  "basecard.status.loading": "正在加载富文本内容…",
+  "basecard.status.loadFailed": "富文本内容加载失败",
+  "basecard.status.renderFailed": "富文本内容渲染失败"
+}

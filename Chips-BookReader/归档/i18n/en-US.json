@@ -1,0 +1,232 @@
+{
+  "book-reader": {
+    "labels": {
+      "appName": "Book Reader",
+      "contents": "Contents",
+      "preferences": "Reading Preferences",
+      "progress": "Reading Progress",
+      "bookmarks": "Bookmarks",
+      "search": "Search",
+      "importBook": "Import Ebook",
+      "readingMode": "Reading Mode",
+      "backgroundTone": "Background",
+      "paginated": "Pages",
+      "scroll": "Scroll",
+      "backgroundTheme": "Theme",
+      "backgroundWarm": "Warm",
+      "backgroundMist": "Mist",
+      "backgroundNight": "Night",
+      "fontScale": "Font Size",
+      "contentWidth": "Page Width",
+      "fontFamily": "Type Style",
+      "serif": "Serif",
+      "sans": "Sans",
+      "supportedFormat": "Supported Format"
+    },
+    "actions": {
+      "openFile": "Open Book",
+      "openUrl": "Open URL",
+      "openLibrary": "Import Book",
+      "openPreferences": "Open Preferences",
+      "openBookmarks": "Open Bookmarks",
+      "closePanel": "Close Panel",
+      "toggleToc": "Toggle Contents",
+      "toggleSearch": "Search",
+      "search": "Search Book",
+      "clearSearch": "Clear Search",
+      "previousPage": "Previous Page",
+      "nextPage": "Next Page",
+      "previousSection": "Previous Section",
+      "nextSection": "Next Section",
+      "decreaseFont": "Smaller Text",
+      "increaseFont": "Larger Text",
+      "narrowContent": "Narrow Page",
+      "widenContent": "Widen Page",
+      "addBookmark": "Add Bookmark",
+      "removeBookmark": "Remove Bookmark",
+      "toggleBookmark": "Toggle Bookmark"
+    },
+    "dialogs": {
+      "openFileTitle": "Choose an Ebook"
+    },
+    "empty": {
+      "badge": "Book Reader",
+      "prompt": "Drop in an ebook or click to import",
+      "title": "Drop in a book and start reading right away",
+      "description": "Supports local ebook files, books launched by Host resource routing, and direct remote ebook links.",
+      "dropHint": "You can also drag and drop an ebook into this window",
+      "supportedFormat": "The reader formally renders EPUB / EPUB3 / PDF / TXT / Markdown / FB2 / RTF and recognizes MOBI / AZW / AZW3 / DJVU / DOC / DOCX launch targets with explicit decoder errors."
+    },
+    "errors": {
+      "missingTarget": "No ebook target is available to open.",
+      "unsupportedFile": "This reader recognizes: {extensions}",
+      "openFailed": "Failed to open the ebook. Check whether the file is valid or the link is reachable.",
+      "renderFailed": "Failed to render the current section. Try switching sections and reopening the book.",
+      "invalidUrl": "Enter a reachable ebook URL."
+    },
+    "status": {
+      "loading": "Preparing reading content..."
+    },
+    "placeholders": {
+      "remoteUrl": "Paste an ebook URL, for example https://example.com/book.epub",
+      "search": "Search book content..."
+    },
+    "reader": {
+      "sectionPosition": "Section {current} / {total}",
+      "pagePosition": "Page {current} / {total}",
+      "bookProgress": "{percentage}% complete",
+      "unknownCreator": "Unknown Author",
+      "localSource": "Local File",
+      "remoteSource": "Remote Link"
+    },
+    "search": {
+      "results": "{count} result(s) found",
+      "noResults": "No matches found",
+      "searching": "Searching section {current} / {total}...",
+      "matchesInSection": "{count} match(es)",
+      "resultLabel": "Search result: {section}, {excerpt}"
+    },
+    "bookmarks": {
+      "empty": "No bookmarks yet",
+      "count": "{count} bookmark(s)",
+      "pageLabel": "Page {page}",
+      "scrollLabel": "At {percentage}%",
+      "untitledSection": "Untitled Section",
+      "openLabel": "Open bookmark: {section}, {position}, created at {createdAt}",
+      "removeLabel": "Remove bookmark: {section}, {position}"
+    },
+    "feedback": {
+      "bookmarkAdded": "Bookmark added",
+      "bookmarkRemoved": "Bookmark removed"
+    },
+    "commands": {
+      "menu": {
+        "ariaLabel": "Book Reader menu",
+        "file": "File",
+        "edit": "Edit",
+        "view": "View",
+        "navigate": "Navigate",
+        "bookmarks": "Bookmarks"
+      },
+      "toolbar": {
+        "ariaLabel": "Reader toolbar"
+      },
+      "palette": {
+        "ariaLabel": "Book Reader command palette",
+        "placeholder": "Search reader commands..."
+      },
+      "disabled": {
+        "busy": "The reader is preparing a book.",
+        "noBook": "Open a book first.",
+        "noPanel": "No panel is currently open.",
+        "noPreviousSection": "Already at the first section.",
+        "noNextSection": "Already at the last section."
+      },
+      "openSourcePanel": {
+        "title": "Import or Open Book",
+        "description": "Open the book source panel.",
+        "ariaLabel": "Open the book source panel"
+      },
+      "openFile": {
+        "title": "Open Local Ebook",
+        "description": "Choose an ebook from the local file system.",
+        "ariaLabel": "Open a local ebook"
+      },
+      "openUrl": {
+        "title": "Open Ebook URL",
+        "description": "Load an ebook from a remote URL.",
+        "ariaLabel": "Open an ebook URL"
+      },
+      "toggleContents": {
+        "title": "Toggle Contents",
+        "description": "Open or close the contents panel.",
+        "ariaLabel": "Toggle contents panel"
+      },
+      "toggleSearch": {
+        "title": "Search Book",
+        "description": "Open or close full text search.",
+        "ariaLabel": "Search book content"
+      },
+      "toggleBookmarks": {
+        "title": "Open Bookmarks",
+        "description": "Open or close the bookmarks panel.",
+        "ariaLabel": "Open bookmarks panel"
+      },
+      "togglePreferences": {
+        "title": "Reading Preferences",
+        "description": "Open or close reading preferences.",
+        "ariaLabel": "Open reading preferences"
+      },
+      "closePanel": {
+        "title": "Close Current Panel",
+        "description": "Close the current reader panel.",
+        "ariaLabel": "Close current panel"
+      },
+      "previousPage": {
+        "title": "Previous Page",
+        "description": "Move to the previous page or reading position.",
+        "ariaLabel": "Previous page"
+      },
+      "nextPage": {
+        "title": "Next Page",
+        "description": "Move to the next page or reading position.",
+        "ariaLabel": "Next page"
+      },
+      "previousSection": {
+        "title": "Previous Section",
+        "description": "Jump to the previous section.",
+        "ariaLabel": "Previous section"
+      },
+      "nextSection": {
+        "title": "Next Section",
+        "description": "Jump to the next section.",
+        "ariaLabel": "Next section"
+      },
+      "goSectionStart": {
+        "title": "Section Start",
+        "description": "Jump to the start of the current section.",
+        "ariaLabel": "Jump to section start"
+      },
+      "goSectionEnd": {
+        "title": "Section End",
+        "description": "Jump to the end of the current section.",
+        "ariaLabel": "Jump to section end"
+      },
+      "decreaseFont": {
+        "title": "Decrease Font Size",
+        "description": "Decrease reading font size.",
+        "ariaLabel": "Decrease font size"
+      },
+      "increaseFont": {
+        "title": "Increase Font Size",
+        "description": "Increase reading font size.",
+        "ariaLabel": "Increase font size"
+      },
+      "narrowContent": {
+        "title": "Narrow Page Width",
+        "description": "Decrease the reading content width.",
+        "ariaLabel": "Narrow page width"
+      },
+      "widenContent": {
+        "title": "Widen Page Width",
+        "description": "Increase the reading content width.",
+        "ariaLabel": "Widen page width"
+      },
+      "toggleBookmark": {
+        "title": "Toggle Current Bookmark",
+        "description": "Add or remove a bookmark at the current position.",
+        "ariaLabel": "Toggle current bookmark"
+      },
+      "readingModePaginated": {
+        "title": "Paginated Reading",
+        "description": "Switch to paginated reading mode.",
+        "ariaLabel": "Switch to paginated reading"
+      },
+      "readingModeScroll": {
+        "title": "Scroll Reading",
+        "description": "Switch to scroll reading mode.",
+        "ariaLabel": "Switch to scroll reading"
+      }
+    }
+  }
+}

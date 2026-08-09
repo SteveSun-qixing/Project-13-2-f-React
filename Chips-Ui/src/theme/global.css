@@ -1,0 +1,365 @@
+/* ============================================================
+ * 薯片生态全局基础样式（苹果风格）
+ * 唯一管理位置：@chips/ui/global.css（经 @chips/ui 入口副作用导入）
+ * 任何插件禁止覆盖本文件中的基础样式。
+ * ============================================================ */
+
+html,
+body {
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC",
+    "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(10, 132, 255, 0.25);
+}
+
+/* ---------- 滚动条：macOS 悬浮细滚动条 ---------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.32);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ---------- 输入类控件：macOS 浅灰底 ----------
+ * antd v6 的 Input/TextArea/InputNumber 背景经 appleTheme 已置为 #f2f2f7；
+ * 此处兜底未走 token 的变体类（affix 前缀、密码框等）。 */
+.ant-input-affix-wrapper {
+  background: #f2f2f7 !important;
+}
+
+.ant-input-affix-wrapper:focus-within {
+  background: #ffffff !important;
+}
+
+/* ---------- 毛玻璃工具类 ---------- */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+.glass-dark {
+  background: rgba(58, 58, 60, 0.72);
+  color: #ffffff;
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* ---------- macOS 风格工具类 ---------- */
+
+/* 侧边栏：浅灰底、无边框、半透明 */
+.apple-sidebar {
+  background: rgba(245, 245, 247, 0.9);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* 工具栏：无边框、浅灰底 */
+.apple-toolbar {
+  background: #f5f5f7;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* 卡片浮起：hover 微升 + 加深阴影 */
+.apple-card {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.apple-card:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.10);
+  transform: translateY(-1px);
+}
+
+/* 标题栏（Electron 无边框窗口拖拽区） */
+.apple-titlebar {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.apple-titlebar button,
+.apple-titlebar [role="button"],
+.apple-titlebar a {
+  -webkit-app-region: no-drag;
+}
+
+/* 聚焦环（配合键盘导航） */
+:focus-visible {
+  outline: 2px solid rgba(10, 132, 255, 0.6);
+  outline-offset: 2px;
+}
+
+/* ---------- 全局过渡动效 ---------- */
+button,
+a,
+.ant-btn,
+.ant-input,
+.ant-select,
+.ant-switch,
+.ant-checkbox,
+.ant-radio,
+.ant-segmented-item,
+.ant-menu-item,
+.ant-tabs-tab,
+.ant-dropdown-menu-item,
+.ant-list-item {
+  transition-property: background-color, border-color, color, box-shadow, opacity, transform;
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* 命令面板列表项 hover */
+.command-palette-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.command-palette-item:active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.command-palette-shortcut {
+  font-size: 12px;
+  color: #86868b;
+  font-family: -apple-system, "SF Pro Text", "PingFang SC", sans-serif;
+}
+
+/* ============================================================
+ * Cupertino 风格体系（iOS/macOS 原生质感）
+ * ============================================================ */
+
+/* ---------- iOS 分组列表（Settings 风格） ---------- */
+.ios-grouped-list {
+  background: #ffffff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ios-grouped-list + .ios-grouped-list {
+  margin-top: 20px;
+}
+
+.ios-grouped-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 16px;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-size: 15px;
+  color: #1d1d1f;
+  cursor: pointer;
+  transition: background-color 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.ios-grouped-list__row + .ios-grouped-list__row {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ios-grouped-list__row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.ios-grouped-list__row:active {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.ios-grouped-list__row--separated {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ios-grouped-list__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  color: #1d1d1f;
+}
+
+.ios-grouped-list__value {
+  font-size: 15px;
+  color: #8e8e93;
+  white-space: nowrap;
+}
+
+.ios-grouped-list__group-title {
+  font-size: 13px;
+  color: #6e6e73;
+  margin: 20px 0 6px;
+  padding: 0 16px;
+}
+
+.ios-grouped-list__group-title:first-child {
+  margin-top: 0;
+}
+
+/* ---------- iOS 大标题（Large Title） ---------- */
+.ios-large-title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: #1d1d1f;
+  line-height: 1.1;
+}
+
+.ios-title-2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: #1d1d1f;
+}
+
+.ios-title-3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.ios-headline {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.ios-subheadline {
+  font-size: 15px;
+  color: #6e6e73;
+}
+
+.ios-footnote {
+  font-size: 13px;
+  color: #6e6e73;
+}
+
+.ios-caption {
+  font-size: 12px;
+  color: #8e8e93;
+}
+
+/* ---------- iOS 胶囊搜索框 ---------- */
+.ios-search-field {
+  height: 36px;
+  border-radius: 999px;
+  background: #e5e5ea;
+  border: none;
+  padding: 0 16px;
+  font-size: 15px;
+  color: #1d1d1f;
+  outline: none;
+  width: 100%;
+  transition: background-color 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.ios-search-field::placeholder {
+  color: #8e8e93;
+}
+
+.ios-search-field:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
+}
+
+/* ---------- 图标色块（SF Symbols 风格） ---------- */
+.icon-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.icon-swatch--sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+/* ---------- 表格选中行（macOS 高亮条） ---------- */
+.ant-table-tbody > tr.ant-table-row-selected > td {
+  background: transparent !important;
+}
+
+.ant-table-tbody > tr.ant-table-row-selected > td:first-child {
+  box-shadow: inset 3px 0 0 #0a84ff;
+}
+
+.ant-table-tbody > tr.ant-table-row-selected > td {
+  background: rgba(10, 132, 255, 0.08) !important;
+}
+
+/* ---------- iOS 弹层毛玻璃 ---------- */
+.ant-modal-content,
+.ant-dropdown-menu,
+.ant-popover-inner,
+.ant-notification-notice {
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* ---------- 卡片 hover 微交互 ---------- */
+.ant-card {
+  transition: box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- 按钮按压缩放（iOS 触感） ---------- */
+.ant-btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.ant-btn:not(:disabled) {
+  transition: background-color 0.2s cubic-bezier(0.25, 0.1, 0.25, 1),
+    transform 0.1s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* 减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

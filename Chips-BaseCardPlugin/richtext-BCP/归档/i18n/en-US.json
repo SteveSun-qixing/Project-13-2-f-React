@@ -1,0 +1,22 @@
+{
+  "basecard.toolbar.bold": "Bold",
+  "basecard.toolbar.italic": "Italic",
+  "basecard.toolbar.code": "Inline code",
+  "basecard.toolbar.block": "Block style",
+  "basecard.toolbar.orderedList": "Ordered list",
+  "basecard.toolbar.unorderedList": "Bullet list",
+  "basecard.toolbar.blockquote": "Blockquote",
+  "basecard.toolbar.clear": "Clear format",
+  "basecard.toolbar.link": "Link",
+  "basecard.toolbar.divider": "Divider",
+  "basecard.block.paragraph": "Paragraph",
+  "basecard.block.h1": "Heading 1",
+  "basecard.block.h2": "Heading 2",
+  "basecard.block.h3": "Heading 3",
+  "basecard.prompt.linkUrl": "Enter link URL",
+  "basecard.validation.bodyRequired": "Content is required.",
+  "basecard.validation.importUnavailable": "The current host cannot persist Markdown files.",
+  "basecard.status.loading": "Loading rich text content…",
+  "basecard.status.loadFailed": "Failed to load rich text content",
+  "basecard.status.renderFailed": "Failed to render rich text content"
+}
