@@ -9,13 +9,6 @@ const selectBox = vi.fn();
 const onFocus = vi.fn();
 const onUpdateConfig = vi.fn();
 
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-    locale: 'zh-CN',
-  }),
-}));
-
 vi.mock('../../src/context/EditorSelectionContext', () => ({
   useEditorSelection: () => ({
     selectBox,

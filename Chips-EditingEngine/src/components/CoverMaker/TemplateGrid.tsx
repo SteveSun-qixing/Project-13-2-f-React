@@ -1,7 +1,6 @@
 import React from 'react';
 import type { CoverTemplate, TemplateStyle } from './types';
 import { templates } from './templates/index';
-import { useTranslation } from '../../hooks/useTranslation';
 import './TemplateGrid.css';
 
 interface TemplateGridProps {
@@ -10,8 +9,6 @@ interface TemplateGridProps {
 }
 
 export function TemplateGrid({ value, onChange }: TemplateGridProps) {
-  const { t } = useTranslation();
-
   const isSelected = (templateId: TemplateStyle) => {
     return value === templateId;
   };
@@ -52,8 +49,8 @@ export function TemplateGrid({ value, onChange }: TemplateGridProps) {
             <span className="template-grid__preview-text">Aa</span>
           </div>
           <div className="template-grid__info">
-            <span className="template-grid__name">{t(template.name) || template.name}</span>
-            <span className="template-grid__description">{t(template.description) || template.description}</span>
+            <span className="template-grid__name">{template.name}</span>
+            <span className="template-grid__description">{template.description}</span>
           </div>
         </button>
       ))}

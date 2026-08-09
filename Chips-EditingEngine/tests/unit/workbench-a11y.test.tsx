@@ -7,12 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MainArea } from '../../src/layouts/Workbench/MainArea';
 import { SidePanel } from '../../src/layouts/Workbench/SidePanel';
 
-vi.mock('@chips/component-library', () => ({
-  ChipsIcon: ({ descriptor, className }: { descriptor: { name: string }; className?: string }) => (
-    <span className={className} data-icon-name={descriptor.name} />
-  ),
-}));
-
 describe('Workbench a11y controls', () => {
   let container: HTMLDivElement;
   let root: Root;

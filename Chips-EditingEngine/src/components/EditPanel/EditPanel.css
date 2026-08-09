@@ -7,7 +7,7 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
-  background: var(--chips-color-surface, #ffffff);
+  background: #ffffff;
   overflow: hidden;
 }
 
@@ -27,19 +27,19 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--chips-spacing-xl, 32px);
+  padding: 32px;
   text-align: center;
 }
 
 .edit-panel__empty-icon {
   font-size: 48px;
-  margin-bottom: var(--chips-spacing-md, 12px);
+  margin-bottom: 12px;
   opacity: 0.5;
 }
 
 .edit-panel__empty-text {
-  font-size: var(--chips-font-size-sm, 14px);
-  color: var(--chips-color-text-secondary, #666666);
+  font-size: 14px;
+  color: #6e6e73;
   margin: 0;
   line-height: 1.5;
 }

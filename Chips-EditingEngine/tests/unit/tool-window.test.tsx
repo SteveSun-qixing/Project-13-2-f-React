@@ -12,12 +12,6 @@ const uiMock = vi.hoisted(() => ({
   bringToFront: vi.fn(),
 }));
 
-vi.mock('@chips/component-library', () => ({
-  ChipsIcon: ({ descriptor, className }: { descriptor: { name: string }; className?: string }) => (
-    <span className={className} data-icon-name={descriptor.name} />
-  ),
-}));
-
 vi.mock('../../src/context/UIContext', () => ({
   useUI: () => uiMock,
 }));
@@ -77,7 +71,7 @@ describe('ToolWindow', () => {
       );
     });
 
-    const icon = container.querySelector('[data-icon-name="folder"]');
+    const icon = container.querySelector('.tool-window__icon svg');
     expect(icon).not.toBeNull();
     expect(container.textContent).toContain('文件管理器');
     expect(container.querySelector('[data-testid="tool-component"]')).not.toBeNull();

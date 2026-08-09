@@ -89,11 +89,6 @@ vi.mock('../../src/basecard-runtime/registry', () => ({
   subscribeBasecardRegistry: () => () => undefined,
 }));
 
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
 
 vi.mock('../../src/services/file-service', () => ({
   fileService: {

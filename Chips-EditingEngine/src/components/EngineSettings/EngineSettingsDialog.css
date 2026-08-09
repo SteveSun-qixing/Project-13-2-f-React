@@ -19,12 +19,9 @@
     height: 600px;
     max-width: 90vw;
     max-height: 85vh;
-    background: var(--chips-color-surface, #ffffff);
-    border-radius: var(--chips-radius-lg, 12px);
-    box-shadow: var(
-      --chips-shadow-xl,
-      0 20px 25px -5px rgb(0 0 0 / 0.1)
-    );
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -49,15 +46,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--chips-spacing-md, 16px) var(--chips-spacing-lg, 24px);
-    border-bottom: 1px solid var(--chips-color-border, #e5e7eb);
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
     flex-shrink: 0;
   }
   
   .engine-settings-dialog__title {
-    font-size: var(--chips-font-size-lg, 18px);
-    font-weight: var(--chips-font-weight-bold, 600);
-    color: var(--chips-color-text, #111827);
+    font-size: 18px;
+    font-weight: 600;
+    color: #1d1d1f;
     margin: 0;
     line-height: 1.4;
   }
@@ -67,25 +64,21 @@
     height: 32px;
     border: none;
     background: transparent;
-    border-radius: var(--chips-radius-md, 8px);
+    border-radius: 8px;
     cursor: pointer;
     font-size: 16px;
-    color: var(--chips-color-text-secondary, #6b7280);
+    color: #6e6e73;
     display: flex;
     align-items: center;
     justify-content: center;
     transition:
-      background-color var(--chips-duration-fast, 100ms) ease,
-      color var(--chips-duration-fast, 100ms) ease;
+      background-color 100ms ease,
+      color 100ms ease;
   }
   
   .engine-settings-dialog__close-btn:hover {
-    background: color-mix(
-      in srgb,
-      var(--chips-color-text, #111827) 6%,
-      transparent
-    );
-    color: var(--chips-color-text, #111827);
+    background: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
   }
   
   /* ============================================================
@@ -102,70 +95,58 @@
   .engine-settings-dialog__nav {
     width: 200px;
     flex-shrink: 0;
-    border-right: 1px solid var(--chips-color-border, #e5e7eb);
-    padding: var(--chips-spacing-sm, 8px);
+    border-right: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 8px;
     display: flex;
     flex-direction: column;
     gap: 2px;
     overflow-y: auto;
     background: color-mix(
       in srgb,
-      var(--chips-color-surface, #ffffff) 50%,
-      var(--chips-color-background, #fafafa)
+      #f5f5f7 50%,
+      #ffffff
     );
   }
   
   .engine-settings-dialog__nav-divider {
     height: 1px;
-    background: var(--chips-color-border, #e5e7eb);
-    margin: var(--chips-spacing-xs, 4px) var(--chips-spacing-sm, 8px);
+    background: rgba(0, 0, 0, 0.06);
+    margin: 4px 8px;
   }
   
   .engine-settings-dialog__nav-item {
     display: flex;
     align-items: center;
-    gap: var(--chips-spacing-sm, 8px);
+    gap: 8px;
     padding: 10px 12px;
     border: none;
-    border-radius: var(--chips-radius-md, 8px);
+    border-radius: 8px;
     background: transparent;
     cursor: pointer;
     font-family: inherit;
-    font-size: var(--chips-font-size-sm, 14px);
-    color: var(--chips-color-text-secondary, #6b7280);
+    font-size: 14px;
+    color: #6e6e73;
     text-align: left;
     width: 100%;
     transition:
-      background-color var(--chips-duration-fast, 100ms) ease,
-      color var(--chips-duration-fast, 100ms) ease;
+      background-color 100ms ease,
+      color 100ms ease;
   }
   
   .engine-settings-dialog__nav-item:hover {
-    background: color-mix(
-      in srgb,
-      var(--chips-color-text, #111827) 6%,
-      transparent
-    );
-    color: var(--chips-color-text, #111827);
+    background: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
   }
   
   .engine-settings-dialog__nav-item--active {
-    background: color-mix(
-      in srgb,
-      var(--chips-color-primary, #3b82f6) 10%,
-      transparent
-    );
-    color: var(--chips-color-primary, #3b82f6);
-    font-weight: var(--chips-font-weight-medium, 500);
+    background: rgba(10, 132, 255, 0.1);
+    color: #0a84ff;
+    font-weight: 500;
   }
   
   .engine-settings-dialog__nav-item--active:hover {
-    background: color-mix(
-      in srgb,
-      var(--chips-color-primary, #3b82f6) 15%,
-      transparent
-    );
-    color: var(--chips-color-primary, #3b82f6);
+    background: rgba(10, 132, 255, 0.15);
+    color: #0a84ff;
   }
   
   .engine-settings-dialog__nav-icon {
@@ -184,7 +165,7 @@
   .engine-settings-dialog__content {
     flex: 1;
     min-width: 0;
-    padding: var(--chips-spacing-lg, 24px);
+    padding: 24px;
     overflow-y: auto;
   }
   
@@ -193,7 +174,7 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: var(--chips-color-text-secondary, #6b7280);
+    color: #6e6e73;
   }
   
   /* 空状态 */
@@ -205,8 +186,8 @@
   }
   
   .engine-settings-dialog__empty-text {
-    font-size: var(--chips-font-size-sm, 14px);
-    color: var(--chips-color-text-secondary, #6b7280);
+    font-size: 14px;
+    color: #6e6e73;
   }
   
   /* ============================================================
@@ -215,9 +196,9 @@
   .engine-settings-dialog__footer {
     display: flex;
     align-items: center;
-    gap: var(--chips-spacing-md, 16px);
-    padding: var(--chips-spacing-md, 16px) var(--chips-spacing-lg, 24px);
-    border-top: 1px solid var(--chips-color-border, #e5e7eb);
+    gap: 16px;
+    padding: 16px 24px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
     flex-shrink: 0;
   }
   
@@ -226,13 +207,13 @@
   }
   
   .engine-settings-dialog__btn {
-    padding: 8px var(--chips-spacing-lg, 24px);
+    padding: 8px 24px;
     border: none;
-    border-radius: var(--chips-radius-md, 8px);
-    font-size: var(--chips-font-size-sm, 14px);
-    font-weight: var(--chips-font-weight-medium, 500);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
     transition:
-      background-color var(--chips-duration-fast, 100ms) ease,
-      color var(--chips-duration-fast, 100ms) ease;
+      background-color 100ms ease,
+      color 100ms ease;
   }

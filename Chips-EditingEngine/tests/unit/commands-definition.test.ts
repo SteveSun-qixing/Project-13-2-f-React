@@ -1,29 +1,46 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EDITING_ENGINE_COMMAND_HANDLER_IDS,
   EDITING_ENGINE_COMMAND_IDS,
-  createEditingEngineCommandViews,
-  editingEngineCommandDefinitions,
+  createEditingEngineCommands,
   isApplicationChromeCommand,
-  resolveEditingEngineCommandState,
+  isEditingEngineCommandId,
+  type EditingEngineCommandHandlers,
+  type EditingEngineCommandState,
 } from '../../src/commands/editing-engine-commands';
 import { appConfig } from '../../config/app-config';
-import type { EditingEngineCommandRuntimeState } from '../../src/commands/editing-engine-commands';
 
-const RAW_TEXT_FIELDS = ['title', 'description', 'label', 'ariaLabel'] as const;
-
-const readyRuntime: EditingEngineCommandRuntimeState = {
+const readyState: EditingEngineCommandState = {
   appReady: true,
   canUndo: true,
   canRedo: false,
-  undoBusy: false,
-  redoBusy: false,
   currentLayout: 'infinite-canvas',
-  themeId: 'chips-official.default-theme',
 };
 
+const idleState: EditingEngineCommandState = {
+  appReady: false,
+  canUndo: false,
+  canRedo: false,
+  currentLayout: 'workbench',
+};
+
+function createHandlers(): EditingEngineCommandHandlers {
+  return {
+    fileNewCard: () => undefined,
+    fileNewBox: () => undefined,
+    fileOpen: () => undefined,
+    fileRename: () => undefined,
+    fileDelete: () => undefined,
+    fileRefresh: () => undefined,
+    searchWorkspace: () => undefined,
+    editUndo: () => undefined,
+    editRedo: () => undefined,
+    viewToggleLayout: () => undefined,
+    settingsOpen: () => undefined,
+  };
+}
+
 describe('editing engine command definitions', () => {
-  it('uses stable app-scoped command ids and handler ids', () => {
+  it('uses stable app-scoped command ids and drops the removed theme toggle', () => {
     expect(EDITING_ENGINE_COMMAND_IDS).toMatchObject({
       fileNewCard: 'chips-official.editing-engine.file.new-card',
       fileNewBox: 'chips-official.editing-engine.file.new-box',
@@ -35,105 +52,87 @@ describe('editing engine command definitions', () => {
       editUndo: 'chips-official.editing-engine.edit.undo',
       editRedo: 'chips-official.editing-engine.edit.redo',
       viewToggleLayout: 'chips-official.editing-engine.view.toggle-layout',
-      viewToggleTheme: 'chips-official.editing-engine.view.toggle-theme',
       settingsOpen: 'chips-official.editing-engine.settings.open',
     });
 
-    expect(EDITING_ENGINE_COMMAND_HANDLER_IDS).toMatchObject({
-      fileNewCard: 'editing-engine:file.new-card',
-      fileNewBox: 'editing-engine:file.new-box',
-      fileOpen: 'editing-engine:file.open',
-      fileRename: 'editing-engine:file.rename',
-      fileDelete: 'editing-engine:file.delete',
-      fileRefresh: 'editing-engine:file.refresh',
-      searchWorkspace: 'editing-engine:search.workspace',
-      editUndo: 'editing-engine:edit.undo',
-      editRedo: 'editing-engine:edit.redo',
-      viewToggleLayout: 'editing-engine:view.toggle-layout',
-      viewToggleTheme: 'editing-engine:view.toggle-theme',
-      settingsOpen: 'editing-engine:settings.open',
-    });
+    expect(Object.values(EDITING_ENGINE_COMMAND_IDS)).not.toContain(
+      'chips-official.editing-engine.view.toggle-theme',
+    );
   });
 
-  it('keeps command metadata serializable and i18n-key driven', () => {
-    const commandIds = new Set<string>();
-    const handlerIds = new Set<string>();
+  it('keeps command metadata localized with stable ids and unique command items', () => {
+    const commands = createEditingEngineCommands(createHandlers(), readyState);
+    const ids = new Set<string>();
 
-    for (const definition of editingEngineCommandDefinitions) {
-      commandIds.add(definition.commandId);
-      handlerIds.add(definition.handlerId);
+    for (const command of commands) {
+      ids.add(command.id);
 
-      expect(definition.commandId.startsWith(`${appConfig.appId}.`)).toBe(true);
-      expect(definition.scope).toEqual({ kind: 'app', appId: appConfig.appId });
-      expect(definition.titleKey).toMatch(/^commands\./);
-      expect(definition.descriptionKey).toMatch(/^commands\./);
-      expect(definition.ariaLabelKey).toMatch(/^commands\./);
-      expect(definition.handlerId).toMatch(/^editing-engine:/);
-      expect(definition.icon?.name).toEqual(expect.any(String));
-      expect(definition.permission).toBeTruthy();
-
-      for (const field of RAW_TEXT_FIELDS) {
-        expect(definition).not.toHaveProperty(field);
-      }
+      expect(command.id.startsWith(`${appConfig.appId}.`)).toBe(true);
+      expect(typeof command.title).toBe('string');
+      expect(command.title.trim().length).toBeGreaterThan(0);
+      expect(command.group).toBeTruthy();
+      expect(command.menuId).toBeTruthy();
+      expect(command.enabled === undefined || typeof command.enabled === 'boolean').toBe(true);
+      expect(typeof command.run).toBe('function');
+      expect(isEditingEngineCommandId(command.id)).toBe(true);
+      expect(command).not.toHaveProperty('titleKey');
+      expect(command).not.toHaveProperty('permission');
     }
 
-    expect(commandIds.size).toBe(editingEngineCommandDefinitions.length);
-    expect(handlerIds.size).toBe(editingEngineCommandDefinitions.length);
+    expect(ids.size).toBe(commands.length);
   });
 
-  it('publishes menu, scoped toolbar and shortcut placements from the same definitions', () => {
-    const byId = new Map(editingEngineCommandDefinitions.map((definition) => [definition.commandId, definition]));
+  it('publishes menu, toolbar and shortcut placements from the same command items', () => {
+    const byId = new Map(createEditingEngineCommands(createHandlers(), readyState).map((command) => [command.id, command]));
 
-    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.menuPlacement).toEqual(
-      expect.arrayContaining([expect.objectContaining({ menuId: 'file', groupId: 'create', order: 10 })]),
-    );
-    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.toolbarPlacement).toEqual(
-      expect.arrayContaining([expect.objectContaining({ toolbarId: 'file-manager', groupId: 'create', order: 10 })]),
-    );
-    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.shortcut).toEqual(
-      expect.objectContaining({ accelerator: 'Mod+N', preventDefault: true }),
-    );
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.menuId).toBe('file');
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.toolbarId).toBe('workspace');
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.shortcut).toBe('Mod+N');
 
-    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileOpen)?.menuPlacement).toEqual(
-      expect.arrayContaining([expect.objectContaining({ menuId: 'workspace-file', groupId: 'open' })]),
-    );
-    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileOpen)?.toolbarPlacement).toBeUndefined();
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileOpen)?.menuId).toBe('workspace-file');
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileOpen)?.toolbarId).toBeUndefined();
 
-    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.viewToggleTheme)?.permission).toBe('theme.write');
-    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.editUndo)?.permission).toBe('command.invoke');
-
-    const workspaceToolbarCommands = editingEngineCommandDefinitions.filter((definition) =>
-      definition.toolbarPlacement?.some((placement) => placement.toolbarId === 'workspace'),
-    );
-    expect(workspaceToolbarCommands).toEqual([]);
+    const workspaceToolbarCommands = createEditingEngineCommands(createHandlers(), readyState)
+      .filter((command) => command.toolbarId === 'workspace')
+      .map((command) => command.id);
+    expect(workspaceToolbarCommands).toContain(EDITING_ENGINE_COMMAND_IDS.fileNewCard);
+    expect(workspaceToolbarCommands).toContain(EDITING_ENGINE_COMMAND_IDS.editUndo);
+    expect(workspaceToolbarCommands).not.toContain(EDITING_ENGINE_COMMAND_IDS.fileOpen);
   });
 
-  it('derives runtime state without replacing the internal undo and redo history manager', () => {
-    const undoDefinition = editingEngineCommandDefinitions.find(
-      (definition) => definition.commandId === EDITING_ENGINE_COMMAND_IDS.editUndo,
+  it('derives runtime state from the app-ready and history-manager flags', () => {
+    const readyCommands = new Map(
+      createEditingEngineCommands(createHandlers(), readyState).map((command) => [command.id, command]),
     );
-    const redoDefinition = editingEngineCommandDefinitions.find(
-      (definition) => definition.commandId === EDITING_ENGINE_COMMAND_IDS.editRedo,
+    expect(readyCommands.get(EDITING_ENGINE_COMMAND_IDS.editUndo)?.enabled).toBe(true);
+    expect(readyCommands.get(EDITING_ENGINE_COMMAND_IDS.editRedo)?.enabled).toBe(false);
+    expect(readyCommands.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.enabled).toBe(true);
+
+    const idleCommands = new Map(
+      createEditingEngineCommands(createHandlers(), idleState).map((command) => [command.id, command]),
+    );
+    expect(idleCommands.get(EDITING_ENGINE_COMMAND_IDS.editUndo)?.enabled).toBe(false);
+    expect(idleCommands.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.enabled).toBe(false);
+    expect(idleCommands.get(EDITING_ENGINE_COMMAND_IDS.settingsOpen)?.enabled).not.toBe(false);
+  });
+
+  it('keeps Enter/F2/Delete out of global shortcut dispatch so the file tree owns them locally', () => {
+    const byId = new Map(
+      createEditingEngineCommands(createHandlers(), readyState).map((command) => [command.id, command]),
     );
 
-    expect(undoDefinition).toBeTruthy();
-    expect(redoDefinition).toBeTruthy();
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileOpen)?.shortcut).toBeUndefined();
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileRename)?.shortcut).toBeUndefined();
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileDelete)?.shortcut).toBeUndefined();
 
-    expect(resolveEditingEngineCommandState(undoDefinition!, readyRuntime)).toMatchObject({
-      enabled: true,
-      visible: true,
-      busy: false,
-    });
-    expect(resolveEditingEngineCommandState(redoDefinition!, readyRuntime)).toMatchObject({
-      enabled: false,
-      visible: true,
-      disabledReasonKey: 'commands.edit.redo.disabled',
-    });
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileNewCard)?.shortcut).toBe('Mod+N');
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.fileNewBox)?.shortcut).toBe('Mod+Shift+N');
+    expect(byId.get(EDITING_ENGINE_COMMAND_IDS.searchWorkspace)?.shortcut).toBe('Mod+F');
   });
 
   it('filters file context commands out of application chrome', () => {
-    const views = createEditingEngineCommandViews(readyRuntime);
-    const chromeIds = views.filter(isApplicationChromeCommand).map((view) => view.commandId);
+    const commands = createEditingEngineCommands(createHandlers(), readyState);
+    const chromeIds = commands.filter(isApplicationChromeCommand).map((command) => command.id);
 
     expect(chromeIds).toContain(EDITING_ENGINE_COMMAND_IDS.fileNewCard);
     expect(chromeIds).toContain(EDITING_ENGINE_COMMAND_IDS.fileRefresh);

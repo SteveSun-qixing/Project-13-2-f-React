@@ -16,15 +16,15 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--chips-color-surface, #ffffff);
+  background: #ffffff;
   z-index: 10;
 }
 
 .plugin-host__spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--chips-color-border, #e0e0e0);
-  border-top-color: var(--chips-color-primary, #3b82f6);
+  border: 3px solid rgba(0, 0, 0, 0.08);
+  border-top-color: #0a84ff;
   border-radius: 50%;
   animation: plugin-host-spin 0.8s linear infinite;
 }
@@ -36,9 +36,9 @@
 }
 
 .plugin-host__loading-text {
-  margin-top: var(--chips-spacing-md, 12px);
-  font-size: var(--chips-font-size-sm, 14px);
-  color: var(--chips-color-text-secondary, #666666);
+  margin-top: 12px;
+  font-size: 14px;
+  color: #6e6e73;
 }
 
 .plugin-host__error {
@@ -48,37 +48,37 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--chips-spacing-xl, 32px);
-  background: var(--chips-color-surface, #ffffff);
+  padding: 32px;
+  background: #ffffff;
   text-align: center;
   z-index: 10;
 }
 
 .plugin-host__error-icon {
   font-size: 48px;
-  margin-bottom: var(--chips-spacing-md, 12px);
+  margin-bottom: 12px;
 }
 
 .plugin-host__error-text {
-  font-size: var(--chips-font-size-sm, 14px);
-  color: var(--chips-color-error, #ef4444);
-  margin: 0 0 var(--chips-spacing-md, 12px);
+  font-size: 14px;
+  color: #ff3b30;
+  margin: 0 0 12px;
 }
 
 .plugin-host__retry-btn {
-  padding: var(--chips-spacing-sm, 8px) var(--chips-spacing-md, 12px);
-  font-size: var(--chips-font-size-sm, 14px);
-  color: var(--chips-color-primary, #3b82f6);
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #0a84ff;
   background: transparent;
-  border: 1px solid var(--chips-color-primary, #3b82f6);
-  border-radius: var(--chips-radius-sm, 4px);
+  border: 1px solid #0a84ff;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color var(--chips-transition-fast, 0.15s) ease,
-              color var(--chips-transition-fast, 0.15s) ease;
+  transition: background-color 0.15s ease,
+              color 0.15s ease;
 }
 
 .plugin-host__retry-btn:hover {
-  background: var(--chips-color-primary, #3b82f6);
+  background: #0a84ff;
 }
 
 .plugin-host__container {

@@ -1,6 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { ChipsSelect } from '@chips/component-library';
-import { useTranslation } from '../../hooks/useTranslation';
+import React, { useState, useMemo } from 'react';
+import { Select } from 'antd';
 import './ZoomControl.css';
 
 interface ZoomControlProps {
@@ -28,7 +27,6 @@ export function ZoomControl({
     onReset,
     onFit,
 }: ZoomControlProps) {
-    const { t } = useTranslation();
     const [isExpanded, setIsExpanded] = useState(false);
 
     const zoomPercent = Math.round(zoom * 100);
@@ -69,7 +67,7 @@ export function ZoomControl({
                 type="button"
                 className="zoom-control__button"
                 disabled={!canZoomOut}
-                title={t('zoom_control.zoom_out') || '缩小'}
+                title="缩小"
                 onClick={onZoomOut}
             >
                 −
@@ -93,7 +91,7 @@ export function ZoomControl({
                 type="button"
                 className="zoom-control__button"
                 disabled={!canZoomIn}
-                title={t('zoom_control.zoom_in') || '放大'}
+                title="放大"
                 onClick={onZoomIn}
             >
                 +
@@ -103,7 +101,7 @@ export function ZoomControl({
             <button
                 type="button"
                 className={`zoom-control__button zoom-control__more ${isExpanded ? 'zoom-control__more--active' : ''}`}
-                title={t('zoom_control.more') || '更多'}
+                title="更多"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 ⋯
@@ -114,11 +112,12 @@ export function ZoomControl({
                 <div className="zoom-control__expanded-content">
                     {/* 缩放百分比选择 */}
                     <div className="zoom-control__value">
-                        <ChipsSelect
+                        <Select
                             className="zoom-control__select"
+                            size="small"
                             options={zoomOptions}
                             value={String(zoomPercent)}
-                            onValueChange={handlePresetSelect}
+                            onChange={handlePresetSelect}
                         />
                     </div>
 
@@ -126,20 +125,20 @@ export function ZoomControl({
                     <button
                         type="button"
                         className="zoom-control__button zoom-control__button--text"
-                        title={t('zoom_control.reset') || '重置视图'}
+                        title="重置缩放"
                         onClick={onReset}
                     >
-                        {t('zoom_control.reset_label') || '100%'}
+                        重置
                     </button>
 
                     {/* 适应内容按钮 */}
                     <button
                         type="button"
                         className="zoom-control__button zoom-control__button--text"
-                        title={t('zoom_control.fit') || '适应视图'}
+                        title="适应视图"
                         onClick={onFit}
                     >
-                        {t('zoom_control.fit_label') || '适应'}
+                        适应
                     </button>
                 </div>
             )}

@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import type { TemplateStyle, TemplateConfig } from './types';
 import { generateCoverHtml, getTemplateById } from './templates/index';
-import { useTranslation } from '../../hooks/useTranslation';
+import { formatMessage } from '../../lib/messages';
 import './TemplatePreview.css';
 
 interface TemplatePreviewProps {
@@ -19,7 +19,6 @@ export function TemplatePreview({
   customHtml,
   onHtmlGenerated,
 }: TemplatePreviewProps) {
-  const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const getPlaceholderHtml = () => {
@@ -43,7 +42,7 @@ export function TemplatePreview({
   </style>
 </head>
 <body>
-  <span>${t('cover_maker.preview_empty') || '预览区'}</span>
+  <span>${formatMessage('cover_maker.preview_empty')}</span>
 </body>
 </html>`;
   };
@@ -62,7 +61,7 @@ export function TemplatePreview({
     } catch {
       return getPlaceholderHtml();
     }
-  }, [templateId, config, customHtml, t]);
+  }, [templateId, config, customHtml]);
 
   const currentTemplate = useMemo(() => {
     if (!templateId) return null;
@@ -91,10 +90,10 @@ export function TemplatePreview({
   return (
     <div className="template-preview">
       <div className="template-preview__header">
-        <span className="template-preview__label">{t('cover_maker.preview_label') || '预览效果'}</span>
+        <span className="template-preview__label">{formatMessage('cover_maker.preview_label')}</span>
         {currentTemplate && (
           <span className="template-preview__template-name">
-            {t(currentTemplate.name) || currentTemplate.name}
+            {currentTemplate.name}
           </span>
         )}
       </div>
@@ -107,13 +106,13 @@ export function TemplatePreview({
           ref={iframeRef}
           className="template-preview__iframe"
           sandbox="allow-same-origin"
-          title={t('cover_maker.preview_label') || '预览区'}
+          title={formatMessage('cover_maker.preview_label')}
         />
       </div>
 
       <div className="template-preview__info">
         <span className="template-preview__ratio">
-          {t('cover_maker.preview_ratio', { ratio: aspectRatio.replace('/', ':') }) || `比例 ${aspectRatio.replace('/', ':')}`}
+          {formatMessage('cover_maker.preview_ratio', { ratio: aspectRatio.replace('/', ':') })}
         </span>
       </div>
     </div>

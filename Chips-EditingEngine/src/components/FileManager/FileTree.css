@@ -5,7 +5,7 @@
 }
 
 .file-tree:focus-visible {
-  box-shadow: inset 0 0 0 var(--chips-layout-focus-outline-width, 2px) var(--chips-layout-focus-color, var(--chips-sys-color-primary, #1890ff));
+  box-shadow: inset 0 0 0 2px #0a84ff;
 }
 
 .file-tree__empty {
@@ -13,16 +13,16 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--chips-spacing-xl, 32px);
-  color: var(--chips-color-text-tertiary, #999);
+  padding: 32px;
+  color: #86868b;
 }
 
 .file-tree__empty-icon {
   font-size: 48px;
-  margin-bottom: var(--chips-spacing-sm, 8px);
+  margin-bottom: 8px;
   opacity: 0.5;
 }
 
 .file-tree__empty-text {
-  font-size: var(--chips-font-size-sm, 14px);
+  font-size: 14px;
 }

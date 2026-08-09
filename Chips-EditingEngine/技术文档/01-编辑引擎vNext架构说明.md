@@ -12,34 +12,37 @@
 src/main.tsx
 -> src/App.tsx
 -> src/app/AppRoot.tsx
--> src/app/AppProviders.tsx
--> src/runtime/AppRuntimeProvider.tsx
--> src/app/AppShell.tsx
+  (antd ConfigProvider locale=zhCN theme=appleTheme + antd App
+   + @chips/ui ChipsProvider + CommandProvider
+   + AppRuntimeProvider + EditingEngineStateProviders)
+-> src/app/AppShell.tsx（AppChrome：菜单、工具栏、命令面板）
 -> src/scenes/WorkspaceScene.tsx
 ```
 
 实现规则：
 
 - `src/App.tsx` 只作为轻量入口，不承载初始化和业务分发。
-- `AppRuntimeProvider` 持有唯一 SDK client、Host launch context、组件库 Environment client、主题 Provider 和语言事件同步。
+- `AppRoot.tsx` 统一编排 Provider 树：antd `ConfigProvider`（中文 locale + `appleTheme`）、antd `App`、`@chips/ui` 的 `ChipsProvider`（Host client）与 `CommandProvider`（命令注册/快捷键/面板）、`AppRuntimeProvider`（SDK client + launch context + 中文文案 `t`）、编辑引擎状态 Provider。
+- `AppRuntimeProvider` 持有唯一 SDK client 与 Host launch context，`t` 只查本地中文文案表 `src/lib/messages.ts`。
 - `launch-context.ts` 合并 `surfaceContext.launchParams` 与顶层 `launchParams`，并以 `surfaceContext.sceneId/surfaceId` 优先。
-- `boot-actions.ts` 负责基础卡片注册表同步、语言初始化、工作区初始化和默认工具窗口创建。
-- `WorkspaceScene` 承载当前编辑器工作区场景，包括 InfiniteCanvas、Workbench、Dock、设置弹窗、卡片/箱子窗口分发和拖拽落点；应用窗口顶部不再挂载独立 Header 工具栏。
+- `boot-actions.ts` 负责基础卡片注册表同步、工作区初始化和默认工具窗口创建。
+- `WorkspaceScene` 承载当前编辑器工作区场景，包括 InfiniteCanvas、Workbench、Dock、设置弹窗、卡片/箱子窗口分发和拖拽落点；应用窗口顶部不再挂载独立 Header 工具栏（HeaderBar 已随组件库迁移移除）。
 
 ## 3. 命令系统
 
 命令入口集中在 `src/commands/`：
 
-- `editing-engine-commands.ts` 定义稳定 command id、handler id、scope、permission、菜单/工具栏位置、快捷键和运行态 state。
-- `EditingEngineCommandProvider.tsx` 注册 Host command registry，并把 `ChipsCommandProvider` 注入组件树。
-- FileManager、Dock、HistoryPanel 等 UI 只消费 command view 或 `invokeCommand(...)`。
-- 应用窗口顶部不再发布 `workspace` 工具栏；工具栏 placement 只保留给文件管理器等具体工具面板。
+- `editing-engine-commands.tsx` 定义稳定 command id（`chips-official.editing-engine.*`）、菜单/工具栏 placement（`menuId`/`toolbarId`）、快捷键和运行态 enabled，命令文案为简体中文直写，图标使用 `@ant-design/icons`。
+- `EditingEngineCommandProvider.tsx` 通过 `@chips/ui` 的 `useCommandRegistry().register(...)` 注册命令，并向子组件提供 `commands` 与 `registerHandler`。
+- AppShell 的 `AppChrome` 负责渲染菜单与 `workspace` 工具栏；FileManager 通过 `Toolbar`（`toolbarId: 'file-manager'`）渲染本地文件命令。
+- Dock 与 HistoryPanel 直接调用 UI 回调/内部命令管理器，不再消费旧 `invokeCommand` 适配器。
+- `src/lib/messages.ts` 集中保存应用中文文案（key -> 中文 + `formatMessage` 插值），调用点统一使用 `formatMessage` 或直接中文直写。
 
 约束：
 
-- command 文案只保存 i18n key，不保存原始文案。
-- 图标只使用 `IconDescriptor`。
-- manifest 只声明 `command.read/write/invoke`，不声明 `command.manage`。
+- command 文案直接保存简体中文，不保存 i18n key。
+- 图标使用 `IconDescriptor` 或 antd 图标组件。
+- manifest 只声明 `command.read/write/invoke`，不声明 `command.manage`，且已移除 `theme.read` 与 `i18n.read`。
 - 内部 `CommandManager` 只负责 undo/redo 历史，不是第二套 Host command registry。
 
 ## 4. 基础卡片装配与编辑会话
@@ -55,7 +58,7 @@ src/main.tsx
 关键实现：
 
 - `basecard-runtime/registry.ts` 加载内置 `base.richtext/base.image/base.webpage` 描述符，并通过 Host `plugin.query({ type: "card" })` 装载已安装启用卡片插件的 `basecardDefinition`。
-- `BasecardFrameHost` 为每个基础卡片创建透明 iframe，注入主题 CSS、`resolveResourceUrl/releaseResourceUrl/openResource`。
+- `BasecardFrameHost` 为每个基础卡片创建透明 iframe，注入固定苹果风格帧样式（`theme-css.ts` 输出固定色值，不再读取 Host 主题）与 `resolveResourceUrl/releaseResourceUrl/openResource`。
 - `CompositeCardAssembler` 按 `CardService.structure.basicCards` 顺序装配单卡 iframe，并汇总高度、加载态、错误态和资源打开事件。
 - `EditorSessionStore` 管理 source/draft/validation/dirty/resourceOperations，资源导入或删除被正式配置引用时允许按节流窗口提交。
 - `EditorHost` 为编辑器提供资源解析、导入、ZIP 目录导入、删除登记和 TIFF 转 PNG。
@@ -94,12 +97,12 @@ src/main.tsx
 - 条目新增、拖拽、移动、删除后统一重建 `layoutHints.sortKey`，保证 `.box/structure.yaml` 的排序键与编辑面板顺序一致。
 - 布局编辑器 iframe 的重挂载条件限定为布局类型、条目身份序列和语言等结构性输入，配置回写不会反复销毁编辑器。
 
-## 7. 主题、多语言、焦点和 A11y
+## 7. 视觉、文案、焦点和 A11y
 
-- 主题初始化通过组件库 `ChipsEnvironmentProvider` 与 `ChipsThemeProvider` 接入 Host 主题状态。
-- 本地 `src/i18n/` 保存应用用户可见文案，Host 语言变化后由运行时更新当前 locale。
+- 主题系统已移除（task030-07 规范）：不再读取 Host 主题、不再使用 `--chips-sys-*` 变量；统一固定苹果风格（背景 `#f5f5f7`、表面 `#ffffff`、文本 `#1d1d1f`、主色 `#0a84ff`、边框 `rgba(0,0,0,0.08)`），antd 侧由 `ConfigProvider theme={appleTheme}` 提供 token。
+- 多语言系统已移除（task030-06 规范）：界面文案统一简体中文直写，集中文案表为 `src/lib/messages.ts`，调用点统一走 `formatMessage(key, params)`；`useTranslation` 兼容签名已于 task031 收尾归档（`归档/task031-useTranslation/`），仓库内不再有 `t()` 运行时解析。
 - 工作台、Dock、BaseWindow、ToolWindow、FileTree、MainArea、SidePanel 使用 `@chips/a11y` 的键盘与 roving tabindex 模型。
-- UI 图标统一走 `RuntimeIcon -> ChipsIcon + IconDescriptor`。
+- UI 图标统一走 `RuntimeIcon`（`@ant-design/icons` 映射 `IconDescriptor.name`）。
 
 ## 8. 测试矩阵
 
@@ -114,8 +117,8 @@ npm run validate
 
 重点测试文件：
 
-- `tests/unit/app-runtime.test.ts`：launch/surface/Environment/boot 行为。
-- `tests/unit/commands-definition.test.ts`：命令元数据、scope、权限和 i18n key。
+- `tests/unit/app-runtime.test.ts`：launch 上下文合并与 boot 行为。
+- `tests/unit/commands-definition.test.ts`：命令 id、placement、快捷键与运行态 enabled。
 - `tests/unit/basecard-frame-host.test.tsx`：单卡 iframe、资源 URL、资源打开、指针屏蔽和预览稳定性。
 - `tests/unit/editor-session-store.test.ts`、`tests/unit/plugin-host.test.tsx`：编辑会话与资源操作。
 - `tests/unit/card-files.test.ts`：卡片保存、封面资源和导出资源清单。

@@ -3,8 +3,6 @@
  * 
  * 所有设置面板组件通过 @import 引入此文件，
  * 保证各面板的视觉风格一致。
- *
- * 使用 --chips-* CSS 变量，遵循主题系统规范。
  */
 
 /* ============================================================
@@ -13,23 +11,23 @@
 .settings-panel-header {
   display: flex;
   flex-direction: column;
-  gap: var(--chips-spacing-xs, 4px);
-  margin-bottom: var(--chips-spacing-lg, 24px);
+  gap: 4px;
+  margin-bottom: 24px;
 }
 
 .settings-panel-header__title {
   margin: 0;
-  font-size: var(--chips-font-size-lg, 18px);
-  font-weight: var(--chips-font-weight-semibold, 600);
-  color: var(--chips-color-text, #111827);
-  line-height: var(--chips-line-height-normal, 1.5);
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  line-height: 1.5;
 }
 
 .settings-panel-header__desc {
   margin: 0;
-  font-size: var(--chips-font-size-sm, 14px);
-  color: var(--chips-color-text-secondary, #6b7280);
-  line-height: var(--chips-line-height-normal, 1.5);
+  font-size: 14px;
+  color: #6e6e73;
+  line-height: 1.5;
 }
 
 /* ============================================================
@@ -38,12 +36,12 @@
 .settings-field {
   display: flex;
   flex-direction: column;
-  gap: var(--chips-spacing-sm, 8px);
-  padding: var(--chips-spacing-md, 16px);
-  border: 1px solid var(--chips-color-border, #e5e7eb);
-  border-radius: var(--chips-radius-md, 8px);
-  margin-bottom: var(--chips-spacing-md, 16px);
-  background: var(--chips-color-surface, #ffffff);
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  background: #ffffff;
 }
 
 .settings-field__header {
@@ -53,25 +51,25 @@
 }
 
 .settings-field__label {
-  font-size: var(--chips-font-size-sm, 14px);
-  font-weight: var(--chips-font-weight-medium, 500);
-  color: var(--chips-color-text, #111827);
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
 }
 
 .settings-field__desc {
   font-size: 12px;
-  color: var(--chips-color-text-secondary, #6b7280);
-  line-height: var(--chips-line-height-normal, 1.5);
+  color: #6e6e73;
+  line-height: 1.5;
 }
 
 .settings-field__control {
-  margin-top: var(--chips-spacing-xs, 4px);
+  margin-top: 4px;
 }
 
 .settings-field__control--with-value {
   display: flex;
   align-items: center;
-  gap: var(--chips-spacing-md, 16px);
+  gap: 16px;
 }
 
 .settings-field__control--with-value > :first-child {
@@ -81,9 +79,9 @@
 
 .settings-field__value {
   flex-shrink: 0;
-  font-size: var(--chips-font-size-sm, 14px);
-  font-weight: var(--chips-font-weight-medium, 500);
-  color: var(--chips-color-primary, #3b82f6);
+  font-size: 14px;
+  font-weight: 500;
+  color: #0a84ff;
   min-width: 48px;
   text-align: right;
 }
@@ -95,11 +93,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--chips-spacing-md, 16px);
-  border: 1px solid var(--chips-color-border, #e5e7eb);
-  border-radius: var(--chips-radius-md, 8px);
-  margin-bottom: var(--chips-spacing-md, 16px);
-  background: var(--chips-color-surface, #ffffff);
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  background: #ffffff;
 }
 
 .settings-row__info {
@@ -108,19 +106,19 @@
   gap: 2px;
   flex: 1;
   min-width: 0;
-  margin-right: var(--chips-spacing-md, 16px);
+  margin-right: 16px;
 }
 
 .settings-row__label {
-  font-size: var(--chips-font-size-sm, 14px);
-  font-weight: var(--chips-font-weight-medium, 500);
-  color: var(--chips-color-text, #111827);
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
 }
 
 .settings-row__desc {
   font-size: 12px;
-  color: var(--chips-color-text-secondary, #6b7280);
-  line-height: var(--chips-line-height-normal, 1.5);
+  color: #6e6e73;
+  line-height: 1.5;
 }
 
 /* ============================================================
@@ -129,36 +127,36 @@
 .settings-option-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--chips-spacing-md, 16px);
+  gap: 16px;
 }
 
 .settings-option-card {
   display: flex;
   flex-direction: column;
-  gap: var(--chips-spacing-sm, 8px);
-  padding: var(--chips-spacing-sm, 8px);
-  border: 2px solid var(--chips-color-border, #e5e7eb);
-  border-radius: var(--chips-radius-lg, 12px);
-  background: var(--chips-color-surface, #ffffff);
+  gap: 8px;
+  padding: 8px;
+  border: 2px solid rgba(0, 0, 0, 0.10);
+  border-radius: 12px;
+  background: #ffffff;
   cursor: pointer;
   position: relative;
   transition:
-    border-color var(--chips-duration-fast, 100ms) ease,
-    box-shadow var(--chips-duration-fast, 100ms) ease;
+    border-color 100ms ease,
+    box-shadow 100ms ease;
 }
 
 .settings-option-card:hover:not(.settings-option-card--disabled) {
   border-color: color-mix(
     in srgb,
-    var(--chips-color-primary, #3b82f6) 50%,
+    #0a84ff 50%,
     transparent
   );
-  box-shadow: var(--chips-shadow-sm, 0 1px 2px 0 rgb(0 0 0 / 0.05));
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
 .settings-option-card--selected {
-  border-color: var(--chips-color-primary, #3b82f6);
-  box-shadow: 0 0 0 1px var(--chips-color-primary, #3b82f6);
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 1px #0a84ff;
 }
 
 .settings-option-card--disabled {
@@ -168,30 +166,30 @@
 
 .settings-option-card__check {
   position: absolute;
-  top: var(--chips-spacing-sm, 8px);
-  right: var(--chips-spacing-sm, 8px);
+  top: 8px;
+  right: 8px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--chips-color-primary, #3b82f6);
+  background: #0a84ff;
   color: #ffffff;
   font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: var(--chips-font-weight-bold, 700);
+  font-weight: 700;
 }
 
 .settings-option-card__name {
-  font-size: var(--chips-font-size-sm, 14px);
-  font-weight: var(--chips-font-weight-medium, 500);
-  color: var(--chips-color-text, #111827);
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
 }
 
 .settings-option-card__desc {
   font-size: 12px;
-  color: var(--chips-color-text-secondary, #6b7280);
-  line-height: var(--chips-line-height-normal, 1.5);
+  color: #6e6e73;
+  line-height: 1.5;
 }
 
 /* ============================================================
@@ -200,15 +198,15 @@
 .settings-info-list {
   display: flex;
   flex-direction: column;
-  gap: var(--chips-spacing-sm, 8px);
+  gap: 8px;
 }
 
 .settings-info-item {
   display: flex;
   align-items: baseline;
-  gap: var(--chips-spacing-md, 16px);
-  padding: var(--chips-spacing-sm, 8px) 0;
-  border-bottom: 1px solid var(--chips-color-border, #e5e7eb);
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .settings-info-item:last-child {
@@ -218,13 +216,13 @@
 .settings-info-item__label {
   flex-shrink: 0;
   min-width: 100px;
-  font-size: var(--chips-font-size-sm, 14px);
-  color: var(--chips-color-text-secondary, #6b7280);
+  font-size: 14px;
+  color: #6e6e73;
 }
 
 .settings-info-item__value {
-  font-size: var(--chips-font-size-sm, 14px);
-  color: var(--chips-color-text, #111827);
+  font-size: 14px;
+  color: #1d1d1f;
   word-break: break-all;
 }
 
@@ -233,8 +231,8 @@
  * ============================================================ */
 .settings-actions {
   display: flex;
-  gap: var(--chips-spacing-sm, 8px);
-  margin-top: var(--chips-spacing-md, 16px);
+  gap: 8px;
+  margin-top: 16px;
 }
 
 /* ============================================================
@@ -245,9 +243,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--chips-spacing-sm, 8px);
-  padding: var(--chips-spacing-xl, 32px);
-  color: var(--chips-color-text-secondary, #6b7280);
+  gap: 8px;
+  padding: 32px;
+  color: #6e6e73;
 }
 
 .settings-empty__icon {
@@ -256,7 +254,7 @@
 }
 
 .settings-empty__text {
-  font-size: var(--chips-font-size-sm, 14px);
+  font-size: 14px;
 }
 
 /* ============================================================
@@ -266,34 +264,34 @@
   display: inline-flex;
   align-items: center;
   padding: 1px 6px;
-  border-radius: var(--chips-radius-sm, 4px);
+  border-radius: 4px;
   font-size: 11px;
-  font-weight: var(--chips-font-weight-medium, 500);
+  font-weight: 500;
 }
 
 .settings-badge--info {
   background: color-mix(
     in srgb,
-    var(--chips-color-info, #3b82f6) 10%,
+    #0a84ff 10%,
     transparent
   );
-  color: var(--chips-color-info, #3b82f6);
+  color: #0a84ff;
 }
 
 .settings-badge--success {
   background: color-mix(
     in srgb,
-    var(--chips-color-success, #10b981) 10%,
+    #34c759 10%,
     transparent
   );
-  color: var(--chips-color-success, #10b981);
+  color: #34c759;
 }
 
 .settings-badge--warning {
   background: color-mix(
     in srgb,
-    var(--chips-color-warning, #f59e0b) 10%,
+    #ff9f0a 10%,
     transparent
   );
-  color: var(--chips-color-warning, #f59e0b);
+  color: #ff9f0a;
 }

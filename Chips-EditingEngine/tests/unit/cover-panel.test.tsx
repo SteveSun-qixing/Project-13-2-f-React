@@ -12,11 +12,6 @@ const { mockFileService } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
 
 vi.mock('../../src/services/file-service', () => ({
   fileService: mockFileService,

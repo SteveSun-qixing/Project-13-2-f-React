@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo, KeyboardEvent } from 'react';
-import { ChipsInput } from '@chips/component-library';
-import { useTranslation } from '../../../hooks/useTranslation';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Input } from 'antd';
 import './BasicInfoPanel.css';
 
 export interface CardMetaData {
@@ -46,16 +45,15 @@ export function BasicInfoPanel({
   createdAtLabel,
   modifiedAtLabel,
 }: BasicInfoPanelProps) {
-  const { t } = useTranslation();
-  const resolvedDocumentIdLabel = documentIdLabel ?? (t('card_settings.card_id') || '卡片 ID');
-  const resolvedCreatedAtLabel = createdAtLabel ?? (t('card_settings.created_at') || '创建时间');
-  const resolvedModifiedAtLabel = modifiedAtLabel ?? (t('card_settings.modified_at') || '修改时间');
-  const resolvedNameLabel = nameLabel ?? (t('card_settings.name') || '资源名称');
-  const resolvedNamePlaceholder = namePlaceholder ?? (t('card_settings.name_placeholder') || '请输入名称');
-  const resolvedTagsLabel = tagsLabel ?? (t('card_settings.tags') || '标签');
-  const resolvedTagPlaceholder = tagPlaceholder ?? (t('card_settings.tag_placeholder') || '输入标签按回车添加');
-  const resolvedAddTagLabel = addTagLabel ?? (t('card_settings.tag_add') || '添加');
-  const resolvedMetadataLabel = metadataLabel ?? (t('card_settings.metadata') || '元数据');
+  const resolvedDocumentIdLabel = documentIdLabel ?? '卡片ID';
+  const resolvedCreatedAtLabel = createdAtLabel ?? '创建时间';
+  const resolvedModifiedAtLabel = modifiedAtLabel ?? '修改时间';
+  const resolvedNameLabel = nameLabel ?? '名称';
+  const resolvedNamePlaceholder = namePlaceholder ?? '输入卡片名称';
+  const resolvedTagsLabel = tagsLabel ?? '标签';
+  const resolvedTagPlaceholder = tagPlaceholder ?? '输入标签名称';
+  const resolvedAddTagLabel = addTagLabel ?? '添加标签';
+  const resolvedMetadataLabel = metadataLabel ?? '元数据';
 
   const [editName, setEditName] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
@@ -109,7 +107,7 @@ export function BasicInfoPanel({
     handleTagsChange(updatedTags);
   };
 
-  const handleKeydown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleKeydown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       addTag();
@@ -140,9 +138,9 @@ export function BasicInfoPanel({
         <label className="basic-info-panel__label">
           {resolvedNameLabel}
         </label>
-        <ChipsInput
+        <Input
           value={editName}
-          onChange={handleNameChange}
+          onChange={(event) => handleNameChange(event.target.value)}
           placeholder={resolvedNamePlaceholder}
           className="basic-info-panel__input"
         />
@@ -153,20 +151,20 @@ export function BasicInfoPanel({
           {resolvedTagsLabel}
         </label>
         <div className="basic-info-panel__tag-input-row">
-          <ChipsInput
+          <Input
             value={newTag}
-            onChange={setNewTag}
+            onChange={(event) => setNewTag(event.target.value)}
             placeholder={resolvedTagPlaceholder}
             onKeyDown={handleKeydown}
             className="basic-info-panel__tag-input"
           />
-          <button
-            type="button"
+          <Button
+            type="default"
             className="basic-info-panel__tag-add-btn"
             onClick={addTag}
           >
             {resolvedAddTagLabel}
-          </button>
+          </Button>
         </div>
         {editTags.length > 0 && (
           <div className="basic-info-panel__tag-list">

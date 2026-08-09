@@ -1,6 +1,5 @@
 import type { Client } from 'chips-sdk';
 import { syncInstalledBasecardDescriptors } from '../basecard-runtime/registry';
-import { i18nService } from '../services/i18n-service';
 import { workspaceService } from '../services/workspace-service';
 import type { AnyWindowConfig, ToolWindowConfig } from '../types/window';
 import { getToolWindowIcon } from '../icons/descriptors';
@@ -57,7 +56,6 @@ export async function bootEditingEngine(runtime: EditingEngineBootRuntime): Prom
   runtime.setState('loading');
 
   await syncInstalledBasecardDescriptors(runtime.client);
-  await i18nService.initLocale();
   await workspaceService.initialize();
   ensureDefaultToolWindows(runtime);
 

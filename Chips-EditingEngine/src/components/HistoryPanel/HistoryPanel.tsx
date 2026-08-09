@@ -1,14 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getCommandManager } from '../../core/command-manager';
-import { useTranslation } from '../../hooks/useTranslation';
+import { formatMessage } from '../../lib/messages';
 import { ENGINE_ICONS } from '../../icons/descriptors';
 import { RuntimeIcon } from '../../icons/RuntimeIcon';
-import { useEditingEngineCommands } from '../../commands/EditingEngineCommandProvider';
-import {
-  EDITING_ENGINE_COMMAND_HANDLER_IDS,
-  EDITING_ENGINE_COMMAND_IDS,
-  type EditingEngineCommandStatus,
-} from '../../commands/editing-engine-commands';
 import './HistoryPanel.css';
 
 interface CommandHistory {
@@ -34,8 +28,6 @@ export function HistoryPanel({
   onUndo,
   onRedo,
 }: HistoryPanelProps) {
-  const { t } = useTranslation();
-  const commands = useEditingEngineCommands();
   const commandManager = getCommandManager();
 
   const [undoHistory, setUndoHistory] = useState<CommandHistory[]>([]);
@@ -77,11 +69,11 @@ export function HistoryPanel({
     const diff = now - timestamp;
 
     if (diff < 60000) {
-      return t('history_panel.just_now') || '刚刚';
+      return formatMessage('history_panel.just_now');
     } else if (diff < 3600000) {
-      return t('history_panel.minutes_ago', { count: Math.floor(diff / 60000) }) || `${Math.floor(diff / 60000)} 分钟前`;
+      return formatMessage('history_panel.minutes_ago', { count: Math.floor(diff / 60000) });
     } else if (diff < 86400000) {
-      return t('history_panel.hours_ago', { count: Math.floor(diff / 3600000) }) || `${Math.floor(diff / 3600000)} 小时前`;
+      return formatMessage('history_panel.hours_ago', { count: Math.floor(diff / 3600000) });
     } else {
       return formatTime(timestamp);
     }
@@ -103,7 +95,7 @@ export function HistoryPanel({
     };
 
     const translationKey = descriptions[key];
-    return translationKey ? (t(translationKey) || key) : key;
+    return translationKey ? formatMessage(translationKey) : key;
   };
 
   const updateHistory = useCallback(() => {
@@ -111,7 +103,7 @@ export function HistoryPanel({
     setRedoHistory(commandManager.getRedoHistory());
   }, [commandManager, maxItems]);
 
-  const handleUndoCommand = useCallback(async (_status?: EditingEngineCommandStatus) => {
+  const handleUndoCommand = useCallback(async () => {
     if (!canUndo || isLoading) return;
 
     setIsLoading(true);
@@ -124,7 +116,7 @@ export function HistoryPanel({
     }
   }, [canUndo, commandManager, isLoading, onUndo, updateHistory]);
 
-  const handleRedoCommand = useCallback(async (_status?: EditingEngineCommandStatus) => {
+  const handleRedoCommand = useCallback(async () => {
     if (!canRedo || isLoading) return;
 
     setIsLoading(true);
@@ -138,13 +130,11 @@ export function HistoryPanel({
   }, [canRedo, commandManager, isLoading, onRedo, updateHistory]);
 
   const handleUndo = async () => {
-    if (!canUndo || isLoading) return;
-    await commands.invokeCommand(EDITING_ENGINE_COMMAND_IDS.editUndo, 'toolbar');
+    await handleUndoCommand();
   };
 
   const handleRedo = async () => {
-    if (!canRedo || isLoading) return;
-    await commands.invokeCommand(EDITING_ENGINE_COMMAND_IDS.editRedo, 'toolbar');
+    await handleRedoCommand();
   };
 
   const handleGoto = async (historyId: string) => {
@@ -175,49 +165,33 @@ export function HistoryPanel({
     return unsubscribe;
   }, [commandManager, updateHistory]);
 
-  useEffect(() => {
-    const unregisterUndo = commands.registerHandler(
-      EDITING_ENGINE_COMMAND_HANDLER_IDS.editUndo,
-      handleUndoCommand,
-    );
-    const unregisterRedo = commands.registerHandler(
-      EDITING_ENGINE_COMMAND_HANDLER_IDS.editRedo,
-      handleRedoCommand,
-    );
-
-    return () => {
-      unregisterUndo();
-      unregisterRedo();
-    };
-  }, [commands, handleRedoCommand, handleUndoCommand]);
-
   return (
     <div className={`history-panel ${compact ? 'compact' : ''}`}>
       <div className="history-toolbar">
         <button
           className="history-btn"
           disabled={!canUndo || isLoading}
-          title={t('history_panel.undo_title') || '撤销'}
+          title={formatMessage('history_panel.undo_title')}
           type="button"
           onClick={handleUndo}
         >
           <span className="history-btn-icon">
             <RuntimeIcon icon={ENGINE_ICONS.undo} />
           </span>
-          {!compact && <span className="history-btn-text">{t('history_panel.undo') || '撤销'}</span>}
+          {!compact && <span className="history-btn-text">{formatMessage('history_panel.undo')}</span>}
         </button>
 
         <button
           className="history-btn"
           disabled={!canRedo || isLoading}
-          title={t('history_panel.redo_title') || '重做'}
+          title={formatMessage('history_panel.redo_title')}
           type="button"
           onClick={handleRedo}
         >
           <span className="history-btn-icon">
             <RuntimeIcon icon={ENGINE_ICONS.redo} />
           </span>
-          {!compact && <span className="history-btn-text">{t('history_panel.redo') || '重做'}</span>}
+          {!compact && <span className="history-btn-text">{formatMessage('history_panel.redo')}</span>}
         </button>
 
         <div className="history-toolbar-spacer"></div>
@@ -225,7 +199,7 @@ export function HistoryPanel({
         <button
           className="history-btn history-btn-clear"
           disabled={displayHistory.length === 0}
-          title={t('history_panel.clear') || '清空'}
+          title={formatMessage('history_panel.clear')}
           type="button"
           onClick={handleClear}
         >
@@ -264,7 +238,7 @@ export function HistoryPanel({
 
               {item.type === 'redo' && (
                 <div className="history-item-badge">
-                  {t('history_panel.badge_redo') || '已撤销'}
+                  {formatMessage('history_panel.badge_redo')}
                 </div>
               )}
             </div>
@@ -275,14 +249,14 @@ export function HistoryPanel({
           <div className="history-empty-icon">
             <RuntimeIcon icon={ENGINE_ICONS.history} />
           </div>
-          <div className="history-empty-text">{t('history_panel.empty') || '暂无历史记录'}</div>
+          <div className="history-empty-text">{formatMessage('history_panel.empty')}</div>
         </div>
       )}
 
       <div className="history-status">
-        <span>{t('history_panel.status_undo') || '可撤销'}: {undoHistory.length}</span>
+        <span>{formatMessage('history_panel.status_undo')}: {undoHistory.length}</span>
         <span className="history-status-divider">|</span>
-        <span>{t('history_panel.status_redo') || '可重做'}: {redoHistory.length}</span>
+        <span>{formatMessage('history_panel.status_redo')}: {redoHistory.length}</span>
       </div>
     </div>
   );

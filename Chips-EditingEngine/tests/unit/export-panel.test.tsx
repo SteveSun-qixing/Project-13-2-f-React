@@ -36,53 +36,6 @@ const { saveCard, packCard, saveFile, statFile, moduleInvoke, moduleJobGet, modu
   ]),
 }));
 
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    locale: 'zh-CN',
-    t: (key: string, params?: Record<string, string | number>) => {
-      const text = ({
-        'card_settings.export_card': '导出为 .card',
-        'card_settings.export_html': '导出为 HTML',
-        'card_settings.export_pdf': '导出为 PDF',
-        'card_settings.export_image': '导出为图片',
-        'card_settings.export_format': '导出格式',
-        'card_settings.export_start': '开始导出',
-        'card_settings.export_done': '导出完成',
-        'card_settings.export_done_with_path': '导出完成：{path}',
-        'card_settings.export_failed': '导出失败：{error}',
-        'card_settings.export_unknown_error': '未知错误',
-        'card_settings.export_no_card': '没有可导出的内容',
-        'card_settings.export_save_card': '保存 .card 文件',
-        'card_settings.export_save_html': '保存 HTML 导出包',
-        'card_settings.export_save_pdf': '保存 PDF 文件',
-        'card_settings.export_save_image': '保存图片文件',
-        'card_settings.export_prepare': '正在准备导出任务…',
-        'card_settings.export_launch_conversion': '正在启动导出任务…',
-        'card_settings.export_render_html': '正在生成 HTML 页面…',
-        'card_settings.export_rewrite_assets': '正在整理资源文件…',
-        'card_settings.export_write_output': '正在写入导出文件…',
-        'card_settings.export_package_html': '正在打包 HTML 导出内容…',
-        'card_settings.export_render_pdf': '正在生成 PDF…',
-        'card_settings.export_render_image': '正在生成图片…',
-        'card_settings.export_cleanup': '正在清理临时文件…',
-        'card_settings.export_saving_card_state': '正在保存卡片状态...',
-        'card_settings.export_create_package': '正在打包…',
-        'card_settings.export_verify_output': '正在校验导出文件...',
-        'card_settings.export_output_missing': '导出目标文件未生成',
-        'card_settings.export_unavailable': '当前导出格式尚未接入正式链路',
-      }[key] ?? key);
-
-      if (!params) {
-        return text;
-      }
-
-      return Object.entries(params).reduce(
-        (result, [paramKey, value]) => result.split(`{${paramKey}}`).join(String(value)),
-        text,
-      );
-    },
-  }),
-}));
 
 vi.mock('../../src/context/CardContext', () => ({
   useCard: () => ({

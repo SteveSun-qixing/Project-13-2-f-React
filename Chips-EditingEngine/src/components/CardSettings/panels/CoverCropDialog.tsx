@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from '../../../hooks/useTranslation';
+import { formatMessage } from '../../../lib/messages';
 import { ENGINE_ICONS } from '../../../icons/descriptors';
 import { RuntimeIcon } from '../../../icons/RuntimeIcon';
 import { blobToDataUrl } from '../../../utils/card-cover';
@@ -39,7 +39,6 @@ export function CoverCropDialog({
   onClose,
   onConfirm,
 }: CoverCropDialogProps) {
-  const { t } = useTranslation();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<{
     pointerId: number;
@@ -255,20 +254,20 @@ export function CoverCropDialog({
   };
 
   return (
-    <div className="cover-crop-dialog" role="dialog" aria-modal="true" aria-label={t('card_settings.cover_crop_title') || '裁剪封面'}>
+    <div className="cover-crop-dialog" role="dialog" aria-modal="true" aria-label={formatMessage('card_settings.cover_crop_title')}>
       <div className="cover-crop-dialog__panel">
         <div className="cover-crop-dialog__header">
           <div>
-            <h3 className="cover-crop-dialog__title">{t('card_settings.cover_crop_title') || '裁剪封面'}</h3>
+            <h3 className="cover-crop-dialog__title">{formatMessage('card_settings.cover_crop_title')}</h3>
             <p className="cover-crop-dialog__subtitle">
-              {t('card_settings.cover_crop_desc') || '拖动选框移动位置，拖动四角调整选框大小，比例会始终保持一致。'}
+              {formatMessage('card_settings.cover_crop_desc')}
             </p>
           </div>
 
           <button
             type="button"
             className="cover-crop-dialog__close"
-            aria-label={t('card_settings.close') || '关闭'}
+            aria-label={formatMessage('card_settings.close')}
             onClick={onClose}
           >
             <RuntimeIcon icon={ENGINE_ICONS.close} />
@@ -285,7 +284,7 @@ export function CoverCropDialog({
           <img
             className="cover-crop-dialog__image"
             src={imageUrl}
-            alt={t('cover_maker.preview_alt') || '预览图片'}
+            alt={formatMessage('cover_maker.preview_alt')}
             style={{
               left: `${imageBounds.x}px`,
               top: `${imageBounds.y}px`,
@@ -310,7 +309,7 @@ export function CoverCropDialog({
                 key={handle}
                 type="button"
                 className={`cover-crop-dialog__handle cover-crop-dialog__handle--${handle}`}
-                aria-label={`${t('card_settings.cover_crop_action') || '裁剪'} ${handle}`}
+                aria-label={`${formatMessage('card_settings.cover_crop_action')} ${handle}`}
                 onPointerDown={(event) => startInteraction(event, 'resize', handle)}
               />
             ))}
@@ -323,7 +322,7 @@ export function CoverCropDialog({
             className="cover-crop-dialog__button cover-crop-dialog__button--secondary"
             onClick={onClose}
           >
-            {t('card_settings.cancel') || '取消'}
+            {formatMessage('card_settings.cancel')}
           </button>
           <button
             type="button"
@@ -332,7 +331,7 @@ export function CoverCropDialog({
               void handleConfirm();
             }}
           >
-            {t('card_settings.cover_crop_apply') || '应用裁剪'}
+            {formatMessage('card_settings.cover_crop_apply')}
           </button>
         </div>
       </div>

@@ -129,12 +129,6 @@ const mockState = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-    locale: 'zh-CN',
-  }),
-}));
 
 vi.mock('../../src/services/bridge-client', () => ({
   getChipsClient: () => mockState.client,
@@ -228,7 +222,19 @@ describe('编辑引擎箱子编辑链路基础流程', () => {
   let container: HTMLDivElement;
   let root: Root;
 
+  let originalResizeObserver: typeof ResizeObserver | undefined;
+
   beforeEach(() => {
+    originalResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class ResizeObserverMock {
+      constructor(_callback: ResizeObserverCallback) {}
+
+      observe(): void {}
+
+      disconnect(): void {}
+
+      unobserve(): void {}
+    } as typeof ResizeObserver;
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -239,6 +245,11 @@ describe('编辑引擎箱子编辑链路基础流程', () => {
   });
 
   afterEach(async () => {
+    if (originalResizeObserver) {
+      globalThis.ResizeObserver = originalResizeObserver;
+    } else {
+      Reflect.deleteProperty(globalThis, 'ResizeObserver');
+    }
     await act(async () => {
       root.unmount();
     });
@@ -283,6 +294,6 @@ describe('编辑引擎箱子编辑链路基础流程', () => {
     expect(mockState.client.box.readLayoutDescriptor).toHaveBeenCalledWith('chips.layout.grid');
     expect(mockState.client.box.editorPanel.render).toHaveBeenCalled();
     expect(container.querySelector('.window-menu')).not.toBeNull();
-    expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'common.save')).toBe(false);
+    expect(container.textContent).toContain('布局配置');
   });
 });

@@ -28,8 +28,8 @@ function formatDate(date?: string): string {
 
 const minimalWhiteTemplate: CoverTemplate = {
   id: 'minimal-white',
-  name: 'cover_template.minimal_white_name',
-  description: 'cover_template.minimal_white_desc',
+  name: '极简白',
+  description: '白色背景的极简排版',
   previewStyle: 'background: #ffffff; color: #1a1a1a;',
   generateHtml: (config: TemplateConfig) => `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -38,9 +38,10 @@ const minimalWhiteTemplate: CoverTemplate = {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -78,8 +79,8 @@ const minimalWhiteTemplate: CoverTemplate = {
 
 const gradientBlueTemplate: CoverTemplate = {
   id: 'gradient-blue',
-  name: 'cover_template.gradient_blue_name',
-  description: 'cover_template.gradient_blue_desc',
+  name: '渐变蓝',
+  description: '蓝紫渐变背景',
   previewStyle: 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff;',
   generateHtml: (config: TemplateConfig) => `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -88,9 +89,10 @@ const gradientBlueTemplate: CoverTemplate = {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -129,8 +131,8 @@ const gradientBlueTemplate: CoverTemplate = {
 
 const darkThemeTemplate: CoverTemplate = {
   id: 'dark-theme',
-  name: 'cover_template.dark_name',
-  description: 'cover_template.dark_desc',
+  name: '暗色',
+  description: '深色背景的暗色排版',
   previewStyle: 'background: #1a1a2e; color: #eaeaea;',
   generateHtml: (config: TemplateConfig) => `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -139,9 +141,10 @@ const darkThemeTemplate: CoverTemplate = {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -179,8 +182,8 @@ const darkThemeTemplate: CoverTemplate = {
 
 const geometricTemplate: CoverTemplate = {
   id: 'geometric',
-  name: 'cover_template.geometric_name',
-  description: 'cover_template.geometric_desc',
+  name: '几何图形',
+  description: '几何色块装饰背景',
   previewStyle: 'background: #f8f9fa; color: #2d3436;',
   generateHtml: (config: TemplateConfig) => `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -189,9 +192,10 @@ const geometricTemplate: CoverTemplate = {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -268,8 +272,8 @@ const geometricTemplate: CoverTemplate = {
 
 const borderedTemplate: CoverTemplate = {
   id: 'bordered',
-  name: 'cover_template.border_name',
-  description: 'cover_template.border_desc',
+  name: '描边卡片',
+  description: '白色卡片加蓝色描边',
   previewStyle: 'background: #ffffff; color: #2c3e50; border: 3px solid #3498db;',
   generateHtml: (config: TemplateConfig) => `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -278,9 +282,10 @@ const borderedTemplate: CoverTemplate = {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -331,8 +336,8 @@ const borderedTemplate: CoverTemplate = {
 
 const magazineTemplate: CoverTemplate = {
   id: 'magazine',
-  name: 'cover_template.magazine_name',
-  description: 'cover_template.magazine_desc',
+  name: '杂志',
+  description: '杂志风格排版',
   previewStyle: 'background: #fafafa; color: #222222;',
   generateHtml: (config: TemplateConfig) => `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -341,9 +346,10 @@ const magazineTemplate: CoverTemplate = {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
@@ -390,8 +396,8 @@ const magazineTemplate: CoverTemplate = {
 
 const newsBannerTemplate: CoverTemplate = {
   id: 'news-banner',
-  name: 'cover_template.news_name',
-  description: 'cover_template.news_desc',
+  name: '新闻横幅',
+  description: '新闻标题横幅排版',
   previewStyle: 'background: linear-gradient(to bottom, #e0e0e0 70%, #c0392b 70%); color: #ffffff;',
   generateHtml: (config: TemplateConfig) => `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -400,9 +406,10 @@ const newsBannerTemplate: CoverTemplate = {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       background: ${config.backgroundColor || '#f0f0f0'};
@@ -452,8 +459,8 @@ const newsBannerTemplate: CoverTemplate = {
 
 const circleSoftTemplate: CoverTemplate = {
   id: 'circle-soft',
-  name: 'cover_template.circle_name',
-  description: 'cover_template.circle_desc',
+  name: '柔和圆',
+  description: '柔和圆形装饰背景',
   previewStyle: 'background: #fff5f5; color: #c44569;',
   generateHtml: (config: TemplateConfig) => `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -462,9 +469,10 @@ const circleSoftTemplate: CoverTemplate = {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -561,9 +569,10 @@ export function generateImageCoverHtml(imagePath: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
     body {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;

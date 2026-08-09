@@ -1,5 +1,5 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
-import { useThemeRuntime } from '@chips/component-library';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FileTextOutlined, LoadingOutlined } from '@ant-design/icons';
 import type { CompositeInteractionPayload } from 'chips-sdk';
 import { CardWindowBase } from '../CardWindowBase/CardWindowBase';
 import { WindowMenu } from '../WindowMenu/WindowMenu';
@@ -8,14 +8,11 @@ import { useEditorSelection } from '../../context/EditorSelectionContext';
 import { getChipsClient } from '../../services/bridge-client';
 import { workspaceService } from '../../services/workspace-service';
 import { useCanvas } from '../../layouts/InfiniteCanvas/CanvasContext';
-import { useTranslation } from '../../hooks/useTranslation';
 import type { CardWindowConfig, Position, Size } from '../../types/window';
 import {
     CompositeCardAssembler,
     type BasecardResourceOpenEvent,
 } from '../../basecard-runtime/CompositeCardAssembler';
-import { ENGINE_ICONS } from '../../icons/descriptors';
-import { RuntimeIcon } from '../../icons/RuntimeIcon';
 import { normalizeCoverRatio, parseCoverRatio } from '../../utils/card-cover';
 import './CardWindow.css';
 
@@ -48,7 +45,7 @@ export interface CardWindowProps {
     onFocus: () => void;
 }
 
-export function CardWindow({
+export const CardWindow = React.memo(function CardWindow({
     config,
     onUpdateConfig,
     onClose,
@@ -57,8 +54,6 @@ export function CardWindow({
     const { openCards, activeCardId, selectedBaseCardId, setActiveCard, setSelectedBaseCard } = useCard();
     const { selectCard } = useEditorSelection();
     const canvasContext = useCanvas();
-    const themeRuntime = useThemeRuntime();
-    const { t } = useTranslation();
 
     const cardInfo = openCards.get(config.cardId);
     const isEditing = !!config.isEditing;
@@ -72,7 +67,10 @@ export function CardWindow({
     const markInteractionSequenceRef = useRef(canvasContext.markInteractionSequence);
     const coverFrameHostRef = useRef<HTMLDivElement | null>(null);
     const coverFrameRef = useRef<HTMLIFrameElement | null>(null);
-    const visibleBaseCards = cardInfo?.structure.basicCards ?? [];
+    const visibleBaseCards = useMemo(
+        () => cardInfo?.structure.basicCards ?? [],
+        [cardInfo],
+    );
     const previewResourceBaseUrl = toCardRootFileUrl(cardInfo?.path);
 
     const [isCoverDragging, setIsCoverDragging] = useState(false);
@@ -191,35 +189,35 @@ export function CardWindow({
         };
     }, [config.cardId, coverCardPath, windowState]);
 
-    const toggleEditMode = () => onUpdateConfig({ isEditing: !isEditing });
-    const switchToCover = () => onUpdateConfig({ state: 'cover' });
-    const restoreFromCover = () => onUpdateConfig({ state: 'normal' });
+    const toggleEditMode = useCallback(() => onUpdateConfig({ isEditing: !isEditing }), [isEditing, onUpdateConfig]);
+    const switchToCover = useCallback(() => onUpdateConfig({ state: 'cover' }), [onUpdateConfig]);
+    const restoreFromCover = useCallback(() => onUpdateConfig({ state: 'normal' }), [onUpdateConfig]);
 
-    const handleUpdatePosition = (pos: Position) => onUpdateConfig({ position: pos });
-    const handleUpdateSize = (size: Size) => onUpdateConfig({ size });
+    const handleUpdatePosition = useCallback((pos: Position) => onUpdateConfig({ position: pos }), [onUpdateConfig]);
+    const handleUpdateSize = useCallback((size: Size) => onUpdateConfig({ size }), [onUpdateConfig]);
 
-    const handleUpdateTitle = async (title: string) => {
+    const handleUpdateTitle = useCallback(async (title: string) => {
         try {
             await workspaceService.renameFile(config.cardId, `${title}.card`);
         } catch (error) {
             console.error('[CardWindow] Failed to rename card metadata.', error);
         }
-    };
+    }, [config.cardId]);
 
-    const handleMinimize = () => onUpdateConfig({ state: 'minimized' });
+    const handleMinimize = useCallback(() => onUpdateConfig({ state: 'minimized' }), [onUpdateConfig]);
 
-    const handleCollapse = () => {
+    const handleCollapse = useCallback(() => {
         const newState = windowState === 'collapsed' ? 'normal' : 'collapsed';
         onUpdateConfig({ state: newState });
-    };
+    }, [onUpdateConfig, windowState]);
 
-    const handleOpenSettings = () => {
+    const handleOpenSettings = useCallback(() => {
         setIsSettingsOpen(true);
-    };
+    }, []);
 
-    const handleCloseSettings = () => {
+    const handleCloseSettings = useCallback(() => {
         setIsSettingsOpen(false);
-    };
+    }, []);
 
     const handleCompositeInteraction = useCallback((frame: HTMLIFrameElement, payload: CompositeInteractionPayload) => {
         if (windowState !== 'normal') {
@@ -261,11 +259,11 @@ export function CardWindow({
                     error,
                 });
                 void clientRef.current.platform.showMessage({
-                    title: t('card_window.resource_open_failed_title'),
-                    message: t('card_window.resource_open_failed_message', { error: message }),
+                    title: '资源打开失败',
+                    message: `无法通过 Host 资源路由打开该资源：${message}`,
                 }).catch(() => undefined);
             });
-    }, [t]);
+    }, []);
 
     const selectBaseCard = useCallback((baseCardId: string) => {
         setActiveCard(config.cardId);
@@ -273,7 +271,7 @@ export function CardWindow({
         selectCard(config.cardId, baseCardId);
     }, [config.cardId, selectCard, setActiveCard, setSelectedBaseCard]);
 
-    const handleWindowFocus = () => {
+    const handleWindowFocus = useCallback(() => {
         const nextBaseCardId = (activeCardId === config.cardId ? selectedBaseCardId : null)
             ?? visibleBaseCards[0]?.id
             ?? null;
@@ -283,9 +281,9 @@ export function CardWindow({
         }
         selectCard(config.cardId, nextBaseCardId);
         onFocus();
-    };
+    }, [activeCardId, config.cardId, onFocus, selectCard, selectedBaseCardId, setActiveCard, setSelectedBaseCard, visibleBaseCards]);
 
-    const handleCoverMouseDown = (event: React.MouseEvent) => {
+    const handleCoverMouseDown = useCallback((event: React.MouseEvent) => {
         if (event.button !== 0) return;
         setIsCoverDragging(true);
         coverDragMoved.current = false;
@@ -293,7 +291,7 @@ export function CardWindow({
         coverInitialPosition.current = { ...config.position };
         setCoverRenderPosition({ ...config.position });
         event.preventDefault();
-    };
+    }, [config.position]);
 
     const handleCoverMouseMove = useCallback((event: MouseEvent) => {
         if (!isCoverDragging) return;
@@ -335,20 +333,25 @@ export function CardWindow({
         };
     }, [isCoverDragging, handleCoverMouseMove, handleCoverMouseUp]);
 
-    const coverStyle = {
+    const coverStyle = useMemo(() => ({
         transform: `translate(${coverRenderPosition.x}px, ${coverRenderPosition.y}px)`
-    };
-    const previewContainerStyle: React.CSSProperties = {
-        flex: '1 1 auto',
-        width: '100%',
-        maxWidth: '100%',
-        alignSelf: 'stretch',
-    };
+    }), [coverRenderPosition.x, coverRenderPosition.y]);
 
-    if (previewHeight) {
-        previewContainerStyle.height = `${previewHeight}px`;
-        previewContainerStyle.minHeight = `${previewHeight}px`;
-    }
+    const previewContainerStyle = useMemo<React.CSSProperties>(() => {
+        const style: React.CSSProperties = {
+            flex: '1 1 auto',
+            width: '100%',
+            maxWidth: '100%',
+            alignSelf: 'stretch',
+        };
+
+        if (previewHeight) {
+            style.height = `${previewHeight}px`;
+            style.minHeight = `${previewHeight}px`;
+        }
+
+        return style;
+    }, [previewHeight]);
 
     if (windowState === 'cover') {
         const normalizedRatio = normalizeCoverRatio(coverRatioValue);
@@ -389,7 +392,7 @@ export function CardWindow({
                 onCollapse={handleCollapse}
                 headerSlot={
                     <WindowMenu
-                        title={cardInfo?.metadata?.name || t('card_window.untitled')}
+                        title={cardInfo?.metadata?.name || '无标题卡片'}
                         isEditing={isEditing}
                         showLock={true}
                         showCover={true}
@@ -405,9 +408,9 @@ export function CardWindow({
                     {!cardInfo ? (
                         <div className="card-window__loading">
                             <span className="card-window__loading-icon">
-                                <RuntimeIcon icon={ENGINE_ICONS.loading} />
+                                <LoadingOutlined />
                             </span>
-                            <span className="card-window__loading-text">{t('card_window.loading')}</span>
+                            <span className="card-window__loading-text">加载中…</span>
                         </div>
                     ) : visibleBaseCards.length === 0 ? (
                         <div
@@ -418,11 +421,11 @@ export function CardWindow({
                             data-chips-drop-accept={isEditing ? 'true' : 'false'}
                         >
                             <span className="card-window__empty-icon">
-                                <RuntimeIcon icon={ENGINE_ICONS.document} />
+                                <FileTextOutlined />
                             </span>
-                            <span className="card-window__empty-text">{t('card_window.empty')}</span>
+                            <span className="card-window__empty-text">卡片为空</span>
                             {isEditing && (
-                                <span className="card-window__empty-hint">{t('card_window.empty_hint')}</span>
+                                <span className="card-window__empty-hint">从卡箱库拖入内容到此处</span>
                             )}
                         </div>
                     ) : (
@@ -445,7 +448,6 @@ export function CardWindow({
                                         mode={isEditing ? 'preview' : 'view'}
                                         interactionPolicy={interactionPolicy}
                                         selectedBaseCardId={selectedBaseCardId}
-                                        themeCacheKey={themeRuntime.cacheKey}
                                         onHeightChange={(height) => {
                                             setPreviewHeight((currentHeight) => currentHeight === height ? currentHeight : height);
                                         }}
@@ -476,9 +478,9 @@ export function CardWindow({
                                 {isPreviewLoading && previewHeight === null && (
                                     <div className="card-window__overlay">
                                         <span className="card-window__loading-icon">
-                                            <RuntimeIcon icon={ENGINE_ICONS.loading} />
+                                            <LoadingOutlined />
                                         </span>
-                                        <span className="card-window__loading-text">{t('card_window.loading')}</span>
+                                        <span className="card-window__loading-text">加载中…</span>
                                     </div>
                                 )}
                             </div>
@@ -496,4 +498,4 @@ export function CardWindow({
             </Suspense>
         </>
     );
-}
+});

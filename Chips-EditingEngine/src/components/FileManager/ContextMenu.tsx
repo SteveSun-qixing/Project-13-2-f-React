@@ -1,125 +1,78 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import {
-  resolveCommandMenuGroups,
-  type ChipsCommandView,
-  type ChipsResolvedCommandView,
-} from '@chips/component-library';
-import { useTranslation } from '../../hooks/useTranslation';
-import { RuntimeIcon } from '../../icons/RuntimeIcon';
-import './ContextMenu.css';
+import React, { useMemo, type ReactNode } from 'react';
+import { Dropdown, type MenuProps } from 'antd';
+import type { CommandItem } from '@chips/ui';
 
 interface ContextMenuProps {
-  visible: boolean;
-  x: number;
-  y: number;
-  commands: ChipsCommandView[];
-  onClose: () => void;
-  onCommand: (commandId: string) => void;
+    commands: CommandItem[];
+    onCommand: (commandId: string) => void;
+    children: ReactNode;
 }
 
-export function ContextMenu({
-  visible,
-  x,
-  y,
-  commands,
-  onClose,
-  onCommand,
-}: ContextMenuProps) {
-  const { t } = useTranslation();
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [adjustedPos, setAdjustedPos] = useState({ x, y });
-
-  const menuGroups = useMemo(() => resolveCommandMenuGroups(commands, {
-    menuId: 'workspace-file',
-    i18n: t,
-    includeHidden: false,
-  }), [commands, t]);
-
-  useEffect(() => {
-    if (visible && menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      let nextX = x;
-      let nextY = y;
-
-      if (nextX + rect.width > viewportWidth) {
-        nextX = viewportWidth - rect.width - 10;
-      }
-      if (nextY + rect.height > viewportHeight) {
-        nextY = viewportHeight - rect.height - 10;
-      }
-
-      setAdjustedPos({ x: Math.max(10, nextX), y: Math.max(10, nextY) });
+function shortcutText(shortcut: string | undefined): string | undefined {
+    if (!shortcut) {
+        return undefined;
     }
-  }, [visible, x, y]);
+    return shortcut
+        .split('+')
+        .map((part) => {
+            if (part === 'Mod') {
+                return '⌘';
+            }
+            if (part === 'Shift') {
+                return '⇧';
+            }
+            if (part === 'Alt') {
+                return '⌥';
+            }
+            return part;
+        })
+        .join(' ');
+}
 
-  useEffect(() => {
-    const handleGlobalClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+export function ContextMenu({ commands, onCommand, children }: ContextMenuProps) {
+    const items = useMemo<MenuProps['items']>(() => {
+        const visibleCommands = commands.filter((command) => command.visible !== false);
+        const result: NonNullable<MenuProps['items']> = [];
+        let lastGroup: string | undefined;
 
-    if (visible) {
-      document.addEventListener('mousedown', handleGlobalClick);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleGlobalClick);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [visible, onClose]);
+        for (const command of visibleCommands) {
+            if (command.group !== lastGroup && result.length > 0) {
+                result.push({ type: 'divider' });
+            }
+            lastGroup = command.group;
+            const shortcut = shortcutText(command.shortcut);
+            result.push({
+                key: command.id,
+                label: (
+                    <span
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 24,
+                        }}
+                    >
+                        <span>{command.title}</span>
+                        {shortcut ? <span style={{ color: '#86868b', fontSize: 12 }}>{shortcut}</span> : null}
+                    </span>
+                ),
+                icon: command.icon,
+                disabled: command.enabled === false,
+            });
+        }
 
-  const handleCommandClick = (command: ChipsResolvedCommandView, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (command.disabled) {
-      return;
-    }
-    onCommand(command.commandId);
-    onClose();
-  };
+        return result;
+    }, [commands]);
 
-  if (!visible) return null;
-
-  return createPortal(
-    <div
-      ref={menuRef}
-      className="context-menu"
-      style={{
-        left: `${adjustedPos.x}px`,
-        top: `${adjustedPos.y}px`,
-      }}
-      role="menu"
-    >
-      {menuGroups.map((group, groupIndex) => (
-        <React.Fragment key={group.groupId}>
-          {groupIndex > 0 && <div className="context-menu__divider" />}
-          {group.items.map((item) => (
-            <div
-              key={item.commandId}
-              className={`context-menu__item ${item.disabled ? 'context-menu__item--disabled' : ''}`}
-              role="menuitem"
-              aria-disabled={item.disabled ? 'true' : undefined}
-              onClick={(e) => handleCommandClick(item, e)}
-            >
-              {item.icon && (
-                <span className="context-menu__icon">
-                  <RuntimeIcon icon={item.icon} />
-                </span>
-              )}
-              <span className="context-menu__label">{item.label}</span>
-              {item.shortcutLabel && <span className="context-menu__shortcut">{item.shortcutLabel}</span>}
-            </div>
-          ))}
-        </React.Fragment>
-      ))}
-    </div>,
-    document.body
-  );
+    return (
+        <Dropdown
+            trigger={['contextMenu']}
+            menu={{
+                items,
+                onClick: ({ key }) => onCommand(key),
+            }}
+        >
+            {children}
+        </Dropdown>
+    );
 }

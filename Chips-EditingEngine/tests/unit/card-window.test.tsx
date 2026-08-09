@@ -95,13 +95,6 @@ vi.mock('../../src/context/CardContext', () => ({
   }),
 }));
 
-vi.mock('@chips/component-library', () => ({
-  ChipsIcon: ({ descriptor }: { descriptor: { name: string } }) => <span data-icon-name={descriptor.name} />,
-  useThemeRuntime: () => ({
-    cacheKey: 'theme-cache-key',
-  }),
-}));
-
 vi.mock('../../src/layouts/InfiniteCanvas/CanvasContext', () => ({
   useCanvas: () => ({
     zoom: 1,
@@ -114,11 +107,6 @@ vi.mock('../../src/layouts/InfiniteCanvas/CanvasContext', () => ({
   }),
 }));
 
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
 
 vi.mock('../../src/components/CardWindowBase/CardWindowBase', () => ({
   CardWindowBase: ({
@@ -285,7 +273,7 @@ describe('CardWindow', () => {
     );
 
     expect(cardWindowCss).toContain('.card-window__preview');
-    expect(cardWindowCss).toContain('background: var(--chips-sys-color-surface, #ffffff);');
+    expect(cardWindowCss).toContain('background: #ffffff;');
     expect(cardWindowCss).not.toContain('background: linear-gradient(180deg, rgba(248, 250, 252, 0.95) 0%, rgba(241, 245, 249, 0.9) 100%);');
   });
 
@@ -294,7 +282,6 @@ describe('CardWindow', () => {
 
     expect(latestAssemblerProps?.mode).toBe('preview');
     expect(latestAssemblerProps?.interactionPolicy).toBe('delegate');
-    expect(latestAssemblerProps?.themeCacheKey).toBe('theme-cache-key');
 
     await renderCardWindow({
       state: 'collapsed',

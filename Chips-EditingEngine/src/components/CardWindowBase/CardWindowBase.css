@@ -1,7 +1,7 @@
 .card-window-base {
     position: absolute;
-    background: var(--chips-sys-color-surface, #ffffff);
-    border-radius: 8px;
+    background: #ffffff;
+    border-radius: 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
     overflow: hidden;
     display: flex;
@@ -45,7 +45,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: var(--chips-sys-color-surface-container, #f5f5f5);
+    background: #f5f5f7;
     cursor: grab;
     user-select: none;
     flex-shrink: 0;
@@ -58,7 +58,7 @@
 .card-window-base__title {
     font-size: 14px;
     font-weight: 500;
-    color: var(--chips-sys-color-on-surface, #1a1a1a);
+    color: #1d1d1f;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -89,19 +89,19 @@
 .card-window-base__action-icon {
     font-size: 16px;
     line-height: 1;
-    color: var(--chips-sys-color-on-surface-variant, #666666);
+    color: #6e6e73;
 }
 
 .card-window-base__action:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.03);
 }
 
 .card-window-base__action:hover .card-window-base__action-icon {
-    color: var(--chips-sys-color-on-surface, #1a1a1a);
+    color: #1d1d1f;
 }
 
 .card-window-base__action--close:hover {
-    background: #ef4444;
+    background: #ff3b30;
 }
 
 .card-window-base__action--close:hover .card-window-base__action-icon {
@@ -128,10 +128,10 @@
     right: 4px;
     width: 8px;
     height: 8px;
-    border-right: 2px solid var(--chips-sys-color-border, #e0e0e0);
-    border-bottom: 2px solid var(--chips-sys-color-border, #e0e0e0);
+    border-right: 2px solid rgba(0, 0, 0, 0.06);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.06);
 }
 
 .card-window-base__resize-handle:hover::after {
-    border-color: var(--chips-sys-color-primary, #3b82f6);
+    border-color: #0a84ff;
 }

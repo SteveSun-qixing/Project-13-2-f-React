@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChipsTabs } from '@chips/component-library';
+import { Button, Tabs } from 'antd';
 import { type BoxEntrySnapshot, type BoxLayoutDescriptor, type FrameRenderResult } from 'chips-sdk';
-import { useTranslation } from '../../hooks/useTranslation';
 import { useBoxDocumentSession } from '../../hooks/useBoxDocumentSession';
 import { useBoxLayoutDefinition } from '../../hooks/useBoxLayoutDefinition';
 import { usePointerSortableList } from '../DragDrop/usePointerSortableList';
@@ -146,7 +145,6 @@ export function BoxEditorPanel({
   boxId,
   boxPath,
 }: BoxEditorPanelProps) {
-  const { t, locale } = useTranslation();
   const client = useMemo(() => getChipsClient(), []);
   const { session, isLoading, error } = useBoxDocumentSession(boxId, boxPath);
   const activeLayoutType = session?.content.activeLayoutType ?? session?.metadata.activeLayoutType ?? null;
@@ -194,7 +192,7 @@ export function BoxEditorPanel({
 
     const filePaths = await client.platform.openFile({
       allowMultiple: true,
-      title: t('box_editor.import_title') || '选择要导入的卡片或箱子',
+      title: '选择要导入的卡片或箱子',
     });
 
     if (!filePaths || filePaths.length === 0) {
@@ -205,7 +203,7 @@ export function BoxEditorPanel({
   };
 
   if (isLoading) {
-    return <div className="box-editor-panel__state">{t('box_window.loading') || '正在加载箱子...'}</div>;
+    return <div className="box-editor-panel__state">正在加载箱子...</div>;
   }
 
   if (error) {
@@ -213,22 +211,22 @@ export function BoxEditorPanel({
   }
 
   if (!session) {
-    return <div className="box-editor-panel__state">{t('box_window.empty') || '箱子会话不可用'}</div>;
+    return <div className="box-editor-panel__state">箱子会话不可用</div>;
   }
 
   return (
     <div className="box-editor-panel">
-      <ChipsTabs
-        value={activeTab}
-        onValueChange={(value: string) => setActiveTab(value)}
+      <Tabs
+        activeKey={activeTab}
+        onChange={(value: string) => setActiveTab(value)}
         items={[
           {
-            value: 'config',
-            label: t('box_editor.tab_config') || '配置',
-            content: (
+            key: 'config',
+            label: '配置',
+            children: (
               <div className="box-editor-panel__tab-content box-editor-panel__tab-content--layout">
                 <div className="box-editor-panel__section-header">
-                  <h3 className="box-editor-panel__section-title">{t('box_editor.section_layout') || '布局配置'}</h3>
+                  <h3 className="box-editor-panel__section-title">布局配置</h3>
                   <span className="box-editor-panel__layout-type">
                     {layoutDefinition?.displayName ?? activeLayoutType ?? ''}
                   </span>
@@ -242,31 +240,31 @@ export function BoxEditorPanel({
                     layoutDefinition={layoutDefinition}
                     activeLayoutType={activeLayoutType ?? ''}
                     activeLayoutConfig={activeLayoutConfig}
-                    locale={locale}
+                    locale="zh-CN"
                   />
                 )}
               </div>
             ),
           },
           {
-            value: 'content',
-            label: t('box_editor.tab_content') || '内容列表',
-            content: (
+            key: 'content',
+            label: '内容列表',
+            children: (
               <div className="box-editor-panel__tab-content box-editor-panel__tab-content--content">
                 <div className="box-editor-panel__section-header">
-                  <h3 className="box-editor-panel__section-title">{t('box_editor.section_content') || '作品列表'}</h3>
-                  <button
-                    type="button"
+                  <h3 className="box-editor-panel__section-title">作品列表</h3>
+                  <Button
+                    type="default"
                     className="box-editor-panel__action-button"
                     onClick={() => { void handleImportDocuments(); }}
                   >
-                    {t('box_editor.import_action') || '导入作品'}
-                  </button>
+                    导入作品
+                  </Button>
                 </div>
 
                 {session.entries.length === 0 ? (
                   <div className="box-editor-panel__empty">
-                    {t('box_editor.content_empty') || '把卡片或箱子拖到桌面上的箱子窗口，或者在这里导入作品。'}
+                    把卡片或箱子拖到桌面上的箱子窗口，或者在这里导入作品。
                   </div>
                 ) : (
                   <div className="box-editor-panel__entry-list">
@@ -292,22 +290,23 @@ export function BoxEditorPanel({
                             </div>
 
                             <div className="box-editor-panel__entry-actions">
-                              <button
-                                type="button"
+                              <Button
+                                type="default"
+                                danger
                                 className="box-editor-panel__delete-button"
                                 onClick={() => {
                                   boxDocumentService.removeEntry(session.boxId, entry.entryId);
                                 }}
                               >
-                                {t('common.delete') || '删除'}
-                              </button>
-                              <button
-                                type="button"
+                                删除
+                              </Button>
+                              <Button
+                                type="default"
                                 className="box-editor-panel__drag-handle"
                                 onPointerDown={(event) => startDrag(entry.entryId, event)}
                               >
-                                {t('box_editor.reorder_action') || '调整'}
-                              </button>
+                                调整
+                              </Button>
                             </div>
                           </div>
                           {previewIndex === index + 1 && draggingItemId ? (

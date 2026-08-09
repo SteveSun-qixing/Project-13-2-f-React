@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -78,46 +76,6 @@ const clientMocks = vi.hoisted(() => ({
   changeHandler: null as null | ((payload: { config: Record<string, unknown> }) => void),
 }));
 
-vi.mock('@chips/component-library', async () => {
-  const ReactModule = await import('react');
-  return {
-    ChipsTabs: ({
-      value,
-      onValueChange,
-      items,
-    }: {
-      value: string;
-      onValueChange: (value: string) => void;
-      items: Array<{ value: string; label: string; content: React.ReactNode }>;
-    }) => (
-      <div data-testid="chips-tabs">
-        <div>
-          {items.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              data-testid={`tab-${item.value}`}
-              onClick={() => onValueChange(item.value)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div data-testid={`panel-${value}`}>
-          {items.find((item) => item.value === value)?.content ?? null}
-        </div>
-      </div>
-    ),
-  };
-});
-
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-    locale: 'zh-CN',
-  }),
-}));
-
 vi.mock('../../src/hooks/useBoxDocumentSession', () => ({
   useBoxDocumentSession: () => ({
     session: sessionRef.current,
@@ -170,7 +128,19 @@ describe('BoxEditorPanel', () => {
   let container: HTMLDivElement;
   let root: Root;
 
+  let originalResizeObserver: typeof ResizeObserver | undefined;
+
   beforeEach(() => {
+    originalResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class ResizeObserverMock {
+      constructor(_callback: ResizeObserverCallback) {}
+
+      observe(): void {}
+
+      disconnect(): void {}
+
+      unobserve(): void {}
+    } as typeof ResizeObserver;
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -199,6 +169,11 @@ describe('BoxEditorPanel', () => {
   });
 
   afterEach(async () => {
+    if (originalResizeObserver) {
+      globalThis.ResizeObserver = originalResizeObserver;
+    } else {
+      Reflect.deleteProperty(globalThis, 'ResizeObserver');
+    }
     await act(async () => {
       root.unmount();
     });
@@ -218,7 +193,9 @@ describe('BoxEditorPanel', () => {
 
     if (tab === 'content') {
       await act(async () => {
-        (container.querySelector('[data-testid="tab-content"]') as HTMLButtonElement).click();
+        const tabButton = Array.from(container.querySelectorAll('[role="tab"]'))
+          .find((tabNode) => tabNode.textContent === '内容列表');
+        (tabButton as HTMLElement | undefined)?.click();
         await Promise.resolve();
       });
     }
@@ -291,14 +268,16 @@ describe('BoxEditorPanel', () => {
     expect(clientMocks.editorPanelRender).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps inactive tab panels from creating a blank overlay', async () => {
-    const css = await readFile(
-      resolve(process.cwd(), 'src/components/EditPanel/BoxEditorPanel.css'),
-      'utf-8',
-    );
+  it('keeps inactive tab panels hidden and renders only the active panel', async () => {
+    await renderPanel('config');
 
-    expect(css).toContain('.box-editor-panel [data-scope="tabs"][data-part="panel"][hidden]');
-    expect(css).toContain('display: none');
+    const tabButtons = Array.from(container.querySelectorAll('[role="tab"]'));
+    expect(tabButtons.map((tab) => tab.textContent)).toEqual(['配置', '内容列表']);
+
+    const visiblePanels = Array.from(container.querySelectorAll('[role="tabpanel"]'))
+      .filter((panel) => panel.getAttribute('aria-hidden') !== 'true');
+    expect(visiblePanels).toHaveLength(1);
+    expect(visiblePanels[0]?.querySelector('.box-editor-panel__layout-slot')).not.toBeNull();
   });
 
   it('shows entry titles only in the content list', async () => {
@@ -307,7 +286,7 @@ describe('BoxEditorPanel', () => {
     const titles = Array.from(container.querySelectorAll('.box-editor-panel__entry-title')).map((node) => node.textContent);
     expect(titles).toEqual(['第一张卡片', '第二张卡片']);
     expect(container.textContent).not.toContain('/workspace/first.card');
-    expect(container.textContent).not.toContain('box_editor.tail_drop_hint');
+    expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === '导入作品')).toBe(true);
     expect(container.querySelector('.box-editor-panel__entry-location')).toBeNull();
   });
 

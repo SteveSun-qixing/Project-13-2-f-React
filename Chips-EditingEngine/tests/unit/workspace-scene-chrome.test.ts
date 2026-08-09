@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const workspaceScenePath = fileURLToPath(new URL('../../src/scenes/WorkspaceScene.tsx', import.meta.url));
-const commandDefinitionsPath = fileURLToPath(new URL('../../src/commands/editing-engine-commands.ts', import.meta.url));
+const appShellPath = fileURLToPath(new URL('../../src/app/AppShell.tsx', import.meta.url));
 
 describe('WorkspaceScene application chrome', () => {
   it('does not mount the application header toolbar above the workspace', async () => {
@@ -13,9 +13,12 @@ describe('WorkspaceScene application chrome', () => {
     expect(source).not.toContain('<HeaderBar');
   });
 
-  it('does not publish application-level workspace toolbar placements', async () => {
-    const source = await readFile(commandDefinitionsPath, 'utf8');
+  it('mounts the shared AppChrome without menu bar or toolbar rows', async () => {
+    const source = await readFile(appShellPath, 'utf8');
 
-    expect(source).not.toContain("toolbarId: 'workspace'");
+    expect(source).toContain('AppChrome');
+    expect(source).not.toContain('menus=');
+    expect(source).not.toContain('toolbarItems=');
+    expect(source).not.toContain('appName=');
   });
 });

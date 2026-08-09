@@ -15,7 +15,7 @@
 .window-menu__title {
     font-size: 14px;
     font-weight: 500;
-    color: var(--chips-sys-color-on-surface, #1a1a1a);
+    color: #1d1d1f;
     cursor: text;
     white-space: nowrap;
     overflow: hidden;
@@ -24,7 +24,7 @@
 }
 
 .window-menu__title:hover {
-    color: var(--chips-sys-color-primary, #3b82f6);
+    color: #0a84ff;
 }
 
 .window-menu__title-input {
@@ -32,15 +32,16 @@
     font-size: 14px;
     font-weight: 500;
     border: none;
-    background: var(--chips-sys-color-surface, #ffffff);
-    border-radius: 4px;
+    background: #f2f2f7;
+    border-radius: 10px;
     padding: 4px 8px;
     outline: none;
-    color: var(--chips-sys-color-on-surface, #1a1a1a);
+    color: #1d1d1f;
 }
 
 .window-menu__title-input:focus {
-    box-shadow: 0 0 0 2px var(--chips-sys-color-primary, #3b82f6);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
 }
 
 .window-menu__right {
@@ -65,15 +66,15 @@
 }
 
 .window-menu__button:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.03);
 }
 
 .window-menu__button--active {
-    background: rgba(59, 130, 246, 0.1);
+    background: rgba(10, 132, 255, 0.1);
 }
 
 .window-menu__button--active:hover {
-    background: rgba(59, 130, 246, 0.15);
+    background: rgba(10, 132, 255, 0.15);
 }
 
 .window-menu__button-icon {

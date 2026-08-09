@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from '../../hooks/useTranslation';
+import { formatMessage } from '../../lib/messages';
 import { useCard } from '../../context/CardContext';
 import { useEditorSelection } from '../../context/EditorSelectionContext';
 import { useUI } from '../../context/UIContext';
@@ -19,7 +19,6 @@ interface EditPanelProps {
 export default function EditPanel({
   position = 'right',
 }: EditPanelProps) {
-  const { t } = useTranslation();
   const { activeCardId, selectedBaseCardId, getCard, saveCard, updateBasicCard } = useCard();
   const { target } = useEditorSelection();
   const { windows } = useUI();
@@ -106,7 +105,7 @@ export default function EditPanel({
       ref={panelRef}
       className={panelClass}
       role="complementary"
-      aria-label={t('edit_panel.title') || '编辑面板'}
+      aria-label={formatMessage('edit_panel.title')}
       onFocusCapture={handlePanelFocusCapture}
       onBlurCapture={handlePanelBlurCapture}
     >
@@ -141,7 +140,7 @@ export default function EditPanel({
             <div className="edit-panel__empty-icon">
               <RuntimeIcon icon={ENGINE_ICONS.edit} />
             </div>
-            <p className="edit-panel__empty-text">{t('edit_panel.empty_hint') || '请在左侧选择要编辑的内容'}</p>
+            <p className="edit-panel__empty-text">{formatMessage('edit_panel.empty_hint')}</p>
           </div>
         )}
       </div>

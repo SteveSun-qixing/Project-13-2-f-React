@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--chips-color-bg-secondary, #f8f9fa);
+  background-color: #f5f5f7;
   user-select: none;
 }
 
@@ -11,17 +11,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--chips-spacing-sm, 8px);
-  padding: var(--chips-spacing-sm, 8px) var(--chips-spacing-md, 12px);
-  background-color: var(--chips-color-bg-primary, #fff);
-  border-bottom: 1px solid var(--chips-color-border-light, #f0f0f0);
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   flex-wrap: nowrap;
 }
 
 .file-manager__toolbar-left {
   display: flex;
   align-items: center;
-  gap: var(--chips-spacing-xs, 4px);
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -34,24 +34,24 @@
   padding: 0 !important;
   border: none !important;
   background: transparent !important;
-  border-radius: var(--chips-radius-sm, 4px) !important;
+  border-radius: 8px !important;
   cursor: pointer;
   font-size: 16px !important;
   min-width: 0 !important;
 }
 
 .file-manager__btn:hover {
-  background-color: var(--chips-color-bg-hover, rgba(0, 0, 0, 0.05)) !important;
+  background-color: rgba(0, 0, 0, 0.03) !important;
 }
 
 /* 搜索框行 */
 .file-manager__search-row {
   display: flex;
   align-items: center;
-  gap: var(--chips-spacing-sm, 8px);
-  padding: var(--chips-spacing-sm, 8px) var(--chips-spacing-md, 12px);
-  background-color: var(--chips-color-bg-primary, #fff);
-  border-bottom: 1px solid var(--chips-color-border-light, #f0f0f0);
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .file-manager__search-input {
@@ -73,7 +73,7 @@
   border: none !important;
   background: transparent !important;
   font-size: 14px !important;
-  color: var(--chips-color-text-secondary, #666);
+  color: #6e6e73;
   min-width: 0 !important;
 }
 
@@ -81,7 +81,7 @@
 .file-manager__content {
   flex: 1;
   overflow: hidden;
-  background-color: var(--chips-color-bg-primary, #fff);
+  background-color: #fff;
   display: flex;
   flex-direction: column;
 }
@@ -93,8 +93,8 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: var(--chips-spacing-sm, 8px);
-  color: var(--chips-color-text-tertiary, #999);
+  gap: 8px;
+  color: #86868b;
 }
 
 .file-manager__loading-spinner {
@@ -111,17 +111,17 @@
 .file-manager__statusbar {
   display: flex;
   align-items: center;
-  gap: var(--chips-spacing-xs, 4px);
-  padding: var(--chips-spacing-xs, 4px) var(--chips-spacing-sm, 8px);
-  background-color: var(--chips-color-bg-secondary, #f8f9fa);
-  border-top: 1px solid var(--chips-color-border-light, #f0f0f0);
-  font-size: var(--chips-font-size-xs, 12px);
-  color: var(--chips-color-text-tertiary, #999);
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: #f5f5f7;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 12px;
+  color: #86868b;
 }
 
 .file-manager__statusbar-count {
-  font-weight: var(--chips-font-weight-medium, 500);
-  color: var(--chips-color-text-secondary, #666);
+  font-weight: 500;
+  color: #6e6e73;
 }
 
 /* 空状态 */
@@ -131,9 +131,9 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: var(--chips-spacing-sm, 8px);
-  padding: var(--chips-spacing-xl, 32px);
-  color: var(--chips-color-text-tertiary, #999);
+  gap: 8px;
+  padding: 32px;
+  color: #86868b;
 }
 
 .file-manager__empty-icon {
@@ -142,14 +142,21 @@
 }
 
 .file-manager__empty-title {
-  font-size: var(--chips-font-size-md, 16px);
-  font-weight: var(--chips-font-weight-medium, 500);
-  color: var(--chips-color-text-secondary, #666);
+  font-size: 16px;
+  font-weight: 500;
+  color: #6e6e73;
 }
 
 .file-manager__empty-hint {
-  font-size: var(--chips-font-size-sm, 14px);
+  font-size: 14px;
   text-align: center;
   line-height: 1.5;
-  color: var(--chips-color-text-tertiary, #999);
+  color: #86868b;
+}
+
+/* ContextMenu 浮层（antd Dropdown）毛玻璃 */
+.ant-dropdown-menu {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
 }

@@ -7,21 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileTree } from '../../src/components/FileManager/FileTree';
 import type { WorkspaceFile } from '../../src/types/workspace';
 
-vi.mock('@chips/component-library', () => ({
-  ChipsIcon: ({ descriptor }: { descriptor: { name: string } }) => <span data-icon-name={descriptor.name} />,
-  ChipsInput: React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-    function MockChipsInput(props, ref) {
-      return <input ref={ref} {...props} />;
-    },
-  ),
-}));
-
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
-
 describe('FileTree', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -144,7 +129,7 @@ describe('FileTree', () => {
     const tree = container.querySelector('[role="tree"]') as HTMLDivElement | null;
     const items = Array.from(container.querySelectorAll('[role="treeitem"]')) as HTMLDivElement[];
     expect(tree).not.toBeNull();
-    expect(tree?.getAttribute('aria-label')).toBe('file.tree_label');
+    expect(tree?.getAttribute('aria-label')).toBe('文件树');
     expect(tree?.getAttribute('aria-multiselectable')).toBe('true');
     expect(items).toHaveLength(3);
     expect(items.map((item) => item.tabIndex)).toEqual([0, -1, -1]);
@@ -166,5 +151,110 @@ describe('FileTree', () => {
     });
 
     expect(onOpen).toHaveBeenCalledWith(files[0]?.children?.[0]);
+  });
+
+  it('claims Enter locally with preventDefault so the global shortcut dispatcher skips it', async () => {
+    const files: WorkspaceFile[] = [
+      {
+        id: 'folder-1',
+        name: 'folder',
+        path: '/workspace/folder',
+        type: 'folder',
+        createdAt: '2026-03-14T00:00:00.000Z',
+        modifiedAt: '2026-03-14T00:00:00.000Z',
+        expanded: true,
+        children: [],
+      },
+      {
+        id: 'card-1',
+        name: 'demo.card',
+        path: '/workspace/demo.card',
+        type: 'card',
+        createdAt: '2026-03-14T00:00:00.000Z',
+        modifiedAt: '2026-03-14T00:00:00.000Z',
+      },
+    ];
+    const onOpen = vi.fn();
+    const onToggle = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <FileTree
+          files={files}
+          rootPath="/workspace"
+          selectedPaths={[]}
+          renamingPath={null}
+          searchQuery=""
+          onSelect={() => undefined}
+          onOpen={onOpen}
+          onContextMenu={() => undefined}
+          onToggle={onToggle}
+          onRename={() => undefined}
+          onRenameCancel={() => undefined}
+          onDragStart={() => undefined}
+        />,
+      );
+    });
+
+    const tree = container.querySelector('[role="tree"]') as HTMLDivElement | null;
+    const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+
+    await act(async () => {
+      tree?.dispatchEvent(enterEvent);
+    });
+
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(enterEvent.defaultPrevented).toBe(true);
+  });
+
+  it('leaves F2 and Delete untouched locally, preserving the no-global-dispatch guarantee', async () => {
+    const files: WorkspaceFile[] = [
+      {
+        id: 'card-1',
+        name: 'demo.card',
+        path: '/workspace/demo.card',
+        type: 'card',
+        createdAt: '2026-03-14T00:00:00.000Z',
+        modifiedAt: '2026-03-14T00:00:00.000Z',
+      },
+    ];
+    const onOpen = vi.fn();
+    const onToggle = vi.fn();
+    const onRename = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <FileTree
+          files={files}
+          rootPath="/workspace"
+          selectedPaths={[]}
+          renamingPath={null}
+          searchQuery=""
+          onSelect={() => undefined}
+          onOpen={onOpen}
+          onContextMenu={() => undefined}
+          onToggle={onToggle}
+          onRename={onRename}
+          onRenameCancel={() => undefined}
+          onDragStart={() => undefined}
+        />,
+      );
+    });
+
+    const tree = container.querySelector('[role="tree"]') as HTMLDivElement | null;
+    const f2Event = new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true });
+    const deleteEvent = new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true });
+
+    await act(async () => {
+      tree?.dispatchEvent(f2Event);
+      tree?.dispatchEvent(deleteEvent);
+    });
+
+    expect(f2Event.defaultPrevented).toBe(false);
+    expect(deleteEvent.defaultPrevented).toBe(false);
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(onRename).not.toHaveBeenCalled();
   });
 });

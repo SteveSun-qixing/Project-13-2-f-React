@@ -1,6 +1,6 @@
 import React, { startTransition, useDeferredValue, useEffect, useRef, useState } from 'react';
 import { fileService } from '../../../services/file-service';
-import { useTranslation } from '../../../hooks/useTranslation';
+import { formatMessage } from '../../../lib/messages';
 import {
   createDefaultCoverHtml,
   createImageCoverHtml,
@@ -20,7 +20,6 @@ interface RatioPreset {
   id: string;
   ratio: string;
   labelKey: string;
-  fallbackLabel: string;
 }
 
 interface ImageDraft {
@@ -52,15 +51,15 @@ interface CoverPanelProps {
 const EMPTY_RESOURCES: CardCoverResource[] = [];
 
 const COVER_RATIO_PRESETS: RatioPreset[] = [
-  { id: 'square', ratio: '1:1', labelKey: 'card_settings.cover_ratio_square', fallbackLabel: '1:1（正方形）' },
-  { id: 'book', ratio: '1:1.414', labelKey: 'card_settings.cover_ratio_book', fallbackLabel: '1:1.414（书本比例）' },
-  { id: 'photo', ratio: '2:3', labelKey: 'card_settings.cover_ratio_photo', fallbackLabel: '2:3（照片比例）' },
-  { id: 'standard-photo', ratio: '3:4', labelKey: 'card_settings.cover_ratio_standard_photo', fallbackLabel: '3:4（标准照片）' },
-  { id: 'golden', ratio: '1:1.618', labelKey: 'card_settings.cover_ratio_golden', fallbackLabel: '1:1.618（黄金比例）' },
-  { id: 'cinema', ratio: '16:9', labelKey: 'card_settings.cover_ratio_cinema', fallbackLabel: '16:9（电影比例）' },
-  { id: 'banner', ratio: '2:1', labelKey: 'card_settings.cover_ratio_banner', fallbackLabel: '2:1（横幅比例）' },
-  { id: 'phone', ratio: '9:19.5', labelKey: 'card_settings.cover_ratio_phone', fallbackLabel: '9:19.5（手机比例）' },
-  { id: 'magazine', ratio: '1.58:1', labelKey: 'card_settings.cover_ratio_magazine', fallbackLabel: '1.58:1（杂志比例）' },
+  { id: 'square', ratio: '1:1', labelKey: 'card_settings.cover_ratio_square' },
+  { id: 'book', ratio: '1:1.414', labelKey: 'card_settings.cover_ratio_book' },
+  { id: 'photo', ratio: '2:3', labelKey: 'card_settings.cover_ratio_photo' },
+  { id: 'standard-photo', ratio: '3:4', labelKey: 'card_settings.cover_ratio_standard_photo' },
+  { id: 'golden', ratio: '1:1.618', labelKey: 'card_settings.cover_ratio_golden' },
+  { id: 'cinema', ratio: '16:9', labelKey: 'card_settings.cover_ratio_cinema' },
+  { id: 'banner', ratio: '2:1', labelKey: 'card_settings.cover_ratio_banner' },
+  { id: 'phone', ratio: '9:19.5', labelKey: 'card_settings.cover_ratio_phone' },
+  { id: 'magazine', ratio: '1.58:1', labelKey: 'card_settings.cover_ratio_magazine' },
 ];
 
 function joinPath(...parts: string[]): string {
@@ -138,7 +137,6 @@ export function CoverPanel({
   currentRatio,
   onDraftChange,
 }: CoverPanelProps) {
-  const { t } = useTranslation();
   const imageDraftRef = useRef<ImageDraft | null>(null);
   const savedPreviewUrlRef = useRef<string | null>(null);
 
@@ -272,7 +270,7 @@ export function CoverPanel({
 
   const ratioOptions = COVER_RATIO_PRESETS.map((item) => ({
     ...item,
-    label: t(item.labelKey) || item.fallbackLabel,
+    label: formatMessage(item.labelKey),
   }));
 
   const replaceImageDraft = (nextDraft: ImageDraft | null) => {
@@ -344,14 +342,14 @@ export function CoverPanel({
       <div className="cover-panel__preview-pane">
         <div className="cover-panel__preview-header">
           <div>
-            <h3 className="cover-panel__section-title">{t('card_settings.cover_preview_title') || '封面预览'}</h3>
+            <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_preview_title')}</h3>
             <p className="cover-panel__section-desc">
-              {t('card_settings.cover_preview_desc') || '左侧窗口实时显示当前 cover.html 的效果。'}
+              {formatMessage('card_settings.cover_preview_desc')}
             </p>
           </div>
 
           <span className="cover-panel__preview-ratio">
-            {(t('card_settings.cover_preview_ratio') || '比例 {ratio}').replace('{ratio}', activeRatio)}
+            {formatMessage('card_settings.cover_preview_ratio', { ratio: activeRatio })}
           </span>
         </div>
 
@@ -360,7 +358,7 @@ export function CoverPanel({
             {previewHtml ? (
               <iframe
                 key={`${mode}-${activeRatio}-${Boolean(activeImagePreviewUrl)}`}
-                title={t('card_settings.cover_preview_title') || '封面预览'}
+                title={formatMessage('card_settings.cover_preview_title')}
                 className="cover-panel__preview-iframe"
                 sandbox="allow-scripts"
                 srcDoc={previewHtml}
@@ -368,12 +366,12 @@ export function CoverPanel({
             ) : (
               <div className="cover-panel__preview-empty">
                 <span className="cover-panel__preview-empty-title">
-                  {t('card_settings.cover_preview_empty_title') || '等待生成封面'}
+                  {formatMessage('card_settings.cover_preview_empty_title')}
                 </span>
                 <span className="cover-panel__preview-empty-text">
                   {mode === 'image'
-                    ? (t('card_settings.cover_preview_empty_image') || '上传图片后会在这里实时预览。')
-                    : (t('card_settings.cover_preview_empty_html') || '输入 HTML 代码后会在这里实时预览。')}
+                    ? formatMessage('card_settings.cover_preview_empty_image')
+                    : formatMessage('card_settings.cover_preview_empty_html')}
                 </span>
               </div>
             )}
@@ -381,7 +379,7 @@ export function CoverPanel({
 
           <div className="cover-panel__preview-caption">
             <span>{cardName}</span>
-            <span>{t('card_settings.cover_preview_runtime_note') || '封面最终以 cover.html 独立输出，不继承主题和多语言。'}</span>
+            <span>{formatMessage('card_settings.cover_preview_runtime_note')}</span>
           </div>
         </div>
       </div>
@@ -390,9 +388,9 @@ export function CoverPanel({
         <div className="cover-panel__editor-scroll">
           <section className="cover-panel__section">
             <div className="cover-panel__section-header">
-              <h3 className="cover-panel__section-title">{t('card_settings.cover_ratio_label') || '封面比例'}</h3>
+              <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_ratio_label')}</h3>
               <p className="cover-panel__section-desc">
-                {t('card_settings.cover_ratio_desc') || '默认使用 3:4 竖版，支持在同一比例下切换横竖方向。'}
+                {formatMessage('card_settings.cover_ratio_desc')}
               </p>
             </div>
 
@@ -415,23 +413,23 @@ export function CoverPanel({
                 className={`cover-panel__segmented-button ${orientation === 'portrait' ? 'cover-panel__segmented-button--active' : ''}`}
                 onClick={() => setOrientation('portrait')}
               >
-                {t('card_settings.cover_orientation_portrait') || '竖版'}
+                {formatMessage('card_settings.cover_orientation_portrait')}
               </button>
               <button
                 type="button"
                 className={`cover-panel__segmented-button ${orientation === 'landscape' ? 'cover-panel__segmented-button--active' : ''}`}
                 onClick={() => setOrientation('landscape')}
               >
-                {t('card_settings.cover_orientation_landscape') || '横版'}
+                {formatMessage('card_settings.cover_orientation_landscape')}
               </button>
             </div>
           </section>
 
           <section className="cover-panel__section">
             <div className="cover-panel__section-header">
-              <h3 className="cover-panel__section-title">{t('card_settings.cover_mode_label') || '编辑模式'}</h3>
+              <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_mode_label')}</h3>
               <p className="cover-panel__section-desc">
-                {t('card_settings.cover_mode_desc') || '封面最终都会落到 cover.html，这里只决定生成方式。'}
+                {formatMessage('card_settings.cover_mode_desc')}
               </p>
             </div>
 
@@ -441,14 +439,14 @@ export function CoverPanel({
                 className={`cover-panel__segmented-button ${mode === 'image' ? 'cover-panel__segmented-button--active' : ''}`}
                 onClick={() => setMode('image')}
               >
-                {t('cover_maker.mode_image') || '图片封面'}
+                {formatMessage('cover_maker.mode_image')}
               </button>
               <button
                 type="button"
                 className={`cover-panel__segmented-button ${mode === 'html' ? 'cover-panel__segmented-button--active' : ''}`}
                 onClick={() => setMode('html')}
               >
-                {t('cover_maker.mode_html') || 'HTML封面'}
+                {formatMessage('cover_maker.mode_html')}
               </button>
             </div>
           </section>
@@ -456,9 +454,9 @@ export function CoverPanel({
           {mode === 'image' ? (
             <section className="cover-panel__section">
               <div className="cover-panel__section-header">
-                <h3 className="cover-panel__section-title">{t('card_settings.cover_image_title') || '上传图片'}</h3>
+                <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_image_title')}</h3>
                 <p className="cover-panel__section-desc">
-                  {t('card_settings.cover_image_desc') || '上传后可打开裁剪弹窗，按当前比例生成最终封面图片。'}
+                  {formatMessage('card_settings.cover_image_desc')}
                 </p>
               </div>
 
@@ -472,8 +470,8 @@ export function CoverPanel({
                   }}
                 />
 
-                <span className="cover-panel__upload-title">{t('cover_maker.image_upload_text') || '点击或拖拽图片到此处上传'}</span>
-                <span className="cover-panel__upload-hint">{t('cover_maker.image_upload_hint') || '建议比例 3:4，文件大小不超过 5MB'}</span>
+                <span className="cover-panel__upload-title">{formatMessage('cover_maker.image_upload_text')}</span>
+                <span className="cover-panel__upload-hint">{formatMessage('cover_maker.image_upload_hint')}</span>
               </label>
 
               {imageDraft ? (
@@ -481,7 +479,7 @@ export function CoverPanel({
                   <div className="cover-panel__asset-info">
                     <span className="cover-panel__asset-title">{imageDraft.fileName}</span>
                     <span className="cover-panel__asset-meta">
-                      {t('card_settings.cover_image_ready') || '已载入图片，可继续裁剪或直接保存。'}
+                      {formatMessage('card_settings.cover_image_ready')}
                     </span>
                   </div>
 
@@ -491,29 +489,29 @@ export function CoverPanel({
                       className="cover-panel__action-button cover-panel__action-button--primary"
                       onClick={() => setIsCropDialogOpen(true)}
                     >
-                      {t('card_settings.cover_crop_action') || '裁剪'}
+                      {formatMessage('card_settings.cover_crop_action')}
                     </button>
                     <button
                       type="button"
                       className="cover-panel__action-button"
                       onClick={handleRemoveUploadedImage}
                     >
-                      {t('cover_maker.remove') || '删除'}
+                      {formatMessage('cover_maker.remove')}
                     </button>
                   </div>
                 </div>
               ) : initialMode === 'image' ? (
                 <div className="cover-panel__info-card">
-                  <span className="cover-panel__info-title">{t('card_settings.cover_image_current_title') || '当前封面来自已保存图片'}</span>
+                  <span className="cover-panel__info-title">{formatMessage('card_settings.cover_image_current_title')}</span>
                   <span className="cover-panel__info-text">
-                    {t('card_settings.cover_image_current_desc') || '如果需要替换或重新裁剪，请重新上传一张图片。'}
+                    {formatMessage('card_settings.cover_image_current_desc')}
                   </span>
                 </div>
               ) : (
                 <div className="cover-panel__info-card">
-                  <span className="cover-panel__info-title">{t('card_settings.cover_image_waiting_title') || '尚未选择图片'}</span>
+                  <span className="cover-panel__info-title">{formatMessage('card_settings.cover_image_waiting_title')}</span>
                   <span className="cover-panel__info-text">
-                    {t('card_settings.cover_image_waiting_desc') || '上传图片后会自动生成引用该图片的 cover.html。'}
+                    {formatMessage('card_settings.cover_image_waiting_desc')}
                   </span>
                 </div>
               )}
@@ -521,9 +519,9 @@ export function CoverPanel({
           ) : (
             <section className="cover-panel__section">
               <div className="cover-panel__section-header">
-                <h3 className="cover-panel__section-title">{t('card_settings.cover_html_title') || 'cover.html 代码'}</h3>
+                <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_html_title')}</h3>
                 <p className="cover-panel__section-desc">
-                  {t('card_settings.cover_html_desc') || '这里输入的内容会直接写入 cover.html。'}
+                  {formatMessage('card_settings.cover_html_desc')}
                 </p>
               </div>
 
@@ -532,7 +530,7 @@ export function CoverPanel({
                 className="cover-panel__html-input"
                 spellCheck={false}
                 onChange={(event) => setHtmlCode(event.target.value)}
-                placeholder={t('cover_maker.html_placeholder') || '输入 <html>...</html>'}
+                placeholder={formatMessage('cover_maker.html_placeholder')}
               />
             </section>
           )}

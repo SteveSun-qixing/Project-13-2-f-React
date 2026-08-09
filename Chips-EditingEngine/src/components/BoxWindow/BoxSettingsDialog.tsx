@@ -1,12 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { ChipsTabs } from '@chips/component-library';
+import { useEffect, useState } from 'react';
+import { Button, Flex, Input, Modal, Tabs } from 'antd';
 import type { BoxDocumentSessionSnapshot } from '../../services/box-document-service';
 import { boxDocumentService } from '../../services/box-document-service';
 import { workspaceService } from '../../services/workspace-service';
-import { useTranslation } from '../../hooks/useTranslation';
-import { ENGINE_ICONS } from '../../icons/descriptors';
-import { RuntimeIcon } from '../../icons/RuntimeIcon';
 import { BasicInfoPanel } from '../CardSettings/panels/BasicInfoPanel';
 import { CoverPanel, type CoverPanelDraft } from '../CardSettings/panels/CoverPanel';
 import '../CardSettings/CardSettingsDialog.css';
@@ -27,11 +23,9 @@ export function BoxSettingsDialog({
   onClose,
   onSave,
 }: BoxSettingsDialogProps) {
-  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('basic');
   const [coverDraft, setCoverDraft] = useState<CoverPanelDraft | null>(null);
   const [descriptionDraft, setDescriptionDraft] = useState('');
-  const dialogTitleId = useMemo(() => `box-settings-dialog-title-${boxId}`, [boxId]);
 
   useEffect(() => {
     if (!visible) {
@@ -43,28 +37,9 @@ export function BoxSettingsDialog({
     setDescriptionDraft(session?.metadata.description ?? '');
   }, [session?.metadata.description, visible]);
 
-  useEffect(() => {
-    if (!visible) {
-      return undefined;
-    }
-
-    const handleGlobalKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleGlobalKeydown);
-    return () => {
-      document.removeEventListener('keydown', handleGlobalKeydown);
-    };
-  }, [onClose, visible]);
-
-  if (!visible || !session) {
-    return null;
-  }
-
   const isSaveDisabled = activeTab === 'cover' && Boolean(coverDraft?.dirty && !coverDraft.valid);
+
+  const isOpen = visible && Boolean(session);
 
   const handleUpdateName = (name: string) => {
     boxDocumentService.updateMetadata(boxId, { name });
@@ -95,7 +70,7 @@ export function BoxSettingsDialog({
 
   const handleSave = async () => {
     await applyCoverDraft();
-    if (descriptionDraft !== (session.metadata.description ?? '')) {
+    if (descriptionDraft !== (session?.metadata.description ?? '')) {
       handleDescriptionBlur();
     }
     await boxDocumentService.saveBox(boxId);
@@ -103,122 +78,90 @@ export function BoxSettingsDialog({
     onSave();
   };
 
-  const handleOverlayClick = (event: React.MouseEvent) => {
-    if ((event.target as HTMLElement).classList.contains('card-settings-overlay')) {
-      onClose();
-    }
-  };
-
-  const dialog = (
-    <div className="card-settings-overlay" onClick={handleOverlayClick}>
-      <div
-        className={`card-settings-dialog ${activeTab === 'cover' ? 'card-settings-dialog--cover' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={dialogTitleId}
-      >
-        <div className="card-settings-dialog__header">
-          <h2 id={dialogTitleId} className="card-settings-dialog__title">
-            {t('box_settings.title') || '箱子设置'}
-          </h2>
-          <button
-            type="button"
-            className="card-settings-dialog__close-btn"
-            aria-label={t('box_settings.close') || '关闭'}
-            onClick={onClose}
-          >
-            <RuntimeIcon icon={ENGINE_ICONS.close} />
-          </button>
-        </div>
-
-        <div className="card-settings-dialog__body">
-          <ChipsTabs
-            value={activeTab}
-            onValueChange={(value: string) => setActiveTab(value)}
-            items={[
-              {
-                value: 'basic',
-                label: t('box_settings.tab_basic') || '基础信息',
-                content: (
-                  <div className="card-settings-dialog__panel">
-                    <BasicInfoPanel
-                      cardId={boxId}
-                      cardInfo={{ metadata: session.metadata }}
-                      onUpdateName={handleUpdateName}
-                      onUpdateTags={handleUpdateTags}
-                      documentIdLabel={t('box_settings.box_id') || '箱子 ID'}
-                      nameLabel={t('box_settings.name') || '箱子名称'}
-                      namePlaceholder={t('box_settings.name_placeholder') || '输入箱子名称'}
-                      tagsLabel={t('box_settings.tags') || '标签'}
-                      tagPlaceholder={t('box_settings.tag_placeholder') || '输入标签名称'}
-                      addTagLabel={t('box_settings.tag_add') || '添加标签'}
-                      metadataLabel={t('box_settings.metadata') || '元数据'}
-                      createdAtLabel={t('box_settings.created_at') || '创建时间'}
-                      modifiedAtLabel={t('box_settings.modified_at') || '修改时间'}
-                    />
-
-                    <div className="box-settings-dialog__field">
-                      <label className="box-settings-dialog__label">
-                        {t('box_settings.description') || '描述'}
-                      </label>
-                      <textarea
-                        className="box-settings-dialog__textarea"
-                        rows={4}
-                        value={descriptionDraft}
-                        placeholder={t('box_settings.description_placeholder') || '输入箱子描述'}
-                        onChange={(event) => setDescriptionDraft(event.currentTarget.value)}
-                        onBlur={handleDescriptionBlur}
-                      />
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                value: 'cover',
-                label: t('box_settings.tab_cover') || '封面',
-                content: (
-                  <div className="card-settings-dialog__panel card-settings-dialog__panel--cover">
-                    <CoverPanel
-                      cardId={session.boxId}
-                      cardPath={session.workspaceDir}
-                      cardName={session.metadata.name}
-                      packageDirectoryName=".box"
-                      assetDirectoryName="boxcover"
-                      currentCoverHtml={session.coverHtml}
-                      currentRatio={session.metadata.coverRatio}
-                      onDraftChange={setCoverDraft}
-                    />
-                  </div>
-                ),
-              },
-            ]}
-          />
-        </div>
-
-        <div className="card-settings-dialog__footer">
-          <button
-            type="button"
-            className="card-settings-dialog__btn card-settings-dialog__btn--cancel"
-            onClick={onClose}
-          >
-            {t('box_settings.cancel') || '取消'}
-          </button>
-          <button
-            type="button"
-            className="card-settings-dialog__btn card-settings-dialog__btn--save"
+  return (
+    <Modal
+      open={isOpen}
+      title="箱子设置"
+      onCancel={onClose}
+      width={activeTab === 'cover' ? 1180 : 720}
+      centered
+      destroyOnHidden
+      mask={{ closable: true }}
+      rootClassName={activeTab === 'cover' ? 'card-settings-dialog-root card-settings-dialog-root--cover' : 'card-settings-dialog-root'}
+      footer={
+        <Flex justify="flex-end" gap={12}>
+          <Button onClick={onClose}>取消</Button>
+          <Button
+            type="primary"
             onClick={() => { void handleSave(); }}
             disabled={isSaveDisabled}
           >
-            {t('box_settings.save') || '保存'}
-          </button>
-        </div>
-      </div>
-    </div>
+            保存
+          </Button>
+        </Flex>
+      }
+    >
+      <Tabs
+        activeKey={activeTab}
+        onChange={(value: string) => setActiveTab(value)}
+        items={[
+          {
+            key: 'basic',
+            label: '基础信息',
+            children: (
+              <div className="card-settings-dialog__panel">
+                <BasicInfoPanel
+                  cardId={boxId}
+                  cardInfo={session ? { metadata: session.metadata } : undefined}
+                  onUpdateName={handleUpdateName}
+                  onUpdateTags={handleUpdateTags}
+                  documentIdLabel="箱子ID"
+                  nameLabel="箱子名称"
+                  namePlaceholder="输入箱子名称"
+                  tagsLabel="标签"
+                  tagPlaceholder="输入标签名称"
+                  addTagLabel="添加标签"
+                  metadataLabel="元数据"
+                  createdAtLabel="创建时间"
+                  modifiedAtLabel="修改时间"
+                />
+
+                <div className="box-settings-dialog__field">
+                  <label className="box-settings-dialog__label">
+                    描述
+                  </label>
+                  <Input.TextArea
+                    className="box-settings-dialog__textarea"
+                    rows={4}
+                    value={descriptionDraft}
+                    placeholder="输入箱子描述"
+                    onChange={(event) => setDescriptionDraft(event.currentTarget.value)}
+                    onBlur={handleDescriptionBlur}
+                  />
+                </div>
+              </div>
+            ),
+          },
+          {
+            key: 'cover',
+            label: '封面',
+            children: (
+              <div className="card-settings-dialog__panel card-settings-dialog__panel--cover">
+                <CoverPanel
+                  cardId={session?.boxId ?? boxId}
+                  cardPath={session?.workspaceDir ?? ''}
+                  cardName={session?.metadata.name ?? ''}
+                  packageDirectoryName=".box"
+                  assetDirectoryName="boxcover"
+                  currentCoverHtml={session?.coverHtml}
+                  currentRatio={session?.metadata.coverRatio}
+                  onDraftChange={setCoverDraft}
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
+    </Modal>
   );
-
-  if (typeof document === 'undefined' || !document.body) {
-    return dialog;
-  }
-
-  return createPortal(dialog, document.body);
 }

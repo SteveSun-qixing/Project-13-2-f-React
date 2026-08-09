@@ -3,7 +3,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform var(--chips-motion-duration-fast, 0.2s) var(--chips-motion-easing-emphasized, cubic-bezier(0.18, 0.89, 0.32, 1.28));
+    transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
 }
 
 .dock-item:hover {
@@ -35,21 +35,21 @@
     padding: 0;
     border: none;
     background: transparent;
-    color: var(--chips-sys-color-on-surface, #1a1a1a);
-    border-radius: var(--chips-comp-icon-button-root-radius, 12px);
+    color: #1d1d1f;
+    border-radius: 12px;
     transition:
-        background-color var(--chips-motion-duration-fast, 0.2s) var(--chips-motion-easing-standard, ease),
-        box-shadow var(--chips-motion-duration-fast, 0.2s) var(--chips-motion-easing-standard, ease);
+        background-color 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
 .dock-item__btn:hover,
 .dock-item__btn:focus-visible {
-    background: var(--chips-comp-icon-button-root-surface-hover, var(--chips-comp-dock-panel-tab-surface-active, rgba(0, 0, 0, 0.05)));
+    background: rgba(0, 0, 0, 0.03);
 }
 
 .dock-item__btn:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 var(--chips-layout-focus-outline-width, 2px) var(--chips-comp-dock-panel-focus-outline, var(--chips-layout-focus-color, var(--chips-sys-color-primary, #3b82f6)));
+    box-shadow: 0 0 0 2px #0a84ff;
 }
 
 .dock-item__icon-wrapper {
@@ -59,9 +59,9 @@
     width: 100%;
     height: 100%;
     transition:
-        opacity var(--chips-motion-duration-medium, 0.3s) var(--chips-motion-easing-standard, ease),
-        filter var(--chips-motion-duration-medium, 0.3s) var(--chips-motion-easing-standard, ease),
-        transform var(--chips-motion-duration-medium, 0.3s) var(--chips-motion-easing-standard, ease);
+        opacity 0.3s ease,
+        filter 0.3s ease,
+        transform 0.3s ease;
 }
 
 .dock-item__icon {
@@ -74,18 +74,18 @@
     top: -36px;
     left: 50%;
     transform: translateX(-50%);
-    padding: var(--chips-layout-gap-xs, 6px) var(--chips-layout-gap-sm, 10px);
-    background: var(--chips-comp-tooltip-content-surface, rgba(0, 0, 0, 0.8));
-    color: var(--chips-comp-tooltip-content-text-color, #ffffff);
+    padding: 6px 10px;
+    background: #3a3a3c;
+    color: #ffffff;
     font-size: 13px;
     font-weight: 500;
-    border-radius: var(--chips-comp-tooltip-content-radius, 6px);
+    border-radius: 8px;
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
-    animation: dock-tooltip-fade var(--chips-motion-duration-fast, 0.2s) forwards;
+    animation: dock-tooltip-fade 0.2s forwards;
     z-index: 100;
-    box-shadow: var(--chips-comp-tooltip-content-shadow, 0 4px 12px rgba(0, 0, 0, 0.15));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .dock-item__tooltip::after {
@@ -96,7 +96,7 @@
     transform: translateX(-50%);
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
-    border-top: 5px solid var(--chips-comp-tooltip-arrow-surface, rgba(0, 0, 0, 0.8));
+    border-top: 5px solid #3a3a3c;
 }
 
 @keyframes dock-tooltip-fade {
@@ -126,7 +126,7 @@
     border-top: 5px solid transparent;
     border-bottom: 5px solid transparent;
     border-left: none;
-    border-right: 5px solid var(--chips-comp-tooltip-arrow-surface, rgba(0, 0, 0, 0.8));
+    border-right: 5px solid #3a3a3c;
 }
 
 @keyframes dock-tooltip-fade-side {
@@ -143,5 +143,5 @@
 
 .dock--left .dock-item__tooltip,
 .dock--right .dock-item__tooltip {
-    animation: dock-tooltip-fade-side var(--chips-motion-duration-fast, 0.2s) forwards;
+    animation: dock-tooltip-fade-side 0.2s forwards;
 }

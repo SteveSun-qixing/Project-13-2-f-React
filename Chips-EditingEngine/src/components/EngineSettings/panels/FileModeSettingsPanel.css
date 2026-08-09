@@ -3,42 +3,42 @@
 .file-mode-options {
   display: flex;
   flex-direction: column;
-  gap: var(--chips-spacing-md, 16px);
+  gap: 16px;
 }
 
 .file-mode-option {
   display: flex;
   flex-direction: column;
-  gap: var(--chips-spacing-sm, 8px);
-  padding: var(--chips-spacing-md, 16px);
-  border: 2px solid var(--chips-color-border, #e5e7eb);
-  border-radius: var(--chips-radius-lg, 12px);
-  background: var(--chips-color-surface, #ffffff);
+  gap: 8px;
+  padding: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.10);
+  border-radius: 12px;
+  background: #ffffff;
   cursor: pointer;
   text-align: left;
   position: relative;
   transition:
-    border-color var(--chips-duration-fast, 100ms) ease,
-    box-shadow var(--chips-duration-fast, 100ms) ease;
+    border-color 100ms ease,
+    box-shadow 100ms ease;
 }
 
 .file-mode-option:hover {
   border-color: color-mix(
     in srgb,
-    var(--chips-color-primary, #3b82f6) 50%,
+    #0a84ff 50%,
     transparent
   );
 }
 
 .file-mode-option--selected {
-  border-color: var(--chips-color-primary, #3b82f6);
-  box-shadow: 0 0 0 1px var(--chips-color-primary, #3b82f6);
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 1px #0a84ff;
 }
 
 .file-mode-option__header {
   display: flex;
   align-items: center;
-  gap: var(--chips-spacing-sm, 8px);
+  gap: 8px;
 }
 
 .file-mode-option__icon {
@@ -46,14 +46,14 @@
 }
 
 .file-mode-option__name {
-  font-size: var(--chips-font-size-sm, 14px);
-  font-weight: var(--chips-font-weight-semibold, 600);
-  color: var(--chips-color-text, #111827);
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d1d1f;
 }
 
 .file-mode-option__desc {
   margin: 0;
   font-size: 13px;
-  color: var(--chips-color-text-secondary, #6b7280);
-  line-height: var(--chips-line-height-relaxed, 1.625);
+  color: #6e6e73;
+  line-height: 1.625;
 }

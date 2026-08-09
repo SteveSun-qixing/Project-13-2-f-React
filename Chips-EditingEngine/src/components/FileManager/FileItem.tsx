@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { ChipsInput } from '@chips/component-library';
+import { Input, type InputRef } from 'antd';
 import type { WorkspaceFile } from '../../types/workspace';
-import { useTranslation } from '../../hooks/useTranslation';
 import { ENGINE_ICONS, getWorkspaceFileIcon } from '../../icons/descriptors';
 import { RuntimeIcon } from '../../icons/RuntimeIcon';
 import './FileItem.css';
@@ -49,9 +48,8 @@ export const FileItem = React.forwardRef<HTMLDivElement, FileItemProps>(function
     onRenameCancel,
     onDragStart,
 }, ref) {
-    const { t } = useTranslation();
     const [renameValue, setRenameValue] = useState('');
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<InputRef>(null);
     const isDirectory = file.type === 'folder';
 
     const fileIcon = getWorkspaceFileIcon(file);
@@ -139,8 +137,8 @@ export const FileItem = React.forwardRef<HTMLDivElement, FileItemProps>(function
                     className="file-item__toggle"
                     tabIndex={-1}
                     aria-label={file.expanded
-                        ? t('file.collapse_folder', { name: file.name })
-                        : t('file.expand_folder', { name: file.name })}
+                        ? `收起文件夹 ${file.name}`
+                        : `展开文件夹 ${file.name}`}
                     onClick={(e: React.MouseEvent) => onToggle(file, e)}
                 >
                     <span className={`file-item__arrow ${file.expanded ? 'file-item__arrow--expanded' : ''}`}>
@@ -156,11 +154,11 @@ export const FileItem = React.forwardRef<HTMLDivElement, FileItemProps>(function
             </span>
 
             {renaming ? (
-                <ChipsInput
-                    ref={inputRef as any}
+                <Input
+                    ref={inputRef}
                     value={renameValue}
                     className="file-item__rename-input"
-                    onValueChange={setRenameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
                     onBlur={handleConfirmRename}
                     onKeyDown={handleKeyDown}
                 />

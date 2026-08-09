@@ -1,8 +1,8 @@
 import React from 'react';
 import { getRegisteredBasecardDescriptors, subscribeBasecardRegistry } from '../../basecard-runtime/registry';
 import type { BoxLayoutDescriptor } from 'chips-sdk';
+import type { IconDescriptor } from 'chips-sdk';
 import type { CardTypeDefinition, LayoutTypeDefinition } from './types';
-import { useTranslation } from '../../hooks/useTranslation';
 import { ENGINE_ICONS } from '../../icons/descriptors';
 import { getChipsClient } from '../../services/bridge-client';
 
@@ -29,7 +29,7 @@ function toLayoutTypeDefinitions(descriptors: BoxLayoutDescriptor[]): LayoutType
     .map((descriptor) => ({
       id: descriptor.layoutType,
       name: descriptor.displayName,
-      icon: descriptor.icon ?? ENGINE_ICONS.layout,
+      icon: isIconDescriptor(descriptor.icon) ? descriptor.icon : ENGINE_ICONS.layout,
       description: descriptor.description ?? '',
       keywords: [
         descriptor.displayName,
@@ -39,6 +39,14 @@ function toLayoutTypeDefinitions(descriptors: BoxLayoutDescriptor[]): LayoutType
       ].filter(Boolean),
     }))
     .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+}
+
+function isIconDescriptor(icon: unknown): icon is IconDescriptor {
+  return (
+    typeof icon === 'object' &&
+    icon !== null &&
+    typeof (icon as { name?: unknown }).name === 'string'
+  );
 }
 
 export function useCardTypeDefinitions(): CardTypeDefinition[] {
@@ -105,7 +113,6 @@ export function useLayoutTypeDefinitions(): LayoutTypeDefinition[] {
 }
 
 export function useSearchCardTypes() {
-  const { t } = useTranslation();
   const cardTypes = useCardTypeDefinitions();
 
   return React.useCallback((query: string): CardTypeDefinition[] => {
@@ -113,20 +120,19 @@ export function useSearchCardTypes() {
 
     const lowerQuery = query.toLowerCase();
     return cardTypes.filter((type) => {
-      const name = (t(type.name) || type.name).toLowerCase();
-      const description = (t(type.description) || type.description).toLowerCase();
-      const keywords = type.keywords.map((keyword) => (t(keyword) || keyword).toLowerCase());
+      const name = type.name.toLowerCase();
+      const description = type.description.toLowerCase();
+      const keywords = type.keywords.map((keyword) => keyword.toLowerCase());
       return (
         name.includes(lowerQuery) ||
         description.includes(lowerQuery) ||
         keywords.some((keyword) => keyword.includes(lowerQuery))
       );
     });
-  }, [cardTypes, t]);
+  }, [cardTypes]);
 }
 
 export function useSearchLayoutTypes() {
-  const { t } = useTranslation();
   const layoutTypes = useLayoutTypeDefinitions();
 
   return React.useCallback((query: string): LayoutTypeDefinition[] => {
@@ -134,14 +140,14 @@ export function useSearchLayoutTypes() {
 
     const lowerQuery = query.toLowerCase();
     return layoutTypes.filter((type) => {
-      const name = (t(type.name) || type.name).toLowerCase();
-      const description = (t(type.description) || type.description).toLowerCase();
-      const keywords = type.keywords.map((keyword) => (t(keyword) || keyword).toLowerCase());
+      const name = type.name.toLowerCase();
+      const description = type.description.toLowerCase();
+      const keywords = type.keywords.map((keyword) => keyword.toLowerCase());
       return (
         name.includes(lowerQuery) ||
         description.includes(lowerQuery) ||
         keywords.some((keyword) => keyword.includes(lowerQuery))
       );
     });
-  }, [layoutTypes, t]);
+  }, [layoutTypes]);
 }

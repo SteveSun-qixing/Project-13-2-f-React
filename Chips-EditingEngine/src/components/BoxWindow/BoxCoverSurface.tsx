@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { EmbeddedDocumentFrame } from '@chips/component-library';
+import { useEffect, useMemo, useState } from 'react';
+import { EmbeddedDocumentFrame } from '@chips/ui';
 import { getChipsClient } from '../../services/bridge-client';
 import { toDisplayErrorMessage } from '../../utils/error';
 
@@ -26,19 +26,16 @@ export function BoxCoverSurface({
 }: BoxCoverSurfaceProps) {
   const client = useMemo(() => getChipsClient(), []);
   const [view, setView] = useState<BoxCoverViewState | null>(null);
-  const [isLoading, setIsLoading] = useState(Boolean(boxPath));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!boxPath) {
       setView(null);
-      setIsLoading(false);
       setError(null);
       return;
     }
 
     let disposed = false;
-    setIsLoading(true);
     setError(null);
 
     void client.box.renderCover(boxPath).then((nextView) => {
@@ -51,14 +48,12 @@ export function BoxCoverSurface({
         coverUrl: nextView.coverUrl,
         ratio: nextView.ratio,
       });
-      setIsLoading(false);
     }).catch((reason) => {
       if (disposed) {
         return;
       }
 
       setView(null);
-      setIsLoading(false);
       setError(toDisplayErrorMessage(reason, '箱子封面加载失败'));
     });
 
@@ -82,7 +77,6 @@ export function BoxCoverSurface({
         title={view?.title || title}
         src={view?.coverUrl}
         ratio={view?.ratio ?? ratio ?? '3:4'}
-        loading={isLoading}
         scope="box-cover-frame"
         onActivate={onActivate ? () => onActivate() : undefined}
       />

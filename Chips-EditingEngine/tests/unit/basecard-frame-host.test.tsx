@@ -205,29 +205,16 @@ describe('BasecardFrameHost', () => {
     expect(frame?.style.minHeight).toBe('0px');
   }, 15000);
 
-  it('passes Host-injected theme CSS and icon font declarations into local basecard iframes', () => {
-    const hostThemeStyle = document.createElement('style');
-    hostThemeStyle.id = 'chips-plugin-theme-style';
-    hostThemeStyle.textContent = [
-      '@font-face {',
-      '  font-family: "Material Symbols Outlined";',
-      '  src: url("file:///theme/dist/icons/variablefont/MaterialSymbolsOutlined.woff2") format("woff2");',
-      '}',
-      '[data-scope="icon"][data-part="root"] { font-family: "Material Symbols Outlined"; }',
-    ].join('\n');
-    document.head.appendChild(hostThemeStyle);
-    container.style.setProperty('--chips-sys-icon-size', '24px');
-
+  it('generates fixed apple-palette frame CSS without reading the theme system', () => {
     const cssText = createBasecardFrameThemeCss(container);
 
-    expect(cssText).toContain('@font-face');
-    expect(cssText).toContain('Material Symbols Outlined');
-    expect(cssText).toContain('file:///theme/dist/icons/variablefont/MaterialSymbolsOutlined.woff2');
-    expect(cssText).toContain('--chips-sys-icon-size: 24px;');
-    expect(cssText.indexOf('@font-face')).toBeLessThan(cssText.indexOf('--chips-sys-icon-size: 24px;'));
-    expect(cssText.indexOf('--chips-sys-icon-size: 24px;')).toBeLessThan(cssText.indexOf('html, body {'));
-
-    hostThemeStyle.remove();
+    expect(cssText).toContain('color: #1d1d1f;');
+    expect(cssText).toContain('background: #ffffff;');
+    expect(cssText).toContain('.chips-basecard__body a { color: #0a84ff; }');
+    expect(cssText).toContain('border-left: 3px solid rgba(0, 0, 0, 0.08);');
+    expect(cssText).not.toContain('@font-face');
+    expect(cssText).not.toMatch(/--chips-/);
+    expect(cssText).not.toContain('Material Symbols');
   });
 
   it('resolves pending imported resources for preview rendering before they are persisted', async () => {

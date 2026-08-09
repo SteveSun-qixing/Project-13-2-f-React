@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
-import { createKeyboardMap, getKeyboardAction } from '@chips/a11y';
-import { useTranslation } from '../../hooks/useTranslation';
+import { createKeyboardMap, getKeyboardAction } from '../../utils/a11y';
+import { formatMessage } from '../../lib/messages';
 import { ENGINE_ICONS } from '../../icons/descriptors';
 import { RuntimeIcon } from '../../icons/RuntimeIcon';
 import type { BaseWindowConfig, Position, Size } from '../../types/window';
@@ -40,7 +40,7 @@ export interface BaseWindowProps {
     children?: React.ReactNode;
 }
 
-export function BaseWindow({
+export const BaseWindow = React.memo(function BaseWindow({
     config,
     draggable = true,
     resizable = true,
@@ -58,7 +58,6 @@ export function BaseWindow({
     ariaRole = 'region',
     children,
 }: BaseWindowProps) {
-    const { t } = useTranslation();
     const titleId = useId();
     const contentId = useId();
     const [isDragging, setIsDragging] = useState(false);
@@ -254,20 +253,20 @@ export function BaseWindow({
             <div
                 className="base-window__header"
                 tabIndex={draggable || onCollapse ? 0 : undefined}
-                aria-label={t('window.titlebar_label', { title: config.title })}
+                aria-label={formatMessage('window.titlebar_label', { title: config.title })}
                 onMouseDown={handleDragStart}
                 onKeyDown={handleTitlebarKeyDown}
             >
                 {headerSlot || <span id={titleId} className="base-window__title">{config.title}</span>}
 
-                <div className="base-window__actions" role="toolbar" aria-label={t('window.actions_label', { title: config.title })}>
+                <div className="base-window__actions" role="toolbar" aria-label={formatMessage('window.actions_label', { title: config.title })}>
                     {actionsSlot || (
                         <>
                             {config.minimizable !== false && (
                                 <button
                                     type="button"
                                     className="base-window__action"
-                                    aria-label={t('window.minimize_window', { title: config.title })}
+                                    aria-label={formatMessage('window.minimize_window', { title: config.title })}
                                     onClick={(e: React.MouseEvent) => { e.stopPropagation(); onMinimize?.(); }}
                                 >
                                     <RuntimeIcon className="base-window__action-icon" icon={ENGINE_ICONS.remove} />
@@ -277,8 +276,8 @@ export function BaseWindow({
                                 type="button"
                                 className="base-window__action"
                                 aria-label={config.state === 'collapsed'
-                                    ? t('window.expand_window', { title: config.title })
-                                    : t('window.collapse_window', { title: config.title })}
+                                    ? formatMessage('window.expand_window', { title: config.title })
+                                    : formatMessage('window.collapse_window', { title: config.title })}
                                 aria-expanded={config.state !== 'collapsed'}
                                 aria-controls={contentId}
                                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); onCollapse?.(); }}
@@ -292,7 +291,7 @@ export function BaseWindow({
                                 <button
                                     type="button"
                                     className="base-window__action base-window__action--close"
-                                    aria-label={t('window.close_window', { title: config.title })}
+                                    aria-label={formatMessage('window.close_window', { title: config.title })}
                                     onClick={(e: React.MouseEvent) => { e.stopPropagation(); onClose?.(); }}
                                 >
                                     <RuntimeIcon className="base-window__action-icon" icon={ENGINE_ICONS.close} />
@@ -317,11 +316,11 @@ export function BaseWindow({
                     className="base-window__resize-handle"
                     role="separator"
                     tabIndex={0}
-                    aria-label={t('window.resize_handle_label', { title: config.title })}
+                    aria-label={formatMessage('window.resize_handle_label', { title: config.title })}
                     onMouseDown={handleResizeStart}
                     onKeyDown={handleResizeKeyDown}
                 />
             )}
         </div>
     );
-}
+});

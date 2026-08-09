@@ -499,7 +499,7 @@ describe('BoxDocumentService', () => {
     const firstOpen = service.openBox('/workspace/demo.box', '/workspace', 'box1234567');
     await unpackStarted;
     const secondOpen = service.openBox('/workspace/demo.box', '/workspace', 'box1234567');
-    releaseUnpack?.();
+    releaseUnpack!();
 
     const [firstSession, secondSession] = await Promise.all([firstOpen, secondOpen]);
 

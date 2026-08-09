@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ModuleJobRecord, PlatformDialogSaveOptions } from 'chips-sdk';
-import { useTranslation } from '../../../hooks/useTranslation';
+import { formatMessage } from '../../../lib/messages';
 import { useCard } from '../../../context/CardContext';
 import { getChipsClient } from '../../../services/bridge-client';
 import { fileService } from '../../../services/file-service';
@@ -88,28 +88,27 @@ function buildSaveDialogOptions(
   cardPath: string,
   cardName: string | undefined,
   cardId: string,
-  t: (key: string, params?: Record<string, string | number>) => string,
 ): PlatformDialogSaveOptions {
   switch (format) {
     case 'card':
       return {
-        title: t('card_settings.export_save_card') || '保存 .card 文件',
+        title: formatMessage('card_settings.export_save_card'),
         defaultPath: buildDefaultExportPath(cardPath, cardName, cardId, '.card'),
       };
     case 'html':
       return {
-        title: t('card_settings.export_save_html') || '保存 HTML 导出包',
+        title: formatMessage('card_settings.export_save_html'),
         defaultPath: buildDefaultExportPath(cardPath, cardName, cardId, '.zip'),
       };
     case 'pdf':
       return {
-        title: t('card_settings.export_save_pdf') || '保存 PDF 文件',
+        title: formatMessage('card_settings.export_save_pdf'),
         defaultPath: buildDefaultExportPath(cardPath, cardName, cardId, '.pdf'),
       };
     case 'image':
     default:
       return {
-        title: t('card_settings.export_save_image') || '保存图片文件',
+        title: formatMessage('card_settings.export_save_image'),
         defaultPath: buildDefaultExportPath(cardPath, cardName, cardId, '.png'),
       };
   }
@@ -142,39 +141,37 @@ function mapConversionProgress(percent: unknown): number {
 function resolveProgressMessage(
   stage: unknown,
   fallbackMessage: unknown,
-  t: (key: string, params?: Record<string, string | number>) => string,
 ): string {
   switch (stage) {
     case 'prepare':
-      return t('card_settings.export_prepare') || '正在准备导出任务…';
+      return formatMessage('card_settings.export_prepare');
     case 'render-html':
-      return t('card_settings.export_render_html') || '正在生成 HTML 页面…';
+      return formatMessage('card_settings.export_render_html');
     case 'rewrite-assets':
-      return t('card_settings.export_rewrite_assets') || '正在整理资源文件…';
+      return formatMessage('card_settings.export_rewrite_assets');
     case 'write-output':
-      return t('card_settings.export_write_output') || '正在写入导出文件…';
+      return formatMessage('card_settings.export_write_output');
     case 'package-html':
-      return t('card_settings.export_package_html') || '正在打包 HTML 导出内容…';
+      return formatMessage('card_settings.export_package_html');
     case 'render-pdf':
-      return t('card_settings.export_render_pdf') || '正在生成 PDF…';
+      return formatMessage('card_settings.export_render_pdf');
     case 'render-image':
-      return t('card_settings.export_render_image') || '正在生成图片…';
+      return formatMessage('card_settings.export_render_image');
     case 'cleanup':
-      return t('card_settings.export_cleanup') || '正在清理临时文件…';
+      return formatMessage('card_settings.export_cleanup');
     case 'completed':
-      return t('card_settings.export_done') || '导出完成';
+      return formatMessage('card_settings.export_done');
     default:
       return typeof fallbackMessage === 'string' && fallbackMessage.trim().length > 0
         ? fallbackMessage
-        : (t('card_settings.export_launch_conversion') || '正在执行导出任务…');
+        : formatMessage('card_settings.export_launch_conversion');
   }
 }
 
-function toJobError(job: ModuleJobRecord, t: (key: string, params?: Record<string, string | number>) => string): Error {
+function toJobError(job: ModuleJobRecord): Error {
   const error = new Error(
     job.error?.message
-      || t('card_settings.export_unknown_error')
-      || '未知错误',
+      || formatMessage('card_settings.export_unknown_error'),
   ) as Error & { code?: string };
   if (job.error?.code) {
     error.code = job.error.code;
@@ -189,7 +186,6 @@ async function sleep(ms: number): Promise<void> {
 async function waitForModuleJob(
   jobId: string,
   onProgress: (job: ModuleJobRecord) => void,
-  t: (key: string, params?: Record<string, string | number>) => string,
 ): Promise<FileConvertResultLike> {
   const client = getChipsClient();
 
@@ -202,7 +198,7 @@ async function waitForModuleJob(
     }
 
     if (job.status === 'failed' || job.status === 'cancelled') {
-      throw toJobError(job, t);
+      throw toJobError(job);
     }
 
     await sleep(MODULE_JOB_POLL_INTERVAL_MS);
@@ -237,8 +233,8 @@ function normalizeExportError(error: unknown, fallbackMessage: string): { messag
 }
 
 export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
-  const { t, locale } = useTranslation();
   const { getCard, saveCard } = useCard();
+  const locale = 'zh-CN';
 
   const [exportProgress, setExportProgress] = useState(0);
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
@@ -315,52 +311,52 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
     {
       key: 'card',
       icon: ENGINE_ICONS.box,
-      label: t('card_settings.export_card') || '导出为 .card',
+      label: formatMessage('card_settings.export_card'),
       desc: '.card',
       available: exportAvailability.card,
     },
     {
       key: 'html',
       icon: ENGINE_ICONS.html,
-      label: t('card_settings.export_html') || '导出为 HTML',
+      label: formatMessage('card_settings.export_html'),
       desc: 'HTML ZIP',
       available: exportAvailability.html,
     },
     {
       key: 'pdf',
       icon: ENGINE_ICONS.pdf,
-      label: t('card_settings.export_pdf') || '导出为 PDF',
+      label: formatMessage('card_settings.export_pdf'),
       desc: 'PDF',
       available: exportAvailability.pdf,
     },
     {
       key: 'image',
       icon: ENGINE_ICONS.image,
-      label: t('card_settings.export_image') || '导出为图片',
+      label: formatMessage('card_settings.export_image'),
       desc: 'PNG',
       available: exportAvailability.image,
     },
-  ], [exportAvailability, t]);
+  ], [exportAvailability]);
 
   const handleExport = async (format: ExportFormat) => {
     if (exportStatus === 'exporting') return;
     if (exportAvailability[format] === false) {
       setExportStatus('error');
       setExportProgress(0);
-      setExportMessage(t('card_settings.export_unavailable') || '当前导出格式尚未接入正式链路');
+      setExportMessage(formatMessage('card_settings.export_unavailable'));
       return;
     }
 
     if (!card?.path) {
       setExportStatus('error');
-      setExportMessage(t('card_settings.export_no_card') || '无可导出的卡片信息');
+      setExportMessage(formatMessage('card_settings.export_no_card'));
       return;
     }
 
     try {
       const client = getChipsClient();
       const outputPath = await client.platform.saveFile(
-        buildSaveDialogOptions(format, card.path, card.metadata.name, cardId, t),
+        buildSaveDialogOptions(format, card.path, card.metadata.name, cardId),
       );
 
       if (!outputPath) {
@@ -372,10 +368,10 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
 
       setExportStatus('exporting');
       setExportProgress(0);
-      setExportMessage(t('card_settings.export_start', { format: format.toUpperCase() }) || `开始导出 ${format}...`);
+      setExportMessage(formatMessage('card_settings.export_start'));
       setExportProgress(10);
       await onBeforeExport?.();
-      setExportMessage(t('card_settings.export_saving_card_state') || '正在保存卡片状态...');
+      setExportMessage(formatMessage('card_settings.export_saving_card_state'));
       await saveCard(cardId);
       setExportProgress(format === 'card' ? 55 : CONVERSION_PROGRESS_OFFSET);
 
@@ -383,11 +379,11 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
       let exportedPath = finalOutputPath;
 
       if (format === 'card') {
-        setExportMessage(t('card_settings.export_create_package') || '正在生成文件...');
+        setExportMessage(formatMessage('card_settings.export_create_package'));
         exportedPath = await client.card.pack(card.path, finalOutputPath);
         setExportProgress(90);
       } else {
-        setExportMessage(t('card_settings.export_launch_conversion') || '正在启动导出任务…');
+        setExportMessage(formatMessage('card_settings.export_launch_conversion'));
         const started = await client.module.invoke({
           capability: FILE_CONVERTER_CAPABILITY,
           method: FILE_CONVERTER_METHOD,
@@ -429,11 +425,11 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
         const handleModuleProgress = (job: ModuleJobRecord) => {
           const progress = job.progress ?? {};
           setExportProgress(mapConversionProgress(progress.percent));
-          setExportMessage(resolveProgressMessage(progress.stage, progress.message, t));
+          setExportMessage(resolveProgressMessage(progress.stage, progress.message));
         };
 
         const result = started.mode === 'job'
-          ? await waitForModuleJob(started.jobId, handleModuleProgress, t)
+          ? await waitForModuleJob(started.jobId, handleModuleProgress)
           : (started.output ?? {}) as FileConvertResultLike;
 
         exportedPath = typeof result.outputPath === 'string' && result.outputPath.trim().length > 0
@@ -442,17 +438,17 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
         setExportProgress(95);
       }
 
-      setExportMessage(t('card_settings.export_verify_output') || '正在校验导出文件...');
+      setExportMessage(formatMessage('card_settings.export_verify_output'));
 
       const exportedFile = await fileService.stat(exportedPath);
       if (!exportedFile.isFile) {
-        throw new Error(t('card_settings.export_output_missing') || '导出目标文件未生成');
+        throw new Error(formatMessage('card_settings.export_output_missing'));
       }
 
       setExportProgress(100);
       setExportStatus('success');
       setExportMessage(
-        t('card_settings.export_done_with_path', { path: exportedPath }) || `导出完成：${exportedPath}`
+        formatMessage('card_settings.export_done_with_path', { path: exportedPath })
       );
 
     } catch (error) {
@@ -463,14 +459,14 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
       });
       const normalizedError = normalizeExportError(
         error,
-        t('card_settings.export_unknown_error') || '未知错误',
+        formatMessage('card_settings.export_unknown_error'),
       );
       setExportStatus('error');
       setExportProgress(0);
       setExportMessage(
-        t('card_settings.export_failed', {
+        formatMessage('card_settings.export_failed', {
           error: normalizedError.message,
-        }) || `导出失败: ${error}`
+        })
       );
     }
   };
@@ -479,7 +475,7 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
     <div className="export-panel">
       <div className="export-panel__field">
         <label className="export-panel__label">
-          {t('card_settings.export_format') || '导出格式'}
+          {formatMessage('card_settings.export_format')}
         </label>
         <div className="export-panel__grid">
           {exportFormats.map(fmt => (
@@ -490,7 +486,7 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
               data-testid={`export-format-${fmt.key}`}
               disabled={exportStatus === 'exporting' || fmt.available === false}
               title={fmt.available === false
-                ? (t('card_settings.export_unavailable') || '当前导出格式尚未接入正式链路')
+                ? formatMessage('card_settings.export_unavailable')
                 : undefined}
               onClick={() => handleExport(fmt.key as ExportFormat)}
             >

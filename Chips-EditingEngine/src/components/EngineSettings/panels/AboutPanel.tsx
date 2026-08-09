@@ -1,13 +1,10 @@
 import React from 'react';
-import { useTranslation } from '../../../hooks/useTranslation';
 import { AppBrandIcon } from '../../../icons/AppBrandIcon';
 import './AboutPanel.css';
 
 export function AboutPanel() {
-  const { t } = useTranslation();
-
   const appInfo = {
-    name: t('engine_settings.about_app_name') || 'Chips 编辑引擎',
+    name: 'Chips 编辑引擎',
     version: '0.1.0',
     protocolVersion: '1.0.0',
     license: 'MIT',
@@ -20,7 +17,7 @@ export function AboutPanel() {
     <div className="about-panel">
       <div className="settings-panel-header">
         <h3 className="settings-panel-header__title">
-          {t('engine_settings.about_title') || '关于'}
+          关于
         </h3>
       </div>
 
@@ -35,7 +32,7 @@ export function AboutPanel() {
       <div className="settings-info-list">
         <div className="settings-info-item">
           <span className="settings-info-item__label">
-            {t('engine_settings.about_version') || '版本'}
+            版本
           </span>
           <span className="settings-info-item__value">
             {appInfo.version}
@@ -44,7 +41,7 @@ export function AboutPanel() {
 
         <div className="settings-info-item">
           <span className="settings-info-item__label">
-            {t('engine_settings.about_protocol_version') || '协议版本'}
+            协议版本
           </span>
           <span className="settings-info-item__value">
             {appInfo.protocolVersion}
@@ -53,7 +50,7 @@ export function AboutPanel() {
 
         <div className="settings-info-item">
           <span className="settings-info-item__label">
-            {t('engine_settings.about_license') || '开源协议'}
+            开源协议
           </span>
           <span className="settings-info-item__value">
             {appInfo.license}
@@ -62,7 +59,7 @@ export function AboutPanel() {
 
         <div className="settings-info-item">
           <span className="settings-info-item__label">
-            {t('engine_settings.about_tech_stack') || '技术栈'}
+            技术栈
           </span>
           <span className="settings-info-item__value">
             {appInfo.techStack}
@@ -71,7 +68,7 @@ export function AboutPanel() {
 
         <div className="settings-info-item">
           <span className="settings-info-item__label">
-            {t('engine_settings.about_homepage') || '主页'}
+            主页
           </span>
           <span className="settings-info-item__value">
             <a href={appInfo.homepage} target="_blank" rel="noopener noreferrer">
@@ -82,7 +79,7 @@ export function AboutPanel() {
 
         <div className="settings-info-item">
           <span className="settings-info-item__label">
-            {t('engine_settings.about_copyright') || '版权信息'}
+            版权信息
           </span>
           <span className="settings-info-item__value">
             {appInfo.copyright}

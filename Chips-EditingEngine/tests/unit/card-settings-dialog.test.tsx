@@ -10,28 +10,6 @@ const updateCardMetadata = vi.fn();
 const updateCardCover = vi.fn();
 const saveCard = vi.fn(async () => undefined);
 
-vi.mock('@chips/component-library', () => ({
-  ChipsIcon: ({ descriptor }: { descriptor: { name: string } }) => <span data-icon-name={descriptor.name} />,
-  ChipsTabs: ({ items }: { items: Array<{ value: string; content: React.ReactNode }> }) => (
-    <div>{items.map((item) => <div key={item.value}>{item.content}</div>)}</div>
-  ),
-}));
-
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => ({
-      'card_settings.title': '卡片设置',
-      'card_settings.close': '关闭',
-      'card_settings.cancel': '取消',
-      'card_settings.save': '保存',
-      'card_settings.tab_basic': '基础信息',
-      'card_settings.tab_cover': '封面',
-      'card_settings.tab_theme': '主题',
-      'card_settings.tab_export': '导出',
-    }[key] ?? key),
-  }),
-}));
-
 vi.mock('../../src/context/CardContext', () => ({
   useCard: () => ({
     getCard: () => ({
@@ -115,14 +93,6 @@ vi.mock('../../src/components/CardSettings/panels/CoverPanel', () => ({
   ),
 }));
 
-vi.mock('../../src/components/CardSettings/panels/ThemePanel', () => ({
-  ThemePanel: ({ onChange }: { onChange: (themeId: string) => void }) => (
-    <button type="button" data-testid="apply-theme" onClick={() => onChange('chips-official.default-dark-theme')}>
-      theme
-    </button>
-  ),
-}));
-
 vi.mock('../../src/components/CardSettings/panels/ExportPanel', () => ({
   ExportPanel: () => <div>export-panel</div>,
 }));
@@ -131,7 +101,19 @@ describe('CardSettingsDialog', () => {
   let container: HTMLDivElement;
   let root: Root;
 
+  let originalResizeObserver: typeof ResizeObserver | undefined;
+
   beforeEach(() => {
+    originalResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class ResizeObserverMock {
+      constructor(_callback: ResizeObserverCallback) {}
+
+      observe(): void {}
+
+      disconnect(): void {}
+
+      unobserve(): void {}
+    } as typeof ResizeObserver;
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -142,11 +124,23 @@ describe('CardSettingsDialog', () => {
   });
 
   afterEach(async () => {
+    if (originalResizeObserver) {
+      globalThis.ResizeObserver = originalResizeObserver;
+    } else {
+      Reflect.deleteProperty(globalThis, 'ResizeObserver');
+    }
     await act(async () => {
       root.unmount();
     });
     container.remove();
   });
+
+  async function clickTab(label: string) {
+    const tab = Array.from(document.body.querySelectorAll('[role="tab"]'))
+      .find((node) => node.textContent === label);
+    (tab as HTMLElement | undefined)?.click();
+    await Promise.resolve();
+  }
 
   it('routes metadata edits through the formal card-service update API', async () => {
     await act(async () => {
@@ -165,12 +159,10 @@ describe('CardSettingsDialog', () => {
     await act(async () => {
       (document.body.querySelector('[data-testid="rename-card"]') as HTMLButtonElement).click();
       (document.body.querySelector('[data-testid="retag-card"]') as HTMLButtonElement).click();
-      (document.body.querySelector('[data-testid="apply-theme"]') as HTMLButtonElement).click();
     });
 
     expect(updateCardMetadata).toHaveBeenCalledWith('card-1', { name: 'Renamed Card' });
     expect(updateCardMetadata).toHaveBeenCalledWith('card-1', { tags: ['alpha', 'beta'] });
-    expect(updateCardMetadata).toHaveBeenCalledWith('card-1', { themeId: 'chips-official.default-dark-theme' });
   });
 
   it('saves through the formal saveCard API when the user confirms', async () => {
@@ -189,7 +181,7 @@ describe('CardSettingsDialog', () => {
 
     await act(async () => {
       const buttons = Array.from(document.body.querySelectorAll('button'));
-      const saveButton = buttons.find((button) => button.textContent === '保存');
+      const saveButton = buttons.find((button) => (button.textContent ?? '').replace(/\s/g, '') === '保存');
       saveButton?.click();
       await Promise.resolve();
     });
@@ -211,13 +203,17 @@ describe('CardSettingsDialog', () => {
     });
 
     await act(async () => {
+      await clickTab('封面');
+    });
+
+    await act(async () => {
       (document.body.querySelector('[data-testid="set-cover-draft"]') as HTMLButtonElement).click();
       await Promise.resolve();
     });
 
     await act(async () => {
       const buttons = Array.from(document.body.querySelectorAll('button'));
-      const saveButton = buttons.find((button) => button.textContent === '保存');
+      const saveButton = buttons.find((button) => (button.textContent ?? '').replace(/\s/g, '') === '保存');
       saveButton?.click();
       await Promise.resolve();
     });
@@ -261,6 +257,6 @@ describe('CardSettingsDialog', () => {
     });
 
     expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
-    expect(document.body.querySelector('.card-settings-overlay')).not.toBeNull();
+    expect(document.body.querySelector('.ant-modal')).not.toBeNull();
   });
 });

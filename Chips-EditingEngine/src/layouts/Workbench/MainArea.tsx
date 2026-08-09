@@ -1,5 +1,5 @@
 import React from 'react';
-import { createKeyboardMap, createRovingTabIndex } from '@chips/a11y';
+import { createKeyboardMap, createRovingTabIndex } from '../../utils/a11y';
 import type { IconDescriptor } from 'chips-sdk';
 import { ENGINE_ICONS } from '../../icons/descriptors';
 import { RuntimeIcon } from '../../icons/RuntimeIcon';
@@ -34,7 +34,7 @@ export interface MainAreaProps {
     emptyActionsSlot?: React.ReactNode;
 }
 
-export function MainArea({
+export const MainArea = React.memo(function MainArea({
     activeTabId,
     tabs = [],
     showTabs = true,
@@ -185,4 +185,4 @@ export function MainArea({
             </div>
         </main>
     );
-}
+});

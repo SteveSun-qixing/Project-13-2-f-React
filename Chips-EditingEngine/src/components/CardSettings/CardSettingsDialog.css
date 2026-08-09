@@ -1,146 +1,96 @@
 /* ============================================================
- * 遮罩层
+ * 对话框容器（antd Modal 内容区）
  * ============================================================ */
- .card-settings-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-  }
-  
-  /* ============================================================
-   * 对话框容器
-   * ============================================================ */
-  .card-settings-dialog {
-    width: min(720px, calc(100vw - 48px));
-    height: min(720px, calc(100vh - 48px));
-    background: var(--chips-color-surface, #ffffff);
-    border-radius: var(--chips-radius-lg, 12px);
-    box-shadow: var(--chips-shadow-xl, 0 20px 25px -5px rgb(0 0 0 / 0.1));
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    animation: settings-fade-in 0.2s ease;
-  }
+.card-settings-dialog-root .ant-modal-content {
+  display: flex;
+  flex-direction: column;
+  height: min(720px, calc(100dvh - 48px));
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+}
 
-  .card-settings-dialog--cover {
-    width: min(1180px, calc(100vw - 48px));
-    height: min(820px, calc(100vh - 48px));
-  }
-  
-  @keyframes settings-fade-in {
-    from {
-      transform: scale(0.96) translateY(8px);
-      opacity: 0;
-    }
-    to {
-      transform: scale(1) translateY(0);
-      opacity: 1;
-    }
-  }
-  
-  /* ============================================================
-   * 头部
-   * ============================================================ */
-  .card-settings-dialog__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--chips-spacing-md, 16px) var(--chips-spacing-lg, 24px);
-    border-bottom: 1px solid var(--chips-color-border, #e5e7eb);
-    flex-shrink: 0;
-  }
-  
-  .card-settings-dialog__title {
-    font-size: var(--chips-font-size-lg, 18px);
-    font-weight: var(--chips-font-weight-bold, 600);
-    color: var(--chips-color-text, #111827);
-    margin: 0;
-    line-height: 1.4;
-  }
-  
-  .card-settings-dialog__close-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    border-radius: var(--chips-radius-md, 8px);
-    cursor: pointer;
-    font-size: 16px;
-    color: var(--chips-color-text-secondary, #6b7280);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color var(--chips-transition-fast, 150ms ease),
-      color var(--chips-transition-fast, 150ms ease);
-  }
-  
-  .card-settings-dialog__close-btn:hover {
-    background: color-mix(in srgb, var(--chips-color-text) 6%, transparent);
-    color: var(--chips-color-text, #111827);
-  }
-  
-  /* ============================================================
-   * 主体 - Tabs + 内容
-   * ============================================================ */
-  .card-settings-dialog__body {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    --chips-comp-tabs-focus-outline: transparent;
-  }
+.card-settings-dialog-root--cover .ant-modal-content {
+  height: min(820px, calc(100dvh - 48px));
+}
 
-  .card-settings-dialog__body > [data-scope="tabs"][data-part="root"] {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    flex-direction: column;
-    overflow: hidden;
-  }
+/* ============================================================
+ * 头部
+ * ============================================================ */
+.card-settings-dialog-root .ant-modal-header {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
 
-  .card-settings-dialog__body [data-scope="tabs"][data-part="list"] {
-    flex-shrink: 0;
-  }
+.card-settings-dialog-root .ant-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  line-height: 1.4;
+}
 
-  .card-settings-dialog__body [data-scope="tabs"][data-part="panel"] {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-  }
-  
-  /* 面板内容区内边距 */
-  .card-settings-dialog__panel {
-    padding: var(--chips-spacing-lg, 24px);
-    min-height: 0;
-  }
+/* ============================================================
+ * 主体 - Tabs + 内容
+ * ============================================================ */
+.card-settings-dialog-root .ant-modal-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-  .card-settings-dialog__panel--cover {
-    height: 100%;
-    padding: 0;
-  }
-  
-  /* ============================================================
-   * 底部按钮
-   * ============================================================ */
-  .card-settings-dialog__footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--chips-spacing-md, 16px);
-    padding: var(--chips-spacing-md, 16px) var(--chips-spacing-lg, 24px);
-    border-top: 1px solid var(--chips-color-border, #e5e7eb);
-    flex-shrink: 0;
-  }
-  
-  .card-settings-dialog__btn {
-    margin-left: var(--chips-spacing-sm, 8px);
-  }
+.card-settings-dialog-root .ant-tabs {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-  .card-settings-dialog__btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+.card-settings-dialog-root .ant-tabs-nav {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 12px 24px 0;
+}
+
+.card-settings-dialog-root .ant-tabs-content-holder {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.card-settings-dialog-root .ant-tabs-content {
+  height: 100%;
+}
+
+.card-settings-dialog-root .ant-tabs-tabpane {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 面板内容区内边距 */
+.card-settings-dialog__panel {
+  padding: 24px;
+  min-height: 0;
+}
+
+.card-settings-dialog__panel--cover {
+  height: 100%;
+  padding: 0;
+}
+
+/* ============================================================
+ * 底部按钮
+ * ============================================================ */
+.card-settings-dialog-root .ant-modal-footer {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}

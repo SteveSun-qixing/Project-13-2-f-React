@@ -6,24 +6,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BaseWindow } from '../../src/components/BaseWindow/BaseWindow';
 
-vi.mock('@chips/component-library', () => ({
-  ChipsIcon: ({ descriptor, className }: { descriptor: { name: string }; className?: string }) => (
-    <span className={className} data-icon-name={descriptor.name} />
-  ),
-}));
-
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string, params?: Record<string, string | number>) => {
-      if (!params) return key;
-      return Object.entries(params).reduce(
-        (text, [name, value]) => text.replace(`{${name}}`, String(value)),
-        key,
-      );
-    },
-  }),
-}));
-
 describe('BaseWindow', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -78,10 +60,10 @@ describe('BaseWindow', () => {
     const buttons = Array.from(container.querySelectorAll('.base-window__action')) as HTMLButtonElement[];
 
     expect(windowNode?.getAttribute('role')).toBe('region');
-    expect(titlebar?.getAttribute('aria-label')).toBe('window.titlebar_label');
-    expect(buttons[0]?.getAttribute('aria-label')).toBe('window.minimize_window');
+    expect(titlebar?.getAttribute('aria-label')).toBe('文件管理器 标题栏');
+    expect(buttons[0]?.getAttribute('aria-label')).toBe('最小化 文件管理器');
     expect(buttons[1]?.getAttribute('aria-expanded')).toBe('true');
-    expect(buttons[2]?.getAttribute('aria-label')).toBe('window.close_window');
+    expect(buttons[2]?.getAttribute('aria-label')).toBe('关闭 文件管理器');
     expect(resizeHandle?.getAttribute('role')).toBe('separator');
 
     await act(async () => {

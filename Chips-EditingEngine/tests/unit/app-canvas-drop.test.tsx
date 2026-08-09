@@ -130,36 +130,6 @@ const mockState = vi.hoisted(() => {
   };
 });
 
-vi.mock('@chips/component-library', () => ({
-  ChipsEnvironmentProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  ChipsThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  ChipsCommandProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  ChipsMenuBar: () => <nav data-testid="mock-command-menu" />,
-  ChipsToolbar: () => <div data-testid="mock-command-toolbar" />,
-  ChipsCommandPalette: () => <div data-testid="mock-command-palette" />,
-  createCommandAdapter: (client: {
-    command?: {
-      list?: (options?: Record<string, unknown>) => Promise<unknown>;
-      invoke?: (commandId: string, payload?: Record<string, unknown>, options?: Record<string, unknown>) => Promise<unknown>;
-      onChanged?: (handler: (event: unknown) => void) => () => void;
-    };
-  }) => ({
-    listCommands: (options?: Record<string, unknown>) => client.command?.list?.(options) ?? Promise.resolve([]),
-    invokeCommand: (
-      commandId: string,
-      payload?: Record<string, unknown>,
-      options?: Record<string, unknown>,
-    ) => client.command?.invoke?.(commandId, payload, options) ?? Promise.resolve(undefined),
-    onCommandsChanged: client.command?.onChanged,
-  }),
-  useChipsTheme: () => ({
-    theme: {
-      themeId: 'chips-official.default-theme',
-      version: '1',
-    },
-  }),
-}));
-
 vi.mock('../../src/context', () => ({
   AppProviders: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -176,24 +146,12 @@ vi.mock('../../src/context/CardContext', () => ({
   useCard: () => mockState.cardState,
 }));
 
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
-
 vi.mock('../../src/services/bridge-client', () => ({
   getChipsClient: () => mockState.bridgeClient,
 }));
 
 vi.mock('../../src/runtime/chips-client', () => ({
   getEditingEngineClient: () => mockState.bridgeClient,
-}));
-
-vi.mock('../../src/services/i18n-service', () => ({
-  i18nService: {
-    initLocale: vi.fn(async () => 'zh-CN'),
-  },
 }));
 
 vi.mock('../../src/services/workspace-service', () => ({
@@ -218,10 +176,6 @@ vi.mock('../../src/layouts/Workbench', () => ({
 
 vi.mock('../../src/components/Dock/Dock', () => ({
   Dock: () => null,
-}));
-
-vi.mock('../../src/i18n', () => ({
-  setLocale: vi.fn(),
 }));
 
 describe('App canvas drop integration', () => {

@@ -8,12 +8,6 @@ const updateBasicCard = vi.fn();
 const mockTarget = vi.hoisted(() => ({ current: null as null | { kind: 'box'; boxId: string } | { kind: 'card'; cardId: string; baseCardId: string | null } }));
 const mockWindows = vi.hoisted(() => ({ current: [] as Array<Record<string, unknown>> }));
 
-vi.mock('../../src/hooks/useTranslation', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
-
 vi.mock('../../src/components/EditPanel/PluginHost', () => ({
   PluginHost: ({ cardType, baseCardId }: { cardType: string; baseCardId: string }) => (
     <div data-testid="plugin-host-stub" data-card-type={cardType} data-base-card-id={baseCardId} />
@@ -126,7 +120,7 @@ describe('EditPanel', () => {
     });
 
     expect(container.querySelector('[data-testid="plugin-host-stub"]')).toBeNull();
-    expect(container.querySelector('.edit-panel__empty-text')?.textContent).toBe('edit_panel.empty_hint');
+    expect(container.querySelector('.edit-panel__empty-text')?.textContent).toBe('请在左侧选择要编辑的内容');
   });
 
   it('routes selected box editing into the dedicated box editor panel', async () => {

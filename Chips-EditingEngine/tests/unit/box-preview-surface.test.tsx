@@ -61,6 +61,7 @@ describe('BoxPreviewSurface', () => {
               name: 'Demo Box',
               activeLayoutType: 'chips.layout.grid',
               coverRatio: '3:4',
+              chipStandardsVersion: '1.0.0',
               createdAt: '2026-04-09T00:00:00.000Z',
               modifiedAt: '2026-04-09T00:00:00.000Z',
             },

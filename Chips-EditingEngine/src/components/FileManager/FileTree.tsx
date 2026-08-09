@@ -4,10 +4,9 @@ import {
     createRovingTabIndex,
     getKeyboardAction,
     getRovingTabIndexProps,
-} from '@chips/a11y';
+} from '../../utils/a11y';
 import { FileItem } from './FileItem';
 import type { WorkspaceFile } from '../../types/workspace';
-import { useTranslation } from '../../hooks/useTranslation';
 import { ENGINE_ICONS } from '../../icons/descriptors';
 import { RuntimeIcon } from '../../icons/RuntimeIcon';
 import './FileTree.css';
@@ -69,7 +68,6 @@ export function FileTree({
     onRenameCancel,
     onDragStart,
 }: FileTreeProps) {
-    const { t } = useTranslation();
     const [focusPath, setFocusPath] = useState<string | null>(selectedPaths[0] ?? null);
     const itemRefs = useRef(new Map<string, HTMLDivElement>());
     const rootDepth = useMemo(
@@ -242,7 +240,7 @@ export function FileTree({
             className="file-tree"
             tabIndex={flattenedFiles.length > 0 ? undefined : 0}
             role="tree"
-            aria-label={t('file.tree_label')}
+            aria-label="文件树"
             aria-multiselectable={multiSelect ? true : undefined}
             onKeyDown={handleKeyDown}
         >
@@ -284,7 +282,7 @@ export function FileTree({
                     <span className="file-tree__empty-icon">
                         <RuntimeIcon icon={ENGINE_ICONS.folderClosed} />
                     </span>
-                    <span className="file-tree__empty-text">{t('file.empty_folder') || '文件夹为空'}</span>
+                    <span className="file-tree__empty-text">空文件夹</span>
                 </div>
             )}
         </div>

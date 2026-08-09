@@ -66,7 +66,7 @@ body[data-chips-library-dragging='true'][data-chips-library-drag-type='card'] .b
 }
 
 .basecard-frame-host__overlay[data-state='error'] {
-  color: var(--chips-sys-color-error, #d92d20);
+  color: #ff3b30;
 }
 
 .basecard-frame-host__overlay-text {

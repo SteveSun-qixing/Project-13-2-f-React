@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { FrameRenderResult } from 'chips-sdk';
-import { useTranslation } from '../../hooks/useTranslation';
 import { type BoxDocumentSessionSnapshot } from '../../services/box-document-service';
 import { getChipsClient } from '../../services/bridge-client';
 
@@ -25,9 +24,8 @@ export function BoxPreviewSurface({
   className,
   locale,
 }: BoxPreviewSurfaceProps) {
-  const { t } = useTranslation();
-  const previewLoadingText = t('box_window.preview_loading');
-  const previewFailedText = t('box_window.preview_failed');
+  const previewLoadingText = '正在渲染箱子预览...';
+  const previewFailedText = '箱子预览渲染失败';
   const client = useMemo(() => getChipsClient(), []);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const frameResultRef = useRef<FrameRenderResult | null>(null);

@@ -1,7 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { CardWindowBase } from '../CardWindowBase/CardWindowBase';
 import { WindowMenu } from '../WindowMenu/WindowMenu';
-import { useTranslation } from '../../hooks/useTranslation';
 import { workspaceService } from '../../services/workspace-service';
 import { boxDocumentService } from '../../services/box-document-service';
 import { useEditorSelection } from '../../context/EditorSelectionContext';
@@ -22,13 +21,12 @@ export interface BoxWindowProps {
   onFocus: () => void;
 }
 
-export function BoxWindow({
+export const BoxWindow = React.memo(function BoxWindow({
   config,
   onUpdateConfig,
   onClose,
   onFocus,
 }: BoxWindowProps) {
-  const { t, locale } = useTranslation();
   const { selectBox } = useEditorSelection();
   const canvasContext = useCanvas();
   const { session, isLoading, error } = useBoxDocumentSession(config.boxId, config.boxPath);
@@ -65,12 +63,12 @@ export function BoxWindow({
     }
   }, [config.boxPath, config.title, onUpdateConfig, session]);
 
-  const handleUpdatePosition = (position: Position) => onUpdateConfig({ position });
-  const handleUpdateSize = (size: Size) => onUpdateConfig({ size });
-  const handleMinimize = () => onUpdateConfig({ state: 'minimized' });
-  const handleCollapse = () => {
+  const handleUpdatePosition = useCallback((position: Position) => onUpdateConfig({ position }), [onUpdateConfig]);
+  const handleUpdateSize = useCallback((size: Size) => onUpdateConfig({ size }), [onUpdateConfig]);
+  const handleMinimize = useCallback(() => onUpdateConfig({ state: 'minimized' }), [onUpdateConfig]);
+  const handleCollapse = useCallback(() => {
     onUpdateConfig({ state: config.state === 'collapsed' ? 'normal' : 'collapsed' });
-  };
+  }, [config.state, onUpdateConfig]);
   const handleSwitchToFile = useCallback(() => {
     selectBox(config.boxId);
     onUpdateConfig({ state: 'normal' });
@@ -216,16 +214,16 @@ export function BoxWindow({
     >
       <div className="box-window">
         {isLoading ? (
-          <div className="box-window__state">{t('box_window.loading') || '正在加载箱子...'}</div>
+          <div className="box-window__state">正在加载箱子...</div>
         ) : loadError ? (
           <div className="box-window__state box-window__state--error">{loadError}</div>
         ) : !session ? (
-          <div className="box-window__state">{t('box_window.empty') || '箱子会话不可用'}</div>
+          <div className="box-window__state">箱子会话不可用</div>
         ) : (
           <BoxPreviewSurface
             session={session}
             className="box-window__preview"
-            locale={locale}
+            locale="zh-CN"
           />
         )}
       </div>
@@ -240,4 +238,4 @@ export function BoxWindow({
       </Suspense>
     </CardWindowBase>
   );
-}
+});

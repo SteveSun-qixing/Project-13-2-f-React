@@ -1,6 +1,5 @@
 import React, { useCallback } from 'react';
 import { useLayoutSwitch } from '../../hooks/use-layout-switch';
-import { useTranslation } from '../../hooks/useTranslation';
 import { getLayoutSwitcherIcon } from '../../icons/descriptors';
 import { RuntimeIcon } from '../../icons/RuntimeIcon';
 import type { LayoutType } from '../../types/editor';
@@ -20,7 +19,6 @@ export function LayoutSwitcher({
     onBeforeSwitch,
     onAfterSwitch,
 }: LayoutSwitcherProps) {
-    const { t } = useTranslation();
     const {
         currentLayout,
         isSwitching,
@@ -40,11 +38,11 @@ export function LayoutSwitcher({
     }, [disabled, isSwitching, toggleLayout]);
 
     const currentLabel = isInfiniteCanvas
-        ? t('layout_switcher.canvas')
-        : t('layout_switcher.workbench');
+        ? '无限画布'
+        : '工作台';
     const targetLabel = isInfiniteCanvas
-        ? t('layout_switcher.to_workbench')
-        : t('layout_switcher.to_canvas');
+        ? '切换到工作台'
+        : '切换到无限画布';
 
     const sizeClass = `layout-switcher__button--${size}`;
     const switchingClass = isSwitching ? 'layout-switcher__button--switching' : '';

@@ -1,8 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { SidePanel } from './SidePanel';
 import { MainArea, type TabInfo } from './MainArea';
-import { useTranslation } from '../../hooks/useTranslation';
+import { formatMessage } from '../../lib/messages';
 import './Workbench.css';
+
+const LEFT_PANEL_PLACEHOLDER = (
+    <div className="workbench__placeholder" role="status">
+        {formatMessage('workbench.left_panel_empty')}
+    </div>
+);
+
+const RIGHT_PANEL_PLACEHOLDER = (
+    <div className="workbench__placeholder" role="status">
+        {formatMessage('workbench.right_panel_empty')}
+    </div>
+);
 
 export interface WorkbenchLayoutConfig {
     leftPanelWidth?: number;
@@ -38,7 +50,6 @@ export function Workbench({
     tabContentRenderer,
     emptyActionsSlot,
 }: WorkbenchProps) {
-    const { t } = useTranslation();
     const [config, setConfig] = useState<WorkbenchLayoutConfig>({
         leftPanelWidth: 280,
         rightPanelWidth: 320,
@@ -58,11 +69,19 @@ export function Workbench({
         showRightPanel = true,
     } = config;
 
-    const updateConfig = (updates: Partial<WorkbenchLayoutConfig>) => {
+    const updateConfig = useCallback((updates: Partial<WorkbenchLayoutConfig>) => {
         const nextConfig = { ...config, ...updates };
         setConfig(nextConfig);
         onLayoutChange?.(nextConfig);
-    };
+    }, [config, onLayoutChange]);
+
+    const handleLeftPanelWidthChange = useCallback((width: number) => updateConfig({ leftPanelWidth: width }), [updateConfig]);
+    const handleLeftPanelExpandedChange = useCallback((expanded: boolean) => updateConfig({ leftPanelExpanded: expanded }), [updateConfig]);
+    const handleRightPanelWidthChange = useCallback((width: number) => updateConfig({ rightPanelWidth: width }), [updateConfig]);
+    const handleRightPanelExpandedChange = useCallback((expanded: boolean) => updateConfig({ rightPanelExpanded: expanded }), [updateConfig]);
+
+    const handleCloseTabLabel = useCallback((title: string) => formatMessage('workbench.close_tab', { title }), []);
+    const handlePreviewFallbackLabel = useCallback((title: string) => formatMessage('workbench.preview_fallback', { title }), []);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -79,7 +98,7 @@ export function Workbench({
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [config, leftPanelExpanded, rightPanelExpanded]);
+    }, [leftPanelExpanded, rightPanelExpanded, updateConfig]);
 
     const workbenchStyle = {
         '--left-panel-width': `${leftPanelExpanded ? leftPanelWidth : 40}px`,
@@ -91,7 +110,7 @@ export function Workbench({
             className="workbench"
             style={workbenchStyle}
             role="group"
-            aria-label={t('workbench.aria_label')}
+            aria-label={formatMessage('workbench.aria_label')}
             data-chips-surface="workbench"
         >
             {showLeftPanel && (
@@ -101,20 +120,16 @@ export function Workbench({
                     expanded={leftPanelExpanded}
                     minWidth={180}
                     maxWidth={480}
-                    title={t('workbench.left_panel_title')}
+                    title={formatMessage('workbench.left_panel_title')}
                     toggleLabel={leftPanelExpanded
-                        ? t('workbench.left_panel_collapse')
-                        : t('workbench.left_panel_expand')}
-                    collapsedLabel={t('workbench.left_panel_expand')}
-                    resizeLabel={t('workbench.left_panel_resize')}
-                    onWidthChange={(w) => updateConfig({ leftPanelWidth: w })}
-                    onExpandedChange={(exp) => updateConfig({ leftPanelExpanded: exp })}
+                        ? formatMessage('workbench.left_panel_collapse')
+                        : formatMessage('workbench.left_panel_expand')}
+                    collapsedLabel={formatMessage('workbench.left_panel_expand')}
+                    resizeLabel={formatMessage('workbench.left_panel_resize')}
+                    onWidthChange={handleLeftPanelWidthChange}
+                    onExpandedChange={handleLeftPanelExpandedChange}
                 >
-                    {leftPanelContent || (
-                        <div className="workbench__placeholder" role="status">
-                            {t('workbench.left_panel_empty')}
-                        </div>
-                    )}
+                    {leftPanelContent || LEFT_PANEL_PLACEHOLDER}
                 </SidePanel>
             )}
 
@@ -122,12 +137,12 @@ export function Workbench({
                 activeTabId={activeTabId}
                 tabs={tabs}
                 showTabs={true}
-                ariaLabel={t('workbench.main_area_label')}
-                tabListLabel={t('workbench.tabs_label')}
-                emptyText={t('workbench.empty_text')}
-                modifiedLabel={t('workbench.tab_modified')}
-                closeTabLabel={(title) => t('workbench.close_tab', { title })}
-                previewFallbackLabel={(title) => t('workbench.preview_fallback', { title })}
+                ariaLabel={formatMessage('workbench.main_area_label')}
+                tabListLabel={formatMessage('workbench.tabs_label')}
+                emptyText={formatMessage('workbench.empty_text')}
+                modifiedLabel={formatMessage('workbench.tab_modified')}
+                closeTabLabel={handleCloseTabLabel}
+                previewFallbackLabel={handlePreviewFallbackLabel}
                 onTabChange={onTabChange}
                 onTabClose={onTabClose}
                 tabContentRenderer={tabContentRenderer}
@@ -141,20 +156,16 @@ export function Workbench({
                     expanded={rightPanelExpanded}
                     minWidth={200}
                     maxWidth={500}
-                    title={t('workbench.right_panel_title')}
+                    title={formatMessage('workbench.right_panel_title')}
                     toggleLabel={rightPanelExpanded
-                        ? t('workbench.right_panel_collapse')
-                        : t('workbench.right_panel_expand')}
-                    collapsedLabel={t('workbench.right_panel_expand')}
-                    resizeLabel={t('workbench.right_panel_resize')}
-                    onWidthChange={(w) => updateConfig({ rightPanelWidth: w })}
-                    onExpandedChange={(exp) => updateConfig({ rightPanelExpanded: exp })}
+                        ? formatMessage('workbench.right_panel_collapse')
+                        : formatMessage('workbench.right_panel_expand')}
+                    collapsedLabel={formatMessage('workbench.right_panel_expand')}
+                    resizeLabel={formatMessage('workbench.right_panel_resize')}
+                    onWidthChange={handleRightPanelWidthChange}
+                    onExpandedChange={handleRightPanelExpandedChange}
                 >
-                    {rightPanelContent || (
-                        <div className="workbench__placeholder" role="status">
-                            {t('workbench.right_panel_empty')}
-                        </div>
-                    )}
+                    {rightPanelContent || RIGHT_PANEL_PLACEHOLDER}
                 </SidePanel>
             )}
         </div>

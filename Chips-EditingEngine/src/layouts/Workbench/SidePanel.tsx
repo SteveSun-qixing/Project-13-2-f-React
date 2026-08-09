@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, ReactNode } from 'react';
-import { createKeyboardMap, getKeyboardAction } from '@chips/a11y';
+import { createKeyboardMap, getKeyboardAction } from '../../utils/a11y';
 import { ENGINE_ICONS } from '../../icons/descriptors';
 import { RuntimeIcon } from '../../icons/RuntimeIcon';
 import './SidePanel.css';
@@ -31,7 +31,7 @@ export interface SidePanelProps {
     onExpandedChange?: (expanded: boolean) => void;
 }
 
-export function SidePanel({
+export const SidePanel = React.memo(function SidePanel({
     position = 'left',
     width = 280,
     minWidth = 180,
@@ -228,4 +228,4 @@ export function SidePanel({
             )}
         </aside>
     );
-}
+});

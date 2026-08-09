@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { CardTypeGrid } from './CardTypeGrid';
 import { LayoutTypeGrid } from './LayoutTypeGrid';
 import { useCardTypeDefinitions, useLayoutTypeDefinitions } from './data';
-import { useTranslation } from '../../hooks/useTranslation';
+import { formatMessage } from '../../lib/messages';
 import { DragProvider } from './DragContext';
 import { ENGINE_ICONS } from '../../icons/descriptors';
 import { RuntimeIcon } from '../../icons/RuntimeIcon';
@@ -11,7 +11,6 @@ import './CardBoxLibrary.css';
 type TabType = 'cards' | 'boxes';
 
 export default function CardBoxLibrary() {
-  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('cards');
   const allCardTypes = useCardTypeDefinitions();
   const allLayoutTypes = useLayoutTypeDefinitions();
@@ -36,7 +35,7 @@ export default function CardBoxLibrary() {
             <span className="card-box-library__tab-icon">
               <RuntimeIcon icon={ENGINE_ICONS.card} />
             </span>
-            <span className="card-box-library__tab-label">{t('card_box.tab_cards') || '基础卡片'}</span>
+            <span className="card-box-library__tab-label">{formatMessage('card_box.tab_cards')}</span>
             <span className="card-box-library__tab-count">{currentCardCount}</span>
           </button>
           <button
@@ -47,7 +46,7 @@ export default function CardBoxLibrary() {
             <span className="card-box-library__tab-icon">
               <RuntimeIcon icon={ENGINE_ICONS.box} />
             </span>
-            <span className="card-box-library__tab-label">{t('card_box.tab_boxes') || '布局盒子'}</span>
+            <span className="card-box-library__tab-label">{formatMessage('card_box.tab_boxes')}</span>
             <span className="card-box-library__tab-count">{currentLayoutCount}</span>
           </button>
         </div>
@@ -62,8 +61,8 @@ export default function CardBoxLibrary() {
                 <span className="card-box-library__empty-icon">
                   <RuntimeIcon icon={ENGINE_ICONS.empty} />
                 </span>
-                <span className="card-box-library__empty-text">{t('card_box.empty_cards') || '没有已安装的卡片'}</span>
-                <span className="card-box-library__empty-hint">{t('card_box.empty_hint') || '请在插件市场中安装更多卡片和布局'}</span>
+                <span className="card-box-library__empty-text">{formatMessage('card_box.empty_cards')}</span>
+                <span className="card-box-library__empty-hint">{formatMessage('card_box.empty_hint')}</span>
               </div>
             )
           ) : (
@@ -74,8 +73,8 @@ export default function CardBoxLibrary() {
                 <span className="card-box-library__empty-icon">
                   <RuntimeIcon icon={ENGINE_ICONS.empty} />
                 </span>
-                <span className="card-box-library__empty-text">{t('card_box.empty_boxes') || '没有已安装的布局'}</span>
-                <span className="card-box-library__empty-hint">{t('card_box.empty_hint') || '请在插件市场中安装更多卡片和布局'}</span>
+                <span className="card-box-library__empty-text">{formatMessage('card_box.empty_boxes')}</span>
+                <span className="card-box-library__empty-hint">{formatMessage('card_box.empty_hint')}</span>
               </div>
             )
           )}

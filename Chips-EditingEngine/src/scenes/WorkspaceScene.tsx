@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Button, Spin } from 'antd';
 import { useEditor } from '../context/EditorContext';
 import { InfiniteCanvas } from '../layouts/InfiniteCanvas';
 import { Workbench } from '../layouts/Workbench';
@@ -11,7 +12,6 @@ import {
 import { useUI } from '../context/UIContext';
 import { useCard } from '../context/CardContext';
 import { useEditorSelection } from '../context/EditorSelectionContext';
-import { useTranslation } from '../hooks/useTranslation';
 import { workspaceService, type WorkspaceOpenOptions } from '../services/workspace-service';
 import { boxDocumentService, DEFAULT_BOX_LAYOUT_TYPE } from '../services/box-document-service';
 import type { BasicCardConfig } from '../core/card-initializer';
@@ -23,6 +23,7 @@ import {
   normalizeBasecardType,
 } from '../basecard-runtime/registry';
 import { useAppRuntime } from '../runtime/AppRuntimeProvider';
+import { formatMessage } from '../lib/messages';
 import {
   bootEditingEngine,
   subscribeInstalledBasecardRefresh,
@@ -54,7 +55,7 @@ function createInitialBasicCard(typeId: string): BasicCardConfig {
 
 export function WorkspaceScene(): React.ReactElement {
   const { client } = useAppRuntime();
-  const { currentLayout, setState } = useEditor();
+  const { currentLayout, setState, state } = useEditor();
   const { createToolWindow, createCardWindow, createBoxWindow, updateWindow, focusWindow, windows } = useUI();
   const {
     addBasicCard,
@@ -64,7 +65,6 @@ export function WorkspaceScene(): React.ReactElement {
     setSelectedBaseCard,
   } = useCard();
   const { selectCard, selectBox } = useEditorSelection();
-  const { t } = useTranslation();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const hasInitializedRef = useRef(false);
 
@@ -74,6 +74,17 @@ export function WorkspaceScene(): React.ReactElement {
 
   const closeSettings = useCallback(() => {
     setSettingsVisible(false);
+  }, []);
+
+  const handleEmptyWorkbenchCreateCard = useCallback(() => {
+    void (async () => {
+      if (!workspaceService.getState().rootPath) {
+        await workspaceService.initialize();
+      }
+      await workspaceService.createCard(formatMessage('file.untitled_card'));
+    })().catch((error) => {
+      console.error('[WorkspaceScene] Failed to create card from the workbench empty state.', error);
+    });
   }, []);
 
   useEffect(() => {
@@ -87,7 +98,7 @@ export function WorkspaceScene(): React.ReactElement {
       client,
       windows,
       createToolWindow,
-      t,
+      t: formatMessage,
       viewport: {
         width: window.innerWidth,
         height: window.innerHeight,
@@ -110,13 +121,13 @@ export function WorkspaceScene(): React.ReactElement {
       active = false;
       unsubscribeInstalledBasecards();
     };
-  }, [client, createToolWindow, setState, t, windows]);
+  }, [client, createToolWindow, setState, windows]);
 
   useEffect(() => {
     const localizedToolTitles: Record<string, string> = {
-      FileManager: t('app.tool_file_manager'),
-      EditPanel: t('app.tool_edit_panel'),
-      CardBoxLibrary: t('app.tool_card_box_library'),
+      FileManager: '文件管理器',
+      EditPanel: '编辑面板',
+      CardBoxLibrary: '卡箱库',
     };
 
     windows.forEach((window) => {
@@ -129,7 +140,7 @@ export function WorkspaceScene(): React.ReactElement {
       }
       updateWindow(window.id, { title: nextTitle });
     });
-  }, [t, updateWindow, windows]);
+  }, [updateWindow, windows]);
 
   useEffect(() => {
     windows.forEach((window) => {
@@ -137,14 +148,14 @@ export function WorkspaceScene(): React.ReactElement {
         return;
       }
 
-      const nextTitle = openCards.get(window.cardId)?.metadata.name?.trim() || t('card_window.untitled') || 'Untitled Card';
+      const nextTitle = openCards.get(window.cardId)?.metadata.name?.trim() || '无标题卡片';
       if (window.title === nextTitle) {
         return;
       }
 
       updateWindow(window.id, { title: nextTitle });
     });
-  }, [openCards, t, updateWindow, windows]);
+  }, [openCards, updateWindow, windows]);
 
   useEffect(() => {
     const handleOpenWorkspaceFile = async (payload: {
@@ -335,7 +346,7 @@ export function WorkspaceScene(): React.ReactElement {
     }
 
     if (data.type === 'card') {
-      const cardName = data.name.trim() || (t('common.untitled_card') || '未命名卡片');
+      const cardName = data.name.trim() || '未命名卡片';
       await workspaceService.createCard(
         cardName,
         createInitialBasicCard(data.typeId),
@@ -375,34 +386,56 @@ export function WorkspaceScene(): React.ReactElement {
     setSelectedBaseCard,
     selectBox,
     selectCard,
-    t,
     windows,
   ]);
 
   return (
-    <EditingEngineCommandProvider openSettings={openSettings} t={t}>
-      <div style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
-        <div style={{ height: '100%', position: 'relative', overflow: 'hidden' }}>
-          {currentLayout === 'infinite-canvas' ? (
-            <InfiniteCanvas
-              onDropCreate={handleCanvasDropCreate}
-              resolveDropTarget={handleResolveCanvasDropTarget}
-            />
-          ) : (
-            <Workbench />
-          )}
-          <Dock onOpenSettings={openSettings} />
-        </div>
+    <EditingEngineCommandProvider openSettings={openSettings}>
+      {state === 'ready' ? (
+        <div style={{ height: '100%', width: '100%', overflow: 'hidden' }}>
+          <div style={{ height: '100%', position: 'relative', overflow: 'hidden' }}>
+            {currentLayout === 'infinite-canvas' ? (
+              <InfiniteCanvas
+                onDropCreate={handleCanvasDropCreate}
+                resolveDropTarget={handleResolveCanvasDropTarget}
+              />
+            ) : (
+              <Workbench
+                emptyActionsSlot={
+                  <Button type="primary" size="small" onClick={handleEmptyWorkbenchCreateCard}>
+                    新建卡片
+                  </Button>
+                }
+              />
+            )}
+            <Dock onOpenSettings={openSettings} />
+          </div>
 
-        {settingsVisible && (
-          <Suspense fallback={null}>
-            <EngineSettingsDialog
-              visible={settingsVisible}
-              onClose={closeSettings}
-            />
-          </Suspense>
-        )}
-      </div>
+          {settingsVisible && (
+            <Suspense fallback={null}>
+              <EngineSettingsDialog
+                visible={settingsVisible}
+                onClose={closeSettings}
+              />
+            </Suspense>
+          )}
+        </div>
+      ) : (
+        <div
+          role="status"
+          style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+          }}
+        >
+          <Spin size="large" />
+          <span style={{ color: '#86868b', fontSize: 14 }}>正在加载工作区…</span>
+        </div>
+      )}
     </EditingEngineCommandProvider>
   );
 }

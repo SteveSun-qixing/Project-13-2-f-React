@@ -311,7 +311,9 @@ describe('WorkspaceService', () => {
 
   it('fails before writing when no workspace is bound', async () => {
     mockClient.platform.getLaunchContext.mockReturnValue({
-      launchParams: {},
+      launchParams: {
+        workspacePath: '',
+      },
     });
 
     const service = new WorkspaceService();

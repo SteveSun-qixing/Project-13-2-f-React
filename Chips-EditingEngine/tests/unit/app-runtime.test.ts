@@ -1,12 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Client, PlatformLaunchContext } from 'chips-sdk';
-import { setLocale } from '../../src/i18n';
-import { createEditingEngineEnvironmentClient, toEnvironmentLaunchContext } from '../../src/runtime/environment-client';
 import { ensureDefaultToolWindows, bootEditingEngine, subscribeInstalledBasecardRefresh } from '../../src/runtime/boot-actions';
 import { readLaunchContext } from '../../src/runtime/launch-context';
 
 const syncInstalledBasecardDescriptors = vi.hoisted(() => vi.fn(async () => undefined));
-const initLocale = vi.hoisted(() => vi.fn(async () => 'zh-CN'));
 const initializeWorkspace = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock('../../src/basecard-runtime/registry', async (importOriginal) => {
@@ -16,12 +13,6 @@ vi.mock('../../src/basecard-runtime/registry', async (importOriginal) => {
     syncInstalledBasecardDescriptors,
   };
 });
-
-vi.mock('../../src/services/i18n-service', () => ({
-  i18nService: {
-    initLocale,
-  },
-}));
 
 vi.mock('../../src/services/workspace-service', () => ({
   workspaceService: {
@@ -77,7 +68,6 @@ function createClientStub(launchContext?: PlatformLaunchContext): Client {
 
 afterEach(() => {
   vi.clearAllMocks();
-  setLocale('zh-CN');
 });
 
 describe('editing engine runtime launch context', () => {
@@ -113,51 +103,6 @@ describe('editing engine runtime launch context', () => {
       workspacePath: '/workspace/from-launch',
       trigger: 'app-shortcut',
     });
-  });
-
-  it('converts launch context to the component-library environment shape', () => {
-    const context = toEnvironmentLaunchContext({
-      pluginId: 'chips-official.editing-engine',
-      sceneId: 'top-scene',
-      surfaceId: 'top-surface',
-      kind: 'window',
-      launchParams: { targetPath: '/workspace/demo.card' },
-      surfaceContext: {
-        sceneId: 'surface-scene',
-        surfaceId: 'surface-id',
-        pluginId: 'chips-official.editing-engine',
-        kind: 'window',
-        presentation: { title: '编辑引擎' },
-        launchParams: { workspace: '/workspace' },
-      },
-    });
-
-    expect(context?.surfaceContext?.sceneId).toBe('surface-scene');
-    expect(context?.surfaceContext?.surfaceId).toBe('surface-id');
-    expect(context?.launchParams).toEqual({
-      workspace: '/workspace',
-      targetPath: '/workspace/demo.card',
-    });
-  });
-});
-
-describe('editing engine environment client', () => {
-  it('adapts SDK theme, i18n, launch and command APIs for the component library environment', async () => {
-    setLocale('en-US');
-    const client = createClientStub();
-    const environmentClient = createEditingEngineEnvironmentClient(client);
-    const theme = await environmentClient.theme?.getCurrent();
-    const text = await environmentClient.i18n?.translate?.('common.save');
-
-    expect(client.theme.getCurrent).toHaveBeenCalledWith({ appId: 'chips-official.editing-engine' });
-    expect(theme).toMatchObject({
-      themeId: 'chips-official.default-theme',
-      displayName: 'Default Theme',
-      version: '1.0.0',
-    });
-    expect(text).toBe('Save');
-    expect(environmentClient.command).toBe(client.command);
-    expect(environmentClient.platform?.getLaunchContext?.()?.pluginId).toBe('chips-official.editing-engine');
   });
 });
 
@@ -234,7 +179,6 @@ describe('editing engine boot actions', () => {
 
     expect(stateChanges).toEqual(['loading', 'ready']);
     expect(syncInstalledBasecardDescriptors).toHaveBeenCalledWith(client);
-    expect(initLocale).toHaveBeenCalledTimes(1);
     expect(initializeWorkspace).toHaveBeenCalledTimes(1);
     expect(createToolWindow).toHaveBeenCalledTimes(3);
   });

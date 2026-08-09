@@ -6,18 +6,5 @@
 .box-settings-dialog__label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--chips-sys-color-on-surface, #111827);
-}
-
-.box-settings-dialog__textarea {
-  width: 100%;
-  min-height: 120px;
-  box-sizing: border-box;
-  resize: vertical;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--chips-sys-color-outline-variant, #d8dee9);
-  background: var(--chips-sys-color-surface, #ffffff);
-  color: var(--chips-sys-color-on-surface, #111827);
-  font: inherit;
+  color: #1d1d1f;
 }

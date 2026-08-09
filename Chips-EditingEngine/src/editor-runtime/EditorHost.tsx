@@ -5,7 +5,6 @@ import {
   subscribeBasecardRegistry,
 } from '../basecard-runtime/registry';
 import { globalEventEmitter } from '../core/event-emitter';
-import { useTranslation } from '../hooks/useTranslation';
 import { fileService } from '../services/file-service';
 import { platformService } from '../services/platform-service';
 import { resourceService } from '../services/resource-service';
@@ -142,7 +141,6 @@ export function EditorHost({
   onPluginLoaded,
   onPluginError,
 }: EditorHostProps) {
-  const { t } = useTranslation();
   const store = useEditorRuntime();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [registryVersion, setRegistryVersion] = useState(() => getBasecardRegistryVersion());
@@ -751,7 +749,7 @@ export function EditorHost({
     store,
   ]);
 
-  const errorText = loadError?.message || snapshot?.errorMessage || t('plugin_host.error') || '加载失败';
+  const errorText = loadError?.message || snapshot?.errorMessage || '加载失败';
 
   return (
     <div className="plugin-host">
@@ -760,7 +758,7 @@ export function EditorHost({
       {isLoading && (
         <div className="plugin-host__loading">
           <div className="plugin-host__spinner"></div>
-          <span className="plugin-host__loading-text">{t('plugin_host.loading') || '加载中...'}</span>
+          <span className="plugin-host__loading-text">加载中...</span>
         </div>
       )}
 
@@ -775,7 +773,7 @@ export function EditorHost({
             className="plugin-host__retry-btn"
             onClick={() => setRenderRevision((current) => current + 1)}
           >
-            {t('plugin_host.retry') || '重试'}
+            重试
           </button>
         </div>
       )}
