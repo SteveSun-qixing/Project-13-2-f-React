@@ -95,7 +95,7 @@ export const BACKGROUND_PRESETS: IconBackgroundSelection[] = [
     id: "ocean",
     labelKey: "iconMaker.background.ocean",
     kind: "gradient",
-    start: "#2563eb",
+    start: "#0a84ff",
     end: "#06b6d4",
   },
   {
@@ -116,7 +116,7 @@ export const BACKGROUND_PRESETS: IconBackgroundSelection[] = [
     id: "ember",
     labelKey: "iconMaker.background.ember",
     kind: "gradient",
-    start: "#f59e0b",
+    start: "#ff9f0a",
     end: "#ef4444",
   },
   {

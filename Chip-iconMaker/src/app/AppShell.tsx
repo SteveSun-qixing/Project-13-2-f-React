@@ -1,13 +1,8 @@
 import { useEffect, useRef } from "react";
-import {
-  ChipsCommandProvider,
-  ChipsErrorBoundary,
-  ChipsLoadingBoundary,
-} from "@chips/component-library";
-import { appConfig } from "../../config/app-config";
-import { APP_COMMAND_HANDLER_IDS, appCommandViews } from "../commands/app-commands";
+import { AppChrome, StateBoundary, type MenuBarGroup } from "@chips/ui";
+import { APP_COMMAND_HANDLER_IDS } from "../commands/app-commands";
 import { useAppCommands } from "../commands/useAppCommands";
-import { useAppText } from "../i18n/useAppText";
+import { formatMessage } from "../lib/messages";
 import { IconMakerScene } from "../icon-workbench/IconMakerScene";
 import { runIconMakerCliCommand } from "../icon-workbench/cli-runner";
 import { useAppRuntime } from "./AppRuntimeProvider";
@@ -15,7 +10,6 @@ import { useAppRuntime } from "./AppRuntimeProvider";
 export function AppShell() {
   const runtime = useAppRuntime();
   const handledInvocationRef = useRef<string | null>(null);
-  const { text } = useAppText();
   const commands = useAppCommands();
 
   useEffect(() => {
@@ -46,7 +40,7 @@ export function AppShell() {
             code: error && typeof error === "object" && "message" in error
               ? String((error as { message?: unknown }).message)
               : "ICONMAKER_CLI_FAILED",
-            message: "IconMaker CLI command failed.",
+            message: "图标工坊 CLI 命令执行失败。",
             source: "cli",
           });
         });
@@ -54,35 +48,27 @@ export function AppShell() {
       }
       document.getElementById("icon-maker-generate-action")?.focus();
     }
-    if (commands.lastInvoked.handlerId === APP_COMMAND_HANDLER_IDS.refreshTheme) {
-      void runtime.refreshTheme();
-    }
   }, [commands.lastInvoked, runtime]);
 
+  const menus: MenuBarGroup[] = [
+    { menuId: "file", label: "文件", commands: commands.commands },
+  ];
+
+  const toolbarItems = commands.commands.filter((command) => command.toolbarId === "main");
+  const isLoading = commands.phase === "registering" || !runtime.ready;
+
   return (
-    <ChipsCommandProvider
-      adapter={commands.adapter}
-      commands={appCommandViews}
-      i18n={text}
-      query={{ source: "palette", includeDisabled: true }}
+    <AppChrome
+      appName="图标工坊"
+      menus={menus}
+      toolbarItems={toolbarItems}
+      paletteShortcut="Mod+P"
     >
-      <ChipsErrorBoundary
-        title={text("app.errors.boundaryTitle")}
-        description={text("app.errors.boundaryDescription")}
-        retryLabel={text("app.errors.retry")}
-        showErrorMessage
-      >
-        <ChipsLoadingBoundary
-          loading={commands.phase === "registering" || !runtime.status.ready}
-          loadingText={text("app.shell.loading")}
-        >
-          <div className="app-shell" data-app-id={appConfig.appId}>
-            <main className="app-shell__workspace" aria-label={text("app.shell.contentLabel")}>
-              <IconMakerScene text={text} />
-            </main>
-          </div>
-        </ChipsLoadingBoundary>
-      </ChipsErrorBoundary>
-    </ChipsCommandProvider>
+      <StateBoundary loading={isLoading} minHeight={320}>
+        <main className="app-shell__workspace" aria-label="图标生成工作台">
+          <IconMakerScene text={formatMessage} />
+        </main>
+      </StateBoundary>
+    </AppChrome>
   );
 }

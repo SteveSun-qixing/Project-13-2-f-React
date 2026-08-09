@@ -7,46 +7,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  useChipsDiagnostics,
-  useChipsI18n,
-  useChipsPermission,
-  useChipsSurface,
-  useChipsTheme,
-  type ChipsLaunchContext,
-  type ChipsRuntimeDiagnostic,
-  type ChipsRuntimeStatus,
-  type ChipsSurfaceContext,
-  type ChipsThemeState,
-} from "@chips/component-library";
+import type { Client, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
+import { useChips } from "@chips/ui";
 import { appConfig } from "../../config/app-config";
+import { readLaunchContext } from "../runtime/launch-context";
 import {
   defaultSceneDefinition,
   getSceneDefinition,
   type AppSceneDefinition,
   type AppSceneId,
 } from "./scene-registry";
-
-export type AppScenePhase = "launching" | "active" | "error";
-
-export interface AppRuntimePermissions {
-  values: string[];
-  canReadTheme: boolean;
-  canReadI18n: boolean;
-  canWriteI18n: boolean;
-  canReadCommand: boolean;
-  canWriteCommand: boolean;
-  canInvokeCommand: boolean;
-}
-
-export interface AppRuntimeStatus {
-  phase: AppScenePhase;
-  theme: ChipsRuntimeStatus;
-  i18n: ChipsRuntimeStatus;
-  surface: ChipsRuntimeStatus;
-  diagnostics: ChipsRuntimeStatus;
-  ready: boolean;
-}
 
 export interface AppRuntimeEnvironment {
   appId: string;
@@ -59,40 +29,40 @@ export interface AppRuntimeEnvironment {
   launchParams: Record<string, unknown>;
 }
 
+export interface AppRuntimeDiagnostic {
+  code: string;
+  message: string;
+  source: string;
+  details?: Record<string, unknown>;
+}
+
 export interface AppRuntimeValue {
+  client: Client | null;
+  ready: boolean;
+  launchContext: PlatformLaunchContext | null;
+  surface: SurfaceContext | null;
   environment: AppRuntimeEnvironment;
   activeSceneId: AppSceneId;
   activeScene: AppSceneDefinition;
   setActiveSceneId(sceneId: AppSceneId): void;
-  launchContext: ChipsLaunchContext | null;
-  surface: ChipsSurfaceContext | null;
-  theme: ChipsThemeState | null;
-  locale: string;
-  permissions: AppRuntimePermissions;
-  diagnostics: ChipsRuntimeDiagnostic[];
-  status: AppRuntimeStatus;
-  hasPermission(permission: string): boolean;
-  setLocale(locale: string): Promise<string | null>;
-  refreshTheme(): Promise<ChipsThemeState | null>;
-  refreshEnvironment(): Promise<PromiseSettledResult<unknown>[]>;
-  pushDiagnostic(diagnostic: ChipsRuntimeDiagnostic): void;
+  diagnostics: AppRuntimeDiagnostic[];
+  pushDiagnostic(diagnostic: AppRuntimeDiagnostic): void;
   clearDiagnostics(): void;
+  refreshEnvironment(): Promise<void>;
 }
 
 const AppRuntimeContext = createContext<AppRuntimeValue | null>(null);
 
-function resolveHostSceneId(
-  surface: ChipsSurfaceContext | null,
-  launchContext: ChipsLaunchContext | null,
-): string {
-  return surface?.sceneId ?? launchContext?.sceneId ?? appConfig.defaultSceneId;
+function resolveHostSceneId(launchContext: PlatformLaunchContext | null): string {
+  return (
+    launchContext?.surfaceContext?.sceneId ??
+    launchContext?.sceneId ??
+    appConfig.defaultSceneId
+  );
 }
 
-export function resolveRuntimeSceneId(
-  surface: ChipsSurfaceContext | null,
-  launchContext: ChipsLaunchContext | null,
-): AppSceneId {
-  return getSceneDefinition(resolveHostSceneId(surface, launchContext)).id;
+export function resolveRuntimeSceneId(launchContext: PlatformLaunchContext | null): AppSceneId {
+  return getSceneDefinition(resolveHostSceneId(launchContext)).id;
 }
 
 export function createRuntimeDiagnostic(
@@ -100,7 +70,7 @@ export function createRuntimeDiagnostic(
   message: string,
   source = "app-runtime",
   details?: Record<string, unknown>,
-): ChipsRuntimeDiagnostic {
+): AppRuntimeDiagnostic {
   return {
     code,
     message,
@@ -109,117 +79,80 @@ export function createRuntimeDiagnostic(
   };
 }
 
-function resolvePhase(
-  themeStatus: ChipsRuntimeStatus,
-  i18nStatus: ChipsRuntimeStatus,
-  surfaceStatus: ChipsRuntimeStatus,
-): AppScenePhase {
-  if (themeStatus === "error" || i18nStatus === "error" || surfaceStatus === "error") {
-    return "error";
-  }
-  if (themeStatus === "loading" || i18nStatus === "loading" || surfaceStatus === "loading") {
-    return "launching";
-  }
-  return "active";
-}
-
 export interface AppRuntimeProviderProps {
   children: ReactNode;
 }
 
 export function AppRuntimeProvider({ children }: AppRuntimeProviderProps) {
-  const theme = useChipsTheme();
-  const i18n = useChipsI18n();
-  const surface = useChipsSurface();
-  const permission = useChipsPermission();
-  const diagnostics = useChipsDiagnostics();
-  const runtimeSceneId = resolveRuntimeSceneId(surface.surface, surface.launchContext);
-  const [activeSceneId, setActiveSceneId] = useState<AppSceneId>(runtimeSceneId);
+  const { client, launchContext, ready } = useChips();
+  const [activeSceneId, setActiveSceneId] = useState<AppSceneId>(() =>
+    resolveRuntimeSceneId(launchContext),
+  );
+  const [diagnostics, setDiagnostics] = useState<AppRuntimeDiagnostic[]>([]);
 
   useEffect(() => {
-    setActiveSceneId(runtimeSceneId);
-  }, [runtimeSceneId]);
+    setActiveSceneId(resolveRuntimeSceneId(launchContext));
+  }, [launchContext]);
 
-  const permissions = useMemo<AppRuntimePermissions>(() => ({
-    values: permission.permissions,
-    canReadTheme: permission.hasPermission("theme.read"),
-    canReadI18n: permission.hasPermission("i18n.read"),
-    canWriteI18n: permission.hasPermission("i18n.write"),
-    canReadCommand: permission.hasPermission("command.read"),
-    canWriteCommand: permission.hasPermission("command.write"),
-    canInvokeCommand: permission.hasPermission("command.invoke"),
-  }), [permission]);
+  const refreshEnvironment = useCallback(async (): Promise<void> => {
+    if (!client) {
+      return;
+    }
+    const nextLaunchContext = readLaunchContext(client);
+    setActiveSceneId(resolveRuntimeSceneId(nextLaunchContext));
+  }, [client]);
 
-  const refreshEnvironment = useCallback(async () => {
-    return Promise.allSettled([
-      theme.refresh(),
-      i18n.refresh(),
-      surface.refresh(),
-      diagnostics.refresh(),
-    ]);
-  }, [diagnostics, i18n, surface, theme]);
+  const pushDiagnostic = useCallback((diagnostic: AppRuntimeDiagnostic): void => {
+    setDiagnostics((current) => [...current, diagnostic]);
+  }, []);
 
-  const hostSceneId = resolveHostSceneId(surface.surface, surface.launchContext);
-  const activeScene = getSceneDefinition(activeSceneId);
-  const phase = resolvePhase(theme.status, i18n.status, surface.status);
-  const status = useMemo<AppRuntimeStatus>(() => ({
-    phase,
-    theme: theme.status,
-    i18n: i18n.status,
-    surface: surface.status,
-    diagnostics: diagnostics.status,
-    ready: phase === "active",
-  }), [diagnostics.status, i18n.status, phase, surface.status, theme.status]);
+  const clearDiagnostics = useCallback((): void => {
+    setDiagnostics([]);
+  }, []);
+
+  const surface = launchContext?.surfaceContext ?? null;
 
   const environment = useMemo<AppRuntimeEnvironment>(() => ({
     appId: appConfig.appId,
-    pluginId: surface.surface?.pluginId ?? surface.launchContext?.pluginId ?? appConfig.appId,
+    pluginId: launchContext?.pluginId ?? surface?.pluginId ?? appConfig.appId,
     sceneId: activeSceneId,
-    hostSceneId,
-    surfaceId: surface.surface?.surfaceId ?? surface.launchContext?.surfaceId ?? null,
-    sessionId: surface.surface?.sessionId ?? surface.launchContext?.sessionId ?? null,
-    surfaceKind: surface.surface?.kind ?? surface.launchContext?.kind ?? "window",
+    hostSceneId: resolveHostSceneId(launchContext),
+    surfaceId: launchContext?.surfaceId ?? surface?.surfaceId ?? null,
+    sessionId: launchContext?.sessionId ?? surface?.sessionId ?? null,
+    surfaceKind: launchContext?.kind ?? surface?.kind ?? "window",
     launchParams: {
-      ...surface.launchContext?.launchParams,
-      ...surface.surface?.launchParams,
+      ...launchContext?.launchParams,
+      ...surface?.launchParams,
     },
-  }), [activeSceneId, hostSceneId, surface.launchContext, surface.surface]);
+  }), [activeSceneId, launchContext, surface]);
+
+  const activeScene = getSceneDefinition(activeSceneId);
 
   const value = useMemo<AppRuntimeValue>(() => ({
+    client,
+    ready,
+    launchContext,
+    surface,
     environment,
     activeSceneId,
     activeScene: activeScene ?? defaultSceneDefinition,
     setActiveSceneId,
-    launchContext: surface.launchContext,
-    surface: surface.surface,
-    theme: theme.theme,
-    locale: i18n.locale ?? "zh-CN",
-    permissions,
-    diagnostics: diagnostics.diagnostics,
-    status,
-    hasPermission: permission.hasPermission,
-    setLocale: i18n.setLocale,
-    refreshTheme: theme.refresh,
+    diagnostics,
+    pushDiagnostic,
+    clearDiagnostics,
     refreshEnvironment,
-    pushDiagnostic: diagnostics.push,
-    clearDiagnostics: diagnostics.clear,
   }), [
     activeScene,
     activeSceneId,
-    diagnostics.clear,
-    diagnostics.diagnostics,
-    diagnostics.push,
+    clearDiagnostics,
+    client,
+    diagnostics,
     environment,
-    i18n.locale,
-    i18n.setLocale,
-    permission.hasPermission,
-    permissions,
+    launchContext,
+    pushDiagnostic,
+    ready,
     refreshEnvironment,
-    status,
-    surface.launchContext,
-    surface.surface,
-    theme.refresh,
-    theme.theme,
+    surface,
   ]);
 
   return (

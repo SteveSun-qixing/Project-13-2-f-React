@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button, Checkbox } from "antd";
 import {
-  ChipsButton,
-  ChipsCheckbox,
-  ChipsIcon,
-  ChipsText,
-  ChipsToggleButton,
-} from "@chips/component-library";
+  DownOutlined,
+  FontColorsOutlined,
+  FontSizeOutlined,
+  PictureOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { renderIconToCanvas } from "./canvas-renderer";
 import {
   EMOJI_FONT_SOURCE,
@@ -33,7 +34,7 @@ export interface IconMakerSceneProps {
   text(key: string, params?: Record<string, string | number>): string;
 }
 
-const FOREGROUND_SWATCHES = ["#000000", "#ffffff", "#2563eb", "#16a34a", "#f59e0b", "#e11d48"];
+const FOREGROUND_SWATCHES = ["#000000", "#ffffff", "#0a84ff", "#34c759", "#ff9f0a", "#ff3b30"];
 const CUSTOM_FONT_ID = "custom-font";
 
 function backgroundCss(background: IconBackgroundSelection): string {
@@ -242,31 +243,27 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
         <div className="icon-maker__controls">
           <section className="icon-maker__panel">
             <div className="icon-maker__panel-header icon-maker__panel-header--compact">
-              <ChipsText as="div" role="heading" aria-level={2} className="icon-maker__panel-title">
+              <div role="heading" aria-level={2} className="icon-maker__panel-title">
                 {text("iconMaker.basic.title")}
-              </ChipsText>
+              </div>
             </div>
 
             <div className="icon-maker__source-toggle" role="tablist" aria-label={text("iconMaker.sourceMode.title")}>
               {(["image", "font"] as const).map((mode) => (
-                <ChipsToggleButton
+                <Button
                   key={mode}
-                  type="button"
+                  type={sourceMode === mode ? "primary" : "default"}
                   role="tab"
-                  className={`icon-maker__source-button${sourceMode === mode ? " icon-maker__source-button--active" : ""}`}
-                  pressed={sourceMode === mode}
                   aria-pressed={sourceMode === mode}
                   aria-selected={sourceMode === mode}
-                  onPress={() => setSourceMode(mode)}
+                  className={`icon-maker__source-button${sourceMode === mode ? " icon-maker__source-button--active" : ""}`}
+                  onClick={() => setSourceMode(mode)}
                 >
                   <span className="icon-maker__button-content">
-                    <ChipsIcon
-                      descriptor={{ name: mode === "image" ? "image" : "glyphs", style: "rounded" }}
-                      aria-hidden
-                    />
+                    {mode === "image" ? <PictureOutlined /> : <FontSizeOutlined />}
                     <span>{text(mode === "image" ? "iconMaker.sourceMode.image" : "iconMaker.sourceMode.font")}</span>
                   </span>
-                </ChipsToggleButton>
+                </Button>
               ))}
             </div>
 
@@ -315,16 +312,16 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
                     </span>
                   ) : (
                     <>
-                      <ChipsIcon descriptor={{ name: "upload_file", style: "rounded" }} aria-hidden />
+                      <UploadOutlined aria-hidden />
                       <span>{text("iconMaker.image.dropHint")}</span>
                     </>
                   )}
                 </button>
                 {imageSource ? (
                   <span className="icon-maker__secondary-action">
-                    <ChipsButton type="button" onPress={clearImage}>
+                    <Button type="default" onClick={clearImage}>
                       {text("iconMaker.actions.clear")}
-                    </ChipsButton>
+                    </Button>
                   </span>
                 ) : null}
               </div>
@@ -332,26 +329,25 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
               <div className="icon-maker__mode-body icon-maker__mode-body--font">
                 <div className="icon-maker__font-tabs" role="radiogroup" aria-label={text("iconMaker.font.fontSource")}>
                   {fontSources.map((font) => (
-                    <ChipsToggleButton
+                    <Button
                       key={font.id}
-                      type="button"
+                      type={activeFont.id === font.id ? "primary" : "default"}
                       className={`icon-maker__font-tab${activeFont.id === font.id ? " icon-maker__font-tab--active" : ""}`}
-                      pressed={activeFont.id === font.id}
-                      onPress={() => {
+                      onClick={() => {
                         setActiveFontId(font.id);
                         setSelectedGlyphId(font.glyphs[0]?.id ?? "");
                       }}
                     >
                       {font.name}
-                    </ChipsToggleButton>
+                    </Button>
                   ))}
                 </div>
-                <ChipsText className="icon-maker__muted">
+                <div className="icon-maker__muted">
                   {text("iconMaker.font.summary", {
                     name: activeFont.name,
                     count: activeFont.glyphs.length,
                   })}
-                </ChipsText>
+                </div>
                 <div className="icon-maker__glyph-grid" role="listbox" aria-label={text("iconMaker.font.glyphPanel")}>
                   {activeFont.glyphs.map((glyph) => (
                     <button
@@ -367,9 +363,9 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
                   ))}
                 </div>
                 <div className="icon-maker__color-row">
-                  <ChipsText as="span" className="icon-maker__color-label">
+                  <span className="icon-maker__color-label">
                     {text("iconMaker.font.foreground")}
-                  </ChipsText>
+                  </span>
                   <div className="icon-maker__swatches" aria-label={text("iconMaker.font.commonColors")}>
                     {FOREGROUND_SWATCHES.map((color) => (
                       <button
@@ -389,9 +385,9 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
 
             {sourceMode === "font" ? (
               <div className="icon-maker__field-group icon-maker__background-field">
-                <ChipsText as="div" role="heading" aria-level={3} className="icon-maker__group-title">
+                <div role="heading" aria-level={3} className="icon-maker__group-title">
                   {text("iconMaker.background.title")}
-                </ChipsText>
+                </div>
                 <div className="icon-maker__background-grid">
                   {BACKGROUND_PRESETS.map((background) => (
                     <button
@@ -416,31 +412,32 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
               onClick={() => setIsAdvancedOpen((open) => !open)}
             >
               <span>{text("iconMaker.advanced.title")}</span>
-              <ChipsIcon descriptor={{ name: "expand_more", style: "rounded" }} aria-hidden />
+              <DownOutlined aria-hidden />
             </button>
             {isAdvancedOpen ? (
               <div className="icon-maker__advanced-body">
                 <div className="icon-maker__field-group">
-                  <ChipsText as="div" role="heading" aria-level={3} className="icon-maker__group-title">
+                  <div role="heading" aria-level={3} className="icon-maker__group-title">
                     {text("iconMaker.formats.title")}
-                  </ChipsText>
+                  </div>
                   <div className="icon-maker__format-row">
                     {ICON_FORMATS.map((format) => (
-                      <ChipsCheckbox
+                      <Checkbox
                         key={format}
                         checked={settings.formats.includes(format)}
-                        label={text(`iconMaker.formats.${format}`, { format: formatLabel(format) })}
-                        onCheckedChange={(checked) => toggleFormat(format, checked)}
-                      />
+                        onChange={(event) => toggleFormat(format, event.target.checked)}
+                      >
+                        {text(`iconMaker.formats.${format}`, { format: formatLabel(format) })}
+                      </Checkbox>
                     ))}
                   </div>
-                  {!hasFormats ? <ChipsText className="icon-maker__hint">{text("iconMaker.formats.required")}</ChipsText> : null}
+                  {!hasFormats ? <div className="icon-maker__hint">{text("iconMaker.formats.required")}</div> : null}
                 </div>
 
                 <div className="icon-maker__field-group">
-                  <ChipsText as="div" role="heading" aria-level={3} className="icon-maker__group-title">
+                  <div role="heading" aria-level={3} className="icon-maker__group-title">
                     {text("iconMaker.size.title")}
-                  </ChipsText>
+                  </div>
                   <div className="icon-maker__size-presets" role="radiogroup" aria-label={text("iconMaker.size.title")}>
                     {OUTPUT_SIZE_MARKS.map((mark) => (
                       <button
@@ -458,9 +455,9 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
 
                 {sourceMode === "image" ? (
                   <div className="icon-maker__field-group">
-                    <ChipsText as="div" role="heading" aria-level={3} className="icon-maker__group-title">
+                    <div role="heading" aria-level={3} className="icon-maker__group-title">
                       {text("iconMaker.fit.title")}
-                    </ChipsText>
+                    </div>
                     <div className="icon-maker__fit-row">
                       {(["fit", "fill"] as IconImageFitMode[]).map((fit) => (
                         <button
@@ -477,9 +474,9 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
                   </div>
                 ) : (
                   <div className="icon-maker__field-group">
-                    <ChipsText as="div" role="heading" aria-level={3} className="icon-maker__group-title">
+                    <div role="heading" aria-level={3} className="icon-maker__group-title">
                       {text("iconMaker.font.customFont")}
-                    </ChipsText>
+                    </div>
                     <input
                       ref={fontInputRef}
                       className="icon-maker__hidden-input"
@@ -494,12 +491,12 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
                       }}
                     />
                     <span className="icon-maker__upload-font-action">
-                      <ChipsButton type="button" onPress={() => fontInputRef.current?.click()}>
+                      <Button type="default" onClick={() => fontInputRef.current?.click()}>
                         <span className="icon-maker__button-content">
-                          <ChipsIcon descriptor={{ name: "font_download", style: "rounded" }} aria-hidden />
+                          <FontColorsOutlined aria-hidden />
                           <span>{text("iconMaker.font.upload")}</span>
                         </span>
-                      </ChipsButton>
+                      </Button>
                     </span>
                   </div>
                 )}
@@ -510,26 +507,27 @@ export function IconMakerScene({ text }: IconMakerSceneProps): React.ReactElemen
 
         <aside className="icon-maker__preview-panel" aria-label={text("iconMaker.preview.title")}>
           <div className="icon-maker__preview-head">
-            <ChipsText as="div" role="heading" aria-level={2} className="icon-maker__preview-title">
+            <div role="heading" aria-level={2} className="icon-maker__preview-title">
               {text("iconMaker.preview.title")}
-            </ChipsText>
+            </div>
             <span className="icon-maker__preview-size">{text("iconMaker.preview.size", { size: settings.outputSize })}</span>
           </div>
           <div className="icon-maker__preview-shell">
             <canvas ref={previewCanvasRef} className="icon-maker__preview-canvas" aria-label={text("iconMaker.preview.canvas")} />
           </div>
           <span id="icon-maker-generate-action" className="icon-maker__download-anchor" tabIndex={-1}>
-            <ChipsButton
-              type="button"
+            <Button
+              type="primary"
               disabled={!canDownload || isDownloading}
               loading={isDownloading}
-              onPress={() => void downloadZip()}
+              onClick={() => void downloadZip()}
+              block
             >
               {text(isDownloading ? "iconMaker.actions.generating" : "iconMaker.actions.download")}
-            </ChipsButton>
+            </Button>
           </span>
-          {disabledMessageKey ? <ChipsText className="icon-maker__hint">{text(disabledMessageKey)}</ChipsText> : null}
-          {feedbackKey && !disabledMessageKey ? <ChipsText className="icon-maker__feedback">{text(feedbackKey)}</ChipsText> : null}
+          {disabledMessageKey ? <div className="icon-maker__hint">{text(disabledMessageKey)}</div> : null}
+          {feedbackKey && !disabledMessageKey ? <div className="icon-maker__feedback">{text(feedbackKey)}</div> : null}
         </aside>
       </div>
     </section>

@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  useChipsClient,
-  createCommandAdapter,
-  type ChipsCommandAdapter,
-} from "@chips/component-library";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCommandRegistry, type CommandItem } from "@chips/ui";
 import type { Client, CommandSource } from "chips-sdk";
+import { chipsClient } from "../runtime/chips-client";
 import {
+  APP_COMMAND_IDS,
   appCommandDefinitions,
   createAppCommandStatus,
+  createAppCommands,
   getAppCommandHandlerId,
   isAppCommandInvokedEvent,
   type AppCommandStatus,
@@ -21,10 +20,10 @@ export interface UseAppCommandsOptions {
 
 export interface UseAppCommandsResult {
   client: Client;
-  adapter: ChipsCommandAdapter;
   phase: CommandRegistryPhase;
   errorCode: string | null;
   lastInvoked: AppCommandStatus | null;
+  commands: CommandItem[];
   invokeCommand(commandId: string, source: CommandSource): Promise<void>;
 }
 
@@ -39,9 +38,8 @@ function toErrorCode(error: unknown): string {
 }
 
 export function useAppCommands(options: UseAppCommandsOptions = {}): UseAppCommandsResult {
-  const environmentClient = useChipsClient() as unknown as Client;
-  const client = options.client ?? environmentClient;
-  const adapter = useMemo(() => createCommandAdapter(client), [client]);
+  const client = options.client ?? chipsClient;
+  const { register } = useCommandRegistry();
   const [phase, setPhase] = useState<CommandRegistryPhase>("idle");
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [lastInvoked, setLastInvoked] = useState<AppCommandStatus | null>(null);
@@ -92,22 +90,42 @@ export function useAppCommands(options: UseAppCommandsOptions = {}): UseAppComma
     };
   }, [client]);
 
-  async function invokeCommand(commandId: string, source: CommandSource): Promise<void> {
-    setErrorCode(null);
-    try {
-      await client.command.invoke(commandId, {}, { source });
-    } catch (error) {
-      setErrorCode(toErrorCode(error));
-      setPhase("error");
-    }
-  }
+  const invokeCommand = useCallback(
+    async (commandId: string, source: CommandSource): Promise<void> => {
+      setErrorCode(null);
+      try {
+        await client.command.invoke(commandId, {}, { source });
+      } catch (error) {
+        setErrorCode(toErrorCode(error));
+        setPhase("error");
+      }
+    },
+    [client],
+  );
+
+  const commands = useMemo<CommandItem[]>(
+    () =>
+      createAppCommands({
+        focusImporter: () => {
+          void invokeCommand(APP_COMMAND_IDS.focusImporter, "menu");
+        },
+        generateIcons: () => {
+          void invokeCommand(APP_COMMAND_IDS.generateIcons, "menu");
+        },
+      }),
+    [invokeCommand],
+  );
+
+  useEffect(() => {
+    register(commands);
+  }, [commands, register]);
 
   return {
     client,
-    adapter,
     phase,
     errorCode,
     lastInvoked,
+    commands,
     invokeCommand,
   };
 }

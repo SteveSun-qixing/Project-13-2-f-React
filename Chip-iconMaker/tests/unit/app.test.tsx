@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createChipsI18nText, type ChipsLaunchContext, type ChipsSurfaceContext } from "@chips/component-library";
+import type { PlatformLaunchContext, SurfaceContext } from "chips-sdk";
 import { App } from "../../src/App";
 import { AppRoot } from "../../src/app/AppRoot";
 import {
@@ -7,36 +7,13 @@ import {
   resolveRuntimeSceneId,
 } from "../../src/app/AppRuntimeProvider";
 import { sceneDefinitions } from "../../src/app/scene-registry";
-import { localeBundles, supportedLocales, translateLocalKey } from "../../src/i18n/locales";
 import { createAppMockClient } from "../../src/testing/mock-environment";
-import { renderWithChips } from "../../src/testing/render-with-chips";
+import { renderWithAntd } from "../../src/testing/render-with-antd";
 
 describe("App (图标工坊应用插件根组件)", () => {
   it("应当导出一个可用的 React 组件", () => {
     expect(App).toBeTypeOf("function");
     expect(App).toBe(AppRoot);
-  });
-
-  it("应通过同步 i18n adapter 解析当前语言、fallback 与参数插值", () => {
-    expect(supportedLocales).toEqual(["zh-CN", "en-US"]);
-
-    const zhText = createChipsI18nText({
-      bundles: localeBundles,
-      locale: "zh-CN",
-      fallbackLocale: "en-US",
-      defaultLocale: "zh-CN",
-    });
-    const missingLocaleText = createChipsI18nText({
-      bundles: localeBundles,
-      locale: "fr-FR",
-      fallbackLocale: "en-US",
-      defaultLocale: "zh-CN",
-    });
-
-    expect(zhText("iconMaker.preview.size", { size: 256 })).toBe("256 x 256px");
-    expect(missingLocaleText("iconMaker.actions.download")).toBe("Generate and download");
-    expect(translateLocalKey("app.commands.focusImporter.title", "zh-CN")).toBe("选择源图");
-    expect(zhText("app.missing.key")).toBe("app.missing.key");
   });
 
   it("应提供场景注册表与 Host mock 渲染外壳", () => {
@@ -47,24 +24,23 @@ describe("App (图标工坊应用插件根组件)", () => {
     expect(client.state.permissions).toContain("command.invoke");
     client.restoreBridge();
 
-    const rendered = renderWithChips(<App />);
+    const rendered = renderWithAntd(<App />);
     expect(rendered.element).toBeTruthy();
     expect(rendered.client.state.launchContext.surfaceContext?.sceneId).toBe("main");
     rendered.client.restoreBridge();
   });
 
-  it("应从 surface / launch context 解析运行时场景和诊断对象", () => {
+  it("应从 launch context 解析运行时场景和诊断对象", () => {
     const client = createAppMockClient();
     expect(
       resolveRuntimeSceneId(
-        (client.state.launchContext.surfaceContext ?? null) as unknown as ChipsSurfaceContext | null,
-        client.state.launchContext as unknown as ChipsLaunchContext,
+        client.state.launchContext as unknown as PlatformLaunchContext,
       ),
     ).toBe("main");
 
     const diagnostic = createRuntimeDiagnostic(
       "APP_RUNTIME_TEST",
-      "Runtime test diagnostic.",
+      "运行时测试诊断。",
       "test",
       { sceneId: "main" },
     );
