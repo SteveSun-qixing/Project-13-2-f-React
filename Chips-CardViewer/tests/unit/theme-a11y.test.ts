@@ -6,13 +6,12 @@ function readSource(path: string): string {
   return readFileSync(resolve(__dirname, "../../", path), "utf-8");
 }
 
-describe("CardViewer theme and a11y contracts", () => {
-  it("keeps document-flow surfaces on theme tokens instead of hard-coded white", () => {
+describe("CardViewer document surface and a11y contracts", () => {
+  it("keeps document-flow surfaces on the unified light background", () => {
     const css = readSource("src/components/CardWindow.css");
 
     expect(css).toContain(".card-viewer-window--document-flow");
-    expect(css).toContain("background: var(--chips-sys-color-surface, #ffffff)");
-    expect(css).not.toMatch(/background:\s*#ffffff/);
+    expect(css).toContain("background: #ffffff");
   });
 
   it("announces loading and error overlays with semantic roles", () => {

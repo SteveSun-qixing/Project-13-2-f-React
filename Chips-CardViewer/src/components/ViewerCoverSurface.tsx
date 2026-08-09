@@ -1,5 +1,6 @@
 import React from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { motion } from "framer-motion";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import type { Client } from "chips-sdk";
 import type { ViewerCoverSource } from "../types/viewer-source";
 import "./ViewerCoverSurface.css";
@@ -16,6 +17,12 @@ interface ViewerCoverSurfaceProps {
 const COVER_SURFACE_MIN_HEIGHT = 320;
 const COVER_SURFACE_SAFE_BLOCK_END_FALLBACK = 72;
 const COVER_SURFACE_STABLE_DELAY_MS = 160;
+
+const COVER_SURFACE_ENTER_ANIMATION = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.3, ease: "easeOut" },
+} as const;
 
 type CoverSurfaceResizeReason = "content-resize" | "viewport-resize";
 
@@ -136,20 +143,26 @@ export function ViewerCoverSurface({
 
   if (!cover.coverUrl) {
     return (
-      <section ref={rootRef} className="viewer-cover-surface viewer-cover-surface--state" aria-live="polite">
+      <motion.section
+        ref={rootRef}
+        className="viewer-cover-surface viewer-cover-surface--state"
+        aria-live="polite"
+        {...COVER_SURFACE_ENTER_ANIMATION}
+      >
         <div className="viewer-cover-surface__state-panel">
           <h2>{unavailableLabel}</h2>
         </div>
-      </section>
+      </motion.section>
     );
   }
 
   return (
-    <section
+    <motion.section
       ref={rootRef}
       className="viewer-cover-surface"
       data-chips-app="card-viewer.cover"
       aria-label={title}
+      {...COVER_SURFACE_ENTER_ANIMATION}
     >
       <div className="viewer-cover-surface__layout" style={aspectRatioStyle}>
         <div className="viewer-cover-surface__stage">
@@ -174,6 +187,6 @@ export function ViewerCoverSurface({
         </div>
         <h2 className="viewer-cover-surface__title">{title}</h2>
       </div>
-    </section>
+    </motion.section>
   );
 }

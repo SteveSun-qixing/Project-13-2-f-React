@@ -11,7 +11,7 @@
   align-items: stretch;
   overflow: auto;
   padding: var(--card-viewer-block-padding) var(--card-viewer-inline-padding);
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .card-viewer-window__viewport {
@@ -34,7 +34,7 @@
   min-width: 0;
   border: 0;
   overflow: hidden;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .card-viewer-window__iframe {
@@ -51,22 +51,46 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--chips-sys-layout-space-md, 16px);
+  padding: 16px;
   text-align: center;
-  font-size: var(--chips-sys-typography-body-sm-size, 14px);
+  font-size: 14px;
   line-height: 1.6;
-  background:
-    color-mix(in srgb, var(--chips-sys-color-surface, #ffffff) 86%, transparent);
-  color: var(--chips-sys-color-on-surface, #111111);
+  background: rgba(255, 255, 255, 0.86);
+  color: #1d1d1f;
 }
 
 .card-viewer-window__overlay--error {
-  background: color-mix(
-    in srgb,
-    var(--chips-sys-color-error, #d92d20) 12%,
-    var(--chips-sys-color-surface, #ffffff)
-  );
-  color: var(--chips-sys-color-error, #d92d20);
+  background: transparent;
+  color: #1d1d1f;
+}
+
+.card-viewer-window__error-panel {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 24px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.card-viewer-window__error-icon {
+  font-size: 36px;
+  line-height: 1;
+  color: #ff3b30;
+}
+
+.card-viewer-window__error-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #1d1d1f;
+  word-break: break-word;
 }
 
 @media (orientation: portrait) {
@@ -85,7 +109,7 @@
   width: 100%;
   min-height: 0;
   overflow: visible;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .card-viewer-window__viewport--document-flow {
@@ -106,12 +130,9 @@
   width: 100%;
   height: var(
     --chips-document-safe-area-block-start,
-    var(
-      --chips-sys-document-safe-area-block-start,
-      var(--chips-document-safe-area-block-start-fallback)
-    )
+    var(--chips-document-safe-area-block-start-fallback)
   );
-  min-height: var(--chips-base-space-6, 24px);
+  min-height: 24px;
   pointer-events: none;
 }
 
@@ -131,19 +152,16 @@
   width: 100%;
   height: auto;
   min-height: 0;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .card-viewer-window__safe-area {
   width: 100%;
   height: var(
     --chips-document-safe-area-block-end,
-    var(
-      --chips-sys-document-safe-area-block-end,
-      var(--chips-document-safe-area-block-end-fallback)
-    )
+    var(--chips-document-safe-area-block-end-fallback)
   );
-  min-height: var(--chips-base-space-6, 24px);
+  min-height: 24px;
   pointer-events: none;
 }
 

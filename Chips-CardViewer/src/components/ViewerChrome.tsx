@@ -1,6 +1,18 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo } from "react";
+import {
+  ArrowLeftOutlined,
+  DownloadOutlined,
+  FileTextOutlined,
+  PictureOutlined,
+} from "@ant-design/icons";
 import type { Client } from "chips-sdk";
 import "./ViewerChrome.css";
+
+const VIEWER_CHROME_ACTION_ICONS: Record<string, typeof PictureOutlined> = {
+  cover: PictureOutlined,
+  document: FileTextOutlined,
+  download: DownloadOutlined,
+};
 
 export interface ViewerChromeAction {
   id: string;
@@ -138,18 +150,20 @@ function ViewerChromeLayer() {
 
   return (
     <div className="viewer-chrome" data-chips-app="card-viewer.chrome">
-      <div className="viewer-chrome__floating-layer">
-        {state.back.enabled ? (
-          <button
-            type="button"
-            className="viewer-chrome__button viewer-chrome__back"
-            onClick={() => trigger("back")}
-            aria-label={state.back.label}
-            title={state.back.label}
-          >
-            <span aria-hidden="true">‹</span>
-          </button>
-        ) : null}
+      <div className="viewer-chrome__floating-capsule">
+        <div className="viewer-chrome__side viewer-chrome__side--start">
+          {state.back.enabled ? (
+            <button
+              type="button"
+              className="viewer-chrome__button"
+              onClick={() => trigger("back")}
+              aria-label={state.back.label}
+              title={state.back.label}
+            >
+              <ArrowLeftOutlined className="viewer-chrome__action-icon" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
 
         {state.title ? (
           <aside className="viewer-chrome__pill" aria-label={state.title}>
@@ -166,22 +180,24 @@ function ViewerChromeLayer() {
 
         {state.actions.length > 0 ? (
           <div className="viewer-chrome__actions">
-            {state.actions.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                className="viewer-chrome__button"
-                disabled={action.disabled}
-                onClick={() => trigger(action.id)}
-                aria-label={action.label}
-                title={action.label}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`viewer-chrome__action-icon${action.icon ? ` viewer-chrome__action-icon--${action.icon}` : ""}`}
-                />
-              </button>
-            ))}
+            {state.actions.map((action) => {
+              const ActionIcon = action.icon ? VIEWER_CHROME_ACTION_ICONS[action.icon] : null;
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  className="viewer-chrome__button"
+                  disabled={action.disabled}
+                  onClick={() => trigger(action.id)}
+                  aria-label={action.label}
+                  title={action.label}
+                >
+                  {ActionIcon ? (
+                    <ActionIcon className="viewer-chrome__action-icon" aria-hidden="true" />
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         ) : null}
       </div>

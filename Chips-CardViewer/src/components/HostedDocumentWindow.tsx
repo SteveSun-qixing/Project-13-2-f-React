@@ -1,6 +1,9 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ExclamationCircleFilled } from "@ant-design/icons";
+import { Button } from "antd";
 import type { Client } from "chips-sdk";
 import { createScopedLogger } from "../../config/logging";
+import { resolveMessage } from "../lib/messages";
 import "./CardWindow.css";
 
 interface HostedDocumentWindowProps {
@@ -12,6 +15,7 @@ interface HostedDocumentWindowProps {
   containerErrorLabel: string;
   resourceOpenErrorTitle: string;
   resourceOpenErrorFallback: string;
+  retryLabel?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -185,6 +189,7 @@ export function HostedDocumentWindow({
   containerErrorLabel,
   resourceOpenErrorTitle,
   resourceOpenErrorFallback,
+  retryLabel = resolveMessage("card-viewer.actions.retry"),
 }: HostedDocumentWindowProps) {
   const logger = useMemo(
     () =>
@@ -213,6 +218,10 @@ export function HostedDocumentWindow({
   const [documentHeight, setDocumentHeight] = useState(() =>
     DOCUMENT_FLOW_INITIAL_CONTENT_HEIGHT,
   );
+  const [retryKey, setRetryKey] = useState(0);
+  const retry = useCallback(() => {
+    setRetryKey((current) => current + 1);
+  }, []);
 
   const readSafeBlockStart = useCallback(
     () => readElementBlockSize(topSafeAreaRef.current, DOCUMENT_FLOW_SAFE_BLOCK_START_FALLBACK),
@@ -498,7 +507,7 @@ export function HostedDocumentWindow({
         stableHeightTimerRef.current = null;
       }
     };
-  }, [client, containerErrorLabel, documentUrl, logger, resourceOpenErrorFallback, resourceOpenErrorTitle, scheduleDocumentHeightPublish]);
+  }, [client, containerErrorLabel, documentUrl, logger, resourceOpenErrorFallback, resourceOpenErrorTitle, retryKey, scheduleDocumentHeightPublish]);
 
   useLayoutEffect(() => {
     const content = contentRef.current;
@@ -585,7 +594,16 @@ export function HostedDocumentWindow({
               role="alert"
               className="card-viewer-window__overlay card-viewer-window__overlay--error"
             >
-              <span>{error}</span>
+              <div className="card-viewer-window__error-panel">
+                <ExclamationCircleFilled
+                  aria-hidden="true"
+                  className="card-viewer-window__error-icon"
+                />
+                <div className="card-viewer-window__error-title">{error}</div>
+                <Button type="primary" onClick={retry}>
+                  {retryLabel}
+                </Button>
+              </div>
             </div>
           )}
         </div>

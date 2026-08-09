@@ -1,10 +1,6 @@
+import { FolderOpenOutlined } from "@ant-design/icons";
 import type { CommandDefinitionInput, CommandInvokedEvent, CommandSource } from "chips-sdk";
-import {
-  resolveCommandMenuGroups,
-  resolveCommandToolbarItems,
-  type ChipsCommandProviderProps,
-  type ChipsCommandView,
-} from "@chips/component-library";
+import type { CommandItem } from "@chips/ui";
 import { appConfig } from "../../config/app-config";
 
 export const CARD_VIEWER_COMMAND_IDS = {
@@ -14,6 +10,10 @@ export const CARD_VIEWER_COMMAND_IDS = {
 export const CARD_VIEWER_COMMAND_HANDLER_IDS = {
   openFile: "open-file",
 } as const;
+
+export type CardViewerCommandId = (typeof CARD_VIEWER_COMMAND_IDS)[keyof typeof CARD_VIEWER_COMMAND_IDS];
+export type CardViewerCommandHandlerId =
+  (typeof CARD_VIEWER_COMMAND_HANDLER_IDS)[keyof typeof CARD_VIEWER_COMMAND_HANDLER_IDS];
 
 const CARD_VIEWER_COMMAND_ID_SET = new Set<string>(Object.values(CARD_VIEWER_COMMAND_IDS));
 
@@ -33,27 +33,36 @@ export const cardViewerCommandDefinitions: CommandDefinitionInput[] = [
   },
 ];
 
-export const cardViewerCommandViews = cardViewerCommandDefinitions as unknown as ChipsCommandView[];
-
-export function resolveCardViewerToolbarCommands(i18n?: ChipsCommandProviderProps["i18n"]) {
-  return resolveCommandToolbarItems(cardViewerCommandViews, {
-    toolbarId: "main",
-    i18n,
-    includeHidden: false,
-  });
+export interface CardViewerCommandState {
+  canOpenFile: boolean;
 }
 
-export function resolveCardViewerMenuGroups(i18n?: ChipsCommandProviderProps["i18n"]) {
-  return resolveCommandMenuGroups(cardViewerCommandViews, {
-    menuId: "file",
-    i18n,
-    includeHidden: false,
-  });
+export interface CardViewerCommandHandlers {
+  invokeCommand(commandId: CardViewerCommandId, source: CommandSource): Promise<void>;
 }
 
-export type CardViewerCommandId = (typeof CARD_VIEWER_COMMAND_IDS)[keyof typeof CARD_VIEWER_COMMAND_IDS];
-export type CardViewerCommandHandlerId =
-  (typeof CARD_VIEWER_COMMAND_HANDLER_IDS)[keyof typeof CARD_VIEWER_COMMAND_HANDLER_IDS];
+export function createCardViewerCommands(
+  handlers: CardViewerCommandHandlers,
+  state: CardViewerCommandState,
+): CommandItem[] {
+  const { canOpenFile } = state;
+
+  return [
+    {
+      id: CARD_VIEWER_COMMAND_IDS.openFile,
+      title: "打开文件",
+      shortcut: "Mod+O",
+      icon: <FolderOpenOutlined />,
+      group: "文件",
+      menuId: "file",
+      toolbarId: "main",
+      keywords: ["open", "打开", "文件"],
+      enabled: canOpenFile,
+      visible: true,
+      run: () => void handlers.invokeCommand(CARD_VIEWER_COMMAND_IDS.openFile, "menu"),
+    },
+  ];
+}
 
 export interface CardViewerCommandStatus {
   commandId: string;

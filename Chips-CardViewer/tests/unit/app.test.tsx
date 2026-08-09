@@ -5,13 +5,32 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { renderToString } from "react-dom/server";
-import { createChipsI18nText } from "@chips/component-library";
 import { App } from "../../src/App";
 import { CardWindow } from "../../src/components/CardWindow";
-import { localeBundles, supportedLocales, translateLocalKey } from "../../src/i18n/messages";
 import { chipsClient } from "../../src/runtime/chips-client";
 import { parseCardViewerSource } from "../../src/types/viewer-source";
 import { CARD_VIEWER_COMMAND_IDS } from "../../src/commands/card-viewer-commands";
+
+vi.mock("framer-motion", () => {
+  const ReactModule = require("react");
+  const AnimatePresence = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+  const motion = {
+    div: ReactModule.forwardRef(
+      (
+        props: Record<string, unknown> & { children?: React.ReactNode },
+        ref: React.Ref<HTMLDivElement>,
+      ) => <div ref={ref} {...props} />,
+    ),
+    section: ReactModule.forwardRef(
+      (
+        props: Record<string, unknown> & { children?: React.ReactNode },
+        ref: React.Ref<HTMLElement>,
+      ) => <section ref={ref} {...props} />,
+    ),
+  };
+  const MotionConfig = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+  return { AnimatePresence, motion, MotionConfig };
+});
 import {
   allRealDocumentPaths,
   expectAllRealDocumentsAvailable,
@@ -44,17 +63,8 @@ const appRuntimeMock = vi.hoisted(() => {
       launchParams: {},
     },
   };
-  let locale = "zh-CN";
-  const i18nListeners: Array<Listener<{ locale: string }>> = [];
-  const themeListeners: Array<Listener<{
-    previousThemeId?: string;
-    themeId: string;
-    themeVersion: string;
-    timestamp: string;
-  }>> = [];
   const eventListeners = new Map<string, Array<Listener<unknown>>>();
-  const commandInvokedListeners: Array<Listener<{
-    invocationId: string;
+  const commandInvokedListeners: Array<Listener<{    invocationId: string;
     commandId: string;
     handlerId: string;
     source: "api" | "menu" | "toolbar" | "shortcut" | "palette";
@@ -147,48 +157,6 @@ const appRuntimeMock = vi.hoisted(() => {
       }),
       emit: vi.fn(async (event: string, payload: unknown) => {
         (eventListeners.get(event) ?? []).forEach((handler) => handler(payload));
-        if (event === "theme.changed") {
-          themeListeners.forEach((handler) => handler(payload as {
-            previousThemeId?: string;
-            themeId: string;
-            themeVersion: string;
-            timestamp: string;
-          }));
-        }
-      }),
-    },
-    theme: {
-      getCurrent: vi.fn(async () => ({
-        themeId: "chips.default",
-        displayName: "Default",
-        version: "1.0.0",
-        tokens: {},
-      })),
-      apply: vi.fn(async () => undefined),
-      onChanged: vi.fn((handler: typeof themeListeners[number]) => {
-        themeListeners.push(handler);
-        return () => {
-          const index = themeListeners.indexOf(handler);
-          if (index >= 0) {
-            themeListeners.splice(index, 1);
-          }
-        };
-      }),
-    },
-    i18n: {
-      getCurrent: vi.fn(async () => locale),
-      setCurrent: vi.fn(async (nextLocale: string) => {
-        locale = nextLocale;
-        i18nListeners.forEach((handler) => handler({ locale }));
-      }),
-      onChanged: vi.fn((handler: typeof i18nListeners[number]) => {
-        i18nListeners.push(handler);
-        return () => {
-          const index = i18nListeners.indexOf(handler);
-          if (index >= 0) {
-            i18nListeners.splice(index, 1);
-          }
-        };
       }),
     },
     command: {
@@ -241,9 +209,6 @@ const appRuntimeMock = vi.hoisted(() => {
           launchParams: {},
         },
       };
-      locale = "zh-CN";
-      i18nListeners.length = 0;
-      themeListeners.length = 0;
       commandInvokedListeners.length = 0;
       eventListeners.clear();
       registeredCommands.length = 0;
@@ -258,18 +223,6 @@ const appRuntimeMock = vi.hoisted(() => {
           launchParams,
         },
       };
-    },
-    emitLanguageChanged(nextLocale: string) {
-      locale = nextLocale;
-      i18nListeners.forEach((handler) => handler({ locale }));
-    },
-    emitThemeChanged(themeId: string, version = "2.0.0") {
-      themeListeners.forEach((handler) => handler({
-        previousThemeId: "chips.default",
-        themeId,
-        themeVersion: version,
-        timestamp: "2026-05-25T00:00:00.000Z",
-      }));
     },
     emitEvent(event: string, payload: unknown) {
       (eventListeners.get(event) ?? []).forEach((handler) => handler(payload));
@@ -474,8 +427,7 @@ describe("App（卡片查看器根组件）", () => {
 
     await act(async () => {
       appRuntimeMock.emitEvent("plugin.chrome.action", { actionId: "toggle-cover" });
-      await Promise.resolve();
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 500));
     });
 
     const coverFrame = container.querySelector('[data-chips-app="card-viewer.cover"] iframe');
@@ -520,7 +472,7 @@ describe("App（卡片查看器根组件）", () => {
 
     await act(async () => {
       coverButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 500));
     });
 
     const coverFrame = container.querySelector('[data-chips-app="card-viewer.cover"] iframe');
@@ -533,7 +485,7 @@ describe("App（卡片查看器根组件）", () => {
     expect(contentButton).toBeInstanceOf(HTMLButtonElement);
     await act(async () => {
       contentButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 500));
     });
     expect(container.querySelector('[data-chips-app="card-viewer.cover"]')).toBeNull();
   });
@@ -555,7 +507,7 @@ describe("App（卡片查看器根组件）", () => {
     expect(document.body.getAttribute("data-chips-surface-mode")).toBe("document");
     expect(container.querySelector(".card-viewer-shell--document")).not.toBeNull();
     expect(container.querySelector(".card-viewer-shell--immersive")).toBeNull();
-    expect(container.querySelector(".card-viewer-shell__floating-action--back")).not.toBeNull();
+    expect(container.querySelector(".viewer-chrome__floating-capsule")).not.toBeNull();
     expect(container.querySelector(".card-viewer-window--document-flow")).not.toBeNull();
     expect(container.querySelector("iframe")?.getAttribute("scrolling")).toBe("no");
     expect(appRuntimeMock.client.events.emit).not.toHaveBeenCalledWith(
@@ -582,7 +534,7 @@ describe("App（卡片查看器根组件）", () => {
     const backButton = Array.from(container.querySelectorAll("button"))
       .find((element) => element.getAttribute("aria-label") === "返回首页");
     expect(backButton).toBeInstanceOf(HTMLButtonElement);
-    expect(backButton?.classList.contains("card-viewer-shell__floating-action--back")).toBe(true);
+    expect(backButton?.classList.contains("viewer-chrome__button")).toBe(true);
 
     await act(async () => {
       backButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -666,7 +618,7 @@ describe("App（卡片查看器根组件）", () => {
     }
   });
 
-  it("从 webDocumentUrl 启动上下文恢复托管文档，并保持语言与主题事件同步到壳层和内容 iframe", async () => {
+  it("从 webDocumentUrl 启动上下文恢复托管文档", async () => {
     appRuntimeMock.setLaunchParams({
       trigger: "resource.open",
       webDocumentUrl: "chips-render://session/card/index.html",
@@ -682,77 +634,6 @@ describe("App（卡片查看器根组件）", () => {
     expect(frame).toBeInstanceOf(HTMLIFrameElement);
     expect(frame?.getAttribute("src")).toBe("chips-render://session/card/index.html");
     expect(frame?.getAttribute("title")).toBe("托管卡片文档");
-    expect(document.documentElement.getAttribute("lang")).toBe("zh-CN");
-    expect(document.documentElement.getAttribute("dir")).toBe("ltr");
-    expect(document.documentElement.getAttribute("data-chips-locale")).toBe("zh-CN");
-
-    await act(async () => {
-      appRuntimeMock.emitLanguageChanged("en-US");
-      appRuntimeMock.emitThemeChanged("chips.default.dark", "2.0.0");
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(document.documentElement.getAttribute("lang")).toBe("en-US");
-    expect(document.documentElement.getAttribute("dir")).toBe("ltr");
-    expect(document.documentElement.getAttribute("data-chips-locale")).toBe("en-US");
-    expect(frame?.getAttribute("title")).toBe("Hosted card document");
-  });
-
-  it("主题变化后会用同一文件和语言重新创建内容 iframe 渲染会话", async () => {
-    expectRealDocumentFixturesAvailable(["compositeCard"]);
-    appRuntimeMock.setLaunchParams({
-      trigger: "file-association",
-      targetPath: realDocumentFixtures.compositeCard,
-    });
-
-    await act(async () => {
-      root.render(<App />);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    const renderCountBeforeThemeChange = appRuntimeMock.client.document.window.render.mock.calls.length;
-    expect(renderCountBeforeThemeChange).toBeGreaterThan(0);
-
-    await act(async () => {
-      await appRuntimeMock.client.events.emit("theme.changed", {
-        previousThemeId: "chips.default",
-        themeId: "chips.default.dark",
-        version: "2.0.0",
-        themeVersion: "2.0.0",
-        timestamp: "2026-05-25T00:00:00.000Z",
-      });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(appRuntimeMock.client.document.window.render).toHaveBeenLastCalledWith({
-      filePath: realDocumentFixtures.compositeCard,
-      locale: "zh-CN",
-      mode: "view",
-    });
-    expect(appRuntimeMock.client.document.window.render).toHaveBeenCalledTimes(renderCountBeforeThemeChange + 1);
-  });
-
-  it("应当通过组件库同步 i18n adapter 解析本地语言包", () => {
-    const zhText = createChipsI18nText({
-      bundles: localeBundles,
-      locale: "zh-CN",
-      fallbackLocale: "en-US",
-      defaultLocale: "zh-CN",
-    });
-    const missingLocaleText = createChipsI18nText({
-      bundles: localeBundles,
-      locale: "fr-FR",
-      fallbackLocale: "en-US",
-      defaultLocale: "zh-CN",
-    });
-
-    expect(supportedLocales).toEqual(["zh-CN", "en-US"]);
-    expect(zhText("card-viewer.commands.openFile.title")).toBe("打开文件");
-    expect(missingLocaleText("card-viewer.viewer.documentLoading")).toBe("Loading document…");
-    expect(translateLocalKey("card-viewer.missing.key", "zh-CN")).toBe("card-viewer.missing.key");
   });
 
   it("应当按结构化来源模型解析 cardSource 并过滤非法封面比例", () => {

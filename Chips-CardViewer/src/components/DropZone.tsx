@@ -1,11 +1,40 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { ChipsButton } from "@chips/component-library";
+import { ExclamationCircleFilled } from "@ant-design/icons";
+import { Button } from "antd";
 import { createScopedLogger } from "../../config/logging";
+import { resolveMessage } from "../lib/messages";
 import "./DropZone.css";
+
+type DragState = "idle" | "accept" | "reject";
+
+const SUPPORTED_EXTENSIONS = [".card", ".box"];
+
+function isSupportedCardFile(fileName: string): boolean {
+  const lowerName = fileName.toLowerCase();
+  return SUPPORTED_EXTENSIONS.some((extension) => lowerName.endsWith(extension));
+}
+
+function evaluateDragState(event: React.DragEvent<HTMLDivElement>): DragState {
+  const items = event.dataTransfer.items;
+  if (!items || items.length === 0) {
+    return "accept";
+  }
+  for (const item of Array.from(items)) {
+    if (item.kind !== "file") {
+      continue;
+    }
+    const file = item.getAsFile();
+    if (file && !isSupportedCardFile(file.name)) {
+      return "reject";
+    }
+  }
+  return "accept";
+}
 
 interface DropZoneProps {
   onFilePath: (filePath: string) => void;
   onOpenFile: () => void;
+  onRetry?: () => void;
   error?: string | null;
   traceId?: string;
   ariaLabel: string;
@@ -13,6 +42,7 @@ interface DropZoneProps {
   title: string;
   description: string;
   openLabel: string;
+  reselectLabel?: string;
 }
 
 function resolveNativeFilePath(file: File): string {
@@ -31,9 +61,18 @@ function resolveNativeFilePath(file: File): string {
   return (file as File & { path?: string }).path ?? "";
 }
 
+interface ChipBridgeWindow {
+  chips?: {
+    platform?: {
+      getPathForFile?: (value: File) => string;
+    };
+  };
+}
+
 export function DropZone({
   onFilePath,
   onOpenFile,
+  onRetry,
   error = null,
   traceId,
   ariaLabel,
@@ -41,6 +80,7 @@ export function DropZone({
   title,
   description,
   openLabel,
+  reselectLabel = resolveMessage("card-viewer.actions.reselectFile"),
 }: DropZoneProps) {
   const logger = useMemo(
     () =>
@@ -51,29 +91,30 @@ export function DropZone({
     [traceId],
   );
   const dragDepthRef = useRef(0);
-  const [isDragActive, setIsDragActive] = useState(false);
+  const [dragState, setDragState] = useState<DragState>("idle");
 
   const resetDragState = useCallback(() => {
     dragDepthRef.current = 0;
-    setIsDragActive(false);
+    setDragState("idle");
   }, []);
 
   const handleDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     dragDepthRef.current += 1;
-    setIsDragActive(true);
+    setDragState(evaluateDragState(event));
   }, []);
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
+    setDragState(evaluateDragState(event));
   }, []);
 
   const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
     if (dragDepthRef.current === 0) {
-      setIsDragActive(false);
+      setDragState("idle");
     }
   }, []);
 
@@ -100,20 +141,22 @@ export function DropZone({
 
       const filePath = resolveNativeFilePath(file);
       if (filePath) {
+        const bridgeWindow = window as ChipBridgeWindow;
         logger.info("拖拽文件路径解析成功", {
           fileName: file.name,
           filePath,
           fileType: file.type,
-          source: typeof (window as any).chips?.platform?.getPathForFile === "function" ? "webUtils" : "file.path",
+          source: typeof bridgeWindow.chips?.platform?.getPathForFile === "function" ? "webUtils" : "file.path",
         });
         onFilePath(filePath);
         return;
       }
 
+      const bridgeWindow = window as ChipBridgeWindow;
       logger.warn("拖拽文件未携带可用的本地路径", {
         fileName: file.name,
         fileType: file.type,
-        hasBridgeResolver: typeof (window as any).chips?.platform?.getPathForFile === "function",
+        hasBridgeResolver: typeof bridgeWindow.chips?.platform?.getPathForFile === "function",
       });
     },
     [logger, onFilePath, resetDragState],
@@ -126,7 +169,7 @@ export function DropZone({
   return (
     <div
       data-chips-app="card-viewer.dropzone"
-      data-state={isDragActive ? "drag-active" : "idle"}
+      data-state={dragState}
       className="card-viewer-dropzone"
       role="region"
       aria-label={ariaLabel}
@@ -156,9 +199,9 @@ export function DropZone({
           </p>
         </div>
         <div className="card-viewer-dropzone__actions">
-          <ChipsButton variant="secondary" onPress={onOpenFile}>
+          <Button type="default" onClick={onOpenFile}>
             {openLabel}
-          </ChipsButton>
+          </Button>
         </div>
         {error ? (
           <div
@@ -166,7 +209,18 @@ export function DropZone({
             role="alert"
             className="card-viewer-dropzone__error"
           >
-            {error}
+            <ExclamationCircleFilled
+              aria-hidden="true"
+              style={{ fontSize: 16, marginInlineEnd: 6, verticalAlign: "-2px" }}
+            />
+            <span>{error}</span>
+            {onRetry ? (
+              <span className="card-viewer-dropzone__error-retry">
+                <Button size="small" onClick={onRetry}>
+                  {reselectLabel}
+                </Button>
+              </span>
+            ) : null}
           </div>
         ) : null}
       </section>

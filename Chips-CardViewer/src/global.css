@@ -18,15 +18,41 @@ html[data-chips-surface-mode="document"] body,
 html[data-chips-surface-mode="document"] #root {
   height: auto;
   overflow: visible;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 body {
-  background: var(--chips-sys-color-surface, #ffffff);
-  color: var(--chips-sys-color-on-surface, #111111);
+  background: #ffffff;
+  color: #1d1d1f;
   overscroll-behavior-y: contain;
 }
 
 * {
   box-sizing: border-box;
+}
+
+:root {
+  --chips-motion-duration-fast: 150ms;
+  --chips-motion-duration-base: 200ms;
+  --chips-motion-duration-slow: 280ms;
+  --chips-motion-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --chips-motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --chips-motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
+}
+
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(10, 132, 255, 0.34);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

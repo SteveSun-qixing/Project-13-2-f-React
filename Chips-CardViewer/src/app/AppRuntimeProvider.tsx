@@ -2,8 +2,7 @@ import React from "react";
 import type { Client, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
 import { appConfig } from "../../config/app-config";
 import { createLogger, createTraceId } from "../../config/logging";
-import { resolveLocaleDirection, type SupportedLocale } from "../i18n/messages";
-import { useCardViewerText, type CardViewerTextResolver } from "../i18n/useCardViewerText";
+import { resolveMessage, type MessageParams } from "../lib/messages";
 import { chipsClient } from "../runtime/chips-client";
 import { readLaunchContext } from "../runtime/launch-context";
 import {
@@ -51,6 +50,12 @@ export interface CardViewerRuntimeEnvironment {
   launchParams: Record<string, unknown>;
 }
 
+export type CardViewerTextResolver = (
+  key: string,
+  params?: MessageParams,
+  fallback?: string,
+) => string;
+
 export interface CardViewerRuntimeValue {
   client: Client;
   traceId: string;
@@ -65,7 +70,7 @@ export interface CardViewerRuntimeValue {
   activeCover: ViewerCoverSource | null;
   activeTitle: string | null;
   canViewCover: boolean;
-  locale: SupportedLocale;
+  locale: string;
   surfaceMode: "immersive" | "document";
   t: CardViewerTextResolver;
   showContent(): void;
@@ -88,6 +93,19 @@ function resolveErrorMessage(error: unknown, fallbackMessage: string): string {
   }
 
   return fallbackMessage;
+}
+
+const NON_RETRYABLE_ERROR_MESSAGES: ReadonlySet<string> = new Set([
+  resolveMessage("card-viewer.errors.unsupportedFile"),
+  resolveMessage("card-viewer.errors.unsupportedSource"),
+]);
+
+export function isRetryableError(error: string | null): boolean {
+  if (!error) {
+    return false;
+  }
+
+  return !NON_RETRYABLE_ERROR_MESSAGES.has(error);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -230,7 +248,10 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   const [openedTarget, setOpenedTarget] = React.useState<OpenedTarget | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [viewerMode, setViewerMode] = React.useState<"content" | "cover">("content");
-  const { locale, text } = useCardViewerText();
+  const locale = "zh-CN";
+  const text = React.useCallback<CardViewerTextResolver>((key, params, fallback) => {
+    return resolveMessage(key, params, fallback);
+  }, []);
   const hasResolvedLaunchContextRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -347,37 +368,6 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       document.body.removeAttribute("data-chips-surface-mode");
     };
   }, [surfaceMode]);
-
-  React.useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const previousLang = document.documentElement.getAttribute("lang");
-    const previousDir = document.documentElement.getAttribute("dir");
-    const previousLocale = document.documentElement.getAttribute("data-chips-locale");
-    document.documentElement.setAttribute("lang", locale);
-    document.documentElement.setAttribute("dir", resolveLocaleDirection(locale));
-    document.documentElement.setAttribute("data-chips-locale", locale);
-
-    return () => {
-      if (previousLang === null) {
-        document.documentElement.removeAttribute("lang");
-      } else {
-        document.documentElement.setAttribute("lang", previousLang);
-      }
-      if (previousDir === null) {
-        document.documentElement.removeAttribute("dir");
-      } else {
-        document.documentElement.setAttribute("dir", previousDir);
-      }
-      if (previousLocale === null) {
-        document.documentElement.removeAttribute("data-chips-locale");
-      } else {
-        document.documentElement.setAttribute("data-chips-locale", previousLocale);
-      }
-    };
-  }, [locale]);
 
   const openFilePath = React.useCallback((filePath: string) => {
     const nextTarget = resolveOpenedTarget(filePath);

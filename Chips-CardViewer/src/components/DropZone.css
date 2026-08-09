@@ -3,75 +3,104 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--chips-sys-layout-space-lg, 24px);
-  background: var(--chips-sys-color-surface, #ffffff);
+  padding: 24px;
+  background: #ffffff;
+  transition: background-color 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-.card-viewer-dropzone[data-state="drag-active"] {
-  background:
-    color-mix(in srgb, var(--chips-sys-color-primary, #246bff) 6%, var(--chips-sys-color-surface, #ffffff));
+.card-viewer-dropzone[data-state="accept"] {
+  background: rgba(10, 132, 255, 0.06);
+}
+
+.card-viewer-dropzone[data-state="reject"] {
+  background: rgba(255, 59, 48, 0.05);
 }
 
 .card-viewer-dropzone__panel {
   width: min(560px, 100%);
-  border-radius: var(--chips-sys-radius-lg, 24px);
-  border: 1px dashed
-    color-mix(in srgb, var(--chips-sys-color-on-surface, #111111) 18%, transparent);
-  background:
-    color-mix(in srgb, var(--chips-sys-color-surface, #ffffff) 92%, transparent);
-  box-shadow:
-    0 18px 44px color-mix(in srgb, var(--chips-sys-color-on-surface, #111111) 8%, transparent);
-  padding:
-    var(--chips-sys-layout-space-xl, 40px)
-    var(--chips-sys-layout-space-lg, 32px);
+  border-radius: 12px;
+  border: 1px dashed rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  padding: 40px 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--chips-sys-layout-gap-md, 16px);
+  gap: 16px;
   text-align: center;
+  transition:
+    transform 200ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    box-shadow 200ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    border-color 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-.card-viewer-dropzone[data-state="drag-active"] .card-viewer-dropzone__panel {
+.card-viewer-dropzone[data-state="accept"] .card-viewer-dropzone__panel {
   border-style: solid;
-  border-color:
-    color-mix(in srgb, var(--chips-sys-color-primary, #246bff) 48%, transparent);
+  border-color: rgba(10, 132, 255, 0.48);
+  transform: scale(1.02);
   box-shadow:
-    0 24px 60px color-mix(in srgb, var(--chips-sys-color-primary, #246bff) 20%, transparent);
+    0 0 0 3px rgba(10, 132, 255, 0.2),
+    0 0 28px rgba(10, 132, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.card-viewer-dropzone[data-state="reject"] .card-viewer-dropzone__panel {
+  border-style: solid;
+  border-color: rgba(255, 59, 48, 0.5);
 }
 
 .card-viewer-dropzone__file-mark {
   min-width: 132px;
   height: 64px;
-  padding-inline: var(--chips-sys-layout-space-md, 16px);
-  border-radius: var(--chips-sys-radius-md, 20px);
+  padding-inline: 16px;
+  border-radius: 20px;
   display: grid;
   place-items: center;
-  font-size: var(--chips-sys-typography-title-size, 24px);
+  font-size: 24px;
   line-height: 1;
   white-space: nowrap;
-  background:
-    color-mix(in srgb, var(--chips-sys-color-primary, #246bff) 14%, var(--chips-sys-color-surface, #ffffff));
-  color: var(--chips-sys-color-primary, #246bff);
+  background: rgba(10, 132, 255, 0.14);
+  color: #0a84ff;
+  transition:
+    transform 200ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    background-color 200ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    color 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.card-viewer-dropzone[data-state="accept"] .card-viewer-dropzone__file-mark {
+  transform: scale(1.08);
+}
+
+.card-viewer-dropzone[data-state="reject"] .card-viewer-dropzone__file-mark {
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-viewer-dropzone,
+  .card-viewer-dropzone__panel,
+  .card-viewer-dropzone__file-mark {
+    transition: none;
+  }
 }
 
 .card-viewer-dropzone__copy {
   display: flex;
   flex-direction: column;
-  gap: var(--chips-sys-layout-gap-sm, 10px);
+  gap: 10px;
 }
 
 .card-viewer-dropzone__title {
   margin: 0;
-  font-size: var(--chips-sys-typography-display-sm-size, 28px);
+  font-size: 28px;
   line-height: 1.2;
 }
 
 .card-viewer-dropzone__description {
   margin: 0;
-  font-size: var(--chips-sys-typography-body-sm-size, 14px);
+  font-size: 14px;
   line-height: 1.7;
-  color:
-    color-mix(in srgb, var(--chips-sys-color-on-surface, #111111) 70%, transparent);
+  color: rgba(0, 0, 0, 0.7);
 }
 
 .card-viewer-dropzone__actions {
@@ -82,13 +111,10 @@
 
 .card-viewer-dropzone__error {
   width: 100%;
-  border-radius: var(--chips-sys-radius-sm, 14px);
-  padding:
-    var(--chips-sys-layout-space-sm, 12px)
-    var(--chips-sys-layout-space-md, 14px);
-  font-size: var(--chips-sys-typography-caption-size, 12px);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 12px;
   line-height: 1.6;
-  background:
-    color-mix(in srgb, var(--chips-sys-color-error, #d92d20) 10%, var(--chips-sys-color-surface, #ffffff));
-  color: var(--chips-sys-color-error, #d92d20);
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
 }

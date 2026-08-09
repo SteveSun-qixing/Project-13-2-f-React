@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createCommandAdapter, type ChipsCommandAdapter } from "@chips/component-library";
+import { useCommandRegistry, type CommandItem } from "@chips/ui";
 import type { Client, CommandInvocationContext, CommandSource } from "chips-sdk";
 import { useAppRuntime } from "../app/AppRuntimeProvider";
 import {
   cardViewerCommandDefinitions,
+  createCardViewerCommands,
   createCardViewerCommandStatus,
   getCardViewerCommandHandlerId,
   isCardViewerCommandInvokedEvent,
@@ -18,7 +19,7 @@ export interface UseCardViewerCommandsOptions {
 }
 
 export interface UseCardViewerCommandsResult {
-  adapter: ChipsCommandAdapter;
+  commands: CommandItem[];
   phase: CommandRegistryPhase;
   errorCode: string | null;
   lastInvoked: CardViewerCommandStatus | null;
@@ -41,7 +42,7 @@ export function useCardViewerCommands(
 ): UseCardViewerCommandsResult {
   const runtime = useAppRuntime();
   const client = options.client ?? runtime.client;
-  const adapter = useMemo(() => createCommandAdapter(client), [client]);
+  const { register } = useCommandRegistry();
   const [phase, setPhase] = useState<CommandRegistryPhase>("idle");
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [lastInvoked, setLastInvoked] = useState<CardViewerCommandStatus | null>(null);
@@ -120,8 +121,24 @@ export function useCardViewerCommands(
     [client, invocationContext],
   );
 
+  const handlers = useMemo(
+    () => ({
+      invokeCommand,
+    }),
+    [invokeCommand],
+  );
+
+  const commands = useMemo(
+    () => createCardViewerCommands(handlers, { canOpenFile: true }),
+    [handlers],
+  );
+
+  useEffect(() => {
+    register(commands);
+  }, [commands, register]);
+
   return {
-    adapter,
+    commands,
     phase,
     errorCode,
     lastInvoked,

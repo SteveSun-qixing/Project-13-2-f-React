@@ -25,5 +25,6 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["归档/**"],
+    setupFiles: ["tests/setup.ts"],
   },
 });

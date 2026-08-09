@@ -1,9 +1,8 @@
 import React from "react";
-import { ChipsCommandProvider, ChipsIcon } from "@chips/component-library";
+import { AppChrome, type MenuBarGroup } from "@chips/ui";
 import {
   CARD_VIEWER_COMMAND_HANDLER_IDS,
   CARD_VIEWER_COMMAND_IDS,
-  cardViewerCommandViews,
 } from "../commands/card-viewer-commands";
 import { useCardViewerCommands } from "../commands/useCardViewerCommands";
 import { CardViewerShell } from "../components/CardViewerShell";
@@ -17,101 +16,67 @@ const CARD_VIEWER_TOGGLE_COVER_ACTION_ID = "toggle-cover";
 const CARD_VIEWER_DOWNLOAD_ACTION_ID = "download-card";
 const DOCUMENT_SURFACE_CHROME_SAFE_BLOCK_START = 96;
 
+function getFileName(filePath: string): string {
+  const parts = filePath.split(/[\\/]/).filter(Boolean);
+  return parts.at(-1) ?? filePath;
+}
+
 export function AppShell(): React.ReactElement {
   const runtime = useAppRuntime();
-  const commands = useCardViewerCommands();
+  const commandsApi = useCardViewerCommands();
   const handledInvocationRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    if (!commands.lastInvoked) {
+    if (!commandsApi.lastInvoked) {
       return;
     }
 
     const invocationKey =
-      commands.lastInvoked.invocationId ??
-      `${commands.lastInvoked.commandId}:${commands.lastInvoked.source}`;
+      commandsApi.lastInvoked.invocationId ??
+      `${commandsApi.lastInvoked.commandId}:${commandsApi.lastInvoked.source}`;
     if (handledInvocationRef.current === invocationKey) {
       return;
     }
     handledInvocationRef.current = invocationKey;
 
-    if (commands.lastInvoked.handlerId === CARD_VIEWER_COMMAND_HANDLER_IDS.openFile) {
+    if (commandsApi.lastInvoked.handlerId === CARD_VIEWER_COMMAND_HANDLER_IDS.openFile) {
       void runtime.openFile();
     }
-  }, [commands.lastInvoked, runtime]);
+  }, [commandsApi.lastInvoked, runtime]);
 
   const returnHomeLabel = runtime.t("card-viewer.actions.returnHome");
   const coverActionLabel =
     runtime.viewerMode === "cover"
       ? runtime.t("card-viewer.actions.viewContent")
       : runtime.t("card-viewer.actions.viewCover");
-  const coverActionIcon = runtime.viewerMode === "cover" ? "document" : "cover";
   const usesExternalChrome = runtime.openedTarget?.kind === "document";
-  const backAction = runtime.openedTarget ? (
-    <button
-      type="button"
-      className="card-viewer-shell__floating-action card-viewer-shell__floating-action--back"
-      onClick={runtime.returnHome}
-      aria-label={returnHomeLabel}
-      title={returnHomeLabel}
-    >
-      <ChipsIcon
-        descriptor={{
-          name: "chevron_left",
-          style: "rounded",
-          decorative: true,
-        }}
-        size={24}
-      />
-    </button>
-  ) : null;
+  const chromeMetaLines = React.useMemo(() => {
+    const target = runtime.openedTarget;
+    if (!target) {
+      return [];
+    }
 
-  const coverAction = runtime.openedTarget && runtime.canViewCover ? (
-    <button
-      type="button"
-      className="card-viewer-shell__floating-action card-viewer-shell__floating-action--cover"
-      onClick={runtime.viewerMode === "cover" ? runtime.showContent : runtime.showCover}
-      aria-label={coverActionLabel}
-      title={coverActionLabel}
-    >
-      <ChipsIcon
-        descriptor={{
-          name: runtime.viewerMode === "cover" ? "article" : "image",
-          decorative: true,
-        }}
-        size={22}
-      />
-    </button>
-  ) : null;
-  const downloadActionLabel = runtime.t("card-viewer.actions.downloadCard");
-  const downloadAction = runtime.canDownloadActiveCard ? (
-    <button
-      type="button"
-      className="card-viewer-shell__floating-action card-viewer-shell__floating-action--download"
-      onClick={() => void runtime.downloadActiveCard()}
-      aria-label={downloadActionLabel}
-      title={downloadActionLabel}
-    >
-      <ChipsIcon
-        descriptor={{
-          name: "download",
-          decorative: true,
-        }}
-        size={22}
-      />
-    </button>
-  ) : null;
-  const action = backAction || coverAction || downloadAction ? (
-    <>
-      {backAction}
-      {coverAction}
-      {downloadAction}
-    </>
-  ) : null;
+    const lines: string[] = [];
+    if (target.createdAt) {
+      const createdDate = new Date(target.createdAt);
+      if (!Number.isNaN(createdDate.getTime())) {
+        lines.push(
+          runtime.t("card-viewer.chrome.createdAt", { date: createdDate.toLocaleDateString("zh-CN") }),
+        );
+      }
+    }
+    if (target.kind === "file") {
+      const fileName = getFileName(target.filePath);
+      if (target.cover?.title && target.cover.title !== fileName) {
+        lines.push(fileName);
+      }
+    }
+    return lines;
+  }, [runtime.openedTarget, runtime.t]);
   const chromeState = React.useMemo<ViewerChromeState>(
     () => ({
       title: runtime.openedTarget ? runtime.activeTitle ?? undefined : undefined,
-      metaLines: [],
+      metaLines: chromeMetaLines,
       back: {
         label: returnHomeLabel,
         enabled: Boolean(runtime.openedTarget),
@@ -123,7 +88,7 @@ export function AppShell(): React.ReactElement {
               {
                 id: CARD_VIEWER_TOGGLE_COVER_ACTION_ID,
                 label: coverActionLabel,
-                icon: coverActionIcon,
+                icon: runtime.viewerMode === "cover" ? "document" : "cover",
               },
             ]
           : []),
@@ -140,7 +105,7 @@ export function AppShell(): React.ReactElement {
       safeBlockStart: DOCUMENT_SURFACE_CHROME_SAFE_BLOCK_START,
     }),
     [
-      coverActionIcon,
+      chromeMetaLines,
       coverActionLabel,
       returnHomeLabel,
       runtime.activeTitle,
@@ -148,6 +113,7 @@ export function AppShell(): React.ReactElement {
       runtime.canViewCover,
       runtime.openedTarget,
       runtime.t,
+      runtime.viewerMode,
     ],
   );
   const handleChromeAction = React.useCallback(
@@ -170,7 +136,9 @@ export function AppShell(): React.ReactElement {
 
   const content =
     runtime.openedTarget === null ? (
-      <EmptyScene onOpenFile={() => commands.invokeCommand(CARD_VIEWER_COMMAND_IDS.openFile, "api")} />
+      <EmptyScene
+        onOpenFile={() => void commandsApi.invokeCommand(CARD_VIEWER_COMMAND_IDS.openFile, "api")}
+      />
     ) : runtime.openedTarget.kind === "document" ? (
       <HostedDocumentScene target={runtime.openedTarget} />
     ) : (
@@ -180,28 +148,33 @@ export function AppShell(): React.ReactElement {
     <CardViewerShell
       surfaceMode={runtime.surfaceMode}
       content={content}
-      action={usesExternalChrome ? null : action}
+      action={null}
     />
   );
 
+  if (runtime.openedTarget === null) {
+    const menus: MenuBarGroup[] = [
+      { menuId: "file", label: "文件", commands: commandsApi.commands },
+    ];
+    const toolbarItems = commandsApi.commands.filter((command) => command.toolbarId === "main");
+
+    return (
+      <AppChrome appName={undefined} menus={menus} toolbarItems={toolbarItems} paletteShortcut="Mod+P">
+        {shell}
+      </AppChrome>
+    );
+  }
+
   return (
-    <ChipsCommandProvider
-      adapter={commands.adapter}
-      commands={cardViewerCommandViews}
-      i18n={runtime.t}
-      query={{ includeDisabled: true }}
+    <ViewerChrome.Provider
+      client={runtime.client}
+      state={chromeState}
+      externalChrome={usesExternalChrome}
+      onBack={runtime.returnHome}
+      onAction={handleChromeAction}
     >
-      {usesExternalChrome ? (
-        <ViewerChrome.Provider
-          client={runtime.client}
-          state={chromeState}
-          externalChrome
-          onBack={runtime.returnHome}
-          onAction={handleChromeAction}
-        >
-          {shell}
-        </ViewerChrome.Provider>
-      ) : shell}
-    </ChipsCommandProvider>
+      {shell}
+      <ViewerChrome.Layer />
+    </ViewerChrome.Provider>
   );
 }

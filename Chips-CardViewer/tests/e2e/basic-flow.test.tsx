@@ -100,16 +100,6 @@ const mockState = vi.hoisted(() => {
   };
 });
 
-vi.mock('@chips/component-library', async () => {
-  const actual = await vi.importActual('@chips/component-library');
-  return {
-    ...actual,
-    useThemeRuntime: () => ({
-      cacheKey: 'theme-cache',
-    }),
-  };
-});
-
 vi.mock('../../config/logging', () => ({
   createScopedLogger: () => mockState.logger,
 }));

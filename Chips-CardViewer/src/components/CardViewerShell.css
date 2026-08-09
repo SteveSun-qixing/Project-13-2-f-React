@@ -1,7 +1,7 @@
 .card-viewer-shell {
   width: 100%;
-  background: var(--chips-sys-color-surface, #ffffff);
-  color: var(--chips-sys-color-on-surface, #111111);
+  background: #ffffff;
+  color: #1d1d1f;
 }
 
 .card-viewer-shell--immersive {
@@ -17,7 +17,7 @@
   flex-direction: column;
   min-height: 100%;
   overflow: visible;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .card-viewer-shell__main {
@@ -36,7 +36,7 @@
   flex: 1;
   min-height: 0;
   overflow: visible;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .card-viewer-shell__state {
@@ -45,7 +45,7 @@
   display: grid;
   place-items: center;
   padding: 96px clamp(16px, 4vw, 32px);
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .card-viewer-shell__state-panel {
@@ -55,51 +55,17 @@
   display: grid;
   place-items: center;
   text-align: center;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #111111) 8%, transparent);
-  border-radius: 8px;
-  background: var(--chips-sys-color-surface, #ffffff);
-  box-shadow: 0 16px 48px color-mix(in srgb, var(--chips-sys-color-on-surface, #111111) 8%, transparent);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .card-viewer-shell__state-panel h2 {
   margin: 0;
-  color: var(--chips-sys-color-on-surface, #111111);
+  color: #1d1d1f;
   font-size: 18px;
   line-height: 1.35;
   letter-spacing: 0;
 }
 
-.card-viewer-shell__floating-action {
-  position: fixed;
-  z-index: 20;
-  inset-block-start: max(16px, env(safe-area-inset-top));
-  inset-inline-end: max(16px, env(safe-area-inset-right));
-  width: 42px;
-  height: 42px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #111111) 10%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #ffffff) 92%, transparent);
-  color: var(--chips-sys-color-on-surface, #111111);
-  box-shadow: 0 14px 36px color-mix(in srgb, var(--chips-sys-color-on-surface, #111111) 14%, transparent);
-  cursor: pointer;
-}
-
-.card-viewer-shell__floating-action--back {
-  inset-inline-start: max(16px, env(safe-area-inset-left));
-  inset-inline-end: auto;
-}
-
-.card-viewer-shell__floating-action--cover {
-  inset-inline-end: max(16px, env(safe-area-inset-right));
-}
-
-.card-viewer-shell__floating-action:hover {
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #3b82f6) 8%, var(--chips-sys-color-surface, #ffffff));
-}
-
-.card-viewer-shell__floating-action:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--chips-sys-color-primary, #3b82f6) 34%, transparent);
-  outline-offset: 3px;
-}

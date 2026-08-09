@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useThemeRuntime } from "@chips/component-library";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ExclamationCircleFilled } from "@ant-design/icons";
+import { Button } from "antd";
 import type { Client, DocumentWindowResizePayload, FrameRenderResult } from "chips-sdk";
 import { createScopedLogger } from "../../config/logging";
+import { resolveMessage } from "../lib/messages";
 import type { ViewerDocumentKind } from "../types/viewer-source";
 import "./CardWindow.css";
 
@@ -17,6 +19,7 @@ interface CardWindowProps {
   renderErrorFallback: string;
   resourceOpenErrorTitle: string;
   resourceOpenErrorFallback: string;
+  retryLabel?: string;
 }
 
 function resolveErrorMessage(error: unknown, fallbackMessage: string): string {
@@ -53,8 +56,8 @@ export function CardWindow({
   renderErrorFallback,
   resourceOpenErrorTitle,
   resourceOpenErrorFallback,
+  retryLabel = resolveMessage("card-viewer.actions.retry"),
 }: CardWindowProps) {
-  const themeRuntime = useThemeRuntime();
   const logger = useMemo(
     () =>
       createScopedLogger({
@@ -68,6 +71,10 @@ export function CardWindow({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [documentHeight, setDocumentHeight] = useState(DOCUMENT_FLOW_INITIAL_CONTENT_HEIGHT);
+  const [retryKey, setRetryKey] = useState(0);
+  const retry = useCallback(() => {
+    setRetryKey((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,7 +83,6 @@ export function CardWindow({
     logger.info("准备渲染文档窗口", {
       filePath,
       documentType: resolvedDocumentType,
-      themeCacheKey: themeRuntime.cacheKey,
     });
 
     const container = containerRef.current;
@@ -231,7 +237,7 @@ export function CardWindow({
     renderErrorFallback,
     resourceOpenErrorFallback,
     resourceOpenErrorTitle,
-    themeRuntime.cacheKey,
+    retryKey,
   ]);
 
   return (
@@ -272,7 +278,16 @@ export function CardWindow({
               role="alert"
               className="card-viewer-window__overlay card-viewer-window__overlay--error"
             >
-              <span>{error}</span>
+              <div className="card-viewer-window__error-panel">
+                <ExclamationCircleFilled
+                  aria-hidden="true"
+                  className="card-viewer-window__error-icon"
+                />
+                <div className="card-viewer-window__error-title">{error}</div>
+                <Button type="primary" onClick={retry}>
+                  {retryLabel}
+                </Button>
+              </div>
             </div>
           )}
         </div>
