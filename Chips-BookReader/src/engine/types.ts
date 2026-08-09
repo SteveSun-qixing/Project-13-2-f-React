@@ -200,6 +200,7 @@ export type EngineEventType =
   | "scroll-changed"
   | "layout-changed"
   | "boundary-reached"
+  | "page-glow"
   | "progress-updated";
 
 /** 引擎事件基接口。 */
@@ -242,6 +243,23 @@ export interface BoundaryReachedEvent extends EngineEvent {
   direction: PageDirection;
 }
 
+/** 翻页方向光晕触发事件（翻页瞬间在对应边缘显示高亮弧线）。 */
+export interface PageGlowEvent extends EngineEvent {
+  type: "page-glow";
+  /** 与光晕显示边缘对应的翻页方向。 */
+  direction: PageDirection;
+}
+
+/** 点击翻页涟漪的自定义事件负载（帧内派发，由引擎监听渲染）。 */
+export interface PageRippleDetail {
+  /** 点击触发的翻页方向。 */
+  direction: PageDirection;
+  /** 点击位置在视口中的横坐标。 */
+  x: number;
+  /** 点击位置在视口中的纵坐标。 */
+  y: number;
+}
+
 /** 阅读进度更新事件。 */
 export interface ProgressUpdatedEvent extends EngineEvent {
   type: "progress-updated";
@@ -255,6 +273,7 @@ export type AnyEngineEvent =
   | ScrollChangedEvent
   | LayoutChangedEvent
   | BoundaryReachedEvent
+  | PageGlowEvent
   | ProgressUpdatedEvent;
 
 // ─── 主题色板（复用 EpubThemePalette） ────────────────────────

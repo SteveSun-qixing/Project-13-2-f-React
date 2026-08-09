@@ -4,7 +4,7 @@
   z-index: 18;
   display: flex;
   justify-content: flex-end;
-  background: color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 14%, transparent);
+  background: color-mix(in srgb, #1f1d19 14%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -14,9 +14,9 @@
   flex-direction: column;
   gap: 18px;
   padding: 18px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 88%, white 12%);
-  border-left: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 8%, transparent);
-  box-shadow: -16px 0 48px color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 12%, transparent);
+  background: color-mix(in srgb, #f5f2ea 88%, white 12%);
+  border-left: 1px solid color-mix(in srgb, #1f1d19 8%, transparent);
+  box-shadow: -16px 0 48px color-mix(in srgb, #1f1d19 12%, transparent);
 }
 
 .book-reader-panel--drawer {
@@ -30,7 +30,7 @@
   max-height: calc(100dvh - 48px);
   margin: auto;
   border-radius: 28px;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 8%, transparent);
+  border: 1px solid color-mix(in srgb, #1f1d19 8%, transparent);
 }
 
 .book-reader-panel__header {
@@ -68,7 +68,7 @@
 .book-reader-search__status,
 .book-reader-bookmarks__count {
   margin: 0;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 70%, transparent);
+  color: color-mix(in srgb, #1f1d19 70%, transparent);
   line-height: 1.6;
 }
 
@@ -80,7 +80,7 @@
 
 .book-reader-sourceForm__label {
   font-size: 13px;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 72%, transparent);
+  color: color-mix(in srgb, #1f1d19 72%, transparent);
 }
 
 .book-reader-sourceForm input,
@@ -93,8 +93,8 @@
 .book-reader-search__field input {
   min-height: 48px;
   border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 10%, transparent);
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 84%, white 16%);
+  border: 1px solid color-mix(in srgb, #1f1d19 10%, transparent);
+  background: color-mix(in srgb, #f5f2ea 84%, white 16%);
   color: inherit;
   padding: 0 16px;
 }
@@ -120,7 +120,7 @@
   gap: 8px;
   margin-left: 14px;
   padding-left: 14px;
-  border-left: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 8%, transparent);
+  border-left: 1px solid color-mix(in srgb, #1f1d19 8%, transparent);
 }
 
 .book-reader-nav__item {
@@ -132,14 +132,14 @@
   padding: 0 14px;
   border-radius: 16px;
   border: 0;
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 82%, white 18%);
+  background: color-mix(in srgb, #f5f2ea 82%, white 18%);
   color: inherit;
   text-align: left;
 }
 
 .book-reader-nav__item--active {
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2158d2) 12%, var(--chips-sys-color-surface, #f5f2ea));
-  color: var(--chips-sys-color-primary, #2158d2);
+  background: color-mix(in srgb, #0a84ff 12%, #f5f2ea);
+  color: #0a84ff;
 }
 
 .book-reader-preferences__section {
@@ -164,13 +164,13 @@
   min-height: 40px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 10%, transparent);
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 82%, white 18%);
+  border: 1px solid color-mix(in srgb, #1f1d19 10%, transparent);
+  background: color-mix(in srgb, #f5f2ea 82%, white 18%);
   color: inherit;
 }
 
 .book-reader-chip--active {
-  background: var(--chips-sys-color-primary, #2158d2);
+  background: #0a84ff;
   border-color: transparent;
   color: white;
 }
@@ -184,7 +184,7 @@
 
 .book-reader-preferences input[type="range"],
 .book-reader-progress__input {
-  accent-color: var(--chips-sys-color-primary, #2158d2);
+  accent-color: #0a84ff;
 }
 
 .book-reader-search__results,
@@ -204,7 +204,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 72%, transparent);
+  color: color-mix(in srgb, #1f1d19 72%, transparent);
 }
 
 .book-reader-search__items {
@@ -221,15 +221,15 @@
   padding: 14px 16px;
   border-radius: 18px;
   border: 0;
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 82%, white 18%);
+  background: color-mix(in srgb, #f5f2ea 82%, white 18%);
   color: inherit;
   text-align: left;
 }
 
 .book-reader-search__item--active,
 .book-reader-bookmarks__item--active .book-reader-bookmarks__open {
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2158d2) 12%, var(--chips-sys-color-surface, #f5f2ea));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chips-sys-color-primary, #2158d2) 20%, transparent);
+  background: color-mix(in srgb, #0a84ff 12%, #f5f2ea);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #0a84ff 20%, transparent);
 }
 
 .book-reader-search__empty,
@@ -237,8 +237,8 @@
   margin: 0;
   padding: 16px;
   border-radius: 18px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 82%, white 18%);
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 72%, transparent);
+  background: color-mix(in srgb, #f5f2ea 82%, white 18%);
+  color: color-mix(in srgb, #1f1d19 72%, transparent);
 }
 
 .book-reader-bookmarks__item {
@@ -251,9 +251,9 @@
 .book-reader-bookmarks__remove {
   min-width: 104px;
   border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 10%, transparent);
+  border: 1px solid color-mix(in srgb, #1f1d19 10%, transparent);
   background: transparent;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 78%, transparent);
+  color: color-mix(in srgb, #1f1d19 78%, transparent);
   padding: 0 14px;
 }
 
@@ -266,22 +266,22 @@
   max-width: min(92vw, 560px);
   padding: 12px 18px;
   border-radius: 999px;
-  box-shadow: 0 20px 56px color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 12%, transparent);
+  box-shadow: 0 20px 56px color-mix(in srgb, #1f1d19 12%, transparent);
   backdrop-filter: blur(18px);
 }
 
 .book-reader-feedback--info {
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 80%, white 20%);
+  background: color-mix(in srgb, #f5f2ea 80%, white 20%);
 }
 
 .book-reader-feedback--success {
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2158d2) 18%, white);
-  color: var(--chips-sys-color-on-surface, #1f1d19);
+  background: color-mix(in srgb, #34c759 18%, white);
+  color: #1f1d19;
 }
 
 .book-reader-feedback--error {
-  background: color-mix(in srgb, #d04545 18%, white);
-  color: #5d1717;
+  background: color-mix(in srgb, #ff3b30 18%, white);
+  color: #ff3b30;
 }
 
 @media (max-width: 720px) {
@@ -302,4 +302,187 @@
   .book-reader-bookmarks__item {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── 搜索增强：摘录匹配词高亮 ── */
+
+.book-reader-search__mark {
+  background: rgba(10, 132, 255, 0.22);
+  border-radius: 3px;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ── 搜索增强：结果导航（上一条/下一条） ── */
+
+.book-reader-search__footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+  background: color-mix(in srgb, #f5f2ea 88%, white 12%);
+}
+
+.book-reader-search__nav {
+  display: flex;
+  gap: 10px;
+}
+
+.book-reader-search__navButton {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #1f1d19 10%, transparent);
+  background: color-mix(in srgb, #f5f2ea 82%, white 18%);
+  color: inherit;
+}
+
+.book-reader-search__navButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── 搜索增强：选中结果脉冲反馈 ── */
+
+.book-reader-search__item--pulse {
+  animation: book-reader-search-pulse 400ms ease-out;
+}
+
+@keyframes book-reader-search-pulse {
+  from {
+    background-color: color-mix(in srgb, #0a84ff 55%, #f5f2ea);
+  }
+
+  to {
+    background-color: color-mix(in srgb, #0a84ff 12%, #f5f2ea);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-reader-search__item--pulse {
+    animation: none;
+  }
+}
+
+.book-reader-nav__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.book-reader-nav__row .book-reader-nav__item {
+  flex: 1;
+  min-width: 0;
+}
+
+.book-reader-nav__label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-reader-nav__percentage {
+  flex: none;
+  margin-left: 8px;
+  font-size: 12px;
+  color: #6e6e73;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.book-reader-nav__toggle {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, #1f1d19 55%, transparent);
+  cursor: pointer;
+}
+
+.book-reader-nav__toggle:hover {
+  background: color-mix(in srgb, #1f1d19 8%, transparent);
+}
+
+.book-reader-nav__toggle-icon {
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 160ms ease;
+}
+
+.book-reader-nav__toggle--expanded .book-reader-nav__toggle-icon {
+  transform: rotate(45deg);
+}
+
+.book-reader-nav__spacer {
+  flex: none;
+  width: 24px;
+}
+
+.book-reader-nav__item--pulse {
+  animation: book-reader-nav-pulse 600ms ease-out;
+}
+
+@keyframes book-reader-nav-pulse {
+  from {
+    background-color: rgba(10, 132, 255, 0.18);
+  }
+  to {
+    background-color: rgba(10, 132, 255, 0);
+  }
+}
+
+.book-reader-bookmarks__excerpt {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, #1f1d19 88%, transparent);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.book-reader-bookmarks__current {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  justify-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 0;
+  background: color-mix(in srgb, #0a84ff 12%, #f5f2ea);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-reader-bookmarks__current:hover {
+  background: color-mix(in srgb, #0a84ff 18%, #f5f2ea);
+}
+
+.book-reader-bookmarks__current-title {
+  color: #0a84ff;
+  font-size: 14px;
+}
+
+.book-reader-bookmarks__current-caption {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, #1f1d19 72%, transparent);
+  font-size: 13px;
 }

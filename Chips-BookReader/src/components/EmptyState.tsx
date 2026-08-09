@@ -1,4 +1,5 @@
 import React from "react";
+import { Button } from "antd";
 import type { BookReaderCommandId } from "../commands/book-reader-commands";
 import { BOOK_READER_COMMAND_IDS } from "../commands/book-reader-commands";
 
@@ -17,8 +18,9 @@ export function EmptyState(props: EmptyStateProps): React.ReactElement {
         <span className="book-reader-empty__badge">{t("book-reader.empty.badge")}</span>
         <h1 className="book-reader-empty__title">{t("book-reader.empty.title")}</h1>
         <p className="book-reader-empty__description">{t("book-reader.empty.description")}</p>
-        <button
-          type="button"
+        <Button
+          type="primary"
+          size="large"
           className="book-reader-empty__prompt"
           onClick={() => {
             if (onInvokeCommand) {
@@ -29,7 +31,7 @@ export function EmptyState(props: EmptyStateProps): React.ReactElement {
           }}
         >
           {t("book-reader.empty.prompt")}
-        </button>
+        </Button>
         <p className="book-reader-empty__hint">{t("book-reader.empty.dropHint")}</p>
         <p className="book-reader-empty__supported">{t("book-reader.empty.supportedFormat")}</p>
       </div>

@@ -1,27 +1,35 @@
 import React from "react";
-import { ChipsIcon } from "@chips/component-library";
-import type { IconDescriptor } from "chips-sdk";
+import { Button } from "antd";
+import type { ReactNode } from "react";
 
 export interface ControlButtonProps {
   label: string;
-  icon: IconDescriptor;
+  icon: ReactNode;
   onClick: () => void | Promise<void>;
   disabled?: boolean;
   active?: boolean;
-  variant?: "default" | "nav" | "close";
+  variant?: "default" | "dock" | "nav" | "close";
 }
 
 export function ControlButton(props: ControlButtonProps): React.ReactElement {
   const { label, icon, onClick, disabled = false, active = false, variant = "default" } = props;
 
+  const variantClass =
+    variant === "dock"
+      ? "book-reader-controlButton--dock"
+      : variant === "nav"
+        ? "book-reader-controlButton--nav"
+        : variant === "close"
+          ? "book-reader-controlButton--close"
+          : "";
+
   return (
-    <button
-      type="button"
+    <Button
+      type="text"
       className={[
         "book-reader-controlButton",
         active ? "book-reader-controlButton--active" : "",
-        variant === "nav" ? "book-reader-controlButton--nav" : "",
-        variant === "close" ? "book-reader-controlButton--close" : "",
+        variantClass,
       ]
         .filter(Boolean)
         .join(" ")}
@@ -29,8 +37,16 @@ export function ControlButton(props: ControlButtonProps): React.ReactElement {
       title={label}
       disabled={disabled}
       onClick={() => void onClick()}
+      icon={variant === "dock" ? undefined : icon}
     >
-      <ChipsIcon descriptor={icon} />
-    </button>
+      {variant === "dock" ? (
+        <span className="book-reader-controlButton__dock">
+          <span className="book-reader-controlButton__dockIcon" aria-hidden="true">
+            {icon}
+          </span>
+          <span className="book-reader-controlButton__dockLabel">{label}</span>
+        </span>
+      ) : null}
+    </Button>
   );
 }

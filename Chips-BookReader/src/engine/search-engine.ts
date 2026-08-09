@@ -36,6 +36,30 @@ function buildExcerpt(text: string, offset: number, matchLength: number): string
   return `${prefix}${text.slice(before, after).trim()}${suffix}`;
 }
 
+export interface ExcerptSegments {
+  before: string;
+  match: string;
+  after: string;
+}
+
+export function splitExcerptIntoMatchSegments(excerpt: string, query: string): ExcerptSegments {
+  const normalizedQuery = normalizeSearchQuery(query);
+  if (!normalizedQuery) {
+    return { before: excerpt, match: "", after: "" };
+  }
+
+  const matchIndex = excerpt.toLowerCase().indexOf(normalizedQuery);
+  if (matchIndex < 0) {
+    return { before: excerpt, match: "", after: "" };
+  }
+
+  return {
+    before: excerpt.slice(0, matchIndex),
+    match: excerpt.slice(matchIndex, matchIndex + normalizedQuery.length),
+    after: excerpt.slice(matchIndex + normalizedQuery.length),
+  };
+}
+
 function isHighlightableTextNode(node: Node): node is Text {
   if (node.nodeType !== Node.TEXT_NODE) {
     return false;
@@ -213,7 +237,7 @@ mark[data-search-result] {
   color: inherit;
   border-radius: 0.35em;
   padding: 0 0.08em;
-  box-shadow: inset 0 -0.08em 0 rgba(255, 183, 3, 0.28);
+  box-shadow: inset 0 -0.08em 0 rgba(255, 159, 10, 0.28);
 }
 
 mark[data-search-result].search-current {

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { appConfig } from "../../config/app-config";
 import { getSceneIdForReaderState } from "../../src/app/scene-registry";
-import { formatMessage, resolveLocaleDirection, translateLocalKey } from "../../src/i18n/messages";
+import { formatMessage } from "../../src/lib/messages";
 import { createFallbackSurfaceContext, readLaunchContext } from "../../src/runtime/launch-context";
 
 function readSource(path: string): string {
@@ -86,10 +86,8 @@ describe("BookReader AppRuntime 基线", () => {
     expect(getSceneIdForReaderState({ book: { sections: [] } as never, feedback: null })).toBe("reader-document");
   });
 
-  it("复用组件库同步 i18n 所需的本地语言包解析能力", () => {
-    expect(formatMessage("zh-CN", "book-reader.labels.appName")).toBe("书籍阅读器");
-    expect(translateLocalKey("book-reader.labels.appName", "en-US")).toBe("Book Reader");
-    expect(resolveLocaleDirection("zh-CN")).toBe("ltr");
-    expect(resolveLocaleDirection("ar")).toBe("rtl");
+  it("本地中文文案表覆盖核心文案并支持插值", () => {
+    expect(formatMessage("book-reader.labels.appName")).toBe("书籍阅读器");
+    expect(formatMessage("book-reader.reader.pagePosition", { current: 3, total: 10 })).toBe("第 3 / 10 页");
   });
 });

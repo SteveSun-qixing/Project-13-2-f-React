@@ -7,6 +7,11 @@ import type {
 } from "./types";
 
 import { isStyleElementNode } from "../utils/dom";
+import {
+  DEFAULT_LETTER_SPACING,
+  DEFAULT_LINE_HEIGHT,
+  READER_FONT_FAMILY_STACKS,
+} from "../utils/book-reader";
 
 interface ReadiumCssSettings {
   paged: boolean;
@@ -41,6 +46,8 @@ const ROOT_CLASS_NO_RUBY = "r2-no-ruby";
 const ROOT_CLASS_REDUCE_MOTION = "r2-reduce-motion";
 const DISABLE_TEMPORARY_NAV_TARGET_OUTLINE_CLASS = "r2-no-link-target-temp-highlight";
 const FOOTNOTE_FORCE_SHOW = "r2-footnote-force-show";
+
+const VERTICAL_CONTENT_WIDTH_LIMIT_PX = 560;
 
 const BEFORE_STYLE_ID = "book-reader-readium-before";
 const DEFAULT_STYLE_ID = "book-reader-readium-default";
@@ -199,7 +206,16 @@ function isDocRtl(document: Document): boolean {
 }
 
 function resolveFontFamily(options: EngineOptions): ReadiumCssSettings["font"] {
-  return options.preferences.fontFamily === "sans" ? "SANS" : "OLD";
+  if (options.preferences.fontFamily === "sans") {
+    return "SANS";
+  }
+  if (options.preferences.fontFamily === "round") {
+    return "ROUND";
+  }
+  if (options.preferences.fontFamily === "system") {
+    return "DEFAULT";
+  }
+  return "OLD";
 }
 
 function buildReadiumCssSettings(
@@ -208,12 +224,15 @@ function buildReadiumCssSettings(
   layout: ResponsiveLayout,
 ): ReadiumCssSettings {
   const fontPercentage = `${Math.round(options.preferences.fontScale * 100)}%`;
+  const lineHeight = String(options.preferences.lineHeight ?? DEFAULT_LINE_HEIGHT);
+  const letterSpacing = `${options.preferences.letterSpacing ?? DEFAULT_LETTER_SPACING}em`;
 
   return {
     paged: !directionality.isVertical && options.preferences.readingMode === "paginated",
     colCount: layout.forcedColCount,
-    textAlign: "start",
-    lineHeight: "1.68",
+    textAlign: options.preferences.textAlign === "left" ? "left" : "justify",
+    lineHeight,
+    letterSpacing,
     paraSpacing: "0.75rem",
     bodyHyphens: "auto",
     font: resolveFontFamily(options),
@@ -501,6 +520,50 @@ pre {
     margin-inline: 0 !important;
   }
 }
+
+/* ─── 用户排版自由度（task031 2.3 + 5.4） ───────────────────── */
+
+/* 竖排：窄列内容宽度、单列分页与纵向行长约束 */
+:root[style*="vertical-rl"] {
+  --RS__maxLineLength: var(--user-content-width) !important;
+  --RS__colWidth: var(--user-content-width) !important;
+  --RS__colCount: 1 !important;
+}
+
+:root[style*="vertical-rl"] body {
+  max-width: none !important;
+  max-height: var(--user-content-width) !important;
+}
+
+/* 横排（覆盖竖排 profile 遗留的纵向行长约束） */
+:root[style*="horizontal-tb"] body {
+  max-height: none !important;
+}
+
+/* CJK profile 缺少 ReadiumCSS 的对齐覆盖，补齐相同语义规则 */
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-text-align"]:not([style*="vertical-rl"]) {
+  text-align: var(--user-text-align);
+}
+
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-text-align"]:not([style*="vertical-rl"]) body,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-text-align"]:not([style*="vertical-rl"]) p,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-text-align"]:not([style*="vertical-rl"]) li {
+  text-align: inherit !important;
+  text-align-last: auto !important;
+}
+
+/* CJK profile 缺少 ReadiumCSS 的字距覆盖，补齐相同元素范围 */
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] h1,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] h2,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] h3,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] h4,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] h5,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] h6,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] p,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] li,
+:root:is(:lang(zh), :lang(ja), :lang(ko))[style*="readium-advanced-on"][style*="--user-letter-spacing"] div {
+  letter-spacing: var(--user-letter-spacing);
+}
 `;
 }
 
@@ -527,6 +590,7 @@ export class ReadiumCssManager {
   }
 
   public applySettings(document: Document, options: EngineOptions, layout: ResponsiveLayout): void {
+    this.applyWritingMode(document, options);
     const directionality = this.resolveDirectionality(document);
     const root = document.documentElement as HTMLElement;
     const settings = buildReadiumCssSettings(options, directionality, layout);
@@ -611,6 +675,20 @@ export class ReadiumCssManager {
     return "default";
   }
 
+  private applyWritingMode(document: Document, options: EngineOptions): void {
+    const root = document.documentElement as HTMLElement;
+    if (!isDocCjk(document)) {
+      setOrRemoveStyle(root, "writing-mode", undefined);
+      return;
+    }
+
+    setOrRemoveStyle(
+      root,
+      "writing-mode",
+      options.preferences.writingMode === "vertical" ? "vertical-rl" : "horizontal-tb",
+    );
+  }
+
   private async loadStyleText(profile: ReadiumProfile, mod: ReadiumStyleMod): Promise<string> {
     const cacheKey = `${profile}:${mod}`;
     const existing = CSS_TEXT_CACHE.get(cacheKey);
@@ -678,6 +756,8 @@ export class ReadiumCssManager {
       setOrRemoveStyle(root, "--USER__fontFamily", "var(--RS__sansTf)");
     } else if (settings.font === "OLD") {
       setOrRemoveStyle(root, "--USER__fontFamily", "var(--RS__oldStyleTf)");
+    } else if (settings.font === "ROUND") {
+      setOrRemoveStyle(root, "--USER__fontFamily", "var(--user-font-family-round)");
     } else {
       setOrRemoveStyle(root, "--USER__fontFamily", undefined);
     }
@@ -692,7 +772,12 @@ export class ReadiumCssManager {
       setOrRemoveStyle(root, "--USER__fontXSizeX", "1");
     }
 
-    setOrRemoveStyle(root, "--USER__lineHeight", settings.lineHeight);
+    setOrRemoveStyle(root, "--USER__lineHeight", `var(--user-line-height)`);
+    setOrRemoveStyle(root, "--user-line-height", settings.lineHeight);
+    setOrRemoveStyle(root, "--user-letter-spacing", settings.letterSpacing);
+    setOrRemoveStyle(root, "--USER__letterSpacing", `var(--user-letter-spacing)`);
+    setOrRemoveStyle(root, "--user-text-align", settings.textAlign);
+    setOrRemoveStyle(root, "--user-font-family-round", READER_FONT_FAMILY_STACKS.round);
     setOrRemoveStyle(root, "--USER__typeScale", settings.typeScale);
     setOrRemoveStyle(root, "--USER__paraSpacing", settings.paraSpacing);
     setOrRemoveStyle(root, "--USER__pageMargins", settings.pageMargins);
@@ -721,10 +806,8 @@ export class ReadiumCssManager {
 
     if (isDocJapanese(root.ownerDocument)) {
       setOrRemoveStyle(root, "--USER__wordSpacing", settings.wordSpacing);
-      setOrRemoveStyle(root, "--USER__letterSpacing", settings.letterSpacing);
     } else {
       setOrRemoveStyle(root, "--USER__wordSpacing", undefined);
-      setOrRemoveStyle(root, "--USER__letterSpacing", undefined);
     }
   }
 
@@ -749,5 +832,10 @@ export class ReadiumCssManager {
     setOrRemoveStyle(root, "--book-reader-border", options.theme.border);
     setOrRemoveStyle(root, "--book-reader-accent-surface", options.theme.accentSurface);
     setOrRemoveStyle(root, "--book-reader-content-width", `${options.preferences.contentWidth}px`);
+    const isVertical = options.preferences.writingMode === "vertical" && isDocCjk(root.ownerDocument);
+    const verticalContentWidth = isVertical
+      ? Math.min(options.preferences.contentWidth, VERTICAL_CONTENT_WIDTH_LIMIT_PX)
+      : options.preferences.contentWidth;
+    setOrRemoveStyle(root, "--user-content-width", `${verticalContentWidth}px`);
   }
 }

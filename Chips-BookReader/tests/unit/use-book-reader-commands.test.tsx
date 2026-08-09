@@ -3,16 +3,10 @@
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockChipsClient, type MockChipsClient } from "chips-sdk";
-import {
-  BOOK_READER_COMMAND_IDS,
-  bookReaderCommandDefinitions,
-  type BookReaderCommandStatus,
-} from "../../src/commands/book-reader-commands";
+import { CommandProvider, useCommandRegistry } from "@chips/ui";
+import { BOOK_READER_COMMAND_IDS } from "../../src/commands/book-reader-commands";
 import { useBookReaderCommands, type UseBookReaderCommandsResult } from "../../src/commands/useBookReaderCommands";
 import type { ReaderPreferences } from "../../src/utils/book-reader";
-
-const COMMAND_PERMISSIONS = ["command.read", "command.write", "command.invoke", "file.read", "network.request", "config.read", "config.write"];
 
 const runtimeState = {
   hasBook: true,
@@ -24,15 +18,9 @@ const runtimeState = {
   canNextSection: true,
 };
 
-async function flushReact(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
 describe("useBookReaderCommands", () => {
   let container: HTMLDivElement;
   let root: Root;
-  const clients: MockChipsClient[] = [];
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -44,113 +32,118 @@ describe("useBookReaderCommands", () => {
   afterEach(async () => {
     await React.act(async () => {
       root.unmount();
-      await flushReact();
     });
     container.remove();
-    for (const client of clients.splice(0)) {
-      client.restoreBridge();
-    }
     vi.clearAllMocks();
   });
 
-  function createClient(): MockChipsClient {
-    const client = createMockChipsClient({
-      permissions: COMMAND_PERMISSIONS,
-    });
-    clients.push(client);
-    return client;
-  }
+  it("registers localized commands into the shared registry", async () => {
+    let registeredCount = 0;
+    const captured: { result: UseBookReaderCommandsResult | null } = { result: null };
 
-  it("registers commands, invokes through Host registry, and dispatches local handler by handlerId", async () => {
-    const client = createClient();
-    const handler = vi.fn<(status: BookReaderCommandStatus) => void>();
+    function RegistryProbe(): React.ReactElement | null {
+      const { commands } = useCommandRegistry();
+      registeredCount = commands.length;
+      return null;
+    }
+
+    function Harness(): React.ReactElement | null {
+      captured.result = useBookReaderCommands({ runtimeState });
+      return <RegistryProbe />;
+    }
+
+    await React.act(async () => {
+      root.render(
+        <CommandProvider>
+          <Harness />
+        </CommandProvider>,
+      );
+    });
+
+    expect(captured.result?.commands.length).toBeGreaterThanOrEqual(21);
+    expect(registeredCount).toBeGreaterThanOrEqual(21);
+  });
+
+  it("dispatches invoked commands to the top registered handler with payload", async () => {
+    const handler = vi.fn();
     let latest: UseBookReaderCommandsResult | null = null;
 
-    function Harness() {
-      latest = useBookReaderCommands({
-        client,
-        invocationContext: {
-          pluginId: "com.chips.book-reader",
-          sceneId: "reader-scene",
-          surfaceId: "reader-surface",
-          documentId: "demo-book",
-        },
-        runtimeState,
-      });
-
+    function Harness(): React.ReactElement | null {
+      latest = useBookReaderCommands({ runtimeState });
       React.useEffect(() => {
         return latest?.registerHandler("book-reader:source.open-url", handler);
       }, []);
-
       return null;
     }
 
     await React.act(async () => {
-      root.render(<Harness />);
-      await flushReact();
+      root.render(
+        <CommandProvider>
+          <Harness />
+        </CommandProvider>,
+      );
     });
-
-    expect(latest?.phase).toBe("ready");
-    expect(client.state.commands).toHaveLength(bookReaderCommandDefinitions.length);
 
     await React.act(async () => {
-      await latest?.invokeCommand(BOOK_READER_COMMAND_IDS.openUrl, "palette", { url: "https://example.com/book.epub" });
-      await flushReact();
+      latest?.invokeCommand(BOOK_READER_COMMAND_IDS.openUrl, { url: "https://example.com/book.epub" });
     });
 
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        commandId: BOOK_READER_COMMAND_IDS.openUrl,
-        handlerId: "book-reader:source.open-url",
-        source: "palette",
-        payload: { url: "https://example.com/book.epub" },
-        context: expect.objectContaining({
-          pluginId: "com.chips.book-reader",
-          sceneId: "reader-scene",
-          surfaceId: "reader-surface",
-          documentId: "demo-book",
-        }),
-      }),
-    );
-    expect(client.calls.map((call) => call.action)).toEqual(
-      expect.arrayContaining(["command.register", "command.invoke", "command.setState"]),
-    );
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({ url: "https://example.com/book.epub" });
   });
 
-  it("falls back to local dispatch when no Host client is available", async () => {
-    const handler = vi.fn<(status: BookReaderCommandStatus) => void>();
+  it("does nothing when no handler is registered for a command", async () => {
+    const handler = vi.fn();
     let latest: UseBookReaderCommandsResult | null = null;
 
-    function Harness() {
-      latest = useBookReaderCommands({
-        runtimeState,
-        invocationContext: { pluginId: "com.chips.book-reader" },
-      });
+    function Harness(): React.ReactElement | null {
+      latest = useBookReaderCommands({ runtimeState });
+      return null;
+    }
 
+    await React.act(async () => {
+      root.render(
+        <CommandProvider>
+          <Harness />
+        </CommandProvider>,
+      );
+    });
+
+    await React.act(async () => {
+      latest?.invokeCommand(BOOK_READER_COMMAND_IDS.toggleContents);
+    });
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("unregisters handlers on cleanup so stale commands are not dispatched", async () => {
+    const handler = vi.fn();
+    let latest: UseBookReaderCommandsResult | null = null;
+
+    function Harness(): React.ReactElement | null {
+      latest = useBookReaderCommands({ runtimeState });
       React.useEffect(() => {
         return latest?.registerHandler("book-reader:view.toggle-contents", handler);
       }, []);
-
       return null;
     }
 
     await React.act(async () => {
-      root.render(<Harness />);
-      await flushReact();
+      root.render(
+        <CommandProvider>
+          <Harness />
+        </CommandProvider>,
+      );
     });
 
     await React.act(async () => {
-      await latest?.invokeCommand(BOOK_READER_COMMAND_IDS.toggleContents, "toolbar");
-      await flushReact();
+      root.unmount();
     });
 
-    expect(latest?.phase).toBe("ready");
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        commandId: BOOK_READER_COMMAND_IDS.toggleContents,
-        handlerId: "book-reader:view.toggle-contents",
-        source: "toolbar",
-      }),
-    );
+    await React.act(async () => {
+      latest?.invokeCommand(BOOK_READER_COMMAND_IDS.toggleContents);
+    });
+
+    expect(handler).not.toHaveBeenCalled();
   });
 });

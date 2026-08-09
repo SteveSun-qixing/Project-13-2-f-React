@@ -57,8 +57,6 @@ permissions:
   - platform.external
   - config.read
   - config.write
-  - theme.read
-  - i18n.read
   - network.request
 
 runtime:

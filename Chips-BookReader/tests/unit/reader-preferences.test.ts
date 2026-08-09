@@ -11,7 +11,8 @@ describe("reader preferences", () => {
     expect(normalizeReadingMode("unknown")).toBe("paginated");
 
     expect(normalizeBackgroundTone("warm")).toBe("warm");
-    expect(normalizeBackgroundTone("invalid")).toBe("theme");
+    expect(normalizeBackgroundTone("invalid")).toBe("system");
+    expect(normalizeBackgroundTone("system")).toBe("system");
   });
 
   it("会完整归一阅读偏好对象", () => {
@@ -29,6 +30,11 @@ describe("reader preferences", () => {
       fontFamily: "sans",
       readingMode: "scroll",
       backgroundTone: "night",
+      lineHeight: 1.65,
+      letterSpacing: 0.01,
+      textAlign: "justify",
+      writingMode: "horizontal",
+      brightness: 1,
     });
   });
 });

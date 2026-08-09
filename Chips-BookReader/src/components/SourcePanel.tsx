@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Button, Input } from "antd";
 import type { BookReaderCommandId } from "../commands/book-reader-commands";
 import { BOOK_READER_COMMAND_IDS } from "../commands/book-reader-commands";
 import { PanelShell } from "./PanelShell";
@@ -33,9 +34,10 @@ export function SourcePanel(props: SourcePanelProps): React.ReactElement {
     >
       <div className="book-reader-source">
         <p className="book-reader-source__copy">{t("book-reader.empty.description")}</p>
-        <button
-          type="button"
-          className="book-reader-primaryButton"
+        <Button
+          type="primary"
+          size="large"
+          block
           onClick={() => {
             if (onInvokeCommand) {
               void onInvokeCommand(BOOK_READER_COMMAND_IDS.openFile);
@@ -45,7 +47,7 @@ export function SourcePanel(props: SourcePanelProps): React.ReactElement {
           }}
         >
           {t("book-reader.actions.openFile")}
-        </button>
+        </Button>
         <form
           className="book-reader-sourceForm"
           onSubmit={(event) => {
@@ -61,16 +63,16 @@ export function SourcePanel(props: SourcePanelProps): React.ReactElement {
           <label className="book-reader-sourceForm__label" htmlFor="book-reader-source-url">
             {t("book-reader.actions.openUrl")}
           </label>
-          <input
+          <Input
             id="book-reader-source-url"
             type="url"
             value={value}
             placeholder={t("book-reader.placeholders.remoteUrl")}
             onChange={(event) => setValue(event.target.value)}
           />
-          <button type="submit" className="book-reader-secondaryButton">
+          <Button type="default" size="large" htmlType="submit" block>
             {t("book-reader.actions.openUrl")}
-          </button>
+          </Button>
         </form>
         <p className="book-reader-source__supported">{t("book-reader.empty.supportedFormat")}</p>
       </div>

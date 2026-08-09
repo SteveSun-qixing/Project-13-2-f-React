@@ -4,17 +4,10 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CommandProvider } from "@chips/ui";
 import { ReaderShell } from "../../src/components/ReaderShell";
 import type { EpubBook } from "../../src/domain/epub/types";
 import type { ReaderPreferences } from "../../src/utils/book-reader";
-
-vi.mock("@chips/component-library", () => ({
-  ChipsCommandPalette: () => <div data-book-reader-command-palette="true" />,
-  ChipsCommandProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  ChipsIcon: () => <span data-book-reader-icon="true" />,
-  ChipsMenuBar: () => <nav data-book-reader-menu="true" />,
-  ChipsToolbar: () => <div data-book-reader-toolbar="true" />,
-}));
 
 const DEFAULT_PREFERENCES: ReaderPreferences = {
   fontScale: 1,
@@ -31,7 +24,29 @@ const DEFAULT_THEME = {
   primary: "#2158d2",
   border: "rgba(0, 0, 0, 0.12)",
   accentSurface: "#eef3ff",
+  resolvedTone: "theme" as const,
+  isDark: false,
+  transition: {
+    durationMs: 300,
+    className: "book-reader-theme-transition",
+    cssText: "transition: background-color 300ms ease, color 300ms ease",
+  },
 };
+
+const { useAppRuntimeMock, readingPositionMock } = vi.hoisted(() => ({
+  useAppRuntimeMock: vi.fn(),
+  readingPositionMock: {
+    savedPosition: null,
+    track: vi.fn(),
+    flush: vi.fn(),
+    restore: vi.fn(),
+    clear: vi.fn(),
+  },
+}));
+
+vi.mock("../../src/app/AppRuntimeProvider", () => ({
+  useAppRuntime: useAppRuntimeMock,
+}));
 
 const configGet = vi.fn(async (_key: string) => []);
 const configSet = vi.fn(async (_key: string, _value: unknown) => undefined);
@@ -101,7 +116,16 @@ function t(key: string, params?: Record<string, string | number>): string {
   return MESSAGES[key] ?? key;
 }
 
-function createBookFixture(): EpubBook {
+function createBookFixture(sectionCount = 1): EpubBook {
+  const sectionTitles = ["第一章", "第二章", "第三章"];
+  const sections = Array.from({ length: sectionCount }, (_, index) => ({
+    id: `chapter-${index + 1}`,
+    href: `chapter-${index + 1}.xhtml`,
+    path: `OEBPS/chapter-${index + 1}.xhtml`,
+    title: sectionTitles[index] ?? `第${index + 1}章`,
+    linear: true,
+  }));
+
   return {
     source: {
       sourceId: "/tmp/demo.epub",
@@ -125,25 +149,15 @@ function createBookFixture(): EpubBook {
     packagePath: "OEBPS/content.opf",
     manifest: new Map(),
     manifestByPath: new Map(),
-    sections: [
-      {
-        id: "chapter-1",
-        href: "chapter-1.xhtml",
-        path: "OEBPS/chapter-1.xhtml",
-        title: "第一章",
-        linear: true,
-      },
-    ],
-    navigation: [
-      {
-        id: "nav-1",
-        label: "第一章",
-        href: "chapter-1.xhtml",
-        path: "OEBPS/chapter-1.xhtml",
-        sectionIndex: 0,
-        children: [],
-      },
-    ],
+    sections,
+    navigation: sections.map((section, index) => ({
+      id: `nav-${index + 1}`,
+      label: section.title,
+      href: section.href,
+      path: section.path,
+      sectionIndex: index,
+      children: [],
+    })),
   };
 }
 
@@ -153,12 +167,14 @@ describe("ReaderShell 沉浸式阅读界面", () => {
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    useAppRuntimeMock.mockReturnValue({ readingPosition: readingPositionMock });
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await act(async () => {
       root.unmount();
     });
@@ -171,25 +187,27 @@ describe("ReaderShell 沉浸式阅读界面", () => {
 
     await act(async () => {
       root.render(
-        <ReaderShell
-          book={null}
-          renderedSection={null}
-          currentSectionIndex={0}
-          feedback={null}
-          isResolving={false}
-          isLoadingSection={false}
-          preferences={DEFAULT_PREFERENCES}
-          themePalette={DEFAULT_THEME}
-          configClient={CONFIG_CLIENT}
-          onOpenFile={onOpenFile}
-          onOpenUrl={vi.fn(async () => undefined)}
-          onSelectSection={vi.fn()}
-          onStepSection={vi.fn()}
-          onUpdatePreferences={vi.fn()}
-          onDropFiles={vi.fn(async () => undefined)}
-          onOpenExternalLink={vi.fn(async () => undefined)}
-          t={t}
-        />,
+        <CommandProvider>
+          <ReaderShell
+            book={null}
+            renderedSection={null}
+            currentSectionIndex={0}
+            feedback={null}
+            isResolving={false}
+            isLoadingSection={false}
+            preferences={DEFAULT_PREFERENCES}
+            themePalette={DEFAULT_THEME}
+            configClient={CONFIG_CLIENT}
+            onOpenFile={onOpenFile}
+            onOpenUrl={vi.fn(async () => undefined)}
+            onSelectSection={vi.fn()}
+            onStepSection={vi.fn()}
+            onUpdatePreferences={vi.fn()}
+            onDropFiles={vi.fn(async () => undefined)}
+            onOpenExternalLink={vi.fn(async () => undefined)}
+            t={t}
+          />
+        </CommandProvider>,
       );
     });
 
@@ -222,10 +240,122 @@ describe("ReaderShell 沉浸式阅读界面", () => {
   it("阅读态默认隐藏控制层，并可通过点击阅读面唤出目录入口", async () => {
     await act(async () => {
       root.render(
+        <CommandProvider>
+          <ReaderShell
+            book={createBookFixture()}
+            renderedSection={null}
+            currentSectionIndex={0}
+            feedback={null}
+            isResolving={false}
+            isLoadingSection={false}
+            preferences={DEFAULT_PREFERENCES}
+            themePalette={DEFAULT_THEME}
+            configClient={CONFIG_CLIENT}
+            onOpenFile={vi.fn(async () => undefined)}
+            onOpenUrl={vi.fn(async () => undefined)}
+            onSelectSection={vi.fn()}
+            onStepSection={vi.fn()}
+            onUpdatePreferences={vi.fn()}
+            onDropFiles={vi.fn(async () => undefined)}
+            onOpenExternalLink={vi.fn(async () => undefined)}
+            t={t}
+          />
+        </CommandProvider>,
+      );
+    });
+
+    const chromeHost = container.querySelector(".book-reader-chromeHost");
+    expect(chromeHost?.getAttribute("data-state")).toBe("hidden");
+
+    const frameHost = container.querySelector(".book-reader-frameHost");
+    expect(frameHost).toBeTruthy();
+
+    await act(async () => {
+      frameHost?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(chromeHost?.getAttribute("data-state")).toBe("visible");
+
+    const contentsButton = Array.from(container.querySelectorAll("button")).find(
+      (element) => element.getAttribute("aria-label") === "目录",
+    );
+
+    expect(contentsButton).toBeTruthy();
+
+    await act(async () => {
+      contentsButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain(t("book-reader.labels.contents"));
+    expect(container.textContent).toContain("第一章");
+  });
+
+  it("控制层在空闲后自动隐藏，指针移动会重新计时", async () => {
+    vi.useFakeTimers();
+
+    await act(async () => {
+      root.render(
+        <CommandProvider>
+          <ReaderShell
+            book={createBookFixture()}
+            renderedSection={null}
+            currentSectionIndex={0}
+            feedback={null}
+            isResolving={false}
+            isLoadingSection={false}
+            preferences={DEFAULT_PREFERENCES}
+            themePalette={DEFAULT_THEME}
+            configClient={CONFIG_CLIENT}
+            onOpenFile={vi.fn(async () => undefined)}
+            onOpenUrl={vi.fn(async () => undefined)}
+            onSelectSection={vi.fn()}
+            onStepSection={vi.fn()}
+            onUpdatePreferences={vi.fn()}
+            onDropFiles={vi.fn(async () => undefined)}
+            onOpenExternalLink={vi.fn(async () => undefined)}
+            t={t}
+          />
+        </CommandProvider>,
+      );
+    });
+
+    const chromeHost = container.querySelector(".book-reader-chromeHost");
+    const frameHost = container.querySelector(".book-reader-frameHost");
+
+    await act(async () => {
+      frameHost?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(chromeHost?.getAttribute("data-state")).toBe("visible");
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(chromeHost?.getAttribute("data-state")).toBe("visible");
+
+    await act(async () => {
+      window.dispatchEvent(new PointerEvent("pointermove"));
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(chromeHost?.getAttribute("data-state")).toBe("visible");
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(chromeHost?.getAttribute("data-state")).toBe("hidden");
+  });
+
+  it("章节切换后展示章节横幅，并在定时后消失", async () => {
+    vi.useFakeTimers();
+    const book = createBookFixture(2);
+    const renderShell = (currentSectionIndex: number) => (
+      <CommandProvider>
         <ReaderShell
-          book={createBookFixture()}
+          book={book}
           renderedSection={null}
-          currentSectionIndex={0}
+          currentSectionIndex={currentSectionIndex}
           feedback={null}
           isResolving={false}
           isLoadingSection={false}
@@ -240,32 +370,26 @@ describe("ReaderShell 沉浸式阅读界面", () => {
           onDropFiles={vi.fn(async () => undefined)}
           onOpenExternalLink={vi.fn(async () => undefined)}
           t={t}
-        />,
-      );
-    });
-
-    expect(container.querySelector(".book-reader-chrome")).toBeNull();
-
-    const frameHost = container.querySelector(".book-reader-frameHost");
-    expect(frameHost).toBeTruthy();
-
-    await act(async () => {
-      frameHost?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(container.querySelector(".book-reader-chrome")).toBeTruthy();
-
-    const contentsButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.getAttribute("aria-label") === t("book-reader.actions.toggleToc"),
+        />
+      </CommandProvider>
     );
 
-    expect(contentsButton).toBeTruthy();
+    await act(async () => {
+      root.render(renderShell(0));
+    });
+    expect(container.querySelector(".book-reader-sectionBanner")).toBeNull();
 
     await act(async () => {
-      contentsButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      root.render(renderShell(1));
     });
 
-    expect(container.textContent).toContain(t("book-reader.labels.contents"));
-    expect(container.textContent).toContain("第一章");
+    const banner = container.querySelector(".book-reader-sectionBanner");
+    expect(banner).toBeTruthy();
+    expect(banner?.textContent).toBe("第二章");
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(container.querySelector(".book-reader-sectionBanner")).toBeNull();
   });
 });

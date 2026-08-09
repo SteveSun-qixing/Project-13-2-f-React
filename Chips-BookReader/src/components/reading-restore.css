@@ -1,0 +1,74 @@
+.book-reader-restoreBanner {
+  position: absolute;
+  left: 50%;
+  bottom: 118px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(92vw, 560px);
+  padding: 10px 12px 10px 18px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #1f1d19 8%, transparent);
+  background: color-mix(in srgb, #f5f2ea 82%, white 18%);
+  box-shadow: 0 20px 56px color-mix(in srgb, #1f1d19 12%, transparent);
+  backdrop-filter: blur(18px);
+  transform: translateX(-50%);
+  animation: book-reader-restore-enter 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.book-reader-restoreBanner__message {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1f1d19;
+}
+
+.book-reader-restoreBanner__action {
+  flex-shrink: 0;
+  border: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #0a84ff 12%, #f5f2ea);
+  color: #0a84ff;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.book-reader-restoreBanner__action:hover {
+  background: #0a84ff;
+  color: white;
+}
+
+.book-reader-restoreBanner__action:focus-visible {
+  outline: 2px solid color-mix(in srgb, #0a84ff 60%, transparent);
+  outline-offset: 2px;
+}
+
+@keyframes book-reader-restore-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .book-reader-restoreBanner {
+    bottom: 74px;
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-reader-restoreBanner {
+    animation: none;
+  }
+}

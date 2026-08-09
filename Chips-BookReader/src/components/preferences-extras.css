@@ -1,0 +1,17 @@
+.book-reader-preferences__controlLabel {
+  font-size: 13px;
+  color: color-mix(in srgb, #1f1d19 72%, transparent);
+  line-height: 1.5;
+}
+
+.book-reader-preferences__hint {
+  margin: 0;
+  font-size: 12px;
+  color: color-mix(in srgb, #1f1d19 62%, transparent);
+  line-height: 1.6;
+}
+
+.book-reader-fontOption {
+  font-size: 13px;
+  line-height: 1.2;
+}

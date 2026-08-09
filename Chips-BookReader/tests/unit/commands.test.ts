@@ -1,78 +1,74 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import {
   BOOK_READER_COMMAND_IDS,
-  bookReaderCommandDefinitions,
-  createBookReaderCommandViews,
+  createBookReaderCommands,
+  type BookReaderCommandRuntimeState,
 } from "../../src/commands/book-reader-commands";
-import { formatMessage } from "../../src/i18n/messages";
+import { appConfig } from "../../config/app-config";
 
-const FORBIDDEN_RAW_TEXT_FIELDS = ["title", "description", "label", "ariaLabel"] as const;
+const noopDispatch = () => undefined;
 
-function readManifest(): { permissions?: string[] } {
-  return parse(readFileSync(resolve(__dirname, "../../manifest.yaml"), "utf-8")) as {
-    permissions?: string[];
-  };
-}
+const baseState: BookReaderCommandRuntimeState = {
+  hasBook: false,
+  activePanel: null,
+  hasCurrentBookmark: false,
+  readingMode: "paginated",
+  isBusy: false,
+  canPreviousSection: false,
+  canNextSection: false,
+};
 
 describe("BookReader commands", () => {
-  it("defines serializable command metadata without raw display text", () => {
-    expect(bookReaderCommandDefinitions.length).toBeGreaterThan(12);
+  it("defines app scoped command metadata with Chinese titles", () => {
+    const commands = createBookReaderCommands(noopDispatch, baseState);
 
-    for (const definition of bookReaderCommandDefinitions) {
-      expect(definition.commandId).toMatch(/^com\.chips\.book-reader\./);
-      expect(definition.titleKey).toMatch(/^book-reader\.commands\./);
-      expect(definition.handlerId).toBeTypeOf("string");
-      expect(definition.scope).toEqual({ kind: "app", appId: "com.chips.book-reader" });
+    expect(commands.length).toBeGreaterThanOrEqual(21);
 
-      for (const field of FORBIDDEN_RAW_TEXT_FIELDS) {
-        expect(definition).not.toHaveProperty(field);
-      }
+    for (const command of commands) {
+      expect(command.id.startsWith(`${appConfig.appId}.`)).toBe(true);
+      expect(command.title.length).toBeGreaterThan(0);
+      expect(typeof command.run).toBe("function");
     }
   });
 
-  it("declares the Host command permissions required by registration and invocation", () => {
-    const manifest = readManifest();
+  it("enables only source commands when no book is loaded", () => {
+    const commands = createBookReaderCommands(noopDispatch, baseState);
+    const byId = new Map(commands.map((command) => [command.id, command]));
 
-    expect(manifest.permissions).toEqual(
-      expect.arrayContaining(["command.read", "command.write", "command.invoke"]),
-    );
+    expect(byId.get(BOOK_READER_COMMAND_IDS.openSourcePanel)?.enabled).not.toBe(false);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.openFile)?.enabled).not.toBe(false);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.toggleContents)?.enabled).toBe(false);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.toggleSearch)?.enabled).toBe(false);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.previousPage)?.enabled).toBe(false);
   });
 
-  it("resolves dynamic state for panels, bookmarks, sections and reading mode", () => {
-    const views = createBookReaderCommandViews({
+  it("projects runtime state into command enabled flags", () => {
+    const commands = createBookReaderCommands(noopDispatch, {
+      ...baseState,
       hasBook: true,
-      activePanel: "contents",
       hasCurrentBookmark: true,
+      activePanel: "contents",
       readingMode: "scroll",
-      isBusy: false,
       canPreviousSection: false,
       canNextSection: true,
     });
-    const byId = new Map(views.map((view) => [view.commandId, view]));
+    const byId = new Map(commands.map((command) => [command.id, command]));
 
-    expect(byId.get(BOOK_READER_COMMAND_IDS.toggleContents)?.state?.checked).toBe(true);
-    expect(byId.get(BOOK_READER_COMMAND_IDS.toggleBookmark)?.state?.checked).toBe(true);
-    expect(byId.get(BOOK_READER_COMMAND_IDS.previousSection)?.state?.enabled).toBe(false);
-    expect(byId.get(BOOK_READER_COMMAND_IDS.nextSection)?.state?.enabled).toBe(true);
-    expect(byId.get(BOOK_READER_COMMAND_IDS.readingModeScroll)?.state?.checked).toBe(true);
-    expect(byId.get(BOOK_READER_COMMAND_IDS.readingModePaginated)?.state?.checked).toBe(false);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.toggleContents)?.enabled).toBe(true);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.closePanel)?.enabled).toBe(true);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.toggleBookmark)?.enabled).toBe(true);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.previousSection)?.enabled).toBe(false);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.nextSection)?.enabled).toBe(true);
   });
 
-  it("has local i18n text for every command key", () => {
-    for (const definition of bookReaderCommandDefinitions) {
-      expect(formatMessage("zh-CN", definition.titleKey)).not.toBe(`[[${definition.titleKey}]]`);
-      expect(formatMessage("en-US", definition.titleKey)).not.toBe(`[[${definition.titleKey}]]`);
-      if (definition.descriptionKey) {
-        expect(formatMessage("zh-CN", definition.descriptionKey)).not.toBe(`[[${definition.descriptionKey}]]`);
-        expect(formatMessage("en-US", definition.descriptionKey)).not.toBe(`[[${definition.descriptionKey}]]`);
-      }
-      if (definition.ariaLabelKey) {
-        expect(formatMessage("zh-CN", definition.ariaLabelKey)).not.toBe(`[[${definition.ariaLabelKey}]]`);
-        expect(formatMessage("en-US", definition.ariaLabelKey)).not.toBe(`[[${definition.ariaLabelKey}]]`);
-      }
-    }
+  it("marks reader commands busy while the book is resolving", () => {
+    const commands = createBookReaderCommands(noopDispatch, {
+      ...baseState,
+      isBusy: true,
+    });
+    const byId = new Map(commands.map((command) => [command.id, command]));
+
+    expect(byId.get(BOOK_READER_COMMAND_IDS.openSourcePanel)?.enabled).toBe(false);
+    expect(byId.get(BOOK_READER_COMMAND_IDS.openFile)?.enabled).toBe(false);
   });
 });

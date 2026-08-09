@@ -12,10 +12,6 @@ import { NavigationTree } from "../../src/components/NavigationTree";
 import { PanelShell } from "../../src/components/PanelShell";
 import { SearchPanel } from "../../src/components/SearchPanel";
 
-vi.mock("@chips/component-library", () => ({
-  ChipsIcon: () => <span data-book-reader-icon="true" />,
-}));
-
 function t(key: string, params?: Record<string, string | number>): string {
   if (key === "book-reader.actions.closePanel") {
     return "关闭面板";

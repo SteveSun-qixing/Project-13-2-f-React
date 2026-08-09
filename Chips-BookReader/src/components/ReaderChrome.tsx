@@ -1,4 +1,18 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import {
+  ControlOutlined,
+  DownOutlined,
+  FolderOpenOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
+  LeftOutlined,
+  PushpinFilled,
+  PushpinOutlined,
+  ReadOutlined,
+  RightOutlined,
+  SearchOutlined,
+  TagsOutlined,
+} from "@ant-design/icons";
 import type { EpubBook, EpubSection } from "../domain/epub/types";
 import type { ReadingProgress } from "../engine/types";
 import type { BookReaderCommandId, BookReaderOverlayPanel } from "../commands/book-reader-commands";
@@ -17,64 +31,107 @@ export interface ReaderChromeProps {
   hasCurrentBookmark: boolean;
   onInvokeCommand: (commandId: BookReaderCommandId) => void | Promise<void>;
   t: (key: string, params?: Record<string, string | number>) => string;
+  autoHideRemaining?: number;
 }
 
 export function ReaderChrome(props: ReaderChromeProps): React.ReactElement {
-  const {
-    book,
-    currentSection,
-    currentSectionIndex,
-    sectionCount,
-    activePanel,
-    progress,
-    hasCurrentBookmark,
-    onInvokeCommand,
-    t,
-  } = props;
+  const { book, currentSection, activePanel, progress, hasCurrentBookmark, onInvokeCommand, t } = props;
 
-  const sectionLabel = t("book-reader.reader.sectionPosition", {
-    current: currentSectionIndex + 1,
-    total: Math.max(1, sectionCount),
-  });
+  const [isBookInfoOpen, setIsBookInfoOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!isBookInfoOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsBookInfoOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isBookInfoOpen]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
   const creatorLabel = book.metadata.creator?.trim() || t("book-reader.reader.unknownCreator");
   const sourceLabel = book.source.isRemote ? t("book-reader.reader.remoteSource") : t("book-reader.reader.localSource");
-  const progressLabel =
-    progress?.readingMode === "paginated"
-      ? t("book-reader.reader.pagePosition", {
-          current: progress.currentPage,
-          total: progress.totalPages,
-        })
-      : progress
-        ? t("book-reader.reader.bookProgress", {
-            percentage: progress.bookPercentage,
-          })
-        : sourceLabel;
+  const chapterTitle = currentSection?.title || book.metadata.title;
+  const progressPercentage = progress ? Math.round(progress.bookPercentage) : null;
+  const canFullscreen =
+    typeof document.documentElement.requestFullscreen === "function" && document.fullscreenEnabled;
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+
+    void document.documentElement.requestFullscreen().catch(() => undefined);
+  };
 
   return (
     <div className="book-reader-chrome" data-state="visible">
       <header className="book-reader-chrome__header">
-        <div className="book-reader-metaCard">
-          <div className="book-reader-metaCard__copy">
-            <p className="book-reader-metaCard__eyebrow">{sectionLabel}</p>
-            <h2 className="book-reader-metaCard__title">{currentSection?.title || book.metadata.title}</h2>
-            <p className="book-reader-metaCard__meta">
-              {book.metadata.title} · {creatorLabel} · {progressLabel}
-            </p>
+        {canFullscreen ? (
+          <div className="book-reader-chrome__fullscreen">
+            <ControlButton
+              label={isFullscreen ? "退出全屏" : "全屏"}
+              icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+              onClick={toggleFullscreen}
+            />
           </div>
-          <span className="book-reader-metaCard__badge">{sourceLabel}</span>
+        ) : null}
+        <div className="book-reader-metaCard">
+          <div className="book-reader-metaCard__row">
+            <button
+              type="button"
+              className="book-reader-metaCard__titleButton"
+              aria-expanded={isBookInfoOpen}
+              aria-haspopup="dialog"
+              onClick={() => setIsBookInfoOpen((open) => !open)}
+            >
+              {chapterTitle}
+              <DownOutlined
+                className={`book-reader-metaCard__chevron${isBookInfoOpen ? " book-reader-metaCard__chevron--open" : ""}`}
+                aria-hidden="true"
+              />
+            </button>
+            {progressPercentage !== null ? (
+              <span className="book-reader-metaCard__progress">{progressPercentage}%</span>
+            ) : null}
+          </div>
+          {isBookInfoOpen ? (
+            <div className="book-reader-metaCard__info" role="dialog" aria-label="书籍信息">
+              <p className="book-reader-metaCard__infoTitle">{book.metadata.title}</p>
+              <p className="book-reader-metaCard__infoCreator">{creatorLabel}</p>
+              <span className="book-reader-metaCard__infoSource">{sourceLabel}</span>
+            </div>
+          ) : null}
         </div>
       </header>
 
       <div className="book-reader-chrome__navigation">
         <ControlButton
           label={t("book-reader.actions.previousPage")}
-          icon={{ name: "chevron_left", decorative: true }}
+          icon={<LeftOutlined />}
           onClick={() => onInvokeCommand(BOOK_READER_COMMAND_IDS.previousPage)}
           variant="nav"
         />
         <ControlButton
           label={t("book-reader.actions.nextPage")}
-          icon={{ name: "chevron_right", decorative: true }}
+          icon={<RightOutlined />}
           onClick={() => onInvokeCommand(BOOK_READER_COMMAND_IDS.nextPage)}
           variant="nav"
         />
@@ -82,40 +139,46 @@ export function ReaderChrome(props: ReaderChromeProps): React.ReactElement {
 
       <div className="book-reader-chrome__dock">
         <ControlButton
-          label={t("book-reader.actions.openLibrary")}
-          icon={{ name: "folder_open", decorative: true }}
+          label="打开书库"
+          icon={<FolderOpenOutlined />}
           onClick={() => onInvokeCommand(BOOK_READER_COMMAND_IDS.openSourcePanel)}
           active={activePanel === "source"}
+          variant="dock"
         />
         <ControlButton
-          label={t("book-reader.actions.toggleToc")}
-          icon={{ name: "menu_book", decorative: true }}
+          label="目录"
+          icon={<ReadOutlined />}
           onClick={() => onInvokeCommand(BOOK_READER_COMMAND_IDS.toggleContents)}
           active={activePanel === "contents"}
+          variant="dock"
         />
         <ControlButton
-          label={t("book-reader.actions.toggleSearch")}
-          icon={{ name: "search", decorative: true }}
+          label="搜索"
+          icon={<SearchOutlined />}
           onClick={() => onInvokeCommand(BOOK_READER_COMMAND_IDS.toggleSearch)}
           active={activePanel === "search"}
+          variant="dock"
         />
         <ControlButton
-          label={t("book-reader.actions.toggleBookmark")}
-          icon={{ name: hasCurrentBookmark ? "bookmark" : "bookmark_border", decorative: true }}
+          label="书签"
+          icon={hasCurrentBookmark ? <PushpinFilled /> : <PushpinOutlined />}
           onClick={() => onInvokeCommand(BOOK_READER_COMMAND_IDS.toggleBookmark)}
           active={hasCurrentBookmark}
+          variant="dock"
         />
         <ControlButton
-          label={t("book-reader.actions.openBookmarks")}
-          icon={{ name: "bookmarks", decorative: true }}
+          label="书签列表"
+          icon={<TagsOutlined />}
           onClick={() => onInvokeCommand(BOOK_READER_COMMAND_IDS.toggleBookmarks)}
           active={activePanel === "bookmarks"}
+          variant="dock"
         />
         <ControlButton
-          label={t("book-reader.actions.openPreferences")}
-          icon={{ name: "tune", decorative: true }}
+          label="偏好"
+          icon={<ControlOutlined />}
           onClick={() => onInvokeCommand(BOOK_READER_COMMAND_IDS.togglePreferences)}
           active={activePanel === "preferences"}
+          variant="dock"
         />
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { AnimationController } from "./animation-controller";
+import { AnimationController, EASING } from "./animation-controller";
 import { computeLayout } from "./layout-calculator";
 import { PaginationEngine } from "./pagination-engine";
 import { PositionTracker } from "./position-tracker";
@@ -11,6 +11,7 @@ import type {
   EngineOptions,
   NavigationResult,
   PageDirection,
+  PageRippleDetail,
   PaginationMetrics,
   ReadingBoundary,
   ReadingMode,
@@ -21,13 +22,68 @@ import type {
   SectionKind,
 } from "./types";
 
-import { resolveDocumentScrollingElement } from "../utils/dom";
+import { isStyleElementNode, resolveDocumentScrollingElement } from "../utils/dom";
 
 type EventHandler = (event: AnyEngineEvent) => void;
 
 const BOUNDARY_THRESHOLD_RATIO = 0.04;
 const MIN_BOUNDARY_THRESHOLD_PX = 24;
 const SUB_PIXEL_TOLERANCE = 2;
+
+/** 点击翻页涟漪的自定义事件名（帧内派发，由引擎监听渲染）。 */
+export const PAGE_RIPPLE_EVENT = "chips-book-reader:page-ripple";
+
+/** 帧内动画样式注入的 `<style>` 元素 ID。 */
+const FRAME_ANIMATION_STYLE_ID = "book-reader-frame-animation";
+
+/** 帧内动画样式资源地址（与 `ReadiumCssManager` 相同的资源加载方式）。 */
+const FRAME_ANIMATION_CSS_URL = new URL("../styles/reader-animation.css", import.meta.url).href;
+
+/** 全书边界回弹时长（毫秒）。 */
+const BOUNDARY_BOUNCE_DURATION_MS = 120;
+
+/** 全书边界回弹的 overshoot 像素值。 */
+const BOUNDARY_BOUNCE_OVERSHOOT_PX = 2;
+
+/** 章节首屏淡入动画的兜底清理时长（毫秒）。 */
+const SECTION_ENTRANCE_FALLBACK_MS = 300;
+
+/** 帧内反馈元素（光晕 / 涟漪）的兜底清理时长（毫秒）。 */
+const FRAME_FEEDBACK_FALLBACK_MS = 300;
+
+let frameAnimationCssPromise: Promise<string> | null = null;
+
+function loadFrameAnimationCss(): Promise<string> {
+  frameAnimationCssPromise ??= fetch(FRAME_ANIMATION_CSS_URL).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(`加载翻页动画样式失败：${response.status}`);
+    }
+    return response.text();
+  });
+  return frameAnimationCssPromise;
+}
+
+/** 根据方向性与翻页方向解析光晕显示的物理边缘。 */
+function resolveGlowEdge(directionality: DocumentDirectionality, direction: PageDirection): "left" | "right" | "top" | "bottom" {
+  if (directionality.isVertical) {
+    return direction === "next" ? "bottom" : "top";
+  }
+
+  if (directionality.isRtl) {
+    return direction === "next" ? "left" : "right";
+  }
+
+  return direction === "next" ? "right" : "left";
+}
+
+/** 根据方向性与翻页方向解析边界回弹的位移符号（朝翻页视觉方向 overshoot）。 */
+function resolveBounceSign(directionality: DocumentDirectionality, direction: PageDirection): 1 | -1 {
+  if (directionality.isVertical) {
+    return direction === "next" ? -1 : 1;
+  }
+
+  return direction === "next" ? (directionality.isRtl ? 1 : -1) : (directionality.isRtl ? -1 : 1);
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -95,7 +151,28 @@ export class DocumentController {
   private resizeObserver: ResizeObserver | null = null;
   private resizeRafHandle: number | null = null;
   private scrollCleanup: (() => void) | null = null;
+  private rippleCleanup: (() => void) | null = null;
+  private readonly feedbackTimers = new Set<number>();
   private lastSpreadIndex = 0;
+
+  private readonly handlePageRipple = (event: Event): void => {
+    if (this.prefersReducedMotion()) {
+      return;
+    }
+
+    const detail = (event as CustomEvent<PageRippleDetail>).detail;
+    if (!detail) {
+      return;
+    }
+
+    const view = this.document.defaultView;
+    const viewportWidth = Math.max(1, this.document.documentElement.clientWidth || view?.innerWidth || 1);
+    const viewportHeight = Math.max(1, this.document.documentElement.clientHeight || view?.innerHeight || 1);
+    this.createFrameFeedbackElement("book-reader-ripple", {
+      left: clamp(detail.x, 0, viewportWidth),
+      top: clamp(detail.y, 0, viewportHeight),
+    });
+  };
 
   public constructor(
     private readonly document: Document,
@@ -103,13 +180,16 @@ export class DocumentController {
   ) {}
 
   public async mount(): Promise<void> {
+    this.attachPageRippleListener();
     await this.cssManager.injectStyles(this.document);
+    await this.ensureFrameAnimationStyles();
     this.applyPresentation();
     this.positionTracker.initialize(this.getReadingMode(), this.document, this.getDirectionality());
     this.attachScrollListener();
     this.attachResizeObserver();
     await waitForLayoutPasses(this.document, 2);
     this.alignToViewport("auto");
+    this.playSectionEntrance();
     this.emitLayoutChanged();
     this.emitProgressUpdated();
   }
@@ -119,7 +199,14 @@ export class DocumentController {
     this.resizeObserver = null;
     this.scrollCleanup?.();
     this.scrollCleanup = null;
+    this.detachPageRippleListener();
     this.animationController.destroy();
+
+    const view = this.document.defaultView;
+    for (const timer of this.feedbackTimers) {
+      view?.clearTimeout(timer);
+    }
+    this.feedbackTimers.clear();
 
     if (this.resizeRafHandle !== null && this.document.defaultView) {
       cancelAnimationFrameSchedule(this.document.defaultView, this.resizeRafHandle);
@@ -150,13 +237,23 @@ export class DocumentController {
       if (next.targetIndex === currentSpreadIndex || Math.abs(next.targetOffset - currentOffset) <= SUB_PIXEL_TOLERANCE) {
         const boundary = direction === "previous" ? "start" : "end";
         this.emitBoundary(boundary, direction);
+        if (this.isBookBoundary(boundary)) {
+          this.playBoundaryBounce(direction);
+        }
         return { moved: false, reachedBoundary: true, boundary };
       }
 
-      this.writeOffset(next.targetOffset, "smooth");
       this.positionTracker.update(next.targetIndex, metrics, mode);
       this.lastSpreadIndex = next.targetIndex;
+
+      if (this.canUseSlideAnimation()) {
+        this.animatePageSlide(next.targetOffset, metrics.spreadWidthPx, direction);
+      } else {
+        this.writeOffset(next.targetOffset, "smooth");
+      }
+
       this.emitPageChanged(direction, next.targetIndex, metrics.spreadCount);
+      this.playPageGlow(direction);
       this.emitProgressUpdated();
       return { moved: true, reachedBoundary: false };
     }
@@ -167,6 +264,9 @@ export class DocumentController {
     if (Math.abs(next.target - metrics.scrollOffset) <= 1) {
       const boundary = next.reachedBoundary ?? (direction === "previous" ? "start" : "end");
       this.emitBoundary(boundary, direction);
+      if (this.isBookBoundary(boundary)) {
+        this.playBoundaryBounce(direction);
+      }
       return { moved: false, reachedBoundary: true, boundary };
     }
 
@@ -177,6 +277,7 @@ export class DocumentController {
       scrollFraction: this.scrollEngine.computeScrollFraction(next.target, metrics.maxScrollOffset),
     }, mode);
     this.emitScrollChanged(this.scrollEngine.computeScrollFraction(next.target, metrics.maxScrollOffset));
+    this.playPageGlow(direction);
     this.emitProgressUpdated();
     return {
       moved: true,
@@ -358,6 +459,202 @@ export class DocumentController {
 
   private applyPresentation(): void {
     this.cssManager.applySettings(this.document, this.options, this.getLayout());
+  }
+
+  // ─── 翻页视觉反馈（光晕 / 涟漪 / 回弹 / 章节淡入 / 滑入动画） ──────
+
+  private attachPageRippleListener(): void {
+    this.detachPageRippleListener();
+    this.document.addEventListener(PAGE_RIPPLE_EVENT, this.handlePageRipple);
+    this.rippleCleanup = () => {
+      this.document.removeEventListener(PAGE_RIPPLE_EVENT, this.handlePageRipple);
+    };
+  }
+
+  private detachPageRippleListener(): void {
+    this.rippleCleanup?.();
+    this.rippleCleanup = null;
+  }
+
+  /**
+   * 将翻页动画样式注入帧内文档（与宿主共用 `reader-animation.css` 单一来源）。
+   *
+   * 注入失败时静默降级为无动画翻页，不阻断阅读流程。
+   */
+  private async ensureFrameAnimationStyles(): Promise<void> {
+    const head = this.document.head;
+    if (!head) {
+      return;
+    }
+
+    const existing = this.document.getElementById(FRAME_ANIMATION_STYLE_ID);
+    if (isStyleElementNode(existing)) {
+      return;
+    }
+
+    try {
+      const cssText = await loadFrameAnimationCss();
+      const styleElement = this.document.createElement("style");
+      styleElement.id = FRAME_ANIMATION_STYLE_ID;
+      styleElement.type = "text/css";
+      styleElement.textContent = cssText;
+      head.appendChild(styleElement);
+    } catch {
+      // 样式资源不可用时保持现有翻页行为
+    }
+  }
+
+  /** 新章节首屏 200ms 淡入 + 4px 上移复原（换 iframe 时消除硬切感）。 */
+  private playSectionEntrance(): void {
+    const body = this.document.body;
+    const view = this.document.defaultView;
+    if (!body || !view) {
+      return;
+    }
+
+    body.classList.add("book-reader-sectionEnter");
+
+    let removed = false;
+    const remove = (): void => {
+      if (removed) {
+        return;
+      }
+
+      removed = true;
+      view.clearTimeout(timer);
+      this.feedbackTimers.delete(timer);
+      body.classList.remove("book-reader-sectionEnter");
+    };
+
+    const handleAnimationEnd = (event: AnimationEvent): void => {
+      if (event.animationName === "book-reader-section-enter") {
+        remove();
+      }
+    };
+
+    const timer = view.setTimeout(remove, SECTION_ENTRANCE_FALLBACK_MS);
+    this.feedbackTimers.add(timer);
+    body.addEventListener("animationend", handleAnimationEnd, { once: true });
+  }
+
+  /** 翻页方向光晕：对应边缘 4px 高亮弧线 180ms 淡出，并派发光晕触发事件。 */
+  private playPageGlow(direction: PageDirection): void {
+    if (this.prefersReducedMotion()) {
+      return;
+    }
+
+    const edge = resolveGlowEdge(this.getDirectionality(), direction);
+    this.createFrameFeedbackElement(`book-reader-glow book-reader-glow--${edge}`);
+    this.emitPageGlow(direction);
+  }
+
+  /** 全书开头 / 结尾边界回弹：沿翻页方向 2px overshoot 后 120ms 弹回。 */
+  private playBoundaryBounce(direction: PageDirection): void {
+    const body = this.document.body;
+    if (this.prefersReducedMotion() || !body) {
+      return;
+    }
+
+    body.classList.remove("book-reader-sectionEnter");
+    const directionality = this.getDirectionality();
+    const sign = resolveBounceSign(directionality, direction);
+    this.animationController.animateTransform({
+      element: body,
+      axis: directionality.isVertical ? "y" : "x",
+      from: BOUNDARY_BOUNCE_OVERSHOOT_PX * sign,
+      to: 0,
+      duration: BOUNDARY_BOUNCE_DURATION_MS,
+      easing: EASING.easeOutBack,
+    });
+  }
+
+  /** 是否为全书级边界（章节索引位于全书首尾）。 */
+  private isBookBoundary(boundary: ReadingBoundary): boolean {
+    const section = this.options.section;
+    if (!section) {
+      return false;
+    }
+
+    return boundary === "start" ? section.index === 0 : section.index >= section.count - 1;
+  }
+
+  /** 滑入翻页动画的落位协调：当前内容位移 + 淡出后，落位 scroll 并归位 transform。 */
+  private animatePageSlide(targetOffset: number, viewportSize: number, direction: PageDirection): void {
+    const body = this.document.body;
+    if (!body) {
+      this.writeOffset(targetOffset, "smooth");
+      return;
+    }
+
+    body.classList.remove("book-reader-sectionEnter");
+    body.classList.add("book-reader-sliding");
+    this.animationController.animateSlide({
+      element: body,
+      scrollElement: resolveDocumentScrollingElement(this.document),
+      toOffset: targetOffset,
+      viewportSize,
+      direction,
+      onComplete: () => {
+        body.classList.remove("book-reader-sliding");
+      },
+      onCancel: () => {
+        body.classList.remove("book-reader-sliding");
+      },
+    });
+  }
+
+  /** 是否启用 L2 滑入翻页（分页模式，排除竖排 / RTL / 减弱动效偏好）。 */
+  private canUseSlideAnimation(): boolean {
+    if (this.getReadingMode() !== "paginated" || !this.document.body) {
+      return false;
+    }
+
+    const directionality = this.getDirectionality();
+    if (directionality.isVertical || directionality.isRtl) {
+      return false;
+    }
+
+    return !this.prefersReducedMotion();
+  }
+
+  private prefersReducedMotion(): boolean {
+    const view = this.document.defaultView;
+    return Boolean(
+      view && typeof view.matchMedia === "function" && view.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    );
+  }
+
+  /** 在帧内渲染一次性反馈元素（固定定位，挂在根元素下避免受内容层 transform 影响）。 */
+  private createFrameFeedbackElement(className: string, position?: { left: number; top: number }): void {
+    const view = this.document.defaultView;
+    const root = this.document.documentElement;
+    if (!view || !root) {
+      return;
+    }
+
+    const element = this.document.createElement("div");
+    element.className = className;
+    if (position) {
+      element.style.left = `${Math.round(position.left)}px`;
+      element.style.top = `${Math.round(position.top)}px`;
+    }
+    root.appendChild(element);
+
+    let removed = false;
+    const remove = (): void => {
+      if (removed) {
+        return;
+      }
+
+      removed = true;
+      view.clearTimeout(timer);
+      this.feedbackTimers.delete(timer);
+      element.remove();
+    };
+
+    const timer = view.setTimeout(remove, FRAME_FEEDBACK_FALLBACK_MS);
+    this.feedbackTimers.add(timer);
+    element.addEventListener("animationend", remove, { once: true });
   }
 
   private attachResizeObserver(): void {
@@ -556,6 +853,14 @@ export class DocumentController {
       type: "boundary-reached",
       timestamp: performance.now(),
       boundary,
+      direction,
+    });
+  }
+
+  private emitPageGlow(direction: PageDirection): void {
+    this.emit("page-glow", {
+      type: "page-glow",
+      timestamp: performance.now(),
       direction,
     });
   }

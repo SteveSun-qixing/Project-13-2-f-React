@@ -12,68 +12,138 @@
   justify-content: center;
 }
 
-.book-reader-metaCard {
-  width: min(920px, calc(100vw - 48px));
+.book-reader-chrome__fullscreen {
+  position: absolute;
+  top: 0;
+  right: 0;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 18px 20px;
+  pointer-events: auto;
+}
+
+.book-reader-metaCard {
+  position: relative;
+  width: min(920px, calc(100vw - 48px));
+  padding: 14px 20px;
   border-radius: 28px;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 8%, transparent);
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 78%, white 22%);
-  box-shadow: 0 20px 56px color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 10%, transparent);
+  border: 1px solid color-mix(in srgb, #1f1d19 8%, transparent);
+  background: color-mix(in srgb, #f5f2ea 78%, white 22%);
+  box-shadow: 0 20px 56px color-mix(in srgb, #1f1d19 10%, transparent);
   backdrop-filter: blur(20px);
   pointer-events: auto;
 }
 
-.book-reader-metaCard__copy {
+.book-reader-metaCard__row {
   display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
 }
 
-.book-reader-metaCard__eyebrow,
+.book-reader-metaCard__titleButton {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: "Iowan Old Style", "Source Han Serif SC", serif;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #1f1d19;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+.book-reader-metaCard__titleButton:hover {
+  color: #0a84ff;
+}
+
+.book-reader-metaCard__titleButton:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.book-reader-metaCard__chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  color: color-mix(in srgb, #1f1d19 45%, transparent);
+  transition: transform 160ms ease;
+}
+
+.book-reader-metaCard__chevron--open {
+  transform: rotate(180deg);
+}
+
+.book-reader-metaCard__progress {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, #1f1d19 62%, transparent);
+}
+
+.book-reader-metaCard__info {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 1;
+  min-width: 200px;
+  max-width: min(340px, calc(100vw - 64px));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, #1f1d19 8%, transparent);
+  background: color-mix(in srgb, #f5f2ea 86%, white 14%);
+  box-shadow: 0 20px 56px color-mix(in srgb, #1f1d19 12%, transparent);
+  backdrop-filter: blur(20px);
+}
+
+.book-reader-metaCard__infoTitle {
+  margin: 0;
+  font-family: "Iowan Old Style", "Source Han Serif SC", serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.book-reader-metaCard__infoCreator {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: color-mix(in srgb, #1f1d19 70%, transparent);
+}
+
+.book-reader-metaCard__infoSource {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #0a84ff 10%, #f5f2ea);
+  color: #0a84ff;
+  font-size: 11px;
+}
+
 .book-reader-panel__eyebrow {
   margin: 0;
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 56%, transparent);
+  color: color-mix(in srgb, #1f1d19 56%, transparent);
 }
 
-.book-reader-metaCard__title,
 .book-reader-panel__header h2 {
   margin: 0;
   font-family: "Iowan Old Style", "Source Han Serif SC", serif;
-}
-
-.book-reader-metaCard__title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: clamp(22px, 3vw, 32px);
-  line-height: 1.08;
-}
-
-.book-reader-metaCard__meta {
-  margin: 0;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 70%, transparent);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.book-reader-metaCard__badge {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2158d2) 10%, var(--chips-sys-color-surface, #f5f2ea));
-  color: var(--chips-sys-color-primary, #2158d2);
-  font-size: 12px;
 }
 
 .book-reader-chrome__navigation {
@@ -92,9 +162,9 @@
   gap: 10px;
   padding: 10px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 8%, transparent);
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 80%, white 20%);
-  box-shadow: 0 24px 64px color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 12%, transparent);
+  border: 1px solid color-mix(in srgb, #1f1d19 8%, transparent);
+  background: color-mix(in srgb, #f5f2ea 80%, white 20%);
+  box-shadow: 0 24px 64px color-mix(in srgb, #1f1d19 12%, transparent);
   backdrop-filter: blur(18px);
   transform: translateX(-50%);
   pointer-events: auto;
@@ -108,16 +178,16 @@
   justify-content: center;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 80%, white 20%);
-  color: var(--chips-sys-color-on-surface, #1f1d19);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 8%, transparent);
+  background: color-mix(in srgb, #f5f2ea 80%, white 20%);
+  color: #1f1d19;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #1f1d19 8%, transparent);
   transition: transform 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
 
 .book-reader-controlButton:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2158d2) 12%, var(--chips-sys-color-surface, #f5f2ea));
-  color: var(--chips-sys-color-primary, #2158d2);
+  background: color-mix(in srgb, #0a84ff 12%, #f5f2ea);
+  color: #0a84ff;
 }
 
 .book-reader-controlButton:disabled {
@@ -126,21 +196,82 @@
 }
 
 .book-reader-controlButton--active {
-  background: var(--chips-sys-color-primary, #2158d2);
+  background: #0a84ff;
   color: white;
-  box-shadow: 0 14px 32px color-mix(in srgb, var(--chips-sys-color-primary, #2158d2) 24%, transparent);
+  box-shadow: 0 14px 32px color-mix(in srgb, #0a84ff 24%, transparent);
 }
 
 .book-reader-controlButton--nav {
   width: 58px;
   height: 58px;
-  box-shadow: 0 20px 48px color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 14%, transparent);
+  box-shadow: 0 20px 48px color-mix(in srgb, #1f1d19 14%, transparent);
   pointer-events: auto;
 }
 
 .book-reader-controlButton--close {
   width: 40px;
   height: 40px;
+}
+
+.book-reader-controlButton--dock {
+  width: 52px;
+  height: 56px;
+  flex-direction: column;
+  border-radius: 16px;
+}
+
+.book-reader-controlButton__dock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.book-reader-controlButton__dockIcon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.book-reader-controlButton__dockLabel {
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.book-reader-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.book-reader-feedback__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  font-size: 16px;
+}
+
+.book-reader-feedback__message {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.book-reader-feedback.book-reader-feedback--info {
+  background: color-mix(in srgb, #0a84ff 12%, white);
+  color: #1f1d19;
+}
+
+.book-reader-feedback.book-reader-feedback--info .book-reader-feedback__icon {
+  color: #0a84ff;
+}
+
+.book-reader-feedback.book-reader-feedback--success {
+  background: color-mix(in srgb, #34c759 12%, white);
+  color: #1f1d19;
+}
+
+.book-reader-feedback.book-reader-feedback--success .book-reader-feedback__icon {
+  color: #34c759;
 }
 
 @media (max-width: 960px) {
@@ -162,16 +293,6 @@
 }
 
 @media (max-width: 720px) {
-  .book-reader-metaCard {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .book-reader-metaCard__title {
-    white-space: normal;
-  }
-
   .book-reader-chrome__dock {
     width: calc(100vw - 24px);
     justify-content: space-between;
@@ -182,5 +303,12 @@
   .book-reader-controlButton {
     width: 42px;
     height: 42px;
+  }
+
+  .book-reader-controlButton--dock {
+    width: auto;
+    min-width: 44px;
+    height: 52px;
+    flex: 1 1 0;
   }
 }

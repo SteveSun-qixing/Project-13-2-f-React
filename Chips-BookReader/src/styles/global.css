@@ -20,10 +20,10 @@ body,
 html,
 body {
   background:
-    radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--chips-sys-color-primary, #2158d2) 12%, transparent) 0%, transparent 28%),
-    radial-gradient(circle at 82% 20%, color-mix(in srgb, var(--chips-sys-color-on-surface, #1f1d19) 6%, transparent) 0%, transparent 22%),
-    linear-gradient(180deg, color-mix(in srgb, var(--chips-sys-color-surface, #f5f2ea) 92%, white 8%) 0%, var(--chips-sys-color-surface, #f5f2ea) 100%);
-  color: var(--chips-sys-color-on-surface, #1f1d19);
+    radial-gradient(circle at 16% 12%, color-mix(in srgb, #0a84ff 12%, transparent) 0%, transparent 28%),
+    radial-gradient(circle at 82% 20%, color-mix(in srgb, #1f1d19 6%, transparent) 0%, transparent 22%),
+    linear-gradient(180deg, color-mix(in srgb, #f5f2ea 92%, white 8%) 0%, #f5f2ea 100%);
+  color: #1f1d19;
   font-family: "Avenir Next", "PingFang SC", "Noto Sans SC", sans-serif;
 }
 

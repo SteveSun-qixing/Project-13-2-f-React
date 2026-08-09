@@ -3,18 +3,21 @@ import type { Client, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
 import { appConfig } from "../../config/app-config";
 import { createLogger, createTraceId } from "../../config/logging";
 import { ReaderShell } from "../components/ReaderShell";
+import { ReadingRestoreBanner, type ReadingRestoreHint } from "../components/ReadingRestoreBanner";
 import { loadReadableBook } from "../domain/book/virtual-book";
 import { renderSectionDocument } from "../domain/epub/markup";
 import type { EpubBook, EpubThemePalette, RenderedSectionDocument } from "../domain/epub/types";
-import { resolveLocaleDirection } from "../i18n/messages";
-import { useBookReaderText, type BookReaderTextResolver } from "../i18n/useBookReaderText";
+import { formatMessage } from "../lib/messages";
+import {
+  computeSavedPositionPercentage,
+  useReadingPosition,
+  type UseReadingPositionReturn,
+} from "../hooks/useReadingPosition";
+import { useReaderSystemTheme } from "../hooks/useReaderSystemTheme";
 import { chipsClient } from "../runtime/chips-client";
 import { readLaunchContext } from "../runtime/launch-context";
-import {
-  readRendererThemePalette,
-  resolveReaderThemePalette,
-} from "../runtime/theme-runtime";
 import { normalizeBinaryContent } from "../utils/binary";
+import { BASE_READER_PALETTE, resolveReaderThemePalette } from "../utils/reader-palette";
 import {
   createBookSourceDescriptor,
   isLikelyLocalPath,
@@ -46,6 +49,8 @@ export interface BookReaderRuntimeEnvironment {
   launchParams: Record<string, unknown>;
 }
 
+export type BookReaderTextResolver = (key: string, params?: Record<string, string | number>) => string;
+
 export interface BookReaderRuntimeValue {
   client: Client;
   traceId: string;
@@ -65,6 +70,9 @@ export interface BookReaderRuntimeValue {
   themePalette: EpubThemePalette;
   locale: string;
   t: BookReaderTextResolver;
+  readingPosition: UseReadingPositionReturn;
+  restoreHint: ReadingRestoreHint | null;
+  restartFromBeginning(): void;
   openBookTarget(target: LaunchBookTarget): Promise<void>;
   openFile(): Promise<void>;
   openUrl(sourceValue: string): Promise<void>;
@@ -173,9 +181,18 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   const [isResolving, setIsResolving] = React.useState(false);
   const [isLoadingSection, setIsLoadingSection] = React.useState(false);
   const [preferences, setPreferences] = React.useState<ReaderPreferences>(appConfig.defaultPreferences);
-  const [themePalette, setThemePalette] = React.useState<EpubThemePalette>(() => readRendererThemePalette());
+  const [restoreHint, setRestoreHint] = React.useState<ReadingRestoreHint | null>(null);
   const launchHandledRef = React.useRef(false);
-  const { locale, text } = useBookReaderText();
+  const readingPosition = useReadingPosition({
+    bookSourceId: book?.source.sourceId ?? null,
+    configClient: client.config,
+  });
+  const systemTheme = useReaderSystemTheme();
+  const locale = "zh-CN";
+  const text = React.useCallback<BookReaderTextResolver>(
+    (key, params) => formatMessage(key, params),
+    [],
+  );
 
   const t = text;
 
@@ -424,18 +441,6 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   }, [client, logger, openBookTarget]);
 
   React.useEffect(() => {
-    const unsubscribeTheme = client.theme.onChanged(() => {
-      window.setTimeout(() => {
-        setThemePalette(readRendererThemePalette());
-      }, 0);
-    });
-
-    return () => {
-      unsubscribeTheme();
-    };
-  }, [client]);
-
-  React.useEffect(() => {
     if (!book) {
       setRenderedSection(null);
       return;
@@ -492,35 +497,37 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   }, [feedback]);
 
   React.useEffect(() => {
-    if (typeof document === "undefined") {
+    if (!book || !readingPosition.savedPosition) {
+      setRestoreHint(null);
       return;
     }
 
-    const previousLang = document.documentElement.getAttribute("lang");
-    const previousDir = document.documentElement.getAttribute("dir");
-    const previousLocale = document.documentElement.getAttribute("data-chips-locale");
-    document.documentElement.setAttribute("lang", locale);
-    document.documentElement.setAttribute("dir", resolveLocaleDirection(locale));
-    document.documentElement.setAttribute("data-chips-locale", locale);
+    setRestoreHint({
+      position: readingPosition.savedPosition,
+      percentage: computeSavedPositionPercentage(readingPosition.savedPosition, book.sections.length),
+    });
+  }, [book, readingPosition.savedPosition]);
+
+  React.useEffect(() => {
+    if (!restoreHint) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setRestoreHint(null);
+    }, 3000);
 
     return () => {
-      if (previousLang === null) {
-        document.documentElement.removeAttribute("lang");
-      } else {
-        document.documentElement.setAttribute("lang", previousLang);
-      }
-      if (previousDir === null) {
-        document.documentElement.removeAttribute("dir");
-      } else {
-        document.documentElement.setAttribute("dir", previousDir);
-      }
-      if (previousLocale === null) {
-        document.documentElement.removeAttribute("data-chips-locale");
-      } else {
-        document.documentElement.setAttribute("data-chips-locale", previousLocale);
-      }
+      window.clearTimeout(timeoutId);
     };
-  }, [locale]);
+  }, [restoreHint]);
+
+  const restartFromBeginning = React.useCallback((): void => {
+    readingPosition.clear();
+    setRestoreHint(null);
+    selectSection(0);
+    setCurrentFragment(undefined);
+  }, [readingPosition, selectSection]);
 
   const activeSceneId = getSceneIdForReaderState({ book, feedback });
   const activeScene = getSceneDefinition(activeSceneId);
@@ -536,39 +543,36 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   }), [activeSceneId, launchContext]);
 
   const readerThemePalette = React.useMemo(
-    () => resolveReaderThemePalette(themePalette, preferences),
-    [preferences, themePalette],
+    () => resolveReaderThemePalette(BASE_READER_PALETTE, preferences, systemTheme.isDark ? "dark" : "light"),
+    [preferences, systemTheme.isDark],
   );
 
   const renderReaderShell = React.useCallback(() => (
-    <ReaderShell
-      book={book}
-      renderedSection={renderedSection}
-      currentSectionIndex={currentSectionIndex}
-      currentFragment={currentFragment}
-      feedback={feedback}
-      isResolving={isResolving}
-      isLoadingSection={isLoadingSection}
-      preferences={preferences}
-      themePalette={readerThemePalette}
-      configClient={client.config}
-      onOpenFile={openFile}
-      onOpenUrl={openUrl}
-      onSelectSection={selectSection}
-      onStepSection={stepSection}
-      onUpdatePreferences={updatePreferences}
-      onDropFiles={dropFiles}
-      onOpenExternalLink={(url) => client.platform.openExternal(url)}
-      commandClient={client}
-      commandContext={{
-        pluginId: environment.pluginId,
-        sceneId: environment.hostSceneId,
-        surfaceId: environment.surfaceId ?? undefined,
-        documentId: book?.source.sourceId,
-        componentId: "book-reader.reader-shell",
-      }}
-      t={t}
-    />
+    <>
+      {restoreHint ? (
+        <ReadingRestoreBanner hint={restoreHint} onRestartFromBeginning={restartFromBeginning} />
+      ) : null}
+      <ReaderShell
+        book={book}
+        renderedSection={renderedSection}
+        currentSectionIndex={currentSectionIndex}
+        currentFragment={currentFragment}
+        feedback={feedback}
+        isResolving={isResolving}
+        isLoadingSection={isLoadingSection}
+        preferences={preferences}
+        themePalette={readerThemePalette}
+        configClient={client.config}
+        onOpenFile={openFile}
+        onOpenUrl={openUrl}
+        onSelectSection={selectSection}
+        onStepSection={stepSection}
+        onUpdatePreferences={updatePreferences}
+        onDropFiles={dropFiles}
+        onOpenExternalLink={(url) => client.platform.openExternal(url)}
+        t={t}
+      />
+    </>
   ), [
     book,
     client,
@@ -583,13 +587,12 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     preferences,
     readerThemePalette,
     renderedSection,
+    restartFromBeginning,
+    restoreHint,
     selectSection,
     stepSection,
     t,
     updatePreferences,
-    environment.hostSceneId,
-    environment.pluginId,
-    environment.surfaceId,
   ]);
 
   const value = React.useMemo<BookReaderRuntimeValue>(() => ({
@@ -611,6 +614,9 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     themePalette: readerThemePalette,
     locale,
     t,
+    readingPosition,
+    restoreHint,
+    restartFromBeginning,
     openBookTarget,
     openFile,
     openUrl,
@@ -638,8 +644,11 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     openUrl,
     preferences,
     readerThemePalette,
+    readingPosition,
     renderedSection,
     renderReaderShell,
+    restartFromBeginning,
+    restoreHint,
     selectSection,
     stepSection,
     t,

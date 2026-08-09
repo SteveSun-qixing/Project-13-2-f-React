@@ -1,3 +1,5 @@
+import { BRIGHTNESS_DEFAULT, clampBrightness } from "./reader-palette";
+
 export interface LaunchBookTarget {
   sourceId: string;
   filePath?: string;
@@ -26,16 +28,42 @@ export interface ReaderFeedback {
 }
 
 export type ReaderReadingMode = "paginated" | "scroll";
-export type ReaderBackgroundTone = "theme" | "warm" | "mist" | "night";
+export type ReaderBackgroundTone = "theme" | "warm" | "mist" | "night" | "system";
 export type ReaderMoveDirection = "previous" | "next";
+export type ReaderFontFamily = "serif" | "sans" | "round" | "system";
+export type ReaderTextAlign = "justify" | "left";
+export type ReaderWritingMode = "horizontal" | "vertical";
 
 export interface ReaderPreferences {
   fontScale: number;
   contentWidth: number;
-  fontFamily: "serif" | "sans";
+  fontFamily: ReaderFontFamily;
   readingMode: ReaderReadingMode;
   backgroundTone: ReaderBackgroundTone;
+  /** 行高倍数（1.4–2.0，默认 1.65）；旧存储缺失时回退默认值。 */
+  lineHeight?: number;
+  /** 字距（em，0–0.06，默认 0.01）；旧存储缺失时回退默认值。 */
+  letterSpacing?: number;
+  /** 正文对齐方式（两端对齐/左对齐，默认两端对齐）；旧存储缺失时回退默认值。 */
+  textAlign?: ReaderTextAlign;
+  /** 排版方向（横排/竖排，默认横排）；旧存储缺失时回退默认值。 */
+  writingMode?: ReaderWritingMode;
+  /** 亮度（0.6–1.0，默认 1）；旧存储缺失时回退默认值。 */
+  brightness?: number;
 }
+
+export const MIN_LINE_HEIGHT = 1.4;
+export const MAX_LINE_HEIGHT = 2;
+export const DEFAULT_LINE_HEIGHT = 1.65;
+export const MAX_LETTER_SPACING = 0.06;
+export const DEFAULT_LETTER_SPACING = 0.01;
+
+export const READER_FONT_FAMILY_STACKS: Record<ReaderFontFamily, string> = {
+  serif: `Georgia, "Iowan Old Style", "Songti SC", "SimSun", serif`,
+  sans: `-apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif`,
+  round: `"Yuanti SC", "Hiragino Maru Gothic ProN", "YouYuan", "幼圆", "Microsoft YaHei", sans-serif`,
+  system: `system-ui, -apple-system, sans-serif`,
+};
 
 export const SUPPORTED_BOOK_EXTENSIONS = [
   ".epub",
@@ -74,7 +102,13 @@ export const SUPPORTED_BOOK_MIME_TYPES = [
 ];
 export const READER_RENDERABLE_FORMATS = ["epub", "epub3", "pdf", "txt", "md", "markdown", "fb2", "rtf"] as const;
 export const READER_READING_MODES = ["paginated", "scroll"] as const satisfies readonly ReaderReadingMode[];
-export const READER_BACKGROUND_TONES = ["theme", "warm", "mist", "night"] as const satisfies readonly ReaderBackgroundTone[];
+export const READER_BACKGROUND_TONES = [
+  "system",
+  "theme",
+  "warm",
+  "mist",
+  "night",
+] as const satisfies readonly ReaderBackgroundTone[];
 
 const FORMAT_BY_MIME_TYPE: Record<string, string> = {
   "application/epub+zip": "epub",
@@ -232,6 +266,20 @@ export function clampFontScale(value: number): number {
   return Math.min(1.4, Math.max(0.85, Number(value.toFixed(2))));
 }
 
+export function clampLineHeight(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_LINE_HEIGHT;
+  }
+  return Math.min(MAX_LINE_HEIGHT, Math.max(MIN_LINE_HEIGHT, Number(value.toFixed(2))));
+}
+
+export function clampLetterSpacing(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_LETTER_SPACING;
+  }
+  return Math.min(MAX_LETTER_SPACING, Math.max(0, Number(value.toFixed(3))));
+}
+
 export function clampContentWidth(value: number): number {
   if (!Number.isFinite(value)) {
     return 760;
@@ -244,19 +292,40 @@ export function normalizeReadingMode(value: string | null | undefined): ReaderRe
 }
 
 export function normalizeBackgroundTone(value: string | null | undefined): ReaderBackgroundTone {
-  if (value === "warm" || value === "mist" || value === "night") {
+  if (value === "theme" || value === "warm" || value === "mist" || value === "night" || value === "system") {
     return value;
   }
 
-  return "theme";
+  return "system";
+}
+
+export function normalizeFontFamily(value: string | null | undefined): ReaderFontFamily {
+  if (value === "sans" || value === "round" || value === "system") {
+    return value;
+  }
+
+  return "serif";
+}
+
+export function normalizeTextAlign(value: string | null | undefined): ReaderTextAlign {
+  return value === "left" ? "left" : "justify";
+}
+
+export function normalizeWritingMode(value: string | null | undefined): ReaderWritingMode {
+  return value === "vertical" ? "vertical" : "horizontal";
 }
 
 export function normalizeReaderPreferences(preferences: ReaderPreferences): ReaderPreferences {
   return {
     fontScale: clampFontScale(preferences.fontScale),
     contentWidth: clampContentWidth(preferences.contentWidth),
-    fontFamily: preferences.fontFamily === "sans" ? "sans" : "serif",
+    fontFamily: normalizeFontFamily(preferences.fontFamily),
     readingMode: normalizeReadingMode(preferences.readingMode),
     backgroundTone: normalizeBackgroundTone(preferences.backgroundTone),
+    lineHeight: clampLineHeight(preferences.lineHeight),
+    letterSpacing: clampLetterSpacing(preferences.letterSpacing),
+    textAlign: normalizeTextAlign(preferences.textAlign),
+    writingMode: normalizeWritingMode(preferences.writingMode),
+    brightness: clampBrightness(preferences.brightness ?? BRIGHTNESS_DEFAULT),
   };
 }

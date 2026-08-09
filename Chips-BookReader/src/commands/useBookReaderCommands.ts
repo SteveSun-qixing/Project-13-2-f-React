@@ -1,57 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCommandRegistry, type CommandItem } from "@chips/ui";
 import {
-  createCommandAdapter,
-  type ChipsCommandAdapter,
-  type ChipsCommandView,
-} from "@chips/component-library";
-import type { Client, CommandInvocationContext, CommandSource, CommandState } from "chips-sdk";
-import {
-  bookReaderCommandDefinitions,
-  createBookReaderCommandSetStateOptions,
-  createBookReaderCommandStatus,
-  createBookReaderCommandStatusFromCommandId,
-  createBookReaderCommandViews,
-  toBookReaderCommandErrorCode,
+  createBookReaderCommands,
+  resolveBookReaderCommandHandlerId,
   type BookReaderCommandHandlerId,
   type BookReaderCommandId,
-  type BookReaderCommandPhase,
   type BookReaderCommandRuntimeState,
-  type BookReaderCommandStatus,
 } from "./book-reader-commands";
 
-type BookReaderCommandHandler = (status: BookReaderCommandStatus) => void | Promise<void>;
+type BookReaderCommandHandler = (payload?: Record<string, unknown>) => void | Promise<void>;
 type BookReaderCommandHandlerStack = Map<BookReaderCommandHandlerId, BookReaderCommandHandler[]>;
 
 export interface UseBookReaderCommandsOptions {
-  client?: Client;
-  invocationContext?: CommandInvocationContext;
   runtimeState: BookReaderCommandRuntimeState;
 }
 
 export interface UseBookReaderCommandsResult {
-  adapter: ChipsCommandAdapter | null;
-  commandViews: ChipsCommandView[];
-  phase: BookReaderCommandPhase;
-  errorCode: string | null;
-  invocationContext: CommandInvocationContext;
-  invokeCommand(
-    commandId: BookReaderCommandId,
-    source: CommandSource,
-    payload?: Record<string, unknown>,
-    contextPatch?: CommandInvocationContext,
-  ): Promise<void>;
+  commands: CommandItem[];
+  invokeCommand(commandId: BookReaderCommandId, payload?: Record<string, unknown>): void;
   registerHandler(handlerId: BookReaderCommandHandlerId, handler: BookReaderCommandHandler): () => void;
-  setCommandState(commandId: BookReaderCommandId, state: CommandState): void;
-}
-
-function mergeInvocationContext(
-  base: CommandInvocationContext,
-  patch?: CommandInvocationContext,
-): CommandInvocationContext {
-  return {
-    ...base,
-    ...patch,
-  };
 }
 
 function getTopHandler(stack: BookReaderCommandHandler[] | undefined): BookReaderCommandHandler | null {
@@ -62,32 +29,27 @@ function getTopHandler(stack: BookReaderCommandHandler[] | undefined): BookReade
   return stack[stack.length - 1] ?? null;
 }
 
-export function useBookReaderCommands(
-  options: UseBookReaderCommandsOptions,
-): UseBookReaderCommandsResult {
-  const { client, invocationContext = {}, runtimeState } = options;
-  const adapter = useMemo(() => (client ? createCommandAdapter(client) : null), [client]);
-  const commandViews = useMemo(() => createBookReaderCommandViews(runtimeState), [runtimeState]);
-  const commandSetStateOptions = useMemo(
-    () => createBookReaderCommandSetStateOptions(invocationContext),
-    [invocationContext],
-  );
-  const [phase, setPhase] = useState<BookReaderCommandPhase>(client ? "idle" : "ready");
-  const [errorCode, setErrorCode] = useState<string | null>(null);
+export function useBookReaderCommands(options: UseBookReaderCommandsOptions): UseBookReaderCommandsResult {
+  const { runtimeState } = options;
+  const { register } = useCommandRegistry();
   const handlersRef = useRef<BookReaderCommandHandlerStack>(new Map());
-  const handledInvocationRef = useRef<string | null>(null);
 
-  const dispatchLocalCommand = useCallback((status: BookReaderCommandStatus): void => {
-    const handler = getTopHandler(handlersRef.current.get(status.handlerId));
-    if (!handler) {
-      return;
-    }
+  const dispatchCommand = useCallback(
+    (commandId: BookReaderCommandId, payload?: Record<string, unknown>): void => {
+      const handlerId = resolveBookReaderCommandHandlerId(commandId);
+      if (!handlerId) {
+        return;
+      }
 
-    void Promise.resolve(handler(status)).catch((error) => {
-      setErrorCode(toBookReaderCommandErrorCode(error));
-      setPhase("error");
-    });
-  }, []);
+      const handler = getTopHandler(handlersRef.current.get(handlerId));
+      if (!handler) {
+        return;
+      }
+
+      void Promise.resolve(handler(payload)).catch(() => undefined);
+    },
+    [],
+  );
 
   const registerHandler = useCallback(
     (handlerId: BookReaderCommandHandlerId, handler: BookReaderCommandHandler): (() => void) => {
@@ -113,128 +75,25 @@ export function useBookReaderCommands(
     [],
   );
 
+  const commands = useMemo(
+    () => createBookReaderCommands(dispatchCommand, runtimeState),
+    [dispatchCommand, runtimeState],
+  );
+
+  useEffect(() => {
+    register(commands);
+  }, [commands, register]);
+
   const invokeCommand = useCallback(
-    async (
-      commandId: BookReaderCommandId,
-      source: CommandSource,
-      payload: Record<string, unknown> = {},
-      contextPatch?: CommandInvocationContext,
-    ): Promise<void> => {
-      setErrorCode(null);
-      const context = mergeInvocationContext(invocationContext, contextPatch);
-
-      if (!client) {
-        dispatchLocalCommand(createBookReaderCommandStatusFromCommandId(commandId, source, payload, context));
-        return;
-      }
-
-      try {
-        await client.command.invoke(commandId, payload, {
-          source,
-          context,
-        });
-      } catch (error) {
-        setErrorCode(toBookReaderCommandErrorCode(error));
-        setPhase("error");
-      }
+    (commandId: BookReaderCommandId, payload?: Record<string, unknown>): void => {
+      dispatchCommand(commandId, payload);
     },
-    [client, dispatchLocalCommand, invocationContext],
+    [dispatchCommand],
   );
-
-  const setCommandState = useCallback(
-    (commandId: BookReaderCommandId, state: CommandState): void => {
-      if (!client) {
-        return;
-      }
-
-      void client.command.setState(commandId, state, commandSetStateOptions).catch((error) => {
-        setErrorCode(toBookReaderCommandErrorCode(error));
-        setPhase("error");
-      });
-    },
-    [client, commandSetStateOptions],
-  );
-
-  useEffect(() => {
-    if (!client) {
-      setPhase("ready");
-      return;
-    }
-
-    let cancelled = false;
-    setPhase("registering");
-    setErrorCode(null);
-
-    Promise.all(bookReaderCommandDefinitions.map((definition) => client.command.register(definition)))
-      .then(() => {
-        if (!cancelled) {
-          setPhase("ready");
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setPhase("error");
-          setErrorCode(toBookReaderCommandErrorCode(error));
-        }
-      });
-
-    let offInvoked = () => undefined;
-    try {
-      offInvoked = client.command.onInvoked((event) => {
-        const status = createBookReaderCommandStatus(event);
-        if (!status) {
-          return;
-        }
-
-        const invocationKey =
-          status.invocationId ?? `${status.commandId}:${status.source}:${JSON.stringify(status.payload ?? {})}`;
-        if (handledInvocationRef.current === invocationKey) {
-          return;
-        }
-        handledInvocationRef.current = invocationKey;
-
-        dispatchLocalCommand(status);
-      });
-    } catch (error) {
-      if (!cancelled) {
-        setPhase("error");
-        setErrorCode(toBookReaderCommandErrorCode(error));
-      }
-    }
-
-    return () => {
-      cancelled = true;
-      offInvoked();
-      void Promise.all(
-        bookReaderCommandDefinitions.map((definition) => client.command.unregister(definition.commandId)),
-      ).catch(() => undefined);
-    };
-  }, [client, dispatchLocalCommand]);
-
-  useEffect(() => {
-    if (!client || phase !== "ready") {
-      return;
-    }
-
-    commandViews.forEach((view) => {
-      if (!view.commandId) {
-        return;
-      }
-      void client.command.setState(view.commandId, view.state ?? {}, commandSetStateOptions).catch((error) => {
-        setErrorCode(toBookReaderCommandErrorCode(error));
-        setPhase("error");
-      });
-    });
-  }, [client, commandSetStateOptions, commandViews, phase]);
 
   return {
-    adapter,
-    commandViews,
-    phase,
-    errorCode,
-    invocationContext,
+    commands,
     invokeCommand,
     registerHandler,
-    setCommandState,
   };
 }

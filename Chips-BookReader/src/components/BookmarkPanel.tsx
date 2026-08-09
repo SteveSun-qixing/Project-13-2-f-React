@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createKeyboardMap, createRovingTabIndex, getRovingTabIndexProps } from "@chips/a11y";
+import { createKeyboardMap, createRovingTabIndex, getRovingTabIndexProps } from "../utils/a11y";
 import type { Bookmark } from "../hooks/useBookmarks";
 import { PanelShell } from "./PanelShell";
 
@@ -61,6 +61,10 @@ export function BookmarkPanel(props: BookmarkPanelProps): React.ReactElement {
   }, [groups]);
   const [activeRovingId, setActiveRovingId] = useState<string | null>(activeBookmarkId ?? null);
   const activeBookmarkExists = activeBookmarkId ? bookmarkRows.some((row) => row.id === activeBookmarkId) : false;
+  const activeBookmark = useMemo(
+    () => (activeBookmarkExists ? bookmarks.find((bookmark) => bookmark.id === activeBookmarkId) ?? null : null),
+    [activeBookmarkExists, activeBookmarkId, bookmarks],
+  );
   const roving = useMemo(
     () => createRovingTabIndex(bookmarkRows, {
       activeId: activeRovingId ?? activeBookmarkId,
@@ -89,6 +93,24 @@ export function BookmarkPanel(props: BookmarkPanelProps): React.ReactElement {
       t={t}
     >
       <div className="book-reader-bookmarks">
+        {activeBookmark ? (
+          <button
+            type="button"
+            className="book-reader-bookmarks__current"
+            aria-label={t("book-reader.bookmarks.openLabel", {
+              section: activeBookmark.sectionTitle,
+              position: formatBookmarkPosition(activeBookmark, t),
+              createdAt: new Date(activeBookmark.createdAt).toLocaleString(),
+            })}
+            onClick={() => onGoToBookmark(activeBookmark)}
+          >
+            <strong className="book-reader-bookmarks__current-title">当前页已添加书签</strong>
+            <span className="book-reader-bookmarks__current-caption">
+              {activeBookmark.excerpt ?? `${activeBookmark.sectionTitle} · ${formatBookmarkPosition(activeBookmark, t)}`}
+            </span>
+          </button>
+        ) : null}
+
         <p className="book-reader-bookmarks__count">{t("book-reader.bookmarks.count", { count: bookmarks.length })}</p>
 
         {bookmarks.length === 0 ? <p className="book-reader-bookmarks__empty">{t("book-reader.bookmarks.empty")}</p> : null}
@@ -148,7 +170,11 @@ export function BookmarkPanel(props: BookmarkPanelProps): React.ReactElement {
                           }
                         }}
                       >
-                        <strong>{positionLabel}</strong>
+                        {bookmark.excerpt ? (
+                          <strong className="book-reader-bookmarks__excerpt">{bookmark.excerpt}</strong>
+                        ) : (
+                          <strong>{positionLabel}</strong>
+                        )}
                         <span>{createdAtLabel}</span>
                       </button>
                       <button

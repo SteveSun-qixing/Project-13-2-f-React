@@ -1,3 +1,5 @@
+import { PAGE_RIPPLE_EVENT } from "../engine/document-controller";
+import type { PageDirection, PageRippleDetail } from "../engine/types";
 import { resolveEventTargetElement } from "../utils/dom";
 import type { InteractionCallbacks, InteractionRuntime } from "./types";
 
@@ -58,11 +60,13 @@ export class ClickHandler {
       }
 
       if (xRatio <= 0.26) {
+        this.dispatchPageRipple(target, "previous", event.clientX, event.clientY);
         this.callbacks.onNavigate("previous");
         return;
       }
 
       if (xRatio >= 0.74) {
+        this.dispatchPageRipple(target, "next", event.clientX, event.clientY);
         this.callbacks.onNavigate("next");
         return;
       }
@@ -79,5 +83,10 @@ export class ClickHandler {
     return () => {
       target.removeEventListener("click", handleClick);
     };
+  }
+
+  private dispatchPageRipple(target: Document, direction: PageDirection, x: number, y: number): void {
+    const detail: PageRippleDetail = { direction, x, y };
+    target.dispatchEvent(new CustomEvent<PageRippleDetail>(PAGE_RIPPLE_EVENT, { detail }));
   }
 }

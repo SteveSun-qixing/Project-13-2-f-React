@@ -1,9 +1,7 @@
 import React, { useId, useLayoutEffect, useRef } from "react";
-import { createFocusScope, restoreFocus } from "@chips/a11y";
-import type { IconDescriptor } from "chips-sdk";
+import { CloseOutlined } from "@ant-design/icons";
+import { createFocusScope, restoreFocus } from "../utils/a11y";
 import { ControlButton } from "./ControlButton";
-
-const CLOSE_ICON = { name: "close", decorative: true } satisfies IconDescriptor;
 
 export interface PanelShellProps {
   title: string;
@@ -98,7 +96,7 @@ export function PanelShell(props: PanelShellProps): React.ReactElement {
           </div>
           <ControlButton
             label={t("book-reader.actions.closePanel")}
-            icon={CLOSE_ICON}
+            icon={<CloseOutlined />}
             onClick={onClose}
             variant="close"
           />
