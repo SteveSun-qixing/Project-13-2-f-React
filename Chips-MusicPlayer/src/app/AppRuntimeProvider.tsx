@@ -2,12 +2,13 @@ import React, { startTransition, useCallback, useContext, useEffect, useMemo, us
 import type { Client, MusicCardOpenPayload, PlatformLaunchContext, StandardError, SurfaceContext } from "chips-sdk";
 import { appConfig } from "../../config/app-config";
 import { createLogger } from "../../config/logging";
+import { createPlaylistEngine, type PlaylistEngine } from "../engine/playlist-engine";
 import { parseEmbeddedAudioMetadata } from "../utils/audio-metadata";
 import { resolveEmbeddedArtworkUrl } from "../utils/artwork-runtime";
 import { persistEmbeddedArtworkPngToWorkspace } from "../utils/embedded-artwork-cache";
 import { normalizeBinaryContent } from "../utils/binary";
 import { createEmptyLyricsDocument, decodeTextWithFallback, parseLyricsText, type LyricsDocument } from "../utils/lyrics";
-import { formatMessage, resolveLocale, type SupportedLocale } from "../i18n/messages";
+import { formatMessage } from "../lib/messages";
 import { resolveLaunchAudioTarget, resolveLaunchWorkspacePath } from "../utils/launch-resource";
 import {
   inferAudioMimeType,
@@ -73,21 +74,6 @@ function resolveErrorMessage(
 
 function isRevocableArtworkUrl(value: string | undefined): boolean {
   return typeof value === "string" && value.startsWith("blob:");
-}
-
-function resolveLanguagePayload(payload: unknown): string | null {
-  if (typeof payload === "string") {
-    return payload;
-  }
-
-  if (payload && typeof payload === "object" && "locale" in payload) {
-    const locale = (payload as { locale?: unknown }).locale;
-    if (typeof locale === "string" && locale.trim().length > 0) {
-      return locale;
-    }
-  }
-
-  return null;
 }
 
 function unwrapFileReadContent(value: unknown): string | Uint8Array | ArrayBuffer {
@@ -158,6 +144,15 @@ export interface MusicPlayerQueueItem {
   selection: FileSelectionBundle;
 }
 
+export interface MusicPlayerControllerActions {
+  getVolume: () => number;
+  togglePlayback: () => void | Promise<void>;
+  seekBy: (offsetSeconds: number) => void;
+  setVolumeLevel: (nextVolume: number) => void;
+  toggleMute: () => void;
+  toggleLoopMode: () => void;
+}
+
 export interface MusicPlayerRuntimeEnvironment {
   appId: string;
   pluginId: string;
@@ -185,7 +180,7 @@ export interface MusicPlayerRuntimeValue {
   isResolving: boolean;
   isSaving: boolean;
   hostKind: HostKind;
-  locale: SupportedLocale;
+  locale: string;
   t(key: string, params?: Record<string, string | number>): string;
   openFiles(): Promise<void>;
   saveAudio(): Promise<void>;
@@ -196,6 +191,8 @@ export interface MusicPlayerRuntimeValue {
   goNextTrack(): Promise<void>;
   setFeedback(feedback: ViewerFeedback | null): void;
   setPlaybackVolume(volume: number): void;
+  playerActions: MusicPlayerControllerActions | null;
+  setPlayerActions(actions: MusicPlayerControllerActions | null): void;
 }
 
 const MusicPlayerRuntimeContext = React.createContext<MusicPlayerRuntimeValue | null>(null);
@@ -225,16 +222,18 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     }),
     [launchContext],
   );
-  const [locale, setLocale] = useState<SupportedLocale>(() =>
-    resolveLocale(typeof document !== "undefined" ? document.documentElement.lang : undefined),
-  );
   const [track, setTrack] = useState<TrackPresentation | null>(null);
   const [queue, setQueue] = useState<MusicPlayerQueueItem[]>([]);
   const [queueIndex, setQueueIndex] = useState(-1);
+  const playlistEngineRef = useRef<PlaylistEngine<MusicPlayerQueueItem> | null>(null);
+  if (!playlistEngineRef.current) {
+    playlistEngineRef.current = createPlaylistEngine<MusicPlayerQueueItem>();
+  }
   const [feedback, setFeedback] = useState<ViewerFeedback | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hostKind, setHostKind] = useState<HostKind>("desktop");
+  const [playerActions, setPlayerActionsState] = useState<MusicPlayerControllerActions | null>(null);
   const activeScene = defaultMusicPlayerScene;
   const surface = launchContext.surfaceContext ?? null;
   const revocableArtworkUrlRef = useRef<string | null>(null);
@@ -257,10 +256,11 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
 
   const canGoPrevious = queueIndex > 0;
   const canGoNext = queueIndex >= 0 && queueIndex < queue.length - 1;
+  const locale = "zh-CN";
 
   const t = useCallback((key: string, params?: Record<string, string | number>): string => {
-    return formatMessage(locale, key, params);
-  }, [locale]);
+    return formatMessage(key, params);
+  }, []);
 
   const swapRevocableArtwork = useCallback((nextUrl?: string): void => {
     if (revocableArtworkUrlRef.current && revocableArtworkUrlRef.current !== nextUrl && isRevocableArtworkUrl(revocableArtworkUrlRef.current)) {
@@ -570,14 +570,20 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   ]);
 
   const openQueueItem = useCallback(async (nextQueue: MusicPlayerQueueItem[], nextQueueIndex: number): Promise<void> => {
-    const item = nextQueue[nextQueueIndex];
-    if (!item) {
+    const engine = playlistEngineRef.current;
+    if (!engine) {
       return;
     }
 
-    setQueue(nextQueue);
-    setQueueIndex(nextQueueIndex);
-    await openAudioTarget(item.target, item.selection);
+    engine.setQueue(nextQueue, nextQueueIndex);
+    const nextItem = engine.current();
+    if (!nextItem) {
+      return;
+    }
+
+    setQueue([...engine.items()]);
+    setQueueIndex(engine.currentIndex());
+    await openAudioTarget(nextItem.target, nextItem.selection);
   }, [openAudioTarget]);
 
   const openSelection = useCallback(async (paths: string[]): Promise<void> => {
@@ -758,20 +764,23 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     });
   }, [t]);
 
+  const setPlayerActions = useCallback((actions: MusicPlayerControllerActions | null): void => {
+    setPlayerActionsState(actions);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([client.i18n.getCurrent(), client.platform.getInfo()])
-      .then(([currentLocale, platformInfo]) => {
+    client.platform.getInfo()
+      .then((platformInfo) => {
         if (cancelled) {
           return;
         }
 
-        setLocale(resolveLocale(currentLocale));
         setHostKind(platformInfo.hostKind as HostKind);
       })
       .catch((error) => {
-        logger.warn("初始化语言或平台信息失败，继续使用文档快照", error);
+        logger.warn("初始化平台信息失败，继续使用桌面模式", error);
       });
 
     return () => {
@@ -796,19 +805,12 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       trigger: normalizedLaunchContext.launchParams.trigger,
     });
     const launchQueue = [createQueueItem(launchTarget)];
-    setQueue(launchQueue);
-    setQueueIndex(0);
+    const engine = playlistEngineRef.current;
+    engine?.setQueue(launchQueue, 0);
+    setQueue([...(engine?.items() ?? launchQueue)]);
+    setQueueIndex(engine?.currentIndex() ?? 0);
     void openAudioTarget(launchTarget);
   }, [client, logger, openAudioTarget]);
-
-  useEffect(() => {
-    return client.i18n.onChanged((payload: unknown) => {
-      const nextLocale = resolveLanguagePayload(payload);
-      if (nextLocale) {
-        setLocale(resolveLocale(nextLocale));
-      }
-    });
-  }, [client]);
 
   useEffect(() => {
     latestQueueRef.current = queue;
@@ -863,6 +865,8 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       goNextTrack,
       setFeedback,
       setPlaybackVolume,
+      playerActions,
+      setPlayerActions,
     }),
     [
       activeScene,
@@ -883,9 +887,11 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       locale,
       openAudioTarget,
       openSelection,
+      playerActions,
       queue,
       queueIndex,
       setPlaybackVolume,
+      setPlayerActions,
       surface,
       t,
       traceId,

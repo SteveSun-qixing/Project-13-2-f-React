@@ -1,46 +1,78 @@
 import { describe, expect, it } from "vitest";
+import { appConfig } from "../../config/app-config";
 import {
+  createMusicPlayerCommands,
   MUSIC_PLAYER_COMMAND_IDS,
-  createMusicPlayerCommandDefinitions,
-  createMusicPlayerCommandStates,
 } from "../../src/commands/music-player-commands";
 
+const noopHandlers = {
+  openFiles: () => undefined,
+  saveAudio: () => undefined,
+  previousTrack: () => undefined,
+  nextTrack: () => undefined,
+  togglePlayback: () => undefined,
+  rewind10: () => undefined,
+  forward10: () => undefined,
+  volumeUp: () => undefined,
+  volumeDown: () => undefined,
+  toggleMute: () => undefined,
+  toggleLoop: () => undefined,
+};
+
 describe("music player commands", () => {
-  it("registers serializable command metadata with i18n keys only", () => {
-    const definitions = createMusicPlayerCommandDefinitions({
-      sceneId: "scene-main",
-      surfaceId: "surface-main",
+  it("uses stable app scoped command ids with Chinese titles", () => {
+    const commands = createMusicPlayerCommands(noopHandlers, {
+      hasTrack: false,
+      canSave: false,
+      canGoPrevious: false,
+      canGoNext: false,
+      isSaving: false,
     });
 
-    expect(definitions.length).toBeGreaterThan(8);
-    for (const definition of definitions) {
-      expect(definition.commandId.startsWith("com.chips.music-player.")).toBe(true);
-      expect(definition.titleKey).toMatch(/^music-player\.commands\./);
-      expect(definition.handlerId).toBeTypeOf("string");
-      expect(definition.icon?.name).toBeTypeOf("string");
-      expect(definition).not.toHaveProperty("title");
-      expect(definition).not.toHaveProperty("description");
-      expect(definition).not.toHaveProperty("ariaLabel");
+    expect(commands.length).toBeGreaterThanOrEqual(11);
+
+    for (const command of commands) {
+      expect(command.id.startsWith(`${appConfig.appId}.`)).toBe(true);
+      expect(command.title.length).toBeGreaterThan(0);
+      expect(typeof command.run).toBe("function");
     }
   });
 
-  it("derives command state from playback and queue status", () => {
-    const states = createMusicPlayerCommandStates({
+  it("enables only file actions when no track is loaded", () => {
+    const commands = createMusicPlayerCommands(noopHandlers, {
+      hasTrack: false,
+      canSave: false,
+      canGoPrevious: false,
+      canGoNext: false,
+      isSaving: false,
+    });
+
+    const open = commands.find((command) => command.id === MUSIC_PLAYER_COMMAND_IDS.openFiles);
+    const save = commands.find((command) => command.id === MUSIC_PLAYER_COMMAND_IDS.saveAudio);
+    const toggle = commands.find((command) => command.id === MUSIC_PLAYER_COMMAND_IDS.togglePlayback);
+
+    expect(open?.enabled).not.toBe(false);
+    expect(save?.enabled).toBe(false);
+    expect(toggle?.enabled).toBe(false);
+  });
+
+  it("projects runtime state into command enabled flags", () => {
+    const commands = createMusicPlayerCommands(noopHandlers, {
       hasTrack: true,
       canSave: true,
       canGoPrevious: false,
       canGoNext: true,
-      isPlaying: true,
-      isMuted: false,
-      loopOne: true,
-      isSaving: false,
+      isSaving: true,
     });
 
-    expect(states[MUSIC_PLAYER_COMMAND_IDS.togglePlayback]?.checked).toBe(true);
-    expect(states[MUSIC_PLAYER_COMMAND_IDS.toggleLoop]?.checked).toBe(true);
-    expect(states[MUSIC_PLAYER_COMMAND_IDS.previousTrack]?.enabled).toBe(false);
-    expect(states[MUSIC_PLAYER_COMMAND_IDS.nextTrack]?.enabled).toBe(true);
-    expect(states[MUSIC_PLAYER_COMMAND_IDS.saveAudio]?.enabled).toBe(true);
+    const previous = commands.find((command) => command.id === MUSIC_PLAYER_COMMAND_IDS.previousTrack);
+    const next = commands.find((command) => command.id === MUSIC_PLAYER_COMMAND_IDS.nextTrack);
+    const save = commands.find((command) => command.id === MUSIC_PLAYER_COMMAND_IDS.saveAudio);
+    const toggle = commands.find((command) => command.id === MUSIC_PLAYER_COMMAND_IDS.togglePlayback);
+
+    expect(previous?.enabled).toBe(false);
+    expect(next?.enabled).toBe(true);
+    expect(save?.enabled).toBe(false);
+    expect(toggle?.enabled).toBe(true);
   });
 });
-
