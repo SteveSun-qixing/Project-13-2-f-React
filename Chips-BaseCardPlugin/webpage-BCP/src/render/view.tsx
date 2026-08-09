@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChipsButton, ChipsIcon } from "@chips/component-library";
+import { Button } from "antd";
+import { ExportOutlined } from "@ant-design/icons";
 import type { BasecardOpenResourceInput } from "../index";
 import type { BasecardConfig } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import {
   createSrcDocDocument,
   deriveBaseHref,
@@ -251,12 +252,12 @@ export const VIEW_STYLE_TEXT = `
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: var(--chips-sys-color-on-surface, #1f2937);
+  color: #1d1d1f;
   box-sizing: border-box;
 }
 
 .chips-webpage-card__message--error {
-  color: var(--chips-sys-color-error, #d92d20);
+  color: #ff3b30;
 }
 
 .chips-webpage-card__toolbar {
@@ -271,14 +272,11 @@ export const VIEW_STYLE_TEXT = `
 
 .chips-webpage-card__open-button {
   pointer-events: auto;
-}
-
-.chips-webpage-card__open-button[data-scope="button"][data-part="root"] {
   min-height: 34px;
-  border: 1px solid var(--chips-sys-color-outline, rgba(15, 23, 42, 0.18));
+  border: 1px solid rgba(0, 0, 0, 0.18);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #ffffff) 86%, transparent 14%);
-  color: var(--chips-sys-color-on-surface, #111827);
+  background: rgba(255, 255, 255, 0.86);
+  color: #1d1d1f;
   padding: 0 10px;
   backdrop-filter: blur(10px);
 }
@@ -308,10 +306,6 @@ export function WebpageCardView({
   releaseResourceUrl,
   openResource,
 }: WebpageCardViewProps) {
-  const t = useMemo(
-    () => createTranslator(typeof navigator !== "undefined" ? navigator.language : "zh-CN"),
-    [],
-  );
   const rootRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const width = useContainerWidth(rootRef);
@@ -395,7 +389,7 @@ export function WebpageCardView({
         }
         setBundleSrcDoc(null);
         setStatus("error");
-        setErrorText(error instanceof Error ? error.message : t("view.bundle_failed"));
+        setErrorText(error instanceof Error ? error.message : formatMessage("view.bundle_failed"));
       }
     })();
 
@@ -410,7 +404,6 @@ export function WebpageCardView({
     hasBundleSource,
     releaseResourceUrl,
     resolveResourceUrl,
-    t,
   ]);
 
   const iframeSource = useMemo(() => {
@@ -441,7 +434,7 @@ export function WebpageCardView({
       openResource({
         resourceId: config.source_url.trim(),
         mimeType: "text/html",
-        title: t("view.open_url_title"),
+        title: formatMessage("view.open_url_title"),
         payload: {
           kind: "chips.webpage-card",
           version: "1.0.0",
@@ -457,7 +450,7 @@ export function WebpageCardView({
       openResource({
         resourceId: bundleEntryPath,
         mimeType: "text/html",
-        title: t("view.open_bundle_title"),
+        title: formatMessage("view.open_bundle_title"),
         fileName: config.entry_file ?? "index.html",
         payload: {
           kind: "chips.webpage-card",
@@ -476,7 +469,7 @@ export function WebpageCardView({
     if (!iframeSource) {
       if (hasUrlSource && !validUrl) {
         setStatus("error");
-        setErrorText(t("view.invalid_url"));
+        setErrorText(formatMessage("view.invalid_url"));
       } else if (hasBundleSource) {
         setStatus("loading");
       } else {
@@ -490,7 +483,7 @@ export function WebpageCardView({
     setErrorText("");
     setScrollMode(false);
     setLayoutHeight(baseHeightRef.current);
-  }, [hasBundleSource, hasUrlSource, iframeSource, t, validUrl]);
+  }, [hasBundleSource, hasUrlSource, iframeSource, validUrl]);
 
   useEffect(() => {
     const frame = iframeRef.current;
@@ -547,7 +540,7 @@ export function WebpageCardView({
       if (accessibleDocument && config.source_type === "url" && isLikelyBlockedDocument(accessibleDocument)) {
         setStatus("error");
         setScrollMode(false);
-        setErrorText(t("view.embed_blocked"));
+        setErrorText(formatMessage("view.embed_blocked"));
         setLayoutHeight(baseHeight);
         return;
       }
@@ -651,7 +644,7 @@ export function WebpageCardView({
       clearObservers();
       setStatus("error");
       setScrollMode(false);
-      setErrorText(t("view.load_failed"));
+      setErrorText(formatMessage("view.load_failed"));
       setLayoutHeight(baseHeight);
     };
 
@@ -665,13 +658,13 @@ export function WebpageCardView({
       window.removeEventListener("message", handleWindowMessage);
       clearObservers();
     };
-  }, [baseHeight, config, config.max_height_ratio, config.source_type, iframeSource, t, width]);
+  }, [baseHeight, config, config.max_height_ratio, config.source_type, iframeSource, width]);
 
   if (!hasUrlSource && !hasBundleSource) {
     return (
       <div className="chips-webpage-card">
         <div className="chips-webpage-card__viewport">
-          <div className="chips-webpage-card__message">{t("view.empty")}</div>
+          <div className="chips-webpage-card__message">{formatMessage("view.empty")}</div>
         </div>
       </div>
     );
@@ -685,7 +678,7 @@ export function WebpageCardView({
       >
         {status === "error" ? (
           <div className="chips-webpage-card__message chips-webpage-card__message--error">
-            {errorText || t("view.load_failed")}
+            {errorText || formatMessage("view.load_failed")}
           </div>
         ) : iframeSource ? (
           <iframe
@@ -701,26 +694,26 @@ export function WebpageCardView({
 
         {canOpenSource && (
           <div className="chips-webpage-card__toolbar" data-webpage-open-source="true">
-            <ChipsButton
-              type="button"
+            <Button
+              type="default"
               className="chips-webpage-card__open-button"
-              aria-label={t("view.open_source")}
-              onPress={(event) => {
+              aria-label={formatMessage("view.open_source")}
+              onClick={(event) => {
                 event.stopPropagation();
                 openCurrentSource();
               }}
             >
               <span className="chips-webpage-card__open-content">
-                <ChipsIcon descriptor={{ name: "open_in_new", decorative: true }} size={16} />
-                <span>{t("view.open_source")}</span>
+                <ExportOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+                <span>{formatMessage("view.open_source")}</span>
               </span>
-            </ChipsButton>
+            </Button>
           </div>
         )}
 
         {status === "loading" && (
           <div className="chips-webpage-card__message chips-webpage-card__loading">
-            {t("view.loading")}
+            {formatMessage("view.loading")}
           </div>
         )}
       </div>

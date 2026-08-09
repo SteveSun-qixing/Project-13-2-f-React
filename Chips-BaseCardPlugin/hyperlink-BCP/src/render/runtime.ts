@@ -10,7 +10,7 @@ type MountState = {
 };
 
 export function mountBasecardView(ctx: BasecardRenderContext): () => void {
-  const { container, config, themeCssText } = ctx;
+  const { container, config } = ctx;
 
   while (container.firstChild) {
     container.removeChild(container.firstChild);
@@ -31,7 +31,7 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
       React.createElement(
         React.Fragment,
         null,
-        React.createElement("style", null, `${themeCssText ?? ""}\n${VIEW_STYLE_TEXT}`),
+        React.createElement("style", null, VIEW_STYLE_TEXT),
         React.createElement(BasecardView, {
           config: normalizedConfig as BasecardConfig,
           openResource: ctx.openResource,

@@ -1,13 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  ChipsBadge,
-  ChipsButton,
-  ChipsEmptyState,
-  ChipsIcon,
-  ChipsImage,
-} from "@chips/component-library";
+import { Button, Empty, Image, Tag } from "antd";
+import { ReadOutlined } from "@ant-design/icons";
 import type { BasecardConfig } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import {
   buildOpenResourceDescriptor,
   deriveDisplayAuthor,
@@ -26,11 +21,11 @@ import {
 
 export const VIEW_STYLE_TEXT = `
 .chips-book-card {
-  --chips-book-card-focus-ring: var(--chips-sys-color-primary-container, rgba(17, 102, 255, 0.18));
-  --chips-book-card-cover-shadow: var(--chips-comp-card-shell-shadow, 0 12px 26px rgba(15, 23, 42, 0.12));
+  --chips-book-card-focus-ring: rgba(10, 132, 255, 0.18);
+  --chips-book-card-cover-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
   width: 100%;
-  color: var(--chips-sys-color-on-surface, #172033);
-  font: 14px/1.5 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  font: 14px/1.5 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-book-card,
@@ -42,13 +37,14 @@ export const VIEW_STYLE_TEXT = `
 .chips-book-card__button {
   display: flex;
   align-items: stretch;
+  justify-content: flex-start;
   gap: clamp(16px, 4vw, 28px);
   width: 100%;
   min-height: 184px;
   padding: clamp(16px, 4vw, 28px);
   border: 0;
   border-radius: 8px;
-  background: var(--chips-sys-color-surface-container-low, #f7f9fc);
+  background: #f2f2f7;
 }
 
 .chips-book-card__button {
@@ -60,20 +56,7 @@ export const VIEW_STYLE_TEXT = `
   transition: background-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
-.chips-book-card > [data-scope="button"][data-part="root"] {
-  display: flex;
-  align-items: stretch;
-  gap: clamp(16px, 4vw, 28px);
-  width: 100%;
-  justify-content: flex-start;
-  min-height: 184px;
-  padding: clamp(16px, 4vw, 28px);
-  border: 0;
-  border-radius: 8px;
-  background: var(--chips-sys-color-surface-container-low, #f7f9fc);
-}
-
-.chips-book-card > [data-scope="button"][data-part="root"] > [data-scope="button"][data-part="label"] {
+.chips-book-card__button > span {
   display: flex;
   align-items: stretch;
   gap: inherit;
@@ -82,11 +65,11 @@ export const VIEW_STYLE_TEXT = `
 }
 
 .chips-book-card__button:hover {
-  background: var(--chips-sys-color-surface-container, #eef3fb);
+  background: #f2f2f7;
 }
 
 .chips-book-card__button:focus-visible {
-  background: var(--chips-sys-color-surface-container, #eef3fb);
+  background: #f2f2f7;
   box-shadow: 0 0 0 3px var(--chips-book-card-focus-ring);
 }
 
@@ -100,23 +83,18 @@ export const VIEW_STYLE_TEXT = `
   aspect-ratio: 2 / 3;
   overflow: hidden;
   border-radius: 6px;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
   box-shadow: var(--chips-book-card-cover-shadow);
+}
+
+.chips-book-card__cover .ant-image {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .chips-book-card__cover-image {
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.chips-book-card__cover-image[data-scope="image"][data-part="root"] {
-  width: 100%;
-  height: 100%;
-}
-
-.chips-book-card__cover-image [data-scope="image"][data-part="media"] {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -128,8 +106,8 @@ export const VIEW_STYLE_TEXT = `
   width: 100%;
   height: 100%;
   padding: 8px;
-  color: var(--chips-sys-color-on-surface-variant, #5d6a7f);
-  background: var(--chips-sys-color-surface-container, #edf2f8);
+  color: #6e6e73;
+  background: #f2f2f7;
 }
 
 .chips-book-card__cover-placeholder-icon {
@@ -158,7 +136,7 @@ export const VIEW_STYLE_TEXT = `
 
 .chips-book-card__author {
   margin: 0;
-  color: var(--chips-sys-color-on-surface-variant, #516074);
+  color: #6e6e73;
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
@@ -178,34 +156,36 @@ export const VIEW_STYLE_TEXT = `
   align-items: center;
   min-height: 24px;
   padding: 0 10px;
+  border: 0;
   border-radius: 999px;
-  background: var(--chips-sys-color-surface, #ffffff);
-  color: var(--chips-sys-color-on-surface-variant, #516074);
+  background: #ffffff;
+  color: #6e6e73;
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
-}
-
-.chips-book-card__meta [data-scope="badge"][data-part="root"] {
-  min-height: 24px;
 }
 
 .chips-book-card__empty {
   min-height: 116px;
   border-radius: 8px;
   border: 0;
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
-  background: var(--chips-sys-color-surface-container-low, #f7f9fc);
+  color: #6e6e73;
+  background: #f2f2f7;
   text-align: center;
 }
 
-.chips-book-card [data-scope="empty-state"][data-part="root"] {
-  min-height: 116px;
-  border-radius: 8px;
-  border: 0;
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
-  background: var(--chips-sys-color-surface-container-low, #f7f9fc);
-  text-align: center;
+.chips-book-card__empty-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.chips-book-card__empty-title {
+  font-weight: 700;
+}
+
+.chips-book-card__empty-description {
+  color: #6e6e73;
+  font-size: 12px;
 }
 
 @media (max-width: 560px) {
@@ -294,33 +274,29 @@ function useResolvedResources(
 
 function MetaItem(props: { children: React.ReactNode }) {
   return (
-    <ChipsBadge
-      className="chips-book-card__meta-item"
-      tone="neutral"
-      label={props.children}
-    />
+    <Tag className="chips-book-card__meta-item">
+      {props.children}
+    </Tag>
   );
 }
 
 function Cover(props: { src: string; alt: string }) {
   if (props.src) {
     return (
-      <ChipsImage
+      <Image
         className="chips-book-card__cover-image"
         src={props.src}
         alt={props.alt}
-        fit="cover"
+        preview={false}
+        loading="lazy"
+        draggable={false}
       />
     );
   }
 
   return (
     <div className="chips-book-card__cover-placeholder" aria-hidden="true">
-      <ChipsIcon
-        className="chips-book-card__cover-placeholder-icon"
-        descriptor={{ name: "menu_book", decorative: true }}
-        tone="muted"
-      />
+      <ReadOutlined className="chips-book-card__cover-placeholder-icon" aria-hidden={true} />
     </div>
   );
 }
@@ -393,13 +369,6 @@ export function BasecardView({
   releaseResourceUrl,
   openResource,
 }: BasecardViewProps) {
-  const locale = typeof navigator !== "undefined" ? navigator.language : "zh-CN";
-  const t = createTranslator(locale);
-  const i18n = {
-    translate(input: string | { key: string; params?: Record<string, string | number> }, params?: Record<string, string | number>) {
-      return typeof input === "string" ? t(input, params) : t(input.key, input.params);
-    },
-  };
   const sortedImages = useMemo(
     () => sortImageItems(config.image_sequence, config.image_sort_basis),
     [config.image_sequence, config.image_sort_basis],
@@ -411,8 +380,8 @@ export function BasecardView({
     ...sortedImages.map((image) => image.file_path),
   ];
   const resolvedUrls = useResolvedResources(resourcePaths, resolveResourceUrl, releaseResourceUrl);
-  const title = deriveDisplayTitle(config, t("view.untitled"));
-  const author = deriveDisplayAuthor(config, t("view.unknown_author"));
+  const title = deriveDisplayTitle(config, formatMessage("view.untitled"));
+  const author = deriveDisplayAuthor(config, formatMessage("view.unknown_author"));
   const coverUrl = coverPath ? (resolvedUrls.get(coverPath) || coverPath) : "";
   const hasPrimaryResource = config.source_type === "image-sequence"
     ? sortedImages.length > 0
@@ -470,13 +439,16 @@ export function BasecardView({
   if (!hasPrimaryResource) {
     return (
       <div className="chips-book-card" data-card-type={config.card_type}>
-        <ChipsEmptyState
+        <Empty
           className="chips-book-card__empty"
-          ariaLabel={t("view.empty")}
-          titleKey="view.empty"
-          descriptionKey="view.empty_description"
-          i18n={i18n}
-          icon={<ChipsIcon descriptor={{ name: "menu_book", decorative: true }} tone="muted" />}
+          aria-label={formatMessage("view.empty")}
+          image={<ReadOutlined aria-hidden={true} style={{ fontSize: 42, color: "#6e6e73" }} />}
+          description={
+            <span className="chips-book-card__empty-copy">
+              <span className="chips-book-card__empty-title">{formatMessage("view.empty")}</span>
+              <span className="chips-book-card__empty-description">{formatMessage("view.empty_description")}</span>
+            </span>
+          }
         />
       </div>
     );
@@ -493,7 +465,7 @@ export function BasecardView({
         <div className="chips-book-card__meta">
           {formatLabel ? <MetaItem>{formatLabel}</MetaItem> : null}
           {config.source_type === "image-sequence" ? (
-            <MetaItem>{t("view.image_count", { count: sortedImages.length })}</MetaItem>
+            <MetaItem>{formatMessage("view.image_count", { count: sortedImages.length })}</MetaItem>
           ) : null}
         </div>
       </div>
@@ -503,12 +475,13 @@ export function BasecardView({
   return (
     <div className="chips-book-card" data-card-type={config.card_type}>
       {openResource ? (
-        <ChipsButton
-          type="button"
-          onPress={handleOpen}
+        <Button
+          type="text"
+          className="chips-book-card__button"
+          onClick={handleOpen}
         >
           {content}
-        </ChipsButton>
+        </Button>
       ) : (
         <div className="chips-book-card__surface">{content}</div>
       )}

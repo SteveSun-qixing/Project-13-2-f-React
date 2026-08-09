@@ -24,7 +24,7 @@ function createConfig(patch: Partial<BasecardConfig> = {}): BasecardConfig {
 }
 
 function queryTextFieldInput(root: ParentNode, role: string): HTMLInputElement | null {
-  return root.querySelector(`[data-role="${role}"] input`);
+  return root.querySelector(`[data-role="${role}"]`);
 }
 
 function setTextFieldValue(input: HTMLInputElement, value: string): void {
@@ -325,7 +325,7 @@ describe("createBasecardEditorRoot", () => {
       default: true,
     });
 
-    const switches = Array.from(root.querySelectorAll('[data-scope="switch"][data-part="root"]')) as HTMLButtonElement[];
+    const switches = Array.from(root.querySelectorAll(".ant-switch")) as HTMLButtonElement[];
     const autoplaySwitch = switches[1] ?? null;
     if (!autoplaySwitch) {
       throw new Error("找不到播放参数开关");

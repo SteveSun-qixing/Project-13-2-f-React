@@ -272,7 +272,7 @@ describe("createBasecardEditorRoot", () => {
       },
     });
 
-    const nameInput = root.querySelector('[data-role="book-name-input"] input') as HTMLInputElement | null;
+    const nameInput = root.querySelector('[data-role="book-name-input"]') as HTMLInputElement | null;
     if (!nameInput) {
       throw new Error("找不到书名输入框");
     }

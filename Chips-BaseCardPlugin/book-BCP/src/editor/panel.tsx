@@ -1,14 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  ChipsButton,
-  ChipsErrorState,
-  ChipsForm,
-  ChipsIcon,
-  ChipsText,
-  ChipsTextField,
-  ChipsVirtualList,
-  type StandardErrorLike,
-} from "@chips/component-library";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { Button, ConfigProvider, Input, Result } from "antd";
+import { PictureOutlined, UploadOutlined } from "@ant-design/icons";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type {
@@ -25,7 +19,7 @@ import {
   type ImageSortBasis,
 } from "../schema/card-config";
 import { parseEpubMetadata } from "../shared/epub";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import {
   createResourcePathsForConfig,
   detectImageMimeType,
@@ -73,6 +67,13 @@ type EditorRoot = HTMLElement & {
 type BusyState = "main" | "cover" | null;
 type DropzoneKind = "main" | "cover";
 
+interface StandardErrorLike {
+  code?: string;
+  message: string;
+  details?: unknown;
+  retryable?: boolean;
+}
+
 function toStandardError(message: string): StandardErrorLike {
   return {
     code: "BOOK_BASECARD_VALIDATION",
@@ -117,23 +118,23 @@ html, body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .chips-book-editor {
-  --chips-book-editor-border-color: var(--chips-comp-card-shell-border-color, var(--chips-sys-color-outline-variant, rgba(15, 23, 42, 0.14)));
-  --chips-book-editor-separator-color: var(--chips-sys-color-outline-variant, rgba(15, 23, 42, 0.08));
-  --chips-book-editor-subtle-separator-color: var(--chips-sys-color-outline-variant, rgba(15, 23, 42, 0.06));
-  --chips-book-editor-focus-ring: var(--chips-sys-color-primary-container, rgba(17, 102, 255, 0.12));
+  --chips-book-editor-border-color: rgba(0, 0, 0, 0.14);
+  --chips-book-editor-separator-color: rgba(0, 0, 0, 0.08);
+  --chips-book-editor-subtle-separator-color: rgba(0, 0, 0, 0.05);
+  --chips-book-editor-focus-ring: rgba(10, 132, 255, 0.12);
   box-sizing: border-box;
   width: 100%;
   height: 100%;
   min-height: 0;
   overflow: auto;
   padding: 12px clamp(12px, 3vw, 18px) 24px;
-  color: var(--chips-sys-color-on-surface, #172033);
-  background: var(--chips-sys-color-surface, #ffffff);
-  font: 14px/1.55 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  background: #ffffff;
+  font: 14px/1.55 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-book-editor,
@@ -147,7 +148,7 @@ html, body {
   margin: 0 auto;
 }
 
-.chips-book-editor [data-scope="form"][data-part="root"] {
+.chips-book-editor__form {
   display: grid;
   gap: 14px;
 }
@@ -172,7 +173,7 @@ html, body {
 
 .chips-book-editor__group-title {
   margin: 0;
-  color: var(--chips-sys-color-on-surface, #172033);
+  color: #1d1d1f;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.4;
@@ -181,13 +182,13 @@ html, body {
 .chips-book-editor__status {
   margin: 0 0 10px;
   min-height: 20px;
-  color: var(--chips-sys-color-on-surface-variant, #516074);
+  color: #6e6e73;
   font-size: 12px;
   font-weight: 650;
 }
 
 .chips-book-editor__status--error {
-  color: var(--chips-sys-color-error, #b42318);
+  color: #ff3b30;
 }
 
 .chips-book-editor__status:empty {
@@ -212,7 +213,7 @@ html, body {
 .chips-book-editor__label {
   margin: 0;
   padding-top: 8px;
-  color: var(--chips-sys-color-on-surface-variant, #334155);
+  color: #6e6e73;
   font-size: 13px;
   font-weight: 650;
 }
@@ -221,22 +222,20 @@ html, body {
   min-width: 0;
 }
 
-.chips-book-editor__input,
 .chips-book-editor__select {
   width: 100%;
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid var(--chips-book-editor-border-color);
   border-radius: 8px;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
   color: inherit;
   font: inherit;
   outline: none;
 }
 
-.chips-book-editor__input:focus,
 .chips-book-editor__select:focus {
-  border-color: var(--chips-sys-color-primary, #1166ff);
+  border-color: #0a84ff;
   box-shadow: 0 0 0 3px var(--chips-book-editor-focus-ring);
 }
 
@@ -248,7 +247,7 @@ html, body {
   padding: 12px 14px;
   border: 1.5px dashed var(--chips-book-editor-border-color);
   border-radius: 8px;
-  background: var(--chips-sys-color-surface-container-low, #f7f9fc);
+  background: #f2f2f7;
   color: inherit;
   cursor: pointer;
 }
@@ -260,7 +259,7 @@ html, body {
 
 .chips-book-editor__dropzone:hover,
 .chips-book-editor__dropzone:focus-within {
-  border-color: var(--chips-sys-color-primary, #1166ff);
+  border-color: #0a84ff;
 }
 
 .chips-book-editor__file-input {
@@ -271,13 +270,20 @@ html, body {
 }
 
 .chips-book-editor__dropzone-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   font-weight: 700;
 }
 
+.chips-book-editor__dropzone-title .anticon {
+  color: #0a84ff;
+}
+
 .chips-book-editor__dropzone-meta,
 .chips-book-editor__resource-meta {
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   font-size: 12px;
   line-height: 1.5;
   word-break: break-word;
@@ -296,7 +302,7 @@ html, body {
   overflow: hidden;
   border-radius: 6px;
   border: 1px solid var(--chips-book-editor-border-color);
-  background: var(--chips-sys-color-surface-container, #edf2f8);
+  background: #f2f2f7;
 }
 
 .chips-book-editor__cover img {
@@ -311,7 +317,7 @@ html, body {
   height: 100%;
   display: grid;
   place-items: center;
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   font-size: 12px;
   font-weight: 700;
 }
@@ -322,35 +328,16 @@ html, body {
   gap: 8px;
 }
 
-.chips-book-editor__button {
-  appearance: none;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid var(--chips-book-editor-border-color);
-  border-radius: 8px;
-  background: var(--chips-sys-color-surface, #ffffff);
-  color: inherit;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.chips-book-editor__button:disabled {
-  cursor: default;
-  opacity: 0.58;
-}
-
-.chips-book-editor__button--danger {
-  color: var(--chips-sys-color-error, #b42318);
-}
-
-.chips-book-editor__actions [data-scope="button"][data-part="root"] {
+.chips-book-editor__actions .ant-btn {
   min-height: 34px;
 }
 
 .chips-book-editor__validation {
   margin-top: 12px;
+}
+
+.chips-book-editor__validation.ant-result {
+  padding: 16px;
 }
 
 .chips-book-editor__image-list {
@@ -364,11 +351,12 @@ html, body {
   display: grid;
   gap: 2px;
   padding: 6px 10px;
+  min-height: 54px;
   min-width: 0;
 }
 
 .chips-book-editor__image-list-path {
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -478,8 +466,8 @@ function BasecardEditor(props: BasecardEditorProps) {
   const [error, setError] = useState("");
   const mainInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
-  const locale = typeof navigator !== "undefined" ? navigator.language : "zh-CN";
-  const t = createTranslator(locale);
+  const bookNameInputId = useId();
+  const bookAuthorInputId = useId();
   const coverPreview = useResolvedPreview(
     config.cover_image || config.image_sequence[0]?.file_path || "",
     props.resolveResourceUrl,
@@ -487,11 +475,6 @@ function BasecardEditor(props: BasecardEditorProps) {
   );
   const validation = validateBasecardConfig(config);
   const validationError = firstValidationError(validation.errors);
-  const i18n = {
-    translate(input: string | { key: string; params?: Record<string, string | number> }, params?: Record<string, string | number>) {
-      return typeof input === "string" ? t(input, params) : t(input.key, input.params);
-    },
-  };
 
   useEffect(() => {
     setConfig(normalizeBasecardConfig(props.initialConfig));
@@ -516,7 +499,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   async function replaceWithEbook(file: File, format: string) {
     if (!props.importResource) {
-      throw new Error(t("editor.error.import_unavailable"));
+      throw new Error(formatMessage("editor.error.import_unavailable"));
     }
 
     let metadataTitle = "";
@@ -574,12 +557,12 @@ function BasecardEditor(props: BasecardEditorProps) {
     });
 
     await commit(next);
-    setStatus(t("editor.status.ebook_imported"));
+    setStatus(formatMessage("editor.status.ebook_imported"));
   }
 
   async function replaceWithArchive(file: File, format: string) {
     if (!props.importArchiveBundle) {
-      throw new Error(t("editor.error.archive_import_unavailable"));
+      throw new Error(formatMessage("editor.error.archive_import_unavailable"));
     }
 
     const result = await props.importArchiveBundle({
@@ -600,7 +583,7 @@ function BasecardEditor(props: BasecardEditorProps) {
       entry.sourcePath.length > 0
     ));
     if (imageEntries.length === 0) {
-      throw new Error(t("editor.error.archive_empty"));
+      throw new Error(formatMessage("editor.error.archive_empty"));
     }
 
     const importedImages: BookImageItem[] = imageEntries.map((entry) => ({
@@ -634,7 +617,7 @@ function BasecardEditor(props: BasecardEditorProps) {
     });
 
     await commit(next);
-    setStatus(t("editor.status.archive_imported", { count: sortedImages.length }));
+    setStatus(formatMessage("editor.status.archive_imported", { count: sortedImages.length }));
   }
 
   async function handleMainFile(file: File) {
@@ -649,10 +632,10 @@ function BasecardEditor(props: BasecardEditorProps) {
       } else if (isSupportedEbookFormat(format)) {
         await replaceWithEbook(file, format);
       } else {
-        throw new Error(t("editor.error.unsupported_format"));
+        throw new Error(formatMessage("editor.error.unsupported_format"));
       }
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : t("editor.error.import_failed"));
+      setError(caughtError instanceof Error ? caughtError.message : formatMessage("editor.error.import_failed"));
     } finally {
       setBusy(null);
       if (mainInputRef.current) {
@@ -663,7 +646,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   async function handleCoverFile(file: File) {
     if (!props.importResource) {
-      setError(t("editor.error.import_unavailable"));
+      setError(formatMessage("editor.error.import_unavailable"));
       return;
     }
 
@@ -675,7 +658,7 @@ function BasecardEditor(props: BasecardEditorProps) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const mimeType = detectImageMimeType(bytes, file.name);
       if (!mimeType) {
-        throw new Error(t("editor.error.cover_not_image"));
+        throw new Error(formatMessage("editor.error.cover_not_image"));
       }
 
       const sourceName = config.book_file
@@ -701,9 +684,9 @@ function BasecardEditor(props: BasecardEditorProps) {
       });
 
       await commit(next);
-      setStatus(t("editor.status.cover_imported"));
+      setStatus(formatMessage("editor.status.cover_imported"));
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : t("editor.error.import_failed"));
+      setError(caughtError instanceof Error ? caughtError.message : formatMessage("editor.error.import_failed"));
     } finally {
       setBusy(null);
       if (coverInputRef.current) {
@@ -725,7 +708,7 @@ function BasecardEditor(props: BasecardEditorProps) {
       resource_paths: [],
     });
     await commit(next);
-    setStatus(t("editor.status.cleared"));
+    setStatus(formatMessage("editor.status.cleared"));
   }
 
   async function clearCover() {
@@ -739,7 +722,7 @@ function BasecardEditor(props: BasecardEditorProps) {
       }),
     });
     await commit(next);
-    setStatus(t("editor.status.cover_cleared"));
+    setStatus(formatMessage("editor.status.cover_cleared"));
   }
 
   function changeSortBasis(nextBasis: ImageSortBasis) {
@@ -785,7 +768,7 @@ function BasecardEditor(props: BasecardEditorProps) {
     void handleCoverFile(file);
   }
 
-  const primaryLabel = getPrimaryFileLabel(config, t("editor.images_unit"));
+  const primaryLabel = getPrimaryFileLabel(config, formatMessage("editor.images_unit"));
   const hasResource = isNonEmptyString(config.book_file) || config.image_sequence.length > 0;
   const imageListItems = config.image_sequence.map((image) => ({
     value: image.id,
@@ -796,8 +779,9 @@ function BasecardEditor(props: BasecardEditorProps) {
   return (
     <div className="chips-book-editor">
       <div className="chips-book-editor__shell">
-        <ChipsForm.Root
-          aria-label={t("editor.form_aria_label")}
+        <form
+          className="chips-book-editor__form"
+          aria-label={formatMessage("editor.form_aria_label")}
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
@@ -811,12 +795,9 @@ function BasecardEditor(props: BasecardEditorProps) {
 
           <section className="chips-book-editor__group">
             <div className="chips-book-editor__group-head">
-              <ChipsText
-                as="div"
-                className="chips-book-editor__group-title"
-                text={t("editor.group.resource")}
-                emphasis="strong"
-              />
+              <div className="chips-book-editor__group-title">
+                {formatMessage("editor.group.resource")}
+              </div>
             </div>
             <div className="chips-book-editor__row">
             <label
@@ -830,11 +811,11 @@ function BasecardEditor(props: BasecardEditorProps) {
               }}
             >
               <span className="chips-book-editor__dropzone-title">
-                <ChipsIcon descriptor={{ name: "upload_file", decorative: true }} tone="accent" />
-                {t("editor.upload_main")}
+                <UploadOutlined aria-hidden={true} />
+                {formatMessage("editor.upload_main")}
               </span>
               <span className="chips-book-editor__dropzone-meta">
-                {primaryLabel || t("editor.no_resource")}
+                {primaryLabel || formatMessage("editor.no_resource")}
               </span>
               <input
                 ref={mainInputRef}
@@ -852,32 +833,36 @@ function BasecardEditor(props: BasecardEditorProps) {
               />
             </label>
             <div className="chips-book-editor__actions">
-              <ChipsButton
-                type="button"
+              <Button
+                type="default"
                 disabled={!hasResource || busy !== null}
-                onPress={() => {
+                onClick={() => {
                   void clearMainResource();
                 }}
               >
-                {t("editor.clear_resource")}
-              </ChipsButton>
+                {formatMessage("editor.clear_resource")}
+              </Button>
             </div>
             {imageListItems.length > 0 ? (
               <div className="chips-book-editor__image-list">
-                <ChipsVirtualList
-                  items={imageListItems}
-                  itemHeight={54}
-                  height={Math.min(220, Math.max(54, imageListItems.length * 54))}
-                  ariaLabel={t("editor.image_list_aria_label")}
-                  renderItem={(item) => (
-                    <div className="chips-book-editor__image-list-item">
+                <div
+                  role="list"
+                  aria-label={formatMessage("editor.image_list_aria_label")}
+                  tabIndex={0}
+                  style={{
+                    maxHeight: Math.min(220, Math.max(54, imageListItems.length * 54)),
+                    overflowY: "auto",
+                  }}
+                >
+                  {imageListItems.map((item) => (
+                    <div key={item.value} className="chips-book-editor__image-list-item" role="listitem">
                       <strong>{item.label}</strong>
                       <span className="chips-book-editor__image-list-path">
                         {String(item.resourcePath ?? "")}
                       </span>
                     </div>
-                  )}
-                />
+                  ))}
+                </div>
               </div>
             ) : null}
             </div>
@@ -885,20 +870,17 @@ function BasecardEditor(props: BasecardEditorProps) {
 
           <section className="chips-book-editor__group">
             <div className="chips-book-editor__group-head">
-              <ChipsText
-                as="div"
-                className="chips-book-editor__group-title"
-                text={t("editor.group.cover")}
-                emphasis="strong"
-              />
+              <div className="chips-book-editor__group-title">
+                {formatMessage("editor.group.cover")}
+              </div>
             </div>
             <div className="chips-book-editor__row">
             <div className="chips-book-editor__cover-row">
               <div className="chips-book-editor__cover">
                 {coverPreview ? (
-                  <img src={coverPreview} alt={t("editor.cover_alt")} />
+                  <img src={coverPreview} alt={formatMessage("editor.cover_alt")} />
                 ) : (
-                  <div className="chips-book-editor__cover-placeholder">{t("editor.no_cover")}</div>
+                  <div className="chips-book-editor__cover-placeholder">{formatMessage("editor.no_cover")}</div>
                 )}
               </div>
               <label
@@ -912,11 +894,11 @@ function BasecardEditor(props: BasecardEditorProps) {
                 }}
               >
                 <span className="chips-book-editor__dropzone-title">
-                  <ChipsIcon descriptor={{ name: "add_photo_alternate", decorative: true }} tone="accent" />
-                  {t("editor.upload_cover")}
+                  <PictureOutlined aria-hidden={true} />
+                  {formatMessage("editor.upload_cover")}
                 </span>
                 <span className="chips-book-editor__dropzone-meta">
-                  {config.cover_image ? resolveFileName(config.cover_image) : t("editor.no_cover")}
+                  {config.cover_image ? resolveFileName(config.cover_image) : formatMessage("editor.no_cover")}
                 </span>
                 <input
                   ref={coverInputRef}
@@ -935,57 +917,62 @@ function BasecardEditor(props: BasecardEditorProps) {
               </label>
             </div>
             <div className="chips-book-editor__actions">
-              <ChipsButton
-                type="button"
+              <Button
+                type="default"
                 disabled={!config.cover_image || busy !== null}
-                onPress={() => {
+                onClick={() => {
                   void clearCover();
                 }}
               >
-                {t("editor.clear_cover")}
-              </ChipsButton>
+                {formatMessage("editor.clear_cover")}
+              </Button>
             </div>
             </div>
           </section>
 
           <section className="chips-book-editor__group">
             <div className="chips-book-editor__group-head">
-              <ChipsText
-                as="div"
-                className="chips-book-editor__group-title"
-                text={t("editor.group.metadata")}
-                emphasis="strong"
-              />
+              <div className="chips-book-editor__group-title">
+                {formatMessage("editor.group.metadata")}
+              </div>
             </div>
-            <ChipsForm.Field name="book_name">
-              <ChipsTextField
-                data-role="book-name-input"
-                value={config.book_name}
-                label={t("editor.book_name")}
-                ariaLabel={t("editor.book_name")}
-                placeholder={t("editor.placeholder.book_name")}
-                i18n={i18n}
-                onValueChange={(value) => {
-                  updateFields({ book_name: value });
-                }}
-              />
-            </ChipsForm.Field>
-            <ChipsForm.Field name="book_author">
-              <ChipsTextField
-                data-role="book-author-input"
-                value={config.book_author}
-                label={t("editor.book_author")}
-                ariaLabel={t("editor.book_author")}
-                placeholder={t("editor.placeholder.book_author")}
-                i18n={i18n}
-                onValueChange={(value) => {
-                  updateFields({ book_author: value });
-                }}
-              />
-            </ChipsForm.Field>
+            <div className="chips-book-editor__field-row">
+              <label className="chips-book-editor__label" htmlFor={bookNameInputId}>
+                {formatMessage("editor.book_name")}
+              </label>
+              <div className="chips-book-editor__control">
+                <Input
+                  id={bookNameInputId}
+                  data-role="book-name-input"
+                  value={config.book_name}
+                  aria-label={formatMessage("editor.book_name")}
+                  placeholder={formatMessage("editor.placeholder.book_name")}
+                  onChange={(event) => {
+                    updateFields({ book_name: event.target.value });
+                  }}
+                />
+              </div>
+            </div>
+            <div className="chips-book-editor__field-row">
+              <label className="chips-book-editor__label" htmlFor={bookAuthorInputId}>
+                {formatMessage("editor.book_author")}
+              </label>
+              <div className="chips-book-editor__control">
+                <Input
+                  id={bookAuthorInputId}
+                  data-role="book-author-input"
+                  value={config.book_author}
+                  aria-label={formatMessage("editor.book_author")}
+                  placeholder={formatMessage("editor.placeholder.book_author")}
+                  onChange={(event) => {
+                    updateFields({ book_author: event.target.value });
+                  }}
+                />
+              </div>
+            </div>
             {config.source_type === "image-sequence" ? (
               <label className="chips-book-editor__field-row">
-              <span className="chips-book-editor__label">{t("editor.image_sort_basis")}</span>
+              <span className="chips-book-editor__label">{formatMessage("editor.image_sort_basis")}</span>
               <span className="chips-book-editor__control">
                 <select
                   data-role="image-sort-select"
@@ -995,8 +982,8 @@ function BasecardEditor(props: BasecardEditorProps) {
                     changeSortBasis(event.currentTarget.value as ImageSortBasis);
                   }}
                 >
-                  <option value="filename">{t("editor.sort.filename")}</option>
-                  <option value="entry-time">{t("editor.sort.entry_time")}</option>
+                  <option value="filename">{formatMessage("editor.sort.filename")}</option>
+                  <option value="entry-time">{formatMessage("editor.sort.entry_time")}</option>
                 </select>
               </span>
               </label>
@@ -1004,15 +991,14 @@ function BasecardEditor(props: BasecardEditorProps) {
           </section>
 
           {validationError ? (
-            <ChipsErrorState
+            <Result
               className="chips-book-editor__validation"
-              error={validationError}
-              title={t("editor.validation_title")}
-              description={validationError.message}
-              ariaLabel={t("editor.validation_title")}
+              status="error"
+              title={formatMessage("editor.validation_title")}
+              subTitle={validationError.message}
             />
           ) : null}
-        </ChipsForm.Root>
+        </form>
       </div>
     </div>
   );
@@ -1029,10 +1015,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): HTMLElemen
 
   flushSync(() => {
     reactRoot.render(
-      <>
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
         <style>{EDITOR_STYLE_TEXT}</style>
         <BasecardEditor {...props} />
-      </>,
+      </ConfigProvider>,
     );
   });
 

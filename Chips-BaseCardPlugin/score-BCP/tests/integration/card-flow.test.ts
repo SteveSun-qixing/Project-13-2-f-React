@@ -41,18 +41,18 @@ describe("score basecard integration flow", () => {
       },
     });
 
-    const ratingButtons = Array.from(
-      editorContainer.querySelectorAll('[data-scope="rating"][data-part="item"]'),
-    ) as HTMLButtonElement[];
+    const ratingStars = Array.from(
+      editorContainer.querySelectorAll(".ant-rate-star div[role='radio']"),
+    ) as HTMLElement[];
 
-    const fourthButton = ratingButtons[3];
-    if (!fourthButton) {
-      throw new Error("找不到第四个评分按钮");
+    const fourthStar = ratingStars[3];
+    if (!fourthStar) {
+      throw new Error("找不到第四个评分项");
     }
 
-    fourthButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    fourthStar.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    const activeSymbols = container.querySelectorAll('[data-scope="rating"][data-part="item"][data-active="true"]');
+    const activeSymbols = container.querySelectorAll(".ant-rate-star-full");
     expect(currentConfig.score).toBe(4);
     expect(activeSymbols).toHaveLength(4);
   });

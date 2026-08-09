@@ -19,7 +19,7 @@ function createConfig(patch: Partial<BasecardConfig> = {}): BasecardConfig {
 }
 
 function getInputByLabel(root: HTMLElement, text: string): HTMLInputElement {
-  const labels = Array.from(root.querySelectorAll("[data-scope='text-field'][data-part='label']"));
+  const labels = Array.from(root.querySelectorAll(".chips-basecard-editor__field-label"));
   const label = labels.find((item) => item.textContent?.includes(text));
   if (!label) {
     throw new Error(`找不到字段标签：${text}`);
@@ -49,7 +49,7 @@ function setTextAreaValue(textArea: HTMLTextAreaElement, value: string): void {
 }
 
 function getTextAreaByLabel(root: HTMLElement, text: string): HTMLTextAreaElement {
-  const labels = Array.from(root.querySelectorAll("[data-scope='text-area'][data-part='label']"));
+  const labels = Array.from(root.querySelectorAll(".chips-basecard-editor__field-label"));
   const label = labels.find((item) => item.textContent?.includes(text));
   if (!label) {
     throw new Error(`找不到文本域标签：${text}`);
@@ -96,7 +96,7 @@ describe("createBasecardEditorRoot", () => {
     });
   });
 
-  it("keeps invalid URLs local and displays an i18n validation message", async () => {
+  it("keeps invalid URLs local and displays a validation message", async () => {
     let changeCount = 0;
     const root = createBasecardEditorRoot({
       initialConfig: createConfig(),
@@ -114,15 +114,15 @@ describe("createBasecardEditorRoot", () => {
     expect(root.textContent).toContain("链接必须是有效的 http 或 https 地址。");
   });
 
-  it("renders security controls with component-library scopes", () => {
+  it("renders security controls with antd components", () => {
     const root = createBasecardEditorRoot({
       initialConfig: createConfig({ url: "http://example.com" }),
       onChange: () => undefined,
     });
 
-    expect(root.querySelector("[data-scope='segmented-control']")).not.toBeNull();
-    expect(root.querySelector("[data-scope='switch']")).not.toBeNull();
-    expect(root.querySelector("[data-scope='badge']")?.textContent).toContain("非加密链接");
-    expect(root.querySelector("[data-scope='tooltip']")).not.toBeNull();
+    expect(root.querySelector(".ant-segmented")).not.toBeNull();
+    expect(root.querySelector(".ant-switch")).not.toBeNull();
+    expect(root.querySelector(".chips-basecard-editor__badge")?.textContent).toContain("非加密链接");
+    expect(root.querySelector(".chips-basecard-editor__help-button")).not.toBeNull();
   });
 });

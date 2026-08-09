@@ -1,0 +1,46 @@
+const MESSAGES: Record<string, string> = {
+  "view.empty": "未选择电子书",
+  "view.empty_description": "资源尚不可用。",
+  "view.untitled": "未命名书籍",
+  "view.unknown_author": "未知作者",
+  "view.image_count": "{count} 张图片",
+  "editor.group.resource": "书籍资源",
+  "editor.group.cover": "封面",
+  "editor.group.metadata": "书籍信息",
+  "editor.form_aria_label": "电子书基础卡片编辑表单",
+  "editor.upload_main": "上传电子书或图片包",
+  "editor.upload_cover": "上传封面",
+  "editor.no_resource": "未选择文件",
+  "editor.no_cover": "无封面",
+  "editor.cover_alt": "书籍封面",
+  "editor.images_unit": "张图片",
+  "editor.clear_resource": "移除资源",
+  "editor.clear_cover": "移除封面",
+  "editor.book_name": "书籍名称",
+  "editor.book_author": "书籍作者",
+  "editor.image_sort_basis": "图片排序依据",
+  "editor.image_list_aria_label": "图片序列资源列表",
+  "editor.sort.filename": "文件名",
+  "editor.sort.entry_time": "创建时间",
+  "editor.placeholder.book_name": "未命名书籍",
+  "editor.placeholder.book_author": "未知作者",
+  "editor.status.ebook_imported": "电子书已保存",
+  "editor.status.archive_imported": "图片包已保存：{count} 张图片",
+  "editor.status.cover_imported": "封面已保存",
+  "editor.status.cover_cleared": "封面已移除",
+  "editor.status.cleared": "资源已移除",
+  "editor.validation_title": "配置需要修正",
+  "editor.error.import_unavailable": "当前宿主未提供资源导入能力。",
+  "editor.error.archive_import_unavailable": "当前宿主未提供压缩包目录导入能力。",
+  "editor.error.archive_empty": "压缩包中没有可用图片。",
+  "editor.error.unsupported_format": "不支持的电子书格式。",
+  "editor.error.cover_not_image": "封面文件不是可识别的图片。",
+  "editor.error.import_failed": "资源导入失败。",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
+}

@@ -1,4 +1,14 @@
 import {
+  BoldOutlined,
+  ClearOutlined,
+  CodeOutlined,
+  ItalicOutlined,
+  LinkOutlined,
+  MinusOutlined,
+  OrderedListOutlined,
+  UnorderedListOutlined,
+} from "@ant-design/icons";
+import {
   Editor,
   defaultValueCtx,
   editorViewCtx,
@@ -7,7 +17,6 @@ import {
 } from "@milkdown/core";
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { ChipsIcon } from "@chips/component-library";
 import type { Editor as MilkdownEditor } from "@milkdown/core";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import {
@@ -28,6 +37,7 @@ import { TextSelection, type Selection } from "@milkdown/prose/state";
 import type { EditorState } from "@milkdown/prose/state";
 import { callCommand, getMarkdown, insertPos, replaceAll, replaceRange } from "@milkdown/utils";
 import type { BasecardResourceImportRequest, BasecardResourceImportResult } from "../index";
+import { formatMessage } from "../lib/messages";
 import {
   createFileBasecardConfig,
   createInlineBasecardConfig,
@@ -35,7 +45,6 @@ import {
   validateBasecardConfig,
   type BasecardConfig,
 } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
 import { configureRichTextMarkdown, richTextMarkdownPlugins } from "../shared/markdown-extensions";
 import { loadMarkdownFromConfig, rewriteRelativeResourceUrls } from "../shared/resource-links";
 import {
@@ -46,7 +55,6 @@ import {
   normalizeMarkdown,
   shouldUseFileStorage,
 } from "../shared/utils";
-import type { IconDescriptor } from "chips-sdk";
 
 export interface BasecardEditorProps {
   initialConfig: BasecardConfig;
@@ -116,7 +124,6 @@ type EditorController = {
   locale: string;
   theme: string;
   props: BasecardEditorProps;
-  t: ReturnType<typeof createTranslator>;
   editor?: MilkdownEditor;
   disposed: boolean;
   focused: boolean;
@@ -145,7 +152,7 @@ html, body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 #chips-basecard-editor-root {
@@ -167,9 +174,9 @@ html, body {
   min-height: 0;
   overflow: visible;
   padding: 14px 16px 16px;
-  background: var(--chips-sys-color-surface, #ffffff);
-  color: var(--chips-sys-color-on-surface, #111827);
-  font: 14px/1.6 var(--chips-font-family-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  background: #ffffff;
+  color: #1d1d1f;
+  font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   isolation: isolate;
 }
 
@@ -243,8 +250,8 @@ html, body {
 .chips-basecard-editor__editor-host .ProseMirror blockquote {
   margin-left: 0;
   padding-left: 14px;
-  border-left: 3px solid rgba(37, 99, 235, 0.28);
-  color: var(--chips-sys-color-on-surface-variant, #667085);
+  border-left: 3px solid rgba(10, 132, 255, 0.28);
+  color: #6e6e73;
 }
 
 .chips-basecard-editor__editor-host .ProseMirror del {
@@ -260,7 +267,7 @@ html, body {
 .chips-basecard-editor__editor-host .ProseMirror mark {
   padding: 0 0.18em;
   border-radius: 0.28em;
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2563eb) 16%, #fff5b1);
+  background: color-mix(in srgb, #ffcc00 30%, #ffffff);
   color: inherit;
 }
 
@@ -273,7 +280,7 @@ html, body {
 .chips-basecard-editor__editor-host .ProseMirror code {
   padding: 2px 6px;
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.08);
+  background: rgba(0, 0, 0, 0.08);
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 0.92em;
 }
@@ -288,10 +295,10 @@ html, body {
   margin: 0 0 16px;
   padding: 14px 16px;
   overflow-x: auto;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface-container, #f8fafc) 90%, #eef2ff);
-  color: var(--chips-sys-color-on-surface, #111827);
+  background: #f2f2f7;
+  color: #1d1d1f;
   white-space: pre-wrap;
 }
 
@@ -308,20 +315,20 @@ html, body {
   border-collapse: collapse;
   table-layout: fixed;
   overflow: hidden;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 14px;
 }
 
 .chips-basecard-editor__editor-host .ProseMirror th,
 .chips-basecard-editor__editor-host .ProseMirror td {
   padding: 10px 12px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   text-align: left;
   vertical-align: top;
 }
 
 .chips-basecard-editor__editor-host .ProseMirror th {
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2563eb) 7%, #f8fafc);
+  background: color-mix(in srgb, #0a84ff 7%, #f2f2f7);
   font-weight: 600;
 }
 
@@ -343,9 +350,9 @@ html, body {
 .chips-basecard-editor__editor-host .ProseMirror .chips-richtext-math--block {
   margin: 0 0 16px;
   padding: 14px 16px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface-container, #f8fafc) 90%, #ffffff);
+  background: #f2f2f7;
 }
 
 .chips-basecard-editor__editor-host .ProseMirror .chips-richtext-math__fallback {
@@ -364,10 +371,10 @@ html, body {
   gap: 4px;
   max-width: min(320px, calc(100% - 32px));
   padding: 4px;
-  border: 1px solid var(--chips-comp-card-shell-border-color, rgba(15, 23, 42, 0.12));
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--chips-comp-menu-content-surface, #ffffff) 94%, transparent);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  background: color-mix(in srgb, #ffffff 94%, transparent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
   transform: translate(-50%, calc(-100% - 10px));
   backdrop-filter: blur(16px);
 }
@@ -390,10 +397,10 @@ html, body {
   height: 40px;
   min-height: 40px;
   padding: 0;
-  border: 1px solid var(--chips-comp-card-shell-border-color, rgba(15, 23, 42, 0.12));
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 9px;
   background: #ffffff;
-  color: var(--chips-sys-color-on-surface, #111827);
+  color: #1d1d1f;
   font: inherit;
   cursor: pointer;
   outline: none;
@@ -406,19 +413,19 @@ html, body {
 
 .chips-basecard-editor__toolbar-button[data-state="hover"],
 .chips-basecard-editor__toolbar-button:hover {
-  border-color: rgba(37, 99, 235, 0.55);
+  border-color: rgba(10, 132, 255, 0.55);
   transform: translateY(-1px);
 }
 
 .chips-basecard-editor__toolbar-button[data-state="active"] {
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2563eb) 8%, #ffffff);
+  background: color-mix(in srgb, #0a84ff 8%, #ffffff);
   transform: translateY(0);
 }
 
 .chips-basecard-editor__toolbar-button[data-state="focus"],
 .chips-basecard-editor__toolbar-button:focus-visible {
-  border-color: rgba(37, 99, 235, 0.85);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+  border-color: rgba(10, 132, 255, 0.85);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.16);
 }
 
 .chips-basecard-editor__toolbar-button-icon {
@@ -448,12 +455,12 @@ html, body {
   transform: translate(-50%, calc(-100% - 10px));
   padding: 4px 8px;
   white-space: nowrap;
-  border-radius: var(--chips-comp-tooltip-content-radius, var(--chips-base-radius-sm, 8px));
-  background-color: var(--chips-comp-tooltip-content-surface, rgba(15, 23, 42, 0.92));
-  color: var(--chips-comp-tooltip-content-text-color, #ffffff);
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.92);
+  color: #ffffff;
   font-size: 12px;
   line-height: 1.2;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
 }
 
 .chips-basecard-editor__tooltip-layer[data-side="bottom"] [data-scope="tooltip"][data-part="content"] {
@@ -461,7 +468,7 @@ html, body {
 }
 
 [data-scope="tooltip"][data-part="content"][data-state="focus"] {
-  outline: 2px solid var(--chips-comp-tooltip-focus-outline, rgba(37, 99, 235, 0.48));
+  outline: 2px solid rgba(10, 132, 255, 0.48);
   outline-offset: 2px;
 }
 
@@ -470,8 +477,8 @@ html, body {
   width: 8px;
   height: 8px;
   transform: translate(-50%, calc(-100% - 5px)) rotate(45deg);
-  background-color: var(--chips-comp-tooltip-arrow-surface, rgba(15, 23, 42, 0.92));
-  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
+  background-color: rgba(0, 0, 0, 0.92);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
 }
 
 .chips-basecard-editor__tooltip-layer[data-side="bottom"] [data-scope="tooltip"][data-part="arrow"] {
@@ -493,13 +500,13 @@ html, body {
   gap: 2px;
   min-width: 220px;
   padding: 6px;
-  border-radius: var(--chips-comp-menu-content-radius, var(--chips-base-radius-md, 12px));
-  background-color: var(--chips-comp-menu-content-surface, #ffffff);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
 }
 
 [data-scope="menu"][data-part="content"][data-state="focus"] {
-  outline: 2px solid var(--chips-comp-menu-focus-outline, rgba(37, 99, 235, 0.48));
+  outline: 2px solid rgba(10, 132, 255, 0.48);
   outline-offset: 2px;
 }
 
@@ -513,7 +520,7 @@ html, body {
   border: 0;
   background: transparent;
   border-radius: 10px;
-  color: var(--chips-comp-menu-item-text-color, inherit);
+  color: inherit;
   text-align: left;
   cursor: pointer;
   outline: none;
@@ -522,16 +529,16 @@ html, body {
 
 [data-scope="menu"][data-part="item"][data-state="hover"],
 [data-scope="menu"][data-part="item"]:hover {
-  background-color: var(--chips-comp-menu-item-surface-hover, rgba(37, 99, 235, 0.1));
+  background-color: rgba(10, 132, 255, 0.1);
 }
 
 [data-scope="menu"][data-part="item"][data-state="active"] {
-  background-color: var(--chips-comp-menu-item-surface-active, rgba(37, 99, 235, 0.16));
+  background-color: rgba(10, 132, 255, 0.16);
 }
 
 [data-scope="menu"][data-part="item"][data-state="focus"],
 [data-scope="menu"][data-part="item"]:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chips-comp-menu-focus-outline, #2563eb) 35%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, #0a84ff 35%, transparent);
 }
 
 .chips-basecard-editor__context-menu-icon {
@@ -555,7 +562,7 @@ html, body {
   min-height: 0;
   padding: 10px 16px 14px;
   font-size: 13px;
-  color: var(--chips-sys-color-error, #d92d20);
+  color: #ff3b30;
 }
 
 .chips-basecard-editor__errors[hidden] {
@@ -601,7 +608,7 @@ const TOOLBAR_BUTTONS: ToolbarButton[] = [
     labelKey: "basecard.toolbar.link",
     icon: "link",
     run: async (controller) => {
-      const url = askUserForValue(controller.t("basecard.prompt.linkUrl"));
+      const url = askUserForValue(formatMessage("basecard.prompt.linkUrl"));
       if (!url) {
         return;
       }
@@ -693,20 +700,25 @@ const CONTEXT_MENU_ACTIONS: ContextMenuAction[] = [
   },
 ];
 
-const TOOLBAR_ICON_DESCRIPTORS: Record<ToolbarIconName, IconDescriptor> = {
-  bold: { name: "format_bold", decorative: true },
-  italic: { name: "format_italic", decorative: true },
-  code: { name: "code", decorative: true },
-  link: { name: "link", decorative: true },
-  clear: { name: "format_clear", decorative: true },
-  paragraph: { name: "format_paragraph", decorative: true },
-  h1: { name: "format_h1", decorative: true },
-  h2: { name: "format_h2", decorative: true },
-  h3: { name: "format_h3", decorative: true },
-  blockquote: { name: "format_quote", decorative: true },
-  orderedList: { name: "format_list_numbered", decorative: true },
-  unorderedList: { name: "format_list_bulleted", decorative: true },
-  divider: { name: "horizontal_rule", decorative: true },
+const TOOLBAR_ICON_COMPONENTS: Partial<
+  Record<ToolbarIconName, React.ComponentType<{ style?: React.CSSProperties }>>
+> = {
+  bold: BoldOutlined,
+  italic: ItalicOutlined,
+  code: CodeOutlined,
+  link: LinkOutlined,
+  clear: ClearOutlined,
+  orderedList: OrderedListOutlined,
+  unorderedList: UnorderedListOutlined,
+  divider: MinusOutlined,
+};
+
+const TOOLBAR_ICON_GLYPHS: Partial<Record<ToolbarIconName, string>> = {
+  paragraph: "¶",
+  h1: "H1",
+  h2: "H2",
+  h3: "H3",
+  blockquote: "❝",
 };
 
 function askUserForValue(label: string): string | null {
@@ -717,22 +729,11 @@ function askUserForValue(label: string): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-function mountRuntimeIcon(
-  host: ReactIslandHost,
-  descriptor: IconDescriptor,
-  className: string,
-  sizePx: number,
-): void {
+function mountRuntimeIcon(host: ReactIslandHost, element: React.ReactElement): void {
   host.__chipsReactRoot?.unmount();
   const root = createRoot(host);
   host.__chipsReactRoot = root;
-  root.render(
-    React.createElement(ChipsIcon, {
-      descriptor,
-      className,
-      size: sizePx,
-    }),
-  );
+  root.render(element);
 }
 
 function disposeRuntimeIcon(host: ReactIslandHost): void {
@@ -745,11 +746,22 @@ function createRuntimeIconElement(
   className: string,
   sizePx: number,
 ): HTMLSpanElement {
-  const descriptor = TOOLBAR_ICON_DESCRIPTORS[icon];
   const node = document.createElement("span") as ReactIslandHost;
   node.className = `${className} chips-basecard-editor__react-icon`;
   node.setAttribute("aria-hidden", "true");
-  mountRuntimeIcon(node, descriptor, className, sizePx);
+
+  const iconComponent = TOOLBAR_ICON_COMPONENTS[icon];
+  if (iconComponent) {
+    mountRuntimeIcon(
+      node,
+      React.createElement(iconComponent, { style: { fontSize: sizePx } }),
+    );
+  } else {
+    node.style.fontSize = `${sizePx}px`;
+    node.style.lineHeight = "1";
+    node.textContent = TOOLBAR_ICON_GLYPHS[icon] ?? "";
+  }
+
   return node;
 }
 
@@ -903,7 +915,7 @@ function createToolbarButton(controller: EditorController, definition: ToolbarBu
   button.className = "chips-basecard-editor__toolbar-button";
   button.dataset.scope = "button";
   button.dataset.part = "root";
-  button.setAttribute("aria-label", controller.t(definition.labelKey));
+  button.setAttribute("aria-label", formatMessage(definition.labelKey));
 
   button.appendChild(createRuntimeIconElement(definition.icon, "chips-basecard-editor__toolbar-button-icon", 16));
 
@@ -917,10 +929,10 @@ function createToolbarButton(controller: EditorController, definition: ToolbarBu
     void definition.run(controller);
   });
   button.addEventListener("mouseenter", () => {
-    showTooltip(controller, button, controller.t(definition.labelKey));
+    showTooltip(controller, button, formatMessage(definition.labelKey));
   });
   button.addEventListener("focus", () => {
-    showTooltip(controller, button, controller.t(definition.labelKey));
+    showTooltip(controller, button, formatMessage(definition.labelKey));
   });
   button.addEventListener("mouseleave", () => {
     hideTooltip(controller);
@@ -938,13 +950,13 @@ function createContextMenuItem(controller: EditorController, action: ContextMenu
   item.dataset.scope = "menu";
   item.dataset.part = "item";
   item.setAttribute("role", "menuitem");
-  item.setAttribute("aria-label", controller.t(action.labelKey));
+  item.setAttribute("aria-label", formatMessage(action.labelKey));
 
   item.appendChild(createRuntimeIconElement(action.icon, "chips-basecard-editor__context-menu-icon", 18));
 
   const label = document.createElement("span");
   label.className = "chips-basecard-editor__context-menu-label";
-  label.textContent = controller.t(action.labelKey);
+  label.textContent = formatMessage(action.labelKey);
   item.appendChild(label);
 
   applyInteractiveState(item);
@@ -984,7 +996,7 @@ function syncValidationErrors(controller: EditorController, markdown: string): v
     return;
   }
 
-  setErrors(controller, [controller.t("basecard.validation.bodyRequired")]);
+  setErrors(controller, [formatMessage("basecard.validation.bodyRequired")]);
 }
 
 function clearPreviewTimer(controller: EditorController): void {
@@ -1058,7 +1070,7 @@ async function commitCurrentMarkdown(controller: EditorController): Promise<void
 
   const hasContent = hasMeaningfulMarkdownContent(markdown);
   if (!hasContent) {
-    setErrors(controller, [controller.t("basecard.validation.bodyRequired")]);
+    setErrors(controller, [formatMessage("basecard.validation.bodyRequired")]);
     return;
   }
 
@@ -1067,7 +1079,7 @@ async function commitCurrentMarkdown(controller: EditorController): Promise<void
 
   if (shouldUseFileStorage(plainTextLength)) {
     if (!controller.props.importResource) {
-      setErrors(controller, [controller.t("basecard.validation.importUnavailable")]);
+      setErrors(controller, [formatMessage("basecard.validation.importUnavailable")]);
       return;
     }
 
@@ -1400,7 +1412,6 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
     locale: config.locale ?? "zh-CN",
     theme: config.theme ?? "",
     props,
-    t: createTranslator(config.locale),
     disposed: false,
     focused: false,
     currentMarkdown: "",
@@ -1614,10 +1625,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
 
       await syncPreviewResources(controller);
       if (!hasMeaningfulMarkdownContent(markdown)) {
-        setErrors(controller, [controller.t("basecard.validation.bodyRequired")]);
+        setErrors(controller, [formatMessage("basecard.validation.bodyRequired")]);
       }
     } catch (error) {
-      setErrors(controller, [`${controller.t("basecard.status.loadFailed")}：${error instanceof Error ? error.message : String(error)}`]);
+      setErrors(controller, [`${formatMessage("basecard.status.loadFailed")}：${error instanceof Error ? error.message : String(error)}`]);
     }
   })();
 

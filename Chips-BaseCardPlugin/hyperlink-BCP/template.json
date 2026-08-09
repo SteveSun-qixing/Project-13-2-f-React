@@ -1,7 +1,7 @@
 {
   "id": "card-standard",
   "name": "标准基础卡片插件模板",
-  "description": "包含渲染模块、编辑模块、配置 Schema、多语言与测试骨架的标准基础卡片插件模板。",
+  "description": "包含渲染模块、编辑模块、配置 Schema、简体中文文案与测试骨架的标准基础卡片插件模板。",
   "version": "1.0.0",
   "supports": {
     "sdk": true,

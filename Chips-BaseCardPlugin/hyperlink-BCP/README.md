@@ -20,7 +20,7 @@
 
 ```text
 hyperlink-BCP/
-├─ .eslintrc.cjs          # 工程级 ESLint 配置（供 chipsdev lint 调用）
+├─ .eslintrc.cjs          # 工程级 ESLint 配置（供 chipsdev-r lint 调用）
 ├─ manifest.yaml          # 插件清单（type: card）
 ├─ package.json           # NPM 配置
 ├─ tsconfig.json          # TypeScript 配置
@@ -28,6 +28,8 @@ hyperlink-BCP/
 ├─ src/
 │  ├─ index.ts            # 插件入口（注册渲染与编辑模块）
 │  │                      # 同时导出 basecardDefinition 正式契约
+│  ├─ lib/
+│  │  └─ messages.ts      # 简体中文文案总表（formatMessage 插值）
 │  ├─ render/
 │  │  ├─ view.tsx         # 渲染模块：基础卡片视图
 │  │  └─ runtime.ts       # 渲染运行时挂载逻辑
@@ -37,19 +39,19 @@ hyperlink-BCP/
 │  ├─ schema/
 │  │  └─ card-config.ts   # 配置 Schema 与类型定义
 │  └─ shared/
-│     ├─ i18n.ts          # 多语言取词工具
 │     └─ utils.ts         # 渲染与编辑共享工具函数
 ├─ config/
 │  └─ logging.ts          # 日志封装
-├─ i18n/
-│  ├─ zh-CN.json          # 中文文案
-│  └─ en-US.json          # 英文文案
+├─ 归档/
+│  ├─ i18n/               # 已废弃的多语言语言档案
+│  └─ src-shared-i18n/    # 已废弃的 createTranslator 翻译器
 ├─ templates/
 │  ├─ default-card-config.yaml  # 默认基础卡片配置模板
 │  └─ parameters.md       # 参数表与填写说明
 ├─ docs/
 │  └─ 超链接基础卡片插件说明.md
 ├─ tests/
+│  ├─ setup.ts            # jsdom 测试环境存根（ResizeObserver 等）
 │  ├─ unit/
 │  │  ├─ render-view.test.tsx
 │  │  └─ editor-panel.test.tsx
@@ -70,7 +72,7 @@ cd hyperlink-BCP
 npm run dev
 ```
 
-基础卡片工程中的 `chips-sdk` 与 `chipsdev` 统一依赖生态根工作区解析；请通过 `chipsdev create` 将工程接入工作区，不再单独在项目目录执行首次依赖安装。
+基础卡片工程中的 `chips-sdk` 与 `chipsdev-r` 统一依赖生态根工作区解析；请通过 `chipsdev-r create` 将工程接入工作区，不再单独在项目目录执行首次依赖安装。
 
 在开发模式下，使用 `chips dev server` 启动本地开发环境，根据 `chips dev` 工具文档在 Host 工作区中加载插件进行调试。
 
@@ -85,7 +87,7 @@ npm run dev
 - React 渲染与编辑运行时
 - `normalizeBasecardConfig()` / `validateBasecardConfig()` 统一归一与校验基线
 - `renderBasecardView()` / `renderBasecardEditor()` / `basecardDefinition` 正式入口
-- `card_type/theme/locale/anchor_text/url/description/icon_url/open_mode/display_density/show_security_hint` 正式配置模型
+- `card_type/theme/locale/anchor_text/url/description/icon_url/open_mode/display_density/show_security_hint` 正式配置模型（`theme`/`locale` 为保留契约字段，不再消费）
 - `http/https` 协议白名单、凭据 URL 阻断、HTTP 风险提示和 Host 打开能力缺失降级
 
 ## 正式入口契约
@@ -105,11 +107,12 @@ npm run dev
 - `basecardDefinition.icon` 是运行时正式图标描述符；
 - `assets/icons/basecard-icon.svg` 只作为静态资源保留，来源说明见 `assets/icons/SOURCE.md`。
 
-## 主题接入约束
+## 视觉与文案约束
 
-- Host 会在渲染阶段向基础卡片插件注入 `themeCssText`，运行时会把该样式挂载到渲染容器中；
-- 基础卡片插件不得自行硬编码整套卡片主题色板，视觉风格应优先来自当前生效主题包。
-- 编辑态使用 `@chips/component-library` 的正式表单、输入、分段选择、开关、按钮、徽标和提示组件；用户可见文案均来自 `i18n/`。
+- 视觉固定为生态统一苹果风格：antd token 与共享层 `appleTheme`（`@chips/ui`），查看态样式为插件自有 CSS（固定色值，不再读取主题 CSS 变量）；不引入第二套视觉体系。
+- 编辑面板入口统一套用 `ConfigProvider locale={zhCN} theme={appleTheme}`；表单按 antd 受控组件实现（做法 A），`onChange` 语义不变。
+- 用户可见文案统一简体中文直写，总表维护在 `src/lib/messages.ts`（`formatMessage` 插值），不再使用多语言系统。
+- 查看态不渲染 Host 注入的 `themeCssText`（`BasecardRenderContext.themeCssText` 作为宿主契约字段保留、不消费）。
 
 ## 资源打开边界
 

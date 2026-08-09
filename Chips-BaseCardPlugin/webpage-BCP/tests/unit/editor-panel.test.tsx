@@ -41,23 +41,16 @@ function setInputValue(input: HTMLInputElement, value: string): void {
 
 function clickSegmentedOption(root: HTMLElement, selector: string): void {
   const marker = root.querySelector(selector);
-  const button = marker?.closest("button") as HTMLButtonElement | null;
-  if (!button) {
+  const item = marker?.closest(".ant-segmented-item") as HTMLElement | null;
+  if (!item) {
     throw new Error(`未找到分段控件选项：${selector}`);
   }
 
-  button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  item.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
 describe("createBasecardEditorRoot", () => {
   const mountedRoots: DisposableRoot[] = [];
-
-  beforeEach(() => {
-    Object.defineProperty(window.navigator, "language", {
-      configurable: true,
-      value: "zh-CN",
-    });
-  });
 
   afterEach(() => {
     for (const root of mountedRoots) {

@@ -18,4 +18,4 @@
 
 - 基础卡片插件没有 `manifest.ui.launcher.icon`，这些文件不属于系统入口图标链路；
 - 运行时图标描述符以 `src/index.ts -> basecardDefinition.icon` 为准；
-- 查看器、编辑器和治理页渲染图标时仍应使用 `ChipsIcon + IconDescriptor`。
+- 编辑面板悬浮工具框与右键菜单图标统一使用 `@ant-design/icons`（task030 起废弃 `ChipsIcon + IconDescriptor` 组件库图标链路）。

@@ -1,14 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  ChipsBadge,
-  ChipsButton,
-  ChipsForm,
-  ChipsSegmentedControl,
-  ChipsSwitch,
-  ChipsTextArea,
-  ChipsTextField,
-  ChipsTooltip,
-} from "@chips/component-library";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { ConfigProvider, Input, Segmented, Switch, Tag, Tooltip } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type {
@@ -26,7 +19,7 @@ import {
   type HyperlinkDisplayDensity,
   type HyperlinkOpenMode,
 } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import { analyzeHyperlinkUrl } from "../shared/utils";
 
 export interface BasecardEditorProps {
@@ -55,7 +48,7 @@ html, body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .chips-basecard-editor {
@@ -68,9 +61,9 @@ html, body {
   min-height: 0;
   overflow: auto;
   padding: 16px;
-  color: var(--chips-sys-color-on-surface, #111827);
-  background: var(--chips-sys-color-surface, #ffffff);
-  font: 14px/1.6 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  background: #ffffff;
+  font: 14px/1.6 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-basecard-editor,
@@ -91,82 +84,41 @@ html, body {
 
 .chips-basecard-editor__section-title {
   margin: 0;
-  color: var(--chips-sys-color-on-surface, #111827);
+  color: #1d1d1f;
   font-size: 15px;
   font-weight: 600;
-}
-
-.chips-basecard-editor [data-scope="text-field"][data-part="root"],
-.chips-basecard-editor [data-scope="text-area"][data-part="root"] {
-  display: grid;
-  gap: 8px;
-}
-
-.chips-basecard-editor [data-scope="text-field"][data-part="label"],
-.chips-basecard-editor [data-scope="text-area"][data-part="label"] {
-  color: var(--chips-sys-color-on-surface, #111827);
-  font-weight: 600;
-}
-
-.chips-basecard-editor [data-scope="text-field"][data-part="control"],
-.chips-basecard-editor [data-scope="text-area"][data-part="control"],
-.chips-basecard-editor__select {
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--chips-comp-text-field.root.border, var(--chips-sys-color-outline, rgba(15, 23, 42, 0.16)));
-  border-radius: 8px;
-  background: var(--chips-comp-text-field.root.surface, var(--chips-sys-color-surface, #ffffff));
-  color: inherit;
-  font: inherit;
-  outline: none;
-  padding: 0 12px;
-  transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
-}
-
-.chips-basecard-editor [data-scope="text-area"][data-part="control"] {
-  min-height: 92px;
-  padding-block: 10px;
-  resize: vertical;
-}
-
-.chips-basecard-editor [data-scope="text-field"][data-part="control"]:hover,
-.chips-basecard-editor [data-scope="text-field"][data-part="control"]:focus,
-.chips-basecard-editor [data-scope="text-area"][data-part="control"]:hover,
-.chips-basecard-editor [data-scope="text-area"][data-part="control"]:focus,
-.chips-basecard-editor__select:hover,
-.chips-basecard-editor__select:focus {
-  border-color: var(--chips-sys-color-primary, #2563eb);
-  box-shadow: 0 0 0 3px var(--chips-sys-color-primary-container, rgba(37, 99, 235, 0.12));
-}
-
-.chips-basecard-editor [data-scope="text-field"][data-part="description"],
-.chips-basecard-editor [data-scope="text-area"][data-part="description"],
-.chips-basecard-editor [data-scope="form"][data-part="hint"] {
-  margin: 0;
-  color: var(--chips-sys-color-on-surface-variant, #667085);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.chips-basecard-editor [data-scope="text-field"][data-part="status"],
-.chips-basecard-editor [data-scope="text-area"][data-part="status"],
-.chips-basecard-editor [data-scope="form"][data-part="error"] {
-  margin: 0;
-  color: var(--chips-sys-color-error, #d92d20);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .chips-basecard-editor__field {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .chips-basecard-editor__field-label {
-  color: var(--chips-sys-color-on-surface, #111827);
+  color: #1d1d1f;
   font-weight: 600;
+}
+
+.chips-basecard-editor__field .ant-input,
+.chips-basecard-editor__field .ant-input-affix-wrapper {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.chips-basecard-editor__field-description,
+.chips-basecard-editor__field-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chips-basecard-editor__field-description {
+  color: #6e6e73;
+}
+
+.chips-basecard-editor__field-error {
+  color: #ff3b30;
 }
 
 .chips-basecard-editor__switch-row,
@@ -191,97 +143,69 @@ html, body {
 
 .chips-basecard-editor__switch-description,
 .chips-basecard-editor__security-description {
-  color: var(--chips-sys-color-on-surface-variant, #667085);
+  color: #6e6e73;
   font-size: 12px;
   line-height: 1.5;
 }
 
-.chips-basecard-editor [data-scope="switch"][data-part="root"] {
+.chips-basecard-editor__switch-row .ant-switch {
   flex: 0 0 auto;
 }
 
-.chips-basecard-editor__segmented [data-scope="segmented-control"][data-part="root"] {
+.chips-basecard-editor__segmented {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chips-basecard-editor__segmented [data-scope="segmented-control"][data-part="item"] {
-  min-height: 36px;
-  border: 1px solid var(--chips-sys-color-outline, rgba(15, 23, 42, 0.18));
-  border-radius: 8px;
-  background: var(--chips-sys-color-surface, #ffffff);
-  color: var(--chips-sys-color-on-surface, #111827);
-  padding: 0 12px;
-}
-
-.chips-basecard-editor__segmented [data-scope="segmented-control"][data-part="item"][aria-checked="true"],
-.chips-basecard-editor__segmented [data-scope="segmented-control"][data-part="item"][data-checked="true"] {
-  border-color: var(--chips-sys-color-primary, #2563eb);
-  background: var(--chips-sys-color-primary-container, rgba(37, 99, 235, 0.12));
-  color: var(--chips-sys-color-primary, #2563eb);
 }
 
 .chips-basecard-editor__security-row {
-  border: 1px solid var(--chips-sys-color-outline-variant, rgba(15, 23, 42, 0.12));
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
   padding: 12px;
-  background: var(--chips-sys-color-surface-container-low, rgba(15, 23, 42, 0.04));
+  background: rgba(0, 0, 0, 0.04);
 }
 
-.chips-basecard-editor [data-scope="badge"][data-part="root"] {
+.chips-basecard-editor__badge {
+  margin-inline-end: 0;
+  border: none;
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 11px;
   font-weight: 600;
 }
 
-.chips-basecard-editor [data-scope="badge"][data-tone="success"] {
-  background: var(--chips-sys-color-success-surface, rgba(12, 126, 67, 0.12));
-  color: var(--chips-sys-color-success, #0c7e43);
+.chips-basecard-editor__badge[data-tone="success"] {
+  background: rgba(52, 199, 89, 0.12);
+  color: #34c759;
 }
 
-.chips-basecard-editor [data-scope="badge"][data-tone="warning"] {
-  background: var(--chips-sys-color-warning-surface, rgba(181, 102, 0, 0.12));
-  color: var(--chips-sys-color-warning, #b56600);
+.chips-basecard-editor__badge[data-tone="warning"] {
+  background: rgba(255, 159, 10, 0.12);
+  color: #ff9f0a;
 }
 
-.chips-basecard-editor [data-scope="badge"][data-tone="error"] {
-  background: var(--chips-sys-color-error-surface, rgba(217, 45, 32, 0.12));
-  color: var(--chips-sys-color-error, #d92d20);
+.chips-basecard-editor__badge[data-tone="error"] {
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
 }
 
-.chips-basecard-editor [data-scope="tooltip"][data-part="root"] {
-  position: relative;
+.chips-basecard-editor__help-button {
   display: inline-flex;
-}
-
-.chips-basecard-editor [data-scope="tooltip"][data-part="trigger"] {
+  align-items: center;
+  justify-content: center;
   min-width: 28px;
   min-height: 28px;
-  border: 1px solid var(--chips-sys-color-outline, rgba(15, 23, 42, 0.18));
+  border: 1px solid rgba(0, 0, 0, 0.18);
   border-radius: 999px;
   background: transparent;
-  color: var(--chips-sys-color-on-surface-variant, #667085);
-}
-
-.chips-basecard-editor [data-scope="tooltip"][data-part="content"] {
-  position: absolute;
-  z-index: 2;
-  top: calc(100% + 6px);
-  right: 0;
-  width: min(260px, 70vw);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--chips-sys-color-inverse-surface, #111827);
-  color: var(--chips-sys-color-inverse-on-surface, #ffffff);
-  font-size: 12px;
-  line-height: 1.5;
+  color: #6e6e73;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .chips-basecard-editor__errors {
   min-height: 0;
-  color: var(--chips-sys-color-error, #d92d20);
+  color: #ff3b30;
   font-size: 13px;
 }
 
@@ -291,9 +215,9 @@ html, body {
 }
 `;
 
-function getErrorMessage(errors: Record<string, string>, field: string, t: ReturnType<typeof createTranslator>): string | null {
+function getErrorMessage(errors: Record<string, string>, field: string): string | null {
   const key = errors[field];
-  return key ? t(key) : null;
+  return key ? formatMessage(key) : null;
 }
 
 function getSecurityLabelKey(reason: string): string {
@@ -328,18 +252,18 @@ function getSecurityTone(reason: string): "success" | "warning" | "error" {
   return "error";
 }
 
-function createOpenModeOptions(t: ReturnType<typeof createTranslator>) {
+function createOpenModeOptions(): Array<{ value: HyperlinkOpenMode; label: string }> {
   return [
-    { value: "external-browser", label: t("hyperlink.openMode.external-browser") },
-    { value: "resource-router", label: t("hyperlink.openMode.resource-router") },
+    { value: "external-browser", label: formatMessage("hyperlink.openMode.external-browser") },
+    { value: "resource-router", label: formatMessage("hyperlink.openMode.resource-router") },
   ];
 }
 
-function createDensityOptions(t: ReturnType<typeof createTranslator>) {
+function createDensityOptions(): Array<{ value: HyperlinkDisplayDensity; label: string }> {
   return [
-    { value: "compact", label: t("hyperlink.density.compact") },
-    { value: "comfortable", label: t("hyperlink.density.comfortable") },
-    { value: "spacious", label: t("hyperlink.density.spacious") },
+    { value: "compact", label: formatMessage("hyperlink.density.compact") },
+    { value: "comfortable", label: formatMessage("hyperlink.density.comfortable") },
+    { value: "spacious", label: formatMessage("hyperlink.density.spacious") },
   ];
 }
 
@@ -349,9 +273,15 @@ function BasecardEditor(props: BasecardEditorProps) {
   const [errors, setErrors] = useState<Record<string, string>>(() =>
     validateBasecardConfig(normalizeBasecardConfig(props.initialConfig)).errors
   );
-  const t = createTranslator(config.locale);
+  const anchorInputId = useId();
+  const urlInputId = useId();
+  const descriptionInputId = useId();
+  const iconUrlInputId = useId();
   const urlAnalysis = analyzeHyperlinkUrl(config.url);
-  const securityText = t(getSecurityLabelKey(urlAnalysis.reason));
+  const securityText = formatMessage(getSecurityLabelKey(urlAnalysis.reason));
+  const anchorError = getErrorMessage(errors, "anchor_text");
+  const urlError = getErrorMessage(errors, "url");
+  const iconUrlError = getErrorMessage(errors, "icon_url");
 
   useEffect(() => {
     const next = normalizeBasecardConfig(props.initialConfig);
@@ -376,105 +306,145 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   return (
     <div className="chips-basecard-editor chips-basecard-editor--standard">
-      <ChipsForm
+      <form
         className="chips-basecard-editor__form"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
         }}
       >
         <section className="chips-basecard-editor__section" aria-labelledby="chips-hyperlink-editor-content-title">
           <h2 id="chips-hyperlink-editor-content-title" className="chips-basecard-editor__section-title">
-            {t("hyperlink.editor.contentSection")}
+            {formatMessage("hyperlink.editor.contentSection")}
           </h2>
-          <ChipsTextField
-            value={config.anchor_text}
-            label={t("hyperlink.anchorText")}
-            placeholder={t("hyperlink.placeholder.anchorText")}
-            error={getErrorMessage(errors, "anchor_text", t)}
-            required
-            onValueChange={(value) => {
-              updateConfig({ anchor_text: value });
-            }}
-          />
+          <div className="chips-basecard-editor__field">
+            <label className="chips-basecard-editor__field-label" htmlFor={anchorInputId}>
+              {formatMessage("hyperlink.anchorText")}
+            </label>
+            <Input
+              id={anchorInputId}
+              size="large"
+              value={config.anchor_text}
+              placeholder={formatMessage("hyperlink.placeholder.anchorText")}
+              required
+              status={anchorError ? "error" : undefined}
+              onChange={(event) => {
+                updateConfig({ anchor_text: event.target.value });
+              }}
+            />
+            {anchorError ? (
+              <p className="chips-basecard-editor__field-error">{anchorError}</p>
+            ) : null}
+          </div>
 
-          <ChipsTextField
-            value={config.url}
-            label={t("hyperlink.url")}
-            placeholder={t("hyperlink.placeholder.url")}
-            description={t("hyperlink.description.url")}
-            error={getErrorMessage(errors, "url", t)}
-            required
-            inputMode="url"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            onValueChange={(value) => {
-              updateConfig({ url: value });
-            }}
-          />
+          <div className="chips-basecard-editor__field">
+            <label className="chips-basecard-editor__field-label" htmlFor={urlInputId}>
+              {formatMessage("hyperlink.url")}
+            </label>
+            <Input
+              id={urlInputId}
+              size="large"
+              value={config.url}
+              placeholder={formatMessage("hyperlink.placeholder.url")}
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+              status={urlError ? "error" : undefined}
+              onChange={(event) => {
+                updateConfig({ url: event.target.value });
+              }}
+            />
+            <p className="chips-basecard-editor__field-description">
+              {formatMessage("hyperlink.description.url")}
+            </p>
+            {urlError ? (
+              <p className="chips-basecard-editor__field-error">{urlError}</p>
+            ) : null}
+          </div>
 
-          <ChipsTextArea
-            value={config.description}
-            label={t("hyperlink.description")}
-            placeholder={t("hyperlink.placeholder.description")}
-            description={t("hyperlink.description.description")}
-            rows={3}
-            onValueChange={(value) => {
-              updateConfig({ description: value });
-            }}
-          />
+          <div className="chips-basecard-editor__field">
+            <label className="chips-basecard-editor__field-label" htmlFor={descriptionInputId}>
+              {formatMessage("hyperlink.description")}
+            </label>
+            <Input.TextArea
+              id={descriptionInputId}
+              value={config.description}
+              placeholder={formatMessage("hyperlink.placeholder.description")}
+              rows={3}
+              style={{ resize: "vertical" }}
+              onChange={(event) => {
+                updateConfig({ description: event.target.value });
+              }}
+            />
+            <p className="chips-basecard-editor__field-description">
+              {formatMessage("hyperlink.description.description")}
+            </p>
+          </div>
         </section>
 
         <section className="chips-basecard-editor__section" aria-labelledby="chips-hyperlink-editor-display-title">
           <h2 id="chips-hyperlink-editor-display-title" className="chips-basecard-editor__section-title">
-            {t("hyperlink.editor.displaySection")}
+            {formatMessage("hyperlink.editor.displaySection")}
           </h2>
 
-          <ChipsTextField
-            value={config.icon_url}
-            label={t("hyperlink.iconUrl")}
-            placeholder={t("hyperlink.placeholder.iconUrl")}
-            description={t("hyperlink.description.iconUrl")}
-            error={getErrorMessage(errors, "icon_url", t)}
-            inputMode="url"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            onValueChange={(value) => {
-              updateConfig({ icon_url: value });
-            }}
-          />
+          <div className="chips-basecard-editor__field">
+            <label className="chips-basecard-editor__field-label" htmlFor={iconUrlInputId}>
+              {formatMessage("hyperlink.iconUrl")}
+            </label>
+            <Input
+              id={iconUrlInputId}
+              size="large"
+              value={config.icon_url}
+              placeholder={formatMessage("hyperlink.placeholder.iconUrl")}
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              status={iconUrlError ? "error" : undefined}
+              onChange={(event) => {
+                updateConfig({ icon_url: event.target.value });
+              }}
+            />
+            <p className="chips-basecard-editor__field-description">
+              {formatMessage("hyperlink.description.iconUrl")}
+            </p>
+            {iconUrlError ? (
+              <p className="chips-basecard-editor__field-error">{iconUrlError}</p>
+            ) : null}
+          </div>
 
           <div className="chips-basecard-editor__field">
             <span className="chips-basecard-editor__field-label">
-              {t("hyperlink.openMode")}
+              {formatMessage("hyperlink.openMode")}
             </span>
             <div className="chips-basecard-editor__segmented">
-              <ChipsSegmentedControl
+              <Segmented<HyperlinkOpenMode>
                 value={config.open_mode}
-                ariaLabel={t("hyperlink.openMode")}
-                options={createOpenModeOptions(t)}
-                onValueChange={(value) => {
-                  updateConfig({ open_mode: value as HyperlinkOpenMode });
+                aria-label={formatMessage("hyperlink.openMode")}
+                options={createOpenModeOptions()}
+                onChange={(value) => {
+                  updateConfig({ open_mode: value });
                 }}
               />
             </div>
             <p className="chips-basecard-editor__switch-description">
-              {t("hyperlink.description.openMode")}
+              {formatMessage("hyperlink.description.openMode")}
             </p>
           </div>
 
           <div className="chips-basecard-editor__field">
             <span className="chips-basecard-editor__field-label">
-              {t("hyperlink.displayDensity")}
+              {formatMessage("hyperlink.displayDensity")}
             </span>
             <div className="chips-basecard-editor__segmented">
-              <ChipsSegmentedControl
+              <Segmented<HyperlinkDisplayDensity>
                 value={config.display_density}
-                ariaLabel={t("hyperlink.displayDensity")}
-                options={createDensityOptions(t)}
-                onValueChange={(value) => {
-                  updateConfig({ display_density: value as HyperlinkDisplayDensity });
+                aria-label={formatMessage("hyperlink.displayDensity")}
+                options={createDensityOptions()}
+                onChange={(value) => {
+                  updateConfig({ display_density: value });
                 }}
               />
             </div>
@@ -482,15 +452,15 @@ function BasecardEditor(props: BasecardEditorProps) {
 
           <div className="chips-basecard-editor__switch-row">
             <span className="chips-basecard-editor__switch-copy">
-              <span className="chips-basecard-editor__switch-title">{t("hyperlink.securityHint")}</span>
+              <span className="chips-basecard-editor__switch-title">{formatMessage("hyperlink.securityHint")}</span>
               <span className="chips-basecard-editor__switch-description">
-                {t("hyperlink.description.securityHint")}
+                {formatMessage("hyperlink.description.securityHint")}
               </span>
             </span>
-            <ChipsSwitch
+            <Switch
               checked={config.show_security_hint}
-              label={t("hyperlink.securityHint")}
-              onCheckedChange={(checked) => {
+              aria-label={formatMessage("hyperlink.securityHint")}
+              onChange={(checked) => {
                 updateConfig({ show_security_hint: checked });
               }}
             />
@@ -499,25 +469,34 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         <section className="chips-basecard-editor__section" aria-labelledby="chips-hyperlink-editor-security-title">
           <h2 id="chips-hyperlink-editor-security-title" className="chips-basecard-editor__section-title">
-            {t("hyperlink.editor.securitySection")}
+            {formatMessage("hyperlink.editor.securitySection")}
           </h2>
           <div className="chips-basecard-editor__security-row">
             <span className="chips-basecard-editor__security-copy">
               <span className="chips-basecard-editor__security-title">{securityText}</span>
               <span className="chips-basecard-editor__security-description">
-                {t("hyperlink.security.description", {
-                  url: urlAnalysis.normalizedUrl || urlAnalysis.input || t("hyperlink.view.emptyUrl"),
+                {formatMessage("hyperlink.security.description", {
+                  url: urlAnalysis.normalizedUrl || urlAnalysis.input || formatMessage("hyperlink.view.emptyUrl"),
                 })}
               </span>
             </span>
             <span className="chips-basecard-editor__switch-row">
-              <ChipsBadge tone={getSecurityTone(urlAnalysis.reason)}>
+              <Tag
+                className="chips-basecard-editor__badge"
+                data-tone={getSecurityTone(urlAnalysis.reason)}
+              >
                 {securityText}
-              </ChipsBadge>
-              <ChipsTooltip
-                triggerContent="?"
-                content={t("hyperlink.security.tooltip")}
-              />
+              </Tag>
+              <Tooltip title={formatMessage("hyperlink.security.tooltip")}>
+                <span
+                  className="chips-basecard-editor__help-button"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={formatMessage("hyperlink.security.tooltip")}
+                >
+                  ?
+                </span>
+              </Tooltip>
             </span>
           </div>
         </section>
@@ -526,12 +505,12 @@ function BasecardEditor(props: BasecardEditorProps) {
           {Object.keys(errors).length > 0 ? (
             <ul className="chips-basecard-editor__errors-list">
               {Object.entries(errors).map(([key, message]) => (
-                <li key={key}>{t(message)}</li>
+                <li key={key}>{formatMessage(message)}</li>
               ))}
             </ul>
           ) : null}
         </div>
-      </ChipsForm>
+      </form>
     </div>
   );
 }
@@ -547,10 +526,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): HTMLElemen
 
   flushSync(() => {
     reactRoot.render(
-      <>
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
         <style>{EDITOR_STYLE_TEXT}</style>
         <BasecardEditor {...props} />
-      </>,
+      </ConfigProvider>,
     );
   });
 

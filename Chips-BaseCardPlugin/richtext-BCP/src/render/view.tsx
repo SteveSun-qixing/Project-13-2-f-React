@@ -9,8 +9,8 @@ html, body {
 .chips-richtext-card {
   width: 100%;
   min-height: 100%;
-  color: var(--chips-sys-color-on-surface, #111827);
-  font: 14px/1.7 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  font: 14px/1.7 "SF Pro Text", "PingFang SC", sans-serif;
   background: transparent;
 }
 
@@ -65,8 +65,8 @@ html, body {
 .chips-richtext-card__surface blockquote {
   margin-left: 0;
   padding-left: 14px;
-  border-left: 3px solid rgba(37, 99, 235, 0.28);
-  color: #475467;
+  border-left: 3px solid rgba(10, 132, 255, 0.28);
+  color: #6e6e73;
 }
 
 .chips-richtext-card__surface del {
@@ -82,7 +82,7 @@ html, body {
 .chips-richtext-card__surface mark {
   padding: 0 0.18em;
   border-radius: 0.28em;
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2563eb) 16%, #fff5b1);
+  background: color-mix(in srgb, #ffcc00 30%, #ffffff);
   color: inherit;
 }
 
@@ -95,7 +95,7 @@ html, body {
 .chips-richtext-card__surface code {
   padding: 2px 6px;
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.08);
+  background: rgba(0, 0, 0, 0.08);
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 0.92em;
 }
@@ -108,7 +108,7 @@ html, body {
 
 .chips-richtext-card__surface hr {
   border: 0;
-  border-top: 1px solid rgba(15, 23, 42, 0.12);
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
   margin: 16px 0;
 }
 
@@ -116,10 +116,10 @@ html, body {
   margin: 0 0 16px;
   padding: 14px 16px;
   overflow-x: auto;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface-container, #f8fafc) 90%, #eef2ff);
-  color: var(--chips-sys-color-on-surface, #111827);
+  background: #f2f2f7;
+  color: #1d1d1f;
   white-space: pre-wrap;
 }
 
@@ -136,20 +136,20 @@ html, body {
   border-collapse: collapse;
   table-layout: fixed;
   overflow: hidden;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 14px;
 }
 
 .chips-richtext-card__surface th,
 .chips-richtext-card__surface td {
   padding: 10px 12px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   text-align: left;
   vertical-align: top;
 }
 
 .chips-richtext-card__surface th {
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #2563eb) 7%, #f8fafc);
+  background: color-mix(in srgb, #0a84ff 7%, #f2f2f7);
   font-weight: 600;
 }
 
@@ -171,9 +171,9 @@ html, body {
 .chips-richtext-card__surface .chips-richtext-math--block {
   margin: 0 0 16px;
   padding: 14px 16px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface-container, #f8fafc) 90%, #ffffff);
+  background: #f2f2f7;
 }
 
 .chips-richtext-card__surface .chips-richtext-math__fallback {
@@ -184,10 +184,10 @@ html, body {
 
 .chips-richtext-card__status {
   padding: 20px 24px;
-  color: var(--chips-sys-color-on-surface-variant, #667085);
+  color: #6e6e73;
 }
 
 .chips-richtext-card__status--error {
-  color: var(--chips-sys-color-error, #d92d20);
+  color: #ff3b30;
 }
 `;

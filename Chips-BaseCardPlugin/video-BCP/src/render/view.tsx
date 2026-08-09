@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChipsBadge, ChipsEmptyState, ChipsIcon, ChipsImage } from "@chips/component-library";
+import { Empty, Image, Tag } from "antd";
+import { CaretRightFilled } from "@ant-design/icons";
 import type { VideoCardOpenPayload, VideoCardOpenResource, VideoCardOpenSubtitleResource } from "chips-sdk";
 import type { BasecardConfig } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import {
   deriveDisplayTitle,
   deriveMetaLine,
@@ -15,8 +16,8 @@ import {
 export const VIEW_STYLE_TEXT = `
 .chips-video-card {
   width: 100%;
-  color: var(--chips-sys-color-on-surface, #0f172a);
-  font: 14px/1.55 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  font: 14px/1.55 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-video-card,
@@ -39,21 +40,6 @@ export const VIEW_STYLE_TEXT = `
   cursor: pointer;
 }
 
-.chips-video-card [data-scope="button"][data-part="root"] {
-  width: 100%;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  justify-content: flex-start;
-}
-
-.chips-video-card [data-scope="button"][data-part="label"] {
-  width: 100%;
-}
-
 .chips-video-card__surface-button:focus-visible {
   outline: none;
 }
@@ -64,9 +50,15 @@ export const VIEW_STYLE_TEXT = `
   border-radius: 16px;
   overflow: hidden;
   background:
-    linear-gradient(160deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96)),
-    var(--chips-sys-color-surface-container, rgba(255, 255, 255, 0.92));
+    linear-gradient(160deg, rgba(242, 242, 247, 0.98), rgba(242, 242, 247, 0.96)),
+    #f2f2f7;
   aspect-ratio: 16 / 9;
+}
+
+.chips-video-card__poster-shell .ant-image {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .chips-video-card__poster,
@@ -78,33 +70,19 @@ export const VIEW_STYLE_TEXT = `
   background: #030712;
 }
 
-.chips-video-card__poster[data-scope="image"][data-part="root"],
-.chips-video-card__fallback-video[data-scope="media"][data-part="root"] {
-  width: 100%;
-  height: 100%;
-}
-
-.chips-video-card__poster [data-scope="image"][data-part="media"],
-.chips-video-card__fallback-video [data-scope="media"][data-part="media"] {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .chips-video-card__empty {
   display: grid;
   place-items: center;
   width: 100%;
   height: 100%;
   padding: 20px;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
   text-align: center;
 }
 
-.chips-video-card__empty [data-scope="empty-state"][data-part="root"] {
+.chips-video-card__empty .ant-empty {
   min-height: 100%;
-  border: 0;
-  background: transparent;
+  margin-block: 0;
 }
 
 .chips-video-card__overlay {
@@ -112,7 +90,7 @@ export const VIEW_STYLE_TEXT = `
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(2, 6, 23, 0.12);
+  background: rgba(0, 0, 0, 0.12);
   opacity: 0;
   transition:
     opacity 0.18s ease,
@@ -123,7 +101,7 @@ export const VIEW_STYLE_TEXT = `
 .chips-video-card__surface-button:focus-visible .chips-video-card__overlay,
 .chips-video-card__poster-shell:hover .chips-video-card__overlay {
   opacity: 1;
-  background: rgba(2, 6, 23, 0.42);
+  background: rgba(0, 0, 0, 0.42);
 }
 
 .chips-video-card__play-badge {
@@ -133,20 +111,15 @@ export const VIEW_STYLE_TEXT = `
   width: 72px;
   height: 72px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.56);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.28);
+  background: rgba(0, 0, 0, 0.56);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(8px);
 }
 
-.chips-video-card__play-badge::before {
-  content: "";
-  display: block;
-  width: 0;
-  height: 0;
+.chips-video-card__play-icon {
   margin-left: 6px;
-  border-top: 12px solid transparent;
-  border-bottom: 12px solid transparent;
-  border-left: 20px solid rgba(255, 255, 255, 0.95);
+  font-size: 34px;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .chips-video-card__info {
@@ -161,14 +134,14 @@ export const VIEW_STYLE_TEXT = `
   font-weight: 700;
   line-height: 1.35;
   letter-spacing: 0;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
 }
 
 .chips-video-card__meta {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
 }
 
 .chips-video-card__badges {
@@ -176,6 +149,23 @@ export const VIEW_STYLE_TEXT = `
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 6px 0;
+}
+
+.chips-video-card__badge {
+  border-radius: 6px;
+  margin-inline-end: 0;
+}
+
+.chips-video-card__badge--accent {
+  background: rgba(10, 132, 255, 0.08);
+  border-color: rgba(10, 132, 255, 0.2);
+  color: #0a84ff;
+}
+
+.chips-video-card__badge--neutral {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #6e6e73;
 }
 
 @media (max-width: 560px) {
@@ -472,8 +462,6 @@ export function BasecardView({
   releaseResourceUrl,
   openResource,
 }: BasecardViewProps) {
-  const locale = typeof navigator !== "undefined" ? navigator.language : "zh-CN";
-  const t = createTranslator(locale);
   const videoUrl = useResolvedResourceUrl(config.video_file, resolveResourceUrl, releaseResourceUrl);
   const coverUrl = useResolvedResourceUrl(config.cover_image, resolveResourceUrl, releaseResourceUrl);
   useResolvedResourceUrlMap(
@@ -494,28 +482,24 @@ export function BasecardView({
     <>
       <div className="chips-video-card__poster-shell">
         {coverUrl ? (
-          <ChipsImage
+          <Image
             src={coverUrl}
             alt={displayTitle}
-            decorative
+            preview={false}
             className="chips-video-card__poster"
-            fit="cover"
-            loadingStrategy="lazy"
+            loading="lazy"
           />
         ) : videoUrl ? (
           <VideoFallbackPoster src={videoUrl} />
         ) : (
           <div className="chips-video-card__empty">
-            <ChipsEmptyState
-              ariaLabel={t("video.view.cover_unavailable")}
-              title={t("video.view.cover_unavailable")}
-            />
+            <Empty description={formatMessage("video.view.cover_unavailable")} />
           </div>
         )}
 
         <div className="chips-video-card__overlay" aria-hidden="true">
           <span className="chips-video-card__play-badge">
-            <ChipsIcon descriptor={{ name: "play_arrow", decorative: true }} tone="default" />
+            <CaretRightFilled className="chips-video-card__play-icon" aria-hidden="true" />
           </span>
         </div>
       </div>
@@ -523,15 +507,19 @@ export function BasecardView({
       {subtitleCount > 0 || config.playback.loop || config.playback.autoplay ? (
         <div className="chips-video-card__badges">
           {subtitleCount > 0 ? (
-            <ChipsBadge tone="accent">
-              {t("video.view.badge_subtitles", { count: subtitleCount })}
-            </ChipsBadge>
+            <Tag className="chips-video-card__badge chips-video-card__badge--accent">
+              {formatMessage("video.view.badge_subtitles", { count: subtitleCount })}
+            </Tag>
           ) : null}
           {config.playback.loop ? (
-            <ChipsBadge tone="neutral">{t("video.view.badge_loop")}</ChipsBadge>
+            <Tag className="chips-video-card__badge chips-video-card__badge--neutral">
+              {formatMessage("video.view.badge_loop")}
+            </Tag>
           ) : null}
           {config.playback.autoplay ? (
-            <ChipsBadge tone="neutral">{t("video.view.badge_autoplay")}</ChipsBadge>
+            <Tag className="chips-video-card__badge chips-video-card__badge--neutral">
+              {formatMessage("video.view.badge_autoplay")}
+            </Tag>
           ) : null}
         </div>
       ) : null}
@@ -550,10 +538,7 @@ export function BasecardView({
       <div className="chips-video-card" data-card-type={config.card_type}>
         <div className="chips-video-card__poster-shell">
           <div className="chips-video-card__empty">
-            <ChipsEmptyState
-              ariaLabel={t("video.view.empty")}
-              title={t("video.view.empty")}
-            />
+            <Empty description={formatMessage("video.view.empty")} />
           </div>
         </div>
       </div>
@@ -581,8 +566,8 @@ export function BasecardView({
           }}
           aria-label={
             displayTitle
-              ? t("video.view.open_named", { title: displayTitle })
-              : t("video.view.open")
+              ? formatMessage("video.view.open_named", { title: displayTitle })
+              : formatMessage("video.view.open")
           }
         >
           {content}

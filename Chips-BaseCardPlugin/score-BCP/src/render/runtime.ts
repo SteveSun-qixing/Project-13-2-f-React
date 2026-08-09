@@ -1,4 +1,7 @@
 import React from "react";
+import { ConfigProvider } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type { BasecardRenderContext } from "../index";
@@ -10,7 +13,7 @@ type MountState = {
 };
 
 export function mountBasecardView(ctx: BasecardRenderContext): () => void {
-  const { container, config, themeCssText } = ctx;
+  const { container, config } = ctx;
 
   while (container.firstChild) {
     container.removeChild(container.firstChild);
@@ -30,10 +33,14 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
       React.createElement(
         React.Fragment,
         null,
-        React.createElement("style", null, `${themeCssText ?? ""}\n${VIEW_STYLE_TEXT}`),
-        React.createElement(BasecardView, {
-          config: config as BasecardConfig,
-        }),
+        React.createElement("style", null, VIEW_STYLE_TEXT),
+        React.createElement(
+          ConfigProvider,
+          { locale: zhCN, theme: appleTheme },
+          React.createElement(BasecardView, {
+            config: config as BasecardConfig,
+          }),
+        ),
       ),
     );
   });

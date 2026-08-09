@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { BasecardConfig, GridMode, ImageItem } from "../schema/card-config";
 import { defaultLayoutOptions } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import {
   getEffectiveLayoutType,
   getImageDisplaySource,
@@ -12,8 +12,8 @@ import {
 export const VIEW_STYLE_TEXT = `
 .chips-image-card {
   width: 100%;
-  color: var(--chips-sys-color-on-surface, #0f172a);
-  font: 14px/1.5 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  font: 14px/1.5 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-image-card *,
@@ -30,12 +30,12 @@ export const VIEW_STYLE_TEXT = `
   display: grid;
   place-items: center;
   min-height: 220px;
-  border: 1px dashed var(--chips-comp-card-shell-border-color, rgba(15, 23, 42, 0.14));
+  border: 1px dashed rgba(0, 0, 0, 0.08);
   border-radius: 24px;
   background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.09), transparent 52%),
-    var(--chips-sys-color-surface, #ffffff);
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+    radial-gradient(circle at top, rgba(10, 132, 255, 0.09), transparent 52%),
+    #ffffff;
+  color: #6e6e73;
 }
 
 .chips-image-card__empty-text {
@@ -53,9 +53,9 @@ export const VIEW_STYLE_TEXT = `
   overflow: hidden;
   border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.06), rgba(15, 23, 42, 0.02)),
-    var(--chips-sys-color-surface, #ffffff);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
+    linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.02)),
+    #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10);
 }
 
 .chips-image-card__image {
@@ -79,7 +79,7 @@ export const VIEW_STYLE_TEXT = `
   place-items: center;
   min-height: 180px;
   padding: 20px;
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   text-align: center;
 }
 
@@ -105,7 +105,7 @@ export const VIEW_STYLE_TEXT = `
   font-size: 28px;
   font-weight: 700;
   color: #ffffff;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.22), rgba(15, 23, 42, 0.62));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.62));
 }
 
 .chips-image-card__long-scroll {
@@ -348,7 +348,6 @@ export function ImageCardView({
   releaseResourceUrl,
   openResource,
 }: ImageCardViewProps) {
-  const t = createTranslator(typeof navigator !== "undefined" ? navigator.language : "zh-CN");
   const horizontalRef = useRef<HTMLDivElement | null>(null);
   const [resolvedFileUrls, setResolvedFileUrls] = useState<Map<string, string>>(new Map());
   const effectiveLayoutType = getEffectiveLayoutType(config);
@@ -472,7 +471,7 @@ export function ImageCardView({
     return (
       <div className="chips-image-card">
         <div className="chips-image-card__empty">
-          <span className="chips-image-card__empty-text">{t("image.empty")}</span>
+          <span className="chips-image-card__empty-text">{formatMessage("image.empty")}</span>
         </div>
       </div>
     );
@@ -493,7 +492,7 @@ export function ImageCardView({
                 <ImageFrame
                   image={singleImage}
                   src={getImageDisplaySource(singleImage, resolvedFileUrls)}
-                  placeholderText={t("image.unavailable")}
+                  placeholderText={formatMessage("image.unavailable")}
                   radius={spacing.radius}
                   canOpenResource={
                     singleImage.source === "url" ||
@@ -549,7 +548,7 @@ export function ImageCardView({
                     dimmed={isOverflowCell}
                     fillHeight={true}
                     aspectRatio="1 / 1"
-                    placeholderText={t("image.unavailable")}
+                    placeholderText={formatMessage("image.unavailable")}
                     radius={spacing.radius}
                     canOpenResource={
                       image.source === "url" ||
@@ -590,7 +589,7 @@ export function ImageCardView({
                 key={image.id}
                 image={image}
                 src={getImageDisplaySource(image, resolvedFileUrls)}
-                placeholderText={t("image.unavailable")}
+                placeholderText={formatMessage("image.unavailable")}
                 radius={spacing.radius}
                 canOpenResource={
                   image.source === "url" ||
@@ -631,7 +630,7 @@ export function ImageCardView({
                   image={image}
                   src={getImageDisplaySource(image, resolvedFileUrls)}
                   fillHeight={true}
-                  placeholderText={t("image.unavailable")}
+                  placeholderText={formatMessage("image.unavailable")}
                   radius={spacing.radius}
                   canOpenResource={
                     image.source === "url" ||

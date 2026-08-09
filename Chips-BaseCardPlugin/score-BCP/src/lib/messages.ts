@@ -1,4 +1,4 @@
-{
+const MESSAGES: Record<string, string> = {
   "score.style": "样式",
   "score.style.stars": "星星",
   "score.style.hearts": "爱心",
@@ -25,5 +25,12 @@
   "score.validation.scoreMin": "获得分数必须大于或等于 0。",
   "score.validation.scoreMax": "获得分数不能超过总分。",
   "score.validation.symbolTotal": "星星和爱心评分固定为五分制。",
-  "score.validation.symbolInteger": "星星和爱心评分必须为整数。"
+  "score.validation.symbolInteger": "星星和爱心评分必须为整数。",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
 }

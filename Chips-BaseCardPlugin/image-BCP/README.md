@@ -37,9 +37,8 @@
   - 面向右侧窄编辑面板的响应式布局优化
   - 图片列表区就地继续添加图片
   - 图片资源解析失败后的自动重试恢复
-- 多语言：
-  - `zh-CN`
-  - `en-US`
+- 界面文案：
+  - 简体中文直写（task030 后全生态统一），文案总表见 `src/lib/messages.ts`
 
 ## 资源规则
 
@@ -86,6 +85,8 @@ layout_options:
 image-BCP/
 ├─ src/
 │  ├─ index.ts
+│  ├─ lib/
+│  │  └─ messages.ts
 │  ├─ editor/
 │  │  ├─ panel.tsx
 │  │  └─ runtime.ts
@@ -95,13 +96,17 @@ image-BCP/
 │  ├─ schema/
 │  │  └─ card-config.ts
 │  └─ shared/
-│     ├─ i18n.ts
 │     └─ utils.ts
-├─ i18n/
+├─ 归档/
 ├─ templates/
 ├─ docs/
 └─ tests/
 ```
+
+## 技术栈
+
+- React 运行时；UI 组件基于 Ant Design（`antd`），编辑器面板入口统一套用共享层苹果主题 `appleTheme`（`@chips/ui`），视觉与文案规范遵循 `项目日志与笔记/task030-卸担计划/` 03 / 04 / 06 / 07 章。
+- 卡片格式契约（`.card` 序列化字段、`basecardDefinition`、Host 资源桥链路）不依赖任何 UI 框架，保持独立。
 
 ## 开发与验证
 

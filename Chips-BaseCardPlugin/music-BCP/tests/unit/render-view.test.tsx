@@ -117,7 +117,7 @@ describe("mountBasecardView", () => {
 
     await flushViewEffects();
 
-    const coverImage = container.querySelector(".chips-music-card__cover-image img") as HTMLImageElement | null;
+    const coverImage = container.querySelector(".chips-music-card__cover-image") as HTMLImageElement | null;
     expect(coverImage?.getAttribute("src")).toContain("music-cover-placeholder");
 
     dispose();
@@ -236,7 +236,7 @@ describe("mountBasecardView", () => {
 
     await flushViewEffects();
 
-    const coverImage = container.querySelector(".chips-music-card__cover-image img") as HTMLImageElement | null;
+    const coverImage = container.querySelector(".chips-music-card__cover-image") as HTMLImageElement | null;
     expect(coverImage?.getAttribute("src")).toBe("blob:file:///cover.png");
     expect(releaseResourceUrl).not.toHaveBeenCalled();
 

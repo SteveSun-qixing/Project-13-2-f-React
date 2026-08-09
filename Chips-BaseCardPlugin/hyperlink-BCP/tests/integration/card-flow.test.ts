@@ -20,7 +20,7 @@ function createConfig(patch: Partial<BasecardConfig> = {}): BasecardConfig {
 }
 
 function getInputByLabel(root: HTMLElement, text: string): HTMLInputElement {
-  const labels = Array.from(root.querySelectorAll("[data-scope='text-field'][data-part='label']"));
+  const labels = Array.from(root.querySelectorAll(".chips-basecard-editor__field-label"));
   const label = labels.find((item) => item.textContent?.includes(text));
   const input = label?.parentElement?.querySelector("input");
   if (!input) {

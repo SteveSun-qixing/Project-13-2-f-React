@@ -1,0 +1,53 @@
+const MESSAGES: Record<string, string> = {
+  "hyperlink.anchorText": "锚文本",
+  "hyperlink.url": "链接",
+  "hyperlink.description": "描述",
+  "hyperlink.iconUrl": "图标 URL",
+  "hyperlink.openMode": "打开方式",
+  "hyperlink.displayDensity": "显示密度",
+  "hyperlink.securityHint": "显示安全提示",
+  "hyperlink.editor.contentSection": "内容",
+  "hyperlink.editor.displaySection": "显示与交互",
+  "hyperlink.editor.securitySection": "安全状态",
+  "hyperlink.placeholder.anchorText": "输入锚文本",
+  "hyperlink.placeholder.url": "https://example.com",
+  "hyperlink.placeholder.description": "补充这个链接会带用户去哪里",
+  "hyperlink.placeholder.iconUrl": "https://example.com/favicon.png",
+  "hyperlink.description.url": "仅允许 http 或 https 地址；打开动作会交给 Host 的 resource.open 路由。",
+  "hyperlink.description.description": "描述会显示在链接标题下方，帮助用户理解目标内容。",
+  "hyperlink.description.iconUrl": "可选。图标同样只允许 http 或 https 地址。",
+  "hyperlink.description.openMode": "打开方式作为资源打开上下文透传，实际路由由 Host 统一决定。",
+  "hyperlink.description.securityHint": "在查看态展示链接安全状态，帮助用户识别外部链接风险。",
+  "hyperlink.validation.cardType": "card_type 必须为 HyperlinkCard。",
+  "hyperlink.validation.anchorRequired": "锚文本不能为空。",
+  "hyperlink.validation.urlRequired": "链接不能为空。",
+  "hyperlink.validation.urlInvalid": "链接必须是有效的 http 或 https 地址。",
+  "hyperlink.validation.urlCredentialsBlocked": "链接不能包含用户名或密码。",
+  "hyperlink.validation.iconUrlInvalid": "图标 URL 必须是有效的 http 或 https 地址。",
+  "hyperlink.validation.openMode": "打开方式不在允许范围内。",
+  "hyperlink.validation.displayDensity": "显示密度不在允许范围内。",
+  "hyperlink.view.emptyAnchorText": "未设置链接",
+  "hyperlink.view.emptyUrl": "未设置目标地址",
+  "hyperlink.view.openAria": "打开链接：{title}，目标 {url}，安全状态 {security}",
+  "hyperlink.view.disabledAria": "链接不可打开：{title}，目标 {url}，状态 {security}",
+  "hyperlink.openMode.external-browser": "外部浏览器",
+  "hyperlink.openMode.resource-router": "资源路由",
+  "hyperlink.density.compact": "紧凑",
+  "hyperlink.density.comfortable": "标准",
+  "hyperlink.density.spacious": "宽松",
+  "hyperlink.security.secure": "安全链接",
+  "hyperlink.security.insecureHttp": "非加密链接",
+  "hyperlink.security.empty": "未设置链接",
+  "hyperlink.security.blocked": "已阻止",
+  "hyperlink.security.credentialsBlocked": "包含凭据",
+  "hyperlink.security.hostUnavailable": "宿主未注入打开能力",
+  "hyperlink.security.description": "当前目标：{url}",
+  "hyperlink.security.tooltip": "基础卡片只表达打开意图，真实打开由 Host resource.open 统一路由。",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
+}

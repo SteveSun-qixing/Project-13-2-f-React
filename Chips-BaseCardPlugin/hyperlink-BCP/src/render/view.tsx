@@ -1,8 +1,8 @@
 import React from "react";
-import { ChipsBadge, ChipsButton } from "@chips/component-library";
+import { Button, Tag } from "antd";
 import type { BasecardOpenResourceInput } from "../index";
 import type { BasecardConfig } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import { analyzeHyperlinkUrl, type HyperlinkUrlAnalysis } from "../shared/utils";
 
 export type OpenHyperlinkOptions = {
@@ -38,8 +38,8 @@ export function openHyperlinkResource(options: OpenHyperlinkOptions): void {
 export const VIEW_STYLE_TEXT = `
 .chips-hyperlink-card {
   width: 100%;
-  color: var(--chips-sys-color-on-surface, #111827);
-  font: 14px/1.5 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  font: 14px/1.5 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-hyperlink-card,
@@ -50,14 +50,14 @@ export const VIEW_STYLE_TEXT = `
 .chips-hyperlink-card__surface {
   display: flex;
   align-items: center;
-  gap: var(--chips-layout-gap-md, 12px);
+  gap: 12px;
   width: 100%;
-  min-height: var(--chips-layout-density-comfortable, 44px);
+  min-height: 44px;
   padding: 12px 16px;
-  border: 1px solid var(--chips-sys-color-outline, rgba(15, 23, 42, 0.28));
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
   background: transparent;
-  color: var(--chips-sys-color-on-surface, #111827);
+  color: #1d1d1f;
   font: inherit;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -70,12 +70,12 @@ export const VIEW_STYLE_TEXT = `
 }
 
 .chips-hyperlink-card[data-density="compact"] .chips-hyperlink-card__surface {
-  min-height: var(--chips-layout-density-compact, 36px);
+  min-height: 36px;
   padding-block: 8px;
 }
 
 .chips-hyperlink-card[data-density="spacious"] .chips-hyperlink-card__surface {
-  min-height: var(--chips-layout-density-spacious, 56px);
+  min-height: 56px;
   padding-block: 16px;
 }
 
@@ -86,19 +86,28 @@ export const VIEW_STYLE_TEXT = `
 .chips-hyperlink-card__surface[data-openable="false"] {
   cursor: default;
   border-style: dashed;
-  color: var(--chips-sys-color-on-surface-variant, #667085);
+  color: #6e6e73;
+}
+
+.chips-hyperlink-card .chips-hyperlink-card__surface-button {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
 }
 
 .chips-hyperlink-card__surface[data-openable="true"]:hover,
-.chips-hyperlink-card__surface[data-openable="true"]:focus-visible {
-  border-color: var(--chips-sys-color-on-surface-variant, rgba(15, 23, 42, 0.56));
-  background: var(--chips-sys-color-surface-container-low, rgba(15, 23, 42, 0.04));
-  color: var(--chips-sys-color-on-surface, #111827);
+.chips-hyperlink-card__surface[data-openable="true"]:focus-visible,
+.chips-hyperlink-card__surface-button:hover .chips-hyperlink-card__surface,
+.chips-hyperlink-card__surface-button:focus-visible .chips-hyperlink-card__surface {
+  border-color: #6e6e73;
+  background: #f2f2f7;
+  color: #1d1d1f;
   outline: none;
 }
 
-.chips-hyperlink-card__surface:focus-visible {
-  box-shadow: 0 0 0 3px var(--chips-sys-color-outline-variant, rgba(15, 23, 42, 0.12));
+.chips-hyperlink-card__surface-button:focus-visible .chips-hyperlink-card__surface {
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.14);
 }
 
 .chips-hyperlink-card__icon-frame {
@@ -109,8 +118,8 @@ export const VIEW_STYLE_TEXT = `
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: var(--chips-sys-color-surface-container-low, rgba(15, 23, 42, 0.04));
-  color: var(--chips-sys-color-primary, #2563eb);
+  background: #f2f2f7;
+  color: #0a84ff;
   overflow: hidden;
 }
 
@@ -151,7 +160,7 @@ export const VIEW_STYLE_TEXT = `
 .chips-hyperlink-card__description,
 .chips-hyperlink-card__meta {
   margin: 0;
-  color: var(--chips-sys-color-on-surface-variant, #667085);
+  color: #6e6e73;
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -164,39 +173,28 @@ export const VIEW_STYLE_TEXT = `
   flex-wrap: wrap;
 }
 
-.chips-hyperlink-card [data-scope="button"][data-part="root"] {
-  all: unset;
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-}
-
-.chips-hyperlink-card [data-scope="button"][data-part="label"] {
-  display: block;
-}
-
-.chips-hyperlink-card [data-scope="badge"][data-part="root"] {
+.chips-hyperlink-card__badge {
+  margin-inline-end: 0;
+  border: none;
   border-radius: 999px;
   padding: 2px 8px;
-  background: var(--chips-sys-color-surface-container, rgba(15, 23, 42, 0.06));
-  color: var(--chips-sys-color-on-surface-variant, #667085);
   font-size: 11px;
   font-weight: 600;
 }
 
-.chips-hyperlink-card [data-scope="badge"][data-tone="success"] {
-  background: var(--chips-sys-color-success-surface, rgba(12, 126, 67, 0.12));
-  color: var(--chips-sys-color-success, #0c7e43);
+.chips-hyperlink-card__badge[data-tone="success"] {
+  background: rgba(52, 199, 89, 0.12);
+  color: #34c759;
 }
 
-.chips-hyperlink-card [data-scope="badge"][data-tone="warning"] {
-  background: var(--chips-sys-color-warning-surface, rgba(181, 102, 0, 0.12));
-  color: var(--chips-sys-color-warning, #b56600);
+.chips-hyperlink-card__badge[data-tone="warning"] {
+  background: rgba(255, 159, 10, 0.12);
+  color: #ff9f0a;
 }
 
-.chips-hyperlink-card [data-scope="badge"][data-tone="error"] {
-  background: var(--chips-sys-color-error-surface, rgba(217, 45, 32, 0.12));
-  color: var(--chips-sys-color-error, #d92d20);
+.chips-hyperlink-card__badge[data-tone="error"] {
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
 }
 `;
 
@@ -245,30 +243,27 @@ function resolveAriaLabel(params: {
   urlText: string;
   securityText: string;
   openable: boolean;
-  t: ReturnType<typeof createTranslator>;
 }): string {
-  const { title, urlText, securityText, openable, t } = params;
+  const { title, urlText, securityText, openable } = params;
   return openable
-    ? t("hyperlink.view.openAria", { title, url: urlText, security: securityText })
-    : t("hyperlink.view.disabledAria", { title, url: urlText, security: securityText });
+    ? formatMessage("hyperlink.view.openAria", { title, url: urlText, security: securityText })
+    : formatMessage("hyperlink.view.disabledAria", { title, url: urlText, security: securityText });
 }
 
 export function BasecardView({ config, openResource }: BasecardViewProps) {
-  const t = createTranslator(config.locale);
-  const anchorText = config.anchor_text || t("hyperlink.view.emptyAnchorText");
+  const anchorText = config.anchor_text || formatMessage("hyperlink.view.emptyAnchorText");
   const description = (config.description ?? "").trim();
   const analysis = analyzeHyperlinkUrl(config.url);
   const iconAnalysis = config.icon_url ? analyzeHyperlinkUrl(config.icon_url) : null;
   const canOpen = Boolean(openResource && analysis.openable);
-  const securityText = t(getSecurityLabelKey(analysis, Boolean(openResource)));
-  const displayUrl = analysis.normalizedUrl || analysis.input || t("hyperlink.view.emptyUrl");
+  const securityText = formatMessage(getSecurityLabelKey(analysis, Boolean(openResource)));
+  const displayUrl = analysis.normalizedUrl || analysis.input || formatMessage("hyperlink.view.emptyUrl");
   const hostname = analysis.hostname || displayUrl;
   const ariaLabel = resolveAriaLabel({
     title: anchorText,
     urlText: displayUrl,
     securityText,
     openable: canOpen,
-    t,
   });
 
   const content = (
@@ -292,9 +287,12 @@ export function BasecardView({ config, openResource }: BasecardViewProps) {
         <span className="chips-hyperlink-card__title-row">
           <span className="chips-hyperlink-card__title">{anchorText}</span>
           {config.show_security_hint ? (
-            <ChipsBadge tone={getSecurityBadgeTone(analysis, Boolean(openResource))}>
+            <Tag
+              className="chips-hyperlink-card__badge"
+              data-tone={getSecurityBadgeTone(analysis, Boolean(openResource))}
+            >
               {securityText}
-            </ChipsBadge>
+            </Tag>
           ) : null}
         </span>
         {description ? (
@@ -303,7 +301,7 @@ export function BasecardView({ config, openResource }: BasecardViewProps) {
         <span className="chips-hyperlink-card__meta">
           <span>{hostname}</span>
           <span aria-hidden="true">·</span>
-          <span>{t(`hyperlink.openMode.${config.open_mode}`)}</span>
+          <span>{formatMessage(`hyperlink.openMode.${config.open_mode}`)}</span>
         </span>
       </span>
     </span>
@@ -316,9 +314,11 @@ export function BasecardView({ config, openResource }: BasecardViewProps) {
       data-density={config.display_density}
     >
       {canOpen ? (
-        <ChipsButton
-          type="button"
-          onPress={() => {
+        <Button
+          className="chips-hyperlink-card__surface-button"
+          htmlType="button"
+          aria-label={ariaLabel}
+          onClick={() => {
             openHyperlinkResource({
               openResource,
               title: anchorText,
@@ -326,10 +326,9 @@ export function BasecardView({ config, openResource }: BasecardViewProps) {
               analysis,
             });
           }}
-          aria-label={ariaLabel}
         >
           {content}
-        </ChipsButton>
+        </Button>
       ) : (
         <div
           role="group"

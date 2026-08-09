@@ -10,7 +10,7 @@ type MountState = {
 };
 
 export function mountBasecardView(ctx: BasecardRenderContext): () => void {
-  const { container, themeCssText } = ctx;
+  const { container } = ctx;
   const config = normalizeBasecardConfig(ctx.config);
 
   while (container.firstChild) {
@@ -31,7 +31,7 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
       React.createElement(
         React.Fragment,
         null,
-        React.createElement("style", null, `${themeCssText ?? ""}\n${VIEW_STYLE_TEXT}`),
+        React.createElement("style", null, VIEW_STYLE_TEXT),
         React.createElement(WebpageCardView, {
           config,
           resolveResourceUrl: ctx.resolveResourceUrl,

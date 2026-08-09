@@ -1,7 +1,7 @@
 {
   "id": "card-richtext-basic",
   "name": "富文本基础卡片插件模板",
-  "description": "面向富文本内容的基础卡片插件模板，包含渲染模块、编辑模块、配置 Schema、多语言与测试骨架。",
+  "description": "面向富文本内容的基础卡片插件模板，包含渲染模块、编辑模块、配置 Schema、简体中文文案与测试骨架。",
   "version": "1.0.0",
   "supports": {
     "sdk": true,

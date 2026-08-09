@@ -1,13 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChipsButton,
-  ChipsErrorState,
-  ChipsForm,
-  ChipsImage,
-  ChipsMedia,
-  ChipsProgress,
-  ChipsToolbar,
-} from "@chips/component-library";
+import { Button, ConfigProvider, Image, Progress, Result, Space } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type {
@@ -22,7 +16,7 @@ import {
   type BasecardConfig,
   type ProductionTeamRole,
 } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import { parseEmbeddedAudioMetadata } from "../shared/audio-metadata";
 import {
   buildDerivedResourcePath,
@@ -74,7 +68,7 @@ html, body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .chips-music-editor {
@@ -84,9 +78,9 @@ html, body {
   min-height: 0;
   overflow: auto;
   padding: 12px clamp(12px, 3vw, 18px) 24px;
-  color: var(--chips-sys-color-on-surface, #0f172a);
-  background: var(--chips-sys-color-surface, #ffffff);
-  font: 14px/1.55 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  background: #ffffff;
+  font: 14px/1.55 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-music-editor,
@@ -104,28 +98,40 @@ html, body {
   margin-bottom: 12px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(248, 250, 252, 0.92);
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  background: rgba(242, 242, 247, 0.92);
+  color: #1d1d1f;
   font-size: 13px;
 }
 
 .chips-music-editor__alert--error {
-  color: var(--chips-sys-color-error, #b42318);
+  color: #ff3b30;
 }
 
-.chips-music-editor__alert [data-scope="error-state"][data-part="root"] {
+.chips-music-editor__alert .ant-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   padding: 0;
   background: transparent;
 }
 
-.chips-music-editor__alert [data-scope="error-state"][data-part="title"] {
+.chips-music-editor__alert .ant-result-icon {
   margin: 0;
-  font-size: 13px;
+  line-height: 1.4;
 }
 
-.chips-music-editor__alert [data-scope="error-state"][data-part="description"] {
+.chips-music-editor__alert .ant-result-title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: inherit;
+}
+
+.chips-music-editor__alert .ant-result-subtitle {
   margin: 2px 0 0;
   font-size: 13px;
+  line-height: 1.5;
+  color: inherit;
 }
 
 .chips-music-editor__errors-list {
@@ -139,7 +145,7 @@ html, body {
 
 .chips-music-editor__group + .chips-music-editor__group {
   margin-top: 14px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .chips-music-editor__group-head {
@@ -153,7 +159,7 @@ html, body {
 
 .chips-music-editor__group-title {
   margin: 0;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.4;
@@ -166,25 +172,17 @@ html, body {
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.1);
-  color: #1d4ed8;
+  background: rgba(10, 132, 255, 0.1);
+  color: #0a84ff;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 
-.chips-music-editor__status [data-scope="progress"][data-part="root"] {
+.chips-music-editor__status .ant-progress {
   width: 42px;
   min-width: 42px;
-}
-
-.chips-music-editor__status [data-scope="progress"][data-part="label"],
-.chips-music-editor__status [data-scope="progress"][data-part="value"] {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
+  margin-inline-end: 2px;
 }
 
 .chips-music-editor__list,
@@ -206,7 +204,7 @@ html, body {
 .chips-music-editor__row,
 .chips-music-editor__field-row {
   padding: 12px 0;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .chips-music-editor__row {
@@ -224,9 +222,9 @@ html, body {
   display: grid;
   gap: 12px;
   padding: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
-  background: rgba(248, 250, 252, 0.78);
+  background: rgba(242, 242, 247, 0.78);
 }
 
 .chips-music-editor__row-label,
@@ -234,7 +232,7 @@ html, body {
   margin: 0;
   font-size: 13px;
   font-weight: 650;
-  color: var(--chips-sys-color-on-surface-variant, #334155);
+  color: #1d1d1f;
 }
 
 .chips-music-editor__row-label {
@@ -254,8 +252,8 @@ html, body {
   min-height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
+  background: rgba(10, 132, 255, 0.08);
+  color: #0a84ff;
   font-size: 11px;
   font-weight: 700;
 }
@@ -272,10 +270,10 @@ html, body {
   display: grid;
   min-height: 72px;
   padding: 12px 14px;
-  border: 1.5px dashed rgba(15, 23, 42, 0.12);
+  border: 1.5px dashed rgba(0, 0, 0, 0.12);
   border-radius: 12px;
   background: transparent;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
   text-align: left;
   cursor: pointer;
   transition:
@@ -285,9 +283,9 @@ html, body {
 }
 
 .chips-music-editor__dropzone[data-state="dragover"] {
-  border-color: rgba(37, 99, 235, 0.34);
-  background: rgba(239, 246, 255, 0.9);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+  border-color: rgba(10, 132, 255, 0.34);
+  background: rgba(10, 132, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.08);
 }
 
 .chips-music-editor__dropzone[data-state="busy"] {
@@ -296,7 +294,7 @@ html, body {
 
 .chips-music-editor__dropzone:hover,
 .chips-music-editor__dropzone:focus-within {
-  border-color: rgba(37, 99, 235, 0.28);
+  border-color: rgba(10, 132, 255, 0.28);
 }
 
 .chips-music-editor__dropzone-input {
@@ -328,7 +326,7 @@ html, body {
   overflow: hidden;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .chips-music-editor__dropzone-preview img {
@@ -346,8 +344,8 @@ html, body {
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.06);
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  background: rgba(0, 0, 0, 0.06);
+  color: #1d1d1f;
   font-size: 12px;
   font-weight: 700;
 }
@@ -355,11 +353,11 @@ html, body {
 .chips-music-editor__dropzone-text {
   font-size: 14px;
   font-weight: 650;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
 }
 
 .chips-music-editor__dropzone-note {
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   font-size: 12px;
 }
 
@@ -383,28 +381,19 @@ html, body {
   overflow: hidden;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.chips-music-editor__resource-cover img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.chips-music-editor__resource-cover [data-scope="image"][data-part="root"],
-.chips-music-editor__dropzone-preview [data-scope="image"][data-part="root"],
-.chips-music-editor__resource-preview--cover[data-scope="image"][data-part="root"] {
+.chips-music-editor__resource-cover .ant-image,
+.chips-music-editor__dropzone-preview .ant-image {
   display: block;
   margin: 0;
   width: 100%;
   height: 100%;
 }
 
-.chips-music-editor__resource-cover [data-scope="image"][data-part="media"],
-.chips-music-editor__dropzone-preview [data-scope="image"][data-part="media"],
-.chips-music-editor__resource-preview--cover[data-scope="image"] [data-part="media"] {
+.chips-music-editor__resource-cover .ant-image-img,
+.chips-music-editor__dropzone-preview .ant-image-img {
   display: block;
   width: 100%;
   height: 100%;
@@ -421,14 +410,14 @@ html, body {
   display: block;
   font-size: 15px;
   font-weight: 700;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
 .chips-music-editor__resource-summary-subtitle {
   display: block;
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   font-size: 12px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -438,20 +427,18 @@ html, body {
   display: block;
   width: 88px;
   height: 88px;
+  overflow: hidden;
   border-radius: 14px;
   object-fit: cover;
-  background: rgba(226, 232, 240, 0.76);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(229, 229, 234, 0.76);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.chips-music-editor__audio-preview {
+audio.chips-music-editor__audio-preview {
+  display: block;
   width: 100%;
   min-height: 40px;
   margin: 0;
-}
-
-.chips-music-editor__audio-preview [data-scope="media"][data-part="content"] {
-  width: 100%;
 }
 
 .chips-music-editor__resource-meta {
@@ -464,14 +451,14 @@ html, body {
   display: block;
   font-size: 14px;
   font-weight: 650;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
 .chips-music-editor__resource-tile-subtitle {
   display: block;
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   font-size: 12px;
 }
 
@@ -486,7 +473,7 @@ html, body {
 .chips-music-editor__button,
 .chips-music-editor__input,
 .chips-music-editor__textarea {
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.98);
   color: inherit;
@@ -510,7 +497,7 @@ html, body {
 }
 
 .chips-music-editor__button--subtle {
-  background: rgba(248, 250, 252, 0.92);
+  background: rgba(242, 242, 247, 0.92);
 }
 
 .chips-music-editor__button--file {
@@ -537,8 +524,8 @@ html, body {
 .chips-music-editor__input:focus,
 .chips-music-editor__textarea:hover,
 .chips-music-editor__textarea:focus {
-  border-color: rgba(37, 99, 235, 0.42);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: rgba(10, 132, 255, 0.42);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
 }
 
 .chips-music-editor__button:disabled {
@@ -547,44 +534,39 @@ html, body {
   box-shadow: none;
 }
 
-.chips-music-editor [data-scope="button"][data-part="root"] {
+.chips-music-editor .ant-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 34px;
   padding: 0 13px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 10px;
-  background: rgba(248, 250, 252, 0.92);
+  background: rgba(242, 242, 247, 0.92);
   color: inherit;
-  font: inherit;
   font-weight: 650;
   cursor: pointer;
   white-space: nowrap;
 }
 
-.chips-music-editor [data-scope="toolbar"][data-part="root"] {
+.chips-music-editor .ant-btn:hover,
+.chips-music-editor .ant-btn:focus-visible {
+  border-color: rgba(10, 132, 255, 0.42);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
+  background: rgba(242, 242, 247, 0.92);
+}
+
+.chips-music-editor .ant-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  box-shadow: none;
+}
+
+.chips-music-editor__toolbar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-}
-
-.chips-music-editor [data-scope="toolbar"][data-part="group"] {
-  display: flex;
-  align-items: center;
   gap: 8px;
-}
-
-.chips-music-editor [data-scope="toolbar"][data-part="item"] {
-  min-height: 34px;
-  padding: 0 13px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.92);
-  color: inherit;
-  font: inherit;
-  font-weight: 650;
-  cursor: pointer;
 }
 
 .chips-music-editor__field-row--multiline {
@@ -599,7 +581,7 @@ html, body {
 }
 
 .chips-music-editor__hint {
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   font-size: 12px;
 }
 
@@ -621,7 +603,7 @@ html, body {
 .chips-music-editor__team-item-title {
   font-size: 14px;
   font-weight: 700;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
 }
 
 .chips-music-editor__team-card-actions {
@@ -635,7 +617,7 @@ html, body {
 
 .chips-music-editor__team-empty {
   padding: 12px 0 4px;
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+  color: #6e6e73;
   font-size: 13px;
 }
 
@@ -780,8 +762,6 @@ function normalizeRoleUpdate(
 }
 
 function BasecardEditor(props: BasecardEditorProps) {
-  const locale = typeof navigator !== "undefined" ? navigator.language : "zh-CN";
-  const t = createTranslator(locale);
   const [config, setConfig] = useState(() => normalizeBasecardConfig(props.initialConfig));
   const [errors, setErrors] = useState<Record<string, string>>(() =>
     validateBasecardConfig(normalizeBasecardConfig(props.initialConfig)).errors,
@@ -802,9 +782,8 @@ function BasecardEditor(props: BasecardEditorProps) {
   );
   const hasAudioFile = Boolean(normalizeRelativeCardResourcePath(config.audio_file));
   const displayCoverUrl = coverPreviewUrl || DEFAULT_MUSIC_COVER_URL;
-  const displayTitle = deriveDisplayTitle(config) || t("music.view.untitled");
+  const displayTitle = deriveDisplayTitle(config) || formatMessage("music.view.untitled");
   const lyricsBadge = resolveFileExtension(config.lyrics_file).toUpperCase() || "TXT";
-  const componentI18n = useMemo(() => ({ t }), [locale]);
 
   useEffect(() => {
     const nextConfig = normalizeBasecardConfig(props.initialConfig);
@@ -839,7 +818,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   async function importRequiredResource(file: File, preferredPath: string): Promise<BasecardResourceImportResult> {
     if (!props.importResource) {
-      throw new Error(t("music.editor.errors.import_unavailable"));
+      throw new Error(formatMessage("music.editor.errors.import_unavailable"));
     }
 
     return props.importResource({
@@ -858,7 +837,7 @@ function BasecardEditor(props: BasecardEditorProps) {
     outputPath: string,
   ): Promise<BasecardTiffToPngResult> {
     if (!props.convertTiffToPng) {
-      throw new Error(t("music.editor.errors.tiff_conversion_unavailable"));
+      throw new Error(formatMessage("music.editor.errors.tiff_conversion_unavailable"));
     }
 
     return props.convertTiffToPng({
@@ -916,7 +895,7 @@ function BasecardEditor(props: BasecardEditorProps) {
     try {
       await props.deleteResource(normalizedPath);
     } catch (error) {
-      setPanelError(resolveErrorMessage(error, t("music.editor.errors.delete_failed")));
+      setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.delete_failed")));
     }
   }
 
@@ -1013,7 +992,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         await Promise.all(dedupeResourcePaths(deletions).map((path) => deleteResourceQuietly(path)));
       } catch (error) {
-        setPanelError(resolveErrorMessage(error, t("music.editor.errors.audio_import_failed")));
+        setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.audio_import_failed")));
       }
     });
   }
@@ -1036,7 +1015,7 @@ function BasecardEditor(props: BasecardEditorProps) {
           await deleteResourceQuietly(currentConfig.album_cover);
         }
       } catch (error) {
-        setPanelError(resolveErrorMessage(error, t("music.editor.errors.cover_import_failed")));
+        setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.cover_import_failed")));
       }
     });
   }
@@ -1062,7 +1041,7 @@ function BasecardEditor(props: BasecardEditorProps) {
           await deleteResourceQuietly(currentConfig.lyrics_file);
         }
       } catch (error) {
-        setPanelError(resolveErrorMessage(error, t("music.editor.errors.lyrics_import_failed")));
+        setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.lyrics_import_failed")));
       }
     });
   }
@@ -1211,7 +1190,7 @@ function BasecardEditor(props: BasecardEditorProps) {
             {preview}
             <span className="chips-music-editor__dropzone-copy">
               <span className="chips-music-editor__dropzone-text">
-                {busyField === field ? t(`music.editor.status.${field}`) : uploadLabel}
+                {busyField === field ? formatMessage(`music.editor.status.${field}`) : uploadLabel}
               </span>
               {note ? (
                 <span className="chips-music-editor__dropzone-note">{note}</span>
@@ -1224,7 +1203,8 @@ function BasecardEditor(props: BasecardEditorProps) {
   }
 
   return (
-    <ChipsForm
+    <form
+      noValidate
       className="chips-music-editor"
       onSubmit={(event) => {
         event.preventDefault();
@@ -1233,22 +1213,20 @@ function BasecardEditor(props: BasecardEditorProps) {
       <div className="chips-music-editor__shell">
         {panelError ? (
           <div className="chips-music-editor__alert chips-music-editor__alert--error">
-            <ChipsErrorState
-              message={panelError}
-              fallbackTitle={t("music.editor.errors.operation_failed")}
-              fallbackDescription={panelError}
-              i18n={componentI18n}
+            <Result
+              status="error"
+              title={formatMessage("music.editor.errors.operation_failed")}
+              subTitle={panelError}
             />
           </div>
         ) : null}
 
         {flattenedErrors.length > 0 ? (
           <div className="chips-music-editor__alert chips-music-editor__alert--error">
-            <ChipsErrorState
-              message={flattenedErrors[0]}
-              fallbackTitle={t("music.editor.errors.validation_failed")}
-              fallbackDescription={flattenedErrors[0]}
-              i18n={componentI18n}
+            <Result
+              status="error"
+              title={formatMessage("music.editor.errors.validation_failed")}
+              subTitle={flattenedErrors[0]}
             />
             <ul className="chips-music-editor__errors-list">
               {flattenedErrors.map((message) => (
@@ -1260,15 +1238,19 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         <section className="chips-music-editor__group">
           <div className="chips-music-editor__group-head">
-            <span className="chips-music-editor__group-title">{t("music.editor.resources.title")}</span>
+            <span className="chips-music-editor__group-title">{formatMessage("music.editor.resources.title")}</span>
             {busyField ? (
               <span className="chips-music-editor__status">
-                <ChipsProgress
-                  indeterminate
-                  label={t(`music.editor.status.${busyField}`)}
-                  i18n={componentI18n}
+                <Progress
+                  className="chips-music-editor__status-progress"
+                  type="line"
+                  percent={100}
+                  status="active"
+                  showInfo={false}
+                  size={{ width: 42, height: 4 }}
+                  aria-label={formatMessage(`music.editor.status.${busyField}`)}
                 />
-                {t(`music.editor.status.${busyField}`)}
+                {formatMessage(`music.editor.status.${busyField}`)}
               </span>
             ) : null}
           </div>
@@ -1276,19 +1258,18 @@ function BasecardEditor(props: BasecardEditorProps) {
           <div className="chips-music-editor__list">
             <div className="chips-music-editor__row">
               <p className="chips-music-editor__row-label">
-                <span>{t("music.editor.audio.title")}</span>
-                <span className="chips-music-editor__label-badge">{t("music.editor.badge.required")}</span>
+                <span>{formatMessage("music.editor.audio.title")}</span>
+                <span className="chips-music-editor__label-badge">{formatMessage("music.editor.badge.required")}</span>
               </p>
               {config.audio_file ? (
                 <div className="chips-music-editor__resource-tile" data-role="audio-resource">
                   <div className="chips-music-editor__resource-head">
                     <div className="chips-music-editor__resource-cover" aria-hidden="true">
-                      <ChipsImage
+                      <Image
                         src={displayCoverUrl}
                         alt={displayTitle}
-                        decorative
-                        fit="cover"
-                        loadingStrategy="lazy"
+                        preview={false}
+                        loading="lazy"
                       />
                     </div>
                     <div className="chips-music-editor__resource-summary">
@@ -1299,7 +1280,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                     </div>
                     <div className="chips-music-editor__resource-actions">
                       <label className="chips-music-editor__button chips-music-editor__button--file">
-                        {t("music.editor.audio.replace")}
+                        {formatMessage("music.editor.audio.replace")}
                         <input
                           data-role="replace-audio-input"
                           className="chips-music-editor__hidden-input"
@@ -1324,15 +1305,14 @@ function BasecardEditor(props: BasecardEditorProps) {
                           void handleRemoveAudio();
                         }}
                       >
-                        {t("music.editor.actions.remove")}
+                        {formatMessage("music.editor.actions.remove")}
                       </button>
                     </div>
                   </div>
                   <div className="chips-music-editor__resource-meta">
                     {audioPreviewUrl ? (
-                      <ChipsMedia
+                      <audio
                         className="chips-music-editor__audio-preview"
-                        kind="audio"
                         controls
                         preload="metadata"
                         src={audioPreviewUrl}
@@ -1345,30 +1325,30 @@ function BasecardEditor(props: BasecardEditorProps) {
                 field: "audio",
                 accept: AUDIO_ACCEPT,
                 inputRole: "audio-input",
-                uploadLabel: t("music.editor.audio.upload"),
-                note: t("music.editor.audio.required"),
+                uploadLabel: formatMessage("music.editor.audio.upload"),
+                note: formatMessage("music.editor.audio.required"),
                 onFileSelected: handleAudioUpload,
               })}
             </div>
 
             <div className="chips-music-editor__row">
-              <p className="chips-music-editor__row-label">{t("music.editor.cover.title")}</p>
+              <p className="chips-music-editor__row-label">{formatMessage("music.editor.cover.title")}</p>
               {config.album_cover ? (
                 <div className="chips-music-editor__resource-tile" data-role="cover-resource">
                   <div className="chips-music-editor__resource-head">
-                    <ChipsImage
+                    <Image
                       className="chips-music-editor__resource-preview--cover"
                       src={displayCoverUrl}
-                      alt={t("music.editor.cover.selected")}
-                      fit="cover"
-                      loadingStrategy="lazy"
+                      alt={formatMessage("music.editor.cover.selected")}
+                      preview={false}
+                      loading="lazy"
                     />
                     <div className="chips-music-editor__resource-meta">
                       <span className="chips-music-editor__resource-tile-name">{resolveFileName(config.album_cover)}</span>
                     </div>
                     <div className="chips-music-editor__resource-actions">
                       <label className="chips-music-editor__button chips-music-editor__button--file">
-                        {t("music.editor.cover.replace")}
+                        {formatMessage("music.editor.cover.replace")}
                         <input
                           data-role="replace-cover-input"
                           className="chips-music-editor__hidden-input"
@@ -1393,7 +1373,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                           void handleRemoveCover();
                         }}
                       >
-                        {t("music.editor.cover.remove")}
+                        {formatMessage("music.editor.cover.remove")}
                       </button>
                     </div>
                   </div>
@@ -1402,16 +1382,15 @@ function BasecardEditor(props: BasecardEditorProps) {
                 field: "cover",
                 accept: COVER_ACCEPT,
                 inputRole: "cover-input",
-                uploadLabel: t("music.editor.cover.upload"),
-                note: t("music.editor.cover.default_placeholder"),
+                uploadLabel: formatMessage("music.editor.cover.upload"),
+                note: formatMessage("music.editor.cover.default_placeholder"),
                 preview: (
                   <span className="chips-music-editor__dropzone-preview" aria-hidden="true">
-                    <ChipsImage
+                    <Image
                       src={DEFAULT_MUSIC_COVER_URL}
-                      alt={t("music.editor.cover.default_placeholder")}
-                      decorative
-                      fit="cover"
-                      loadingStrategy="lazy"
+                      alt=""
+                      preview={false}
+                      loading="lazy"
                     />
                   </span>
                 ),
@@ -1420,7 +1399,7 @@ function BasecardEditor(props: BasecardEditorProps) {
             </div>
 
             <div className="chips-music-editor__row">
-              <p className="chips-music-editor__row-label">{t("music.editor.lyrics.title")}</p>
+              <p className="chips-music-editor__row-label">{formatMessage("music.editor.lyrics.title")}</p>
               {config.lyrics_file ? (
                 <div className="chips-music-editor__resource-tile" data-role="lyrics-resource">
                   <div className="chips-music-editor__resource-head">
@@ -1430,7 +1409,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                     </div>
                     <div className="chips-music-editor__resource-actions">
                       <label className="chips-music-editor__button chips-music-editor__button--file">
-                        {t("music.editor.lyrics.replace")}
+                        {formatMessage("music.editor.lyrics.replace")}
                         <input
                           data-role="replace-lyrics-input"
                           className="chips-music-editor__hidden-input"
@@ -1455,7 +1434,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                           void handleRemoveLyrics();
                         }}
                       >
-                        {t("music.editor.lyrics.remove")}
+                        {formatMessage("music.editor.lyrics.remove")}
                       </button>
                     </div>
                   </div>
@@ -1464,7 +1443,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                 field: "lyrics",
                 accept: LYRICS_ACCEPT,
                 inputRole: "lyrics-input",
-                uploadLabel: t("music.editor.lyrics.upload"),
+                uploadLabel: formatMessage("music.editor.lyrics.upload"),
                 preview: (
                   <span className="chips-music-editor__dropzone-badge" aria-hidden="true">LRC / TXT</span>
                 ),
@@ -1476,136 +1455,109 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         <section className="chips-music-editor__group">
           <div className="chips-music-editor__group-head">
-            <span className="chips-music-editor__group-title">{t("music.editor.metadata.title")}</span>
+            <span className="chips-music-editor__group-title">{formatMessage("music.editor.metadata.title")}</span>
           </div>
 
           <div className="chips-music-editor__list">
-            <ChipsForm.Field className="chips-music-editor__field-row" name="music_name">
-              <ChipsForm.Label className="chips-music-editor__field-label">
-                {t("music.editor.fields.music_name")}
-              </ChipsForm.Label>
+            <div className="chips-music-editor__field-row" data-field="music_name">
+              <span className="chips-music-editor__field-label">
+                {formatMessage("music.editor.fields.music_name")}
+              </span>
               <div className="chips-music-editor__field-control">
-                <ChipsForm.Control>
-                  <input
-                    data-role="music-name-input"
-                    type="text"
-                    className="chips-music-editor__input"
-                    value={config.music_name}
-                    placeholder={deriveDisplayTitle(config) || t("music.editor.fields.music_name_placeholder")}
-                    onInput={(event) => {
-                      updateConfig({ music_name: event.currentTarget.value });
-                    }}
-                  />
-                </ChipsForm.Control>
+                <input
+                  data-role="music-name-input"
+                  type="text"
+                  className="chips-music-editor__input"
+                  value={config.music_name}
+                  placeholder={deriveDisplayTitle(config) || formatMessage("music.editor.fields.music_name_placeholder")}
+                  onInput={(event) => {
+                    updateConfig({ music_name: event.currentTarget.value });
+                  }}
+                />
               </div>
-            </ChipsForm.Field>
+            </div>
 
-            <ChipsForm.Field className="chips-music-editor__field-row" name="album_name">
-              <ChipsForm.Label className="chips-music-editor__field-label">
-                {t("music.editor.fields.album_name")}
-              </ChipsForm.Label>
+            <div className="chips-music-editor__field-row" data-field="album_name">
+              <span className="chips-music-editor__field-label">
+                {formatMessage("music.editor.fields.album_name")}
+              </span>
               <div className="chips-music-editor__field-control">
-                <ChipsForm.Control>
-                  <input
-                    data-role="album-name-input"
-                    type="text"
-                    className="chips-music-editor__input"
-                    value={config.album_name}
-                    placeholder={t("music.editor.fields.album_name_placeholder")}
-                    onInput={(event) => {
-                      updateConfig({ album_name: event.currentTarget.value });
-                    }}
-                  />
-                </ChipsForm.Control>
+                <input
+                  data-role="album-name-input"
+                  type="text"
+                  className="chips-music-editor__input"
+                  value={config.album_name}
+                  placeholder={formatMessage("music.editor.fields.album_name_placeholder")}
+                  onInput={(event) => {
+                    updateConfig({ album_name: event.currentTarget.value });
+                  }}
+                />
               </div>
-            </ChipsForm.Field>
+            </div>
 
-            <ChipsForm.Field className="chips-music-editor__field-row" name="release_date">
-              <ChipsForm.Label className="chips-music-editor__field-label">
-                {t("music.editor.fields.release_date")}
-              </ChipsForm.Label>
+            <div className="chips-music-editor__field-row" data-field="release_date">
+              <span className="chips-music-editor__field-label">
+                {formatMessage("music.editor.fields.release_date")}
+              </span>
               <div className="chips-music-editor__field-control">
-                <ChipsForm.Control>
-                  <input
-                    data-role="release-date-input"
-                    type="date"
-                    className="chips-music-editor__input"
-                    value={config.release_date}
-                    onInput={(event) => {
-                      updateConfig({ release_date: event.currentTarget.value });
-                    }}
-                  />
-                </ChipsForm.Control>
+                <input
+                  data-role="release-date-input"
+                  type="date"
+                  className="chips-music-editor__input"
+                  value={config.release_date}
+                  onInput={(event) => {
+                    updateConfig({ release_date: event.currentTarget.value });
+                  }}
+                />
               </div>
-            </ChipsForm.Field>
+            </div>
 
-            <ChipsForm.Field className="chips-music-editor__field-row" name="language">
-              <ChipsForm.Label className="chips-music-editor__field-label">
-                {t("music.editor.fields.language")}
-              </ChipsForm.Label>
+            <div className="chips-music-editor__field-row" data-field="language">
+              <span className="chips-music-editor__field-label">
+                {formatMessage("music.editor.fields.language")}
+              </span>
               <div className="chips-music-editor__field-control">
-                <ChipsForm.Control>
-                  <input
-                    data-role="language-input"
-                    type="text"
-                    className="chips-music-editor__input"
-                    value={config.language}
-                    placeholder={t("music.editor.fields.language_placeholder")}
-                    onInput={(event) => {
-                      updateConfig({ language: event.currentTarget.value });
-                    }}
-                  />
-                </ChipsForm.Control>
+                <input
+                  data-role="language-input"
+                  type="text"
+                  className="chips-music-editor__input"
+                  value={config.language}
+                  placeholder={formatMessage("music.editor.fields.language_placeholder")}
+                  onInput={(event) => {
+                    updateConfig({ language: event.currentTarget.value });
+                  }}
+                />
               </div>
-            </ChipsForm.Field>
+            </div>
 
-            <ChipsForm.Field className="chips-music-editor__field-row" name="genre">
-              <ChipsForm.Label className="chips-music-editor__field-label">
-                {t("music.editor.fields.genre")}
-              </ChipsForm.Label>
+            <div className="chips-music-editor__field-row" data-field="genre">
+              <span className="chips-music-editor__field-label">
+                {formatMessage("music.editor.fields.genre")}
+              </span>
               <div className="chips-music-editor__field-control">
-                <ChipsForm.Control>
-                  <input
-                    data-role="genre-input"
-                    type="text"
-                    className="chips-music-editor__input"
-                    value={config.genre}
-                    placeholder={t("music.editor.fields.genre_placeholder")}
-                    onInput={(event) => {
-                      updateConfig({ genre: event.currentTarget.value });
-                    }}
-                  />
-                </ChipsForm.Control>
+                <input
+                  data-role="genre-input"
+                  type="text"
+                  className="chips-music-editor__input"
+                  value={config.genre}
+                  placeholder={formatMessage("music.editor.fields.genre_placeholder")}
+                  onInput={(event) => {
+                    updateConfig({ genre: event.currentTarget.value });
+                  }}
+                />
               </div>
-            </ChipsForm.Field>
+            </div>
           </div>
         </section>
 
         <section className="chips-music-editor__group">
           <div className="chips-music-editor__group-head">
-            <span className="chips-music-editor__group-title">{t("music.editor.team.title")}</span>
-            <ChipsToolbar
-              ariaLabel={t("music.editor.team.add_role")}
-              i18n={componentI18n}
-              commands={[
-                {
-                  commandId: "music.team.add-role",
-                  titleKey: "music.editor.team.add_role",
-                  toolbarPlacement: [{ toolbarId: "music-team", groupId: "main", order: 1 }],
-                },
-              ]}
-              toolbarId="music-team"
-              adapter={{
-                async listCommands() {
-                  return [];
-                },
-                async invokeCommand(commandId) {
-                  if (commandId === "music.team.add-role") {
-                    handleAddTeamRole();
-                  }
-                },
-              }}
-            />
+            <span className="chips-music-editor__group-title">{formatMessage("music.editor.team.title")}</span>
+            <Space className="chips-music-editor__toolbar">
+              <Button onClick={handleAddTeamRole}>
+                {formatMessage("music.editor.team.add_role")}
+              </Button>
+            </Space>
           </div>
 
           {config.production_team.length > 0 ? (
@@ -1614,80 +1566,76 @@ function BasecardEditor(props: BasecardEditorProps) {
                 <div key={role.id} className="chips-music-editor__team-item">
                   <div className="chips-music-editor__team-item-head">
                     <span className="chips-music-editor__team-item-title">
-                      {role.role || t("music.editor.team.role_placeholder")}
+                      {role.role || formatMessage("music.editor.team.role_placeholder")}
                     </span>
                   </div>
 
                   <div className="chips-music-editor__team-card-body">
-                    <ChipsForm.Field className="chips-music-editor__field-row" name={`team-role-${role.id}`}>
-                      <ChipsForm.Label className="chips-music-editor__field-label">
-                        {t("music.editor.team.role_label")}
-                      </ChipsForm.Label>
+                    <div className="chips-music-editor__field-row" data-field={`team-role-${role.id}`}>
+                      <span className="chips-music-editor__field-label">
+                        {formatMessage("music.editor.team.role_label")}
+                      </span>
                       <div className="chips-music-editor__field-control">
-                        <ChipsForm.Control>
-                          <input
-                            data-role={`team-role-input-${role.id}`}
-                            type="text"
-                            className="chips-music-editor__input"
-                            value={role.role}
-                            placeholder={t("music.editor.team.role_placeholder")}
-                            onInput={(event) => {
-                              handleUpdateTeamRole(role.id, {
-                                role: event.currentTarget.value,
-                              });
-                            }}
-                          />
-                        </ChipsForm.Control>
+                        <input
+                          data-role={`team-role-input-${role.id}`}
+                          type="text"
+                          className="chips-music-editor__input"
+                          value={role.role}
+                          placeholder={formatMessage("music.editor.team.role_placeholder")}
+                          onInput={(event) => {
+                            handleUpdateTeamRole(role.id, {
+                              role: event.currentTarget.value,
+                            });
+                          }}
+                        />
                       </div>
-                    </ChipsForm.Field>
+                    </div>
 
-                    <ChipsForm.Field
+                    <div
                       className="chips-music-editor__field-row chips-music-editor__field-row--multiline"
-                      name={`team-people-${role.id}`}
+                      data-field={`team-people-${role.id}`}
                     >
-                      <ChipsForm.Label className="chips-music-editor__field-label">
-                        {t("music.editor.team.people_label")}
-                      </ChipsForm.Label>
+                      <span className="chips-music-editor__field-label">
+                        {formatMessage("music.editor.team.people_label")}
+                      </span>
                       <div className="chips-music-editor__field-control">
-                        <ChipsForm.Control>
-                          <textarea
-                            data-role={`team-people-input-${role.id}`}
-                            className="chips-music-editor__textarea"
-                            value={role.people.join("\n")}
-                            placeholder={t("music.editor.team.people_placeholder")}
-                            onInput={(event) => {
-                              handleUpdateTeamRole(role.id, {
-                                people: event.currentTarget.value
-                                  .split(/\r?\n/u)
-                                  .map((item) => item.trim())
-                                  .filter((item) => item.length > 0),
-                              });
-                            }}
-                          />
-                        </ChipsForm.Control>
+                        <textarea
+                          data-role={`team-people-input-${role.id}`}
+                          className="chips-music-editor__textarea"
+                          value={role.people.join("\n")}
+                          placeholder={formatMessage("music.editor.team.people_placeholder")}
+                          onInput={(event) => {
+                            handleUpdateTeamRole(role.id, {
+                              people: event.currentTarget.value
+                                .split(/\r?\n/u)
+                                .map((item) => item.trim())
+                                .filter((item) => item.length > 0),
+                            });
+                          }}
+                        />
                       </div>
-                    </ChipsForm.Field>
+                    </div>
                   </div>
 
                   <div className="chips-music-editor__team-card-actions">
-                    <ChipsButton
-                      type="button"
-                      onPress={() => {
+                    <Button
+                      type="default"
+                      onClick={() => {
                         handleRemoveTeamRole(role.id);
                       }}
                     >
-                      {t("music.editor.team.remove_role")}
-                    </ChipsButton>
+                      {formatMessage("music.editor.team.remove_role")}
+                    </Button>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="chips-music-editor__team-empty">{t("music.editor.team.empty")}</div>
+            <div className="chips-music-editor__team-empty">{formatMessage("music.editor.team.empty")}</div>
           )}
         </section>
       </div>
-    </ChipsForm>
+    </form>
   );
 }
 
@@ -1702,10 +1650,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): HTMLElemen
 
   flushSync(() => {
     reactRoot.render(
-      <>
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
         <style>{EDITOR_STYLE_TEXT}</style>
         <BasecardEditor {...props} />
-      </>,
+      </ConfigProvider>,
     );
   });
 

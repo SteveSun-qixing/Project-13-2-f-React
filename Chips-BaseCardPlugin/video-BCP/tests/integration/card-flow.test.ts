@@ -63,7 +63,7 @@ describe("basecard integration flow", () => {
     });
 
     const titleInput = editorContainer.querySelector(
-      '[data-role="video-title-input"] input'
+      '[data-role="video-title-input"]'
     ) as HTMLInputElement | null;
 
     if (!titleInput) {

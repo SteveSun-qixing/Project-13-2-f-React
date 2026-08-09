@@ -24,8 +24,40 @@ function setNumberInputValue(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+function clickRatingStar(root: HTMLElement, index: number): void {
+  const star = root.querySelectorAll(
+    ".ant-rate-star div[role='radio']",
+  )[index] as HTMLElement | undefined;
+  if (!star) {
+    throw new Error(`找不到第 ${index + 1} 个评分项`);
+  }
+  star.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
+function pressKey(target: Element, key: string, keyCode?: number): void {
+  target.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      key,
+      keyCode,
+    }),
+  );
+}
+
+async function pressKeyWithFlush(target: Element, key: string, keyCode?: number): Promise<void> {
+  pressKey(target, key, keyCode);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function findSegmentedItem(root: HTMLElement, label: string): HTMLElement | undefined {
+  const item = Array.from(root.querySelectorAll(".ant-segmented-item")).find(
+    (candidate) => candidate.querySelector(".ant-segmented-item-label")?.textContent === label,
+  );
+  return item instanceof HTMLElement ? item : undefined;
+}
+
 describe("createBasecardEditorRoot", () => {
-  it("emits five-point symbol scores when a rating button is clicked", () => {
+  it("emits five-point symbol scores when a rating star is clicked", () => {
     let lastConfig: BasecardConfig | undefined;
     const root = createBasecardEditorRoot({
       initialConfig: createConfig(),
@@ -34,20 +66,12 @@ describe("createBasecardEditorRoot", () => {
       },
     });
 
-    const rating = root.querySelector('[data-scope="rating"][data-part="root"]') as HTMLElement | null;
-    const ratingButtons = Array.from(
-      root.querySelectorAll('[data-scope="rating"][data-part="item"]'),
-    ) as HTMLButtonElement[];
+    const rating = root.querySelector(".chips-score-editor__rating") as HTMLElement | null;
 
-    const fifthButton = ratingButtons[4];
-    if (!fifthButton) {
-      throw new Error("找不到第五个评分按钮");
-    }
+    expect(rating).not.toBeNull();
+    expect(root.querySelectorAll(".ant-rate-star div[role='radio']")).toHaveLength(5);
 
-    expect(rating?.getAttribute("role")).toBe("radiogroup");
-    expect(root.querySelectorAll('[data-scope="rating"][data-part="icon"]')).toHaveLength(5);
-
-    fifthButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    clickRatingStar(root, 4);
 
     expect(lastConfig?.score).toBe(5);
     expect(lastConfig?.total_score).toBe(5);
@@ -67,16 +91,18 @@ describe("createBasecardEditorRoot", () => {
       },
     });
 
-    const progressButton = Array.from(root.querySelectorAll('[data-scope="segmented-control"][data-part="item"]'))
-      .find((button) => button.textContent === "进度条") as HTMLButtonElement | undefined;
-    if (!progressButton) {
+    const progressItem = findSegmentedItem(root, "进度条");
+    const progressInput = progressItem?.querySelector(
+      ".ant-segmented-item-input",
+    ) as HTMLInputElement | undefined;
+    if (!progressInput) {
       throw new Error("找不到进度条样式按钮");
     }
 
-    progressButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    progressInput.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     const numberInputs = Array.from(
-      root.querySelectorAll('[data-scope="number-input"][data-part="control"]'),
+      root.querySelectorAll(".chips-score-editor__number-input input"),
     ) as HTMLInputElement[];
     const totalInput = numberInputs[0];
     const scoreInput = numberInputs[1];
@@ -92,7 +118,7 @@ describe("createBasecardEditorRoot", () => {
     expect(lastConfig?.score).toBe(15);
   });
 
-  it("supports keyboard rating updates through ChipsRating", () => {
+  it("supports keyboard rating updates through Rate", async () => {
     let lastConfig: BasecardConfig | undefined;
     const root = createBasecardEditorRoot({
       initialConfig: createConfig({ score: 2 }),
@@ -101,18 +127,20 @@ describe("createBasecardEditorRoot", () => {
       },
     });
 
-    const rating = root.querySelector('[data-scope="rating"][data-part="root"]') as HTMLElement | null;
+    const rating = root.querySelector(".chips-score-editor__rating") as HTMLElement | null;
     if (!rating) {
       throw new Error("找不到评分控件");
     }
 
-    rating.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    for (let index = 0; index < 3; index += 1) {
+      await pressKeyWithFlush(rating, "ArrowRight", 39);
+    }
 
     expect(lastConfig?.score).toBe(5);
     expect(lastConfig?.total_score).toBe(5);
   });
 
-  it("supports keyboard style switching through ChipsSegmentedControl", () => {
+  it("supports keyboard style switching through Segmented", async () => {
     let lastConfig: BasecardConfig | undefined;
     const root = createBasecardEditorRoot({
       initialConfig: createConfig({ style: "stars", score: 2 }),
@@ -121,12 +149,16 @@ describe("createBasecardEditorRoot", () => {
       },
     });
 
-    const segmented = root.querySelector('[data-scope="segmented-control"][data-part="root"]') as HTMLElement | null;
-    if (!segmented) {
+    const segmentedInput = root.querySelector(
+      ".ant-segmented-item-input",
+    ) as HTMLInputElement | null;
+    if (!segmentedInput) {
       throw new Error("找不到样式切换控件");
     }
 
-    segmented.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    for (let index = 0; index < 3; index += 1) {
+      await pressKeyWithFlush(segmentedInput, "ArrowRight");
+    }
 
     expect(lastConfig?.style).toBe("progress");
     expect(lastConfig?.total_score).toBe(5);

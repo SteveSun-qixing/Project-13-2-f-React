@@ -55,7 +55,7 @@ describe("book basecard integration flow", () => {
       },
     });
 
-    const bookNameInput = editorContainer.querySelector('[data-role="book-name-input"] input') as HTMLInputElement | null;
+    const bookNameInput = editorContainer.querySelector('[data-role="book-name-input"]') as HTMLInputElement | null;
     if (!bookNameInput) {
       throw new Error("找不到书名输入框");
     }

@@ -1,11 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChipsNumberInput,
-  ChipsProgress,
-  ChipsRating,
-  ChipsSegmentedControl,
-  ChipsText,
-} from "@chips/component-library";
+import { ConfigProvider, InputNumber, Progress, Rate, Segmented } from "antd";
+import { HeartFilled } from "@ant-design/icons";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type {
@@ -27,7 +24,7 @@ import {
   type BasecardConfig,
   type ScoreStyle,
 } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 export interface BasecardEditorProps {
   initialConfig: BasecardConfig;
@@ -55,7 +52,7 @@ html, body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .chips-basecard-editor {
@@ -68,9 +65,9 @@ html, body {
   min-height: 0;
   overflow: auto;
   padding: 16px;
-  color: var(--chips-sys-color-on-surface, #111827);
-  background: var(--chips-sys-color-surface, #ffffff);
-  font: 14px/1.6 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  background: #ffffff;
+  font: 14px/1.6 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-basecard-editor,
@@ -83,32 +80,28 @@ html, body {
   gap: 10px;
 }
 
-.chips-score-editor__label[data-scope="text"][data-part="root"] {
-  color: var(--chips-sys-color-on-surface, #111827);
+.chips-score-editor__label {
+  color: #1d1d1f;
   font-weight: 650;
 }
 
-.chips-score-editor__segmented[data-scope="segmented-control"][data-part="root"] {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--chips-layout-gap-xs, 8px);
+.chips-score-editor__segmented {
   width: 100%;
 }
 
-.chips-score-editor__segmented[data-scope="segmented-control"][data-part="root"] [data-part="item"] {
-  min-height: var(--chips-layout-density-comfortable, 44px);
+.chips-score-editor__rating {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
 }
 
-.chips-score-editor__rating[data-scope="rating"][data-part="root"] {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--chips-layout-gap-xs, 8px);
-  width: 100%;
-  --chips-comp-rating-item-size: var(--chips-layout-density-comfortable, 44px);
+.chips-score-editor__rating .ant-rate {
+  font-size: 30px;
 }
 
-.chips-score-editor__rating[data-scope="rating"][data-part="root"] [data-part="item"] {
-  width: 100%;
+.chips-score-editor__rating--hearts .ant-rate {
+  color: #ff3b30;
 }
 
 .chips-score-editor__number-grid {
@@ -117,14 +110,15 @@ html, body {
   gap: 10px;
 }
 
-.chips-score-editor__number-grid [data-scope="number-input"][data-part="root"] {
+.chips-score-editor__number-field {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
-.chips-score-editor__number-grid [data-scope="number-input"][data-part="control"] {
+.chips-score-editor__number-input {
   width: 100%;
-  min-height: var(--chips-layout-density-comfortable, 44px);
+  min-height: 44px;
 }
 
 .chips-score-editor__preview {
@@ -132,32 +126,8 @@ html, body {
   gap: 8px;
 }
 
-.chips-score-editor__preview [data-scope="progress"][data-part="root"] {
-  display: grid;
-  gap: 6px;
-  width: 100%;
-}
-
-.chips-score-editor__preview [data-scope="progress"][data-part="track"] {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 12px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--chips-comp-progress-track-surface, var(--chips-sys-color-surface-container-highest, rgba(15, 23, 42, 0.12)));
-}
-
-.chips-score-editor__preview [data-scope="progress"][data-part="range"] {
-  display: block;
-  width: calc(var(--chips-progress-ratio, 0) * 100%);
-  height: 100%;
-  border-radius: inherit;
-  background: var(--chips-comp-progress-range-surface, var(--chips-sys-color-primary, #2563eb));
-}
-
-.chips-score-editor__preview-value[data-scope="text"][data-part="root"] {
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
+.chips-score-editor__preview-value {
+  color: #6e6e73;
   font-size: 13px;
   line-height: 1.3;
   font-variant-numeric: tabular-nums;
@@ -177,7 +147,7 @@ html, body {
 
 .chips-basecard-editor__errors {
   min-height: 0;
-  color: var(--chips-sys-color-error, #d92d20);
+  color: #ff3b30;
   font-size: 13px;
 }
 
@@ -194,15 +164,10 @@ const styleTranslationKeys: Record<ScoreStyle, string> = {
   progress: "score.style.progress",
 };
 
-function formatNumber(value: number, locale: string | undefined): string {
-  return new Intl.NumberFormat(locale ?? "zh-CN", {
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("zh-CN", {
     maximumFractionDigits: 2,
   }).format(value);
-}
-
-function parseNumberInput(value: string): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function getRatingShape(config: BasecardConfig): "heart" | "star" {
@@ -215,11 +180,10 @@ function BasecardEditor(props: BasecardEditorProps) {
   const [errors, setErrors] = useState<Record<string, string>>(() =>
     validateBasecardConfig(normalizeBasecardConfig(props.initialConfig)).errors
   );
-  const t = createTranslator(config.locale);
   const ratio = useMemo(() => getScoreRatio(config), [config]);
-  const formattedScore = formatNumber(config.score, config.locale);
-  const formattedTotal = formatNumber(config.total_score, config.locale);
-  const progressPercent = formatNumber(ratio * 100, config.locale);
+  const formattedScore = formatNumber(config.score);
+  const formattedTotal = formatNumber(config.total_score);
+  const progressPercent = formatNumber(ratio * 100);
   const styleLabelId = React.useId();
   const valueLabelId = React.useId();
   const previewLabelId = React.useId();
@@ -247,26 +211,27 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   const styleOptions = scoreStyles.map((style) => ({
     value: style,
-    label: t(styleTranslationKeys[style]),
+    label: formatMessage(styleTranslationKeys[style]),
   }));
 
-  const scoreValueText = t("score.accessible.value", {
+  const scoreValueText = formatMessage("score.accessible.value", {
     score: formattedScore,
     total: formattedTotal,
   });
+  const isHearts = getRatingShape(config) === "heart";
 
   return (
     <div className="chips-basecard-editor chips-basecard-editor--standard">
       <section className="chips-score-editor__group" aria-labelledby={styleLabelId}>
-        <ChipsText as="div" className="chips-score-editor__label" id={styleLabelId}>
-          {t("score.style")}
-        </ChipsText>
-        <ChipsSegmentedControl
-          ariaLabelledBy={styleLabelId}
+        <div className="chips-score-editor__label" id={styleLabelId}>
+          {formatMessage("score.style")}
+        </div>
+        <Segmented
+          aria-labelledby={styleLabelId}
           className="chips-score-editor__segmented"
           options={styleOptions}
           value={config.style}
-          onValueChange={(value) => {
+          onChange={(value) => {
             const style = value as ScoreStyle;
             updateConfig({
               style,
@@ -277,76 +242,74 @@ function BasecardEditor(props: BasecardEditorProps) {
       </section>
 
       <section className="chips-score-editor__group" aria-labelledby={valueLabelId}>
-        <ChipsText as="div" className="chips-score-editor__label" id={valueLabelId}>
-          {t("score.earnedScore")}
-        </ChipsText>
+        <div className="chips-score-editor__label" id={valueLabelId}>
+          {formatMessage("score.earnedScore")}
+        </div>
 
         {isSymbolScoreStyle(config.style) ? (
-          <ChipsRating
-            ariaLabelledBy={valueLabelId}
-            className="chips-score-editor__rating"
+          <Rate
+            aria-labelledby={valueLabelId}
+            className={[
+              "chips-score-editor__rating",
+              isHearts ? "chips-score-editor__rating--hearts" : "",
+            ].filter(Boolean).join(" ")}
             count={SYMBOL_SCORE_TOTAL}
-            getItemLabel={(value) => t("score.setScore", { score: value })}
-            shape={getRatingShape(config)}
+            character={isHearts ? <HeartFilled /> : undefined}
             value={config.score}
-            onValueChange={(score) => {
+            onChange={(score) => {
               updateConfig({ score, total_score: SYMBOL_SCORE_TOTAL });
             }}
           />
         ) : (
           <div className="chips-score-editor__number-grid">
-            <ChipsNumberInput
-              decrementLabel={t("score.totalScore.decrement")}
-              incrementLabel={t("score.totalScore.increment")}
-              label={t("score.totalScore")}
-              max={MAX_TOTAL_SCORE}
-              min={1}
-              step={0.1}
-              value={config.total_score}
-              onInputChange={(value) => {
-                updateConfig({ total_score: parseNumberInput(value) });
-              }}
-              onValueChange={(value) => {
-                updateConfig({ total_score: value ?? 1 });
-              }}
-            />
-            <ChipsNumberInput
-              decrementLabel={t("score.scoreValue.decrement")}
-              incrementLabel={t("score.scoreValue.increment")}
-              label={t("score.scoreValue")}
-              max={config.total_score}
-              min={0}
-              step={0.1}
-              value={config.score}
-              onInputChange={(value) => {
-                updateConfig({ score: parseNumberInput(value) });
-              }}
-              onValueChange={(value) => {
-                updateConfig({ score: value ?? 0 });
-              }}
-            />
+            <div className="chips-score-editor__number-field">
+              <div className="chips-score-editor__label">{formatMessage("score.totalScore")}</div>
+              <InputNumber
+                className="chips-score-editor__number-input"
+                max={MAX_TOTAL_SCORE}
+                min={1}
+                step={0.1}
+                value={config.total_score}
+                onChange={(value) => {
+                  updateConfig({ total_score: value ?? 1 });
+                }}
+              />
+            </div>
+            <div className="chips-score-editor__number-field">
+              <div className="chips-score-editor__label">{formatMessage("score.scoreValue")}</div>
+              <InputNumber
+                className="chips-score-editor__number-input"
+                max={config.total_score}
+                min={0}
+                step={0.1}
+                value={config.score}
+                onChange={(value) => {
+                  updateConfig({ score: value ?? 0 });
+                }}
+              />
+            </div>
           </div>
         )}
 
         {config.style === "progress" ? (
           <div className="chips-score-editor__preview">
             <span className="chips-score-editor__sr-only" id={previewLabelId}>
-              {t("score.progressPreview", {
+              {formatMessage("score.progressPreview", {
                 score: formattedScore,
                 total: formattedTotal,
                 percent: progressPercent,
               })}
             </span>
-            <ChipsProgress
+            <Progress
               aria-labelledby={previewLabelId}
-              max={config.total_score}
-              min={0}
-              value={config.score}
-              valueText={t("score.progress.percent", { percent: progressPercent })}
+              aria-valuetext={formatMessage("score.progress.percent", { percent: progressPercent })}
+              percent={ratio * 100}
+              showInfo={false}
+              size={["100%", 12]}
             />
-            <ChipsText aria-hidden="true" as="div" className="chips-score-editor__preview-value">
+            <div aria-hidden="true" className="chips-score-editor__preview-value">
               {formattedScore} / {formattedTotal}
-            </ChipsText>
+            </div>
           </div>
         ) : null}
 
@@ -354,7 +317,7 @@ function BasecardEditor(props: BasecardEditorProps) {
           {Object.keys(errors).length > 0 ? (
             <ul className="chips-basecard-editor__errors-list">
               {Object.entries(errors).map(([key, message]) => (
-                <li key={key}>{t(message, { max: MAX_TOTAL_SCORE })}</li>
+                <li key={key}>{formatMessage(message, { max: MAX_TOTAL_SCORE })}</li>
               ))}
             </ul>
           ) : null}
@@ -375,10 +338,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): HTMLElemen
 
   flushSync(() => {
     reactRoot.render(
-      <>
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
         <style>{EDITOR_STYLE_TEXT}</style>
         <BasecardEditor {...props} />
-      </>,
+      </ConfigProvider>,
     );
   });
 

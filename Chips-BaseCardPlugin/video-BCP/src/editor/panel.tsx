@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChipsBadge,
-  ChipsButton,
-  ChipsErrorState,
-  ChipsForm,
-  ChipsImage,
-  ChipsMedia,
-  ChipsNumberInput,
-  ChipsProgress,
-  ChipsSwitch,
-  ChipsTextField,
-} from "@chips/component-library";
+  Button,
+  ConfigProvider,
+  Image,
+  Input,
+  InputNumber,
+  Result,
+  Spin,
+  Switch,
+  Tag,
+} from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type {
@@ -26,7 +27,7 @@ import {
   type SubtitleKind,
   type SubtitleTrackConfig,
 } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import {
   cloneConfig,
   dedupeResourcePaths,
@@ -78,7 +79,7 @@ html, body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--chips-sys-color-surface, #ffffff);
+  background: #ffffff;
 }
 
 .chips-video-editor {
@@ -88,9 +89,9 @@ html, body {
   min-height: 0;
   overflow: auto;
   padding: 18px clamp(12px, 3vw, 20px) 28px;
-  color: var(--chips-sys-color-on-surface, #0f172a);
-  background: var(--chips-sys-color-surface, #ffffff);
-  font: 14px/1.55 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  background: #ffffff;
+  font: 14px/1.55 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-video-editor,
@@ -109,13 +110,17 @@ html, body {
 .chips-video-editor__alert {
   padding: 10px 12px;
   border-radius: 8px;
-  background: var(--chips-sys-color-surface-container-low, rgba(248, 250, 252, 0.92));
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  background: rgba(242, 242, 247, 0.92);
+  color: #1d1d1f;
 }
 
-.chips-video-editor__alert [data-scope="error-state"][data-part="root"] {
-  border: 0;
+.chips-video-editor__alert .ant-result {
+  padding: 0;
   background: transparent;
+}
+
+.chips-video-editor__alert .ant-result-icon {
+  margin-bottom: 6px;
 }
 
 .chips-video-editor__errors-list {
@@ -154,12 +159,8 @@ html, body {
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
-  background: var(--chips-sys-color-primary-container, rgba(37, 99, 235, 0.1));
-  color: var(--chips-sys-color-on-primary-container, #1d4ed8);
-}
-
-.chips-video-editor__status [data-scope="progress"][data-part="root"] {
-  width: 44px;
+  background: rgba(10, 132, 255, 0.08);
+  color: #0a84ff;
 }
 
 .chips-video-editor__list {
@@ -171,7 +172,7 @@ html, body {
   display: grid;
   gap: 12px;
   padding: 14px 0;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .chips-video-editor__row--compact {
@@ -183,7 +184,7 @@ html, body {
   margin: 0;
   font-size: 13px;
   font-weight: 700;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
 }
 
 .chips-video-editor__row-body {
@@ -197,10 +198,10 @@ html, body {
   place-items: center;
   min-height: 116px;
   padding: 18px;
-  border: 1.5px dashed rgba(15, 23, 42, 0.12);
+  border: 1.5px dashed rgba(0, 0, 0, 0.12);
   border-radius: 8px;
-  background: var(--chips-sys-color-surface-container-low, rgba(248, 250, 252, 0.64));
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  background: rgba(242, 242, 247, 0.64);
+  color: #1d1d1f;
   text-align: center;
   cursor: pointer;
   transition:
@@ -210,9 +211,9 @@ html, body {
 }
 
 .chips-video-editor__dropzone[data-state="dragover"] {
-  border-color: rgba(37, 99, 235, 0.34);
-  background: rgba(239, 246, 255, 0.9);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+  border-color: rgba(10, 132, 255, 0.34);
+  background: rgba(10, 132, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.08);
 }
 
 .chips-video-editor__dropzone[data-state="busy"] {
@@ -221,7 +222,7 @@ html, body {
 
 .chips-video-editor__dropzone:hover,
 .chips-video-editor__dropzone:focus-within {
-  border-color: rgba(37, 99, 235, 0.28);
+  border-color: rgba(10, 132, 255, 0.28);
 }
 
 .chips-video-editor__dropzone-input {
@@ -234,7 +235,7 @@ html, body {
 .chips-video-editor__dropzone-text {
   font-size: 14px;
   font-weight: 650;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
 }
 
 .chips-video-editor__url-row {
@@ -250,7 +251,7 @@ html, body {
   min-height: 144px;
   padding: 0;
   border-radius: 8px;
-  background: var(--chips-sys-color-surface-container-low, rgba(248, 250, 252, 0.7));
+  background: rgba(242, 242, 247, 0.7);
   overflow: hidden;
 }
 
@@ -260,37 +261,29 @@ html, body {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
+.chips-video-editor__resource-tile .ant-image {
+  display: block;
+  width: 100%;
+}
+
 .chips-video-editor__resource-preview {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  background: var(--chips-sys-color-surface-container, rgba(226, 232, 240, 0.76));
-}
-
-.chips-video-editor__resource-preview[data-scope="image"][data-part="root"],
-.chips-video-editor__resource-preview[data-scope="media"][data-part="root"] {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-}
-
-.chips-video-editor__resource-preview [data-scope="image"][data-part="media"],
-.chips-video-editor__resource-preview [data-scope="media"][data-part="content"] {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  background: #f2f2f7;
 }
 
 .chips-video-editor__resource-meta {
   padding: 10px 12px;
-  background: var(--chips-sys-color-surface, rgba(255, 255, 255, 0.96));
+  background: #ffffff;
 }
 
 .chips-video-editor__resource-tile-name {
   display: block;
   font-size: 14px;
   font-weight: 650;
-  color: var(--chips-sys-color-on-surface, #0f172a);
+  color: #1d1d1f;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -307,7 +300,7 @@ html, body {
   padding: 0 12px;
   border: 0;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.72);
+  background: rgba(0, 0, 0, 0.72);
   color: #ffffff;
   font: inherit;
   font-weight: 700;
@@ -328,20 +321,20 @@ html, body {
   flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px 12px;
-  background: var(--chips-sys-color-surface, rgba(255, 255, 255, 0.96));
+  background: #ffffff;
 }
 
-.chips-video-editor__resource-actions [data-scope="button"][data-part="root"] {
+.chips-video-editor__resource-actions .ant-btn {
   min-height: 34px;
 }
 
 .chips-video-editor__button,
-.chips-video-editor__input {
+.chips-video-editor__input.ant-input {
   width: 100%;
   min-height: 40px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 8px;
-  background: var(--chips-sys-color-surface, rgba(255, 255, 255, 0.98));
+  background: #ffffff;
   color: inherit;
   font: inherit;
   outline: none;
@@ -361,10 +354,10 @@ html, body {
 
 .chips-video-editor__button:hover,
 .chips-video-editor__button:focus-visible,
-.chips-video-editor__input:hover,
-.chips-video-editor__input:focus {
-  border-color: rgba(37, 99, 235, 0.42);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+.chips-video-editor__input.ant-input:hover,
+.chips-video-editor__input.ant-input:focus {
+  border-color: rgba(10, 132, 255, 0.42);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
 }
 
 .chips-video-editor__button:disabled {
@@ -373,29 +366,11 @@ html, body {
   box-shadow: none;
 }
 
-.chips-video-editor__input {
+.chips-video-editor__input.ant-input {
   padding: 0 14px;
 }
 
-.chips-video-editor__input[data-scope="text-field"][data-part="root"] {
-  display: flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 0;
-}
-
-.chips-video-editor__input [data-scope="text-field"][data-part="control"] {
-  width: 100%;
-  min-height: 38px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  outline: none;
-  padding: 0 14px;
-}
-
-.chips-video-editor__button [data-scope="button"][data-part="root"] {
+.chips-video-editor__button .ant-btn {
   min-height: 40px;
   border-radius: 8px;
 }
@@ -405,14 +380,9 @@ html, body {
   align-items: center;
 }
 
-.chips-video-editor__field-row [data-scope="text-field"][data-part="root"],
-.chips-video-editor__field-row [data-scope="number-input"][data-part="root"] {
+.chips-video-editor__field-row .ant-input,
+.chips-video-editor__field-row .ant-input-number {
   width: 100%;
-}
-
-.chips-video-editor__field-row [data-scope="text-field"][data-part="label"],
-.chips-video-editor__field-row [data-scope="number-input"][data-part="label"] {
-  display: none;
 }
 
 .chips-video-editor__switch-grid {
@@ -426,7 +396,7 @@ html, body {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .chips-video-editor__subtitle-list {
@@ -439,7 +409,7 @@ html, body {
   gap: 10px;
   padding: 12px;
   border-radius: 8px;
-  background: var(--chips-sys-color-surface-container-low, rgba(248, 250, 252, 0.76));
+  background: rgba(242, 242, 247, 0.76);
 }
 
 .chips-video-editor__subtitle-item-head {
@@ -465,10 +435,38 @@ html, body {
   gap: 8px;
 }
 
+.chips-video-editor__subtitle-field {
+  display: grid;
+  gap: 6px;
+}
+
+.chips-video-editor__subtitle-field-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6e6e73;
+}
+
 .chips-video-editor__subtitle-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.chips-video-editor__badge {
+  border-radius: 6px;
+  margin-inline-end: 0;
+}
+
+.chips-video-editor__badge--accent {
+  background: rgba(10, 132, 255, 0.08);
+  border-color: rgba(10, 132, 255, 0.2);
+  color: #0a84ff;
+}
+
+.chips-video-editor__badge--neutral {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #6e6e73;
 }
 
 @media (max-width: 560px) {
@@ -546,11 +544,8 @@ function getVisibleErrors(errors: Record<string, string>): string[] {
     .map(([, message]) => message);
 }
 
-function translateErrorMessages(
-  errors: Record<string, string>,
-  t: (key: string, params?: Record<string, string | number>) => string,
-): string[] {
-  return getVisibleErrors(errors).map((message) => t(message));
+function translateErrorMessages(errors: Record<string, string>): string[] {
+  return getVisibleErrors(errors).map((message) => formatMessage(message));
 }
 
 async function resolveResourceUrlWithRetry(
@@ -768,58 +763,6 @@ async function downloadFileFromUrl(options: {
   });
 }
 
-function VideoResourcePreview(props: { src: string }) {
-  const { src } = props;
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    const element = videoRef.current;
-    if (!element || !src) {
-      return;
-    }
-
-    const handleLoadedMetadata = () => {
-      const duration = Number.isFinite(element.duration) ? element.duration : 0;
-      const targetTime = duration > 0.08 ? Math.min(0.08, duration / 2) : 0;
-
-      if (targetTime <= 0) {
-        element.pause();
-        return;
-      }
-
-      try {
-        element.currentTime = targetTime;
-      } catch {
-        element.pause();
-      }
-    };
-
-    const handleSeeked = () => {
-      element.pause();
-    };
-
-    element.addEventListener("loadedmetadata", handleLoadedMetadata);
-    element.addEventListener("seeked", handleSeeked);
-
-    return () => {
-      element.removeEventListener("loadedmetadata", handleLoadedMetadata);
-      element.removeEventListener("seeked", handleSeeked);
-    };
-  }, [src]);
-
-  return (
-    <video
-      ref={videoRef}
-      className="chips-video-editor__resource-preview"
-      src={src}
-      preload="metadata"
-      muted
-      playsInline
-      aria-hidden="true"
-    />
-  );
-}
-
 function createSubtitleTrackFromResource(path: string, fileName: string, index: number): SubtitleTrackConfig {
   const baseName = stripFileExtension(resolveFileName(path) || fileName || `subtitle-${index + 1}`);
 
@@ -833,24 +776,17 @@ function createSubtitleTrackFromResource(path: string, fileName: string, index: 
   };
 }
 
-function getSubtitleLabel(
-  track: SubtitleTrackConfig,
-  index: number,
-  t: (key: string, params?: Record<string, string | number>) => string,
-): string {
+function getSubtitleLabel(track: SubtitleTrackConfig, index: number): string {
   return track.label
     || track.language
     || resolveFileName(track.file_path)
-    || t("video.editor.subtitles.fallback_label", { index: index + 1 });
+    || formatMessage("video.editor.subtitles.fallback_label", { index: index + 1 });
 }
 
-function getSubtitleKindLabel(
-  kind: SubtitleKind,
-  t: (key: string, params?: Record<string, string | number>) => string,
-): string {
+function getSubtitleKindLabel(kind: SubtitleKind): string {
   return kind === "captions"
-    ? t("video.editor.subtitles.kind_captions")
-    : t("video.editor.subtitles.kind_subtitles");
+    ? formatMessage("video.editor.subtitles.kind_captions")
+    : formatMessage("video.editor.subtitles.kind_subtitles");
 }
 
 function BasecardEditor(props: BasecardEditorProps) {
@@ -869,7 +805,6 @@ function BasecardEditor(props: BasecardEditorProps) {
   const configRef = useRef(config);
   const committedConfigRef = useRef(config);
   const onChangeRef = useRef(props.onChange);
-  const t = createTranslator(typeof navigator !== "undefined" ? navigator.language : "zh-CN");
 
   useEffect(() => {
     onChangeRef.current = props.onChange;
@@ -901,14 +836,11 @@ function BasecardEditor(props: BasecardEditorProps) {
   }, []);
 
   const flattenedErrors = useMemo(
-    () => translateErrorMessages(errors, t),
-    [errors, t],
+    () => translateErrorMessages(errors),
+    [errors],
   );
   const videoPreviewUrl = useResolvedEditorResourceUrl(config.video_file, props.resolveResourceUrl, props.releaseResourceUrl);
   const coverPreviewUrl = useResolvedEditorResourceUrl(config.cover_image, props.resolveResourceUrl, props.releaseResourceUrl);
-  const componentI18n = {
-    t,
-  };
 
   function applyLocalConfig(nextConfig: BasecardConfig) {
     const normalized = normalizeBasecardConfig(nextConfig);
@@ -976,7 +908,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   async function importRequiredResource(file: File, preferredPath: string): Promise<BasecardResourceImportResult> {
     if (!props.importResource) {
-      throw new Error(t("video.editor.errors.import_unavailable"));
+      throw new Error(formatMessage("video.editor.errors.import_unavailable"));
     }
 
     return props.importResource({
@@ -1012,7 +944,7 @@ function BasecardEditor(props: BasecardEditorProps) {
     try {
       await props.deleteResource(normalizedPath);
     } catch (error) {
-      setPanelError(resolveErrorMessage(error, t("video.editor.errors.delete_failed")));
+      setPanelError(resolveErrorMessage(error, formatMessage("video.editor.errors.delete_failed")));
     }
   }
 
@@ -1029,7 +961,7 @@ function BasecardEditor(props: BasecardEditorProps) {
       const thumbnail = await extractVideoThumbnail(importedVideo.path, preferredCoverPath);
       extractedCoverPath = thumbnail?.path ?? "";
     } catch (error) {
-      thumbnailErrorMessage = resolveErrorMessage(error, t("video.editor.errors.thumbnail_failed"));
+      thumbnailErrorMessage = resolveErrorMessage(error, formatMessage("video.editor.errors.thumbnail_failed"));
     }
 
     commitConfig({
@@ -1122,7 +1054,7 @@ function BasecardEditor(props: BasecardEditorProps) {
       try {
         await importVideoFile(file);
       } catch (error) {
-        setPanelError(resolveErrorMessage(error, t("video.editor.errors.video_import_failed")));
+        setPanelError(resolveErrorMessage(error, formatMessage("video.editor.errors.video_import_failed")));
       }
     });
   }
@@ -1132,7 +1064,7 @@ function BasecardEditor(props: BasecardEditorProps) {
       try {
         await importCoverFile(file);
       } catch (error) {
-        setPanelError(resolveErrorMessage(error, t("video.editor.errors.cover_import_failed")));
+        setPanelError(resolveErrorMessage(error, formatMessage("video.editor.errors.cover_import_failed")));
       }
     });
   }
@@ -1142,7 +1074,7 @@ function BasecardEditor(props: BasecardEditorProps) {
       try {
         await importSubtitleFile(file, replaceTrackId);
       } catch (error) {
-        setPanelError(resolveErrorMessage(error, t("video.editor.errors.subtitle_import_failed")));
+        setPanelError(resolveErrorMessage(error, formatMessage("video.editor.errors.subtitle_import_failed")));
       }
     });
   }
@@ -1159,8 +1091,8 @@ function BasecardEditor(props: BasecardEditorProps) {
           sourceUrl,
           fallbackStem: field === "video" ? "video-from-url" : "cover-from-url",
           fallbackExtension: field === "video" ? "mp4" : "jpg",
-          invalidUrlMessage: t("video.editor.errors.url_invalid"),
-          requestFailedMessage: (status) => t("video.editor.errors.url_request_failed", { status }),
+          invalidUrlMessage: formatMessage("video.editor.errors.url_invalid"),
+          requestFailedMessage: (status) => formatMessage("video.editor.errors.url_request_failed", { status }),
         });
 
         if (field === "video") {
@@ -1171,7 +1103,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         clearUrlDraft(field);
       } catch (error) {
-        setPanelError(resolveErrorMessage(error, t("video.editor.errors.url_import_failed")));
+        setPanelError(resolveErrorMessage(error, formatMessage("video.editor.errors.url_import_failed")));
       }
     });
   }
@@ -1188,13 +1120,13 @@ function BasecardEditor(props: BasecardEditorProps) {
           sourceUrl,
           fallbackStem: "subtitle-from-url",
           fallbackExtension: "vtt",
-          invalidUrlMessage: t("video.editor.errors.url_invalid"),
-          requestFailedMessage: (status) => t("video.editor.errors.url_request_failed", { status }),
+          invalidUrlMessage: formatMessage("video.editor.errors.url_invalid"),
+          requestFailedMessage: (status) => formatMessage("video.editor.errors.url_request_failed", { status }),
         });
         await importSubtitleFile(file);
         updateSubtitleUrlDraft("");
       } catch (error) {
-        setPanelError(resolveErrorMessage(error, t("video.editor.errors.url_import_failed")));
+        setPanelError(resolveErrorMessage(error, formatMessage("video.editor.errors.url_import_failed")));
       }
     });
   }
@@ -1332,23 +1264,23 @@ function BasecardEditor(props: BasecardEditorProps) {
             }}
           />
           <span className="chips-video-editor__dropzone-text">
-            {busyField === field ? t("video.editor.status.uploading") : uploadLabel}
+            {busyField === field ? formatMessage("video.editor.status.uploading") : uploadLabel}
           </span>
         </label>
 
         <div className="chips-video-editor__url-row">
-          <ChipsTextField
+          <Input
             data-role={`${field}-url-input`}
             className="chips-video-editor__input"
             value={urlValue}
-            ariaLabel={placeholder}
+            aria-label={placeholder}
             placeholder={placeholder}
             disabled={isBusy}
-            onValueChange={(value) => {
-              updateUrlDraft(field, value);
+            onChange={(event) => {
+              updateUrlDraft(field, event.target.value);
             }}
-            onEnterPress={(_value, event) => {
-              event?.preventDefault();
+            onPressEnter={(event) => {
+              event.preventDefault();
               void handleUrlImport(field);
             }}
           />
@@ -1356,15 +1288,14 @@ function BasecardEditor(props: BasecardEditorProps) {
             data-role={`${field}-url-submit`}
             className="chips-video-editor__button"
           >
-            <ChipsButton
-              type="button"
+            <Button
               disabled={isBusy || inputValue.trim().length === 0}
-              onPress={() => {
+              onClick={() => {
                 void handleUrlImport(field);
               }}
             >
-              {t("video.editor.actions.import_url")}
-            </ChipsButton>
+              {formatMessage("video.editor.actions.import_url")}
+            </Button>
           </span>
         </div>
       </div>
@@ -1374,8 +1305,9 @@ function BasecardEditor(props: BasecardEditorProps) {
   const isBusy = busyField !== null;
 
   return (
-    <ChipsForm
+    <form
       className="chips-video-editor"
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
         flushMetadataDraft();
@@ -1384,24 +1316,20 @@ function BasecardEditor(props: BasecardEditorProps) {
       <div className="chips-video-editor__shell">
         {panelError ? (
           <div className="chips-video-editor__alert">
-            <ChipsErrorState
-              message={panelError}
-              fallbackTitle={t("video.editor.errors.operation_failed")}
-              fallbackDescription={panelError}
-              ariaLabel={t("video.editor.errors.operation_failed")}
-              i18n={componentI18n}
+            <Result
+              status="error"
+              title={formatMessage("video.editor.errors.operation_failed")}
+              subTitle={panelError}
             />
           </div>
         ) : null}
 
         {flattenedErrors.length > 0 ? (
           <div className="chips-video-editor__alert">
-            <ChipsErrorState
-              message={flattenedErrors[0]}
-              fallbackTitle={t("video.editor.errors.validation_failed")}
-              fallbackDescription={flattenedErrors[0]}
-              ariaLabel={t("video.editor.errors.validation_failed")}
-              i18n={componentI18n}
+            <Result
+              status="error"
+              title={formatMessage("video.editor.errors.validation_failed")}
+              subTitle={flattenedErrors[0]}
             />
             <ul className="chips-video-editor__errors-list">
               {flattenedErrors.map((message) => (
@@ -1413,34 +1341,27 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         <section className="chips-video-editor__group">
           <div className="chips-video-editor__group-head">
-            <h2 className="chips-video-editor__group-title">{t("video.editor.resources.title")}</h2>
+            <h2 className="chips-video-editor__group-title">{formatMessage("video.editor.resources.title")}</h2>
             <span className="chips-video-editor__status">
-              {busyField ? (
-                <ChipsProgress
-                  indeterminate
-                  label={t("video.editor.status.uploading")}
-                  i18n={componentI18n}
-                />
-              ) : null}
+              {busyField ? <Spin size="small" /> : null}
               {busyField === "video"
-                ? t("video.editor.status.video")
+                ? formatMessage("video.editor.status.video")
                 : busyField === "cover"
-                  ? t("video.editor.status.cover")
+                  ? formatMessage("video.editor.status.cover")
                   : busyField?.startsWith("subtitle:")
-                    ? t("video.editor.status.subtitle")
-                  : t("video.editor.status.ready")}
+                    ? formatMessage("video.editor.status.subtitle")
+                  : formatMessage("video.editor.status.ready")}
             </span>
           </div>
 
           <div className="chips-video-editor__list">
             <div className="chips-video-editor__row">
-              <p className="chips-video-editor__row-label">{t("video.editor.resources.video")}</p>
+              <p className="chips-video-editor__row-label">{formatMessage("video.editor.resources.video")}</p>
               {config.video_file ? (
                 <div className="chips-video-editor__resource-tile" data-role="video-resource">
                   <div className="chips-video-editor__resource-tile-body">
-                    <ChipsMedia
+                    <video
                       className="chips-video-editor__resource-preview"
-                      kind="video"
                       src={videoPreviewUrl}
                       title={resolveFileName(config.video_file)}
                       controls
@@ -1452,7 +1373,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                   </div>
                   <div className="chips-video-editor__resource-actions">
                     <label className="chips-video-editor__button">
-                      {t("video.editor.actions.replace_video")}
+                      {formatMessage("video.editor.actions.replace_video")}
                       <input
                         data-role="replace-video-input"
                         className="chips-video-editor__dropzone-input"
@@ -1468,23 +1389,22 @@ function BasecardEditor(props: BasecardEditorProps) {
                         }}
                       />
                     </label>
-                    <ChipsButton
-                      type="button"
+                    <Button
                       disabled={isBusy}
-                      onPress={() => {
+                      onClick={() => {
                         void handleRemoveVideo();
                       }}
                     >
-                      {t("video.editor.actions.remove")}
-                    </ChipsButton>
+                      {formatMessage("video.editor.actions.remove")}
+                    </Button>
                   </div>
                 </div>
               ) : renderUploadSurface({
                 field: "video",
                 accept: VIDEO_ACCEPT,
                 inputRole: "video-input",
-                placeholder: t("video.editor.placeholders.video_url"),
-                uploadLabel: t("video.editor.actions.upload_video"),
+                placeholder: formatMessage("video.editor.placeholders.video_url"),
+                uploadLabel: formatMessage("video.editor.actions.upload_video"),
                 urlValue: urlDrafts.video,
                 inputValue: urlDrafts.video,
                 onFileSelected: handleVideoUpload,
@@ -1492,16 +1412,16 @@ function BasecardEditor(props: BasecardEditorProps) {
             </div>
 
             <div className="chips-video-editor__row">
-              <p className="chips-video-editor__row-label">{t("video.editor.resources.cover")}</p>
+              <p className="chips-video-editor__row-label">{formatMessage("video.editor.resources.cover")}</p>
               {config.cover_image ? (
                 <div className="chips-video-editor__resource-tile" data-role="cover-resource">
                   <div className="chips-video-editor__resource-tile-body">
-                    <ChipsImage
+                    <Image
                       className="chips-video-editor__resource-preview"
                       src={coverPreviewUrl}
                       alt={resolveFileName(config.cover_image)}
-                      fit="cover"
-                      loadingStrategy="lazy"
+                      preview={false}
+                      loading="lazy"
                     />
                     <div className="chips-video-editor__resource-meta">
                       <span className="chips-video-editor__resource-tile-name">{resolveFileName(config.cover_image)}</span>
@@ -1509,7 +1429,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                   </div>
                   <div className="chips-video-editor__resource-actions">
                     <label className="chips-video-editor__button">
-                      {t("video.editor.actions.replace_cover")}
+                      {formatMessage("video.editor.actions.replace_cover")}
                       <input
                         data-role="replace-cover-input"
                         className="chips-video-editor__dropzone-input"
@@ -1525,23 +1445,22 @@ function BasecardEditor(props: BasecardEditorProps) {
                         }}
                       />
                     </label>
-                    <ChipsButton
-                      type="button"
+                    <Button
                       disabled={isBusy}
-                      onPress={() => {
+                      onClick={() => {
                         void handleRemoveCover();
                       }}
                     >
-                      {t("video.editor.actions.remove")}
-                    </ChipsButton>
+                      {formatMessage("video.editor.actions.remove")}
+                    </Button>
                   </div>
                 </div>
               ) : renderUploadSurface({
                 field: "cover",
                 accept: COVER_ACCEPT,
                 inputRole: "cover-input",
-                placeholder: t("video.editor.placeholders.cover_url"),
-                uploadLabel: t("video.editor.actions.upload_cover"),
+                placeholder: formatMessage("video.editor.placeholders.cover_url"),
+                uploadLabel: formatMessage("video.editor.actions.upload_cover"),
                 urlValue: urlDrafts.cover,
                 inputValue: urlDrafts.cover,
                 onFileSelected: handleCoverUpload,
@@ -1552,15 +1471,18 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         <section className="chips-video-editor__group">
           <div className="chips-video-editor__group-head">
-            <h2 className="chips-video-editor__group-title">{t("video.editor.subtitles.title")}</h2>
-            <ChipsBadge tone={config.subtitles.length > 0 ? "accent" : "neutral"}>
-              {t("video.editor.subtitles.count", { count: config.subtitles.length })}
-            </ChipsBadge>
+            <h2 className="chips-video-editor__group-title">{formatMessage("video.editor.subtitles.title")}</h2>
+            <Tag className={config.subtitles.length > 0
+              ? "chips-video-editor__badge chips-video-editor__badge--accent"
+              : "chips-video-editor__badge chips-video-editor__badge--neutral"
+            }>
+              {formatMessage("video.editor.subtitles.count", { count: config.subtitles.length })}
+            </Tag>
           </div>
 
           <div className="chips-video-editor__list">
             <div className="chips-video-editor__row">
-              <p className="chips-video-editor__row-label">{t("video.editor.subtitles.import")}</p>
+              <p className="chips-video-editor__row-label">{formatMessage("video.editor.subtitles.import")}</p>
               <div className="chips-video-editor__row-body">
                 <label
                   className="chips-video-editor__dropzone"
@@ -1599,24 +1521,24 @@ function BasecardEditor(props: BasecardEditorProps) {
                   />
                   <span className="chips-video-editor__dropzone-text">
                     {busyField === "subtitle:new"
-                      ? t("video.editor.status.uploading")
-                      : t("video.editor.subtitles.upload")}
+                      ? formatMessage("video.editor.status.uploading")
+                      : formatMessage("video.editor.subtitles.upload")}
                   </span>
                 </label>
 
                 <div className="chips-video-editor__url-row">
-                  <ChipsTextField
+                  <Input
                     data-role="subtitle-url-input"
                     className="chips-video-editor__input"
                     value={urlDrafts.subtitle}
-                    ariaLabel={t("video.editor.placeholders.subtitle_url")}
-                    placeholder={t("video.editor.placeholders.subtitle_url")}
+                    aria-label={formatMessage("video.editor.placeholders.subtitle_url")}
+                    placeholder={formatMessage("video.editor.placeholders.subtitle_url")}
                     disabled={isBusy}
-                    onValueChange={(value) => {
-                      updateSubtitleUrlDraft(value);
+                    onChange={(event) => {
+                      updateSubtitleUrlDraft(event.target.value);
                     }}
-                    onEnterPress={(_value, event) => {
-                      event?.preventDefault();
+                    onPressEnter={(event) => {
+                      event.preventDefault();
                       void handleSubtitleUrlImport();
                     }}
                   />
@@ -1624,15 +1546,14 @@ function BasecardEditor(props: BasecardEditorProps) {
                     data-role="subtitle-url-submit"
                     className="chips-video-editor__button"
                   >
-                    <ChipsButton
-                      type="button"
+                    <Button
                       disabled={isBusy || urlDrafts.subtitle.trim().length === 0}
-                      onPress={() => {
+                      onClick={() => {
                         void handleSubtitleUrlImport();
                       }}
                     >
-                      {t("video.editor.actions.import_url")}
-                    </ChipsButton>
+                      {formatMessage("video.editor.actions.import_url")}
+                    </Button>
                   </span>
                 </div>
               </div>
@@ -1644,54 +1565,57 @@ function BasecardEditor(props: BasecardEditorProps) {
                   <div key={track.id} className="chips-video-editor__subtitle-item" data-role={`subtitle-${track.id}`}>
                     <div className="chips-video-editor__subtitle-item-head">
                       <div className="chips-video-editor__subtitle-item-title">
-                        <strong>{getSubtitleLabel(track, index, t)}</strong>
+                        <strong>{getSubtitleLabel(track, index)}</strong>
                         <span>{resolveFileName(track.file_path)}</span>
                       </div>
-                      <ChipsBadge tone={track.default ? "accent" : "neutral"}>
-                        {track.default ? t("video.editor.subtitles.default") : getSubtitleKindLabel(track.kind, t)}
-                      </ChipsBadge>
+                      <Tag className={track.default
+                        ? "chips-video-editor__badge chips-video-editor__badge--accent"
+                        : "chips-video-editor__badge chips-video-editor__badge--neutral"
+                      }>
+                        {track.default ? formatMessage("video.editor.subtitles.default") : getSubtitleKindLabel(track.kind)}
+                      </Tag>
                     </div>
 
                     <div className="chips-video-editor__subtitle-fields">
-                      <ChipsForm.Field name={`subtitle-label-${track.id}`}>
-                        <ChipsForm.Label>{t("video.editor.subtitles.label")}</ChipsForm.Label>
-                        <ChipsForm.Control>
-                          <ChipsTextField
-                            data-role={`subtitle-label-input-${track.id}`}
-                            className="chips-video-editor__input"
-                            value={track.label}
-                            ariaLabel={t("video.editor.subtitles.label")}
-                            placeholder={t("video.editor.subtitles.label_placeholder")}
-                            onValueChange={(value) => {
-                              handleUpdateSubtitle(track.id, { label: value });
-                            }}
-                          />
-                        </ChipsForm.Control>
-                      </ChipsForm.Field>
-                      <ChipsForm.Field name={`subtitle-language-${track.id}`}>
-                        <ChipsForm.Label>{t("video.editor.subtitles.language")}</ChipsForm.Label>
-                        <ChipsForm.Control>
-                          <ChipsTextField
-                            data-role={`subtitle-language-input-${track.id}`}
-                            className="chips-video-editor__input"
-                            value={track.language}
-                            ariaLabel={t("video.editor.subtitles.language")}
-                            placeholder={t("video.editor.subtitles.language_placeholder")}
-                            onValueChange={(value) => {
-                              handleUpdateSubtitle(track.id, { language: value });
-                            }}
-                          />
-                        </ChipsForm.Control>
-                      </ChipsForm.Field>
+                      <div className="chips-video-editor__subtitle-field">
+                        <span className="chips-video-editor__subtitle-field-label">
+                          {formatMessage("video.editor.subtitles.label")}
+                        </span>
+                        <Input
+                          data-role={`subtitle-label-input-${track.id}`}
+                          className="chips-video-editor__input"
+                          value={track.label}
+                          aria-label={formatMessage("video.editor.subtitles.label")}
+                          placeholder={formatMessage("video.editor.subtitles.label_placeholder")}
+                          onChange={(event) => {
+                            handleUpdateSubtitle(track.id, { label: event.target.value });
+                          }}
+                        />
+                      </div>
+                      <div className="chips-video-editor__subtitle-field">
+                        <span className="chips-video-editor__subtitle-field-label">
+                          {formatMessage("video.editor.subtitles.language")}
+                        </span>
+                        <Input
+                          data-role={`subtitle-language-input-${track.id}`}
+                          className="chips-video-editor__input"
+                          value={track.language}
+                          aria-label={formatMessage("video.editor.subtitles.language")}
+                          placeholder={formatMessage("video.editor.subtitles.language_placeholder")}
+                          onChange={(event) => {
+                            handleUpdateSubtitle(track.id, { language: event.target.value });
+                          }}
+                        />
+                      </div>
                     </div>
 
                     <div className="chips-video-editor__switch-row">
-                      <span>{t("video.editor.subtitles.default")}</span>
-                      <ChipsSwitch
+                      <span>{formatMessage("video.editor.subtitles.default")}</span>
+                      <Switch
                         checked={track.default}
                         disabled={isBusy}
-                        label={t("video.editor.subtitles.default")}
-                        onCheckedChange={(checked) => {
+                        aria-label={formatMessage("video.editor.subtitles.default")}
+                        onChange={(checked) => {
                           if (checked) {
                             handleUpdateSubtitle(track.id, { default: true });
                           }
@@ -1701,7 +1625,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
                     <div className="chips-video-editor__subtitle-actions">
                       <label className="chips-video-editor__button">
-                        {t("video.editor.subtitles.replace")}
+                        {formatMessage("video.editor.subtitles.replace")}
                         <input
                           data-role={`replace-subtitle-input-${track.id}`}
                           className="chips-video-editor__dropzone-input"
@@ -1717,15 +1641,14 @@ function BasecardEditor(props: BasecardEditorProps) {
                           }}
                         />
                       </label>
-                      <ChipsButton
-                        type="button"
+                      <Button
                         disabled={isBusy || isSubtitleBusyField(busyField, track.id)}
-                        onPress={() => {
+                        onClick={() => {
                           void handleRemoveSubtitle(track.id);
                         }}
                       >
-                        {t("video.editor.actions.remove")}
-                      </ChipsButton>
+                        {formatMessage("video.editor.actions.remove")}
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -1736,7 +1659,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         <section className="chips-video-editor__group">
           <div className="chips-video-editor__group-head">
-            <h2 className="chips-video-editor__group-title">{t("video.editor.meta.title")}</h2>
+            <h2 className="chips-video-editor__group-title">{formatMessage("video.editor.meta.title")}</h2>
           </div>
 
           <div
@@ -1749,43 +1672,43 @@ function BasecardEditor(props: BasecardEditorProps) {
             }}
           >
             <div className="chips-video-editor__field-row">
-              <span className="chips-video-editor__field-label">{t("video.editor.fields.video_title")}</span>
-              <ChipsTextField
+              <span className="chips-video-editor__field-label">{formatMessage("video.editor.fields.video_title")}</span>
+              <Input
                 data-role="video-title-input"
                 className="chips-video-editor__input"
                 value={config.video_title}
-                ariaLabel={t("video.editor.fields.video_title")}
-                placeholder={t("video.editor.placeholders.video_title")}
-                onValueChange={(value) => {
-                  updateLocalConfig({ video_title: value });
+                aria-label={formatMessage("video.editor.fields.video_title")}
+                placeholder={formatMessage("video.editor.placeholders.video_title")}
+                onChange={(event) => {
+                  updateLocalConfig({ video_title: event.target.value });
                 }}
               />
             </div>
 
             <div className="chips-video-editor__field-row">
-              <span className="chips-video-editor__field-label">{t("video.editor.fields.creator")}</span>
-              <ChipsTextField
+              <span className="chips-video-editor__field-label">{formatMessage("video.editor.fields.creator")}</span>
+              <Input
                 data-role="creator-input"
                 className="chips-video-editor__input"
                 value={config.creator}
-                ariaLabel={t("video.editor.fields.creator")}
-                placeholder={t("video.editor.placeholders.creator")}
-                onValueChange={(value) => {
-                  updateLocalConfig({ creator: value });
+                aria-label={formatMessage("video.editor.fields.creator")}
+                placeholder={formatMessage("video.editor.placeholders.creator")}
+                onChange={(event) => {
+                  updateLocalConfig({ creator: event.target.value });
                 }}
               />
             </div>
 
             <div className="chips-video-editor__field-row">
-              <span className="chips-video-editor__field-label">{t("video.editor.fields.publish_time")}</span>
-              <ChipsTextField
+              <span className="chips-video-editor__field-label">{formatMessage("video.editor.fields.publish_time")}</span>
+              <Input
                 data-role="publish-time-input"
                 className="chips-video-editor__input"
                 value={config.publish_time}
-                ariaLabel={t("video.editor.fields.publish_time")}
-                placeholder={t("video.editor.placeholders.publish_time")}
-                onValueChange={(value) => {
-                  updateLocalConfig({ publish_time: value });
+                aria-label={formatMessage("video.editor.fields.publish_time")}
+                placeholder={formatMessage("video.editor.placeholders.publish_time")}
+                onChange={(event) => {
+                  updateLocalConfig({ publish_time: event.target.value });
                 }}
               />
             </div>
@@ -1794,7 +1717,7 @@ function BasecardEditor(props: BasecardEditorProps) {
 
         <section className="chips-video-editor__group">
           <div className="chips-video-editor__group-head">
-            <h2 className="chips-video-editor__group-title">{t("video.editor.playback.title")}</h2>
+            <h2 className="chips-video-editor__group-title">{formatMessage("video.editor.playback.title")}</h2>
           </div>
 
           <div
@@ -1808,31 +1731,31 @@ function BasecardEditor(props: BasecardEditorProps) {
           >
             <div className="chips-video-editor__switch-grid">
               <div className="chips-video-editor__switch-row">
-                <span>{t("video.editor.playback.autoplay")}</span>
-                <ChipsSwitch
+                <span>{formatMessage("video.editor.playback.autoplay")}</span>
+                <Switch
                   checked={config.playback.autoplay}
-                  label={t("video.editor.playback.autoplay")}
-                  onCheckedChange={(checked) => {
+                  aria-label={formatMessage("video.editor.playback.autoplay")}
+                  onChange={(checked) => {
                     handlePlaybackPatch({ autoplay: checked });
                   }}
                 />
               </div>
               <div className="chips-video-editor__switch-row">
-                <span>{t("video.editor.playback.loop")}</span>
-                <ChipsSwitch
+                <span>{formatMessage("video.editor.playback.loop")}</span>
+                <Switch
                   checked={config.playback.loop}
-                  label={t("video.editor.playback.loop")}
-                  onCheckedChange={(checked) => {
+                  aria-label={formatMessage("video.editor.playback.loop")}
+                  onChange={(checked) => {
                     handlePlaybackPatch({ loop: checked });
                   }}
                 />
               </div>
               <div className="chips-video-editor__switch-row">
-                <span>{t("video.editor.playback.muted")}</span>
-                <ChipsSwitch
+                <span>{formatMessage("video.editor.playback.muted")}</span>
+                <Switch
                   checked={config.playback.muted}
-                  label={t("video.editor.playback.muted")}
-                  onCheckedChange={(checked) => {
+                  aria-label={formatMessage("video.editor.playback.muted")}
+                  onChange={(checked) => {
                     handlePlaybackPatch({ muted: checked });
                   }}
                 />
@@ -1840,27 +1763,27 @@ function BasecardEditor(props: BasecardEditorProps) {
             </div>
 
             <label className="chips-video-editor__field-row">
-              <span className="chips-video-editor__field-label">{t("video.editor.playback.playback_rate")}</span>
-              <ChipsNumberInput
+              <span className="chips-video-editor__field-label">{formatMessage("video.editor.playback.playback_rate")}</span>
+              <InputNumber
                 value={config.playback.playback_rate}
                 min={0.25}
                 max={4}
                 step={0.25}
-                label={t("video.editor.playback.playback_rate")}
-                onValueChange={(value) => {
+                aria-label={formatMessage("video.editor.playback.playback_rate")}
+                onChange={(value) => {
                   handlePlaybackPatch({ playback_rate: value ?? 1 });
                 }}
               />
             </label>
 
             <label className="chips-video-editor__field-row">
-              <span className="chips-video-editor__field-label">{t("video.editor.playback.start_time")}</span>
-              <ChipsNumberInput
+              <span className="chips-video-editor__field-label">{formatMessage("video.editor.playback.start_time")}</span>
+              <InputNumber
                 value={config.playback.start_time}
                 min={0}
                 step={1}
-                label={t("video.editor.playback.start_time")}
-                onValueChange={(value) => {
+                aria-label={formatMessage("video.editor.playback.start_time")}
+                onChange={(value) => {
                   handlePlaybackPatch({ start_time: value ?? 0 });
                 }}
               />
@@ -1868,7 +1791,7 @@ function BasecardEditor(props: BasecardEditorProps) {
           </div>
         </section>
       </div>
-    </ChipsForm>
+    </form>
   );
 }
 
@@ -1883,10 +1806,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): HTMLElemen
 
   flushSync(() => {
     reactRoot.render(
-      <>
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
         <style>{EDITOR_STYLE_TEXT}</style>
         <BasecardEditor {...props} />
-      </>,
+      </ConfigProvider>,
     );
   });
 

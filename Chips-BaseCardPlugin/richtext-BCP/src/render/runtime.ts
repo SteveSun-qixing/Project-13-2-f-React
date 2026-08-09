@@ -3,10 +3,10 @@ import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
 import type { Editor as MilkdownEditor } from "@milkdown/core";
 import type { BasecardRenderContext } from "../index";
+import { formatMessage } from "../lib/messages";
 import { normalizeBasecardConfig } from "../schema/card-config";
 import { configureRichTextMarkdown, richTextMarkdownPlugins } from "../shared/markdown-extensions";
 import { loadMarkdownFromConfig, rewriteRelativeResourceUrls } from "../shared/resource-links";
-import { createTranslator } from "../shared/i18n";
 import { VIEW_STYLE_TEXT } from "./view";
 
 type ViewState = {
@@ -16,9 +16,8 @@ type ViewState = {
 };
 
 export function mountBasecardView(ctx: BasecardRenderContext): () => void {
-  const { container, themeCssText } = ctx;
+  const { container } = ctx;
   const config = normalizeBasecardConfig(ctx.config as unknown as Record<string, unknown>);
-  const t = createTranslator(config.locale);
   const state: ViewState = {
     disposed: false,
     resolvedResources: new Set<string>(),
@@ -29,7 +28,7 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
   }
 
   const style = document.createElement("style");
-  style.textContent = `${themeCssText ?? ""}\n${VIEW_STYLE_TEXT}`;
+  style.textContent = VIEW_STYLE_TEXT;
   container.appendChild(style);
 
   const root = document.createElement("div");
@@ -56,7 +55,7 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
     status.textContent = "";
   };
 
-  setStatus(t("basecard.status.loading"), "info");
+  setStatus(formatMessage("basecard.status.loading"), "info");
 
   void (async () => {
     try {
@@ -103,7 +102,7 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
       }
       surface.innerHTML = "";
       setStatus(
-        `${t("basecard.status.renderFailed")}：${error instanceof Error ? error.message : String(error)}`,
+        `${formatMessage("basecard.status.renderFailed")}：${error instanceof Error ? error.message : String(error)}`,
         "error",
       );
     }

@@ -62,7 +62,7 @@ describe("mountBasecardView", () => {
     const metaEl = container.querySelector(".chips-video-card__meta");
     const buttonEl = container.querySelector(".chips-video-card__surface-button") as HTMLButtonElement | null;
     const posterEl = container.querySelector(
-      '.chips-video-card__poster [data-scope="image"][data-part="media"], .chips-video-card__poster img',
+      ".chips-video-card__poster",
     ) as HTMLImageElement | null;
 
     expect(titleEl?.textContent).toBe("旅行日志");
@@ -184,7 +184,7 @@ describe("mountBasecardView", () => {
     });
 
     const emptyEl = container.querySelector(".chips-video-card__empty");
-    expect(emptyEl?.textContent).toContain("No video has been added yet.");
+    expect(emptyEl?.textContent).toContain("还没有视频内容，请先上传一个视频文件。");
 
     dispose();
   });

@@ -15,7 +15,7 @@ function createConfig(overrides?: Partial<BasecardConfig>): BasecardConfig {
 }
 
 describe("mountBasecardView", () => {
-  it("renders active and inactive stars through ChipsRating without an outer shell", () => {
+  it("renders active and inactive stars through Rate without an outer shell", () => {
     const container = document.createElement("div");
 
     const dispose = mountBasecardView({
@@ -23,18 +23,22 @@ describe("mountBasecardView", () => {
       config: createConfig({ score: 3 }),
     });
     const surface = container.querySelector(".chips-score-card__surface") as HTMLElement | null;
-    const rating = container.querySelector('[data-scope="rating"][data-part="root"]') as HTMLElement | null;
-    const items = Array.from(container.querySelectorAll('[data-scope="rating"][data-part="item"]'));
-    const activeItems = container.querySelectorAll('[data-scope="rating"][data-part="item"][data-active="true"]');
+    const rating = container.querySelector(".chips-score-card__rating") as HTMLElement | null;
+    const items = Array.from(container.querySelectorAll(".ant-rate-star"));
+    const activeItems = container.querySelectorAll(".ant-rate-star-full");
+    const checkedItems = container.querySelectorAll(
+      '.ant-rate-star div[role="radio"][aria-checked="true"]',
+    );
 
     expect(rating).not.toBeNull();
-    expect(rating?.getAttribute("role")).toBe("radiogroup");
-    expect(rating?.getAttribute("aria-readonly")).toBe("true");
+    expect(rating?.classList.contains("ant-rate-disabled")).toBe(true);
+    expect(rating?.getAttribute("aria-labelledby")).toBeTruthy();
     expect(items).toHaveLength(5);
     expect(activeItems).toHaveLength(3);
+    expect(checkedItems).toHaveLength(3);
     expect(surface).not.toBeNull();
     expect(surface?.classList.contains("chips-score-card__surface--symbols")).toBe(true);
-    expect(container.querySelectorAll('[data-scope="rating"][data-part="icon"]')).toHaveLength(5);
+    expect(container.querySelectorAll('.ant-rate-star div[role="radio"]')).toHaveLength(5);
     expect(surface?.style.backgroundColor).toBe("");
     expect(surface?.style.border).toBe("");
 
@@ -42,19 +46,25 @@ describe("mountBasecardView", () => {
     expect(container.childElementCount).toBe(0);
   });
 
-  it("renders hearts through ChipsRating with the heart shape and localized labels", () => {
+  it("renders hearts through Rate with the heart shape and the accessible label", () => {
     const container = document.createElement("div");
 
     const dispose = mountBasecardView({
       container,
       config: createConfig({ style: "hearts", score: 2 }),
     });
-    const rating = container.querySelector('[data-scope="rating"][data-part="root"]') as HTMLElement | null;
-    const secondItem = container.querySelectorAll('[data-scope="rating"][data-part="item"]')[1] as HTMLElement | undefined;
+    const rating = container.querySelector(
+      ".chips-score-card__rating--hearts",
+    ) as HTMLElement | null;
+    const checkedItems = container.querySelectorAll(
+      '.ant-rate-star div[role="radio"][aria-checked="true"]',
+    );
 
-    expect(rating?.getAttribute("data-shape")).toBe("heart");
+    expect(rating).not.toBeNull();
     expect(rating?.getAttribute("aria-labelledby")).toBeTruthy();
-    expect(secondItem?.getAttribute("aria-label")).toBe("2 / 5，已获得");
+    expect(checkedItems).toHaveLength(2);
+    expect(container.querySelectorAll('svg[data-icon="heart"]')).toHaveLength(10);
+    expect(container.querySelector(".chips-score-card__sr-only")?.textContent).toBe("2 / 5 分");
 
     dispose();
   });
@@ -70,15 +80,18 @@ describe("mountBasecardView", () => {
         total_score: 10,
       }),
     });
+    const numeric = container.querySelector(".chips-score-card__numeric") as HTMLElement | null;
 
     expect(container.querySelector(".chips-score-card__numeric-score")?.textContent).toBe("7.5");
     expect(container.querySelector(".chips-score-card__numeric-total")?.textContent).toBe("10");
-    expect(container.querySelectorAll('[data-scope="text"][data-part="root"]')).toHaveLength(3);
+    expect(container.querySelector(".chips-score-card__numeric-separator")?.textContent).toBe("/");
+    expect(numeric?.getAttribute("role")).toBe("img");
+    expect(numeric?.getAttribute("aria-label")).toBe("7.5 / 10 分");
 
     dispose();
   });
 
-  it("renders progress through ChipsProgress according to score ratio", () => {
+  it("renders progress through Progress according to score ratio", () => {
     const container = document.createElement("div");
 
     const dispose = mountBasecardView({
@@ -89,31 +102,37 @@ describe("mountBasecardView", () => {
         total_score: 8,
       }),
     });
+    const progress = container.querySelector(
+      ".chips-score-card__progress-control",
+    ) as HTMLElement | null;
+    const track = container.querySelector(
+      ".chips-score-card__progress-control .ant-progress-track",
+    ) as HTMLElement | null;
 
-    const progress = container.querySelector('[data-scope="progress"][data-part="root"]') as HTMLElement | null;
-    const range = container.querySelector('[data-scope="progress"][data-part="range"]') as HTMLElement | null;
     expect(progress?.getAttribute("role")).toBe("progressbar");
-    expect(progress?.getAttribute("aria-valuenow")).toBe("4");
+    expect(progress?.getAttribute("aria-valuenow")).toBe("50");
     expect(progress?.getAttribute("aria-valuemin")).toBe("0");
-    expect(progress?.getAttribute("aria-valuemax")).toBe("8");
+    expect(progress?.getAttribute("aria-valuemax")).toBe("100");
     expect(progress?.getAttribute("aria-valuetext")).toBe("50%");
-    expect(range).not.toBeNull();
+    expect(track?.style.width).toBe("50%");
+    expect(container.querySelector(".chips-score-card__sr-only")?.textContent).toBe("4 / 8 分");
+    expect(container.querySelector(".chips-score-card__progress-score")?.textContent).toBe("4 / 8");
+    expect(container.querySelector(".chips-score-card__progress-percent")?.textContent).toBe("50%");
 
     dispose();
   });
 
-  it("injects theme CSS text and removes the mounted view on cleanup", () => {
+  it("injects only plugin styles and removes the mounted view on cleanup", () => {
     const container = document.createElement("div");
-    const themeCssText = ":root { --chips-score-test-token: 1; }";
 
     const dispose = mountBasecardView({
       container,
       config: createConfig({ score: 1 }),
-      themeCssText,
     });
     const style = container.querySelector("style");
 
-    expect(style?.textContent).toContain(themeCssText);
+    expect(style?.textContent).toContain(".chips-score-card");
+    expect(style?.textContent ?? "").not.toContain("--chips-");
     expect(container.querySelector('[data-chips-basecard-view-root="true"]')).not.toBeNull();
 
     dispose();

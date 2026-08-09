@@ -59,10 +59,6 @@ async function flushAsyncWork(): Promise<void> {
 
 describe("mountBasecardView", () => {
   beforeEach(() => {
-    Object.defineProperty(window.navigator, "language", {
-      configurable: true,
-      value: "zh-CN",
-    });
     (globalThis as typeof globalThis & { chips?: unknown }).chips = {
       invoke: vi.fn(async () => ({
         content: "<!doctype html><html><head></head><body><main>bundle</main></body></html>",

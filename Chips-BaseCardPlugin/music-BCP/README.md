@@ -1,6 +1,6 @@
 # 音乐基础卡片插件
 
-音乐基础卡片插件（`chips.basecard.music`）用于在复合卡片中保存和展示音频资源。插件基于基础卡片脚手架初始化，并按新基础卡片契约接入了卡片根目录资源链路、组件库控件、编辑面板、查看态与测试体系。
+音乐基础卡片插件（`chips.basecard.music`）用于在复合卡片中保存和展示音频资源。插件基于基础卡片脚手架初始化，并按新基础卡片契约接入了卡片根目录资源链路、Ant Design 控件、编辑面板、查看态与测试体系。
 
 当前正式入口契约为：
 
@@ -12,7 +12,7 @@
 ## 当前能力
 
 - 查看态以长条音乐卡片展示专辑封面、歌曲名、歌手与补充信息。
-- 查看态封面和空态使用 `@chips/component-library` 的 `ChipsImage` / `ChipsEmptyState`，视觉继续消费主题 token。
+- 查看态封面和空态使用 antd 的 `Image` / `Empty`，视觉统一为共享层苹果主题（`@chips/ui` 的 `appleTheme`）固定色值。
 - 查看态取消右侧播放图标与操作按钮，整张卡片直接承担点击打开行为。
 - 若未上传专辑封面，查看态与编辑态都会回退到插件内置的默认占位封面图。
 - 点击查看态卡片时，会把音频资源打开请求交给内核统一路由到音乐播放器。
@@ -28,10 +28,9 @@
   - 在未先上传音频时，歌曲名、专辑名、语种、流派等可选字段仍可先行编辑并正式输出配置
   - 编辑面板改为与视频基础卡片一致的“分组标题 + 列表行 + 资源预览项”结构
   - 资源存在时显示预览项，缺失时切换为上传面，适配窄窗口与移动端比例编辑面板
-  - 编辑表单、音频预览、状态进度、团队工具栏、错误态和按钮接入 `ChipsForm`、`ChipsMedia`、`ChipsProgress`、`ChipsToolbar`、`ChipsErrorState` 与 `ChipsButton`
-- 多语言：
-  - `zh-CN`
-  - `en-US`
+  - 编辑表单、音频预览、状态进度、团队添加按钮、错误态和删除按钮接入 antd `Form`（受控 State 做法 A）、原生 `audio`、`Progress`、`Space`/`Button`、`Result`
+- 界面文案：
+  - 简体中文直写（task030 后全生态统一），文案总表见 `src/lib/messages.ts`
 
 ## 资源规则
 
@@ -79,6 +78,8 @@ genre: "流行"
 music-BCP/
 ├─ src/
 │  ├─ index.ts
+│  ├─ lib/
+│  │  └─ messages.ts
 │  ├─ editor/
 │  │  ├─ panel.tsx
 │  │  └─ runtime.ts
@@ -89,13 +90,18 @@ music-BCP/
 │  │  └─ card-config.ts
 │  └─ shared/
 │     ├─ audio-metadata.ts
-│     ├─ i18n.ts
+│     ├─ default-cover.ts
 │     └─ utils.ts
-├─ i18n/
+├─ 归档/
 ├─ templates/
 ├─ docs/
 └─ tests/
 ```
+
+## 技术栈
+
+- React 运行时；UI 组件基于 Ant Design（`antd`），编辑器面板入口统一套用共享层苹果主题 `appleTheme`（`@chips/ui`），视觉与文案规范遵循 `项目日志与笔记/task030-卸担计划/` 03 / 04 / 06 / 07 章。
+- 卡片格式契约（`.card` 序列化字段、`basecardDefinition`、Host 资源桥链路）不依赖任何 UI 框架，保持独立。
 
 ## 开发与验证
 

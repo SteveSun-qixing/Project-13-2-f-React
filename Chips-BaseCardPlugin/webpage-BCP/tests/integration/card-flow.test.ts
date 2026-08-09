@@ -35,10 +35,6 @@ describe("webpage basecard integration flow", () => {
   let viewCleanup: (() => void) | null = null;
 
   beforeEach(() => {
-    Object.defineProperty(window.navigator, "language", {
-      configurable: true,
-      value: "zh-CN",
-    });
     (globalThis as typeof globalThis & { chips?: unknown }).chips = {
       invoke: async () => ({
         content: "<!doctype html><html><head></head><body><article>bundle-page</article></body></html>",
@@ -95,7 +91,9 @@ describe("webpage basecard integration flow", () => {
 
     editorContainer.appendChild(editorRoot);
 
-    const bundleModeButton = editorRoot.querySelector('[data-source-mode="bundle"]') as HTMLButtonElement | null;
+    const bundleModeButton = editorRoot.querySelector(
+      '[data-source-mode="bundle"]',
+    )?.closest(".ant-segmented-item") as HTMLElement | null;
     bundleModeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flushAsyncWork();
 

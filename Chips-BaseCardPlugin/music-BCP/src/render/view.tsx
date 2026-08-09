@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { ChipsEmptyState, ChipsImage } from "@chips/component-library";
+import { Empty, Image } from "antd";
 import type { MusicCardOpenPayload, MusicCardOpenResource } from "chips-sdk";
 import type { BasecardConfig } from "../schema/card-config";
 import { DEFAULT_MUSIC_COVER_URL } from "../shared/default-cover";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import {
   deriveDisplayTitle,
   derivePrimaryArtist,
@@ -16,8 +16,8 @@ import {
 export const VIEW_STYLE_TEXT = `
 .chips-music-card {
   width: 100%;
-  color: var(--chips-sys-color-on-surface, #0f172a);
-  font: 14px/1.5 var(--chips-font-family-sans, "SF Pro Text", "PingFang SC", sans-serif);
+  color: #1d1d1f;
+  font: 14px/1.5 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-music-card,
@@ -35,7 +35,7 @@ export const VIEW_STYLE_TEXT = `
   padding: 12px 14px;
   border: none;
   border-radius: 20px;
-  background: var(--chips-sys-color-surface-container-low, rgba(248, 250, 252, 0.94));
+  background: rgba(242, 242, 247, 0.94);
 }
 
 .chips-music-card__surface-button {
@@ -52,7 +52,7 @@ export const VIEW_STYLE_TEXT = `
 
 .chips-music-card__surface-button:hover,
 .chips-music-card__surface-button:focus-visible {
-  background: var(--chips-sys-color-surface-container, rgba(241, 245, 249, 0.98));
+  background: rgba(242, 242, 247, 0.98);
   outline: none;
 }
 
@@ -64,18 +64,12 @@ export const VIEW_STYLE_TEXT = `
   min-width: 88px;
   border-radius: 16px;
   overflow: hidden;
-  background: var(--chips-sys-color-surface-container-high, rgba(255, 255, 255, 0.88));
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .chips-music-card__cover-image {
   display: block;
   margin: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.chips-music-card__cover-image [data-scope="image"][data-part="media"] {
-  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -108,7 +102,7 @@ export const VIEW_STYLE_TEXT = `
 
 .chips-music-card__artist {
   margin: 0;
-  color: var(--chips-sys-color-on-surface-variant, #475569);
+  color: #6e6e73;
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
@@ -124,7 +118,7 @@ export const VIEW_STYLE_TEXT = `
 }
 
 .chips-music-card__meta-item {
-  color: var(--chips-sys-color-on-surface-variant, #475569);
+  color: #6e6e73;
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -133,16 +127,30 @@ export const VIEW_STYLE_TEXT = `
 .chips-music-card__empty {
   min-height: 108px;
   border-radius: 20px;
-  border: 1px dashed var(--chips-comp-card-shell-border-color, rgba(15, 23, 42, 0.14));
-  color: var(--chips-sys-color-on-surface-variant, #64748b);
-  background: var(--chips-sys-color-surface, #ffffff);
+  border: 1px dashed rgba(0, 0, 0, 0.14);
+  color: #6e6e73;
+  background: #ffffff;
   text-align: center;
 }
 
-.chips-music-card__empty [data-scope="empty-state"][data-part="root"] {
+.chips-music-card__empty .ant-empty {
   min-height: 106px;
   padding: 20px;
   background: transparent;
+}
+
+.chips-music-card__empty-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.chips-music-card__empty-description {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #6e6e73;
 }
 
 @media (max-width: 560px) {
@@ -310,17 +318,12 @@ export function MusicBasecardView({
   releaseResourceUrl,
   openResource,
 }: MusicBasecardViewProps) {
-  const locale = typeof navigator !== "undefined" ? navigator.language : "zh-CN";
-  const t = createTranslator(locale);
-  const componentI18n = {
-    t,
-  };
   const audioUrl = useResolvedResourceUrl(config.audio_file, resolveResourceUrl, releaseResourceUrl);
   const coverUrl = useResolvedResourceUrl(config.album_cover, resolveResourceUrl, releaseResourceUrl);
   const lyricsUrl = useResolvedResourceUrl(config.lyrics_file, resolveResourceUrl, releaseResourceUrl);
   const displayCoverUrl = coverUrl || DEFAULT_MUSIC_COVER_URL;
-  const displayTitle = deriveDisplayTitle(config) || t("music.view.untitled");
-  const artistLabel = derivePrimaryArtist(config) || t("music.view.artistFallback");
+  const displayTitle = deriveDisplayTitle(config) || formatMessage("music.view.untitled");
+  const artistLabel = derivePrimaryArtist(config) || formatMessage("music.view.artistFallback");
   const canOpen = Boolean(openResource && audioUrl);
   const openPayload = buildMusicCardOpenPayload({
     config,
@@ -332,22 +335,21 @@ export function MusicBasecardView({
   });
 
   const metaItems = [
-    config.album_name ? t("music.view.meta.album", { value: config.album_name }) : "",
-    config.language ? t("music.view.meta.language", { value: config.language }) : "",
-    config.genre ? t("music.view.meta.genre", { value: config.genre }) : "",
-    config.release_date ? t("music.view.meta.release_date", { value: config.release_date }) : "",
+    config.album_name ? formatMessage("music.view.meta.album", { value: config.album_name }) : "",
+    config.language ? formatMessage("music.view.meta.language", { value: config.language }) : "",
+    config.genre ? formatMessage("music.view.meta.genre", { value: config.genre }) : "",
+    config.release_date ? formatMessage("music.view.meta.release_date", { value: config.release_date }) : "",
   ].filter((item) => item.length > 0);
 
   const content = (
     <>
       <div className="chips-music-card__cover" aria-hidden="true">
-        <ChipsImage
+        <Image
+          className="chips-music-card__cover-image"
           src={displayCoverUrl}
           alt={displayTitle}
-          decorative
-          className="chips-music-card__cover-image"
-          fit="cover"
-          loadingStrategy="lazy"
+          preview={false}
+          loading="lazy"
         />
       </div>
 
@@ -371,11 +373,19 @@ export function MusicBasecardView({
     return (
       <div className="chips-music-card">
         <div className="chips-music-card__empty">
-          <ChipsEmptyState
-            ariaLabel={t("music.view.empty")}
-            title={t("music.view.untitled")}
-            description={t("music.view.empty")}
-            i18n={componentI18n}
+          <Empty
+            className="chips-music-card__empty-state"
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <>
+                <span className="chips-music-card__empty-title">
+                  {formatMessage("music.view.untitled")}
+                </span>
+                <span className="chips-music-card__empty-description">
+                  {formatMessage("music.view.empty")}
+                </span>
+              </>
+            }
           />
         </div>
       </div>
@@ -397,7 +407,7 @@ export function MusicBasecardView({
               ...(openPayload ? { payload: openPayload } : undefined),
             });
           }}
-          aria-label={t("music.view.open", { title: displayTitle })}
+          aria-label={formatMessage("music.view.open", { title: displayTitle })}
         >
           {content}
         </button>

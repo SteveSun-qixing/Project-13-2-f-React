@@ -1,11 +1,8 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import {
-  ChipsButton,
-  ChipsForm,
-  ChipsIcon,
-  ChipsSegmentedControl,
-  ChipsTextField,
-} from "@chips/component-library";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { Button, ConfigProvider, Input, Segmented } from "antd";
+import { DeleteOutlined, UploadOutlined } from "@ant-design/icons";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type {
@@ -19,7 +16,7 @@ import {
   type WebpageDisplayMode,
   type WebpageSourceType,
 } from "../schema/card-config";
-import { createTranslator } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import { cloneConfig, dedupeResourcePaths, validateWebpageUrl } from "../shared/utils";
 
 export interface BasecardEditorProps {
@@ -86,7 +83,7 @@ const EDITOR_STYLE_TEXT = `
   gap: 16px;
   box-sizing: border-box;
   overflow: auto;
-  color: var(--chips-sys-color-on-surface, #111827);
+  color: #1d1d1f;
 }
 
 .chips-webpage-editor__group {
@@ -95,8 +92,8 @@ const EDITOR_STYLE_TEXT = `
   gap: 10px;
   padding: 14px 16px;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-outline, #d7dde7) 82%, transparent 18%);
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #f7f9fc) 97%, white 3%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #f2f2f7;
 }
 
 .chips-webpage-editor__group--summary {
@@ -119,7 +116,7 @@ const EDITOR_STYLE_TEXT = `
   margin: 0;
   font-size: 12px;
   line-height: 1.6;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #111827) 72%, transparent 28%);
+  color: rgba(29, 29, 31, 0.72);
 }
 
 .chips-webpage-editor__dropzone {
@@ -129,30 +126,32 @@ const EDITOR_STYLE_TEXT = `
   gap: 10px;
   padding: 18px;
   border-radius: 16px;
-  border: 1px dashed color-mix(in srgb, var(--chips-sys-color-outline, #d7dde7) 88%, transparent 12%);
+  border: 1px dashed rgba(0, 0, 0, 0.18);
   background:
     linear-gradient(
       145deg,
-      color-mix(in srgb, var(--chips-sys-color-primary, #1166ff) 6%, var(--chips-sys-color-surface, #ffffff) 94%),
-      color-mix(in srgb, var(--chips-sys-color-surface, #ffffff) 96%, var(--chips-sys-color-outline, #d7dde7) 4%)
-    );
+      rgba(10, 132, 255, 0.06),
+      rgba(0, 0, 0, 0.04)
+    ),
+    #ffffff;
   cursor: pointer;
   transition: border-color 120ms ease, transform 120ms ease, background-color 120ms ease;
 }
 
 .chips-webpage-editor__dropzone:hover {
-  border-color: color-mix(in srgb, var(--chips-sys-color-primary, #1166ff) 44%, var(--chips-sys-color-outline, #d7dde7) 56%);
+  border-color: rgba(10, 132, 255, 0.5);
 }
 
 .chips-webpage-editor__dropzone--active {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--chips-sys-color-primary, #1166ff) 74%, white 26%);
+  border-color: rgba(10, 132, 255, 0.74);
   background:
     linear-gradient(
       145deg,
-      color-mix(in srgb, var(--chips-sys-color-primary, #1166ff) 12%, var(--chips-sys-color-surface, #ffffff) 88%),
-      color-mix(in srgb, var(--chips-sys-color-primary, #1166ff) 6%, var(--chips-sys-color-surface, #ffffff) 94%)
-    );
+      rgba(10, 132, 255, 0.12),
+      rgba(10, 132, 255, 0.06)
+    ),
+    #ffffff;
 }
 
 .chips-webpage-editor__dropzone[aria-disabled="true"] {
@@ -169,7 +168,7 @@ const EDITOR_STYLE_TEXT = `
   margin: 0;
   font-size: 12px;
   line-height: 1.6;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #111827) 72%, transparent 28%);
+  color: rgba(29, 29, 31, 0.72);
 }
 
 .chips-webpage-editor__file-input {
@@ -192,7 +191,7 @@ const EDITOR_STYLE_TEXT = `
   margin: 0;
   font-size: 12px;
   line-height: 1.6;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #111827) 74%, transparent 26%);
+  color: rgba(29, 29, 31, 0.74);
   word-break: break-word;
 }
 
@@ -206,14 +205,14 @@ const EDITOR_STYLE_TEXT = `
   margin: 0;
   font-size: 12px;
   line-height: 1.6;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #111827) 76%, transparent 24%);
+  color: rgba(29, 29, 31, 0.76);
 }
 
 .chips-webpage-editor__status--error {
-  color: var(--chips-sys-color-error, #d92d20);
+  color: #ff3b30;
 }
 
-.chips-webpage-editor__segmented [data-scope="segmented-control"][data-part="root"] {
+.chips-webpage-editor__segmented .ant-segmented {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -221,10 +220,13 @@ const EDITOR_STYLE_TEXT = `
   max-width: 100%;
   padding: 6px;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #ffffff) 92%, var(--chips-sys-color-outline, #d7dde7) 8%);
+  background: rgba(0, 0, 0, 0.08);
 }
 
-.chips-webpage-editor__segmented [data-scope="segmented-control"][data-part="item"] {
+.chips-webpage-editor__segmented .ant-segmented-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 88px;
   min-height: 40px;
   border: 0;
@@ -234,9 +236,9 @@ const EDITOR_STYLE_TEXT = `
   padding: 0 14px;
 }
 
-.chips-webpage-editor__segmented [data-scope="segmented-control"][data-part="item"][aria-checked="true"] {
-  background: color-mix(in srgb, var(--chips-sys-color-primary, #1166ff) 88%, white 12%);
-  color: var(--chips-sys-color-on-primary, #ffffff);
+.chips-webpage-editor__segmented .ant-segmented-item-selected {
+  background: #0a84ff;
+  color: #ffffff;
 }
 
 .chips-webpage-editor__segmented-option {
@@ -256,55 +258,50 @@ const EDITOR_STYLE_TEXT = `
   opacity: 0.82;
 }
 
-.chips-webpage-editor [data-scope="text-field"][data-part="root"] {
+.chips-webpage-editor__url-field {
   display: grid;
   gap: 8px;
 }
 
-.chips-webpage-editor [data-scope="text-field"][data-part="label"] {
+.chips-webpage-editor__url-label {
   font-size: 12px;
   font-weight: 600;
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #111827) 84%, transparent 16%);
+  color: rgba(29, 29, 31, 0.84);
 }
 
-.chips-webpage-editor [data-scope="text-field"][data-part="control"] {
+.chips-webpage-editor__url-input.ant-input {
   width: 100%;
   min-height: 42px;
   padding: 0 13px;
   border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--chips-sys-color-outline, #d7dde7) 84%, transparent 16%);
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #ffffff) 98%, white 2%);
-  color: inherit;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  color: #1d1d1f;
   box-sizing: border-box;
   font: inherit;
 }
 
-.chips-webpage-editor [data-scope="text-field"][data-part="control"]:focus {
-  outline: 2px solid color-mix(in srgb, var(--chips-sys-color-primary, #1166ff) 26%, transparent 74%);
-  outline-offset: 1px;
-}
-
-.chips-webpage-editor [data-scope="text-field"][data-part="description"],
-.chips-webpage-editor [data-scope="text-field"][data-part="status"] {
+.chips-webpage-editor__url-hint,
+.chips-webpage-editor__url-error {
   margin: 0;
   font-size: 12px;
   line-height: 1.6;
 }
 
-.chips-webpage-editor [data-scope="text-field"][data-part="description"] {
-  color: color-mix(in srgb, var(--chips-sys-color-on-surface, #111827) 72%, transparent 28%);
+.chips-webpage-editor__url-hint {
+  color: rgba(29, 29, 31, 0.72);
 }
 
-.chips-webpage-editor [data-scope="text-field"][data-part="status"] {
-  color: var(--chips-sys-color-error, #d92d20);
+.chips-webpage-editor__url-error {
+  color: #ff3b30;
 }
 
-.chips-webpage-editor__button[data-scope="button"][data-part="root"] {
+.chips-webpage-editor__button {
   min-height: 38px;
   border: 0;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--chips-sys-color-outline, #d7dde7) 72%, var(--chips-sys-color-surface, #ffffff) 28%);
-  color: var(--chips-sys-color-on-surface, #111827);
+  background: rgba(0, 0, 0, 0.08);
+  color: #1d1d1f;
   padding: 0 14px;
 }
 
@@ -357,10 +354,6 @@ function createSegmentedOption(
 }
 
 function WebpageCardEditor(props: BasecardEditorProps) {
-  const t = useMemo(
-    () => createTranslator(typeof navigator !== "undefined" ? navigator.language : "zh-CN"),
-    [],
-  );
   const [config, setConfig] = useState<BasecardConfig>(
     () => normalizeBasecardConfig(cloneConfig(props.initialConfig as unknown as Record<string, unknown>)),
   );
@@ -419,7 +412,7 @@ function WebpageCardEditor(props: BasecardEditorProps) {
     const nextUrl = inputValue.trim();
     if (!validateWebpageUrl(nextUrl)) {
       if (isLatestMutation(mutationId)) {
-        setErrorText(t("editor.invalid_url"));
+        setErrorText(formatMessage("editor.invalid_url"));
         setStatusText("");
       }
       return;
@@ -452,12 +445,12 @@ function WebpageCardEditor(props: BasecardEditorProps) {
       });
       emitChange(nextConfig);
       setErrorText("");
-      setStatusText(t("editor.url_updated"));
+      setStatusText(formatMessage("editor.url_updated"));
     } catch (error) {
       if (!isLatestMutation(mutationId)) {
         return;
       }
-      setErrorText(error instanceof Error ? error.message : t("editor.clear_failed"));
+      setErrorText(error instanceof Error ? error.message : formatMessage("editor.clear_failed"));
       setStatusText("");
     }
   };
@@ -478,19 +471,19 @@ function WebpageCardEditor(props: BasecardEditorProps) {
       emitChange(clearedConfig);
       setUrlInput("");
       setErrorText("");
-      setStatusText(t("editor.source_cleared"));
+      setStatusText(formatMessage("editor.source_cleared"));
     } catch (error) {
       if (!isLatestMutation(mutationId)) {
         return;
       }
-      setErrorText(error instanceof Error ? error.message : t("editor.clear_failed"));
+      setErrorText(error instanceof Error ? error.message : formatMessage("editor.clear_failed"));
       setStatusText("");
     }
   };
 
   const importBundleFile = async (file: File) => {
     if (!props.importArchiveBundle) {
-      setErrorText(t("editor.import_unsupported"));
+      setErrorText(formatMessage("editor.import_unsupported"));
       setStatusText("");
       return;
     }
@@ -529,12 +522,12 @@ function WebpageCardEditor(props: BasecardEditorProps) {
       emitChange(nextConfig);
       setSourceMode("bundle");
       setErrorText("");
-      setStatusText(t("editor.import_success"));
+      setStatusText(formatMessage("editor.import_success"));
     } catch (error) {
       if (!isLatestMutation(mutationId)) {
         return;
       }
-      setErrorText(error instanceof Error ? error.message : t("editor.import_failed"));
+      setErrorText(error instanceof Error ? error.message : formatMessage("editor.import_failed"));
       setStatusText("");
     } finally {
       if (isLatestMutation(mutationId)) {
@@ -572,13 +565,13 @@ function WebpageCardEditor(props: BasecardEditorProps) {
   }, [sourceMode, urlInput]);
 
   const currentSourceDescription = config.source_type === "bundle" && config.bundle_root
-    ? t("editor.current_bundle")
+    ? formatMessage("editor.current_bundle")
     : config.source_type === "url" && config.source_url
-      ? t("editor.current_url")
-      : t("editor.current_empty");
+      ? formatMessage("editor.current_url")
+      : formatMessage("editor.current_empty");
   const currentDisplayDescription = config.display_mode === "fixed"
-    ? t("editor.ratio_fixed_current")
-    : t("editor.ratio_free_current");
+    ? formatMessage("editor.ratio_fixed_current")
+    : formatMessage("editor.ratio_free_current");
 
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -605,42 +598,41 @@ function WebpageCardEditor(props: BasecardEditorProps) {
   };
 
   return (
-    <ChipsForm
+    <form
       className="chips-webpage-editor"
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
       }}
     >
-      <style>{EDITOR_STYLE_TEXT}</style>
-
       <section className="chips-webpage-editor__group">
         <div className="chips-webpage-editor__header">
-          <h2 className="chips-webpage-editor__section-title">{t("editor.ratio_title")}</h2>
-          <p className="chips-webpage-editor__hint">{t("editor.ratio_hint")}</p>
+          <h2 className="chips-webpage-editor__section-title">{formatMessage("editor.ratio_title")}</h2>
+          <p className="chips-webpage-editor__hint">{formatMessage("editor.ratio_hint")}</p>
         </div>
         <div className="chips-webpage-editor__segmented">
-          <ChipsSegmentedControl
+          <Segmented
             value={config.display_mode}
-            ariaLabel={t("editor.ratio_title")}
+            aria-label={formatMessage("editor.ratio_title")}
             options={[
               {
                 value: "fixed",
                 label: createSegmentedOption(
-                  t("editor.ratio_fixed"),
-                  t("editor.ratio_fixed_hint"),
+                  formatMessage("editor.ratio_fixed"),
+                  formatMessage("editor.ratio_fixed_hint"),
                   { "data-display-mode": "fixed" },
                 ),
               },
               {
                 value: "free",
                 label: createSegmentedOption(
-                  t("editor.ratio_free"),
-                  t("editor.ratio_free_hint"),
+                  formatMessage("editor.ratio_free"),
+                  formatMessage("editor.ratio_free_hint"),
                   { "data-display-mode": "free" },
                 ),
               },
             ]}
-            onValueChange={(value) => {
+            onChange={(value) => {
               applyDisplayMode(value as WebpageDisplayMode);
             }}
           />
@@ -649,24 +641,24 @@ function WebpageCardEditor(props: BasecardEditorProps) {
 
       <section className="chips-webpage-editor__group">
         <div className="chips-webpage-editor__header">
-          <h2 className="chips-webpage-editor__section-title">{t("editor.mode_title")}</h2>
-          <p className="chips-webpage-editor__hint">{t("editor.mode_hint")}</p>
+          <h2 className="chips-webpage-editor__section-title">{formatMessage("editor.mode_title")}</h2>
+          <p className="chips-webpage-editor__hint">{formatMessage("editor.mode_hint")}</p>
         </div>
         <div className="chips-webpage-editor__segmented">
-          <ChipsSegmentedControl
+          <Segmented
             value={sourceMode}
-            ariaLabel={t("editor.mode_title")}
+            aria-label={formatMessage("editor.mode_title")}
             options={[
               {
                 value: "url",
-                label: createSegmentedOption(t("editor.mode_url"), undefined, { "data-source-mode": "url" }),
+                label: createSegmentedOption(formatMessage("editor.mode_url"), undefined, { "data-source-mode": "url" }),
               },
               {
                 value: "bundle",
-                label: createSegmentedOption(t("editor.mode_bundle"), undefined, { "data-source-mode": "bundle" }),
+                label: createSegmentedOption(formatMessage("editor.mode_bundle"), undefined, { "data-source-mode": "bundle" }),
               },
             ]}
-            onValueChange={(value) => {
+            onChange={(value) => {
               switchSourceMode(value as WebpageSourceType);
             }}
           />
@@ -675,22 +667,29 @@ function WebpageCardEditor(props: BasecardEditorProps) {
 
       <section className="chips-webpage-editor__group">
         {sourceMode === "url" ? (
-          <ChipsTextField
-            id={`${fileInputId}-url`}
-            className="chips-webpage-editor__url-field"
-            value={urlInput}
-            label={t("editor.url_title")}
-            description={t("editor.url_hint")}
-            placeholder={t("editor.url_placeholder")}
-            error={sourceMode === "url" && errorText ? errorText : null}
-            inputMode="url"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            onValueChange={(value) => {
-              setUrlInput(value);
-            }}
-          />
+          <div className="chips-webpage-editor__url-field">
+            <label className="chips-webpage-editor__url-label" htmlFor={`${fileInputId}-url`}>
+              {formatMessage("editor.url_title")}
+            </label>
+            <Input
+              id={`${fileInputId}-url`}
+              className="chips-webpage-editor__url-input"
+              value={urlInput}
+              placeholder={formatMessage("editor.url_placeholder")}
+              status={sourceMode === "url" && errorText ? "error" : undefined}
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              onChange={(event) => {
+                setUrlInput(event.target.value);
+              }}
+            />
+            <p className="chips-webpage-editor__url-hint">{formatMessage("editor.url_hint")}</p>
+            {sourceMode === "url" && errorText && (
+              <p className="chips-webpage-editor__url-error">{errorText}</p>
+            )}
+          </div>
         ) : (
           <div
             className={`chips-webpage-editor__dropzone ${isDragActive ? "chips-webpage-editor__dropzone--active" : ""}`}
@@ -743,18 +742,18 @@ function WebpageCardEditor(props: BasecardEditorProps) {
               onChange={handleFileInputChange}
             />
             <strong className="chips-webpage-editor__dropzone-title">
-              <ChipsIcon descriptor={{ name: "upload_file", decorative: true }} size={18} />
-              {isImporting ? t("editor.importing") : t("editor.bundle_upload_title")}
+              <UploadOutlined aria-hidden="true" style={{ fontSize: 18 }} />
+              {isImporting ? formatMessage("editor.importing") : formatMessage("editor.bundle_upload_title")}
             </strong>
-            <p className="chips-webpage-editor__dropzone-text">{t("editor.bundle_hint")}</p>
-            <p className="chips-webpage-editor__dropzone-text">{t("editor.bundle_upload_action")}</p>
+            <p className="chips-webpage-editor__dropzone-text">{formatMessage("editor.bundle_hint")}</p>
+            <p className="chips-webpage-editor__dropzone-text">{formatMessage("editor.bundle_upload_action")}</p>
           </div>
         )}
       </section>
 
       <section className="chips-webpage-editor__group chips-webpage-editor__group--summary">
         <div className="chips-webpage-editor__current">
-          <h2 className="chips-webpage-editor__section-title">{t("editor.current_title")}</h2>
+          <h2 className="chips-webpage-editor__section-title">{formatMessage("editor.current_title")}</h2>
           <p className="chips-webpage-editor__meta">{currentDisplayDescription}</p>
           <p className="chips-webpage-editor__current-text">{currentSourceDescription}</p>
           {config.source_type === "url" && config.source_url && (
@@ -763,31 +762,31 @@ function WebpageCardEditor(props: BasecardEditorProps) {
           {config.source_type === "bundle" && config.bundle_root && (
             <>
               <p className="chips-webpage-editor__meta">
-                {t("editor.bundle_root", { rootDir: config.bundle_root })}
+                {formatMessage("editor.bundle_root", { rootDir: config.bundle_root })}
               </p>
               <p className="chips-webpage-editor__meta">
-                {t("editor.bundle_entry", { entryFile: config.entry_file ?? "index.html" })}
+                {formatMessage("editor.bundle_entry", { entryFile: config.entry_file ?? "index.html" })}
               </p>
               <p className="chips-webpage-editor__meta">
-                {t("editor.bundle_files", { count: config.resource_paths.length })}
+                {formatMessage("editor.bundle_files", { count: config.resource_paths.length })}
               </p>
             </>
           )}
         </div>
         <div className="chips-webpage-editor__actions">
-          <ChipsButton
-            type="button"
+          <Button
+            type="default"
             className="chips-webpage-editor__button"
             disabled={isImporting}
-            onPress={() => {
+            onClick={() => {
               void clearSource();
             }}
           >
             <span className="chips-webpage-editor__button-content">
-              <ChipsIcon descriptor={{ name: "delete", decorative: true }} size={16} />
-              <span>{t("editor.clear_source")}</span>
+              <DeleteOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+              <span>{formatMessage("editor.clear_source")}</span>
             </span>
-          </ChipsButton>
+          </Button>
         </div>
       </section>
 
@@ -799,7 +798,7 @@ function WebpageCardEditor(props: BasecardEditorProps) {
           {errorText}
         </p>
       )}
-    </ChipsForm>
+    </form>
   );
 }
 
@@ -813,10 +812,15 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
   const root: Root = createRoot(container);
   flushSync(() => {
     root.render(
-      React.createElement(WebpageCardEditor, {
-        ...props,
-        initialConfig: normalizeBasecardConfig(props.initialConfig ?? defaultBasecardConfig),
-      }),
+      React.createElement(
+        ConfigProvider,
+        { locale: zhCN, theme: appleTheme },
+        React.createElement("style", null, EDITOR_STYLE_TEXT),
+        React.createElement(WebpageCardEditor, {
+          ...props,
+          initialConfig: normalizeBasecardConfig(props.initialConfig ?? defaultBasecardConfig),
+        }),
+      ),
     );
   });
 

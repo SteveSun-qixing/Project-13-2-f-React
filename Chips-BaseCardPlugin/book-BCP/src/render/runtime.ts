@@ -10,14 +10,14 @@ type MountState = {
 };
 
 export function mountBasecardView(ctx: BasecardRenderContext): () => void {
-  const { container, config, themeCssText } = ctx;
+  const { container, config } = ctx;
 
   while (container.firstChild) {
     container.removeChild(container.firstChild);
   }
 
   const mountNode = document.createElement("div");
-  mountNode.setAttribute("data-chips-basecard-view-root", "true");
+  mountNode.setAttribute("data-chips-book-view-root", "true");
   mountNode.style.width = "100%";
   container.appendChild(mountNode);
 
@@ -30,7 +30,7 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
       React.createElement(
         React.Fragment,
         null,
-        React.createElement("style", null, `${themeCssText ?? ""}\n${VIEW_STYLE_TEXT}`),
+        React.createElement("style", null, VIEW_STYLE_TEXT),
         React.createElement(BasecardView, {
           config: config as BasecardConfig,
           resolveResourceUrl: ctx.resolveResourceUrl,

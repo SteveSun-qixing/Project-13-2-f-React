@@ -2,7 +2,7 @@
 
 > 插件 ID：`chips.basecard.video`
 
-`video-BCP` 是薯片生态的官方视频基础卡片插件。项目由基础卡片脚手架初始化后，按视频卡片正式口径完成了查看态、编辑态、资源链路、多语言与测试闭环。
+`video-BCP` 是薯片生态的官方视频基础卡片插件。项目由基础卡片脚手架初始化后，按视频卡片正式口径完成了查看态、编辑态、资源链路、界面文案与测试闭环；UI 组件基于 Ant Design（`antd`），查看态与编辑面板入口统一套用共享层苹果主题 `appleTheme`（`@chips/ui`），视觉与文案规范遵循 `项目日志与笔记/task030-卸担计划/` 03 / 04 / 06 / 07 章。
 
 ## 当前能力
 
@@ -37,6 +37,8 @@ video-BCP/
 ├─ chips.config.mjs
 ├─ src/
 │  ├─ index.ts
+│  ├─ lib/
+│  │  └─ messages.ts
 │  ├─ schema/card-config.ts
 │  ├─ render/
 │  │  ├─ runtime.ts
@@ -45,9 +47,8 @@ video-BCP/
 │  │  ├─ runtime.ts
 │  │  └─ panel.tsx
 │  └─ shared/
-│     ├─ i18n.ts
-│     ├─ utils.ts
-├─ i18n/
+│     └─ utils.ts
+├─ 归档/
 ├─ templates/
 └─ tests/
 ```

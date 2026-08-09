@@ -1,4 +1,4 @@
-{
+const MESSAGES: Record<string, string> = {
   "basecard.toolbar.bold": "加粗",
   "basecard.toolbar.italic": "斜体",
   "basecard.toolbar.code": "行内代码",
@@ -18,5 +18,12 @@
   "basecard.validation.importUnavailable": "当前宿主未提供 Markdown 文件保存能力。",
   "basecard.status.loading": "正在加载富文本内容…",
   "basecard.status.loadFailed": "富文本内容加载失败",
-  "basecard.status.renderFailed": "富文本内容渲染失败"
+  "basecard.status.renderFailed": "富文本内容渲染失败",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
 }
