@@ -166,8 +166,9 @@ async function renderEditor({
 }
 
 function clickButtonByText(container: HTMLElement, text: string): void {
+  const normalizedText = text.replace(/\s+/g, "");
   const button = Array.from(container.querySelectorAll("button"))
-    .find((candidate) => candidate.textContent?.includes(text));
+    .find((candidate) => candidate.textContent?.replace(/\s+/g, "") === normalizedText);
   expect(button).toBeTruthy();
   button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
@@ -242,7 +243,7 @@ describe("layoutDefinition", () => {
     });
     expect(runtime.renderEntryCover).toHaveBeenCalledWith("entry-1");
     expect(container.querySelector('[data-map-selected]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
     expect(runtime.openEntry).not.toHaveBeenCalled();
 
     await act(async () => {

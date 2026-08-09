@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import type { BoxEntryCoverView, BoxEntrySnapshot, BoxLayoutRuntime } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 interface CoverState {
   status: "idle" | "loading" | "ready" | "error";
@@ -12,11 +12,11 @@ function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
 }
 
-function resolveEntryKindLabel(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntryKindLabel(entry: BoxEntrySnapshot): string {
   if (entry.snapshot.contentType === "chips/box") {
-    return getLayoutMessage(locale, "layout.entry_type_box");
+    return formatMessage("layout.entry_type_box");
   }
-  return getLayoutMessage(locale, "layout.entry_type_card");
+  return formatMessage("layout.entry_type_card");
 }
 
 function resolveAspectRatio(entry: BoxEntrySnapshot, coverView?: BoxEntryCoverView): string {
@@ -33,18 +33,16 @@ function resolveAspectRatio(entry: BoxEntrySnapshot, coverView?: BoxEntryCoverVi
 export function EntryTile({
   entry,
   runtime,
-  locale,
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const [coverState, setCoverState] = useState<CoverState>(() => ({
     status: entry.snapshot.cover?.mode === "none" ? "idle" : "loading",
   }));
 
   const title = useMemo(() => resolveEntryTitle(entry), [entry]);
-  const kindLabel = useMemo(() => resolveEntryKindLabel(entry, locale), [entry, locale]);
+  const kindLabel = useMemo(() => resolveEntryKindLabel(entry), [entry]);
 
   useEffect(() => {
     if (entry.snapshot.cover?.mode === "none") {
@@ -76,28 +74,49 @@ export function EntryTile({
     void runtime.openEntry(entry.entryId);
   };
 
+  const frameView = coverState.status === "ready" ? coverState.view : undefined;
+  const showFrame = frameView != null && frameView.coverUrl != null;
+  const coverOpenLabel = `${formatMessage("layout.open_entry")}: ${title}`;
+
   return (
     <article data-grid-entry data-entry-id={entry.entryId}>
-      <div data-grid-cover-shell style={{ aspectRatio: resolveAspectRatio(entry, coverState.view).replace(":", " / ") }}>
-        {coverState.status === "ready" && coverState.view?.coverUrl ? (
+      <div
+        data-grid-cover-shell
+        role={showFrame ? "button" : undefined}
+        tabIndex={showFrame ? 0 : undefined}
+        aria-label={showFrame ? coverOpenLabel : undefined}
+        onClick={showFrame ? openEntry : undefined}
+        onKeyDown={(event) => {
+          if (!showFrame) {
+            return;
+          }
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openEntry();
+          }
+        }}
+        style={{ aspectRatio: resolveAspectRatio(entry, coverState.view).replace(":", " / ") }}
+      >
+        {showFrame ? (
           <EmbeddedDocumentFrame
-            title={coverState.view.title || title}
-            src={coverState.view.coverUrl}
-            ratio={coverState.view.ratio ?? resolveAspectRatio(entry, coverState.view)}
+            title={frameView.title || title}
+            src={frameView.coverUrl}
+            ratio={frameView.ratio ?? resolveAspectRatio(entry, frameView)}
+            sandbox="allow-scripts"
             onActivate={openEntry}
           />
         ) : (
           <button
             type="button"
             data-grid-cover-placeholder
-            aria-label={`${getLayoutMessage(locale, "layout.open_entry")}: ${title}`}
+            aria-label={coverOpenLabel}
             onClick={openEntry}
           >
             <strong data-grid-cover-placeholder-title>{title}</strong>
             <span data-grid-cover-placeholder-text>
               {coverState.status === "loading"
-                ? getLayoutMessage(locale, "layout.loading")
-                : `${kindLabel} · ${getLayoutMessage(locale, coverState.status === "error" ? "layout.cover_error" : "layout.cover_missing")}`}
+                ? formatMessage("layout.loading")
+                : `${kindLabel} · ${formatMessage(coverState.status === "error" ? "layout.cover_error" : "layout.cover_missing")}`}
             </span>
           </button>
         )}
@@ -107,7 +126,7 @@ export function EntryTile({
         <button
           type="button"
           data-grid-entry-title
-          aria-label={`${getLayoutMessage(locale, "layout.open_entry")}: ${title}`}
+          aria-label={`${formatMessage("layout.open_entry")}: ${title}`}
           title={title}
           onClick={openEntry}
         >

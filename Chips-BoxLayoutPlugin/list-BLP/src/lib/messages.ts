@@ -1,4 +1,4 @@
-{
+const MESSAGES: Record<string, string> = {
   "layout.empty": "暂无条目",
   "layout.empty_hint": "暂无存入卡片和箱子",
   "layout.loading": "加载中…",
@@ -25,6 +25,8 @@
   "editor.sort_manual": "手动顺序",
   "editor.sort_name_asc": "按名称升序",
   "editor.sort_name_desc": "按名称降序",
+  "editor.sort_manual_hint": "手动顺序请在编辑引擎右侧的内容列表标签页中拖拽调整。",
+  "editor.sort_runtime_hint": "启用名称排序后，布局会在渲染时自动按标题重排。",
   "editor.row_density": "行密度",
   "editor.row_density_compact": "紧凑",
   "editor.row_density_comfortable": "标准",
@@ -44,13 +46,10 @@
   "editor.field_type": "类型",
   "editor.page_size": "分页数量",
   "editor.auto_list_hint": "列表布局按等高行展示，每行左侧是正式封面，右侧是作品名称和创建日期。",
-  "editor.sort_manual_hint": "手动顺序请在编辑引擎右侧的内容列表标签页中拖拽调整。",
-  "editor.sort_runtime_hint": "启用名称排序后，布局会在渲染时自动按标题重排。",
   "editor.background_title": "背景区域",
   "editor.background_desc": "可上传图片，或直接填写网页代码，作为整个箱子页面的背景区域。",
   "editor.top_region_title": "顶部标题区域",
   "editor.top_region_desc": "顶部是一块响应式 iframe 区域，可用于标题、头图或自定义网页内容。",
-  "editor.frame_mode": "显示方式",
   "editor.frame_mode_none": "不显示",
   "editor.frame_mode_image": "图片",
   "editor.frame_mode_html": "网页代码",
@@ -58,5 +57,12 @@
   "editor.clear_frame": "清空",
   "editor.frame_empty": "当前未配置内容",
   "editor.html_placeholder": "输入 HTML 代码，最终会在受控 iframe 中显示。",
-  "editor.preview": "预览"
+  "editor.preview": "预览",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
 }

@@ -1,4 +1,4 @@
-{
+const MESSAGES: Record<string, string> = {
   "layout.aria_label": "网格箱子布局",
   "layout.empty": "暂无条目",
   "layout.empty_hint": "暂无存入卡片和箱子",
@@ -36,5 +36,12 @@
   "editor.import_failed": "图片导入失败",
   "editor.imported_asset_path_invalid": "导入结果不是安全的箱子资源路径",
   "editor.delete_failed": "资源删除失败",
-  "editor.read_failed": "图片读取失败"
+  "editor.read_failed": "图片读取失败",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
 }

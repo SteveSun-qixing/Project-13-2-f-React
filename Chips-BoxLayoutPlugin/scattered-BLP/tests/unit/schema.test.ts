@@ -178,9 +178,9 @@ describe("layout-config", () => {
       createEntry("entry-a", "Alpha"),
       createEntry("entry-b", "Beta"),
     ];
-    expect(orderScatteredEntries(entries, "name", "seed", "zh-CN").map((entry) => entry.entryId))
+    expect(orderScatteredEntries(entries, "name", "seed").map((entry) => entry.entryId))
       .toEqual(["entry-a", "entry-b", "entry-c"]);
-    expect(orderScatteredEntries(entries, "random", "seed", "zh-CN"))
-      .toEqual(orderScatteredEntries(entries, "random", "seed", "zh-CN"));
+    expect(orderScatteredEntries(entries, "random", "seed"))
+      .toEqual(orderScatteredEntries(entries, "random", "seed"));
   });
 });

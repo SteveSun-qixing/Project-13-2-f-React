@@ -127,10 +127,22 @@ async function renderEditor({
 }
 
 function clickButtonByText(container: HTMLElement, text: string): void {
+  const needle = text.replace(/\s+/g, "");
   const button = Array.from(container.querySelectorAll("button"))
-    .find((candidate) => candidate.textContent?.includes(text));
+    .find((candidate) => candidate.textContent?.replace(/\s+/g, "").includes(needle));
   expect(button).toBeTruthy();
   button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
+async function clickSegmentedOption(container: HTMLElement, regionId: string, text: string): Promise<void> {
+  const region = container.querySelector(`[data-frame-region-editor="${regionId}"]`);
+  const option = Array.from(region?.querySelectorAll(".ant-segmented-item") ?? [])
+    .find((candidate) => candidate.textContent === text);
+  expect(option).toBeTruthy();
+  await act(async () => {
+    option?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+  });
 }
 
 async function uploadFile(input: HTMLInputElement, file: File): Promise<void> {
@@ -163,7 +175,7 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-scope="chips-document-library-layout"]')).toBeTruthy();
     expect(container.querySelector('[data-document-tree]')).toBeTruthy();
     expect(container.querySelector('[data-document-preview]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
     expect(container.querySelector('[data-scope="card-cover-frame"]')).toBeNull();
     expect(container.textContent).toContain("Summary");
     expect(runtime.listEntries).not.toHaveBeenCalled();
@@ -366,7 +378,7 @@ describe("layoutDefinition", () => {
 
     expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/chips.layout.documentlibrary.blp/background/background.png");
     expect(container.querySelector('[data-layout-background] img')).toBeTruthy();
-    expect(container.querySelector('[data-layout-top-region] [data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
   });
 
   it("does not update the DOM after cleanup while runtime promises are pending", async () => {
@@ -432,13 +444,10 @@ describe("layoutDefinition", () => {
 
     expect(container.querySelector('[data-scope="chips-box-layout-editor"]')).toBeTruthy();
     expect(container.textContent).toContain("当前箱子包含 2 个条目");
-    expect(container.querySelector('[data-scope="select"]')).toBeTruthy();
+    expect(container.querySelector(".ant-select")).toBeTruthy();
     expect(container.querySelector('input[type="number"]')).toBeNull();
 
-    await act(async () => {
-      clickButtonByText(container, "图片");
-      await Promise.resolve();
-    });
+    await clickSegmentedOption(container, "background", "图片");
 
     const input = container.querySelector('input[type="file"]') as HTMLInputElement | null;
     expect(input).toBeTruthy();
@@ -532,10 +541,7 @@ describe("layoutDefinition", () => {
       onChange,
     });
 
-    await act(async () => {
-      clickButtonByText(container, "图片");
-      await Promise.resolve();
-    });
+    await clickSegmentedOption(container, "background", "图片");
 
     expect(container.textContent).toContain("箱子资源桥不可用");
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({

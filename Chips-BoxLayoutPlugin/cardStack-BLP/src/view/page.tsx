@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import { hasFrameRegionContent, type FrameRegionConfig, type LayoutConfig } from "../schema/layout-config";
 import type {
   BoxEntryCoverView,
@@ -8,7 +8,7 @@ import type {
   BoxLayoutRuntime,
   ResolvedRuntimeResource,
 } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 const PAGE_LIMIT = 64;
 const PREFETCH_AHEAD = 2;
@@ -19,7 +19,6 @@ export interface LayoutViewProps {
   initialView: BoxEntryPage;
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }
 
 interface CoverState {
@@ -64,8 +63,8 @@ const CARD_STACK_LAYOUT_STYLE = `
   min-width: 0;
   min-height: 100%;
   box-sizing: border-box;
-  color: var(--chips-sys-color-on-surface);
-  background-color: var(--chips-sys-color-surface);
+  color: #1d1d1f;
+  background-color: #ffffff;
   overflow: visible;
 }
 
@@ -81,9 +80,9 @@ const CARD_STACK_LAYOUT_STYLE = `
 [data-scope="chips-box-cardstack-layout"] [data-layout-shell] {
   position: relative;
   display: grid;
-  gap: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  gap: 16px;
   justify-items: center;
-  padding: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  padding: 16px;
   min-width: 0;
   min-height: 100%;
   box-sizing: border-box;
@@ -93,16 +92,15 @@ const CARD_STACK_LAYOUT_STYLE = `
   width: min(100%, 960px);
   min-width: 0;
   min-block-size: clamp(132px, 24vw, 288px);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
+  border-radius: 12px;
   overflow: hidden;
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-frame-region],
-[data-scope="chips-box-cardstack-layout"] [data-frame-region] [data-part="root"],
-[data-scope="chips-box-cardstack-layout"] [data-frame-region] [data-part="frame-container"],
-[data-scope="chips-box-cardstack-layout"] [data-frame-region] [data-part="iframe"] {
+[data-scope="chips-box-cardstack-layout"] [data-frame-region] .chips-embedded-document-frame,
+[data-scope="chips-box-cardstack-layout"] [data-frame-region] iframe {
   width: 100%;
   height: 100%;
 }
@@ -117,17 +115,17 @@ const CARD_STACK_LAYOUT_STYLE = `
 [data-scope="chips-box-cardstack-layout"] [data-frame-region-status],
 [data-scope="chips-box-cardstack-layout"] [data-layout-empty],
 [data-scope="chips-box-cardstack-layout"] [data-layout-page-error] {
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background-color: #ffffff;
+  color: #6e6e73;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-stage] {
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
+  gap: 12px;
   width: 100%;
   min-width: 0;
   min-height: min(72vh, 720px);
@@ -135,8 +133,8 @@ const CARD_STACK_LAYOUT_STYLE = `
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-count] {
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  color: #6e6e73;
+  font-size: 12px;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-viewport] {
@@ -152,11 +150,10 @@ const CARD_STACK_LAYOUT_STYLE = `
 [data-scope="chips-box-cardstack-layout"] [data-stack-placeholder] {
   position: absolute;
   inset: 0;
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  background:
-    linear-gradient(135deg, var(--chips-sys-color-surface-container-high, var(--chips-sys-color-surface)) 0%, var(--chips-sys-color-surface-container-low, var(--chips-sys-color-surface)) 100%);
-  box-shadow: var(--chips-comp-elevation-1, 0 8px 24px rgb(15 23 42 / 10%));
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #f2f2f7;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 10%);
   opacity: calc(0.82 - (var(--stack-layer) * 0.12));
   transform:
     translate3d(calc(var(--stack-layer) * 12px), calc(var(--stack-layer) * 12px), 0)
@@ -168,7 +165,7 @@ const CARD_STACK_LAYOUT_STYLE = `
   z-index: 4;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
+  gap: 12px;
   width: 100%;
   min-height: var(--card-stack-min-height);
   padding: 0;
@@ -177,10 +174,10 @@ const CARD_STACK_LAYOUT_STYLE = `
   color: inherit;
   font: inherit;
   cursor: grab;
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  box-shadow: var(--chips-comp-elevation-3, 0 18px 42px rgb(15 23 42 / 16%));
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background-color: #ffffff;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 16%);
   transform: translateX(var(--drag-x, 0px)) rotate(var(--drag-rotation, 0deg));
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
@@ -188,7 +185,7 @@ const CARD_STACK_LAYOUT_STYLE = `
 [data-scope="chips-box-cardstack-layout"] [data-stack-current-card][data-dragging="true"] {
   cursor: grabbing;
   transition: none;
-  box-shadow: var(--chips-comp-elevation-4, 0 24px 56px rgb(15 23 42 / 20%));
+  box-shadow: 0 24px 56px rgb(15 23 42 / 20%);
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-current-card][data-motion="next"] {
@@ -202,89 +199,87 @@ const CARD_STACK_LAYOUT_STYLE = `
 [data-scope="chips-box-cardstack-layout"] [data-stack-cover] {
   position: relative;
   min-height: 0;
-  background-color: var(--chips-sys-color-surface-container-low, var(--chips-sys-color-surface));
+  background-color: #f2f2f7;
 }
 
-[data-scope="chips-box-cardstack-layout"] [data-stack-cover] [data-scope="embedded-document-frame"],
-[data-scope="chips-box-cardstack-layout"] [data-stack-cover] [data-part="root"],
-[data-scope="chips-box-cardstack-layout"] [data-stack-cover] [data-part="frame-container"],
-[data-scope="chips-box-cardstack-layout"] [data-stack-cover] [data-part="iframe"] {
+[data-scope="chips-box-cardstack-layout"] [data-stack-cover] .chips-embedded-document-frame,
+[data-scope="chips-box-cardstack-layout"] [data-stack-cover] iframe {
   width: 100%;
   height: 100%;
 }
 
-[data-scope="chips-box-cardstack-layout"] [data-stack-cover] [data-part="iframe"] {
+[data-scope="chips-box-cardstack-layout"] [data-stack-cover] iframe {
   pointer-events: none;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-cover-placeholder] {
   display: grid;
   place-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   width: 100%;
   min-height: 100%;
-  padding: var(--chips-base-space-5, 24px);
+  padding: 24px;
   text-align: center;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  color: #6e6e73;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-cover-placeholder-title] {
-  color: var(--chips-sys-color-on-surface);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  color: #1d1d1f;
+  font-weight: 700;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-card-body] {
   display: grid;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
-  padding: var(--chips-base-space-4, 16px);
+  gap: 8px;
+  padding: 16px;
   min-width: 0;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-title] {
   margin: 0;
-  color: var(--chips-sys-color-on-surface);
+  color: #1d1d1f;
   font-size: clamp(18px, 2.4vw, 24px);
   line-height: 1.25;
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  font-weight: 700;
   letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-summary] {
   margin: 0;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  line-height: var(--chips-comp-text-root-line-height, 1.5);
+  color: #6e6e73;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-entry-kind] {
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  color: #6e6e73;
+  font-size: 12px;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-controls] {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-button] {
-  min-block-size: var(--chips-layout-density-comfortable, 40px);
-  padding-inline: var(--chips-base-space-4, 16px);
-  padding-block: var(--chips-base-space-2, 8px);
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-button-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-button-root-surface-idle, var(--chips-sys-color-surface));
-  color: var(--chips-comp-button-label-color-idle, var(--chips-sys-color-on-surface));
+  min-block-size: 40px;
+  padding-inline: 16px;
+  padding-block: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background-color: #ffffff;
+  color: #1d1d1f;
   font: inherit;
   cursor: pointer;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-button]:disabled {
   cursor: default;
-  color: var(--chips-comp-button-label-color-disabled, var(--chips-sys-color-on-surface-muted));
-  background-color: var(--chips-comp-button-root-surface-disabled, var(--chips-sys-color-surface-container-low));
+  color: #6e6e73;
+  background-color: #f2f2f7;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-layout-empty],
@@ -292,36 +287,36 @@ const CARD_STACK_LAYOUT_STYLE = `
 [data-scope="chips-box-cardstack-layout"] [data-frame-region-status] {
   display: grid;
   place-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-height: 160px;
-  padding: var(--chips-base-space-4, 16px);
+  padding: 16px;
   text-align: center;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-layout-empty-illustration] {
   width: min(52vw, 220px);
   aspect-ratio: 4 / 3;
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   background:
-    linear-gradient(135deg, transparent 0 28%, var(--chips-sys-color-border-subtle) 29% 31%, transparent 32%),
-    var(--chips-sys-color-surface-container-low, var(--chips-sys-color-surface));
+    linear-gradient(135deg, transparent 0 28%, rgba(0, 0, 0, 0.08) 29% 31%, transparent 32%),
+    #f2f2f7;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-layout-empty-title] {
-  color: var(--chips-sys-color-on-surface);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  color: #1d1d1f;
+  font-weight: 700;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-current-card]:focus-visible,
 [data-scope="chips-box-cardstack-layout"] [data-stack-button]:focus-visible {
-  outline: var(--chips-layout-focus-outline-width, 2px) solid var(--chips-comp-button-focus-outline, currentColor);
-  outline-offset: var(--chips-layout-focus-outline-offset, 2px);
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 
 @media (max-width: 520px) {
   [data-scope="chips-box-cardstack-layout"] [data-layout-shell] {
-    padding-inline: var(--chips-base-space-3, 12px);
+    padding-inline: 12px;
   }
 
   [data-scope="chips-box-cardstack-layout"] [data-stack-stage] {
@@ -334,16 +329,16 @@ function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
 }
 
-function resolveEntrySummary(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntrySummary(entry: BoxEntrySnapshot): string {
   const summary = entry.snapshot.summary?.trim();
-  return summary && summary.length > 0 ? summary : getLayoutMessage(locale, "layout.summary_missing");
+  return summary && summary.length > 0 ? summary : formatMessage("layout.summary_missing");
 }
 
-function resolveEntryKindMessage(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntryKindMessage(entry: BoxEntrySnapshot): string {
   if (entry.snapshot.contentType === "chips/box") {
-    return getLayoutMessage(locale, "layout.entry_type_box");
+    return formatMessage("layout.entry_type_box");
   }
-  return getLayoutMessage(locale, "layout.entry_type_card");
+  return formatMessage("layout.entry_type_card");
 }
 
 function hashString(value: string): number {
@@ -357,17 +352,15 @@ function hashString(value: string): number {
 
 function sortEntries(
   entries: BoxEntrySnapshot[],
-  config: LayoutConfig,
-  locale?: string
+  config: LayoutConfig
 ): BoxEntrySnapshot[] {
   if (config.props.sortMode === "manual") {
     return entries;
   }
 
-  const compareLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
   if (config.props.sortMode === "name") {
     return [...entries].sort((left, right) => {
-      const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), compareLocale);
+      const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), "zh-CN");
       return compared !== 0 ? compared : left.entryId.localeCompare(right.entryId);
     });
   }
@@ -427,14 +420,12 @@ function collectNextEntries(
 function FrameRegionSurface({
   region,
   runtime,
-  locale,
   title,
   ratio,
   decorative = false,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   title: string;
   ratio: string;
   decorative?: boolean;
@@ -476,7 +467,7 @@ function FrameRegionSurface({
           title={title}
           srcDoc={region.html ?? ""}
           ratio={ratio}
-          disabled={decorative}
+          sandbox="allow-scripts"
         />
       </div>
     );
@@ -500,8 +491,8 @@ function FrameRegionSurface({
 
   const message =
     state.status === "loading"
-      ? getLayoutMessage(locale, "layout.asset_loading")
-      : getLayoutMessage(locale, "layout.asset_error");
+      ? formatMessage("layout.asset_loading")
+      : formatMessage("layout.asset_error");
 
   return (
     <div data-frame-region-status role={decorative ? undefined : "status"}>
@@ -513,12 +504,10 @@ function FrameRegionSurface({
 function CurrentCover({
   entry,
   runtime,
-  locale,
   onOpen,
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   onOpen(): void;
 }) {
   const [coverState, setCoverState] = useState<CoverState>(() => ({
@@ -565,6 +554,7 @@ function CurrentCover({
           title={coverState.view.title || title}
           src={coverState.view.coverUrl}
           ratio={ratio}
+          sandbox="allow-scripts"
           onActivate={onOpen}
         />
       </div>
@@ -573,17 +563,17 @@ function CurrentCover({
 
   const message =
     coverState.status === "loading"
-      ? getLayoutMessage(locale, "layout.loading")
+      ? formatMessage("layout.loading")
       : coverState.status === "error"
-        ? getLayoutMessage(locale, "layout.cover_error")
-        : getLayoutMessage(locale, "layout.cover_missing");
+        ? formatMessage("layout.cover_error")
+        : formatMessage("layout.cover_missing");
 
   return (
     <div data-stack-cover>
       <div data-stack-cover-placeholder data-state={coverState.status}>
         <strong data-stack-cover-placeholder-title>{title}</strong>
         <span>{message}</span>
-        <span data-stack-entry-kind>{resolveEntryKindMessage(entry, locale)}</span>
+        <span data-stack-entry-kind>{resolveEntryKindMessage(entry)}</span>
       </div>
     </div>
   );
@@ -596,7 +586,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 }
 
-export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutViewProps) {
+export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const isMountedRef = useRef(true);
   const wheelTimeRef = useRef(0);
@@ -631,8 +621,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
   }, [initialView]);
 
   const enabledEntries = useMemo(
-    () => sortEntries(items.filter((entry) => entry.enabled), config, locale),
-    [config, items, locale]
+    () => sortEntries(items.filter((entry) => entry.enabled), config),
+    [config, items]
   );
   const currentEntry = enabledEntries[currentIndex];
   const loop = config.props.reviewLoop === "loop";
@@ -865,8 +855,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <FrameRegionSurface
             region={config.props.background}
             runtime={runtime}
-            locale={locale}
-            title={getLayoutMessage(locale, "layout.background_title")}
+            title={formatMessage("layout.background_title")}
             ratio="16:9"
             decorative
           />
@@ -879,8 +868,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
             <FrameRegionSurface
               region={config.props.topRegion}
               runtime={runtime}
-              locale={locale}
-              title={getLayoutMessage(locale, "layout.top_region_title")}
+              title={formatMessage("layout.top_region_title")}
               ratio="16:5"
             />
           </div>
@@ -889,9 +877,10 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
         {currentEntry ? (
           <div data-stack-stage onWheel={handleWheel}>
             <span data-stack-count>
-              {getLayoutMessage(locale, "layout.position")
-                .replace("{current}", String(currentIndex + 1))
-                .replace("{total}", String(total || enabledEntries.length))}
+              {formatMessage("layout.position", {
+                current: currentIndex + 1,
+                total: total || enabledEntries.length,
+              })}
             </span>
             <div data-stack-viewport data-entry-count={enabledEntries.length}>
               {lowerEntries.map((entry, index) => (
@@ -924,13 +913,12 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 <CurrentCover
                   entry={currentEntry}
                   runtime={runtime}
-                  locale={locale}
                   onOpen={handleOpen}
                 />
                 <span data-stack-card-body>
                   <strong data-stack-title>{resolveEntryTitle(currentEntry)}</strong>
-                  <span data-stack-summary>{resolveEntrySummary(currentEntry, locale)}</span>
-                  <span data-stack-entry-kind>{resolveEntryKindMessage(currentEntry, locale)}</span>
+                  <span data-stack-summary>{resolveEntrySummary(currentEntry)}</span>
+                  <span data-stack-entry-kind>{resolveEntryKindMessage(currentEntry)}</span>
                 </span>
               </button>
             </div>
@@ -942,7 +930,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 disabled={!hasPrevious}
                 onClick={goPrevious}
               >
-                {getLayoutMessage(locale, "layout.previous")}
+                {formatMessage("layout.previous")}
               </button>
               <button
                 type="button"
@@ -952,15 +940,15 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 onClick={goNext}
               >
                 {isLoadingNext
-                  ? getLayoutMessage(locale, "layout.loading_more")
-                  : getLayoutMessage(locale, "layout.next")}
+                  ? formatMessage("layout.loading_more")
+                  : formatMessage("layout.next")}
               </button>
             </div>
             {pageError ? (
               <div data-layout-page-error role="status">
-                <span>{getLayoutMessage(locale, "layout.page_error")}</span>
+                <span>{formatMessage("layout.page_error")}</span>
                 <button type="button" data-stack-button onClick={() => void loadNextPage()}>
-                  {getLayoutMessage(locale, "layout.retry")}
+                  {formatMessage("layout.retry")}
                 </button>
               </div>
             ) : null}
@@ -968,8 +956,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
         ) : (
           <div data-layout-empty>
             <div data-layout-empty-illustration aria-hidden="true" />
-            <strong data-layout-empty-title>{getLayoutMessage(locale, "layout.empty")}</strong>
-            <span>{getLayoutMessage(locale, "layout.empty_hint")}</span>
+            <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
+            <span>{formatMessage("layout.empty_hint")}</span>
           </div>
         )}
       </div>

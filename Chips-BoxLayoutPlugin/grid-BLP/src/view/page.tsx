@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { hasFrameRegionContent, type LayoutConfig } from "../schema/layout-config";
 import { FrameRegionSurface } from "../shared/frame-region";
 import type { BoxEntryPage, BoxEntrySnapshot, BoxLayoutRuntime } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import { EntryTile } from "./entry-tile";
 import { GRID_LAYOUT_STYLE } from "./styles";
 
@@ -10,7 +10,6 @@ export interface LayoutViewProps {
   initialView: BoxEntryPage;
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }
 
 const PAGE_LIMIT = 48;
@@ -19,16 +18,15 @@ function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
 }
 
-function sortEntries(entries: BoxEntrySnapshot[], sortMode: LayoutConfig["props"]["sortMode"], locale?: string): BoxEntrySnapshot[] {
+function sortEntries(entries: BoxEntrySnapshot[], sortMode: LayoutConfig["props"]["sortMode"]): BoxEntrySnapshot[] {
   if (sortMode === "manual") {
     return entries;
   }
 
   const direction = sortMode === "name-desc" ? -1 : 1;
-  const compareLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
 
   return [...entries].sort((left, right) => {
-    const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), compareLocale);
+    const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), "zh-CN");
     if (compared !== 0) {
       return compared * direction;
     }
@@ -53,7 +51,6 @@ export function LayoutViewPage({
   initialView,
   config,
   runtime,
-  locale,
 }: LayoutViewProps) {
   const isMountedRef = useRef(true);
   const [items, setItems] = useState<BoxEntrySnapshot[]>(initialView.items);
@@ -78,8 +75,8 @@ export function LayoutViewPage({
   }, [initialView]);
 
   const sortedEntries = useMemo(
-    () => sortEntries(items.filter((entry) => entry.enabled), config.props.sortMode, locale),
-    [config.props.sortMode, items, locale],
+    () => sortEntries(items.filter((entry) => entry.enabled), config.props.sortMode),
+    [config.props.sortMode, items],
   );
   const prefetchEntries = useMemo(
     () => sortedEntries.slice(-PAGE_LIMIT),
@@ -130,14 +127,14 @@ export function LayoutViewPage({
   }, [isLoadingNext, nextCursor, runtime]);
 
   return (
-    <section data-scope="chips-box-grid-layout" aria-label={getLayoutMessage(locale, "layout.aria_label")}>
+    <section data-scope="chips-box-grid-layout" aria-label={formatMessage("layout.aria_label")}>
       <style>{GRID_LAYOUT_STYLE}</style>
 
       {showBackground ? (
         <div data-layout-background aria-hidden="true">
           <FrameRegionSurface
             region={config.props.background}
-            title={getLayoutMessage(locale, "editor.background_title")}
+            title={formatMessage("editor.background_title")}
             ratio="16:9"
             readBoxAsset={runtime.readBoxAsset}
           />
@@ -149,7 +146,7 @@ export function LayoutViewPage({
           <div data-layout-top-region>
             <FrameRegionSurface
               region={config.props.topRegion}
-              title={getLayoutMessage(locale, "editor.top_region_title")}
+              title={formatMessage("editor.top_region_title")}
               ratio="16:5"
               readBoxAsset={runtime.readBoxAsset}
             />
@@ -163,7 +160,6 @@ export function LayoutViewPage({
                 key={entry.entryId}
                 entry={entry}
                 runtime={runtime}
-                locale={locale}
               />
             ))
           ) : (
@@ -173,8 +169,8 @@ export function LayoutViewPage({
                 <span data-layout-empty-ghost data-size="md" />
                 <span data-layout-empty-ghost data-size="sm" />
               </div>
-              <strong data-layout-empty-title>{getLayoutMessage(locale, "layout.empty")}</strong>
-              <span data-layout-empty-text>{getLayoutMessage(locale, "layout.empty_hint")}</span>
+              <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
+              <span data-layout-empty-text>{formatMessage("layout.empty_hint")}</span>
             </div>
           )}
         </div>
@@ -183,9 +179,9 @@ export function LayoutViewPage({
           <div data-layout-footer data-total={total}>
             {pageError ? (
               <div data-layout-page-error role="status">
-                <span>{getLayoutMessage(locale, "layout.page_error")}</span>
+                <span>{formatMessage("layout.page_error")}</span>
                 <button type="button" data-layout-retry onClick={loadNextPage}>
-                  {getLayoutMessage(locale, "layout.retry")}
+                  {formatMessage("layout.retry")}
                 </button>
               </div>
             ) : (
@@ -196,8 +192,8 @@ export function LayoutViewPage({
                 disabled={isLoadingNext}
               >
                 {isLoadingNext
-                  ? getLayoutMessage(locale, "layout.loading_more")
-                  : getLayoutMessage(locale, "layout.load_more")}
+                  ? formatMessage("layout.loading_more")
+                  : formatMessage("layout.load_more")}
               </button>
             )}
           </div>

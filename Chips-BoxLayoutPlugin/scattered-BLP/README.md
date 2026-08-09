@@ -1,6 +1,6 @@
 # 散乱布局插件
 
-薯片生态箱子布局插件，用于把箱子条目展示为同一平面上的随机卡片堆。下层假卡片只使用主题 token 派生的纯色占位，不请求真实封面；当前顶层条目通过 Host `runtime.renderEntryCover(entryId)` 显示正式封面，并通过 `runtime.openEntry(entryId)` 打开。
+薯片生态箱子布局插件，用于把箱子条目展示为同一平面上的随机卡片堆。下层假卡片只使用固定苹果风格色值派生的纯色占位，不请求真实封面；当前顶层条目通过 Host `runtime.renderEntryCover(entryId)` 显示正式封面，并通过 `runtime.openEntry(entryId)` 打开。
 
 ## 工程定位
 
@@ -17,13 +17,19 @@
 - `src/view/`：查看态页面挂载与散乱平面交互
 - `src/editor/`：布局参数编辑、箱子自有资源导入和预览
 - `src/schema/`：默认配置、归一、校验和 `assetRefs` 同步
-- `src/shared/`：共享类型、多语言辅助函数和稳定随机散落算法
+- `src/shared/`：共享类型、帧区域辅助函数和稳定随机散落算法
+- `src/lib/`：本地中文文案映射（`messages.ts`）
 - `contracts/`：布局配置 JSON Schema
-- `i18n/`：中文与英文文案
 - `tests/`：schema、查看态和编辑态单元测试
 - `assets/icons/`：静态布局图标资源与来源说明
 
 生成工程不直接读取磁盘、网络或 `.box` 文件内容。Host 是唯一运行时承载，查看器和编辑器通过 Host/SDK 正式链路装载布局文档。
+
+## 技术栈
+
+- UI 组件：Ant Design（antd v6）+ `@ant-design/icons`
+- 共享前端层：`@chips/ui`（苹果风格主题、`EmbeddedDocumentFrame` 等）
+- 界面文案：简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）
 
 ## 查看态运行时
 
@@ -40,11 +46,11 @@
 
 当切换到已加载条目的末尾附近且 Host 返回了 `nextCursor` 时，布局通过 `runtime.listEntries({ cursor, limit })` 按需补充后续摘要。对当前和后续少量顶层候选条目，布局使用 `runtime.prefetchEntries({ targets: ["cover"] })` 做温和预取。
 
-背景和顶部内容区通过 `runtime.readBoxAsset(assetPath)` 读取箱子自有资源，图片和 HTML 都通过受控文档区域显示。`resourceUrl` 只用于当前会话渲染，不写入布局配置。
+背景和顶部内容区通过 `runtime.readBoxAsset(assetPath)` 读取箱子自有资源，图片和 HTML 都通过 `@chips/ui` 的 `EmbeddedDocumentFrame` 受控文档区域显示。`resourceUrl` 只用于当前会话渲染，不写入布局配置。
 
 ## 编辑器与资源桥
 
-编辑器通过组件库表单组织配置项，所有可见文案来自 `i18n/zh-CN.json` 与 `i18n/en-US.json`。
+编辑器通过 antd 控件组织配置项，所有可见文案来自 `src/lib/messages.ts`。
 
 支持的布局参数：
 

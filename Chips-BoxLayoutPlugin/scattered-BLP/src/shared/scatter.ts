@@ -45,16 +45,14 @@ export function orderScatteredEntries(
   entries: BoxEntrySnapshot[],
   sortMode: ScatteredSortMode,
   seed: string,
-  locale?: string,
 ): BoxEntrySnapshot[] {
   if (sortMode === "manual") {
     return entries;
   }
 
   if (sortMode === "name") {
-    const compareLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
     return [...entries].sort((left, right) => {
-      const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), compareLocale);
+      const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), "zh-CN");
       return compared === 0 ? left.entryId.localeCompare(right.entryId) : compared;
     });
   }

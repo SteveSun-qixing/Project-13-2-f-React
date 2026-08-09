@@ -16,9 +16,9 @@
 - `src/view/`：查看态页面挂载、目录树和右侧预览
 - `src/editor/`：目录树、显示参数、背景区、顶部区和箱子自有资源编辑
 - `src/schema/`：默认配置、归一、校验和 `assetRefs` 同步
-- `src/shared/`：共享类型与多语言辅助函数
+- `src/shared/`：共享类型
+- `src/lib/`：简体中文文案总表与 `formatMessage` 插值
 - `contracts/`：布局配置 JSON Schema
-- `i18n/`：中文与英文文案
 - `tests/`：schema、查看态和编辑态单元测试
 - `assets/icons/`：静态布局图标资源与来源说明
 
@@ -35,7 +35,7 @@
 - `renderView`
 - `renderEditor`
 
-`layoutDefinition.icon` 使用正式 `IconDescriptor`：`menu_book`。构建产物由 `chipsdev build` 生成到 `dist/index.mjs`，打包产物由 `chipsdev package` 生成 `.cpk`。
+`layoutDefinition.icon` 使用正式 `IconDescriptor`：`menu_book`。构建产物由 `chipsdev-r build` 生成到 `dist/index.mjs`，打包产物由 `chipsdev-r package` 生成 `.cpk`。
 
 ## 配置模型
 
@@ -80,7 +80,7 @@
 
 查看态从 Host 注入的 `initialView` 首屏摘要开始渲染。后续分页通过 `runtime.listEntries({ cursor, limit })` 拉取，不自行解析 `.box/structure.yaml`。
 
-条目封面显示优先调用 `runtime.renderEntryCover(entryId)`，并用 `@chips/component-library` 的 `EmbeddedDocumentFrame` 承载 Host 返回的正式文档入口。点击目录标题、右侧封面或打开按钮只调用 `runtime.openEntry(entryId)`，打开窗口和外部跳转由 Host 决定。
+条目封面显示优先调用 `runtime.renderEntryCover(entryId)`，并用 `@chips/ui` 的 `EmbeddedDocumentFrame` 承载 Host 返回的正式文档入口。点击目录标题、右侧封面或打开按钮只调用 `runtime.openEntry(entryId)`，打开窗口和外部跳转由 Host 决定。
 
 布局自有背景和顶部区域资源通过 `runtime.readBoxAsset(assetPath)` 读取。`resourceUrl` 只用于当前会话预览或渲染，不写入布局配置。
 
@@ -88,7 +88,7 @@
 
 ## 编辑器与资源桥
 
-编辑器通过组件库构建表单、按钮、复选框、分段控件和工具栏，所有可见文案来自 `i18n/zh-CN.json` 与 `i18n/en-US.json`。
+编辑器使用 antd 构建表单、按钮、复选框、分段控件和选择器，所有可见文案在 `src/lib/messages.ts` 中直写简体中文。
 
 布局配置编辑通过 `onChange(next)` 输出完整归一后的配置快照。编辑器不直接写 `.box/content.yaml`、`.box/structure.yaml`、`assets/` 或文件系统。
 

@@ -1,12 +1,13 @@
 import React from "react";
+import { Button, Input, Segmented } from "antd";
 import { FrameRegionSurface } from "../shared/frame-region";
 import { hasFrameRegionContent, isSafeBoxAssetPath, type FrameRegionConfig } from "../schema/layout-config";
 import type { ResolvedRuntimeResource } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 export interface FrameRegionEditorProps {
+  id: string;
   region: FrameRegionConfig;
-  locale?: string;
   title: string;
   description: string;
   previewRatio: string;
@@ -18,49 +19,13 @@ export interface FrameRegionEditorProps {
   onChange(next: FrameRegionConfig): void;
 }
 
-const shellStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "14px",
-  width: "100%",
-  minWidth: 0,
-};
+type FrameMode = FrameRegionConfig["mode"];
 
-const modeRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap",
-};
-
-const modeButtonStyle: React.CSSProperties = {
-  border: "1px solid rgba(148,163,184,0.28)",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.82)",
-  padding: "8px 14px",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const activeModeButtonStyle: React.CSSProperties = {
-  ...modeButtonStyle,
-  background: "#0f172a",
-  color: "#ffffff",
-  borderColor: "#0f172a",
-};
-
-const actionButtonStyle: React.CSSProperties = {
-  border: "1px solid rgba(148,163,184,0.28)",
-  borderRadius: "12px",
-  background: "#ffffff",
-  padding: "10px 14px",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const MODE_MESSAGE_KEY = {
+const MODE_MESSAGE_KEY: Record<FrameMode, string> = {
   none: "editor.frame_mode_none",
   image: "editor.frame_mode_image",
   html: "editor.frame_mode_html",
-} as const;
+};
 
 function sanitizeAssetFileName(name: string): string {
   const sanitized = name
@@ -92,8 +57,8 @@ async function safeDeleteAsset(
 }
 
 export function FrameRegionEditor({
+  id,
   region,
-  locale,
   title,
   description,
   previewRatio,
@@ -107,7 +72,7 @@ export function FrameRegionEditor({
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const hasContent = hasFrameRegionContent(region);
 
-  const applyMode = async (nextMode: FrameRegionConfig["mode"]) => {
+  const applyMode = async (nextMode: FrameMode) => {
     if (nextMode === region.mode) {
       return;
     }
@@ -186,93 +151,102 @@ export function FrameRegionEditor({
     });
   };
 
+  const modeOptions = React.useMemo(() => ([
+    {
+      value: "none",
+      label: formatMessage(MODE_MESSAGE_KEY.none),
+    },
+    {
+      value: "image",
+      label: formatMessage(MODE_MESSAGE_KEY.image),
+    },
+    {
+      value: "html",
+      label: formatMessage(MODE_MESSAGE_KEY.html),
+    },
+  ]), []);
+
   return (
-    <section style={shellStyle}>
-      <div style={{ display: "grid", gap: "6px" }}>
-        <strong style={{ fontSize: "15px", color: "#0f172a" }}>{title}</strong>
-        <span style={{ color: "#64748b", fontSize: "13px", lineHeight: 1.6 }}>{description}</span>
+    <section
+      className="chips-list-layout-editor__frame"
+      data-frame-region-editor={id}
+    >
+      <div className="chips-list-layout-editor__frame-head">
+        <strong className="chips-list-layout-editor__frame-title">{title}</strong>
+        <span className="chips-list-layout-editor__frame-desc">{description}</span>
       </div>
 
-      <div style={modeRowStyle}>
-        {(["none", "image", "html"] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            style={region.mode === mode ? activeModeButtonStyle : modeButtonStyle}
-            onClick={() => { void applyMode(mode); }}
-          >
-            {getLayoutMessage(locale, MODE_MESSAGE_KEY[mode])}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        value={region.mode}
+        aria-label={title}
+        options={modeOptions}
+        onChange={(value) => {
+          void applyMode(value as FrameMode);
+        }}
+      />
 
       {region.mode === "image" ? (
-        <div style={{ display: "grid", gap: "10px" }}>
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button type="button" style={actionButtonStyle} onClick={() => fileInputRef.current?.click()}>
-              {getLayoutMessage(locale, "editor.upload_image")}
-            </button>
-            <button type="button" style={actionButtonStyle} onClick={() => { void handleClear(); }}>
-              {getLayoutMessage(locale, "editor.clear_frame")}
-            </button>
+        <div className="chips-list-layout-editor__frame-actions">
+          <div className="chips-list-layout-editor__frame-action-row">
+            <Button
+              type="default"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {formatMessage("editor.upload_image")}
+            </Button>
+            <Button
+              type="default"
+              onClick={() => { void handleClear(); }}
+            >
+              {formatMessage("editor.clear_frame")}
+            </Button>
           </div>
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            style={{ display: "none" }}
+            hidden
             onChange={(event) => { void handleUpload(event); }}
           />
-          <span style={{ fontSize: "12px", color: "#64748b" }}>
-            {region.assetPath ?? getLayoutMessage(locale, "editor.frame_empty")}
+          <span className="chips-list-layout-editor__frame-asset">
+            {region.assetPath ?? formatMessage("editor.frame_empty")}
           </span>
         </div>
       ) : null}
 
       {region.mode === "html" ? (
-        <div style={{ display: "grid", gap: "10px" }}>
-          <textarea
-            rows={12}
-            value={region.html ?? ""}
-            placeholder={getLayoutMessage(locale, "editor.html_placeholder")}
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              minHeight: "220px",
-              maxWidth: "100%",
-              resize: "vertical",
-              borderRadius: "14px",
-              border: "1px solid rgba(148,163,184,0.24)",
-              background: "#ffffff",
-              padding: "14px 16px",
-              font: "13px/1.6 var(--chips-font-family-mono, ui-monospace)",
-              color: "#0f172a",
-            }}
-            onChange={(event) => {
-              onChange({
-                mode: "html",
-                html: event.currentTarget.value,
-              });
-            }}
-          />
-          <div>
-            <button type="button" style={actionButtonStyle} onClick={() => { void handleClear(); }}>
-              {getLayoutMessage(locale, "editor.clear_frame")}
-            </button>
+        <div className="chips-list-layout-editor__frame-actions">
+          <div className="chips-list-layout-editor__html-input">
+            <Input.TextArea
+              rows={12}
+              value={region.html ?? ""}
+              placeholder={formatMessage("editor.html_placeholder")}
+              onChange={(event) => {
+                onChange({
+                  mode: "html",
+                  html: event.target.value,
+                });
+              }}
+            />
+          </div>
+          <div className="chips-list-layout-editor__frame-action-row">
+            <Button
+              type="default"
+              onClick={() => { void handleClear(); }}
+            >
+              {formatMessage("editor.clear_frame")}
+            </Button>
           </div>
         </div>
       ) : null}
 
-      <div style={{ display: "grid", gap: "10px" }}>
-        <span style={{ fontSize: "12px", color: "#64748b" }}>{getLayoutMessage(locale, "editor.preview")}</span>
+      <div className="chips-list-layout-editor__frame-preview">
+        <span className="chips-list-layout-editor__frame-preview-label">
+          {formatMessage("editor.preview")}
+        </span>
         <div
-          style={{
-            borderRadius: "18px",
-            overflow: "hidden",
-            border: "1px solid rgba(148,163,184,0.24)",
-            background: "linear-gradient(180deg, rgba(248,250,252,0.9) 0%, rgba(241,245,249,0.92) 100%)",
-            minHeight: previewMinHeight ?? "180px",
-          }}
+          className="chips-list-layout-editor__frame-preview-box"
+          style={{ minHeight: previewMinHeight ?? "180px" }}
         >
           <FrameRegionSurface
             region={region}
@@ -282,17 +256,10 @@ export function FrameRegionEditor({
           />
           {!hasContent ? (
             <div
-              style={{
-                minHeight: previewMinHeight ?? "180px",
-                display: "grid",
-                placeItems: "center",
-                padding: "24px",
-                fontSize: "13px",
-                color: "#64748b",
-                textAlign: "center",
-              }}
+              className="chips-list-layout-editor__frame-preview-empty"
+              style={{ minHeight: previewMinHeight ?? "180px" }}
             >
-              {getLayoutMessage(locale, "editor.frame_empty")}
+              {formatMessage("editor.frame_empty")}
             </div>
           ) : null}
         </div>

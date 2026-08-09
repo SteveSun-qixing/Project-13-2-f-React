@@ -1,11 +1,10 @@
 import React from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
-import {
-  ChipsForm,
-  ChipsIcon,
-  ChipsSelect,
-} from "@chips/component-library";
+import { AppstoreOutlined } from "@ant-design/icons";
+import { ConfigProvider, Select } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { FrameRegionEditor } from "./frame-region-editor";
 import type { BoxEntrySnapshot, ResolvedRuntimeResource } from "../shared/types";
 import {
@@ -14,12 +13,11 @@ import {
   type LayoutConfig,
   type SortMode,
 } from "../schema/layout-config";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 export interface LayoutEditorPanelProps {
   entries: BoxEntrySnapshot[];
   config: LayoutConfig;
-  locale?: string;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
   importBoxAsset?: (input: { file: File; preferredPath?: string }) => Promise<{ assetPath: string }>;
   deleteBoxAsset?: (assetPath: string) => Promise<void>;
@@ -30,17 +28,6 @@ export type LayoutEditorRoot = HTMLElement & {
   __chipsDispose?: () => void;
 };
 
-type LayoutMessageKey = Parameters<typeof getLayoutMessage>[1];
-
-const StableSelect = React.forwardRef<HTMLDivElement, React.ComponentProps<typeof ChipsSelect>>((props, ref) => (
-  <ChipsSelect
-    {...props}
-    ref={ref}
-    iconContent={<ChipsIcon descriptor={{ name: "expand_more", decorative: true }} size={16} />}
-  />
-));
-StableSelect.displayName = "StableSelect";
-
 const EDITOR_STYLE_TEXT = `
 .chips-grid-layout-editor {
   box-sizing: border-box;
@@ -49,9 +36,9 @@ const EDITOR_STYLE_TEXT = `
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  color: var(--chips-sys-color-on-surface, #111111);
-  background: var(--chips-sys-color-surface, #ffffff);
-  font: var(--chips-comp-text-root-font, 14px/1.5 var(--chips-font-family-sans, -apple-system, "PingFang SC", sans-serif));
+  color: #1d1d1f;
+  background: #ffffff;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -64,15 +51,6 @@ const EDITOR_STYLE_TEXT = `
   width: 100%;
   min-width: 0;
   padding: 8px 12px 28px;
-}
-
-.chips-grid-layout-editor [data-scope="form"][data-part="root"] {
-  display: block;
-}
-
-.chips-grid-layout-editor [data-scope="form"][data-part="field"] {
-  display: block;
-  min-width: 0;
 }
 
 /* ---------- 面板头 ---------- */
@@ -91,8 +69,8 @@ const EDITOR_STYLE_TEXT = `
   display: grid;
   place-items: center;
   border-radius: 9px;
-  background: var(--chips-sys-color-primary-container, #eef2ff);
-  color: var(--chips-sys-color-primary, #2563eb);
+  background: rgba(10, 132, 255, 0.08);
+  color: #0a84ff;
 }
 
 .chips-grid-layout-editor__head-text {
@@ -104,14 +82,14 @@ const EDITOR_STYLE_TEXT = `
   font-size: 15px;
   font-weight: 700;
   line-height: 1.4;
-  color: var(--chips-sys-color-on-surface, #111111);
+  color: #1d1d1f;
 }
 
 .chips-grid-layout-editor__head-desc {
   margin: 2px 0 0;
   font-size: 12px;
   line-height: 1.6;
-  color: var(--chips-sys-color-on-surface-muted, #6b7280);
+  color: #6e6e73;
 }
 
 .chips-grid-layout-editor__head-count {
@@ -121,18 +99,18 @@ const EDITOR_STYLE_TEXT = `
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
-  color: var(--chips-sys-color-on-surface-muted, #6b7280);
-  background: var(--chips-sys-color-surface-container, #f3f4f6);
-  border: 1px solid var(--chips-sys-color-border-subtle, #e5e5ea);
+  color: #6e6e73;
+  background: #f2f2f7;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
 }
 
 /* ---------- 分组（iOS inset grouped 风格） ---------- */
 
 .chips-grid-layout-editor__group {
-  background: var(--chips-sys-color-surface, #ffffff);
-  border: 1px solid var(--chips-sys-color-border-subtle, #e5e5ea);
-  border-radius: var(--chips-comp-box-root-radius, 12px);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -159,8 +137,8 @@ const EDITOR_STYLE_TEXT = `
   top: 0;
   left: 14px;
   right: 0;
-  height: var(--chips-layout-divider-thickness, 1px);
-  background: var(--chips-sys-color-border-subtle, #e5e5ea);
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .chips-grid-layout-editor__row-label {
@@ -168,57 +146,41 @@ const EDITOR_STYLE_TEXT = `
   min-width: 0;
   font-size: 14px;
   font-weight: 400;
-  color: var(--chips-sys-color-on-surface, #111111);
+  color: #1d1d1f;
 }
 
 .chips-grid-layout-editor__group-footer {
   margin: 10px 6px 0;
   font-size: 11.5px;
   line-height: 1.6;
-  color: var(--chips-sys-color-on-surface-muted, #6b7280);
+  color: #6e6e73;
 }
 
 /* ---------- 排序行 Select ---------- */
 
-.chips-grid-layout-editor [data-scope="select"][data-part="root"] {
+.chips-grid-layout-editor .ant-select {
   min-width: 0;
   flex-shrink: 1;
 }
 
-.chips-grid-layout-editor [data-scope="select"][data-part="trigger"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  min-height: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--chips-sys-color-on-surface-muted, #6b7280);
-  font: inherit;
+.chips-grid-layout-editor .ant-select .ant-select-content {
+  padding-inline: 0;
   font-size: 14px;
-  cursor: pointer;
+  line-height: 1.5;
+  color: #6e6e73;
 }
 
-.chips-grid-layout-editor [data-scope="select"][data-part="trigger"]:hover,
-.chips-grid-layout-editor [data-scope="select"][data-part="trigger"][data-state="open"] {
-  color: var(--chips-sys-color-on-surface, #111111);
+.chips-grid-layout-editor .ant-select:hover .ant-select-content {
+  color: #1d1d1f;
 }
 
-.chips-grid-layout-editor [data-scope="select"][data-part="value"] {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chips-grid-layout-editor [data-scope="select"][data-part="icon"] {
-  display: inline-flex;
-  color: var(--chips-sys-color-on-surface-muted, #9ca3af);
+.chips-grid-layout-editor .ant-select .ant-select-suffix {
+  color: #8e8e93;
 }
 
 /* ---------- 行内分段控件 ---------- */
 
-.chips-grid-layout-editor [data-scope="segmented-control"][data-part="root"] {
+.chips-grid-layout-editor .ant-segmented {
   flex-shrink: 0;
 }
 
@@ -234,9 +196,9 @@ const EDITOR_STYLE_TEXT = `
   place-items: center;
   width: 100%;
   min-height: 96px;
-  border: 1.5px dashed var(--chips-sys-color-border, #c7c7cc);
-  border-radius: var(--chips-comp-box-root-radius, 10px);
-  color: var(--chips-sys-color-on-surface-muted, #6b7280);
+  border: 1.5px dashed rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  color: #6e6e73;
   font-size: 13px;
   text-align: center;
   cursor: pointer;
@@ -244,16 +206,16 @@ const EDITOR_STYLE_TEXT = `
 }
 
 .chips-grid-layout-editor__drop-zone:hover:not(.chips-grid-layout-editor__drop-zone--disabled) {
-  border-color: var(--chips-sys-color-primary, #2563eb);
-  background: var(--chips-sys-color-primary-container, #f5f7ff);
-  color: var(--chips-sys-color-primary, #2563eb);
+  border-color: #0a84ff;
+  background: rgba(10, 132, 255, 0.08);
+  color: #0a84ff;
 }
 
 .chips-grid-layout-editor__drop-zone--dragging {
-  border-color: var(--chips-sys-color-primary, #2563eb);
+  border-color: #0a84ff;
   border-style: solid;
-  background: var(--chips-sys-color-primary-container, #eef2ff);
-  color: var(--chips-sys-color-primary, #2563eb);
+  background: rgba(10, 132, 255, 0.08);
+  color: #0a84ff;
 }
 
 .chips-grid-layout-editor__drop-zone--disabled {
@@ -270,7 +232,7 @@ const EDITOR_STYLE_TEXT = `
 .chips-grid-layout-editor__drop-zone--filled {
   position: relative;
   border-style: solid;
-  border-color: var(--chips-sys-color-border-subtle, #e5e5ea);
+  border-color: rgba(0, 0, 0, 0.08);
   padding: 0;
   overflow: hidden;
   min-height: 0;
@@ -289,7 +251,7 @@ const EDITOR_STYLE_TEXT = `
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(17, 24, 39, 0.45);
+  background: rgba(0, 0, 0, 0.45);
   color: #ffffff;
   font-size: 13px;
   font-weight: 600;
@@ -303,7 +265,7 @@ const EDITOR_STYLE_TEXT = `
 
 .chips-grid-layout-editor__drop-zone-status {
   padding: 16px;
-  color: var(--chips-sys-color-on-surface-muted, #6b7280);
+  color: #6e6e73;
   font-size: 12px;
 }
 
@@ -314,17 +276,9 @@ const EDITOR_STYLE_TEXT = `
 }
 
 .chips-grid-layout-editor__remove-button {
-  border: none;
-  background: none;
-  color: var(--chips-sys-color-danger, #dc2626);
   font-size: 13px;
   min-height: 0;
   padding: 4px 6px;
-}
-
-.chips-grid-layout-editor__remove-button[data-state="hover"] {
-  background: none;
-  color: var(--chips-sys-color-danger, #dc2626);
 }
 
 /* ---------- 代码模式 ---------- */
@@ -334,54 +288,21 @@ const EDITOR_STYLE_TEXT = `
   padding: 10px 14px 12px;
 }
 
-.chips-grid-layout-editor__code-area [data-scope="text-area"][data-part="root"] {
-  min-width: 0;
-}
-
 /* ---------- 错误 ---------- */
 
 .chips-grid-layout-editor__error {
   margin: 8px 6px 0;
   font-size: 12px;
   line-height: 1.6;
-  color: var(--chips-sys-color-danger, #dc2626);
+  color: #ff3b30;
 }
 
-.chips-grid-layout-editor [data-scope="segmented-control"][data-part="root"]:focus-visible,
-.chips-grid-layout-editor [data-scope="select"][data-part="trigger"]:focus-visible,
 .chips-grid-layout-editor__drop-zone:focus-visible,
 .chips-grid-layout-editor__remove-button:focus-visible {
-  outline: var(--chips-layout-focus-outline-width, 2px) solid var(--chips-sys-color-focus-ring, #2563eb);
-  outline-offset: var(--chips-layout-focus-outline-offset, 2px);
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 `;
-
-function formatMessage(locale: string | undefined, key: LayoutMessageKey, params?: Record<string, string | number>): string {
-  const message = getLayoutMessage(locale, key);
-  if (!params) {
-    return message;
-  }
-  return Object.entries(params).reduce(
-    (current, [name, value]) => current.replace(`{${name}}`, String(value)),
-    message,
-  );
-}
-
-function createI18nAdapter(locale: string | undefined) {
-  return {
-    translate(
-      input: string | { key: string; params?: Record<string, string | number> },
-      params?: Record<string, string | number>,
-    ) {
-      const key = typeof input === "string" ? input : input.key;
-      return formatMessage(
-        locale,
-        key as LayoutMessageKey,
-        typeof input === "string" ? params : input.params,
-      );
-    },
-  };
-}
 
 function updateProps(
   config: LayoutConfig,
@@ -409,14 +330,12 @@ function updateFrameRegion(
 export function LayoutEditorPanel({
   entries,
   config: initialConfig,
-  locale,
   readBoxAsset,
   importBoxAsset,
   deleteBoxAsset,
   onChange,
 }: LayoutEditorPanelProps) {
   const [config, setConfig] = React.useState(() => normalizeLayoutConfig(initialConfig));
-  const i18n = React.useMemo(() => createI18nAdapter(locale), [locale]);
 
   React.useEffect(() => {
     setConfig(normalizeLayoutConfig(initialConfig));
@@ -432,12 +351,11 @@ export function LayoutEditorPanel({
     <section
       className="chips-grid-layout-editor"
       data-scope="chips-grid-layout-editor"
-      aria-label={getLayoutMessage(locale, "editor.aria_label")}
+      aria-label={formatMessage("editor.aria_label")}
     >
       <style>{EDITOR_STYLE_TEXT}</style>
-      <ChipsForm.Root
+      <form
         className="chips-grid-layout-editor__form"
-        aria-label={getLayoutMessage(locale, "editor.aria_label")}
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -445,66 +363,63 @@ export function LayoutEditorPanel({
       >
         <div className="chips-grid-layout-editor__head">
           <span className="chips-grid-layout-editor__head-icon">
-            <ChipsIcon descriptor={{ name: "grid_view", decorative: true }} size={18} />
+            <AppstoreOutlined style={{ fontSize: 18 }} />
           </span>
           <div className="chips-grid-layout-editor__head-text">
             <p className="chips-grid-layout-editor__head-title">
-              {getLayoutMessage(locale, "editor.head_title")}
+              {formatMessage("editor.head_title")}
             </p>
             <p className="chips-grid-layout-editor__head-desc">
-              {getLayoutMessage(locale, "editor.head_desc")}
+              {formatMessage("editor.head_desc")}
             </p>
           </div>
           <span className="chips-grid-layout-editor__head-count">
-            {formatMessage(locale, "editor.entry_count", { count: entries.length })}
+            {formatMessage("editor.entry_count", { count: entries.length })}
           </span>
         </div>
 
-        <ChipsForm.Field
-          className="chips-grid-layout-editor__group"
-          name="sortMode"
-        >
+        <div className="chips-grid-layout-editor__group">
           <div className="chips-grid-layout-editor__row">
             <span className="chips-grid-layout-editor__row-label">
-              {getLayoutMessage(locale, "editor.sort_mode")}
+              {formatMessage("editor.sort_mode")}
             </span>
-            <StableSelect
+            <Select
+              className="chips-grid-layout-editor__sort-select"
+              variant="borderless"
               value={config.props.sortMode}
-              placeholder={getLayoutMessage(locale, "editor.sort_mode")}
-              i18n={i18n}
+              aria-label={formatMessage("editor.sort_mode")}
               options={[
                 {
                   value: "manual",
-                  label: getLayoutMessage(locale, "editor.sort_manual"),
+                  label: formatMessage("editor.sort_manual"),
                 },
                 {
                   value: "name-asc",
-                  label: getLayoutMessage(locale, "editor.sort_name_asc"),
+                  label: formatMessage("editor.sort_name_asc"),
                 },
                 {
                   value: "name-desc",
-                  label: getLayoutMessage(locale, "editor.sort_name_desc"),
+                  label: formatMessage("editor.sort_name_desc"),
                 },
               ]}
-              onValueChange={(value: string) => {
+              onChange={(value: SortMode) => {
                 commit(updateProps(config, {
-                  sortMode: value as SortMode,
+                  sortMode: value,
                 }));
               }}
             />
           </div>
           {config.props.sortMode === "manual" ? (
             <p className="chips-grid-layout-editor__group-footer">
-              {getLayoutMessage(locale, "editor.sort_manual_hint")}
+              {formatMessage("editor.sort_manual_hint")}
             </p>
           ) : null}
-        </ChipsForm.Field>
+        </div>
 
         <FrameRegionEditor
           id="topRegion"
           region={config.props.topRegion}
-          locale={locale}
-          title={getLayoutMessage(locale, "editor.top_region_title")}
+          title={formatMessage("editor.top_region_title")}
           preferredAssetPrefix="assets/layouts/grid/top-region"
           readBoxAsset={readBoxAsset}
           importBoxAsset={importBoxAsset}
@@ -517,8 +432,7 @@ export function LayoutEditorPanel({
         <FrameRegionEditor
           id="background"
           region={config.props.background}
-          locale={locale}
-          title={getLayoutMessage(locale, "editor.background_title")}
+          title={formatMessage("editor.background_title")}
           preferredAssetPrefix="assets/layouts/grid/background"
           readBoxAsset={readBoxAsset}
           importBoxAsset={importBoxAsset}
@@ -527,7 +441,7 @@ export function LayoutEditorPanel({
             commit(updateFrameRegion(config, "background", nextRegion));
           }}
         />
-      </ChipsForm.Root>
+      </form>
     </section>
   );
 }
@@ -543,7 +457,9 @@ export function createLayoutEditorRoot(props: LayoutEditorPanelProps): LayoutEdi
 
   flushSync(() => {
     reactRoot.render(
-      <LayoutEditorPanel {...props} />,
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
+        <LayoutEditorPanel {...props} />
+      </ConfigProvider>,
     );
   });
 

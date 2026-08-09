@@ -135,6 +135,14 @@ function clickButtonByText(container: HTMLElement, text: string): void {
   button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
+function clickSegmentOption(container: HTMLElement, regionId: string, label: string): void {
+  const region = container.querySelector(`[data-frame-region-editor="${regionId}"]`);
+  const option = Array.from(region?.querySelectorAll(".ant-segmented-item") ?? [])
+    .find((candidate) => candidate.textContent === label);
+  expect(option).toBeTruthy();
+  option?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 async function uploadFile(input: HTMLInputElement, file: File): Promise<void> {
   Object.defineProperty(input, "files", {
     configurable: true,
@@ -369,8 +377,8 @@ describe("layoutDefinition", () => {
     });
 
     expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/chips.layout.scattered.blp/background.png");
-    expect(container.querySelector('[data-layout-background] [data-scope="embedded-document-frame"]')).toBeTruthy();
-    expect(container.querySelector('[data-layout-top-region] [data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-background] iframe[data-chips-embedded-frame]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-top-region] iframe[data-chips-embedded-frame]')).toBeTruthy();
   });
 
   it("does not update the DOM after cleanup while runtime promises are pending", async () => {
@@ -440,7 +448,7 @@ describe("layoutDefinition", () => {
     expect(container.textContent).toContain("散布程度");
 
     await act(async () => {
-      clickButtonByText(container, "图片");
+      clickSegmentOption(container, "background", "图片");
       await Promise.resolve();
     });
 
@@ -533,7 +541,7 @@ describe("layoutDefinition", () => {
     });
 
     await act(async () => {
-      clickButtonByText(container, "图片");
+      clickSegmentOption(container, "background", "图片");
       await Promise.resolve();
     });
 

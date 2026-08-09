@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import {
   hasFrameRegionContent,
   type FrameRegionConfig,
@@ -13,7 +13,7 @@ import type {
   BoxLayoutRuntime,
   ResolvedRuntimeResource,
 } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 const PAGE_LIMIT = 120;
 
@@ -21,7 +21,6 @@ export interface LayoutViewProps {
   initialView: BoxEntryPage;
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }
 
 interface CoverState {
@@ -51,8 +50,8 @@ const TIMELINE_LAYOUT_STYLE = `
   min-width: 0;
   min-height: 100%;
   box-sizing: border-box;
-  color: var(--chips-sys-color-on-surface);
-  background-color: var(--chips-sys-color-surface);
+  color: #1d1d1f;
+  background-color: #ffffff;
 }
 
 [data-scope="chips-box-timeline-layout"] * {
@@ -71,25 +70,24 @@ const TIMELINE_LAYOUT_STYLE = `
 [data-scope="chips-box-timeline-layout"] [data-layout-shell] {
   position: relative;
   display: grid;
-  gap: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  gap: 16px;
   min-height: 100%;
   min-width: 0;
-  padding: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  padding: 16px;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-layout-top-region] {
   min-width: 0;
   min-block-size: clamp(132px, 24vw, 288px);
   overflow: hidden;
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background-color: #ffffff;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-frame-region],
-[data-scope="chips-box-timeline-layout"] [data-frame-region] [data-part="root"],
-[data-scope="chips-box-timeline-layout"] [data-frame-region] [data-part="frame-container"],
-[data-scope="chips-box-timeline-layout"] [data-frame-region] [data-part="iframe"] {
+[data-scope="chips-box-timeline-layout"] [data-frame-region] .chips-embedded-document-frame,
+[data-scope="chips-box-timeline-layout"] [data-frame-region] iframe {
   width: 100%;
   height: 100%;
 }
@@ -105,10 +103,10 @@ const TIMELINE_LAYOUT_STYLE = `
 [data-scope="chips-box-timeline-layout"] [data-layout-empty],
 [data-scope="chips-box-timeline-layout"] [data-layout-page-error],
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover-placeholder] {
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background-color: #ffffff;
+  color: #6e6e73;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-root] {
@@ -117,29 +115,29 @@ const TIMELINE_LAYOUT_STYLE = `
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-root][data-orientation="vertical"] {
   display: grid;
-  gap: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  gap: 16px;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-root][data-orientation="horizontal"] {
   display: flex;
-  gap: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  gap: 16px;
   min-width: 0;
   overflow-x: auto;
   scroll-snap-type: x proximity;
-  padding-block-end: var(--chips-base-space-2);
+  padding-block-end: 8px;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-point] {
   position: relative;
   display: grid;
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
+  gap: 12px;
   min-width: 0;
   isolation: isolate;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-orientation="vertical"] [data-timeline-point] {
   grid-template-columns: minmax(96px, 148px) minmax(0, 1fr);
-  padding-block-end: var(--chips-base-space-3);
+  padding-block-end: 12px;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-orientation="horizontal"] [data-timeline-point] {
@@ -151,7 +149,7 @@ const TIMELINE_LAYOUT_STYLE = `
 [data-scope="chips-box-timeline-layout"] [data-timeline-marker] {
   display: grid;
   align-content: start;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
 }
 
@@ -159,8 +157,8 @@ const TIMELINE_LAYOUT_STYLE = `
   inline-size: 16px;
   block-size: 16px;
   border-radius: 999px;
-  background: var(--chips-sys-color-primary, currentColor);
-  box-shadow: 0 0 0 4px var(--chips-sys-color-primary-container, transparent);
+  background: #0a84ff;
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.08);
 }
 
 [data-scope="chips-box-timeline-layout"] [data-orientation="vertical"] [data-timeline-point]::before {
@@ -170,7 +168,7 @@ const TIMELINE_LAYOUT_STYLE = `
   top: 20px;
   bottom: -12px;
   width: 2px;
-  background: var(--chips-sys-color-border-subtle);
+  background: rgba(0, 0, 0, 0.08);
   z-index: -1;
 }
 
@@ -178,19 +176,19 @@ const TIMELINE_LAYOUT_STYLE = `
   content: "";
   position: absolute;
   left: 16px;
-  right: calc(-1 * var(--chips-layout-gap-lg, var(--chips-base-space-4)));
+  right: -16px;
   top: 7px;
   height: 2px;
-  background: var(--chips-sys-color-border-subtle);
+  background: rgba(0, 0, 0, 0.08);
   z-index: -1;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-title] {
   margin: 0;
-  color: var(--chips-sys-color-on-surface);
-  font-size: var(--chips-comp-title-sm-font-size, 16px);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
-  line-height: var(--chips-comp-text-root-line-height, 1.5);
+  color: #1d1d1f;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-date],
@@ -198,8 +196,8 @@ const TIMELINE_LAYOUT_STYLE = `
 [data-scope="chips-box-timeline-layout"] [data-timeline-note],
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-kind],
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-summary] {
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  color: #6e6e73;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -221,27 +219,27 @@ const TIMELINE_LAYOUT_STYLE = `
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-point-button] {
   display: grid;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   padding: 0;
   text-align: start;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-list] {
   display: grid;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry] {
   display: grid;
   grid-template-columns: var(--timeline-cover-size, 104px) minmax(0, 1fr);
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
   align-items: start;
-  padding: var(--timeline-entry-padding, var(--chips-base-space-3));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
+  padding: var(--timeline-entry-padding, 12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background-color: #ffffff;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry][data-show-cover="false"] {
@@ -250,30 +248,29 @@ const TIMELINE_LAYOUT_STYLE = `
 
 [data-scope="chips-box-timeline-layout"] [data-density="compact"] {
   --timeline-cover-size: 72px;
-  --timeline-entry-padding: var(--chips-base-space-2);
+  --timeline-entry-padding: 8px;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-density="spacious"] {
   --timeline-cover-size: 132px;
-  --timeline-entry-padding: var(--chips-base-space-4);
+  --timeline-entry-padding: 16px;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover] {
   width: 100%;
   overflow: hidden;
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  background-color: var(--chips-sys-color-surface);
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background-color: #ffffff;
 }
 
-[data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover] [data-scope="embedded-document-frame"],
-[data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover] [data-part="frame-container"],
-[data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover] [data-part="iframe"] {
+[data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover] .chips-embedded-document-frame,
+[data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover] iframe {
   width: 100%;
   height: 100%;
 }
 
-[data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover] [data-part="iframe"] {
+[data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover] iframe {
   border: none;
   pointer-events: none;
 }
@@ -283,20 +280,20 @@ const TIMELINE_LAYOUT_STYLE = `
   place-items: center;
   width: 100%;
   min-height: 96px;
-  padding: var(--chips-base-space-2);
+  padding: 8px;
   text-align: center;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-body] {
   display: grid;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-title] {
   padding: 0;
-  color: var(--chips-sys-color-on-surface);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  color: #1d1d1f;
+  font-weight: 700;
   text-align: start;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -311,23 +308,23 @@ const TIMELINE_LAYOUT_STYLE = `
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-layout-load-more],
 [data-scope="chips-box-timeline-layout"] [data-layout-retry] {
-  min-block-size: var(--chips-layout-density-comfortable, 40px);
-  padding-inline: var(--chips-base-space-4);
-  padding-block: var(--chips-base-space-2);
-  border-radius: var(--chips-comp-button-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-button-root-surface-idle);
-  color: var(--chips-comp-button-label-color-idle, var(--chips-sys-color-on-surface));
+  min-block-size: 40px;
+  padding-inline: 16px;
+  padding-block: 8px;
+  border-radius: 10px;
+  background-color: #ffffff;
+  color: #1d1d1f;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-layout-load-more]:disabled {
   cursor: default;
-  color: var(--chips-comp-button-label-color-disabled, var(--chips-sys-color-on-surface-muted));
-  background-color: var(--chips-comp-button-root-surface-disabled);
+  color: #6e6e73;
+  background-color: #f2f2f7;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-layout-empty],
@@ -335,15 +332,15 @@ const TIMELINE_LAYOUT_STYLE = `
 [data-scope="chips-box-timeline-layout"] [data-frame-region-status] {
   display: grid;
   place-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-height: 160px;
-  padding: var(--chips-base-space-4);
+  padding: 16px;
   text-align: center;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-layout-empty-title] {
-  color: var(--chips-sys-color-on-surface);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  color: #1d1d1f;
+  font-weight: 700;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-point-button]:focus-visible,
@@ -351,8 +348,8 @@ const TIMELINE_LAYOUT_STYLE = `
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover-placeholder]:focus-visible,
 [data-scope="chips-box-timeline-layout"] [data-layout-load-more]:focus-visible,
 [data-scope="chips-box-timeline-layout"] [data-layout-retry]:focus-visible {
-  outline: var(--chips-layout-focus-outline-width, 2px) solid var(--chips-comp-button-focus-outline, currentColor);
-  outline-offset: var(--chips-layout-focus-outline-offset, 2px);
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 
 @media (max-width: 720px) {
@@ -374,11 +371,11 @@ function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
 }
 
-function resolveEntryKindMessage(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntryKindMessage(entry: BoxEntrySnapshot): string {
   if (entry.snapshot.contentType === "chips/box") {
-    return getLayoutMessage(locale, "layout.entry_type_box");
+    return formatMessage("layout.entry_type_box");
   }
-  return getLayoutMessage(locale, "layout.entry_type_card");
+  return formatMessage("layout.entry_type_card");
 }
 
 function toCssAspectRatio(value: string | number | undefined, fallback: string): string {
@@ -401,7 +398,7 @@ function toRatioToken(value: string | number | undefined, fallback: string): str
   return fallback;
 }
 
-function formatPointDate(date: string | undefined, locale?: string): string | undefined {
+function formatPointDate(date: string | undefined): string | undefined {
   if (!date) {
     return undefined;
   }
@@ -409,7 +406,7 @@ function formatPointDate(date: string | undefined, locale?: string): string | un
   if (Number.isNaN(parsed.getTime())) {
     return date;
   }
-  return new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-US", {
+  return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -505,14 +502,12 @@ function buildTimelineGroups(entries: BoxEntrySnapshot[], config: LayoutConfig):
 function FrameRegionSurface({
   region,
   runtime,
-  locale,
   title,
   ratio,
   decorative = false,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   title: string;
   ratio: string;
   decorative?: boolean;
@@ -551,7 +546,7 @@ function FrameRegionSurface({
           title={title}
           srcDoc={region.html ?? ""}
           ratio={ratio}
-          disabled={decorative}
+          sandbox="allow-scripts"
         />
       </div>
     );
@@ -572,8 +567,8 @@ function FrameRegionSurface({
   return (
     <div data-frame-region-status role={decorative ? undefined : "status"}>
       {state.status === "loading"
-        ? getLayoutMessage(locale, "layout.asset_loading")
-        : getLayoutMessage(locale, "layout.asset_error")}
+        ? formatMessage("layout.asset_loading")
+        : formatMessage("layout.asset_error")}
     </div>
   );
 }
@@ -581,11 +576,9 @@ function FrameRegionSurface({
 function EntryCover({
   entry,
   runtime,
-  locale,
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const [coverState, setCoverState] = useState<CoverState>(() => ({
     status: entry.snapshot.cover?.mode === "none" ? "idle" : "loading",
@@ -625,12 +618,27 @@ function EntryCover({
   const title = resolveEntryTitle(entry);
 
   if (coverState.status === "ready" && coverState.view?.coverUrl) {
+    const coverOpenLabel = `${formatMessage("layout.open_entry")}: ${title}`;
     return (
-      <div data-timeline-entry-cover style={{ aspectRatio }}>
+      <div
+        data-timeline-entry-cover
+        role="button"
+        tabIndex={0}
+        aria-label={coverOpenLabel}
+        onClick={openEntry}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openEntry();
+          }
+        }}
+        style={{ aspectRatio }}
+      >
         <EmbeddedDocumentFrame
           title={coverState.view.title || title}
           src={coverState.view.coverUrl}
           ratio={ratioToken}
+          sandbox="allow-scripts"
           onActivate={openEntry}
         />
       </div>
@@ -647,10 +655,10 @@ function EntryCover({
       onClick={openEntry}
     >
       {coverState.status === "loading"
-        ? getLayoutMessage(locale, "layout.loading")
+        ? formatMessage("layout.loading")
         : coverState.status === "error"
-          ? getLayoutMessage(locale, "layout.cover_error")
-          : getLayoutMessage(locale, "layout.cover_missing")}
+          ? formatMessage("layout.cover_error")
+          : formatMessage("layout.cover_missing")}
     </button>
   );
 }
@@ -658,12 +666,10 @@ function EntryCover({
 function TimelineEntry({
   entry,
   runtime,
-  locale,
   showCover,
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   showCover: boolean;
 }) {
   const title = resolveEntryTitle(entry);
@@ -673,12 +679,12 @@ function TimelineEntry({
 
   return (
     <article data-timeline-entry data-entry-id={entry.entryId} data-show-cover={showCover ? "true" : "false"}>
-      {showCover ? <EntryCover entry={entry} runtime={runtime} locale={locale} /> : null}
+      {showCover ? <EntryCover entry={entry} runtime={runtime} /> : null}
       <div data-timeline-entry-body>
         <button type="button" data-timeline-entry-title onClick={openEntry} title={title}>
           {title}
         </button>
-        <span data-timeline-entry-kind>{resolveEntryKindMessage(entry, locale)}</span>
+        <span data-timeline-entry-kind>{resolveEntryKindMessage(entry)}</span>
         {entry.snapshot.summary ? <p data-timeline-entry-summary>{entry.snapshot.summary}</p> : null}
       </div>
     </article>
@@ -688,21 +694,19 @@ function TimelineEntry({
 function TimelinePoint({
   group,
   runtime,
-  locale,
   config,
   expanded,
   onToggle,
 }: {
   group: TimelineGroup;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   config: LayoutConfig;
   expanded: boolean;
   onToggle(groupId: string): void;
 }) {
-  const label = group.isUnscheduled ? getLayoutMessage(locale, "layout.unscheduled") : group.label;
-  const dateLabel = group.isUnscheduled ? undefined : formatPointDate(group.date, locale);
-  const entryCount = getLayoutMessage(locale, "layout.point_count").replace("{count}", String(group.entries.length));
+  const label = group.isUnscheduled ? formatMessage("layout.unscheduled") : group.label;
+  const dateLabel = group.isUnscheduled ? undefined : formatPointDate(group.date);
+  const entryCount = formatMessage("layout.point_count", { count: group.entries.length });
   const visibleEntries = expanded || group.entries.length <= 1 ? group.entries : group.entries.slice(0, 2);
 
   const activatePoint = () => {
@@ -739,16 +743,14 @@ function TimelinePoint({
             key={entry.entryId}
             entry={entry}
             runtime={runtime}
-            locale={locale}
             showCover={config.props.showCovers}
           />
         ))}
         {!expanded && group.entries.length > visibleEntries.length ? (
           <button type="button" data-timeline-entry-title onClick={() => onToggle(group.id)}>
-            {getLayoutMessage(locale, "layout.expand_entries").replace(
-              "{count}",
-              String(group.entries.length - visibleEntries.length)
-            )}
+            {formatMessage("layout.expand_entries", {
+              count: group.entries.length - visibleEntries.length,
+            })}
           </button>
         ) : null}
       </div>
@@ -756,7 +758,7 @@ function TimelinePoint({
   );
 }
 
-export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutViewProps) {
+export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const isMountedRef = useRef(true);
   const [items, setItems] = useState<BoxEntrySnapshot[]>(initialView.items);
   const [nextCursor, setNextCursor] = useState<string | undefined>(initialView.nextCursor);
@@ -864,8 +866,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <FrameRegionSurface
             region={config.props.background}
             runtime={runtime}
-            locale={locale}
-            title={getLayoutMessage(locale, "layout.background_title")}
+            title={formatMessage("layout.background_title")}
             ratio="16:9"
             decorative
           />
@@ -878,8 +879,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
             <FrameRegionSurface
               region={config.props.topRegion}
               runtime={runtime}
-              locale={locale}
-              title={getLayoutMessage(locale, "layout.top_region_title")}
+              title={formatMessage("layout.top_region_title")}
               ratio="16:5"
             />
           </div>
@@ -887,8 +887,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
 
         {enabledEntries.length === 0 ? (
           <div data-layout-empty>
-            <strong data-layout-empty-title>{getLayoutMessage(locale, "layout.empty")}</strong>
-            <span>{getLayoutMessage(locale, "layout.empty_hint")}</span>
+            <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
+            <span>{formatMessage("layout.empty_hint")}</span>
           </div>
         ) : (
           <div
@@ -905,7 +905,6 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 key={group.id}
                 group={group}
                 runtime={runtime}
-                locale={locale}
                 config={config}
                 expanded={expandedGroupIds.has(group.id)}
                 onToggle={toggleGroup}
@@ -916,9 +915,9 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
 
         {pageError ? (
           <div data-layout-page-error role="status">
-            <span>{getLayoutMessage(locale, "layout.page_error")}</span>
+            <span>{formatMessage("layout.page_error")}</span>
             <button type="button" data-layout-retry onClick={() => { void loadNextPage(); }}>
-              {getLayoutMessage(locale, "layout.retry")}
+              {formatMessage("layout.retry")}
             </button>
           </div>
         ) : null}
@@ -927,8 +926,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <div data-layout-footer>
             <button type="button" data-layout-load-more onClick={() => { void loadNextPage(); }} disabled={isLoadingNext}>
               {isLoadingNext
-                ? getLayoutMessage(locale, "layout.loading_more")
-                : `${getLayoutMessage(locale, "layout.load_more")} (${items.length}/${total})`}
+                ? formatMessage("layout.loading_more")
+                : `${formatMessage("layout.load_more")} (${items.length}/${total})`}
             </button>
           </div>
         ) : null}

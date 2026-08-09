@@ -90,11 +90,17 @@
 - `src/view/`：查看态地图页面挂载与运行时
 - `src/editor/`：地图底图、边界、默认视图和点位编辑
 - `src/schema/`：默认配置、归一、校验和 `assetRefs` 同步
-- `src/shared/`：共享类型与多语言辅助函数
+- `src/shared/`：共享类型与编辑面板布局组件
+- `src/lib/`：本地中文文案映射（`messages.ts`）
 - `contracts/`：布局配置 JSON Schema
-- `i18n/`：中文与英文文案
 - `tests/`：schema、查看态和编辑态单元测试
 - `assets/icons/`：静态布局图标资源与来源说明
+
+## 技术栈
+
+- UI 组件：Ant Design（antd v6）+ `@ant-design/icons`
+- 共享前端层：`@chips/ui`（苹果风格主题、`EmbeddedDocumentFrame` 等）
+- 界面文案：简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）
 
 ## 常用命令
 

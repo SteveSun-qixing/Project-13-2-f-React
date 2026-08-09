@@ -1,4 +1,4 @@
-{
+const MESSAGES: Record<string, string> = {
   "layout.empty": "暂无条目",
   "layout.empty_hint": "当前箱子还没有可显示的条目",
   "layout.loading": "加载中...",
@@ -15,6 +15,7 @@
   "layout.asset_loading": "资源加载中...",
   "layout.asset_error": "资源加载失败",
   "layout.unscheduled": "未安排条目",
+  "layout.open_entry": "打开条目",
   "layout.point_count": "{count} 个条目",
   "layout.expand_entries": "展开其余 {count} 个条目",
   "editor.aria_label": "时间线布局编辑器",
@@ -79,5 +80,12 @@
   "editor.html_placeholder": "<section>在这里输入顶部区域或背景 HTML</section>",
   "editor.html_hint": "HTML 内容由布局配置保存，查看态通过受控文档区域显示",
   "editor.preview": "预览",
-  "editor.frame_empty": "未配置内容"
+  "editor.frame_empty": "未配置内容",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
 }

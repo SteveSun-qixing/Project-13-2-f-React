@@ -137,9 +137,8 @@ describe("layout-config", () => {
     expect(result.errors["assetRefs[0]"]).toBeTruthy();
   });
 
-  it("layoutDefinition validation rejects unsafe raw assetRefs", async () => {
-    const { layoutDefinition } = await import("../../src/index");
-    const result = layoutDefinition.validateConfig({
+  it("validateLayoutConfigInput rejects unsafe raw assetRefs", () => {
+    const result = validateLayoutConfigInput({
       schemaVersion: "1.0.0",
       props: {
         sortMode: "manual",

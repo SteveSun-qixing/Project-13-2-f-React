@@ -3,7 +3,7 @@
 时间线布局插件用于把箱子条目绑定到可编辑的时间点，并以横向或竖向时间轴浏览。工程已通过生态布局插件脚手架初始化：
 
 ```bash
-chipsdev create layout <targetDir>
+chipsdev-r create layout <targetDir>
 ```
 
 ## 工程定位
@@ -20,11 +20,17 @@ chipsdev create layout <targetDir>
 - `src/view/`：查看态页面挂载与运行时
 - `src/editor/`：布局参数编辑、箱子自有资源导入和预览
 - `src/schema/`：默认配置、归一、校验和 `assetRefs` 同步
-- `src/shared/`：共享类型与多语言辅助函数
+- `src/shared/`：共享类型与视图辅助函数
+- `src/lib/`：本地中文文案映射（`messages.ts`）
 - `contracts/`：布局配置 JSON Schema
-- `i18n/`：中文与英文文案
 - `tests/`：schema、查看态和编辑态单元测试
 - `assets/icons/`：静态布局图标资源与来源说明
+
+## 技术栈
+
+- UI 组件：Ant Design（antd v6）+ `@ant-design/icons`
+- 共享前端层：`@chips/ui`（苹果风格主题、`EmbeddedDocumentFrame` 等）
+- 界面文案：简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）
 
 生成工程不直接读取磁盘、网络或 `.box` 文件内容。Host 是唯一运行时承载，查看器和编辑器通过 Host/SDK 正式链路装载布局文档。
 
@@ -39,7 +45,7 @@ chipsdev create layout <targetDir>
 - `renderView`
 - `renderEditor`
 
-`layoutDefinition.icon` 使用正式 `IconDescriptor`。构建产物由 `chipsdev build` 生成到 `dist/index.mjs`，打包产物由 `chipsdev package` 生成 `.cpk`。
+`layoutDefinition.icon` 使用正式 `IconDescriptor`。构建产物由 `chipsdev-r build` 生成到 `dist/index.mjs`，打包产物由 `chipsdev-r package` 生成 `.cpk`。
 
 ## 布局能力
 
@@ -58,15 +64,15 @@ chipsdev create layout <targetDir>
 
 查看态从 Host 注入的 `initialView` 首屏摘要开始渲染。后续分页通过 `runtime.listEntries({ cursor, limit })` 拉取，不自行解析 `.box/structure.yaml`。
 
-条目封面显示优先调用 `runtime.renderEntryCover(entryId)`，并用 `@chips/component-library` 的 `EmbeddedDocumentFrame` 承载 Host 返回的正式文档入口。点击封面或标题只调用 `runtime.openEntry(entryId)`，打开窗口和外部跳转由 Host 决定。
+条目封面显示优先调用 `runtime.renderEntryCover(entryId)`，并用 `@chips/ui` 的 `EmbeddedDocumentFrame` 承载 Host 返回的正式文档入口。点击封面或标题只调用 `runtime.openEntry(entryId)`，打开窗口和外部跳转由 Host 决定。
 
 布局自有背景和顶部区域资源通过 `runtime.readBoxAsset(assetPath)` 读取。`resourceUrl` 只用于当前会话预览或渲染，不写入布局配置。
 
-查看态还会对即将使用的条目调用 `runtime.prefetchEntries({ entryIds, targets: ["cover"] })`，并在分页、封面和箱子资源失败时显示本地化错误状态。
+查看态还会对即将使用的条目调用 `runtime.prefetchEntries({ entryIds, targets: ["cover"] })`，并在分页、封面和箱子资源失败时显示中文错误状态。
 
 ## 编辑器与资源桥
 
-编辑器通过组件库构建表单和工具栏，所有可见文案来自 `i18n/zh-CN.json` 与 `i18n/en-US.json`。
+编辑器基于 Ant Design 构建表单与操作控件，所有可见文案来自 `src/lib/messages.ts` 中文文案映射（`formatMessage(key, params)` 统一插值）。
 
 布局配置编辑通过 `onChange(next)` 输出完整归一后的配置快照。编辑器可新增、删除、重命名时间点，维护日期、说明，并把未安排条目绑定到指定时间点。编辑器不直接写 `.box/content.yaml`、`.box/structure.yaml`、`assets/` 或文件系统。
 

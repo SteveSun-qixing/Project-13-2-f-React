@@ -1,26 +1,19 @@
 import React from "react";
-import {
-  ChipsButton,
-  ChipsForm,
-  ChipsIcon,
-  ChipsSegmentedControl,
-  ChipsTextArea,
-} from "@chips/component-library";
+import { Button, Input, Segmented } from "antd";
+import { PictureOutlined } from "@ant-design/icons";
 import {
   hasFrameRegionContent,
   isSafeBoxAssetPath,
   type FrameRegionConfig,
 } from "../schema/layout-config";
 import type { ResolvedRuntimeResource } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
-type LayoutMessageKey = Parameters<typeof getLayoutMessage>[1];
 type FrameMode = FrameRegionConfig["mode"];
 
 export interface FrameRegionEditorProps {
   id: string;
   region: FrameRegionConfig;
-  locale?: string;
   title: string;
   preferredAssetPrefix: string;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
@@ -29,31 +22,11 @@ export interface FrameRegionEditorProps {
   onChange(next: FrameRegionConfig): void;
 }
 
-const MODE_MESSAGE_KEY: Record<FrameMode, LayoutMessageKey> = {
+const MODE_MESSAGE_KEY: Record<FrameMode, string> = {
   none: "editor.frame_mode_none",
   image: "editor.frame_mode_image",
   html: "editor.frame_mode_html",
 };
-
-function createI18nAdapter(locale: string | undefined) {
-  return {
-    translate(
-      input: string | { key: string; params?: Record<string, string | number> },
-      params?: Record<string, string | number>,
-    ) {
-      const key = typeof input === "string" ? input : input.key;
-      const message = getLayoutMessage(locale, key as LayoutMessageKey);
-      const replacements = typeof input === "string" ? params : input.params;
-      if (!replacements) {
-        return message;
-      }
-      return Object.entries(replacements).reduce(
-        (current, [name, value]) => current.replace(`{${name}}`, String(value)),
-        message,
-      );
-    },
-  };
-}
 
 function sanitizeAssetFileName(name: string): string {
   const sanitized = name
@@ -89,7 +62,6 @@ interface ImagePreviewState {
 export function FrameRegionEditor({
   id,
   region,
-  locale,
   title,
   preferredAssetPrefix,
   readBoxAsset,
@@ -99,8 +71,7 @@ export function FrameRegionEditor({
 }: FrameRegionEditorProps) {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const mountedRef = useMountedRef();
-  const i18n = React.useMemo(() => createI18nAdapter(locale), [locale]);
-  const [errorKey, setErrorKey] = React.useState<LayoutMessageKey | undefined>();
+  const [errorKey, setErrorKey] = React.useState<string | undefined>();
   const [busyAction, setBusyAction] = React.useState<"import" | "delete" | undefined>();
   const [dragging, setDragging] = React.useState(false);
   const [preview, setPreview] = React.useState<ImagePreviewState>({ status: "idle" });
@@ -147,7 +118,7 @@ export function FrameRegionEditor({
     };
   }, [hasImage, hasImageAsset, readBoxAsset, region.assetPath]);
 
-  const setErrorWhenMounted = React.useCallback((nextKey: LayoutMessageKey | undefined) => {
+  const setErrorWhenMounted = React.useCallback((nextKey: string | undefined) => {
     if (mountedRef.current) {
       setErrorKey(nextKey);
     }
@@ -311,34 +282,32 @@ export function FrameRegionEditor({
   const modeOptions = React.useMemo(() => ([
     {
       value: "none",
-      label: getLayoutMessage(locale, MODE_MESSAGE_KEY.none),
+      label: formatMessage(MODE_MESSAGE_KEY.none),
     },
     {
       value: "image",
-      label: getLayoutMessage(locale, MODE_MESSAGE_KEY.image),
+      label: formatMessage(MODE_MESSAGE_KEY.image),
     },
     {
       value: "html",
-      label: getLayoutMessage(locale, MODE_MESSAGE_KEY.html),
+      label: formatMessage(MODE_MESSAGE_KEY.html),
     },
-  ]), [locale]);
+  ]), []);
 
   const dropZoneDisabled = !hasBridge || busyAction !== undefined;
 
   return (
-    <ChipsForm.Field
+    <div
       className="chips-grid-layout-editor__group"
-      name={id}
       data-frame-region-editor={id}
     >
       <div className="chips-grid-layout-editor__row">
         <span className="chips-grid-layout-editor__row-label">{title}</span>
-        <ChipsSegmentedControl
+        <Segmented
           value={region.mode}
-          ariaLabel={title}
+          aria-label={title}
           options={modeOptions}
-          i18n={i18n}
-          onValueChange={(value) => {
+          onChange={(value) => {
             void applyMode(value as FrameMode);
           }}
         />
@@ -358,8 +327,8 @@ export function FrameRegionEditor({
             role="button"
             tabIndex={dropZoneDisabled ? -1 : 0}
             aria-label={hasImageAsset
-              ? getLayoutMessage(locale, "editor.replace_hint")
-              : getLayoutMessage(locale, "editor.drop_zone_hint")}
+              ? formatMessage("editor.replace_hint")
+              : formatMessage("editor.drop_zone_hint")}
             onClick={handleFilePick}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -382,7 +351,7 @@ export function FrameRegionEditor({
             {hasImageAsset ? (
               preview.status === "loading" ? (
                 <span className="chips-grid-layout-editor__drop-zone-status">
-                  {getLayoutMessage(locale, "editor.asset_loading")}
+                  {formatMessage("editor.asset_loading")}
                 </span>
               ) : preview.status === "ready" && preview.resourceUrl ? (
                 <React.Fragment>
@@ -392,37 +361,36 @@ export function FrameRegionEditor({
                     alt={title}
                   />
                   <span className="chips-grid-layout-editor__drop-zone-overlay">
-                    {getLayoutMessage(locale, "editor.replace_hint")}
+                    {formatMessage("editor.replace_hint")}
                   </span>
                 </React.Fragment>
               ) : (
                 <span className="chips-grid-layout-editor__drop-zone-status">
-                  {getLayoutMessage(locale, "editor.read_failed")}
+                  {formatMessage("editor.read_failed")}
                 </span>
               )
             ) : (
               <span className="chips-grid-layout-editor__drop-zone-empty">
-                <ChipsIcon
-                  descriptor={{ name: "add_photo_alternate", decorative: true }}
-                  size={22}
-                />
-                {getLayoutMessage(locale, "editor.drop_zone_hint")}
+                <PictureOutlined style={{ fontSize: 22 }} />
+                {formatMessage("editor.drop_zone_hint")}
               </span>
             )}
           </div>
 
           {hasImageAsset ? (
             <div className="chips-grid-layout-editor__row-actions">
-              <ChipsButton
-                type="button"
+              <Button
+                type="text"
+                danger
+                size="small"
                 className="chips-grid-layout-editor__remove-button"
                 disabled={busyAction !== undefined}
-                onPress={() => {
+                onClick={() => {
                   void handleRemove();
                 }}
               >
-                {getLayoutMessage(locale, "editor.remove_image")}
-              </ChipsButton>
+                {formatMessage("editor.remove_image")}
+              </Button>
             </div>
           ) : null}
         </div>
@@ -430,43 +398,44 @@ export function FrameRegionEditor({
 
       {region.mode === "html" ? (
         <div className="chips-grid-layout-editor__code-area">
-          <ChipsTextArea
+          <Input.TextArea
             value={region.html ?? ""}
-            label={title}
-            ariaLabel={title}
-            placeholder={getLayoutMessage(locale, "editor.html_placeholder")}
+            aria-label={title}
+            placeholder={formatMessage("editor.html_placeholder")}
             rows={3}
-            resize="block"
-            onValueChange={(value) => {
+            style={{ resize: "block" }}
+            onChange={(event) => {
               setErrorWhenMounted(undefined);
               onChange({
                 mode: "html",
-                html: value,
+                html: event.target.value,
               });
             }}
           />
           <div className="chips-grid-layout-editor__row-actions">
-            <ChipsButton
-              type="button"
+            <Button
+              type="text"
+              danger
+              size="small"
               className="chips-grid-layout-editor__remove-button"
               disabled={!hasFrameRegionContent(region) || busyAction !== undefined}
-              onPress={handleClearCode}
+              onClick={handleClearCode}
             >
-              {getLayoutMessage(locale, "editor.clear_code")}
-            </ChipsButton>
+              {formatMessage("editor.clear_code")}
+            </Button>
           </div>
         </div>
       ) : null}
 
       {errorKey ? (
         <p className="chips-grid-layout-editor__error" role="alert">
-          {getLayoutMessage(locale, errorKey)}
+          {formatMessage(errorKey)}
         </p>
       ) : null}
 
       {hasImage && !hasBridge ? (
         <p className="chips-grid-layout-editor__error" role="alert">
-          {getLayoutMessage(locale, "editor.asset_bridge_missing")}
+          {formatMessage("editor.asset_bridge_missing")}
         </p>
       ) : null}
 
@@ -479,6 +448,6 @@ export function FrameRegionEditor({
           void handleUpload(event.currentTarget.files?.[0]);
         }}
       />
-    </ChipsForm.Field>
+    </div>
   );
 }

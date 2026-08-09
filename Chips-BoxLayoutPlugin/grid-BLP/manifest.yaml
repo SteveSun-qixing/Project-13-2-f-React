@@ -9,8 +9,6 @@ author:
   email: support@chips-ecosystem.com
 permissions:
   - box.read
-  - theme.read
-  - i18n.read
 runtime:
   targets:
     desktop:

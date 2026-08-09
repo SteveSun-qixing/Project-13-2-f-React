@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import {
   hasCustomMapImage,
   hasFrameRegionContent,
@@ -17,7 +17,7 @@ import type {
   BoxLayoutRuntime,
   ResolvedRuntimeResource,
 } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 const PAGE_LIMIT = 120;
 
@@ -25,7 +25,6 @@ export interface LayoutViewProps {
   initialView: BoxEntryPage;
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }
 
 interface ResourceState {
@@ -53,9 +52,9 @@ const MAP_LAYOUT_STYLE = `
   min-width: 0;
   min-height: 100%;
   box-sizing: border-box;
-  color: var(--chips-sys-color-on-surface);
-  background: var(--chips-sys-color-surface);
-  font: var(--chips-comp-text-root-font, inherit);
+  color: #1d1d1f;
+  background: #ffffff;
+  font: inherit;
 }
 
 [data-scope="chips-box-map-layout"],
@@ -66,25 +65,24 @@ const MAP_LAYOUT_STYLE = `
 [data-scope="chips-box-map-layout"] [data-layout-shell] {
   position: relative;
   display: grid;
-  gap: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  gap: 16px;
   min-width: 0;
   min-height: 100%;
-  padding: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  padding: 16px;
 }
 
 [data-scope="chips-box-map-layout"] [data-layout-top-region] {
   min-width: 0;
   min-block-size: clamp(120px, 20vw, 240px);
   overflow: hidden;
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 [data-scope="chips-box-map-layout"] [data-frame-region],
-[data-scope="chips-box-map-layout"] [data-frame-region] [data-part="root"],
-[data-scope="chips-box-map-layout"] [data-frame-region] [data-part="frame-container"],
-[data-scope="chips-box-map-layout"] [data-frame-region] [data-part="iframe"] {
+[data-scope="chips-box-map-layout"] [data-frame-region] .chips-embedded-document-frame,
+[data-scope="chips-box-map-layout"] [data-frame-region] .chips-embedded-document-frame iframe {
   width: 100%;
   height: 100%;
 }
@@ -101,9 +99,9 @@ const MAP_LAYOUT_STYLE = `
   min-width: 0;
   min-height: clamp(420px, 66vh, 760px);
   overflow: hidden;
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #ffffff;
   isolation: isolate;
 }
 
@@ -118,14 +116,14 @@ const MAP_LAYOUT_STYLE = `
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 18% 34%, color-mix(in srgb, var(--chips-sys-color-primary, #2563eb) 18%, transparent) 0 10%, transparent 11%),
-    radial-gradient(circle at 72% 46%, color-mix(in srgb, var(--chips-sys-color-tertiary, #0f766e) 22%, transparent) 0 13%, transparent 14%),
-    radial-gradient(circle at 48% 72%, color-mix(in srgb, var(--chips-sys-color-secondary, #7c3aed) 16%, transparent) 0 11%, transparent 12%),
-    linear-gradient(120deg, transparent 0 44%, color-mix(in srgb, var(--chips-sys-color-primary, #2563eb) 14%, transparent) 45% 47%, transparent 48%),
-    linear-gradient(35deg, transparent 0 52%, color-mix(in srgb, var(--chips-sys-color-tertiary, #0f766e) 14%, transparent) 53% 55%, transparent 56%),
-    repeating-linear-gradient(0deg, color-mix(in srgb, var(--chips-sys-color-outline, #64748b) 16%, transparent) 0 1px, transparent 1px 11.111%),
-    repeating-linear-gradient(90deg, color-mix(in srgb, var(--chips-sys-color-outline, #64748b) 16%, transparent) 0 1px, transparent 1px 11.111%),
-    var(--chips-sys-color-surface-container-low, #f8fafc);
+    radial-gradient(circle at 18% 34%, color-mix(in srgb, #0a84ff 18%, transparent) 0 10%, transparent 11%),
+    radial-gradient(circle at 72% 46%, color-mix(in srgb, #5e5ce6 22%, transparent) 0 13%, transparent 14%),
+    radial-gradient(circle at 48% 72%, color-mix(in srgb, #af52de 16%, transparent) 0 11%, transparent 12%),
+    linear-gradient(120deg, transparent 0 44%, color-mix(in srgb, #0a84ff 14%, transparent) 45% 47%, transparent 48%),
+    linear-gradient(35deg, transparent 0 52%, color-mix(in srgb, #5e5ce6 14%, transparent) 53% 55%, transparent 56%),
+    repeating-linear-gradient(0deg, color-mix(in srgb, #6e6e73 16%, transparent) 0 1px, transparent 1px 11.111%),
+    repeating-linear-gradient(90deg, color-mix(in srgb, #6e6e73 16%, transparent) 0 1px, transparent 1px 11.111%),
+    #f2f2f7;
 }
 
 [data-scope="chips-box-map-layout"] [data-map-asset-image] {
@@ -143,9 +141,9 @@ const MAP_LAYOUT_STYLE = `
   display: grid;
   place-items: center;
   min-height: 120px;
-  padding: var(--chips-base-space-4);
+  padding: 16px;
   text-align: center;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  color: #6e6e73;
 }
 
 [data-scope="chips-box-map-layout"] [data-map-markers] {
@@ -159,15 +157,15 @@ const MAP_LAYOUT_STYLE = `
   top: var(--marker-y);
   display: inline-flex;
   align-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-height: 32px;
   max-width: min(280px, 48vw);
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
-  padding: var(--chips-base-space-1) var(--chips-base-space-3);
-  color: var(--chips-sys-color-on-surface);
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #fff) 92%, transparent);
-  box-shadow: var(--chips-elevation-shadow-md, 0 8px 20px rgba(15, 23, 42, 0.12));
+  padding: 4px 12px;
+  color: #1d1d1f;
+  background: color-mix(in srgb, #ffffff 92%, transparent);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
   font: inherit;
   cursor: pointer;
   transform: translate(-50%, -50%);
@@ -175,12 +173,12 @@ const MAP_LAYOUT_STYLE = `
 }
 
 [data-scope="chips-box-map-layout"] [data-map-marker][data-marker-style="pin-title"] {
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
+  border-radius: 12px;
 }
 
 [data-scope="chips-box-map-layout"] [data-map-marker][data-selected="true"] {
-  border-color: var(--chips-sys-color-primary, currentColor);
-  box-shadow: var(--chips-elevation-shadow-lg, 0 14px 28px rgba(15, 23, 42, 0.18));
+  border-color: #0a84ff;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
   transform: translate(-50%, -50%) scale(1.04);
   z-index: 3;
 }
@@ -190,7 +188,7 @@ const MAP_LAYOUT_STYLE = `
   block-size: 10px;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: var(--chips-sys-color-primary, currentColor);
+  background: #0a84ff;
 }
 
 [data-scope="chips-box-map-layout"] [data-map-marker][data-marker-style="pin-title"] [data-map-marker-dot] {
@@ -205,17 +203,17 @@ const MAP_LAYOUT_STYLE = `
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  font-weight: 700;
 }
 
 [data-scope="chips-box-map-layout"] [data-map-controls] {
   position: absolute;
-  inset-block-start: var(--chips-base-space-3);
-  inset-inline-end: var(--chips-base-space-3);
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
   z-index: 4;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
 }
 
 [data-scope="chips-box-map-layout"] [data-map-controls] button,
@@ -223,7 +221,7 @@ const MAP_LAYOUT_STYLE = `
 [data-scope="chips-box-map-layout"] [data-layout-load-more],
 [data-scope="chips-box-map-layout"] [data-layout-retry],
 [data-scope="chips-box-map-layout"] [data-unlocated-entry] {
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 [data-scope="chips-box-map-layout"] [data-map-controls] button,
@@ -231,42 +229,41 @@ const MAP_LAYOUT_STYLE = `
 [data-scope="chips-box-map-layout"] [data-layout-retry],
 [data-scope="chips-box-map-layout"] [data-unlocated-entry] {
   min-height: 36px;
-  border-radius: var(--chips-comp-button-root-radius, var(--chips-base-radius-md));
-  padding-inline: var(--chips-base-space-3);
-  background: var(--chips-comp-button-root-surface-idle, var(--chips-sys-color-surface));
-  color: var(--chips-comp-button-label-color-idle, var(--chips-sys-color-on-surface));
+  border-radius: 12px;
+  padding-inline: 12px;
+  background: #ffffff;
+  color: #1d1d1f;
   font: inherit;
   cursor: pointer;
 }
 
 [data-scope="chips-box-map-layout"] [data-map-selected] {
   position: absolute;
-  inset-inline: var(--chips-base-space-3);
-  inset-block-end: var(--chips-base-space-3);
+  inset-inline: 12px;
+  inset-block-end: 12px;
   z-index: 4;
   display: grid;
   grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
-  max-width: min(520px, calc(100% - var(--chips-base-space-6, 48px)));
-  padding: var(--chips-base-space-3);
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background: color-mix(in srgb, var(--chips-sys-color-surface, #fff) 94%, transparent);
-  box-shadow: var(--chips-elevation-shadow-lg, 0 14px 28px rgba(15, 23, 42, 0.18));
+  gap: 12px;
+  max-width: min(520px, calc(100% - 48px));
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: color-mix(in srgb, #ffffff 94%, transparent);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
 }
 
 [data-scope="chips-box-map-layout"] [data-selected-cover] {
   min-width: 0;
   overflow: hidden;
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background: var(--chips-sys-color-surface);
+  border-radius: 12px;
+  background: #ffffff;
   aspect-ratio: 3 / 4;
 }
 
-[data-scope="chips-box-map-layout"] [data-selected-cover] [data-scope="embedded-document-frame"],
-[data-scope="chips-box-map-layout"] [data-selected-cover] [data-part="root"],
-[data-scope="chips-box-map-layout"] [data-selected-cover] [data-part="frame-container"],
-[data-scope="chips-box-map-layout"] [data-selected-cover] [data-part="iframe"] {
+[data-scope="chips-box-map-layout"] [data-selected-cover],
+[data-scope="chips-box-map-layout"] [data-selected-cover] .chips-embedded-document-frame,
+[data-scope="chips-box-map-layout"] [data-selected-cover] .chips-embedded-document-frame iframe {
   width: 100%;
   height: 100%;
 }
@@ -276,15 +273,15 @@ const MAP_LAYOUT_STYLE = `
   place-items: center;
   width: 100%;
   height: 100%;
-  padding: var(--chips-base-space-2);
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  padding: 8px;
+  color: #6e6e73;
   text-align: center;
 }
 
 [data-scope="chips-box-map-layout"] [data-selected-body] {
   display: grid;
   align-content: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
 }
 
@@ -296,36 +293,36 @@ const MAP_LAYOUT_STYLE = `
 
 [data-scope="chips-box-map-layout"] [data-selected-summary] {
   margin: 0;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  color: #6e6e73;
 }
 
 [data-scope="chips-box-map-layout"] [data-selected-actions] {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
 }
 
 [data-scope="chips-box-map-layout"] [data-selected-actions] button {
   min-height: 36px;
   border: none;
-  border-radius: var(--chips-comp-button-root-radius, var(--chips-base-radius-md));
-  padding-inline: var(--chips-base-space-3);
-  color: var(--chips-comp-button-label-color-idle, var(--chips-sys-color-on-surface));
-  background: var(--chips-comp-button-root-surface-idle, var(--chips-sys-color-surface-container-high, #e2e8f0));
+  border-radius: 12px;
+  padding-inline: 12px;
+  color: #1d1d1f;
+  background: #f2f2f7;
   font: inherit;
   cursor: pointer;
 }
 
 [data-scope="chips-box-map-layout"] [data-unlocated] {
   display: grid;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
 }
 
 [data-scope="chips-box-map-layout"] [data-unlocated-list] {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
 }
 
@@ -337,13 +334,13 @@ const MAP_LAYOUT_STYLE = `
 
 [data-scope="chips-box-map-layout"] button:focus-visible,
 [data-scope="chips-box-map-layout"] [data-map-marker]:focus-visible {
-  outline: var(--chips-layout-focus-outline-width, 2px) solid var(--chips-comp-button-focus-outline, currentColor);
-  outline-offset: var(--chips-layout-focus-outline-offset, 2px);
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 @media (max-width: 640px) {
   [data-scope="chips-box-map-layout"] [data-layout-shell] {
-    padding: var(--chips-base-space-3);
+    padding: 12px;
   }
 
   [data-scope="chips-box-map-layout"] [data-map-stage] {
@@ -395,13 +392,11 @@ function clamp(value: number, min: number, max: number): number {
 function FrameRegionSurface({
   region,
   runtime,
-  locale,
   title,
   ratio,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   title: string;
   ratio: string;
 }) {
@@ -435,7 +430,7 @@ function FrameRegionSurface({
   if (region.mode === "html") {
     return (
       <div data-frame-region>
-        <EmbeddedDocumentFrame title={title} srcDoc={region.html ?? ""} ratio={ratio} />
+        <EmbeddedDocumentFrame title={title} srcDoc={region.html ?? ""} ratio={ratio} sandbox="allow-scripts" />
       </div>
     );
   }
@@ -455,8 +450,8 @@ function FrameRegionSurface({
   return (
     <div data-map-asset-status role="status">
       {state.status === "loading"
-        ? getLayoutMessage(locale, "layout.asset_loading")
-        : getLayoutMessage(locale, "layout.asset_error")}
+        ? formatMessage("layout.asset_loading")
+        : formatMessage("layout.asset_error")}
     </div>
   );
 }
@@ -464,11 +459,9 @@ function FrameRegionSurface({
 function MapAssetLayer({
   config,
   runtime,
-  locale,
 }: {
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const [state, setState] = useState<ResourceState>({ status: "idle" });
   const assetPath = config.props.mapSource.assetPath;
@@ -499,7 +492,7 @@ function MapAssetLayer({
   }, [assetPath, config.props.mapSource, runtime]);
 
   if (state.status === "ready" && state.resource?.resourceUrl) {
-    return <img data-map-asset-image src={state.resource.resourceUrl} alt={getLayoutMessage(locale, "layout.map_image_alt")} />;
+    return <img data-map-asset-image src={state.resource.resourceUrl} alt={formatMessage("layout.map_image_alt")} />;
   }
 
   return (
@@ -508,8 +501,8 @@ function MapAssetLayer({
       {state.status === "loading" || state.status === "error" ? (
         <div data-map-asset-status role="status">
           {state.status === "loading"
-            ? getLayoutMessage(locale, "layout.asset_loading")
-            : getLayoutMessage(locale, "layout.asset_error")}
+            ? formatMessage("layout.asset_loading")
+            : formatMessage("layout.asset_error")}
         </div>
       ) : null}
     </>
@@ -519,13 +512,11 @@ function MapAssetLayer({
 function SelectedEntryPreview({
   entry,
   runtime,
-  locale,
   showCover,
   onClose,
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   showCover: boolean;
   onClose(): void;
 }) {
@@ -570,15 +561,16 @@ function SelectedEntryPreview({
               title={coverState.view.title || title}
               src={coverState.view.coverUrl}
               ratio={coverState.view.ratio ?? "3:4"}
+              sandbox="allow-scripts"
               onActivate={openEntry}
             />
           ) : (
             <div data-selected-cover-status role={coverState.status === "loading" ? "status" : undefined}>
               {coverState.status === "loading"
-                ? getLayoutMessage(locale, "layout.loading")
+                ? formatMessage("layout.loading")
                 : coverState.status === "error"
-                  ? getLayoutMessage(locale, "layout.cover_error")
-                  : getLayoutMessage(locale, "layout.cover_missing")}
+                  ? formatMessage("layout.cover_error")
+                  : formatMessage("layout.cover_missing")}
             </div>
           )}
         </div>
@@ -587,15 +579,15 @@ function SelectedEntryPreview({
         <h2 data-selected-title>{title}</h2>
         {entry.snapshot.summary ? <p data-selected-summary>{entry.snapshot.summary}</p> : null}
         <div data-selected-actions>
-          <button type="button" onClick={openEntry}>{getLayoutMessage(locale, "layout.open_entry")}</button>
-          <button type="button" onClick={onClose}>{getLayoutMessage(locale, "layout.close_preview")}</button>
+          <button type="button" onClick={openEntry}>{formatMessage("layout.open_entry")}</button>
+          <button type="button" onClick={onClose}>{formatMessage("layout.close_preview")}</button>
         </div>
       </div>
     </aside>
   );
 }
 
-export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutViewProps) {
+export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const isMountedRef = useRef(true);
   const [items, setItems] = useState<BoxEntrySnapshot[]>(initialView.items);
   const [nextCursor, setNextCursor] = useState<string | undefined>(initialView.nextCursor);
@@ -737,8 +729,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
             <FrameRegionSurface
               region={config.props.topRegion}
               runtime={runtime}
-              locale={locale}
-              title={getLayoutMessage(locale, "layout.top_region_title")}
+              title={formatMessage("layout.top_region_title")}
               ratio="16:5"
             />
           </div>
@@ -747,11 +738,11 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
         <div data-map-stage>
           {config.props.mapSource.mode === "host-map" ? (
             <div data-map-unavailable role="status">
-              {getLayoutMessage(locale, "layout.host_map_unavailable")}
+              {formatMessage("layout.host_map_unavailable")}
             </div>
           ) : (
             <div data-map-world style={{ transform: mapTransform }}>
-              <MapAssetLayer config={config} runtime={runtime} locale={locale} />
+              <MapAssetLayer config={config} runtime={runtime} />
               <div data-map-markers>
                 {positionedEntries.map((item) => {
                   const selected = selectedEntryId === item.entry.entryId;
@@ -795,20 +786,20 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
             </div>
           )}
 
-          <div data-map-controls aria-label={getLayoutMessage(locale, "layout.map_controls")}>
-            <button type="button" onClick={() => zoomView(0.25)} aria-label={getLayoutMessage(locale, "layout.zoom_in")}>+</button>
-            <button type="button" onClick={() => zoomView(-0.25)} aria-label={getLayoutMessage(locale, "layout.zoom_out")}>-</button>
-            <button type="button" onClick={() => panView(5, 0)} aria-label={getLayoutMessage(locale, "layout.pan_north")}>↑</button>
-            <button type="button" onClick={() => panView(-5, 0)} aria-label={getLayoutMessage(locale, "layout.pan_south")}>↓</button>
-            <button type="button" onClick={() => panView(0, -5)} aria-label={getLayoutMessage(locale, "layout.pan_west")}>←</button>
-            <button type="button" onClick={() => panView(0, 5)} aria-label={getLayoutMessage(locale, "layout.pan_east")}>→</button>
-            <button type="button" onClick={resetView}>{getLayoutMessage(locale, "layout.reset_view")}</button>
+          <div data-map-controls aria-label={formatMessage("layout.map_controls")}>
+            <button type="button" onClick={() => zoomView(0.25)} aria-label={formatMessage("layout.zoom_in")}>+</button>
+            <button type="button" onClick={() => zoomView(-0.25)} aria-label={formatMessage("layout.zoom_out")}>-</button>
+            <button type="button" onClick={() => panView(5, 0)} aria-label={formatMessage("layout.pan_north")}>↑</button>
+            <button type="button" onClick={() => panView(-5, 0)} aria-label={formatMessage("layout.pan_south")}>↓</button>
+            <button type="button" onClick={() => panView(0, -5)} aria-label={formatMessage("layout.pan_west")}>←</button>
+            <button type="button" onClick={() => panView(0, 5)} aria-label={formatMessage("layout.pan_east")}>→</button>
+            <button type="button" onClick={resetView}>{formatMessage("layout.reset_view")}</button>
           </div>
 
           {enabledEntries.length === 0 ? (
             <div data-layout-empty>
-              <strong>{getLayoutMessage(locale, "layout.empty")}</strong>
-              <span>{getLayoutMessage(locale, "layout.empty_hint")}</span>
+              <strong>{formatMessage("layout.empty")}</strong>
+              <span>{formatMessage("layout.empty_hint")}</span>
             </div>
           ) : null}
 
@@ -816,7 +807,6 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
             <SelectedEntryPreview
               entry={selectedEntry}
               runtime={runtime}
-              locale={locale}
               showCover={config.props.showCoverOnSelect}
               onClose={() => setSelectedEntryId(undefined)}
             />
@@ -824,8 +814,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
         </div>
 
         {unlocatedEntries.length > 0 ? (
-          <section data-unlocated aria-label={getLayoutMessage(locale, "layout.unlocated_title")}>
-            <strong>{getLayoutMessage(locale, "layout.unlocated_title")}</strong>
+          <section data-unlocated aria-label={formatMessage("layout.unlocated_title")}>
+            <strong>{formatMessage("layout.unlocated_title")}</strong>
             <div data-unlocated-list>
               {unlocatedEntries.map((entry) => (
                 <button
@@ -847,9 +837,9 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <div data-layout-footer data-total={total}>
             {pageError ? (
               <div data-layout-page-error role="status">
-                <span>{getLayoutMessage(locale, "layout.page_error")}</span>
+                <span>{formatMessage("layout.page_error")}</span>
                 <button type="button" data-layout-retry onClick={loadNextPage}>
-                  {getLayoutMessage(locale, "layout.retry")}
+                  {formatMessage("layout.retry")}
                 </button>
               </div>
             ) : (
@@ -860,8 +850,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 disabled={isLoadingNext}
               >
                 {isLoadingNext
-                  ? getLayoutMessage(locale, "layout.loading_more")
-                  : getLayoutMessage(locale, "layout.load_more")}
+                  ? formatMessage("layout.loading_more")
+                  : formatMessage("layout.load_more")}
               </button>
             )}
           </div>

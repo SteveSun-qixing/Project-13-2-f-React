@@ -128,8 +128,9 @@ async function renderEditor({
 }
 
 function clickButtonByText(container: HTMLElement, text: string): void {
-  const button = Array.from(container.querySelectorAll("button"))
-    .find((candidate) => candidate.textContent?.includes(text));
+  const normalized = text.replace(/\s+/g, "");
+  const button = Array.from(container.querySelectorAll<HTMLElement>("button, .ant-segmented-item"))
+    .find((candidate) => candidate.textContent?.replace(/\s+/g, "").includes(normalized));
   expect(button).toBeTruthy();
   button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
@@ -420,7 +421,7 @@ describe("layoutDefinition", () => {
 
     expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/chips.layout.cardstack.blp/background/background.png");
     expect(container.querySelector("[data-layout-background] img")).toBeTruthy();
-    expect(container.querySelector('[data-layout-top-region] [data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame]')).toBeTruthy();
   });
 
   it("does not update the DOM after cleanup while runtime promises are pending", async () => {
@@ -488,8 +489,8 @@ describe("layoutDefinition", () => {
     expect(container.textContent).toContain("卡堆行为");
     expect(container.textContent).toContain("当前箱子包含 2 个条目");
     expect(container.textContent).toContain("堆叠层数");
-    expect(container.querySelector('[data-scope="select"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="number-input"]')).toBeTruthy();
+    expect(container.querySelector(".ant-select")).toBeTruthy();
+    expect(container.querySelector(".ant-input-number")).toBeTruthy();
     expect(container.querySelector('input[type="number"]')).toBeNull();
 
     await act(async () => {

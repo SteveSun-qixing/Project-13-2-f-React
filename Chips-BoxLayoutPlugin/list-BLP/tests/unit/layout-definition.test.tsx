@@ -95,13 +95,13 @@ describe("layoutDefinition", () => {
 
     expect(container.textContent).toContain("Demo Card");
     expect(container.querySelector('[role="listbox"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="data-grid"][data-part="toolbar"]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-toolbar]')).toBeTruthy();
     const tile = container.querySelector('[data-entry-id="entry-1"]');
     expect(tile).toBeTruthy();
     expect(tile?.querySelector('[data-list-entry-title]')?.textContent).toBe("Demo Card");
     expect(tile?.querySelector('[data-list-entry-date]')?.textContent).toContain("创建日期");
     expect(container.querySelector('style')?.textContent).toContain("--chips-list-row-height: 132px");
-    expect(container.querySelector('[data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
     expect(readEntryDetail).toHaveBeenCalledWith({
       entryIds: ["entry-1"],
       fields: ["documentInfo"],
@@ -213,7 +213,7 @@ describe("layoutDefinition", () => {
     expect(titles).toEqual(["Alpha", "Beta"]);
   });
 
-  it("renders editor with component library controls and complete list options", async () => {
+  it("renders editor with antd controls and complete list options", async () => {
     const container = document.createElement("div");
     container.style.overflow = "visible";
     document.body.appendChild(container);
@@ -230,10 +230,10 @@ describe("layoutDefinition", () => {
       });
     });
 
-    expect(container.querySelector('[data-scope="select"][data-part="root"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="segmented-control"][data-part="root"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="checkbox"][data-part="root"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="number-input"][data-part="root"]')).toBeTruthy();
+    expect(container.querySelector(".ant-select")).toBeTruthy();
+    expect(container.querySelector(".ant-segmented")).toBeTruthy();
+    expect(container.querySelector(".ant-checkbox-wrapper")).toBeTruthy();
+    expect(container.querySelector(".ant-input-number")).toBeTruthy();
     expect(container.querySelector('input[type="number"]')).toBeNull();
     expect(container.textContent).toContain("等高行");
     expect(container.textContent).toContain("行密度");
@@ -243,11 +243,12 @@ describe("layoutDefinition", () => {
     expect(container.style.display).toBe("flex");
     expect(container.style.overflow).toBe("hidden");
     expect(container.querySelector('[data-chips-list-layout-editor-root="true"]')).toBeTruthy();
-    const editorShell = container.querySelector('[data-scope="chips-list-layout-editor"]') as HTMLElement | null;
-    const editorBody = container.querySelector('[data-part="body"]') as HTMLElement | null;
-    expect(editorShell?.style.height).toBe("100%");
-    expect(editorShell?.style.overflow).toBe("hidden");
-    expect(editorBody?.style.overflowY).toBe("auto");
+    const editorRoot = container.querySelector('[data-chips-list-layout-editor-root="true"]') as HTMLElement | null;
+    expect(editorRoot?.style.height).toBe("100%");
+    expect(container.querySelector('[data-scope="chips-list-layout-editor"]')).toBeTruthy();
+    expect(container.querySelector('[data-part="body"]')).toBeTruthy();
+    expect(container.querySelector('[data-frame-region-editor="background"]')).toBeTruthy();
+    expect(container.querySelector('[data-frame-region-editor="topRegion"]')).toBeTruthy();
 
     await act(async () => {
       cleanup?.();

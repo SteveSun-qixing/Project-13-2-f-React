@@ -1,4 +1,4 @@
-{
+const MESSAGES: Record<string, string> = {
   "layout.canvas_label": "无限画布",
   "layout.empty": "暂无已放置条目",
   "layout.empty_hint": "在布局编辑器中把条目放到画布后即可浏览",
@@ -45,5 +45,12 @@
   "editor.item_mode": "条目模式",
   "editor.label_override": "显示名称",
   "editor.unplace_entry": "移回未放置",
-  "editor.no_selected": "选择画布上的条目后可调整坐标"
+  "editor.no_selected": "选择画布上的条目后可调整坐标",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
 }

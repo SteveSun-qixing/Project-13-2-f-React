@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChipsCheckbox, EmbeddedDocumentFrame } from "@chips/component-library";
+import { Checkbox } from "antd";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import type { VisibleFieldKey } from "../schema/layout-config";
 import type { BoxEntryCoverView, BoxEntrySnapshot, BoxLayoutRuntime } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 interface CoverState {
   status: "idle" | "loading" | "ready" | "error";
@@ -13,14 +14,14 @@ function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
 }
 
-function resolveEntryKindLabel(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntryKindLabel(entry: BoxEntrySnapshot): string {
   if (entry.snapshot.contentType === "chips/box") {
-    return getLayoutMessage(locale, "layout.entry_type_box");
+    return formatMessage("layout.entry_type_box");
   }
   if (entry.snapshot.contentType && entry.snapshot.contentType !== "chips/card") {
     return entry.snapshot.contentType;
   }
-  return getLayoutMessage(locale, "layout.entry_type_card");
+  return formatMessage("layout.entry_type_card");
 }
 
 function resolveAspectRatio(entry: BoxEntrySnapshot, coverView?: BoxEntryCoverView): string {
@@ -44,7 +45,6 @@ function resolveEntryTags(entry: BoxEntrySnapshot): string[] {
 export function EntryRow({
   entry,
   runtime,
-  locale,
   createdAt,
   visibleFields,
   selected,
@@ -54,7 +54,6 @@ export function EntryRow({
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   createdAt?: string;
   visibleFields: VisibleFieldKey[];
   selected: boolean;
@@ -67,24 +66,24 @@ export function EntryRow({
   }));
 
   const title = useMemo(() => resolveEntryTitle(entry), [entry]);
-  const kindLabel = useMemo(() => resolveEntryKindLabel(entry, locale), [entry, locale]);
+  const kindLabel = useMemo(() => resolveEntryKindLabel(entry), [entry]);
   const createdAtLabel = useMemo(() => {
     if (typeof createdAt !== "string" || createdAt.trim().length === 0) {
-      return getLayoutMessage(locale, "layout.created_at_unknown");
+      return formatMessage("layout.created_at_unknown");
     }
 
     const date = new Date(createdAt);
     if (Number.isNaN(date.getTime())) {
-      return getLayoutMessage(locale, "layout.created_at_unknown");
+      return formatMessage("layout.created_at_unknown");
     }
 
-    const formatted = new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-US", {
+    const formatted = new Intl.DateTimeFormat("zh-CN", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     }).format(date);
-    return getLayoutMessage(locale, "layout.created_at").replace("{date}", formatted);
-  }, [createdAt, locale]);
+    return formatMessage("layout.created_at", { date: formatted });
+  }, [createdAt]);
   const tags = useMemo(() => resolveEntryTags(entry), [entry]);
   const showCreatedAt = visibleFields.includes("createdAt");
   const showSummary = visibleFields.includes("summary") && typeof entry.snapshot.summary === "string" && entry.snapshot.summary.trim().length > 0;
@@ -137,11 +136,11 @@ export function EntryRow({
           event.stopPropagation();
         }}
       >
-        <ChipsCheckbox
+        <Checkbox
           checked={selected}
-          label={getLayoutMessage(locale, "layout.select_entry").replace("{title}", title)}
-          onCheckedChange={(nextSelected) => {
-            onToggleSelected(entry.entryId, nextSelected);
+          aria-label={formatMessage("layout.select_entry", { title })}
+          onChange={(event) => {
+            onToggleSelected(entry.entryId, event.target.checked);
           }}
         />
       </div>
@@ -152,15 +151,16 @@ export function EntryRow({
             title={coverState.view.title || title}
             src={coverState.view.coverUrl}
             ratio={coverState.view.ratio ?? resolveAspectRatio(entry, coverState.view)}
+            sandbox="allow-scripts"
             onActivate={openEntry}
           />
         ) : (
           <button type="button" data-list-cover-placeholder onClick={openEntry}>
-            <strong data-list-cover-placeholder-title>{getLayoutMessage(locale, "layout.cover_placeholder")}</strong>
+            <strong data-list-cover-placeholder-title>{formatMessage("layout.cover_placeholder")}</strong>
             <span data-list-cover-placeholder-text>
               {coverState.status === "loading"
-                ? getLayoutMessage(locale, "layout.loading")
-                : `${kindLabel} · ${getLayoutMessage(locale, "layout.cover_missing")}`}
+                ? formatMessage("layout.loading")
+                : `${kindLabel} · ${formatMessage("layout.cover_missing")}`}
             </span>
           </button>
         )}
@@ -182,7 +182,7 @@ export function EntryRow({
           <p data-list-entry-summary>{entry.snapshot.summary}</p>
         ) : null}
         {showTags ? (
-          <div data-list-entry-tags aria-label={getLayoutMessage(locale, "layout.tags_label")}>
+          <div data-list-entry-tags aria-label={formatMessage("layout.tags_label")}>
             {tags.map((tag) => (
               <span key={tag} data-list-entry-tag>{tag}</span>
             ))}

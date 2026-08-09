@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import {
   hasFrameRegionContent,
   type DocumentTreeNodeConfig,
@@ -13,7 +13,7 @@ import type {
   BoxLayoutRuntime,
   ResolvedRuntimeResource,
 } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 const PAGE_LIMIT = 240;
 
@@ -21,7 +21,6 @@ export interface LayoutViewProps {
   initialView: BoxEntryPage;
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }
 
 interface CoverState {
@@ -53,8 +52,8 @@ const DOCUMENT_LIBRARY_STYLE = `
   min-width: 0;
   min-height: 100%;
   box-sizing: border-box;
-  color: var(--chips-sys-color-on-surface);
-  background-color: var(--chips-sys-color-surface);
+  color: #1d1d1f;
+  background-color: #ffffff;
 }
 
 [data-scope="chips-document-library-layout"] * {
@@ -73,8 +72,8 @@ const DOCUMENT_LIBRARY_STYLE = `
 [data-scope="chips-document-library-layout"] [data-layout-shell] {
   position: relative;
   display: grid;
-  gap: var(--chips-layout-gap-lg, var(--chips-base-space-4));
-  padding: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  gap: 16px;
+  padding: 16px;
   min-width: 0;
   min-height: 100%;
 }
@@ -82,16 +81,15 @@ const DOCUMENT_LIBRARY_STYLE = `
 [data-scope="chips-document-library-layout"] [data-layout-top-region] {
   min-width: 0;
   min-block-size: clamp(132px, 24vw, 288px);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
+  border-radius: 12px;
   overflow: hidden;
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 [data-scope="chips-document-library-layout"] [data-frame-region],
-[data-scope="chips-document-library-layout"] [data-frame-region] [data-part="root"],
-[data-scope="chips-document-library-layout"] [data-frame-region] [data-part="frame-container"],
-[data-scope="chips-document-library-layout"] [data-frame-region] [data-part="iframe"] {
+[data-scope="chips-document-library-layout"] [data-frame-region] .chips-embedded-document-frame,
+[data-scope="chips-document-library-layout"] [data-frame-region] iframe {
   width: 100%;
   height: 100%;
 }
@@ -106,7 +104,7 @@ const DOCUMENT_LIBRARY_STYLE = `
 [data-scope="chips-document-library-layout"] [data-document-library-main] {
   display: grid;
   grid-template-columns: minmax(0, var(--document-library-sidebar-width, 280px)) minmax(0, 1fr);
-  gap: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  gap: 16px;
   align-items: start;
   min-width: 0;
 }
@@ -128,25 +126,25 @@ const DOCUMENT_LIBRARY_STYLE = `
 [data-scope="chips-document-library-layout"] [data-frame-region-status],
 [data-scope="chips-document-library-layout"] [data-layout-empty],
 [data-scope="chips-document-library-layout"] [data-layout-page-error] {
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background-color: #ffffff;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-tree] {
   position: sticky;
-  top: var(--chips-base-space-4, 16px);
+  top: 16px;
   display: grid;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
-  max-height: calc(100vh - var(--chips-base-space-8, 64px));
+  max-height: calc(100vh - 64px);
   overflow: auto;
-  padding: var(--chips-base-space-3, 12px);
+  padding: 12px;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-tree-list] {
   display: grid;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-1));
+  gap: 4px;
   min-width: 0;
 }
 
@@ -155,11 +153,11 @@ const DOCUMENT_LIBRARY_STYLE = `
   grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
   min-width: 0;
-  border-radius: var(--chips-comp-button-root-radius, var(--chips-base-radius-sm));
+  border-radius: 8px;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-tree-row][data-active="true"] {
-  background-color: var(--chips-comp-button-root-surface-selected, var(--chips-sys-color-surface-container));
+  background-color: #f2f2f7;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-tree-toggle],
@@ -181,13 +179,13 @@ const DOCUMENT_LIBRARY_STYLE = `
   block-size: 28px;
   display: grid;
   place-items: center;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  color: #6e6e73;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-tree-title] {
   display: block;
   min-width: 0;
-  padding: var(--chips-base-space-1, 4px) var(--chips-base-space-2, 8px);
+  padding: 4px 8px;
   text-align: start;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -195,34 +193,33 @@ const DOCUMENT_LIBRARY_STYLE = `
 }
 
 [data-scope="chips-document-library-layout"] [data-document-tree-row][data-missing="true"] [data-document-tree-title] {
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  color: #6e6e73;
   font-style: italic;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-preview] {
   display: grid;
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
+  gap: 12px;
   min-width: 0;
-  padding: var(--chips-base-space-4, 16px);
+  padding: 16px;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-cover-shell] {
   width: min(100%, 520px);
   overflow: hidden;
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  background-color: var(--chips-sys-color-surface);
-}
-
-[data-scope="chips-document-library-layout"] [data-document-cover-shell] [data-scope="embedded-document-frame"] {
-  display: block;
-  width: 100%;
-  height: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background-color: #ffffff;
   cursor: pointer;
 }
 
-[data-scope="chips-document-library-layout"] [data-document-cover-shell] [data-part="frame-container"],
-[data-scope="chips-document-library-layout"] [data-document-cover-shell] [data-part="iframe"] {
+[data-scope="chips-document-library-layout"] [data-document-cover-shell] .chips-embedded-document-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+[data-scope="chips-document-library-layout"] [data-document-cover-shell] iframe {
   width: 100%;
   height: 100%;
   border: none;
@@ -234,51 +231,51 @@ const DOCUMENT_LIBRARY_STYLE = `
   min-height: 220px;
   display: grid;
   place-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
-  padding: var(--chips-base-space-4);
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  gap: 8px;
+  padding: 16px;
+  color: #6e6e73;
   text-align: center;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-title] {
   margin: 0;
-  color: var(--chips-sys-color-on-surface);
-  font-size: var(--chips-comp-heading-md-font-size, 24px);
-  line-height: var(--chips-comp-heading-md-line-height, 1.25);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  color: #1d1d1f;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 700;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-summary],
 [data-scope="chips-document-library-layout"] [data-document-meta] {
   margin: 0;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  line-height: var(--chips-comp-text-root-line-height, 1.5);
+  color: #6e6e73;
+  line-height: 1.5;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-tags] {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-1));
+  gap: 4px;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-tag] {
   padding: 2px 8px;
-  border-radius: var(--chips-base-radius-sm, 4px);
-  background-color: var(--chips-sys-color-surface-container);
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  border-radius: 4px;
+  background-color: #f2f2f7;
+  color: #6e6e73;
+  font-size: 12px;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-open-button],
 [data-scope="chips-document-library-layout"] [data-layout-load-more],
 [data-scope="chips-document-library-layout"] [data-layout-retry] {
   justify-self: start;
-  min-block-size: var(--chips-layout-density-comfortable, 40px);
-  padding-inline: var(--chips-base-space-4);
-  padding-block: var(--chips-base-space-2);
-  border-radius: var(--chips-comp-button-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-button-root-surface-idle);
-  color: var(--chips-comp-button-label-color-idle, var(--chips-sys-color-on-surface));
+  min-block-size: 40px;
+  padding-inline: 16px;
+  padding-block: 8px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  color: #1d1d1f;
 }
 
 [data-scope="chips-document-library-layout"] [data-layout-footer] {
@@ -292,10 +289,10 @@ const DOCUMENT_LIBRARY_STYLE = `
 [data-scope="chips-document-library-layout"] [data-frame-region-status] {
   display: grid;
   place-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 4px;
   min-height: 160px;
-  padding: var(--chips-base-space-4);
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  padding: 16px;
+  color: #6e6e73;
   text-align: center;
 }
 
@@ -305,8 +302,8 @@ const DOCUMENT_LIBRARY_STYLE = `
 [data-scope="chips-document-library-layout"] [data-document-open-button]:focus-visible,
 [data-scope="chips-document-library-layout"] [data-layout-load-more]:focus-visible,
 [data-scope="chips-document-library-layout"] [data-layout-retry]:focus-visible {
-  outline: var(--chips-layout-focus-outline-width, 2px) solid var(--chips-comp-button-focus-outline, currentColor);
-  outline-offset: var(--chips-layout-focus-outline-offset, 2px);
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 
 @media (max-width: 720px) {
@@ -326,11 +323,11 @@ function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
 }
 
-function resolveEntryKindMessage(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntryKindMessage(entry: BoxEntrySnapshot): string {
   if (entry.snapshot.contentType === "chips/box") {
-    return getLayoutMessage(locale, "layout.entry_type_box");
+    return formatMessage("layout.entry_type_box");
   }
-  return getLayoutMessage(locale, "layout.entry_type_card");
+  return formatMessage("layout.entry_type_card");
 }
 
 function resolveTags(entry: BoxEntrySnapshot): string[] {
@@ -360,25 +357,24 @@ function toRatioToken(value: string | number | undefined, fallback: string): str
   return fallback;
 }
 
-function compareTitles(locale: string | undefined, left: string, right: string): number {
-  return left.localeCompare(right, locale === "zh-CN" ? "zh-CN" : "en-US");
+function compareTitles(left: string, right: string): number {
+  return left.localeCompare(right, "zh-CN");
 }
 
 function sortTreeNodes(
   nodes: TreeDisplayNode[],
   sortMode: LayoutConfig["props"]["sortMode"],
-  locale?: string
 ): TreeDisplayNode[] {
   const next = nodes.map((node) => ({
     ...node,
-    children: sortTreeNodes(node.children, sortMode, locale),
+    children: sortTreeNodes(node.children, sortMode),
   }));
   if (sortMode === "manual") {
     return next;
   }
   const direction = sortMode === "name-desc" ? -1 : 1;
   return next.sort((left, right) => {
-    const compared = compareTitles(locale, left.title, right.title);
+    const compared = compareTitles(left.title, right.title);
     return compared === 0 ? left.id.localeCompare(right.id) : compared * direction;
   });
 }
@@ -409,19 +405,17 @@ function buildTreeNodes({
   configNodes,
   entries,
   sortMode,
-  locale,
 }: {
   configNodes: DocumentTreeNodeConfig[];
   entries: BoxEntrySnapshot[];
   sortMode: LayoutConfig["props"]["sortMode"];
-  locale?: string;
 }): TreeDisplayNode[] {
   const entryMap = new Map(entries.map((entry) => [entry.entryId, entry]));
   const configuredEntryIds = collectConfiguredEntryIds(configNodes);
 
   const mapConfigNode = (node: DocumentTreeNodeConfig, depth: number): TreeDisplayNode => {
     const entry = node.entryId ? entryMap.get(node.entryId) : undefined;
-    const fallbackTitle = entry ? resolveEntryTitle(entry) : getLayoutMessage(locale, "layout.missing_entry");
+    const fallbackTitle = entry ? resolveEntryTitle(entry) : formatMessage("layout.missing_entry");
     return {
       id: node.id,
       entryId: node.entryId,
@@ -450,7 +444,7 @@ function buildTreeNodes({
       children: [],
     }));
 
-  return sortTreeNodes([...configuredNodes, ...unconfiguredNodes], sortMode, locale);
+  return sortTreeNodes([...configuredNodes, ...unconfiguredNodes], sortMode);
 }
 
 function flattenVisibleTree(nodes: TreeDisplayNode[]): TreeDisplayNode[] {
@@ -468,14 +462,12 @@ function flattenVisibleTree(nodes: TreeDisplayNode[]): TreeDisplayNode[] {
 function FrameRegionSurface({
   region,
   runtime,
-  locale,
   title,
   ratio,
   decorative = false,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   title: string;
   ratio: string;
   decorative?: boolean;
@@ -512,7 +504,7 @@ function FrameRegionSurface({
           title={title}
           srcDoc={region.html ?? ""}
           ratio={ratio}
-          disabled={decorative}
+          sandbox="allow-scripts"
         />
       </div>
     );
@@ -531,8 +523,8 @@ function FrameRegionSurface({
   }
 
   const message = state.status === "loading"
-    ? getLayoutMessage(locale, "layout.asset_loading")
-    : getLayoutMessage(locale, "layout.asset_error");
+    ? formatMessage("layout.asset_loading")
+    : formatMessage("layout.asset_error");
 
   return (
     <div data-frame-region-status role={decorative ? undefined : "status"}>
@@ -544,11 +536,9 @@ function FrameRegionSurface({
 function CoverPreview({
   entry,
   runtime,
-  locale,
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const [coverState, setCoverState] = useState<CoverState>(() => ({
     status: entry.snapshot.cover?.mode === "none" ? "idle" : "loading",
@@ -584,14 +574,29 @@ function CoverPreview({
   const aspectRatio = toCssAspectRatio(coverState.view?.ratio ?? entry.layoutHints?.aspectRatio, fallbackRatio);
   const ratioToken = toRatioToken(coverState.view?.ratio ?? entry.layoutHints?.aspectRatio, fallbackRatio);
   const title = resolveEntryTitle(entry);
+  const openEntryLabel = `${formatMessage("layout.open_entry")}：${title}`;
 
   if (coverState.status === "ready" && coverState.view?.coverUrl) {
     return (
-      <div data-document-cover-shell style={{ aspectRatio }}>
+      <div
+        data-document-cover-shell
+        role="button"
+        tabIndex={0}
+        aria-label={openEntryLabel}
+        style={{ aspectRatio }}
+        onClick={openEntry}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openEntry();
+          }
+        }}
+      >
         <EmbeddedDocumentFrame
           title={coverState.view.title || title}
           src={coverState.view.coverUrl}
           ratio={ratioToken}
+          sandbox="allow-scripts"
           onActivate={openEntry}
         />
       </div>
@@ -599,10 +604,10 @@ function CoverPreview({
   }
 
   const message = coverState.status === "loading"
-    ? getLayoutMessage(locale, "layout.loading")
+    ? formatMessage("layout.loading")
     : coverState.status === "error"
-      ? getLayoutMessage(locale, "layout.cover_error")
-      : getLayoutMessage(locale, "layout.cover_missing");
+      ? formatMessage("layout.cover_error")
+      : formatMessage("layout.cover_missing");
 
   return (
     <button
@@ -616,7 +621,7 @@ function CoverPreview({
     >
       <strong>{title}</strong>
       <span>{message}</span>
-      <span>{resolveEntryKindMessage(entry, locale)}</span>
+      <span>{resolveEntryKindMessage(entry)}</span>
     </button>
   );
 }
@@ -624,19 +629,17 @@ function CoverPreview({
 function DocumentPreview({
   node,
   runtime,
-  locale,
   showSummary,
 }: {
   node: TreeDisplayNode | undefined;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   showSummary: boolean;
 }) {
   if (!node) {
     return (
       <div data-layout-empty>
-        <strong>{getLayoutMessage(locale, "layout.empty")}</strong>
-        <span>{getLayoutMessage(locale, "layout.empty_hint")}</span>
+        <strong>{formatMessage("layout.empty")}</strong>
+        <span>{formatMessage("layout.empty_hint")}</span>
       </div>
     );
   }
@@ -645,7 +648,7 @@ function DocumentPreview({
     return (
       <div data-document-preview data-missing="true">
         <h1 data-document-title>{node.title}</h1>
-        <p data-document-meta>{getLayoutMessage(locale, "layout.missing_entry_hint")}</p>
+        <p data-document-meta>{formatMessage("layout.missing_entry_hint")}</p>
       </div>
     );
   }
@@ -655,14 +658,14 @@ function DocumentPreview({
 
   return (
     <article data-document-preview data-entry-id={node.entry.entryId}>
-      <CoverPreview entry={node.entry} runtime={runtime} locale={locale} />
+      <CoverPreview entry={node.entry} runtime={runtime} />
       <h1 data-document-title>{node.title}</h1>
-      <p data-document-meta>{resolveEntryKindMessage(node.entry, locale)}</p>
+      <p data-document-meta>{resolveEntryKindMessage(node.entry)}</p>
       {showSummary && summary ? (
         <p data-document-summary>{summary}</p>
       ) : null}
       {tags.length > 0 ? (
-        <div data-document-tags aria-label={getLayoutMessage(locale, "layout.tags")}>
+        <div data-document-tags aria-label={formatMessage("layout.tags")}>
           {tags.map((tag) => (
             <span key={tag} data-document-tag>{tag}</span>
           ))}
@@ -675,13 +678,13 @@ function DocumentPreview({
           void runtime.openEntry(node.entry?.entryId ?? "");
         }}
       >
-        {getLayoutMessage(locale, "layout.open_entry")}
+        {formatMessage("layout.open_entry")}
       </button>
     </article>
   );
 }
 
-export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutViewProps) {
+export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const isMountedRef = useRef(true);
   const [items, setItems] = useState<BoxEntrySnapshot[]>(initialView.items);
   const [nextCursor, setNextCursor] = useState<string | undefined>(initialView.nextCursor);
@@ -712,8 +715,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
     configNodes: config.props.treeNodes,
     entries: enabledEntries,
     sortMode: config.props.sortMode,
-    locale,
-  }), [config.props.sortMode, config.props.treeNodes, enabledEntries, locale]);
+  }), [config.props.sortMode, config.props.treeNodes, enabledEntries]);
 
   const effectiveTreeNodes = useMemo(() => {
     const applyExpansion = (nodes: TreeDisplayNode[]): TreeDisplayNode[] => nodes.map((node) => ({
@@ -819,8 +821,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <FrameRegionSurface
             region={config.props.background}
             runtime={runtime}
-            locale={locale}
-            title={getLayoutMessage(locale, "layout.background_title")}
+            title={formatMessage("layout.background_title")}
             ratio="16:9"
             decorative
           />
@@ -833,8 +834,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
             <FrameRegionSurface
               region={config.props.topRegion}
               runtime={runtime}
-              locale={locale}
-              title={getLayoutMessage(locale, "layout.top_region_title")}
+              title={formatMessage("layout.top_region_title")}
               ratio="16:5"
             />
           </div>
@@ -843,7 +843,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
         <div data-document-library-main data-sidebar-width={config.props.sidebarWidth}>
           <nav
             data-document-tree
-            aria-label={getLayoutMessage(locale, "layout.tree_label")}
+            aria-label={formatMessage("layout.tree_label")}
             onKeyDown={handleTreeKeyDown}
           >
             <div data-document-tree-list role="tree">
@@ -857,13 +857,13 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                   role="treeitem"
                   aria-selected={selectedNode?.id === node.id ? "true" : "false"}
                   aria-expanded={node.children.length > 0 ? !node.collapsed : undefined}
-                  style={{ paddingInlineStart: `calc(${node.depth} * var(--chips-base-space-4, 16px))` }}
+                  style={{ paddingInlineStart: `calc(${node.depth} * 16px)` }}
                 >
                   <button
                     type="button"
                     data-document-tree-toggle
                     disabled={node.children.length === 0}
-                    aria-label={getLayoutMessage(locale, node.collapsed ? "layout.expand_node" : "layout.collapse_node")}
+                    aria-label={formatMessage(node.collapsed ? "layout.expand_node" : "layout.collapse_node")}
                     onClick={() => {
                       toggleNode(node.id);
                     }}
@@ -888,7 +888,6 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <DocumentPreview
             node={selectedNode}
             runtime={runtime}
-            locale={locale}
             showSummary={config.props.showSummary}
           />
         </div>
@@ -897,9 +896,9 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <div data-layout-footer data-total={total}>
             {pageError ? (
               <div data-layout-page-error role="status">
-                <span>{getLayoutMessage(locale, "layout.page_error")}</span>
+                <span>{formatMessage("layout.page_error")}</span>
                 <button type="button" data-layout-retry onClick={loadNextPage}>
-                  {getLayoutMessage(locale, "layout.retry")}
+                  {formatMessage("layout.retry")}
                 </button>
               </div>
             ) : (
@@ -910,8 +909,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 disabled={isLoadingNext}
               >
                 {isLoadingNext
-                  ? getLayoutMessage(locale, "layout.loading_more")
-                  : getLayoutMessage(locale, "layout.load_more")}
+                  ? formatMessage("layout.loading_more")
+                  : formatMessage("layout.load_more")}
               </button>
             )}
           </div>

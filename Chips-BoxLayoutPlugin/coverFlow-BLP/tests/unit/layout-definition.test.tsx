@@ -134,6 +134,13 @@ function clickButtonByText(container: HTMLElement, text: string): void {
   button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
+function clickSegmentedItemByText(container: HTMLElement, text: string): void {
+  const item = Array.from(container.querySelectorAll(".ant-segmented-item"))
+    .find((candidate) => candidate.textContent === text);
+  expect(item).toBeTruthy();
+  item?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 async function uploadFile(input: HTMLInputElement, file: File): Promise<void> {
   Object.defineProperty(input, "files", {
     configurable: true,
@@ -386,7 +393,7 @@ describe("layoutDefinition", () => {
 
     expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/chips.layout.coverflow.blp/background.png");
     expect(container.querySelector('[data-layout-background] img')).toBeTruthy();
-    expect(container.querySelector('[data-layout-top-region] [data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
   });
 
   it("does not update the DOM after cleanup while runtime promises are pending", async () => {
@@ -451,10 +458,11 @@ describe("layoutDefinition", () => {
     });
 
     expect(container.querySelector('[data-scope="chips-coverflow-layout-editor"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="select"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="segmented-control"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="number-input"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="checkbox"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-coverflow-layout-editor-root="true"]')).toBeTruthy();
+    expect(container.querySelector(".ant-select")).toBeTruthy();
+    expect(container.querySelector(".ant-segmented")).toBeTruthy();
+    expect(container.querySelector(".ant-input-number")).toBeTruthy();
+    expect(container.querySelector(".ant-checkbox-wrapper")).toBeTruthy();
     expect(container.querySelector('input[type="number"]')).toBeNull();
     expect(container.textContent).toContain("封面尺寸");
     expect(container.textContent).toContain("侧面角度");
@@ -463,7 +471,7 @@ describe("layoutDefinition", () => {
     expect(container.textContent).toContain("当前箱子包含 2 个条目");
 
     await act(async () => {
-      clickButtonByText(container, "大");
+      clickSegmentedItemByText(container, "大");
       await Promise.resolve();
     });
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -473,7 +481,7 @@ describe("layoutDefinition", () => {
     }));
 
     await act(async () => {
-      clickButtonByText(container, "图片");
+      clickSegmentedItemByText(container, "图片");
       await Promise.resolve();
     });
 
@@ -567,7 +575,7 @@ describe("layoutDefinition", () => {
     });
 
     await act(async () => {
-      clickButtonByText(container, "图片");
+      clickSegmentedItemByText(container, "图片");
       await Promise.resolve();
     });
 

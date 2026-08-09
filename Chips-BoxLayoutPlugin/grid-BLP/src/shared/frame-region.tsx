@@ -1,5 +1,5 @@
 import React from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import type { FrameRegionConfig } from "../schema/layout-config";
 import type { ResolvedRuntimeResource } from "./types";
 
@@ -102,6 +102,7 @@ export function FrameRegionSurface({
       src={source.src}
       srcDoc={source.srcDoc}
       ratio={ratio}
+      sandbox="allow-scripts"
       onActivate={onActivate}
     />
   );

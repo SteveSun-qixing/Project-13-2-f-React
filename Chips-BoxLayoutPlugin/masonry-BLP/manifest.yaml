@@ -9,8 +9,6 @@ author:
   email: masonry-blp@example.invalid
 permissions:
   - box.read
-  - theme.read
-  - i18n.read
 runtime:
   targets:
     desktop:

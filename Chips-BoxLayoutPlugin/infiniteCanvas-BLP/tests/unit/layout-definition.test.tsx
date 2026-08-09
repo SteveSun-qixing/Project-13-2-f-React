@@ -235,7 +235,7 @@ describe("layoutDefinition", () => {
 
     expect(runtime.readBoxAsset).toHaveBeenCalledWith(`${BACKGROUND_ASSET_PREFIX}hero.png`);
     expect(runtime.renderEntryCover).toHaveBeenCalledWith("entry-1");
-    expect(container.querySelector('[data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
     expect(container.querySelector("[data-infinite-canvas-background] img")).toBeTruthy();
   });
 

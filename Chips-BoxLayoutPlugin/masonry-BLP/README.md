@@ -1,6 +1,6 @@
 # 瀑布流布局插件
 
-通过 `chipsdev create layout` 初始化，并基于正式箱子布局插件契约实现的瀑布流布局。
+通过 `chipsdev-r create layout` 初始化，并基于正式箱子布局插件契约实现的瀑布流布局。
 
 ## 工程定位
 
@@ -8,6 +8,22 @@
 - 布局类型：`chips.layout.masonry.blp`
 - 显示名称：`瀑布流布局插件`
 - 入口产物：`dist/index.mjs`
+
+## 目录说明
+
+- `src/view/`：查看态页面挂载与运行时
+- `src/editor/`：布局参数编辑与预览
+- `src/schema/`：默认配置、归一和校验
+- `src/shared/`：共享类型
+- `src/lib/`：本地中文文案映射（`messages.ts`）
+- `contracts/`：布局配置 schema
+- `tests/`：单元测试
+
+## 技术栈
+
+- UI 组件：Ant Design（antd v6）+ `@ant-design/icons`
+- 共享前端层：`@chips/ui`（苹果风格主题、`EmbeddedDocumentFrame` 等）
+- 界面文案：简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）
 
 ## 布局行为
 
@@ -38,14 +54,22 @@
 - `pageSize`: `20..240`
 - `background` / `topRegion`: `none | image | html`
 
+## 正式导出
+
+入口文件 `src/index.ts` 导出：
+
+- `layoutDefinition`
+- `createDefaultLayoutConfig`
+- `normalizeLayoutConfig`
+- `validateLayoutConfig`
+
 ## 常用命令
 
 ```bash
+npm run build
+npm run test
 npm run lint
 npm run typecheck
-npm test
-npm run build
 npm run validate
-npm run package
 npm run verify
 ```

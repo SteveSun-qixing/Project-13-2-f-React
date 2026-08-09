@@ -194,7 +194,7 @@ describe("layoutDefinition", () => {
     expect(container.textContent).toContain("第一天");
     expect(container.textContent).toContain("Demo Card");
     expect(container.textContent).toContain("抵达");
-    expect(container.querySelector('[data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
     expect(runtime.renderEntryCover).toHaveBeenCalledWith("entry-1");
     expect(runtime.prefetchEntries).toHaveBeenCalledWith({
       entryIds: ["entry-1"],
@@ -308,7 +308,7 @@ describe("layoutDefinition", () => {
 
     expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/chips.layout.timeline.blp/background.png");
     expect(container.querySelector('[data-layout-background] img')).toBeTruthy();
-    expect(container.querySelector('[data-layout-top-region] [data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
   });
 
   it("renders editor, adds points and imports box assets into config snapshots", async () => {
@@ -350,8 +350,12 @@ describe("layoutDefinition", () => {
       }),
     }));
 
+    const background = container.querySelector('[data-frame-region-editor="background"]') as HTMLElement | null;
+    const segmentedItems = Array.from(background?.querySelectorAll(".ant-segmented-item") ?? []);
+    const imageItem = segmentedItems.find((item) => item.textContent === "图片");
+    expect(imageItem).toBeTruthy();
     await act(async () => {
-      clickButtonByText(container, "图片");
+      imageItem?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 

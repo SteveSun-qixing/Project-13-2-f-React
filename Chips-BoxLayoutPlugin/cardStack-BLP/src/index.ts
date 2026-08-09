@@ -4,7 +4,6 @@ import { mountLayoutView } from "./view/runtime";
 import {
   createDefaultLayoutConfig,
   normalizeLayoutConfig,
-  validateLayoutConfig,
   validateLayoutConfigInput,
 } from "./schema/layout-config";
 import type { LayoutConfig } from "./schema/layout-config";
@@ -95,7 +94,6 @@ export const layoutDefinition: BoxLayoutDefinition = {
       initialView: ctx.initialView,
       config: normalizeLayoutConfig(ctx.config),
       runtime: ctx.runtime,
-      locale: ctx.locale,
     });
   },
   renderEditor(ctx) {
@@ -103,7 +101,6 @@ export const layoutDefinition: BoxLayoutDefinition = {
       container: ctx.container,
       entries: ctx.entries,
       initialConfig: normalizeLayoutConfig(ctx.initialConfig),
-      locale: ctx.locale,
       readBoxAsset: ctx.readBoxAsset,
       importBoxAsset: ctx.importBoxAsset,
       deleteBoxAsset: ctx.deleteBoxAsset,

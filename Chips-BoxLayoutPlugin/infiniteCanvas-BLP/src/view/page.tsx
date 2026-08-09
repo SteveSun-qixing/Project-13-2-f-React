@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import {
   GRID_SIZE,
   type CanvasItemConfig,
@@ -13,7 +13,7 @@ import type {
   BoxLayoutRuntime,
   ResolvedRuntimeResource,
 } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 const PAGE_LIMIT = 240;
 const MIN_ZOOM = 0.25;
@@ -24,7 +24,6 @@ export interface LayoutViewProps {
   initialView: BoxEntryPage;
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }
 
 interface ViewState {
@@ -52,8 +51,8 @@ const STYLE_TEXT = `
   height: max(100%, 720px);
   overflow: hidden;
   box-sizing: border-box;
-  color: var(--chips-sys-color-on-surface);
-  background: var(--chips-sys-color-surface);
+  color: #1d1d1f;
+  background: #ffffff;
   touch-action: none;
 }
 
@@ -66,7 +65,7 @@ const STYLE_TEXT = `
   inset: 0;
   overflow: hidden;
   cursor: grab;
-  background-color: var(--chips-sys-color-surface);
+  background-color: #ffffff;
 }
 
 [data-infinite-canvas-viewport][data-panning="true"] {
@@ -79,8 +78,8 @@ const STYLE_TEXT = `
   pointer-events: none;
   opacity: 0.55;
   background-image:
-    linear-gradient(to right, var(--chips-sys-color-border-subtle) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--chips-sys-color-border-subtle) 1px, transparent 1px);
+    linear-gradient(to right, rgba(0, 0, 0, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
 }
 
 [data-infinite-canvas-world] {
@@ -97,8 +96,8 @@ const STYLE_TEXT = `
   inset-inline-start: 0;
   inset-block-start: 0;
   overflow: hidden;
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  background: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface-container));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #f2f2f7;
   pointer-events: none;
 }
 
@@ -114,11 +113,11 @@ const STYLE_TEXT = `
   inset-inline-start: 24px;
   inset-block-start: 24px;
   min-width: 220px;
-  padding: var(--chips-base-space-3);
-  border-radius: var(--chips-base-radius-sm, 6px);
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  background: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  color: #6e6e73;
 }
 
 [data-canvas-entry] {
@@ -132,14 +131,14 @@ const STYLE_TEXT = `
   display: grid;
   grid-template-columns: 14px minmax(0, max-content);
   align-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-height: 32px;
   border: 0;
   padding: 6px 10px 6px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--chips-sys-color-surface) 88%, transparent);
-  color: var(--chips-sys-color-on-surface);
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--chips-sys-color-shadow, #000) 14%, transparent);
+  background: color-mix(in srgb, #ffffff 88%, transparent);
+  color: #1d1d1f;
+  box-shadow: 0 6px 20px color-mix(in srgb, #000 14%, transparent);
   font: inherit;
   cursor: pointer;
 }
@@ -148,8 +147,8 @@ const STYLE_TEXT = `
   inline-size: 12px;
   block-size: 12px;
   border-radius: 999px;
-  background: var(--chips-sys-color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chips-sys-color-primary) 18%, transparent);
+  background: #0a84ff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #0a84ff 18%, transparent);
 }
 
 [data-canvas-point-label],
@@ -162,7 +161,7 @@ const STYLE_TEXT = `
 
 [data-canvas-cover] {
   display: grid;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   width: 180px;
   min-width: 0;
 }
@@ -171,32 +170,25 @@ const STYLE_TEXT = `
 [data-canvas-cover-placeholder] {
   width: 100%;
   overflow: hidden;
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  background: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--chips-sys-color-shadow, #000) 16%, transparent);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  box-shadow: 0 10px 28px color-mix(in srgb, #000 16%, transparent);
 }
 
-[data-canvas-cover-shell] [data-scope="embedded-document-frame"],
-[data-canvas-cover-shell] [data-part="root"],
-[data-canvas-cover-shell] [data-part="frame-container"],
-[data-canvas-cover-shell] [data-part="iframe"] {
+[data-canvas-cover-shell] .chips-embedded-document-frame,
+[data-canvas-cover-shell] iframe {
   width: 100%;
   height: 100%;
-}
-
-[data-canvas-cover-shell] [data-part="iframe"] {
-  border: 0;
-  pointer-events: none;
 }
 
 [data-canvas-cover-placeholder] {
   min-height: 136px;
   display: grid;
   place-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
-  padding: var(--chips-base-space-3);
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  gap: 8px;
+  padding: 12px;
+  color: #6e6e73;
   text-align: center;
   font: inherit;
   cursor: pointer;
@@ -206,9 +198,9 @@ const STYLE_TEXT = `
   border: 0;
   padding: 0;
   background: transparent;
-  color: var(--chips-sys-color-on-surface);
+  color: #1d1d1f;
   font: inherit;
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  font-weight: 700;
   text-align: center;
   cursor: pointer;
 }
@@ -218,20 +210,20 @@ const STYLE_TEXT = `
   inset: 0;
   display: grid;
   place-items: center;
-  padding: var(--chips-base-space-6, 32px);
+  padding: 32px;
   text-align: center;
   pointer-events: none;
 }
 
 [data-infinite-canvas-empty] > div {
   display: grid;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   max-width: 360px;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  color: #6e6e73;
 }
 
 [data-infinite-canvas-empty] strong {
-  color: var(--chips-sys-color-on-surface);
+  color: #1d1d1f;
 }
 
 [data-infinite-canvas-footer] {
@@ -240,7 +232,7 @@ const STYLE_TEXT = `
   inset-block-end: 16px;
   display: flex;
   justify-content: center;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
   pointer-events: none;
 }
 
@@ -254,10 +246,10 @@ const STYLE_TEXT = `
 [data-infinite-canvas-footer] button {
   min-height: 36px;
   border: 0;
-  border-radius: var(--chips-comp-button-root-radius, var(--chips-base-radius-md));
-  padding-inline: var(--chips-base-space-4);
-  background: var(--chips-comp-button-root-surface-idle);
-  color: var(--chips-comp-button-label-color-idle, var(--chips-sys-color-on-surface));
+  border-radius: 14px;
+  padding-inline: 16px;
+  background: #ffffff;
+  color: #1d1d1f;
   font: inherit;
   cursor: pointer;
 }
@@ -266,8 +258,8 @@ const STYLE_TEXT = `
 [data-canvas-cover-placeholder]:focus-visible,
 [data-canvas-cover-title]:focus-visible,
 [data-infinite-canvas-footer] button:focus-visible {
-  outline: var(--chips-layout-focus-outline-width, 2px) solid var(--chips-comp-button-focus-outline, currentColor);
-  outline-offset: var(--chips-layout-focus-outline-offset, 2px);
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 `;
 
@@ -353,11 +345,9 @@ function useCanvasSize(ref: React.RefObject<HTMLElement>) {
 function BackgroundLayer({
   config,
   runtime,
-  locale,
 }: {
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const background = config.props.background;
   const [state, setState] = useState<BackgroundState>({ status: "idle" });
@@ -415,8 +405,8 @@ function BackgroundLayer({
   return (
     <div data-infinite-canvas-background-status role="status">
       {state.status === "loading"
-        ? getLayoutMessage(locale, "layout.background_loading")
-        : getLayoutMessage(locale, "layout.background_error")}
+        ? formatMessage("layout.background_loading")
+        : formatMessage("layout.background_error")}
     </div>
   );
 }
@@ -425,12 +415,10 @@ function CoverEntry({
   entry,
   item,
   runtime,
-  locale,
 }: {
   entry: BoxEntrySnapshot;
   item: CanvasItemConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const [coverState, setCoverState] = useState<CoverState>(() => ({
     status: entry.snapshot.cover?.mode === "none" ? "idle" : "loading",
@@ -482,6 +470,7 @@ function CoverEntry({
             title={coverState.view.title || title}
             src={coverState.view.coverUrl}
             ratio={coverState.view.ratio ?? "3:4"}
+            sandbox="allow-scripts"
             onActivate={handleOpen}
           />
         </div>
@@ -496,10 +485,10 @@ function CoverEntry({
           <strong>{title}</strong>
           <span>
             {coverState.status === "loading"
-              ? getLayoutMessage(locale, "layout.cover_loading")
+              ? formatMessage("layout.cover_loading")
               : coverState.status === "error"
-                ? getLayoutMessage(locale, "layout.cover_error")
-                : getLayoutMessage(locale, "layout.cover_missing")}
+                ? formatMessage("layout.cover_error")
+                : formatMessage("layout.cover_missing")}
           </span>
         </button>
       )}
@@ -520,13 +509,11 @@ function CanvasEntry({
   item,
   mode,
   runtime,
-  locale,
 }: {
   entry: BoxEntrySnapshot;
   item: CanvasItemConfig;
   mode: ItemDisplayMode;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const title = resolveItemTitle(entry, item);
   const handleOpen = () => {
@@ -548,7 +535,6 @@ function CanvasEntry({
           entry={entry}
           item={item}
           runtime={runtime}
-          locale={locale}
         />
       ) : (
         <button
@@ -565,7 +551,7 @@ function CanvasEntry({
   );
 }
 
-export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutViewProps) {
+export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(true);
   const [items, setItems] = useState<BoxEntrySnapshot[]>(initialView.items);
@@ -722,7 +708,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
         data-infinite-canvas-viewport
         data-panning={isPanning ? "true" : undefined}
         role="application"
-        aria-label={getLayoutMessage(locale, "layout.canvas_label")}
+        aria-label={formatMessage("layout.canvas_label")}
         tabIndex={0}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
@@ -750,7 +736,6 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <BackgroundLayer
             config={config}
             runtime={runtime}
-            locale={locale}
           />
           {visibleEntries.map(({ entry, item }) => (
             <CanvasEntry
@@ -759,15 +744,14 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
               item={item}
               mode={resolveEntryMode(config, item)}
               runtime={runtime}
-              locale={locale}
             />
           ))}
         </div>
         {placedEntries.length === 0 ? (
           <div data-infinite-canvas-empty>
             <div>
-              <strong>{getLayoutMessage(locale, "layout.empty")}</strong>
-              <span>{getLayoutMessage(locale, "layout.empty_hint")}</span>
+              <strong>{formatMessage("layout.empty")}</strong>
+              <span>{formatMessage("layout.empty_hint")}</span>
             </div>
           </div>
         ) : null}
@@ -775,9 +759,9 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <div data-infinite-canvas-footer>
             {pageError ? (
               <>
-                <span role="status">{getLayoutMessage(locale, "layout.page_error")}</span>
+                <span role="status">{formatMessage("layout.page_error")}</span>
                 <button type="button" data-layout-retry onClick={loadNextPage}>
-                  {getLayoutMessage(locale, "layout.retry")}
+                  {formatMessage("layout.retry")}
                 </button>
               </>
             ) : (
@@ -788,8 +772,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 onClick={loadNextPage}
               >
                 {isLoadingNext
-                  ? getLayoutMessage(locale, "layout.loading_more")
-                  : getLayoutMessage(locale, "layout.load_more")}
+                  ? formatMessage("layout.loading_more")
+                  : formatMessage("layout.load_more")}
               </button>
             )}
           </div>

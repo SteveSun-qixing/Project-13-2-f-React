@@ -11,6 +11,22 @@
 
 `manifest.yaml` 的 `layout.layoutType`、`layoutDefinition.layoutType`、箱子 `metadata.active_layout_type` 与 `.box/content.yaml` 的 `layout_configs` 键必须保持一致。
 
+## 目录说明
+
+- `src/view/`：查看态页面挂载与运行时
+- `src/editor/`：布局参数编辑与预览
+- `src/schema/`：默认配置、归一和校验
+- `src/shared/`：共享类型与视图辅助函数
+- `src/lib/`：本地中文文案映射（`messages.ts`）
+- `contracts/`：布局配置 schema
+- `tests/`：单元测试
+
+## 技术栈
+
+- UI 组件：Ant Design（antd v6）+ `@ant-design/icons`
+- 共享前端层：`@chips/ui`（苹果风格主题、`EmbeddedDocumentFrame` 等）
+- 界面文案：简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）
+
 ## 查看态能力
 
 查看态从 Host 注入的 `initialView.items` 首屏摘要开始渲染。真实封面只对中央附近条目调用 `runtime.renderEntryCover(entryId)`，远端条目使用轻量占位，避免一次性解析全量封面。

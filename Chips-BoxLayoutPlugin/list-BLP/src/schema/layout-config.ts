@@ -194,7 +194,7 @@ export function createDefaultLayoutConfig(): LayoutConfig {
   };
 }
 
-export function normalizeLayoutConfig(input: Record<string, unknown> | undefined): LayoutConfig {
+export function normalizeLayoutConfig(input: LayoutConfig | Record<string, unknown> | undefined): LayoutConfig {
   const props = typeof input?.props === "object" && input?.props ? input.props as Record<string, unknown> : {};
 
   return syncAssetRefs({
@@ -281,7 +281,7 @@ export function validateLayoutConfig(config: LayoutConfig): {
   };
 }
 
-export function validateLayoutConfigInput(input: Record<string, unknown> | undefined): {
+export function validateLayoutConfigInput(input: LayoutConfig | Record<string, unknown> | undefined): {
   valid: boolean;
   errors: Record<string, string>;
 } {

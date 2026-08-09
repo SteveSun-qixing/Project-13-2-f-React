@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChipsButton, ChipsDataGrid, ChipsEmptyState, ChipsErrorState } from "@chips/component-library";
+import { Button } from "antd";
 import { hasFrameRegionContent, type LayoutConfig } from "../schema/layout-config";
 import { FrameRegionSurface } from "../shared/frame-region";
 import type { BoxEntryPage, BoxEntryQuery, BoxEntrySnapshot, BoxLayoutRuntime } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 import { EntryRow } from "./entry-row";
 import { LIST_LAYOUT_STYLE } from "./styles";
 
@@ -11,23 +11,21 @@ export interface LayoutViewProps {
   initialView: BoxEntryPage;
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }
 
 function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
 }
 
-function sortEntries(entries: BoxEntrySnapshot[], sortMode: LayoutConfig["props"]["sortMode"], locale?: string): BoxEntrySnapshot[] {
+function sortEntries(entries: BoxEntrySnapshot[], sortMode: LayoutConfig["props"]["sortMode"]): BoxEntrySnapshot[] {
   if (sortMode === "manual") {
     return entries;
   }
 
   const direction = sortMode === "name-desc" ? -1 : 1;
-  const compareLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
 
   return [...entries].sort((left, right) => {
-    const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), compareLocale);
+    const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), "zh-CN");
     if (compared !== 0) {
       return compared * direction;
     }
@@ -60,17 +58,17 @@ function resolveCreatedAtFromDetail(detail: Record<string, unknown>): string | u
   return typeof createdAt === "string" && createdAt.trim().length > 0 ? createdAt.trim() : undefined;
 }
 
-function resolveEntryTypeGroup(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntryTypeGroup(entry: BoxEntrySnapshot): string {
   if (entry.snapshot.contentType === "chips/box") {
-    return getLayoutMessage(locale, "layout.entry_type_box");
+    return formatMessage("layout.entry_type_box");
   }
   if (entry.snapshot.contentType && entry.snapshot.contentType !== "chips/card") {
     return entry.snapshot.contentType;
   }
-  return getLayoutMessage(locale, "layout.entry_type_card");
+  return formatMessage("layout.entry_type_card");
 }
 
-function resolveEntryTagGroup(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntryTagGroup(entry: BoxEntrySnapshot): string {
   const firstTag = entry.snapshot.tags?.[0];
   if (Array.isArray(firstTag)) {
     return firstTag.join(" / ");
@@ -78,10 +76,10 @@ function resolveEntryTagGroup(entry: BoxEntrySnapshot, locale?: string): string 
   if (typeof firstTag === "string" && firstTag.trim().length > 0) {
     return firstTag.trim();
   }
-  return getLayoutMessage(locale, "layout.group_ungrouped");
+  return formatMessage("layout.group_ungrouped");
 }
 
-function groupEntries(entries: BoxEntrySnapshot[], config: LayoutConfig, locale?: string): Array<{
+function groupEntries(entries: BoxEntrySnapshot[], config: LayoutConfig): Array<{
   key: string;
   title: string;
   entries: BoxEntrySnapshot[];
@@ -97,8 +95,8 @@ function groupEntries(entries: BoxEntrySnapshot[], config: LayoutConfig, locale?
   const groups = new Map<string, BoxEntrySnapshot[]>();
   for (const entry of entries) {
     const title = config.props.groupMode === "type"
-      ? resolveEntryTypeGroup(entry, locale)
-      : resolveEntryTagGroup(entry, locale);
+      ? resolveEntryTypeGroup(entry)
+      : resolveEntryTagGroup(entry);
     const bucket = groups.get(title) ?? [];
     bucket.push(entry);
     groups.set(title, bucket);
@@ -115,7 +113,6 @@ export function LayoutViewPage({
   initialView,
   config,
   runtime,
-  locale,
 }: LayoutViewProps) {
   const [entryItems, setEntryItems] = useState<BoxEntrySnapshot[]>(initialView.items);
   const [nextCursor, setNextCursor] = useState<string | undefined>(initialView.nextCursor);
@@ -134,12 +131,12 @@ export function LayoutViewPage({
   }, [initialView]);
 
   const sortedEntries = useMemo(
-    () => sortEntries(entryItems, config.props.sortMode, locale),
-    [config.props.sortMode, entryItems, locale],
+    () => sortEntries(entryItems, config.props.sortMode),
+    [config.props.sortMode, entryItems],
   );
   const groupedEntries = useMemo(
-    () => groupEntries(sortedEntries, config, locale),
-    [config, locale, sortedEntries],
+    () => groupEntries(sortedEntries, config),
+    [config, sortedEntries],
   );
   const [createdAtByEntryId, setCreatedAtByEntryId] = useState<Record<string, string>>({});
   const showBackground = hasFrameRegionContent(config.props.background);
@@ -224,7 +221,7 @@ export function LayoutViewPage({
         return merged;
       });
     } catch (error) {
-      setRuntimeError(error instanceof Error ? error.message : getLayoutMessage(locale, "layout.load_more_error"));
+      setRuntimeError(error instanceof Error ? error.message : formatMessage("layout.load_more_error"));
     } finally {
       setLoadingMore(false);
     }
@@ -323,7 +320,7 @@ export function LayoutViewPage({
         <div data-layout-background aria-hidden="true">
           <FrameRegionSurface
             region={config.props.background}
-            title={getLayoutMessage(locale, "editor.background_title")}
+            title={formatMessage("editor.background_title")}
             ratio="16:9"
             readBoxAsset={runtime.readBoxAsset}
           />
@@ -335,38 +332,41 @@ export function LayoutViewPage({
           <div data-layout-top-region>
             <FrameRegionSurface
               region={config.props.topRegion}
-              title={getLayoutMessage(locale, "editor.top_region_title")}
+              title={formatMessage("editor.top_region_title")}
               ratio="16:5"
               readBoxAsset={runtime.readBoxAsset}
             />
           </div>
         ) : null}
 
-        <ChipsDataGrid.Root
-          ariaLabel={getLayoutMessage(locale, "layout.list_aria_label")}
-          data-list-data-grid
-        >
-          <ChipsDataGrid.Toolbar key="list-toolbar" ariaLabel={getLayoutMessage(locale, "layout.toolbar_aria_label")}>
-            <div data-layout-toolbar>
-              <span data-layout-selection-count>
-                {getLayoutMessage(locale, "layout.selected_count").replace("{count}", String(selectedCount))}
-              </span>
-              <ChipsButton type="button" onPress={selectVisibleEntries} disabled={sortedEntries.length === 0}>
-                {getLayoutMessage(locale, "layout.select_all_visible")}
-              </ChipsButton>
-              <ChipsButton type="button" onPress={clearSelection} disabled={selectedCount === 0}>
-                {getLayoutMessage(locale, "layout.clear_selection")}
-              </ChipsButton>
-            </div>
-          </ChipsDataGrid.Toolbar>
-        </ChipsDataGrid.Root>
+        <div data-list-data-grid aria-label={formatMessage("layout.toolbar_aria_label")}>
+          <div data-layout-toolbar>
+            <span data-layout-selection-count>
+              {formatMessage("layout.selected_count", { count: selectedCount })}
+            </span>
+            <Button
+              type="default"
+              disabled={sortedEntries.length === 0}
+              onClick={selectVisibleEntries}
+            >
+              {formatMessage("layout.select_all_visible")}
+            </Button>
+            <Button
+              type="default"
+              disabled={selectedCount === 0}
+              onClick={clearSelection}
+            >
+              {formatMessage("layout.clear_selection")}
+            </Button>
+          </div>
+        </div>
 
         <div
           data-layout-list
           data-empty={sortedEntries.length === 0 ? "true" : undefined}
           role="listbox"
           tabIndex={0}
-          aria-label={getLayoutMessage(locale, "layout.list_aria_label")}
+          aria-label={formatMessage("layout.list_aria_label")}
           aria-multiselectable="true"
           aria-activedescendant={activeEntryId ? `chips-list-row-${activeEntryId}` : undefined}
           onKeyDown={handleListKeyDown}
@@ -384,7 +384,6 @@ export function LayoutViewPage({
                     key={entry.entryId}
                     entry={entry}
                     runtime={runtime}
-                    locale={locale}
                     createdAt={createdAtByEntryId[entry.entryId]}
                     visibleFields={config.props.visibleFields}
                     selected={selectedSet.has(entry.entryId)}
@@ -402,30 +401,38 @@ export function LayoutViewPage({
                 <span data-layout-empty-ghost data-size="md" />
                 <span data-layout-empty-ghost data-size="sm" />
               </div>
-              <ChipsEmptyState
-                title={getLayoutMessage(locale, "layout.empty")}
-                description={getLayoutMessage(locale, "layout.empty_hint")}
-                ariaLabel={getLayoutMessage(locale, "layout.empty")}
-              />
+              <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
+              <span data-layout-empty-text>{formatMessage("layout.empty_hint")}</span>
             </div>
           )}
         </div>
 
         {runtimeError ? (
-          <ChipsErrorState
-            title={getLayoutMessage(locale, "layout.load_more_error")}
-            description={runtimeError}
-            ariaLabel={getLayoutMessage(locale, "layout.load_more_error")}
-            actionLabel={getLayoutMessage(locale, "layout.retry")}
-            onAction={() => { void loadMore(); }}
-          />
+          <div data-layout-error role="status">
+            <div data-layout-error-text>
+              <strong data-layout-error-title>{formatMessage("layout.load_more_error")}</strong>
+              <span data-layout-error-detail>{runtimeError}</span>
+            </div>
+            <Button
+              type="default"
+              size="small"
+              onClick={() => { void loadMore(); }}
+            >
+              {formatMessage("layout.retry")}
+            </Button>
+          </div>
         ) : null}
 
         {sortedEntries.length > 0 && canLoadMore ? (
           <div data-layout-pagination>
-            <ChipsButton type="button" loading={loadingMore} disabled={loadingMore} onPress={() => { void loadMore(); }}>
-              {loadingMore ? getLayoutMessage(locale, "layout.loading") : getLayoutMessage(locale, "layout.load_more")}
-            </ChipsButton>
+            <Button
+              type="default"
+              loading={loadingMore}
+              disabled={loadingMore}
+              onClick={() => { void loadMore(); }}
+            >
+              {loadingMore ? formatMessage("layout.loading") : formatMessage("layout.load_more")}
+            </Button>
           </div>
         ) : null}
       </div>

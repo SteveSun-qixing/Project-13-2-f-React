@@ -1,12 +1,10 @@
 import React from "react";
-import {
-  ChipsCheckbox,
-  ChipsForm,
-  ChipsNumberInput,
-  ChipsSegmentedControl,
-  ChipsSelect,
-  ChipsText,
-} from "@chips/component-library";
+import { flushSync } from "react-dom";
+import { createRoot, type Root } from "react-dom/client";
+import { PlayCircleOutlined } from "@ant-design/icons";
+import { Checkbox, ConfigProvider, InputNumber, Segmented, Select } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { FrameRegionEditor } from "./frame-region-editor";
 import type { BoxEntrySnapshot, ResolvedRuntimeResource } from "../shared/types";
 import {
@@ -22,38 +20,20 @@ import {
   type SortMode,
   type WheelSensitivity,
 } from "../schema/layout-config";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 export interface LayoutEditorPanelProps {
   entries: BoxEntrySnapshot[];
   config: LayoutConfig;
-  locale?: string;
   readBoxAsset?(assetPath: string): Promise<ResolvedRuntimeResource>;
   importBoxAsset?(input: { file: File; preferredPath?: string }): Promise<{ assetPath: string }>;
   deleteBoxAsset?(assetPath: string): Promise<void>;
   onChange(next: LayoutConfig): void;
 }
 
-type LayoutMessageKey = Parameters<typeof getLayoutMessage>[1];
-
-const StableSelect = React.forwardRef<HTMLDivElement, React.ComponentProps<typeof ChipsSelect>>((props, ref) => (
-  <ChipsSelect
-    {...props}
-    ref={ref}
-    iconContent={<span aria-hidden="true">{"\u25be"}</span>}
-  />
-));
-StableSelect.displayName = "StableSelect";
-
-const StableNumberInput = React.forwardRef<HTMLInputElement, React.ComponentProps<typeof ChipsNumberInput>>((props, ref) => (
-  <ChipsNumberInput
-    {...props}
-    ref={ref}
-    decrementContent={<span aria-hidden="true">-</span>}
-    incrementContent={<span aria-hidden="true">+</span>}
-  />
-));
-StableNumberInput.displayName = "StableNumberInput";
+export type LayoutEditorRoot = HTMLElement & {
+  __chipsDispose?: () => void;
+};
 
 const EDITOR_STYLE_TEXT = `
 .chips-coverflow-layout-editor {
@@ -63,9 +43,10 @@ const EDITOR_STYLE_TEXT = `
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  color: var(--chips-sys-color-on-surface);
-  background-color: var(--chips-sys-color-surface);
-  font: var(--chips-comp-text-root-font, inherit);
+  color: #1d1d1f;
+  background: #ffffff;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 .chips-coverflow-layout-editor,
@@ -76,132 +57,293 @@ const EDITOR_STYLE_TEXT = `
 .chips-coverflow-layout-editor__form {
   width: 100%;
   min-width: 0;
-  padding: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  padding: 8px 12px 28px;
 }
 
-.chips-coverflow-layout-editor__field,
-.chips-coverflow-layout-editor__region {
-  min-width: 0;
+/* ---------- 面板头 ---------- */
+
+.chips-coverflow-layout-editor__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px 14px;
 }
 
-.chips-coverflow-layout-editor__region {
+.chips-coverflow-layout-editor__head-icon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
   display: grid;
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(10, 132, 255, 0.08);
+  color: #0a84ff;
 }
 
-.chips-coverflow-layout-editor [data-scope="form"][data-part="section"] {
+.chips-coverflow-layout-editor__head-text {
+  min-width: 0;
+}
+
+.chips-coverflow-layout-editor__head-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #1d1d1f;
+}
+
+.chips-coverflow-layout-editor__head-desc {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+.chips-coverflow-layout-editor__head-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #6e6e73;
+  background: #f2f2f7;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+}
+
+/* ---------- 分组（iOS inset grouped 风格） ---------- */
+
+.chips-coverflow-layout-editor__group {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.chips-coverflow-layout-editor__group + .chips-coverflow-layout-editor__group {
+  margin-top: 16px;
+}
+
+.chips-coverflow-layout-editor__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.chips-coverflow-layout-editor__row + .chips-coverflow-layout-editor__row::before,
+.chips-coverflow-layout-editor__row + .chips-coverflow-layout-editor__code-area::before,
+.chips-coverflow-layout-editor__row + .chips-coverflow-layout-editor__image-area::before,
+.chips-coverflow-layout-editor__code-area + .chips-coverflow-layout-editor__row::before,
+.chips-coverflow-layout-editor__image-area + .chips-coverflow-layout-editor__row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.chips-coverflow-layout-editor__row-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: #1d1d1f;
+}
+
+.chips-coverflow-layout-editor__group-footer {
+  margin: 10px 6px 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+/* ---------- 排序行 Select ---------- */
+
+.chips-coverflow-layout-editor .ant-select {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.chips-coverflow-layout-editor .ant-select .ant-select-content {
+  padding-inline: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6e6e73;
+}
+
+.chips-coverflow-layout-editor .ant-select:hover .ant-select-content {
+  color: #1d1d1f;
+}
+
+.chips-coverflow-layout-editor .ant-select .ant-select-suffix {
+  color: #8e8e93;
+}
+
+/* ---------- 行内分段控件 ---------- */
+
+.chips-coverflow-layout-editor .ant-segmented {
+  flex-shrink: 0;
+}
+
+/* ---------- 数值输入 ---------- */
+
+.chips-coverflow-layout-editor .ant-input-number {
+  flex-shrink: 0;
+  width: 96px;
+}
+
+/* ---------- 复选框 ---------- */
+
+.chips-coverflow-layout-editor .ant-checkbox-wrapper {
+  flex-shrink: 0;
+}
+
+/* ---------- 区域编辑 ---------- */
+
+.chips-coverflow-layout-editor__region-head {
+  padding: 10px 14px 0;
+}
+
+.chips-coverflow-layout-editor__region-desc {
+  margin: 2px 0 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+.chips-coverflow-layout-editor__image-area,
+.chips-coverflow-layout-editor__code-area {
+  position: relative;
+  padding: 4px 14px 12px;
+}
+
+.chips-coverflow-layout-editor__preview-shell {
+  position: relative;
   display: grid;
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
+  gap: 8px;
   min-width: 0;
+  padding: 10px 14px 12px;
 }
 
-.chips-coverflow-layout-editor [data-scope="form"][data-part="field"] {
-  display: grid;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
-  min-width: 0;
+.chips-coverflow-layout-editor__preview-shell::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
 }
 
-.chips-coverflow-layout-editor [data-scope="select"][data-part="root"],
-.chips-coverflow-layout-editor [data-scope="segmented-control"][data-part="root"],
-.chips-coverflow-layout-editor [data-scope="number-input"][data-part="root"],
-.chips-coverflow-layout-editor [data-scope="checkbox"][data-part="root"],
-.chips-coverflow-layout-editor [data-scope="text-area"][data-part="root"],
-.chips-coverflow-layout-editor [data-scope="toolbar"][data-part="root"] {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.chips-coverflow-layout-editor [data-scope="toolbar"][data-part="root"] {
+.chips-coverflow-layout-editor__asset-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
 }
 
-.chips-coverflow-layout-editor [data-scope="toolbar"][data-part="group"] {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
-}
-
-.chips-coverflow-layout-editor [data-frame-region-asset-path] {
+.chips-coverflow-layout-editor__asset-path {
   display: block;
   min-width: 0;
+  margin-top: 10px;
   overflow-wrap: anywhere;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  color: #6e6e73;
+  font-size: 12px;
 }
 
-.chips-coverflow-layout-editor [data-frame-region-preview-shell] {
-  display: grid;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
-  min-width: 0;
-}
-
-.chips-coverflow-layout-editor [data-frame-region-preview] {
+.chips-coverflow-layout-editor__preview {
   width: 100%;
   min-height: 160px;
   overflow: hidden;
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background-color: #ffffff;
 }
 
-.chips-coverflow-layout-editor [data-frame-region-preview] [data-scope="embedded-document-frame"],
-.chips-coverflow-layout-editor [data-frame-region-preview] [data-part="root"],
-.chips-coverflow-layout-editor [data-frame-region-preview] [data-part="frame-container"],
-.chips-coverflow-layout-editor [data-frame-region-preview] [data-part="iframe"] {
+.chips-coverflow-layout-editor__preview .chips-embedded-document-frame,
+.chips-coverflow-layout-editor__preview .chips-embedded-document-frame iframe {
   width: 100%;
   height: 100%;
 }
 
-.chips-coverflow-layout-editor [data-frame-region-preview-image] {
+.chips-coverflow-layout-editor__preview-image {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.chips-coverflow-layout-editor [data-frame-region-preview-status] {
+.chips-coverflow-layout-editor__preview-status {
   min-height: 160px;
   display: grid;
   place-items: center;
-  padding: var(--chips-base-space-4);
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  padding: 16px;
+  color: #6e6e73;
   text-align: center;
+  font-size: 13px;
 }
 
-.chips-coverflow-layout-editor [data-frame-region-preview-label] {
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+.chips-coverflow-layout-editor__preview-label {
+  color: #6e6e73;
+  font-size: 12px;
+}
+
+.chips-coverflow-layout-editor__row-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+
+.chips-coverflow-layout-editor__remove-button {
+  font-size: 13px;
+  min-height: 0;
+  padding: 4px 6px;
+}
+
+.chips-coverflow-layout-editor__bridge-warning.ant-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.chips-coverflow-layout-editor__bridge-warning .ant-result-icon {
+  margin: 0;
+  padding-top: 2px;
+}
+
+.chips-coverflow-layout-editor__bridge-warning .ant-result-title {
+  font-size: 13px;
+  line-height: 1.6;
+  color: inherit;
+}
+
+.chips-coverflow-layout-editor__bridge-warning .ant-result-subtitle {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+/* ---------- 错误 ---------- */
+
+.chips-coverflow-layout-editor__error {
+  margin: 8px 6px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #ff3b30;
+}
+
+.chips-coverflow-layout-editor :focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 `;
-
-function formatMessage(locale: string | undefined, key: LayoutMessageKey, params?: Record<string, string | number>): string {
-  const message = getLayoutMessage(locale, key);
-  if (!params) {
-    return message;
-  }
-  return Object.entries(params).reduce(
-    (current, [name, value]) => current.replace(`{${name}}`, String(value)),
-    message,
-  );
-}
-
-function createI18nAdapter(locale: string | undefined) {
-  return {
-    translate(
-      input: string | { key: string; params?: Record<string, string | number> },
-      params?: Record<string, string | number>,
-    ) {
-      const key = typeof input === "string" ? input : input.key;
-      return formatMessage(
-        locale,
-        key as LayoutMessageKey,
-        typeof input === "string" ? params : input.params,
-      );
-    },
-  };
-}
 
 function updateProps(
   config: LayoutConfig,
@@ -229,14 +371,12 @@ function updateFrameRegion(
 export function LayoutEditorPanel({
   entries,
   config: initialConfig,
-  locale,
   readBoxAsset,
   importBoxAsset,
   deleteBoxAsset,
   onChange,
 }: LayoutEditorPanelProps) {
   const [config, setConfig] = React.useState(() => normalizeLayoutConfig(initialConfig));
-  const i18n = React.useMemo(() => createI18nAdapter(locale), [locale]);
 
   React.useEffect(() => {
     setConfig(normalizeLayoutConfig(initialConfig));
@@ -252,187 +392,199 @@ export function LayoutEditorPanel({
     <section
       className="chips-coverflow-layout-editor"
       data-scope="chips-coverflow-layout-editor"
-      aria-label={getLayoutMessage(locale, "editor.aria_label")}
+      aria-label={formatMessage("editor.aria_label")}
     >
       <style>{EDITOR_STYLE_TEXT}</style>
-      <ChipsForm.Root
+      <form
         className="chips-coverflow-layout-editor__form"
-        aria-label={getLayoutMessage(locale, "editor.aria_label")}
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
         }}
       >
-        <ChipsForm.Section
-          title={getLayoutMessage(locale, "editor.section.coverflow")}
-          description={getLayoutMessage(locale, "editor.section.coverflow_desc")}
-        >
-          <ChipsForm.Field className="chips-coverflow-layout-editor__field" name="sortMode">
-            <ChipsForm.Label>{getLayoutMessage(locale, "editor.sort_mode")}</ChipsForm.Label>
-            <ChipsForm.Control>
-              <StableSelect
-                value={config.props.sortMode}
-                placeholder={getLayoutMessage(locale, "editor.sort_mode")}
-                i18n={i18n}
-                options={[
-                  { value: "manual", label: getLayoutMessage(locale, "editor.sort_manual") },
-                  { value: "name-asc", label: getLayoutMessage(locale, "editor.sort_name_asc") },
-                  { value: "name-desc", label: getLayoutMessage(locale, "editor.sort_name_desc") },
-                ]}
-                onValueChange={(value: string) => {
-                  commit(updateProps(config, {
-                    sortMode: value as SortMode,
-                  }));
-                }}
-              />
-            </ChipsForm.Control>
-            <ChipsForm.Hint>
-              {config.props.sortMode === "manual"
-                ? getLayoutMessage(locale, "editor.sort_manual_hint")
-                : getLayoutMessage(locale, "editor.sort_runtime_hint")}
-            </ChipsForm.Hint>
-          </ChipsForm.Field>
+        <div className="chips-coverflow-layout-editor__head">
+          <span className="chips-coverflow-layout-editor__head-icon">
+            <PlayCircleOutlined style={{ fontSize: 18 }} />
+          </span>
+          <div className="chips-coverflow-layout-editor__head-text">
+            <p className="chips-coverflow-layout-editor__head-title">
+              {formatMessage("editor.section.coverflow")}
+            </p>
+            <p className="chips-coverflow-layout-editor__head-desc">
+              {formatMessage("editor.section.coverflow_desc")}
+            </p>
+          </div>
+          <span className="chips-coverflow-layout-editor__head-count">
+            {formatMessage("editor.entry_count", { count: entries.length })}
+          </span>
+        </div>
 
-          <ChipsForm.Field className="chips-coverflow-layout-editor__field" name="coverSize">
-            <ChipsForm.Label>{getLayoutMessage(locale, "editor.cover_size")}</ChipsForm.Label>
-            <ChipsForm.Control>
-              <ChipsSegmentedControl
-                value={config.props.coverSize}
-                ariaLabel={getLayoutMessage(locale, "editor.cover_size")}
-                i18n={i18n}
-                options={[
-                  { value: "compact", label: getLayoutMessage(locale, "editor.cover_size_compact") },
-                  { value: "regular", label: getLayoutMessage(locale, "editor.cover_size_regular") },
-                  { value: "large", label: getLayoutMessage(locale, "editor.cover_size_large") },
-                ]}
-                onValueChange={(value: string) => {
-                  commit(updateProps(config, {
-                    coverSize: value as CoverSize,
-                  }));
-                }}
-              />
-            </ChipsForm.Control>
-          </ChipsForm.Field>
+        <div className="chips-coverflow-layout-editor__group">
+          <div className="chips-coverflow-layout-editor__row">
+            <span className="chips-coverflow-layout-editor__row-label">
+              {formatMessage("editor.sort_mode")}
+            </span>
+            <Select
+              className="chips-coverflow-layout-editor__sort-select"
+              variant="borderless"
+              value={config.props.sortMode}
+              aria-label={formatMessage("editor.sort_mode")}
+              options={[
+                {
+                  value: "manual",
+                  label: formatMessage("editor.sort_manual"),
+                },
+                {
+                  value: "name-asc",
+                  label: formatMessage("editor.sort_name_asc"),
+                },
+                {
+                  value: "name-desc",
+                  label: formatMessage("editor.sort_name_desc"),
+                },
+              ]}
+              onChange={(value: SortMode) => {
+                commit(updateProps(config, {
+                  sortMode: value,
+                }));
+              }}
+            />
+          </div>
+          <p className="chips-coverflow-layout-editor__group-footer">
+            {config.props.sortMode === "manual"
+              ? formatMessage("editor.sort_manual_hint")
+              : formatMessage("editor.sort_runtime_hint")}
+          </p>
 
-          <ChipsForm.Field className="chips-coverflow-layout-editor__field" name="spacing">
-            <ChipsForm.Label>{getLayoutMessage(locale, "editor.spacing")}</ChipsForm.Label>
-            <ChipsForm.Control>
-              <ChipsSegmentedControl
-                value={config.props.spacing}
-                ariaLabel={getLayoutMessage(locale, "editor.spacing")}
-                i18n={i18n}
-                options={[
-                  { value: "tight", label: getLayoutMessage(locale, "editor.spacing_tight") },
-                  { value: "regular", label: getLayoutMessage(locale, "editor.spacing_regular") },
-                  { value: "wide", label: getLayoutMessage(locale, "editor.spacing_wide") },
-                ]}
-                onValueChange={(value: string) => {
-                  commit(updateProps(config, {
-                    spacing: value as CoverFlowSpacing,
-                  }));
-                }}
-              />
-            </ChipsForm.Control>
-          </ChipsForm.Field>
+          <div className="chips-coverflow-layout-editor__row">
+            <span className="chips-coverflow-layout-editor__row-label">
+              {formatMessage("editor.cover_size")}
+            </span>
+            <Segmented
+              value={config.props.coverSize}
+              aria-label={formatMessage("editor.cover_size")}
+              options={[
+                { value: "compact", label: formatMessage("editor.cover_size_compact") },
+                { value: "regular", label: formatMessage("editor.cover_size_regular") },
+                { value: "large", label: formatMessage("editor.cover_size_large") },
+              ]}
+              onChange={(value) => {
+                commit(updateProps(config, {
+                  coverSize: value as CoverSize,
+                }));
+              }}
+            />
+          </div>
 
-          <ChipsForm.Field className="chips-coverflow-layout-editor__field" name="sideAngleDeg">
-            <ChipsForm.Label>{getLayoutMessage(locale, "editor.side_angle")}</ChipsForm.Label>
-            <ChipsForm.Control>
-              <StableNumberInput
-                value={config.props.sideAngleDeg}
-                min={SIDE_ANGLE_MIN}
-                max={SIDE_ANGLE_MAX}
-                step={1}
-                largeStep={5}
-                ariaLabel={getLayoutMessage(locale, "editor.side_angle")}
-                onValueChange={(value: number | null) => {
-                  commit(updateProps(config, {
-                    sideAngleDeg: typeof value === "number" ? value : config.props.sideAngleDeg,
-                  }));
-                }}
-              />
-            </ChipsForm.Control>
-            <ChipsForm.Hint>
-              {formatMessage(locale, "editor.side_angle_hint", {
-                min: SIDE_ANGLE_MIN,
-                max: SIDE_ANGLE_MAX,
-              })}
-            </ChipsForm.Hint>
-          </ChipsForm.Field>
+          <div className="chips-coverflow-layout-editor__row">
+            <span className="chips-coverflow-layout-editor__row-label">
+              {formatMessage("editor.spacing")}
+            </span>
+            <Segmented
+              value={config.props.spacing}
+              aria-label={formatMessage("editor.spacing")}
+              options={[
+                { value: "tight", label: formatMessage("editor.spacing_tight") },
+                { value: "regular", label: formatMessage("editor.spacing_regular") },
+                { value: "wide", label: formatMessage("editor.spacing_wide") },
+              ]}
+              onChange={(value) => {
+                commit(updateProps(config, {
+                  spacing: value as CoverFlowSpacing,
+                }));
+              }}
+            />
+          </div>
 
-          <ChipsForm.Field className="chips-coverflow-layout-editor__field" name="centerScale">
-            <ChipsForm.Label>{getLayoutMessage(locale, "editor.center_scale")}</ChipsForm.Label>
-            <ChipsForm.Control>
-              <StableNumberInput
-                value={config.props.centerScale}
-                min={CENTER_SCALE_MIN}
-                max={CENTER_SCALE_MAX}
-                step={0.01}
-                largeStep={0.05}
-                ariaLabel={getLayoutMessage(locale, "editor.center_scale")}
-                onValueChange={(value: number | null) => {
-                  commit(updateProps(config, {
-                    centerScale: typeof value === "number" ? value : config.props.centerScale,
-                  }));
-                }}
-              />
-            </ChipsForm.Control>
-            <ChipsForm.Hint>
-              {formatMessage(locale, "editor.center_scale_hint", {
-                min: CENTER_SCALE_MIN,
-                max: CENTER_SCALE_MAX,
-              })}
-            </ChipsForm.Hint>
-          </ChipsForm.Field>
+          <div className="chips-coverflow-layout-editor__row">
+            <span className="chips-coverflow-layout-editor__row-label">
+              {formatMessage("editor.side_angle")}
+            </span>
+            <InputNumber
+              value={config.props.sideAngleDeg}
+              min={SIDE_ANGLE_MIN}
+              max={SIDE_ANGLE_MAX}
+              step={1}
+              aria-label={formatMessage("editor.side_angle")}
+              onChange={(value) => {
+                commit(updateProps(config, {
+                  sideAngleDeg: typeof value === "number" ? value : config.props.sideAngleDeg,
+                }));
+              }}
+            />
+          </div>
+          <p className="chips-coverflow-layout-editor__group-footer">
+            {formatMessage("editor.side_angle_hint", {
+              min: SIDE_ANGLE_MIN,
+              max: SIDE_ANGLE_MAX,
+            })}
+          </p>
 
-          <ChipsForm.Field className="chips-coverflow-layout-editor__field" name="wheelSensitivity">
-            <ChipsForm.Label>{getLayoutMessage(locale, "editor.wheel_sensitivity")}</ChipsForm.Label>
-            <ChipsForm.Control>
-              <ChipsSegmentedControl
-                value={config.props.wheelSensitivity}
-                ariaLabel={getLayoutMessage(locale, "editor.wheel_sensitivity")}
-                i18n={i18n}
-                options={[
-                  { value: "low", label: getLayoutMessage(locale, "editor.wheel_low") },
-                  { value: "medium", label: getLayoutMessage(locale, "editor.wheel_medium") },
-                  { value: "high", label: getLayoutMessage(locale, "editor.wheel_high") },
-                ]}
-                onValueChange={(value: string) => {
-                  commit(updateProps(config, {
-                    wheelSensitivity: value as WheelSensitivity,
-                  }));
-                }}
-              />
-            </ChipsForm.Control>
-          </ChipsForm.Field>
+          <div className="chips-coverflow-layout-editor__row">
+            <span className="chips-coverflow-layout-editor__row-label">
+              {formatMessage("editor.center_scale")}
+            </span>
+            <InputNumber
+              value={config.props.centerScale}
+              min={CENTER_SCALE_MIN}
+              max={CENTER_SCALE_MAX}
+              step={0.01}
+              aria-label={formatMessage("editor.center_scale")}
+              onChange={(value) => {
+                commit(updateProps(config, {
+                  centerScale: typeof value === "number" ? value : config.props.centerScale,
+                }));
+              }}
+            />
+          </div>
+          <p className="chips-coverflow-layout-editor__group-footer">
+            {formatMessage("editor.center_scale_hint", {
+              min: CENTER_SCALE_MIN,
+              max: CENTER_SCALE_MAX,
+            })}
+          </p>
 
-          <ChipsForm.Field className="chips-coverflow-layout-editor__field" name="showReflection">
-            <ChipsForm.Control>
-              <ChipsCheckbox
-                checked={config.props.showReflection}
-                label={getLayoutMessage(locale, "editor.show_reflection")}
-                onCheckedChange={(checked) => {
-                  commit(updateProps(config, {
-                    showReflection: checked,
-                  }));
-                }}
-              />
-            </ChipsForm.Control>
-          </ChipsForm.Field>
+          <div className="chips-coverflow-layout-editor__row">
+            <span className="chips-coverflow-layout-editor__row-label">
+              {formatMessage("editor.wheel_sensitivity")}
+            </span>
+            <Segmented
+              value={config.props.wheelSensitivity}
+              aria-label={formatMessage("editor.wheel_sensitivity")}
+              options={[
+                { value: "low", label: formatMessage("editor.wheel_low") },
+                { value: "medium", label: formatMessage("editor.wheel_medium") },
+                { value: "high", label: formatMessage("editor.wheel_high") },
+              ]}
+              onChange={(value) => {
+                commit(updateProps(config, {
+                  wheelSensitivity: value as WheelSensitivity,
+                }));
+              }}
+            />
+          </div>
 
-          <ChipsText
-            as="p"
-            tone="muted"
-            text={formatMessage(locale, "editor.entry_count", { count: entries.length })}
-          />
-        </ChipsForm.Section>
+          <div className="chips-coverflow-layout-editor__row">
+            <span className="chips-coverflow-layout-editor__row-label">
+              {formatMessage("editor.show_reflection")}
+            </span>
+            <Checkbox
+              checked={config.props.showReflection}
+              aria-label={formatMessage("editor.show_reflection")}
+              onChange={(event) => {
+                commit(updateProps(config, {
+                  showReflection: event.target.checked,
+                }));
+              }}
+            />
+          </div>
+        </div>
 
         <FrameRegionEditor
           id="background"
           region={config.props.background}
-          locale={locale}
-          title={getLayoutMessage(locale, "editor.background_title")}
-          description={getLayoutMessage(locale, "editor.background_desc")}
+          title={formatMessage("editor.background_title")}
+          description={formatMessage("editor.background_desc")}
           previewRatio="16:9"
           preferredAssetPrefix="assets/layouts/chips.layout.coverflow.blp/background"
           readBoxAsset={readBoxAsset}
@@ -446,9 +598,8 @@ export function LayoutEditorPanel({
         <FrameRegionEditor
           id="topRegion"
           region={config.props.topRegion}
-          locale={locale}
-          title={getLayoutMessage(locale, "editor.top_region_title")}
-          description={getLayoutMessage(locale, "editor.top_region_desc")}
+          title={formatMessage("editor.top_region_title")}
+          description={formatMessage("editor.top_region_desc")}
           previewRatio="16:5"
           preferredAssetPrefix="assets/layouts/chips.layout.coverflow.blp/top-region"
           readBoxAsset={readBoxAsset}
@@ -458,7 +609,31 @@ export function LayoutEditorPanel({
             commit(updateFrameRegion(config, "topRegion", nextRegion));
           }}
         />
-      </ChipsForm.Root>
+      </form>
     </section>
   );
+}
+
+export function createLayoutEditorRoot(props: LayoutEditorPanelProps): LayoutEditorRoot {
+  const rootElement = document.createElement("div") as LayoutEditorRoot;
+  rootElement.setAttribute("data-chips-coverflow-layout-editor-root", "true");
+  rootElement.style.width = "100%";
+  rootElement.style.height = "100%";
+  rootElement.style.minHeight = "0";
+
+  const reactRoot: Root = createRoot(rootElement);
+
+  flushSync(() => {
+    reactRoot.render(
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
+        <LayoutEditorPanel {...props} />
+      </ConfigProvider>,
+    );
+  });
+
+  rootElement.__chipsDispose = () => {
+    reactRoot.unmount();
+  };
+
+  return rootElement;
 }

@@ -1,13 +1,9 @@
 import React from "react";
-import {
-  ChipsButton,
-  ChipsCheckbox,
-  ChipsForm,
-  ChipsSegmentedControl,
-  ChipsSelect,
-  ChipsStack,
-  ChipsText,
-} from "@chips/component-library";
+import { flushSync } from "react-dom";
+import { createRoot, type Root } from "react-dom/client";
+import { Button, Checkbox, ConfigProvider, Flex, Segmented, Select } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { FrameRegionEditor } from "./frame-region-editor";
 import type { BoxEntrySnapshot, ResolvedRuntimeResource } from "../shared/types";
 import {
@@ -18,29 +14,22 @@ import {
   type SidebarWidth,
   type SortMode,
 } from "../schema/layout-config";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 export interface LayoutEditorPanelProps {
   entries: BoxEntrySnapshot[];
   config: LayoutConfig;
-  locale?: string;
   readBoxAsset?(assetPath: string): Promise<ResolvedRuntimeResource>;
   importBoxAsset?(input: { file: File; preferredPath?: string }): Promise<{ assetPath: string }>;
   deleteBoxAsset?(assetPath: string): Promise<void>;
   onChange(next: LayoutConfig): void;
 }
 
-type LayoutMessageKey = Parameters<typeof getLayoutMessage>[1];
-type NodePath = number[];
+export type LayoutEditorRoot = HTMLElement & {
+  __chipsDispose?: () => void;
+};
 
-const StableSelect = React.forwardRef<HTMLDivElement, React.ComponentProps<typeof ChipsSelect>>((props, ref) => (
-  <ChipsSelect
-    {...props}
-    ref={ref}
-    iconContent={<span aria-hidden="true">{"\u25be"}</span>}
-  />
-));
-StableSelect.displayName = "StableSelect";
+type NodePath = number[];
 
 interface FlatEditorNode {
   node: DocumentTreeNodeConfig;
@@ -56,9 +45,10 @@ const EDITOR_STYLE_TEXT = `
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  color: var(--chips-sys-color-on-surface);
-  background-color: var(--chips-sys-color-surface);
-  font: var(--chips-comp-text-root-font, inherit);
+  color: #1d1d1f;
+  background-color: #ffffff;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 .chips-box-layout-editor,
@@ -69,7 +59,28 @@ const EDITOR_STYLE_TEXT = `
 .chips-box-layout-editor__form {
   width: 100%;
   min-width: 0;
-  padding: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  padding: 16px;
+}
+
+.chips-box-layout-editor__section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chips-box-layout-editor__section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #1d1d1f;
+}
+
+.chips-box-layout-editor__section-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6e6e73;
 }
 
 .chips-box-layout-editor__field,
@@ -77,26 +88,67 @@ const EDITOR_STYLE_TEXT = `
   min-width: 0;
 }
 
+.chips-box-layout-editor [data-scope="form"][data-part="section"] {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chips-box-layout-editor [data-scope="form"][data-part="field"] {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chips-box-layout-editor__field-label {
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chips-box-layout-editor__field-hint {
+  color: #6e6e73;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.chips-box-layout-editor__error {
+  margin: 0;
+  color: #ff3b30;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.chips-box-layout-editor .ant-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.chips-box-layout-editor .ant-segmented {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .chips-box-layout-editor__tree {
   display: grid;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
 }
 
 .chips-box-layout-editor__tree-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-1));
+  gap: 4px;
   min-width: 0;
-  padding: var(--chips-base-space-2, 8px);
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-base-radius-sm, 4px);
-  background: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
+  padding: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  background: #ffffff;
 }
 
 .chips-box-layout-editor__tree-title {
   display: flex;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-1));
+  gap: 4px;
   align-items: center;
   min-width: 0;
 }
@@ -104,12 +156,12 @@ const EDITOR_STYLE_TEXT = `
 .chips-box-layout-editor__title-input {
   width: 100%;
   min-width: 0;
-  min-height: var(--chips-layout-density-comfortable, 40px);
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-base-radius-sm, 4px);
-  padding-inline: var(--chips-base-space-2, 8px);
-  color: var(--chips-sys-color-on-surface);
-  background: var(--chips-sys-color-surface);
+  min-height: 40px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  padding-inline: 8px;
+  color: #1d1d1f;
+  background: #ffffff;
   font: inherit;
 }
 
@@ -117,64 +169,45 @@ const EDITOR_STYLE_TEXT = `
 .chips-box-layout-editor__unconfigured-list {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-1));
+  gap: 4px;
   min-width: 0;
 }
 
 .chips-box-layout-editor__node-meta {
   min-width: 0;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  color: #6e6e73;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
 .chips-box-layout-editor__empty {
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  color: #6e6e73;
 }
 
 .chips-box-layout-editor__region {
   display: grid;
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
-}
-
-.chips-box-layout-editor [data-scope="form"][data-part="section"] {
-  display: grid;
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
+  gap: 12px;
   min-width: 0;
 }
 
-.chips-box-layout-editor [data-scope="form"][data-part="field"] {
-  display: grid;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
-  min-width: 0;
-}
-
-.chips-box-layout-editor [data-scope="select"][data-part="root"],
-.chips-box-layout-editor [data-scope="segmented-control"][data-part="root"],
-.chips-box-layout-editor [data-scope="text-area"][data-part="root"],
-.chips-box-layout-editor [data-scope="toolbar"][data-part="root"] {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.chips-box-layout-editor [data-scope="toolbar"][data-part="root"],
-.chips-box-layout-editor [data-scope="toolbar"][data-part="group"] {
+.chips-box-layout-editor__toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
+  min-width: 0;
 }
 
 .chips-box-layout-editor [data-frame-region-asset-path] {
   display: block;
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  color: #6e6e73;
+  font-size: 12px;
 }
 
 .chips-box-layout-editor [data-frame-region-preview-shell] {
   display: grid;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 4px;
   min-width: 0;
 }
 
@@ -182,15 +215,13 @@ const EDITOR_STYLE_TEXT = `
   width: 100%;
   min-height: 160px;
   overflow: hidden;
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background-color: #ffffff;
 }
 
-.chips-box-layout-editor [data-frame-region-preview] [data-scope="embedded-document-frame"],
-.chips-box-layout-editor [data-frame-region-preview] [data-part="root"],
-.chips-box-layout-editor [data-frame-region-preview] [data-part="frame-container"],
-.chips-box-layout-editor [data-frame-region-preview] [data-part="iframe"] {
+.chips-box-layout-editor [data-frame-region-preview] .chips-embedded-document-frame,
+.chips-box-layout-editor [data-frame-region-preview] iframe {
   width: 100%;
   height: 100%;
 }
@@ -206,43 +237,38 @@ const EDITOR_STYLE_TEXT = `
   min-height: 160px;
   display: grid;
   place-items: center;
-  padding: var(--chips-base-space-4);
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  padding: 16px;
+  color: #6e6e73;
   text-align: center;
 }
 
 .chips-box-layout-editor [data-frame-region-preview-label] {
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  color: #6e6e73;
+  font-size: 12px;
+}
+
+.chips-box-layout-editor__bridge-error .ant-result {
+  padding: 0;
+}
+
+.chips-box-layout-editor__bridge-error .ant-result-icon {
+  margin-block-end: 4px;
+}
+
+.chips-box-layout-editor__bridge-error .ant-result-title {
+  font-size: 13px;
+}
+
+.chips-box-layout-editor__bridge-error .ant-result-subtitle {
+  font-size: 12px;
+}
+
+.chips-box-layout-editor__bridge-error:focus-visible,
+.chips-box-layout-editor__remove-button:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 `;
-
-function formatMessage(locale: string | undefined, key: LayoutMessageKey, params?: Record<string, string | number>): string {
-  const message = getLayoutMessage(locale, key);
-  if (!params) {
-    return message;
-  }
-  return Object.entries(params).reduce(
-    (current, [name, value]) => current.replace(`{${name}}`, String(value)),
-    message,
-  );
-}
-
-function createI18nAdapter(locale: string | undefined) {
-  return {
-    translate(
-      input: string | { key: string; params?: Record<string, string | number> },
-      params?: Record<string, string | number>,
-    ) {
-      const key = typeof input === "string" ? input : input.key;
-      return formatMessage(
-        locale,
-        key as LayoutMessageKey,
-        typeof input === "string" ? params : input.params,
-      );
-    },
-  };
-}
 
 function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
@@ -371,7 +397,6 @@ function updateFrameRegion(
 export function LayoutEditorPanel({
   entries,
   config: initialConfig,
-  locale,
   readBoxAsset,
   importBoxAsset,
   deleteBoxAsset,
@@ -379,7 +404,6 @@ export function LayoutEditorPanel({
 }: LayoutEditorPanelProps) {
   const [config, setConfig] = React.useState(() => normalizeLayoutConfig(initialConfig));
   const configRef = React.useRef(config);
-  const i18n = React.useMemo(() => createI18nAdapter(locale), [locale]);
   const entryMap = React.useMemo(() => new Map(entries.map((entry) => [entry.entryId, entry])), [entries]);
 
   React.useEffect(() => {
@@ -469,104 +493,112 @@ export function LayoutEditorPanel({
     <section
       className="chips-box-layout-editor"
       data-scope="chips-box-layout-editor"
-      aria-label={getLayoutMessage(locale, "editor.aria_label")}
+      aria-label={formatMessage("editor.aria_label")}
     >
       <style>{EDITOR_STYLE_TEXT}</style>
-      <ChipsForm.Root
+      <form
         className="chips-box-layout-editor__form"
-        aria-label={getLayoutMessage(locale, "editor.aria_label")}
+        aria-label={formatMessage("editor.aria_label")}
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
         }}
       >
-        <ChipsStack gap="var(--chips-layout-gap-lg, var(--chips-base-space-4))">
-          <ChipsForm.Section
-            title={getLayoutMessage(locale, "editor.section.display")}
-            description={getLayoutMessage(locale, "editor.section.display_desc")}
-          >
-            <ChipsForm.Field className="chips-box-layout-editor__field" name="sortMode">
-              <ChipsForm.Label>{getLayoutMessage(locale, "editor.sort_mode")}</ChipsForm.Label>
-              <StableSelect
+        <Flex vertical gap={16}>
+          <section data-scope="form" data-part="section" className="chips-box-layout-editor__section">
+            <h2 className="chips-box-layout-editor__section-title">
+              {formatMessage("editor.section.display")}
+            </h2>
+            <p className="chips-box-layout-editor__section-desc">
+              {formatMessage("editor.section.display_desc")}
+            </p>
+            <div data-scope="form" data-part="field" className="chips-box-layout-editor__field">
+              <span className="chips-box-layout-editor__field-label">
+                {formatMessage("editor.sort_mode")}
+              </span>
+              <Select
                 value={config.props.sortMode}
-                placeholder={getLayoutMessage(locale, "editor.sort_mode")}
-                i18n={i18n}
+                placeholder={formatMessage("editor.sort_mode")}
+                aria-label={formatMessage("editor.sort_mode")}
                 options={[
-                  { value: "manual", label: getLayoutMessage(locale, "editor.sort_manual") },
-                  { value: "name-asc", label: getLayoutMessage(locale, "editor.sort_name_asc") },
-                  { value: "name-desc", label: getLayoutMessage(locale, "editor.sort_name_desc") },
+                  { value: "manual", label: formatMessage("editor.sort_manual") },
+                  { value: "name-asc", label: formatMessage("editor.sort_name_asc") },
+                  { value: "name-desc", label: formatMessage("editor.sort_name_desc") },
                 ]}
-                onValueChange={(value: string) => {
-                  commit(updateProps(config, { sortMode: value as SortMode }));
+                onChange={(value: SortMode) => {
+                  commit(updateProps(config, { sortMode: value }));
                 }}
               />
-              <ChipsForm.Hint>
+              <span className="chips-box-layout-editor__field-hint">
                 {config.props.sortMode === "manual"
-                  ? getLayoutMessage(locale, "editor.sort_manual_hint")
-                  : getLayoutMessage(locale, "editor.sort_runtime_hint")}
-              </ChipsForm.Hint>
-            </ChipsForm.Field>
+                  ? formatMessage("editor.sort_manual_hint")
+                  : formatMessage("editor.sort_runtime_hint")}
+              </span>
+            </div>
 
-            <ChipsForm.Field name="sidebarWidth">
-              <ChipsForm.Label>{getLayoutMessage(locale, "editor.sidebar_width")}</ChipsForm.Label>
-              <ChipsSegmentedControl
+            <div data-scope="form" data-part="field" className="chips-box-layout-editor__field">
+              <span className="chips-box-layout-editor__field-label">
+                {formatMessage("editor.sidebar_width")}
+              </span>
+              <Segmented
                 value={config.props.sidebarWidth}
-                ariaLabel={getLayoutMessage(locale, "editor.sidebar_width")}
-                i18n={i18n}
+                aria-label={formatMessage("editor.sidebar_width")}
                 options={[
-                  { value: "compact", label: getLayoutMessage(locale, "editor.sidebar_compact") },
-                  { value: "regular", label: getLayoutMessage(locale, "editor.sidebar_regular") },
-                  { value: "wide", label: getLayoutMessage(locale, "editor.sidebar_wide") },
+                  { value: "compact", label: formatMessage("editor.sidebar_compact") },
+                  { value: "regular", label: formatMessage("editor.sidebar_regular") },
+                  { value: "wide", label: formatMessage("editor.sidebar_wide") },
                 ]}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   commit(updateProps(config, { sidebarWidth: value as SidebarWidth }));
                 }}
               />
-            </ChipsForm.Field>
+            </div>
 
-            <ChipsForm.Field name="showSummary">
-              <ChipsCheckbox
+            <div data-scope="form" data-part="field" className="chips-box-layout-editor__field">
+              <Checkbox
                 checked={config.props.showSummary}
-                label={getLayoutMessage(locale, "editor.show_summary")}
-                onCheckedChange={(checked) => {
-                  commit(updateProps(config, { showSummary: checked }));
+                onChange={(event) => {
+                  commit(updateProps(config, { showSummary: event.target.checked }));
                 }}
-              />
-            </ChipsForm.Field>
+              >
+                {formatMessage("editor.show_summary")}
+              </Checkbox>
+            </div>
 
-            <ChipsText
-              as="p"
-              tone="muted"
-              text={formatMessage(locale, "editor.entry_count", { count: entries.length })}
-            />
-          </ChipsForm.Section>
+            <p className="chips-box-layout-editor__field-hint">
+              {formatMessage("editor.entry_count", { count: entries.length })}
+            </p>
+          </section>
 
-          <ChipsForm.Section
-            title={getLayoutMessage(locale, "editor.section.tree")}
-            description={getLayoutMessage(locale, "editor.section.tree_desc")}
-          >
+          <section data-scope="form" data-part="section" className="chips-box-layout-editor__section">
+            <h2 className="chips-box-layout-editor__section-title">
+              {formatMessage("editor.section.tree")}
+            </h2>
+            <p className="chips-box-layout-editor__section-desc">
+              {formatMessage("editor.section.tree_desc")}
+            </p>
             <div className="chips-box-layout-editor__node-actions">
-              <ChipsButton type="button" onPress={addGroup}>
-                {getLayoutMessage(locale, "editor.add_group")}
-              </ChipsButton>
+              <Button onClick={addGroup}>
+                {formatMessage("editor.add_group")}
+              </Button>
             </div>
 
             <div className="chips-box-layout-editor__tree">
               {flatNodes.length > 0 ? flatNodes.map(({ node, path, depth }) => {
                 const entry = node.entryId ? entryMap.get(node.entryId) : undefined;
-                const inheritedTitle = entry ? resolveEntryTitle(entry) : getLayoutMessage(locale, "editor.group_title_fallback");
+                const inheritedTitle = entry ? resolveEntryTitle(entry) : formatMessage("editor.group_title_fallback");
                 return (
                   <div
                     key={node.id}
                     className="chips-box-layout-editor__tree-row"
-                    style={{ marginInlineStart: `calc(${depth} * var(--chips-base-space-4, 16px))` }}
+                    style={{ marginInlineStart: `calc(${depth} * 16px)` }}
                     data-tree-node-id={node.id}
                   >
                     <div className="chips-box-layout-editor__tree-title">
                       <input
                         className="chips-box-layout-editor__title-input"
                         value={node.titleOverride ?? ""}
-                        aria-label={formatMessage(locale, "editor.title_override_for", { title: inheritedTitle })}
+                        aria-label={formatMessage("editor.title_override_for", { title: inheritedTitle })}
                         placeholder={inheritedTitle}
                         onChange={(event) => {
                           const value = event.currentTarget.value;
@@ -579,78 +611,80 @@ export function LayoutEditorPanel({
                     </div>
                     <div className="chips-box-layout-editor__node-meta">
                       {node.entryId
-                        ? formatMessage(locale, entry ? "editor.node_entry" : "editor.node_missing_entry", { entryId: node.entryId })
-                        : getLayoutMessage(locale, "editor.node_group")}
+                        ? formatMessage(entry ? "editor.node_entry" : "editor.node_missing_entry", { entryId: node.entryId })
+                        : formatMessage("editor.node_group")}
                     </div>
-                    <ChipsCheckbox
+                    <Checkbox
                       checked={node.collapsed}
-                      label={getLayoutMessage(locale, "editor.collapsed_by_default")}
-                      onCheckedChange={(checked) => {
+                      onChange={(event) => {
                         commitTreeNodes(updateNodeAtPath(configRef.current.props.treeNodes, path, (current) => ({
                           ...current,
-                          collapsed: checked,
+                          collapsed: event.target.checked,
                         })));
                       }}
-                    />
+                    >
+                      {formatMessage("editor.collapsed_by_default")}
+                    </Checkbox>
                     <div className="chips-box-layout-editor__node-actions">
-                      <ChipsButton type="button" onPress={() => { moveNode(path, -1); }}>
-                        {getLayoutMessage(locale, "editor.move_up")}
-                      </ChipsButton>
-                      <ChipsButton type="button" onPress={() => { moveNode(path, 1); }}>
-                        {getLayoutMessage(locale, "editor.move_down")}
-                      </ChipsButton>
-                      <ChipsButton type="button" onPress={() => { indentNode(path); }}>
-                        {getLayoutMessage(locale, "editor.indent")}
-                      </ChipsButton>
-                      <ChipsButton type="button" onPress={() => { outdentNode(path); }}>
-                        {getLayoutMessage(locale, "editor.outdent")}
-                      </ChipsButton>
-                      <ChipsButton
-                        type="button"
-                        onPress={() => {
+                      <Button size="small" onClick={() => { moveNode(path, -1); }}>
+                        {formatMessage("editor.move_up")}
+                      </Button>
+                      <Button size="small" onClick={() => { moveNode(path, 1); }}>
+                        {formatMessage("editor.move_down")}
+                      </Button>
+                      <Button size="small" onClick={() => { indentNode(path); }}>
+                        {formatMessage("editor.indent")}
+                      </Button>
+                      <Button size="small" onClick={() => { outdentNode(path); }}>
+                        {formatMessage("editor.outdent")}
+                      </Button>
+                      <Button
+                        size="small"
+                        danger
+                        onClick={() => {
                           commitTreeNodes(removeNodeAtPath(configRef.current.props.treeNodes, path).nodes);
                         }}
                       >
-                        {getLayoutMessage(locale, "editor.remove_node")}
-                      </ChipsButton>
+                        {formatMessage("editor.remove_node")}
+                      </Button>
                     </div>
                   </div>
                 );
               }) : (
                 <span className="chips-box-layout-editor__empty">
-                  {getLayoutMessage(locale, "editor.tree_empty")}
+                  {formatMessage("editor.tree_empty")}
                 </span>
               )}
             </div>
 
-            <ChipsForm.Field name="unconfiguredEntries">
-              <ChipsForm.Label>{getLayoutMessage(locale, "editor.unconfigured_entries")}</ChipsForm.Label>
+            <div data-scope="form" data-part="field" className="chips-box-layout-editor__field">
+              <span className="chips-box-layout-editor__field-label">
+                {formatMessage("editor.unconfigured_entries")}
+              </span>
               <div className="chips-box-layout-editor__unconfigured-list">
                 {unconfiguredEntries.length > 0 ? unconfiguredEntries.map((entry) => (
-                  <ChipsButton
+                  <Button
                     key={entry.entryId}
-                    type="button"
-                    onPress={() => {
+                    onClick={() => {
                       addEntry(entry);
                     }}
                   >
-                    {formatMessage(locale, "editor.add_entry", { title: resolveEntryTitle(entry) })}
-                  </ChipsButton>
+                    {formatMessage("editor.add_entry", { title: resolveEntryTitle(entry) })}
+                  </Button>
                 )) : (
                   <span className="chips-box-layout-editor__empty">
-                    {getLayoutMessage(locale, "editor.no_unconfigured_entries")}
+                    {formatMessage("editor.no_unconfigured_entries")}
                   </span>
                 )}
               </div>
-            </ChipsForm.Field>
-          </ChipsForm.Section>
+            </div>
+          </section>
 
           <FrameRegionEditor
             id="background"
             region={config.props.background}
-            locale={locale}
-            title={getLayoutMessage(locale, "editor.background_title")}
-            description={getLayoutMessage(locale, "editor.background_desc")}
+            title={formatMessage("editor.background_title")}
+            description={formatMessage("editor.background_desc")}
             previewRatio="16:9"
             preferredAssetPrefix="assets/layouts/chips.layout.documentlibrary.blp/background"
             readBoxAsset={readBoxAsset}
@@ -664,9 +698,8 @@ export function LayoutEditorPanel({
           <FrameRegionEditor
             id="topRegion"
             region={config.props.topRegion}
-            locale={locale}
-            title={getLayoutMessage(locale, "editor.top_region_title")}
-            description={getLayoutMessage(locale, "editor.top_region_desc")}
+            title={formatMessage("editor.top_region_title")}
+            description={formatMessage("editor.top_region_desc")}
             previewRatio="16:5"
             preferredAssetPrefix="assets/layouts/chips.layout.documentlibrary.blp/top-region"
             readBoxAsset={readBoxAsset}
@@ -676,8 +709,32 @@ export function LayoutEditorPanel({
               commit(updateFrameRegion(configRef.current, "topRegion", nextRegion));
             }}
           />
-        </ChipsStack>
-      </ChipsForm.Root>
+        </Flex>
+      </form>
     </section>
   );
+}
+
+export function createLayoutEditorRoot(props: LayoutEditorPanelProps): LayoutEditorRoot {
+  const rootElement = document.createElement("div") as LayoutEditorRoot;
+  rootElement.setAttribute("data-chips-documentlibrary-layout-editor-root", "true");
+  rootElement.style.width = "100%";
+  rootElement.style.height = "100%";
+  rootElement.style.minHeight = "0";
+
+  const reactRoot: Root = createRoot(rootElement);
+
+  flushSync(() => {
+    reactRoot.render(
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
+        <LayoutEditorPanel {...props} />
+      </ConfigProvider>,
+    );
+  });
+
+  rootElement.__chipsDispose = () => {
+    reactRoot.unmount();
+  };
+
+  return rootElement;
 }

@@ -1,13 +1,10 @@
 import React from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
-import {
-  ChipsCheckbox,
-  ChipsForm,
-  ChipsNumberInput,
-  ChipsSegmentedControl,
-  ChipsSelect,
-} from "@chips/component-library";
+import { UnorderedListOutlined } from "@ant-design/icons";
+import { Checkbox, ConfigProvider, InputNumber, Segmented, Select } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { FrameRegionEditor } from "./frame-region-editor";
 import {
   normalizeLayoutConfig,
@@ -20,12 +17,11 @@ import {
   type VisibleFieldKey,
 } from "../schema/layout-config";
 import type { BoxEntrySnapshot, ResolvedRuntimeResource } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 export interface LayoutEditorPanelProps {
   entries: BoxEntrySnapshot[];
   config: LayoutConfig;
-  locale?: string;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
   importBoxAsset?: (input: { file: File; preferredPath?: string }) => Promise<{ assetPath: string }>;
   deleteBoxAsset?: (assetPath: string) => Promise<void>;
@@ -36,24 +32,273 @@ export type LayoutEditorRoot = HTMLElement & {
   __chipsDispose?: () => void;
 };
 
-const StableSelect = React.forwardRef<HTMLDivElement, React.ComponentProps<typeof ChipsSelect>>((props, ref) => (
-  <ChipsSelect
-    {...props}
-    ref={ref}
-    iconContent={<span aria-hidden="true">{"\u25be"}</span>}
-  />
-));
-StableSelect.displayName = "StableSelect";
+const EDITOR_STYLE_TEXT = `
+.chips-list-layout-editor {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: #1d1d1f;
+  background: #ffffff;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
 
-const StableNumberInput = React.forwardRef<HTMLInputElement, React.ComponentProps<typeof ChipsNumberInput>>((props, ref) => (
-  <ChipsNumberInput
-    {...props}
-    ref={ref}
-    decrementContent={<span aria-hidden="true">-</span>}
-    incrementContent={<span aria-hidden="true">+</span>}
-  />
-));
-StableNumberInput.displayName = "StableNumberInput";
+.chips-list-layout-editor,
+.chips-list-layout-editor * {
+  box-sizing: border-box;
+}
+
+.chips-list-layout-editor__body {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.chips-list-layout-editor__form {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 12px 28px;
+}
+
+/* ---------- 面板头 ---------- */
+
+.chips-list-layout-editor__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px 14px;
+}
+
+.chips-list-layout-editor__head-icon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(10, 132, 255, 0.08);
+  color: #0a84ff;
+}
+
+.chips-list-layout-editor__head-text {
+  min-width: 0;
+}
+
+.chips-list-layout-editor__head-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #1d1d1f;
+}
+
+.chips-list-layout-editor__head-desc {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+/* ---------- 分组（iOS inset grouped 风格） ---------- */
+
+.chips-list-layout-editor__group {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.chips-list-layout-editor__group + .chips-list-layout-editor__frame,
+.chips-list-layout-editor__frame + .chips-list-layout-editor__frame {
+  margin-top: 16px;
+}
+
+.chips-list-layout-editor__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.chips-list-layout-editor__row + .chips-list-layout-editor__row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.chips-list-layout-editor__row-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: #1d1d1f;
+}
+
+.chips-list-layout-editor__hint {
+  margin: 8px 6px 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+.chips-list-layout-editor__group-footer {
+  margin: 10px 6px 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+/* ---------- 行内 Select ---------- */
+
+.chips-list-layout-editor .ant-select {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.chips-list-layout-editor .ant-select .ant-select-content {
+  padding-inline: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6e6e73;
+}
+
+.chips-list-layout-editor .ant-select:hover .ant-select-content {
+  color: #1d1d1f;
+}
+
+.chips-list-layout-editor .ant-select .ant-select-suffix {
+  color: #8e8e93;
+}
+
+/* ---------- 行内分段控件 ---------- */
+
+.chips-list-layout-editor .ant-segmented {
+  flex-shrink: 0;
+}
+
+/* ---------- 显示字段复选框 ---------- */
+
+.chips-list-layout-editor__field-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+/* ---------- 帧区域编辑 ---------- */
+
+.chips-list-layout-editor__frame {
+  display: grid;
+  gap: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.chips-list-layout-editor__frame-head {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chips-list-layout-editor__frame-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #1d1d1f;
+}
+
+.chips-list-layout-editor__frame-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+.chips-list-layout-editor__frame-actions {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chips-list-layout-editor__frame-action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chips-list-layout-editor__frame-asset {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #6e6e73;
+}
+
+.chips-list-layout-editor__html-input textarea {
+  min-height: 220px;
+  resize: vertical;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chips-list-layout-editor__frame-preview {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chips-list-layout-editor__frame-preview-label {
+  font-size: 12px;
+  color: #6e6e73;
+}
+
+.chips-list-layout-editor__frame-preview-box {
+  min-width: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, #f2f2f7 0%, #e5e5ea 100%);
+}
+
+.chips-list-layout-editor__frame-preview-empty {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  font-size: 13px;
+  color: #6e6e73;
+  text-align: center;
+}
+
+.chips-list-layout-editor__frame-preview-box .chips-embedded-document-frame,
+.chips-list-layout-editor__frame-preview-box iframe {
+  width: 100%;
+  height: 100%;
+}
+
+.chips-list-layout-editor__remove-button {
+  font-size: 13px;
+  min-height: 0;
+  padding: 4px 6px;
+}
+`;
 
 function updateConfig(config: LayoutConfig, patch: Partial<LayoutConfig["props"]>): LayoutConfig {
   return normalizeLayoutConfig({
@@ -80,231 +325,242 @@ function toggleVisibleField(config: LayoutConfig, field: VisibleFieldKey, checke
   return visibleFieldKeys.filter((item) => current.has(item));
 }
 
-const visibleFieldMessageKeys: Record<VisibleFieldKey, Parameters<typeof getLayoutMessage>[1]> = {
+const visibleFieldMessageKeys: Record<VisibleFieldKey, string> = {
   createdAt: "editor.field_created_at",
   summary: "editor.field_summary",
   tags: "editor.field_tags",
   type: "editor.field_type",
 };
 
-const shellStyle: React.CSSProperties = {
-  position: "relative",
-  boxSizing: "border-box",
-  display: "flex",
-  flexDirection: "column",
-  width: "100%",
-  height: "100%",
-  minHeight: 0,
-  minWidth: 0,
-  overflow: "hidden",
-  color: "var(--chips-sys-color-on-surface, #0f172a)",
-  background: "var(--chips-sys-color-surface, #ffffff)",
-  font: "var(--chips-comp-text-root-font, 14px/1.55 var(--chips-font-family-sans, sans-serif))",
-};
-
-const bodyStyle: React.CSSProperties = {
-  boxSizing: "border-box",
-  display: "grid",
-  alignContent: "start",
-  gap: "24px",
-  flex: 1,
-  minHeight: 0,
-  minWidth: 0,
-  width: "100%",
-  overflowX: "hidden",
-  overflowY: "auto",
-  padding: "14px 16px 42px",
-};
-
-const fieldListStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "10px 14px",
-};
-
 export function LayoutEditorPanel({
   entries,
-  config,
-  locale,
+  config: initialConfig,
   readBoxAsset,
   importBoxAsset,
   deleteBoxAsset,
   onChange,
 }: LayoutEditorPanelProps) {
-  const t = (key: Parameters<typeof getLayoutMessage>[1]) => getLayoutMessage(locale, key);
+  const [config, setConfig] = React.useState(() => normalizeLayoutConfig(initialConfig));
+
+  React.useEffect(() => {
+    setConfig(normalizeLayoutConfig(initialConfig));
+  }, [initialConfig]);
+
+  function commit(next: LayoutConfig): void {
+    const normalized = normalizeLayoutConfig(next);
+    setConfig(normalized);
+    onChange(normalized);
+  }
 
   return (
-    <div data-scope="chips-list-layout-editor" style={shellStyle}>
-      <div data-part="body" style={bodyStyle}>
-        <ChipsForm.Root aria-label={t("editor.section.layout")}>
-          <ChipsForm.Section
-            title={t("editor.section.layout")}
-            description={t("editor.auto_list_hint")}
-          >
-            <ChipsForm.Field name="sortMode">
-              <ChipsForm.Label>{t("editor.sort_mode")}</ChipsForm.Label>
-              <ChipsForm.Control>
-                <StableSelect
-                  value={config.props.sortMode}
-                  options={[
-                    { value: "manual", label: t("editor.sort_manual") },
-                    { value: "name-asc", label: t("editor.sort_name_asc") },
-                    { value: "name-desc", label: t("editor.sort_name_desc") },
-                  ]}
-                  onValueChange={(value: string) => {
-                    onChange(updateConfig(config, {
-                      sortMode: value as SortMode,
-                    }));
-                  }}
-                />
-              </ChipsForm.Control>
-              <ChipsForm.Hint>
-                {config.props.sortMode === "manual"
-                  ? t("editor.sort_manual_hint")
-                  : t("editor.sort_runtime_hint")}
-              </ChipsForm.Hint>
-            </ChipsForm.Field>
-
-            <ChipsForm.Field name="rowDensity">
-              <ChipsForm.Label>{t("editor.row_density")}</ChipsForm.Label>
-              <ChipsForm.Control>
-                <ChipsSegmentedControl
-                  value={config.props.rowDensity}
-                  ariaLabel={t("editor.row_density")}
-                  options={[
-                    { value: "compact", label: t("editor.row_density_compact") },
-                    { value: "comfortable", label: t("editor.row_density_comfortable") },
-                    { value: "spacious", label: t("editor.row_density_spacious") },
-                  ]}
-                  onValueChange={(value) => {
-                    onChange(updateConfig(config, {
-                      rowDensity: value as RowDensity,
-                    }));
-                  }}
-                />
-              </ChipsForm.Control>
-            </ChipsForm.Field>
-
-            <ChipsForm.Field name="coverSize">
-              <ChipsForm.Label>{t("editor.cover_size")}</ChipsForm.Label>
-              <ChipsForm.Control>
-                <ChipsSegmentedControl
-                  value={config.props.coverSize}
-                  ariaLabel={t("editor.cover_size")}
-                  options={[
-                    { value: "compact", label: t("editor.cover_size_compact") },
-                    { value: "regular", label: t("editor.cover_size_regular") },
-                    { value: "large", label: t("editor.cover_size_large") },
-                  ]}
-                  onValueChange={(value) => {
-                    onChange(updateConfig(config, {
-                      coverSize: value as CoverSize,
-                    }));
-                  }}
-                />
-              </ChipsForm.Control>
-            </ChipsForm.Field>
-
-            <ChipsForm.Field name="groupMode">
-              <ChipsForm.Label>{t("editor.group_mode")}</ChipsForm.Label>
-              <ChipsForm.Control>
-                <StableSelect
-                  value={config.props.groupMode}
-                  options={[
-                    { value: "none", label: t("editor.group_none") },
-                    { value: "type", label: t("editor.group_type") },
-                    { value: "tag", label: t("editor.group_tag") },
-                  ]}
-                  onValueChange={(value: string) => {
-                    onChange(updateConfig(config, {
-                      groupMode: value as GroupMode,
-                    }));
-                  }}
-                />
-              </ChipsForm.Control>
-            </ChipsForm.Field>
-
-            <ChipsForm.Field name="visibleFields">
-              <ChipsForm.Label>{t("editor.visible_fields")}</ChipsForm.Label>
-              <ChipsForm.Control>
-                <div style={fieldListStyle}>
-                  {visibleFieldKeys.map((field) => (
-                    <ChipsCheckbox
-                      key={field}
-                      checked={config.props.visibleFields.includes(field)}
-                      label={t(visibleFieldMessageKeys[field])}
-                      onCheckedChange={(checked) => {
-                        onChange(updateConfig(config, {
-                          visibleFields: toggleVisibleField(config, field, checked),
-                        }));
-                      }}
-                    />
-                  ))}
-                </div>
-              </ChipsForm.Control>
-            </ChipsForm.Field>
-
-            <ChipsForm.Field name="pageSize">
-              <ChipsForm.Label>{t("editor.page_size")}</ChipsForm.Label>
-              <ChipsForm.Control>
-                <StableNumberInput
-                  value={config.props.pageSize}
-                  min={20}
-                  max={240}
-                  step={20}
-                  largeStep={40}
-                  ariaLabel={t("editor.page_size")}
-                  onValueChange={(value: number | null) => {
-                    onChange(updateConfig(config, {
-                      pageSize: typeof value === "number" ? value : 120,
-                    }));
-                  }}
-                />
-              </ChipsForm.Control>
-              <ChipsForm.Hint>
-                {t("editor.entry_count").replace("{count}", String(entries.length))}
-              </ChipsForm.Hint>
-            </ChipsForm.Field>
-          </ChipsForm.Section>
-        </ChipsForm.Root>
-
-        <FrameRegionEditor
-          region={config.props.background}
-          locale={locale}
-          title={t("editor.background_title")}
-          description={t("editor.background_desc")}
-          previewRatio="16:9"
-          previewMinHeight="180px"
-          preferredAssetPrefix="assets/layouts/list/background"
-          readBoxAsset={readBoxAsset}
-          importBoxAsset={importBoxAsset}
-          deleteBoxAsset={deleteBoxAsset}
-          onChange={(nextRegion) => {
-            onChange(updateConfig(config, {
-              background: nextRegion,
-            }));
+    <section
+      className="chips-list-layout-editor"
+      data-scope="chips-list-layout-editor"
+      aria-label={formatMessage("editor.section.layout")}
+    >
+      <style>{EDITOR_STYLE_TEXT}</style>
+      <div className="chips-list-layout-editor__body" data-part="body">
+        <form
+          className="chips-list-layout-editor__form"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
           }}
-        />
+        >
+          <div className="chips-list-layout-editor__head">
+            <span className="chips-list-layout-editor__head-icon">
+              <UnorderedListOutlined style={{ fontSize: 18 }} />
+            </span>
+            <div className="chips-list-layout-editor__head-text">
+              <p className="chips-list-layout-editor__head-title">
+                {formatMessage("editor.section.layout")}
+              </p>
+              <p className="chips-list-layout-editor__head-desc">
+                {formatMessage("editor.auto_list_hint")}
+              </p>
+            </div>
+          </div>
 
-        <FrameRegionEditor
-          region={config.props.topRegion}
-          locale={locale}
-          title={t("editor.top_region_title")}
-          description={t("editor.top_region_desc")}
-          previewRatio="16:5"
-          previewMinHeight="160px"
-          preferredAssetPrefix="assets/layouts/list/top-region"
-          readBoxAsset={readBoxAsset}
-          importBoxAsset={importBoxAsset}
-          deleteBoxAsset={deleteBoxAsset}
-          onChange={(nextRegion) => {
-            onChange(updateConfig(config, {
-              topRegion: nextRegion,
-            }));
-          }}
-        />
+          <div className="chips-list-layout-editor__group">
+            <div className="chips-list-layout-editor__row">
+              <span className="chips-list-layout-editor__row-label">
+                {formatMessage("editor.sort_mode")}
+              </span>
+              <Select
+                className="chips-list-layout-editor__sort-select"
+                variant="borderless"
+                value={config.props.sortMode}
+                aria-label={formatMessage("editor.sort_mode")}
+                options={[
+                  {
+                    value: "manual",
+                    label: formatMessage("editor.sort_manual"),
+                  },
+                  {
+                    value: "name-asc",
+                    label: formatMessage("editor.sort_name_asc"),
+                  },
+                  {
+                    value: "name-desc",
+                    label: formatMessage("editor.sort_name_desc"),
+                  },
+                ]}
+                onChange={(value) => {
+                  commit(updateConfig(config, {
+                    sortMode: value as SortMode,
+                  }));
+                }}
+              />
+            </div>
+            <p className="chips-list-layout-editor__group-footer">
+              {config.props.sortMode === "manual"
+                ? formatMessage("editor.sort_manual_hint")
+                : formatMessage("editor.sort_runtime_hint")}
+            </p>
+
+            <div className="chips-list-layout-editor__row">
+              <span className="chips-list-layout-editor__row-label">
+                {formatMessage("editor.row_density")}
+              </span>
+              <Segmented
+                value={config.props.rowDensity}
+                aria-label={formatMessage("editor.row_density")}
+                options={[
+                  { value: "compact", label: formatMessage("editor.row_density_compact") },
+                  { value: "comfortable", label: formatMessage("editor.row_density_comfortable") },
+                  { value: "spacious", label: formatMessage("editor.row_density_spacious") },
+                ]}
+                onChange={(value) => {
+                  commit(updateConfig(config, {
+                    rowDensity: value as RowDensity,
+                  }));
+                }}
+              />
+            </div>
+
+            <div className="chips-list-layout-editor__row">
+              <span className="chips-list-layout-editor__row-label">
+                {formatMessage("editor.cover_size")}
+              </span>
+              <Segmented
+                value={config.props.coverSize}
+                aria-label={formatMessage("editor.cover_size")}
+                options={[
+                  { value: "compact", label: formatMessage("editor.cover_size_compact") },
+                  { value: "regular", label: formatMessage("editor.cover_size_regular") },
+                  { value: "large", label: formatMessage("editor.cover_size_large") },
+                ]}
+                onChange={(value) => {
+                  commit(updateConfig(config, {
+                    coverSize: value as CoverSize,
+                  }));
+                }}
+              />
+            </div>
+
+            <div className="chips-list-layout-editor__row">
+              <span className="chips-list-layout-editor__row-label">
+                {formatMessage("editor.group_mode")}
+              </span>
+              <Select
+                className="chips-list-layout-editor__group-select"
+                variant="borderless"
+                value={config.props.groupMode}
+                aria-label={formatMessage("editor.group_mode")}
+                options={[
+                  { value: "none", label: formatMessage("editor.group_none") },
+                  { value: "type", label: formatMessage("editor.group_type") },
+                  { value: "tag", label: formatMessage("editor.group_tag") },
+                ]}
+                onChange={(value) => {
+                  commit(updateConfig(config, {
+                    groupMode: value as GroupMode,
+                  }));
+                }}
+              />
+            </div>
+
+            <div className="chips-list-layout-editor__row">
+              <span className="chips-list-layout-editor__row-label">
+                {formatMessage("editor.visible_fields")}
+              </span>
+              <div className="chips-list-layout-editor__field-list">
+                {visibleFieldKeys.map((field) => (
+                  <Checkbox
+                    key={field}
+                    checked={config.props.visibleFields.includes(field)}
+                    onChange={(event) => {
+                      commit(updateConfig(config, {
+                        visibleFields: toggleVisibleField(config, field, event.target.checked),
+                      }));
+                    }}
+                  >
+                    {formatMessage(visibleFieldMessageKeys[field])}
+                  </Checkbox>
+                ))}
+              </div>
+            </div>
+
+            <div className="chips-list-layout-editor__row">
+              <span className="chips-list-layout-editor__row-label">
+                {formatMessage("editor.page_size")}
+              </span>
+              <InputNumber
+                min={20}
+                max={240}
+                step={20}
+                value={config.props.pageSize}
+                aria-label={formatMessage("editor.page_size")}
+                onChange={(value) => {
+                  commit(updateConfig(config, {
+                    pageSize: typeof value === "number" ? value : 120,
+                  }));
+                }}
+              />
+            </div>
+            <p className="chips-list-layout-editor__group-footer">
+              {formatMessage("editor.entry_count", { count: entries.length })}
+            </p>
+          </div>
+
+          <FrameRegionEditor
+            id="background"
+            region={config.props.background}
+            title={formatMessage("editor.background_title")}
+            description={formatMessage("editor.background_desc")}
+            previewRatio="16:9"
+            previewMinHeight="180px"
+            preferredAssetPrefix="assets/layouts/list/background"
+            readBoxAsset={readBoxAsset}
+            importBoxAsset={importBoxAsset}
+            deleteBoxAsset={deleteBoxAsset}
+            onChange={(nextRegion) => {
+              commit(updateConfig(config, {
+                background: nextRegion,
+              }));
+            }}
+          />
+
+          <FrameRegionEditor
+            id="topRegion"
+            region={config.props.topRegion}
+            title={formatMessage("editor.top_region_title")}
+            description={formatMessage("editor.top_region_desc")}
+            previewRatio="16:5"
+            previewMinHeight="160px"
+            preferredAssetPrefix="assets/layouts/list/top-region"
+            readBoxAsset={readBoxAsset}
+            importBoxAsset={importBoxAsset}
+            deleteBoxAsset={deleteBoxAsset}
+            onChange={(nextRegion) => {
+              commit(updateConfig(config, {
+                topRegion: nextRegion,
+              }));
+            }}
+          />
+        </form>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -319,7 +575,9 @@ export function createLayoutEditorRoot(props: LayoutEditorPanelProps): LayoutEdi
 
   flushSync(() => {
     reactRoot.render(
-      <LayoutEditorPanel {...props} />,
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
+        <LayoutEditorPanel {...props} />
+      </ConfigProvider>,
     );
   });
 

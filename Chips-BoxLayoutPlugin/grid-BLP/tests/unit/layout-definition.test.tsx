@@ -84,7 +84,7 @@ describe("layoutDefinition", () => {
     expect(tile?.querySelector('[data-grid-entry-title]')?.textContent).toBe("Demo Card");
     expect(tile?.querySelector('[data-grid-entry-kind]')).toBeNull();
     expect(tile?.querySelector('[data-grid-entry-summary]')).toBeNull();
-    expect(container.querySelector('[data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
     expect(renderEntryCover).toHaveBeenCalledWith("entry-1");
     expect(renderEntryCover).toHaveBeenCalledTimes(1);
     tile?.querySelector('[data-grid-entry-title]')?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -197,7 +197,7 @@ describe("layoutDefinition", () => {
       });
     });
 
-    expect(container.querySelector('[data-scope="select"][data-part="root"]')).toBeTruthy();
+    expect(container.querySelector(".ant-select")).toBeTruthy();
     expect(container.querySelector('input[type="number"]')).toBeNull();
     expect(container.textContent).toContain("移动端固定为两列");
     expect(container.style.display).toBe("flex");
@@ -206,8 +206,8 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-scope="chips-grid-layout-editor"]')).toBeTruthy();
     const editorRoot = container.querySelector('[data-chips-grid-layout-editor-root="true"]') as HTMLElement | null;
     expect(editorRoot?.style.height).toBe("100%");
-    expect(container.querySelector('[data-scope="form"][data-part="root"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="select"][data-part="root"]')).toBeTruthy();
+    expect(container.querySelector(".chips-grid-layout-editor__form")).toBeTruthy();
+    expect(container.querySelector(".ant-select")).toBeTruthy();
     expect(container.querySelector('[data-frame-region-editor="topRegion"]')).toBeTruthy();
     expect(container.querySelector('[data-frame-region-editor="background"]')).toBeTruthy();
 
@@ -233,15 +233,15 @@ describe("layoutDefinition", () => {
       });
     });
 
-    const sortRow = container.querySelector('[data-scope="select"][data-part="root"]') as HTMLElement | null;
-    const trigger = sortRow?.querySelector('[data-part="trigger"]') as HTMLButtonElement | null;
+    const sortRow = container.querySelector(".ant-select") as HTMLElement | null;
+    const trigger = sortRow?.querySelector("input.ant-select-input") as HTMLInputElement | null;
     expect(trigger).toBeTruthy();
 
     await act(async () => {
-      trigger?.click();
+      trigger?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
 
-    const options = Array.from(container.querySelectorAll('[data-scope="select"][data-part="option"]'));
+    const options = Array.from(document.body.querySelectorAll(".ant-select-item-option"));
     const nameAsc = options.find((option) => option.textContent?.includes("按名称升序"));
     expect(nameAsc).toBeTruthy();
 
@@ -277,7 +277,7 @@ describe("layoutDefinition", () => {
     });
 
     const background = container.querySelector('[data-frame-region-editor="background"]') as HTMLElement | null;
-    const items = Array.from(background?.querySelectorAll('[data-scope="segmented-control"][data-part="item"]') ?? []);
+    const items = Array.from(background?.querySelectorAll(".ant-segmented-item") ?? []);
     const imageItem = items.find((item) => item.textContent === "图片");
     expect(imageItem).toBeTruthy();
 

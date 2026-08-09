@@ -17,7 +17,8 @@
 - 查看态通过 `initialView` 首屏渲染，并按需调用 `runtime.listEntries` 加载后续页；
 - 条目封面只通过 `runtime.renderEntryCover` 获取，点击或键盘 Enter 激活时只调用 `runtime.openEntry`；
 - 支持键盘上下导航、Home/End、Space 多选、批量选择和清除选择；
-- 空态、错误态、表单、选择、复选框、分段控件和分页按钮使用 `@chips/component-library`。
+- 空态、错误态、表单、选择、复选框、分段控件和分页按钮使用 Ant Design 组件。
+- 界面文案统一为简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）。
 
 ## 布局配置
 
@@ -38,9 +39,16 @@
 - `src/view/`：查看态页面挂载与运行时
 - `src/editor/`：布局参数编辑与预览
 - `src/schema/`：默认配置、归一和校验
-- `src/shared/`：共享类型、多语言和视图辅助函数
+- `src/shared/`：共享类型与视图辅助函数
+- `src/lib/`：本地中文文案映射（`messages.ts`）
 - `contracts/`：布局配置 schema
 - `tests/`：单元测试
+
+## 技术栈
+
+- UI 组件：Ant Design（antd v6）+ `@ant-design/icons`
+- 共享前端层：`@chips/ui`（苹果风格主题、`EmbeddedDocumentFrame` 等）
+- 界面文案：简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）
 
 ## 正式导出
 
