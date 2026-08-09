@@ -1,5 +1,6 @@
 import React from "react";
-import { ChipsButton, ChipsDataGrid } from "@chips/component-library";
+import { Button } from "antd";
+import { ArrowRightOutlined } from "@ant-design/icons";
 
 interface SettingsRecordListProps {
   ariaLabel: string;
@@ -18,55 +19,73 @@ interface SettingsRecordItemProps {
   onOpenDetail: () => void;
 }
 
+interface SettingsRecordRowData {
+  id: string;
+  icon?: React.ReactNode;
+  title: React.ReactNode;
+  summary?: React.ReactNode;
+  meta?: React.ReactNode;
+  status?: React.ReactNode;
+  actions?: React.ReactNode;
+  detailLabel: string;
+  onOpenDetail: () => void;
+}
+
+function isSettingsRecordItem(element: React.ReactNode): element is React.ReactElement<SettingsRecordItemProps> {
+  return React.isValidElement(element) && element.type === SettingsRecordItem;
+}
+
 export function SettingsRecordList({ ariaLabel, children }: SettingsRecordListProps): React.ReactElement {
+  const rows = React.useMemo<SettingsRecordRowData[]>(() => {
+    return React.Children.toArray(children).flatMap((child) => {
+      if (!isSettingsRecordItem(child)) {
+        return [];
+      }
+      return [
+        {
+          id: child.key !== null && child.key !== undefined ? String(child.key) : child.props.id,
+          icon: child.props.icon,
+          title: child.props.title,
+          summary: child.props.summary,
+          meta: child.props.meta,
+          status: child.props.status,
+          actions: child.props.actions,
+          detailLabel: child.props.detailLabel,
+          onOpenDetail: child.props.onOpenDetail,
+        },
+      ];
+    });
+  }, [children]);
+
   return (
-    <ChipsDataGrid.Root
-      className="settings-record-list settings-governance-list"
-      ariaLabel={ariaLabel}
-      selectedRowIds={[]}
-      onSelectedRowIdsChange={() => undefined}
-    >
-      <div className="settings-record-list__body" role="rowgroup">
-        {children}
-      </div>
-    </ChipsDataGrid.Root>
+    <ul className="settings-record-list" aria-label={ariaLabel}>
+      {rows.map((row) => (
+        <li key={row.id} className="settings-record">
+          <button
+            type="button"
+            className="settings-record__main"
+            aria-label={row.detailLabel}
+            onClick={row.onOpenDetail}
+          >
+            {row.icon ? <span className="settings-record__icon" aria-hidden="true">{row.icon}</span> : null}
+            <span className="settings-record__text">
+              <span className="settings-record__title">{row.title}</span>
+              {row.summary ? <span className="settings-record__summary">{row.summary}</span> : null}
+            </span>
+            {row.meta ? <span className="settings-record__meta">{row.meta}</span> : null}
+            {row.status ? <span className="settings-record__status">{row.status}</span> : null}
+            {row.actions ? <span className="settings-record__actions">{row.actions}</span> : null}
+            <ArrowRightOutlined className="settings-record__chevron" aria-hidden="true" />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-export function SettingsRecordItem({
-  id,
-  icon,
-  title,
-  summary,
-  meta,
-  status,
-  actions,
-  detailLabel,
-  onOpenDetail,
-}: SettingsRecordItemProps): React.ReactElement {
-  return (
-    <ChipsDataGrid.Row className="settings-record-row" rowId={id}>
-      <ChipsDataGrid.Cell columnKey="record">
-        <div className="settings-record-main">
-          {icon ? <div className="settings-record-main__icon" aria-hidden="true">{icon}</div> : null}
-          <div className="settings-record-main__content">
-            <div className="settings-record-main__title">{title}</div>
-            {summary ? <div className="settings-record-main__summary">{summary}</div> : null}
-          </div>
-        </div>
-      </ChipsDataGrid.Cell>
-      <ChipsDataGrid.Cell columnKey="status">
-        <div className="settings-record-status">{status}</div>
-      </ChipsDataGrid.Cell>
-      <ChipsDataGrid.Cell columnKey="meta">
-        <div className="settings-record-meta">{meta}</div>
-      </ChipsDataGrid.Cell>
-      <ChipsDataGrid.Cell columnKey="actions">
-        <div className="settings-record-actions">
-          {actions}
-          <ChipsButton onPress={onOpenDetail}>{detailLabel}</ChipsButton>
-        </div>
-      </ChipsDataGrid.Cell>
-    </ChipsDataGrid.Row>
-  );
+export function SettingsRecordItem(props: SettingsRecordItemProps): React.ReactElement {
+  void props;
+  return <></>;
 }
+
+export { Button as SettingsRecordActionButton };

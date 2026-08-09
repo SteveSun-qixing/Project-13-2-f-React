@@ -1,5 +1,5 @@
 import React from "react";
-import { ChipsErrorBoundary, ChipsLoadingBoundary } from "@chips/component-library";
+import { Button, Flex, Result, Spin } from "antd";
 import { useI18n } from "../../app/providers/I18nProvider";
 import type { SettingsPanelError } from "../runtime/errors";
 import { normalizeSettingsError } from "../runtime/errors";
@@ -15,7 +15,6 @@ interface SectionStateBoundaryProps {
 interface RuntimeRenderBoundaryProps {
   error: SettingsPanelError | null;
   retryLabel: string;
-  loadingLabel: string;
   onRetry?: () => void;
   children: React.ReactNode;
 }
@@ -31,7 +30,7 @@ class RuntimeRenderBoundary extends React.Component<RuntimeRenderBoundaryProps, 
 
   public static getDerivedStateFromError(error: unknown): RuntimeRenderBoundaryState {
     return {
-      capturedError: normalizeSettingsError(error, "Failed to render settings section."),
+      capturedError: normalizeSettingsError(error, "渲染设置区块失败。"),
     };
   }
 
@@ -51,14 +50,20 @@ class RuntimeRenderBoundary extends React.Component<RuntimeRenderBoundaryProps, 
 
     if (effectiveError) {
       return (
-        <ChipsErrorBoundary
-          error={effectiveError}
-          title={effectiveError.message}
-          description={effectiveError.code}
-          retryLabel={this.props.onRetry ? this.props.retryLabel : undefined}
-          onRetry={this.props.onRetry ? this.handleRetry : undefined}
-          ariaLabel={this.props.loadingLabel}
-        />
+        <Flex vertical align="center" className="settings-section-error" style={{ padding: 24 }}>
+          <Result
+            status="error"
+            title={effectiveError.message}
+            subTitle={effectiveError.code}
+            extra={
+              this.props.onRetry ? (
+                <Button type="primary" onClick={this.handleRetry}>
+                  {this.props.retryLabel}
+                </Button>
+              ) : undefined
+            }
+          />
+        </Flex>
       );
     }
 
@@ -79,12 +84,24 @@ export function SectionStateBoundary({
     <RuntimeRenderBoundary
       error={error}
       retryLabel={t("settingsPanel.app.retry")}
-      loadingLabel={loadingLabel}
       onRetry={onRetry}
     >
-      <ChipsLoadingBoundary loading={loading} loadingText={loadingLabel} ariaLabel={loadingLabel}>
-        {children}
-      </ChipsLoadingBoundary>
+      {loading ? (
+        <Flex
+          vertical
+          align="center"
+          gap={12}
+          className="settings-section-loading"
+          role="status"
+          aria-label={loadingLabel}
+          style={{ padding: 24, minHeight: 160 }}
+        >
+          <Spin />
+          <span>{loadingLabel}</span>
+        </Flex>
+      ) : (
+        children
+      )}
     </RuntimeRenderBoundary>
   );
 }

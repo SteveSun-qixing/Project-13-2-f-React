@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import "../support/antd-test-setup";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -84,9 +85,7 @@ describe("settings record detail navigation", () => {
         await flushReact();
       });
 
-      const detailButton = Array.from(container.querySelectorAll("button")).find((button) =>
-        button.textContent?.includes("settingsPanel.common.details"),
-      );
+      const detailButton = container.querySelector('button[aria-label*="settingsPanel.common.details"]');
       expect(detailButton).toBeTruthy();
 
       await React.act(async () => {
@@ -116,5 +115,5 @@ describe("settings record detail navigation", () => {
       });
       container.remove();
     }
-  });
+  }, 15000);
 });

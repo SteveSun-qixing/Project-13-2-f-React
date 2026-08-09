@@ -1,10 +1,11 @@
 import React from "react";
+import { Button, Empty } from "antd";
 import type { GovernedPluginType, PluginGovernanceRecord } from "../../shared/runtime/settings-runtime-service";
-import { ChipsButton, ChipsEmptyState } from "@chips/component-library";
 import { useI18n } from "../../app/providers/I18nProvider";
 import { useWindowFileDrop } from "../../shared/hooks/useWindowFileDrop";
 import { NotificationStack } from "../../shared/ui/NotificationStack";
 import { PageFrame } from "../../shared/ui/PageFrame";
+import { SettingsSection } from "../../shared/ui/SettingsSection";
 import { SectionStateBoundary } from "../../shared/ui/SectionStateBoundary";
 import { SettingsDetailPage } from "../../shared/ui/SettingsDetailPage";
 import { SettingsRecordItem, SettingsRecordList } from "../../shared/ui/SettingsRecordList";
@@ -125,18 +126,18 @@ export function ManagedPluginPage({ type, translationBaseKey }: ManagedPluginPag
           }
           primaryActions={
             <div className="action-row">
-              <ChipsButton disabled={busy} onPress={() => void togglePluginEnabled(selectedPlugin)}>
+              <Button disabled={busy} onClick={() => void togglePluginEnabled(selectedPlugin)}>
                 {selectedPlugin.enabled
                   ? t(`${translationBaseKey}.actions.disable`)
                   : t(`${translationBaseKey}.actions.enable`)}
-              </ChipsButton>
+              </Button>
             </div>
           }
           secondaryActions={
             <div className="action-row">
-              <ChipsButton disabled={busy} onPress={() => void uninstallPlugin(selectedPlugin)}>
+              <Button disabled={busy} onClick={() => void uninstallPlugin(selectedPlugin)}>
                 {t(`${translationBaseKey}.actions.uninstall`)}
-              </ChipsButton>
+              </Button>
             </div>
           }
           fieldGroups={[
@@ -172,7 +173,7 @@ export function ManagedPluginPage({ type, translationBaseKey }: ManagedPluginPag
   return (
     <PageFrame
       title={t(`${translationBaseKey}.title`)}
-      actions={<ChipsButton onPress={installWithFilePicker}>{t(`${translationBaseKey}.actions.install`)}</ChipsButton>}
+      actions={<Button type="primary" onClick={installWithFilePicker}>{t(`${translationBaseKey}.actions.install`)}</Button>}
     >
       <NotificationStack
         ariaLabel={t("settingsPanel.feedback.ariaLabel")}
@@ -185,6 +186,7 @@ export function ManagedPluginPage({ type, translationBaseKey }: ManagedPluginPag
         title={t(`${translationBaseKey}.dropzone.title`)}
         description={t(`${translationBaseKey}.dropzone.description`)}
       />
+      <SettingsSection title={t(`${translationBaseKey}.sectionTitle`)}>
       <SectionStateBoundary
         loading={loading}
         error={error}
@@ -194,13 +196,21 @@ export function ManagedPluginPage({ type, translationBaseKey }: ManagedPluginPag
         }}
       >
         {plugins.length === 0 ? (
-          <ChipsEmptyState
-            ariaLabel={t(`${translationBaseKey}.empty.ariaLabel`)}
-            title={t(`${translationBaseKey}.empty.title`)}
-            description={t(`${translationBaseKey}.empty.description`)}
-            actionLabel={t(`${translationBaseKey}.actions.install`)}
-            onAction={installWithFilePicker}
-          />
+          <Empty
+            className="settings-empty-state"
+            aria-label={t(`${translationBaseKey}.empty.ariaLabel`)}
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <div className="settings-empty-state__copy">
+                <div className="settings-empty-state__title">{t(`${translationBaseKey}.empty.title`)}</div>
+                <div className="settings-empty-state__description">{t(`${translationBaseKey}.empty.description`)}</div>
+              </div>
+            }
+          >
+            <Button type="primary" onClick={installWithFilePicker}>
+              {t(`${translationBaseKey}.actions.install`)}
+            </Button>
+          </Empty>
         ) : (
           <SettingsRecordList
             ariaLabel={t(`${translationBaseKey}.listAriaLabel`)}
@@ -214,7 +224,6 @@ export function ManagedPluginPage({ type, translationBaseKey }: ManagedPluginPag
                   key={plugin.pluginId}
                   id={plugin.pluginId}
                   title={plugin.displayName ?? plugin.name}
-                  summary={plugin.description ?? plugin.pluginId}
                   status={<ManagedPluginStatus plugin={plugin} translationBaseKey={translationBaseKey} />}
                   meta={
                     <>
@@ -224,11 +233,11 @@ export function ManagedPluginPage({ type, translationBaseKey }: ManagedPluginPag
                   }
                   actions={
                     <>
-                      <ChipsButton disabled={busy} onPress={() => void togglePluginEnabled(plugin)}>
+                      <Button disabled={busy} onClick={() => void togglePluginEnabled(plugin)}>
                         {plugin.enabled
                           ? t(`${translationBaseKey}.actions.disable`)
                           : t(`${translationBaseKey}.actions.enable`)}
-                      </ChipsButton>
+                      </Button>
                     </>
                   }
                   detailLabel={t("settingsPanel.common.details")}
@@ -239,6 +248,7 @@ export function ManagedPluginPage({ type, translationBaseKey }: ManagedPluginPag
           </SettingsRecordList>
         )}
       </SectionStateBoundary>
+      </SettingsSection>
     </PageFrame>
   );
 }

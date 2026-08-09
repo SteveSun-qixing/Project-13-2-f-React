@@ -9,9 +9,7 @@ import { SETTINGS_PANEL_PERMISSIONS } from "../../src/app/settings-permissions";
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 
 const expectedPermissions = [
-  "theme.read",
   "theme.write",
-  "i18n.read",
   "i18n.write",
   "plugin.read",
   "plugin.manage",
@@ -23,14 +21,7 @@ const expectedPermissions = [
 ] as const;
 
 const settingsPanelActions = [
-  "theme.list",
-  "theme.getCurrent",
-  "theme.apply",
-  "theme.contract.get",
-  "theme.resolve",
-  "i18n.getCurrent",
-  "i18n.listLocales",
-  "i18n.setCurrent",
+  "platform.getInfo",
   "plugin.query",
   "plugin.get",
   "plugin.install",
@@ -67,24 +58,15 @@ describe("应用插件基础流程基线", () => {
     expect(manifest).toContain("id: com.chips.eco-settings-panel");
     expect(manifest).toContain("entry: dist/index.html");
 
-    for (const permission of [
-      "theme.read",
-      "theme.write",
-      "i18n.read",
-      "i18n.write",
-      "plugin.read",
-      "plugin.manage",
-      "platform.read",
-      "platform.external",
-      "command.read",
-      "command.write",
-      "command.invoke",
-    ]) {
+    for (const permission of expectedPermissions) {
       expect(manifest).toContain(`- ${permission}`);
     }
+
+    expect(manifest).not.toContain("- theme.read");
+    expect(manifest).not.toContain("- i18n.read");
   });
 
-  it("保持 manifest 与组件库环境注入权限一致", () => {
+  it("保持 manifest 与运行时权限常量一致", () => {
     expect(readManifestPermissions().sort()).toEqual([...expectedPermissions].sort());
     expect([...SETTINGS_PANEL_PERMISSIONS].sort()).toEqual([...expectedPermissions].sort());
   });

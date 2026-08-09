@@ -4,36 +4,11 @@ import type {
   PluginRecord,
   PluginShortcutRecord,
   PluginType,
-  ResolvedTheme,
-  ThemeContractView,
   ThemeMeta,
-  ThemeState,
 } from "chips-sdk";
 import { appConfig } from "../../../config/app-config";
 import { getChipsClient } from "./client";
 import { normalizeSettingsError, type SettingsPanelError } from "./errors";
-
-export interface ThemeGovernanceRecord {
-  pluginId: string;
-  themeId: string;
-  displayName: string;
-  version: string;
-  installed: boolean;
-  enabled: boolean;
-  current: boolean;
-  installPath: string;
-  installedAt: number;
-  publisher?: string;
-  parentTheme?: string;
-  isDefault: boolean;
-}
-
-export interface LanguageGovernanceRecord {
-  locale: string;
-  displayName: string;
-  nativeName: string;
-  current: boolean;
-}
 
 export interface AppPluginGovernanceRecord {
   pluginId: string;
@@ -125,116 +100,11 @@ export class SettingsRuntimeService {
     return this.client;
   }
 
-  public async listThemes(): Promise<ThemeGovernanceRecord[]> {
-    try {
-      const [installedThemes, enabledThemes, currentTheme] = await Promise.all([
-        this.client.plugin.query({ type: "theme" }),
-        this.client.theme.list(),
-        this.client.theme.getCurrent(),
-      ]);
-
-      const enabledThemeIds = new Set(enabledThemes.map((theme) => theme.id));
-      return sortByName(
-        installedThemes
-          .filter((record) => record.type === "theme" && record.theme)
-          .map((record) => {
-            const themeInfo = record.theme;
-            return {
-              pluginId: record.id,
-              themeId: themeInfo?.themeId ?? record.id,
-              displayName: themeInfo?.displayName ?? record.name,
-              version: record.version,
-              installed: true,
-              enabled: enabledThemeIds.has(themeInfo?.themeId ?? ""),
-              current: currentTheme.themeId === (themeInfo?.themeId ?? ""),
-              installPath: record.installPath,
-              installedAt: record.installedAt,
-              publisher: themeInfo?.publisher,
-              parentTheme: themeInfo?.parentTheme,
-              isDefault: themeInfo?.isDefault === true,
-            };
-          }),
-      ).sort((left, right) => {
-        if (left.current !== right.current) {
-          return left.current ? -1 : 1;
-        }
-        if (left.enabled !== right.enabled) {
-          return left.enabled ? -1 : 1;
-        }
-        return left.displayName.localeCompare(right.displayName, "zh-Hans-CN");
-      });
-    } catch (error) {
-      throw toSettingsError(error, "Failed to load installed themes.");
-    }
-  }
-
-  public async installTheme(manifestPath: string): Promise<void> {
-    try {
-      const { pluginId } = await this.client.plugin.install(manifestPath);
-      await this.client.plugin.enable(pluginId);
-    } catch (error) {
-      throw toSettingsError(error, "Failed to install theme package.");
-    }
-  }
-
-  public async applyTheme(themeId: string): Promise<void> {
-    try {
-      await this.client.theme.apply(themeId);
-    } catch (error) {
-      throw toSettingsError(error, "Failed to apply selected theme.");
-    }
-  }
-
-  public async getThemeContract(component?: string): Promise<ThemeContractView> {
-    try {
-      return await this.client.theme.contract.get(component);
-    } catch (error) {
-      throw toSettingsError(error, "Failed to load theme contract diagnostics.");
-    }
-  }
-
-  public async resolveThemeDiagnostics(chain: string[] = []): Promise<ResolvedTheme> {
-    try {
-      return await this.client.theme.resolve(chain);
-    } catch (error) {
-      throw toSettingsError(error, "Failed to resolve theme diagnostics.");
-    }
-  }
-
   public async uninstallPlugin(pluginId: string): Promise<void> {
     try {
       await this.client.plugin.uninstall(pluginId);
     } catch (error) {
       throw toSettingsError(error, "Failed to uninstall plugin.");
-    }
-  }
-
-  public async listLanguages(displayLocale: string): Promise<LanguageGovernanceRecord[]> {
-    try {
-      const [locales, currentLocale] = await Promise.all([
-        this.client.i18n.listLocales(),
-        this.client.i18n.getCurrent(),
-      ]);
-
-      return locales.map((locale) => {
-        const names = toLocaleDisplayName(locale, displayLocale);
-        return {
-          locale,
-          displayName: names.displayName,
-          nativeName: names.nativeName,
-          current: locale === currentLocale,
-        };
-      });
-    } catch (error) {
-      throw toSettingsError(error, "Failed to load installed languages.");
-    }
-  }
-
-  public async setCurrentLocale(locale: string): Promise<void> {
-    try {
-      await this.client.i18n.setCurrent(locale);
-    } catch (error) {
-      throw toSettingsError(error, "Failed to switch current language.");
     }
   }
 
@@ -425,24 +295,4 @@ export function filterPluginsByType(records: PluginRecord[], type: PluginType): 
   return records.filter((record) => record.type === type);
 }
 
-export function filterThemesByEnabled(themes: ThemeGovernanceRecord[]): ThemeGovernanceRecord[] {
-  return themes.filter((theme) => theme.enabled);
-}
 
-export function sortThemeMeta(themes: ThemeMeta[]): ThemeMeta[] {
-  return sortByName(themes);
-}
-
-export function sortThemeState(currentTheme: ThemeState | null, themes: ThemeGovernanceRecord[]): ThemeGovernanceRecord[] {
-  return [...themes].sort((left, right) => {
-    if (currentTheme) {
-      if (left.themeId === currentTheme.themeId && right.themeId !== currentTheme.themeId) {
-        return -1;
-      }
-      if (right.themeId === currentTheme.themeId && left.themeId !== currentTheme.themeId) {
-        return 1;
-      }
-    }
-    return left.displayName.localeCompare(right.displayName, "zh-Hans-CN");
-  });
-}

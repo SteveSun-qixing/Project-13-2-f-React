@@ -1,53 +1,37 @@
 import React from "react";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { NotificationStack } from "../../src/shared/ui/NotificationStack";
 
-function readSettingsStyles(): string {
-  const stylesPath = fileURLToPath(new URL("../../src/app/styles.css", import.meta.url));
-  return readFileSync(stylesPath, "utf-8");
-}
-
 describe("NotificationStack", () => {
-  it("renders feedback as a top-center toast instead of a list notification banner", () => {
+  it("renders feedback items as closable alerts in a fixed toast region", () => {
     const markup = renderToStaticMarkup(
       <NotificationStack
-        ariaLabel="Runtime feedback"
-        closeButtonLabel="Close"
+        ariaLabel="运行反馈"
+        closeButtonLabel="关闭"
         items={[
           {
-            id: "theme-updated",
+            id: "plugin-installed",
             tone: "success",
-            title: "Theme updated",
-            message: "The active theme was updated successfully.",
+            title: "应用插件安装",
+            message: "应用插件已安装，列表已刷新。",
           },
         ]}
       />,
     );
 
     expect(markup).toContain("settings-feedback-toast");
-    expect(markup).toContain('data-scope="toast"');
-    expect(markup).toContain('data-placement="top-center"');
-    expect(markup).not.toContain('data-scope="notification"');
+    expect(markup).toContain("ant-alert");
+    expect(markup).toContain("应用插件安装");
+    expect(markup).toContain("应用插件已安装，列表已刷新。");
+    expect(markup).toContain("关闭");
   });
 
-  it("styles each toast item as its own pill instead of styling the whole stack as one pill", () => {
-    const styles = readSettingsStyles();
-    const rootSelector = '.settings-feedback-toast [data-scope="toast"][data-part="root"]';
-    const itemSelector = '.settings-feedback-toast [data-scope="toast"][data-part="item"]';
-    const rootRuleStart = styles.indexOf(`${rootSelector} {`);
-    const itemRuleStart = styles.indexOf(`${itemSelector} {`);
-    const rootRule = styles.slice(rootRuleStart, styles.indexOf("}", rootRuleStart));
-    const itemRule = styles.slice(itemRuleStart, styles.indexOf("}", itemRuleStart));
+  it("renders nothing when there are no items", () => {
+    const markup = renderToStaticMarkup(
+      <NotificationStack ariaLabel="运行反馈" items={[]} />,
+    );
 
-    expect(rootRuleStart).toBeGreaterThanOrEqual(0);
-    expect(itemRuleStart).toBeGreaterThanOrEqual(0);
-    expect(rootRule).toContain("background-color: transparent");
-    expect(rootRule).toContain("box-shadow: none");
-    expect(itemRule).toContain("border-radius: var(--chips-base-radius-pill, 999px)");
-    expect(itemRule).toContain("background-color:");
-    expect(itemRule).toContain("box-shadow:");
+    expect(markup).toBe("");
   });
 });

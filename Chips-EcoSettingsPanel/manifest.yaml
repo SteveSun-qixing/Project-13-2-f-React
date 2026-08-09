@@ -4,7 +4,7 @@ version: 0.1.0
 type: app
 entry: dist/index.html
 
-description: 薯片生态与 Host 的统一运行时设置面板，负责主题、多语言、应用插件与组件展示治理。
+description: 薯片生态与 Host 的统一运行时设置面板，负责应用插件与运行时插件治理，并提供开发者工具链入口。
 
 author:
   name: sevenstars
@@ -13,14 +13,11 @@ author:
 keywords:
   - chips
   - settings
-  - theme
-  - i18n
   - plugin
+  - runtime
 
 permissions:
-  - theme.read
   - theme.write
-  - i18n.read
   - i18n.write
   - plugin.read
   - plugin.manage

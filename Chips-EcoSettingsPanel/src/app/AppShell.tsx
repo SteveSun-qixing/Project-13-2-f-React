@@ -1,28 +1,19 @@
 import React from "react";
-import {
-  ChipsBox,
-  ChipsButton,
-  ChipsCommandProvider,
-  ChipsIcon,
-  ChipsLoadingBoundary,
-  ChipsNavigationSplitView,
-  ChipsSearchField,
-  ChipsSelect,
-  ChipsStack,
-  ChipsText,
-} from "@chips/component-library";
+import { Button, Select, Spin } from "antd";
+import { AppChrome } from "@chips/ui";
 import { useI18n } from "./providers/I18nProvider";
 import { NotificationStack } from "../shared/ui/NotificationStack";
-import { sceneDefinitions, type SettingsSceneId } from "./scene-registry";
+import { SettingsSidebar, type SettingsSidebarGroup } from "../shared/ui/SettingsSidebar";
+import { isSettingsSceneId, sceneDefinitions, type SettingsSceneId } from "./scene-registry";
 import { useAppRuntime } from "./AppRuntimeProvider";
-import { settingsCommandViews } from "../commands/settings-commands";
+import { SETTINGS_COMMAND_IDS } from "../commands/settings-commands";
 import { useSettingsCommands } from "../commands/useSettingsCommands";
-import { SETTINGS_SCENE_ICONS } from "./settings-scene-icons";
+import { getSettingsSceneIcon } from "./settings-scene-icons";
 
 export function AppShell(): React.ReactElement {
   const { t } = useI18n();
   const runtime = useAppRuntime();
-  const { activeScene, activeSceneId, currentTheme, ready, runtimeError, setActiveSceneId, refreshRuntimeState } = runtime;
+  const { activeScene, activeSceneId, ready, runtimeError, setActiveSceneId, refreshRuntimeState } = runtime;
   const commands = useSettingsCommands(runtime.client);
   const handledInvocationRef = React.useRef<string | null>(null);
   const [navQuery, setNavQuery] = React.useState("");
@@ -30,9 +21,9 @@ export function AppShell(): React.ReactElement {
   const mobileSceneOptions = React.useMemo(() => {
     return sceneDefinitions.map((scene) => ({
       value: scene.id,
-      label: t(scene.titleKey),
+      label: scene.title,
     }));
-  }, [t]);
+  }, []);
 
   const feedbackItems = React.useMemo(() => {
     if (!runtimeError) {
@@ -49,29 +40,23 @@ export function AppShell(): React.ReactElement {
     ];
   }, [runtimeError, t]);
 
-  const navGroups = React.useMemo<Array<{ key: string; scenes: typeof sceneDefinitions }>>(() => {
-    const normalizedQuery = navQuery.trim().toLocaleLowerCase();
-    const groups: Array<{ key: string; scenes: typeof sceneDefinitions }> = [];
-
+  const sidebarGroups = React.useMemo<SettingsSidebarGroup[]>(() => {
+    const groups: SettingsSidebarGroup[] = [];
     sceneDefinitions.forEach((scene) => {
-      const title = t(scene.titleKey);
-      const summary = t(scene.summaryKey);
-      const category = t(scene.categoryKey);
-      const searchable = `${title} ${summary} ${category}`.toLocaleLowerCase();
-      if (normalizedQuery && !searchable.includes(normalizedQuery)) {
-        return;
+      let group = groups.find((entry) => entry.key === scene.category);
+      if (!group) {
+        group = { key: scene.category, label: scene.category, items: [] };
+        groups.push(group);
       }
-
-      const existing = groups.find((group) => group.key === scene.categoryKey);
-      if (existing) {
-        existing.scenes.push(scene);
-        return;
-      }
-      groups.push({ key: scene.categoryKey, scenes: [scene] });
+      group.items.push({
+        id: scene.id,
+        title: scene.title,
+        summary: scene.summary,
+        icon: getSettingsSceneIcon(scene.id),
+      });
     });
-
     return groups;
-  }, [navQuery, t]);
+  }, []);
 
   React.useEffect(() => {
     if (!commands.lastInvoked) {
@@ -87,112 +72,66 @@ export function AppShell(): React.ReactElement {
   }, [commands.lastInvoked, setActiveSceneId]);
 
   const invokeSceneCommand = React.useCallback((sceneId: SettingsSceneId) => {
-    const command = settingsCommandViews.find((item) => item.handlerId === `open-scene:${sceneId}`);
-    if (command) {
-      void commands.invokeCommand(command.commandId, "api");
-      return;
+    void commands.invokeCommand(SETTINGS_COMMAND_IDS[sceneId], "api");
+  }, [commands]);
+
+  const handleSidebarSelect = (sceneId: string): void => {
+    if (isSettingsSceneId(sceneId)) {
+      invokeSceneCommand(sceneId);
     }
-    setActiveSceneId(sceneId);
-  }, [commands, setActiveSceneId]);
+  };
 
   return (
-    <ChipsCommandProvider adapter={commands.adapter} commands={settingsCommandViews} i18n={t}>
-      <ChipsNavigationSplitView.Root
-        className="settings-app-shell"
-        ariaLabel={t("settingsPanel.app.title")}
-        data-app-id={runtime.environment.appId}
-        data-scene-id={activeSceneId}
-      >
-        <ChipsNavigationSplitView.Sidebar
-          className="settings-shell__sidebar"
-          ariaLabel={t("settingsPanel.menu.ariaLabel")}
-        >
-          <ChipsStack className="settings-sidebar-inner" gap="var(--chips-layout-gap-md, 16px)" align="stretch">
-            <ChipsStack className="settings-brand" gap="var(--chips-layout-gap-xs, 6px)" align="stretch">
-              <ChipsText className="settings-brand__title" as="strong" text={t("settingsPanel.app.title")} emphasis="strong" />
-              <ChipsText className="settings-brand__subtitle" as="p" text={t("settingsPanel.app.subtitle")} tone="muted" />
-            </ChipsStack>
-            <div className="settings-nav-search">
-              <ChipsSearchField
-                value={navQuery}
-                ariaLabel={t("settingsPanel.menu.searchAriaLabel")}
-                placeholder={t("settingsPanel.menu.searchPlaceholder")}
-                clearLabel={t("settingsPanel.menu.searchClear")}
-                onValueChange={setNavQuery}
-              />
-            </div>
-            <nav className="settings-nav-list" aria-label={t("settingsPanel.menu.ariaLabel")}>
-              {navGroups.map((group) => (
-                <div className="settings-nav-group" key={group.key}>
-                  <ChipsText className="settings-nav-group__label" as="span" text={t(group.key)} tone="muted" />
-                  <div className="settings-nav-group__items">
-                    {group.scenes.map((scene) => {
-                      const sceneIcon = SETTINGS_SCENE_ICONS[scene.id];
-                      return (
-                        <ChipsButton
-                          key={scene.id}
-                          toggleable
-                          pressed={scene.id === activeSceneId}
-                          onPress={() => invokeSceneCommand(scene.id)}
-                        >
-                          <span className="settings-nav-icon" aria-hidden="true">
-                            <ChipsIcon descriptor={{ name: sceneIcon.name, style: "rounded", decorative: true, fill: 1 }} size={18} />
-                          </span>
-                          <span className="settings-nav-label">
-                            <ChipsText as="span" text={t(scene.titleKey)} emphasis="strong" />
-                            <ChipsText as="span" text={t(scene.summaryKey)} tone="muted" />
-                          </span>
-                        </ChipsButton>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </nav>
-          </ChipsStack>
-        </ChipsNavigationSplitView.Sidebar>
-        <ChipsNavigationSplitView.Detail
-          as="main"
-          className="settings-shell__detail"
-          ariaLabel={t(activeScene.titleKey)}
-          data-theme-id={currentTheme?.themeId}
-        >
-          <ChipsStack className="settings-shell__content" gap="var(--chips-layout-gap-md, 18px)" align="stretch">
-            <ChipsBox className="settings-mobile-nav" padding="var(--chips-layout-gap-md, 16px)" radius="var(--chips-sys-radius-container, 14px)">
-              <ChipsText className="settings-mobile-nav__label" as="span" text={t("settingsPanel.menu.mobileLabel")} tone="muted" />
-              <ChipsSelect
+    <AppChrome paletteShortcut="Mod+P" contentStyle={{ overflow: "hidden" }}>
+      <div className="settings-app-shell" data-app-id={runtime.environment.appId} data-scene-id={activeSceneId}>
+        <aside className="settings-app-shell__sidebar" aria-label={t("settingsPanel.menu.ariaLabel")}>
+          <SettingsSidebar
+            groups={sidebarGroups}
+            selectedId={activeSceneId}
+            searchValue={navQuery}
+            searchPlaceholder={t("settingsPanel.menu.searchPlaceholder")}
+            searchAriaLabel={t("settingsPanel.menu.ariaLabel")}
+            emptyText={t("settingsPanel.menu.searchEmpty")}
+            onSearchChange={setNavQuery}
+            onSelect={handleSidebarSelect}
+          />
+        </aside>
+        <main className="settings-app-shell__detail">
+          <div className="settings-app-shell__content">
+            <div className="settings-mobile-nav">
+              <span className="settings-mobile-nav__label">{t("settingsPanel.menu.mobileLabel")}</span>
+              <Select
                 value={activeScene.id}
                 aria-label={t("settingsPanel.menu.mobileAriaLabel")}
                 options={mobileSceneOptions}
-                onValueChange={(nextValue) => invokeSceneCommand(nextValue as SettingsSceneId)}
+                onChange={(nextValue) => invokeSceneCommand(nextValue as SettingsSceneId)}
+                className="settings-mobile-nav__select"
               />
-              <ChipsText className="settings-mobile-nav__summary" as="p" text={t(activeScene.summaryKey)} tone="muted" />
-            </ChipsBox>
+              <span className="settings-mobile-nav__summary">{activeScene.summary}</span>
+            </div>
             <NotificationStack
               ariaLabel={t("settingsPanel.feedback.ariaLabel")}
               closeButtonLabel={t("settingsPanel.common.close")}
               items={feedbackItems}
             />
             {!ready ? (
-              <ChipsLoadingBoundary
-                loading
-                delayMs={0}
-                loadingText={t("settingsPanel.app.loading")}
-                ariaLabel={t("settingsPanel.app.loading")}
-              />
+              <div className="settings-app-shell__loading" role="status" aria-label={t("settingsPanel.app.loading")}>
+                <Spin />
+                <span>{t("settingsPanel.app.loading")}</span>
+              </div>
             ) : (
-              activeScene.render()
+              <div className="settings-app-shell__scene">{activeScene.render()}</div>
             )}
             {runtimeError ? (
-              <div className="settings-shell__footer-action">
-                <ChipsButton onPress={() => void refreshRuntimeState()}>
+              <div className="settings-app-shell__footer-action">
+                <Button onClick={() => void refreshRuntimeState()}>
                   {t("settingsPanel.app.retry")}
-                </ChipsButton>
+                </Button>
               </div>
             ) : null}
-          </ChipsStack>
-        </ChipsNavigationSplitView.Detail>
-      </ChipsNavigationSplitView.Root>
-    </ChipsCommandProvider>
+          </div>
+        </main>
+      </div>
+    </AppChrome>
   );
 }

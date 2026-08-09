@@ -1,29 +1,23 @@
 import React from "react";
-import { ChipsPanelHeader, ChipsStack } from "@chips/component-library";
 
 interface PageFrameProps {
   title: string;
+  description?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
 }
 
-export function PageFrame({ title, actions, children }: PageFrameProps): React.ReactElement {
+export function PageFrame({ title, description, actions, children }: PageFrameProps): React.ReactElement {
   return (
-    <ChipsStack
-      as="section"
-      className="settings-page-frame"
-      gap="var(--chips-layout-gap-md, 18px)"
-      align="stretch"
-      aria-label={title}
-    >
-      <ChipsPanelHeader title={title} actions={actions} />
-      <ChipsStack
-        className="settings-page-frame__body"
-        gap="var(--chips-layout-gap-md, 18px)"
-        align="stretch"
-      >
-        {children}
-      </ChipsStack>
-    </ChipsStack>
+    <section className="settings-page-frame" aria-label={title}>
+      <header className="settings-page-frame__header">
+        <div className="settings-page-frame__titles">
+          <h1 className="settings-page-frame__title">{title}</h1>
+          {description ? <p className="settings-page-frame__description">{description}</p> : null}
+        </div>
+        {actions ? <div className="settings-page-frame__actions">{actions}</div> : null}
+      </header>
+      <div className="settings-page-frame__body">{children}</div>
+    </section>
   );
 }

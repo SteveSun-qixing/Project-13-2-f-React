@@ -1,7 +1,9 @@
 import React from "react";
-import { createCommandAdapter, type ChipsCommandAdapter } from "@chips/component-library";
 import type { Client, CommandSource } from "chips-sdk";
+import type { CommandItem } from "@chips/ui";
+import { useCommandRegistry } from "@chips/ui";
 import {
+  createSettingsCommands,
   createSettingsCommandStatus,
   getSceneIdFromHandlerId,
   isSettingsCommandInvokedEvent,
@@ -11,7 +13,7 @@ import {
 } from "./settings-commands";
 
 export interface UseSettingsCommandsResult {
-  adapter: ChipsCommandAdapter;
+  commands: CommandItem[];
   phase: SettingsCommandPhase;
   errorCode: string | null;
   lastInvoked: SettingsCommandStatus | null;
@@ -29,10 +31,29 @@ function toErrorCode(error: unknown): string {
 }
 
 export function useSettingsCommands(client: Client): UseSettingsCommandsResult {
-  const adapter = React.useMemo(() => createCommandAdapter(client), [client]);
+  const { register } = useCommandRegistry();
   const [phase, setPhase] = React.useState<SettingsCommandPhase>("idle");
   const [errorCode, setErrorCode] = React.useState<string | null>(null);
   const [lastInvoked, setLastInvoked] = React.useState<SettingsCommandStatus | null>(null);
+
+  const invokeCommand = React.useCallback(async (commandId: string, source: CommandSource): Promise<void> => {
+    setErrorCode(null);
+    try {
+      await client.command.invoke(commandId, {}, { source });
+    } catch (error) {
+      setErrorCode(toErrorCode(error));
+      setPhase("error");
+    }
+  }, [client]);
+
+  const localCommands = React.useMemo(
+    () => createSettingsCommands({ invoke: invokeCommand }),
+    [invokeCommand],
+  );
+
+  React.useEffect(() => {
+    register(localCommands);
+  }, [localCommands, register]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -78,18 +99,8 @@ export function useSettingsCommands(client: Client): UseSettingsCommandsResult {
     };
   }, [client]);
 
-  async function invokeCommand(commandId: string, source: CommandSource): Promise<void> {
-    setErrorCode(null);
-    try {
-      await client.command.invoke(commandId, {}, { source });
-    } catch (error) {
-      setErrorCode(toErrorCode(error));
-      setPhase("error");
-    }
-  }
-
   return {
-    adapter,
+    commands: localCommands,
     phase,
     errorCode,
     lastInvoked,

@@ -1,5 +1,5 @@
 import React from "react";
-import { ChipsToast } from "@chips/component-library";
+import { Alert, Flex } from "antd";
 
 export interface FeedbackItem {
   id: string;
@@ -23,16 +23,22 @@ export function NotificationStack({ ariaLabel, closeButtonLabel, items, onDismis
   }
 
   return (
-    <div className="settings-feedback-toast">
-      <ChipsToast
-        ariaLabel={ariaLabel}
-        closeButtonLabel={closeButtonLabel}
-        entries={items}
-        placement="top-center"
-        onDismiss={(item) => {
-          onDismiss?.(item as FeedbackItem);
-        }}
-      />
+    <div className="settings-feedback-toast" role="region" aria-label={ariaLabel}>
+      <Flex vertical gap={8} className="settings-feedback-toast__list">
+        {items.map((item) => (
+          <Alert
+            key={item.id}
+            className="settings-feedback-toast__item"
+            type={item.tone}
+            showIcon
+            message={item.title}
+            description={item.message}
+            closable
+            closeText={closeButtonLabel}
+            onClose={() => onDismiss?.(item)}
+          />
+        ))}
+      </Flex>
     </div>
   );
 }

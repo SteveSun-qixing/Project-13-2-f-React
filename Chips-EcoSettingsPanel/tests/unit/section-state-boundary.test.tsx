@@ -13,7 +13,7 @@ vi.mock("../../src/app/providers/I18nProvider", () => ({
 }));
 
 describe("SectionStateBoundary", () => {
-  it("does not render the error boundary wrapper when no error exists", async () => {
+  it("renders children when there is no loading or error state", async () => {
     const { SectionStateBoundary } = await import("../../src/shared/ui/SectionStateBoundary");
     const markup = renderToStaticMarkup(
       <SectionStateBoundary loading={false} error={null} loadingLabel="loading">
@@ -21,7 +21,39 @@ describe("SectionStateBoundary", () => {
       </SectionStateBoundary>,
     );
 
-    expect(markup).not.toContain('data-scope="error-boundary"');
     expect(markup).toContain("content");
+    expect(markup).not.toContain("ant-spin");
+  });
+
+  it("renders a loading state with the section loading label", async () => {
+    const { SectionStateBoundary } = await import("../../src/shared/ui/SectionStateBoundary");
+    const markup = renderToStaticMarkup(
+      <SectionStateBoundary loading error={null} loadingLabel="正在加载列表">
+        <div>content</div>
+      </SectionStateBoundary>,
+    );
+
+    expect(markup).toContain("ant-spin");
+    expect(markup).toContain("正在加载列表");
+    expect(markup).not.toContain("content");
+  });
+
+  it("renders an error result with retry when an error exists", async () => {
+    const { SectionStateBoundary } = await import("../../src/shared/ui/SectionStateBoundary");
+    const markup = renderToStaticMarkup(
+      <SectionStateBoundary
+        loading={false}
+        error={{ code: "PLUGIN_LIST_FAILED", message: "读取失败", retryable: true }}
+        loadingLabel="loading"
+        onRetry={() => undefined}
+      >
+        <div>content</div>
+      </SectionStateBoundary>,
+    );
+
+    expect(markup).toContain("读取失败");
+    expect(markup).toContain("PLUGIN_LIST_FAILED");
+    expect(markup).toContain("settingsPanel.app.retry");
+    expect(markup).not.toContain("content");
   });
 });

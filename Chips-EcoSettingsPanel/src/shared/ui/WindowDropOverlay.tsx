@@ -1,5 +1,5 @@
 import React from "react";
-import { ChipsIcon } from "@chips/component-library";
+import { UploadOutlined } from "@ant-design/icons";
 
 interface WindowDropOverlayProps {
   active: boolean;
@@ -16,7 +16,7 @@ export function WindowDropOverlay({ active, title, description }: WindowDropOver
     <div className="settings-window-drop-overlay" role="status" aria-live="polite">
       <div className="settings-window-drop-overlay__panel">
         <span className="settings-window-drop-overlay__icon" aria-hidden="true">
-          <ChipsIcon descriptor={{ name: "upload_file", style: "rounded", decorative: true }} size={24} />
+          <UploadOutlined />
         </span>
         <span className="settings-window-drop-overlay__copy">
           <strong>{title}</strong>

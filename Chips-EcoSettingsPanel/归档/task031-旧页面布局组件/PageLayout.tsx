@@ -1,5 +1,5 @@
 import React from "react";
-import { ChipsBox, ChipsCardShell, ChipsGrid, ChipsSection, ChipsStack, ChipsText } from "@chips/component-library";
+import { Card, Flex, Typography } from "antd";
 
 interface PageStackProps {
   children: React.ReactNode;
@@ -47,9 +47,9 @@ interface MetricCardProps {
 
 export function PageStack({ children }: PageStackProps): React.ReactElement {
   return (
-    <ChipsStack className="settings-page-stack" gap="var(--chips-layout-gap-md, 18px)" align="stretch">
+    <Flex vertical gap={18} className="settings-page-stack">
       {children}
-    </ChipsStack>
+    </Flex>
   );
 }
 
@@ -61,55 +61,50 @@ export function PageSection({
   children,
 }: PageSectionProps): React.ReactElement {
   return (
-    <ChipsSection
-      className="settings-page-section"
-      title={title}
-      titleId={titleId}
-      description={description}
-      ariaLabelledBy={titleId}
-      footer={meta}
-    >
-      {children}
-    </ChipsSection>
+    <section className="settings-page-section" aria-labelledby={titleId}>
+      <header className="settings-page-section__header">
+        <Typography.Title level={5} id={titleId} className="settings-page-section__title">
+          {title}
+        </Typography.Title>
+        {description ? (
+          <Typography.Text type="secondary" className="settings-page-section__description">
+            {description}
+          </Typography.Text>
+        ) : null}
+      </header>
+      <div className="settings-page-section__content">{children}</div>
+      {meta ? <div className="settings-page-section__meta">{meta}</div> : null}
+    </section>
   );
 }
 
 export function SummaryPanel({ ariaLabel, main, meta }: SummaryPanelProps): React.ReactElement {
   return (
-    <ChipsBox as="section" className="settings-summary-panel" aria-label={ariaLabel}>
-      <ChipsGrid
-        className="settings-summary-panel__grid"
-        minItemSize="220px"
-        gap="var(--chips-layout-gap-md, 18px)"
-      >
+    <section className="settings-summary-panel" aria-label={ariaLabel}>
+      <div className="settings-summary-panel__grid">
         <div className="settings-summary-panel__main">{main}</div>
         {meta ? <div className="settings-summary-panel__meta">{meta}</div> : null}
-      </ChipsGrid>
-    </ChipsBox>
+      </div>
+    </section>
   );
 }
 
 export function CardGrid({ minItemSize = "260px", children }: CardGridProps): React.ReactElement {
   return (
-    <ChipsGrid
+    <div
       className="settings-card-grid"
-      minItemSize={minItemSize}
-      gap="var(--chips-layout-gap-md, 16px)"
+      style={{ "--settings-card-grid-min": minItemSize } as React.CSSProperties}
     >
       {children}
-    </ChipsGrid>
+    </div>
   );
 }
 
 export function ShowcaseCardGrid({ children }: ShowcaseCardGridProps): React.ReactElement {
   return (
-    <ChipsGrid
-      className="settings-card-grid settings-card-grid--showcase"
-      minItemSize="260px"
-      gap="var(--chips-layout-gap-md, 16px)"
-    >
+    <div className="settings-card-grid settings-card-grid--showcase">
       {children}
-    </ChipsGrid>
+    </div>
   );
 }
 
@@ -122,17 +117,19 @@ export function CardGridItem({ emphasis = "standard", children }: CardGridItemPr
 }
 
 export function CardDescription({ children }: CardDescriptionProps): React.ReactElement {
-  return <ChipsText as="p" className="settings-card-description" text={children} tone="muted" />;
+  return (
+    <Typography.Paragraph type="secondary" className="settings-card-description">
+      {children}
+    </Typography.Paragraph>
+  );
 }
 
 export function MetricCard({ label, value, detail }: MetricCardProps): React.ReactElement {
   return (
-    <ChipsCardShell
-      ariaLabel={label}
-      title={<span className="settings-metric-card__label">{label}</span>}
-      footer={<span className="settings-metric-card__detail">{detail}</span>}
-    >
+    <Card className="settings-metric-card" aria-label={label}>
+      <div className="settings-metric-card__label">{label}</div>
       <strong className="settings-metric-card__value">{value}</strong>
-    </ChipsCardShell>
+      <div className="settings-metric-card__detail">{detail}</div>
+    </Card>
   );
 }

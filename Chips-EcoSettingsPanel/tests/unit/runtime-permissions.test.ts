@@ -47,32 +47,6 @@ describe("SettingsRuntimeService permission handling", () => {
     return client;
   }
 
-  it("normalizes read permission denials for theme and plugin governance", async () => {
-    await expectPermissionDenied(track(createSettingsMockClient()), (service) => service.listThemes(), {
-      action: "plugin.query",
-      required: "plugin.read",
-    });
-    await expectPermissionDenied(track(createSettingsMockClient()), (service) => service.getThemeContract(), {
-      action: "theme.contract.get",
-      required: "theme.read",
-    });
-    await expectPermissionDenied(track(createSettingsMockClient()), (service) => service.resolveThemeDiagnostics([]), {
-      action: "theme.resolve",
-      required: "theme.read",
-    });
-  });
-
-  it("normalizes write permission denials for theme and language governance", async () => {
-    await expectPermissionDenied(track(createSettingsMockClient()), (service) => service.applyTheme("chips.dark"), {
-      action: "theme.apply",
-      required: "theme.write",
-    });
-    await expectPermissionDenied(track(createSettingsMockClient()), (service) => service.setCurrentLocale("en-US"), {
-      action: "i18n.setCurrent",
-      required: "i18n.write",
-    });
-  });
-
   it("normalizes permission denials for plugin management actions", async () => {
     await expectPermissionDenied(track(createSettingsMockClient()), (service) => service.installAppPlugin("/packages/app.cpk"), {
       action: "plugin.install",

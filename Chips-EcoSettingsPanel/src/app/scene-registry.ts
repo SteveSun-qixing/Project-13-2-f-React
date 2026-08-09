@@ -4,19 +4,19 @@ export type SettingsSceneId = MenuId;
 
 export interface SettingsSceneDefinition {
   id: SettingsSceneId;
-  titleKey: string;
-  descriptionKey: string;
-  summaryKey: string;
-  categoryKey: string;
+  title: string;
+  description: string;
+  summary: string;
+  category: string;
   render: () => React.ReactElement;
 }
 
 export const sceneDefinitions: SettingsSceneDefinition[] = MENU_REGISTRY.map((entry) => ({
   id: entry.id,
-  titleKey: entry.titleKey,
-  descriptionKey: entry.summaryKey,
-  summaryKey: entry.summaryKey,
-  categoryKey: entry.categoryKey,
+  title: entry.title,
+  description: entry.summary,
+  summary: entry.summary,
+  category: entry.category,
   render: entry.render,
 }));
 

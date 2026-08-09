@@ -4,6 +4,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMockChipsClient, type CommandView, type MockChipsClient } from "chips-sdk";
+import { CommandProvider } from "@chips/ui";
 import { SETTINGS_PANEL_PERMISSIONS } from "../../src/app/settings-permissions";
 import { SETTINGS_COMMAND_IDS, settingsCommandDefinitions } from "../../src/commands/settings-commands";
 import { useSettingsCommands, type UseSettingsCommandsResult } from "../../src/commands/useSettingsCommands";
@@ -80,7 +81,11 @@ describe("useSettingsCommands permission handling", () => {
     }
 
     renderer = createRenderer();
-    await renderer.render(<Harness />);
+    await renderer.render(
+      <CommandProvider>
+        <Harness />
+      </CommandProvider>,
+    );
 
     const state = expectLatestCommandState(latest);
     expect(state.phase).toBe("error");
@@ -97,7 +102,11 @@ describe("useSettingsCommands permission handling", () => {
     }
 
     renderer = createRenderer();
-    await renderer.render(<Harness />);
+    await renderer.render(
+      <CommandProvider>
+        <Harness />
+      </CommandProvider>,
+    );
 
     let state = expectLatestCommandState(latest);
     expect(state.phase).toBe("ready");
@@ -108,7 +117,7 @@ describe("useSettingsCommands permission handling", () => {
     });
 
     await React.act(async () => {
-      await state.invokeCommand(SETTINGS_COMMAND_IDS.themes, "toolbar");
+      await state.invokeCommand(SETTINGS_COMMAND_IDS["app-plugins"], "toolbar");
       await flushReact();
     });
 

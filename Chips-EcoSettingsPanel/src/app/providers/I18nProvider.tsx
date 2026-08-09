@@ -1,6 +1,5 @@
 import React from "react";
-import { formatMessage } from "../../shared/i18n/messages";
-import { useRuntimeContext } from "./RuntimeProvider";
+import { formatMessage } from "../../lib/messages";
 
 interface I18nContextValue {
   locale: string;
@@ -10,16 +9,12 @@ interface I18nContextValue {
 const I18nContext = React.createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: React.PropsWithChildren): React.ReactElement {
-  const { currentLocale } = useRuntimeContext();
-
   const value = React.useMemo<I18nContextValue>(() => {
     return {
-      locale: currentLocale,
-      t(key, params) {
-        return formatMessage(currentLocale, key, params);
-      },
+      locale: "zh-CN",
+      t: formatMessage,
     };
-  }, [currentLocale]);
+  }, []);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

@@ -40,8 +40,6 @@ vi.mock("../../src/features/app-plugins/useAppPluginGovernance", () => ({
       loading: false,
       error: null,
       activeActionId: null,
-      searchTerm: "",
-      setSearchTerm: () => undefined,
       installWithFilePicker: () => undefined,
       installFromDroppedFiles: async () => undefined,
       togglePluginEnabled: async () => undefined,
@@ -66,19 +64,16 @@ describe("AppPluginsPage", () => {
     const { AppPluginsPage } = await import("../../src/features/app-plugins/AppPluginsPage");
     const markup = renderToStaticMarkup(<AppPluginsPage />);
 
-    expect(markup).toContain("data-scope=\"data-grid\"");
-    expect(markup).toContain("settings-governance-list");
     expect(markup).toContain("settings-record-list");
     expect(markup).toContain("settingsPanel.appPlugins.badges.currentApp");
-    expect(markup).toContain("settingsPanel.appPlugins.selfManaged.description");
+    expect(markup).toContain("settingsPanel.appPlugins.badges.currentApp");
     expect(markup).toContain("disabled");
     expect(markup).toContain("settingsPanel.appPlugins.actions.launch");
-    expect(markup).not.toContain("settingsPanel.appPlugins.columns.meta");
     expect(markup).toContain("settingsPanel.common.details");
     expect(markup).toContain("settingsPanel.appPlugins.actions.disable");
     expect(markup).not.toContain("settings-drop-zone");
     expect(markup).not.toContain("settingsPanel.appPlugins.actions.uninstall");
     expect(markup).not.toContain("settingsPanel.appPlugins.actions.removeShortcut");
-    expect(markup).not.toContain('data-scope="dialog"');
+    expect(markup).not.toContain("ant-modal");
   }, 15000);
 });

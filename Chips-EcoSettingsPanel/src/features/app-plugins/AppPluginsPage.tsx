@@ -1,22 +1,18 @@
 import React from "react";
-import { ChipsButton, ChipsEmptyState, ChipsIcon } from "@chips/component-library";
-import type { IconDescriptor } from "chips-sdk";
+import { Button, Empty } from "antd";
+import { AppstoreOutlined } from "@ant-design/icons";
 import type { AppPluginGovernanceRecord } from "../../shared/runtime/settings-runtime-service";
 import { useI18n } from "../../app/providers/I18nProvider";
 import { useWindowFileDrop } from "../../shared/hooks/useWindowFileDrop";
 import { NotificationStack } from "../../shared/ui/NotificationStack";
 import { PageFrame } from "../../shared/ui/PageFrame";
+import { SettingsSection } from "../../shared/ui/SettingsSection";
 import { SectionStateBoundary } from "../../shared/ui/SectionStateBoundary";
 import { SettingsDetailPage } from "../../shared/ui/SettingsDetailPage";
 import { SettingsRecordItem, SettingsRecordList } from "../../shared/ui/SettingsRecordList";
 import { StatusBadge } from "../../shared/ui/StatusBadge";
 import { WindowDropOverlay } from "../../shared/ui/WindowDropOverlay";
 import { useAppPluginGovernance } from "./useAppPluginGovernance";
-
-const APP_PLUGIN_FALLBACK_ICON: IconDescriptor = {
-  name: "apps",
-  decorative: true,
-};
 
 function toFileUrl(filePath?: string): string | null {
   if (typeof filePath !== "string" || filePath.trim().length === 0) {
@@ -60,7 +56,7 @@ function AppPluginIcon({ plugin }: { plugin: AppPluginGovernanceRecord }): React
           alt=""
         />
       ) : (
-        <ChipsIcon descriptor={APP_PLUGIN_FALLBACK_ICON} />
+        <AppstoreOutlined />
       )}
     </>
   );
@@ -98,6 +94,38 @@ function AppShortcutStatus({ plugin }: { plugin: AppPluginGovernanceRecord }): R
           : t("settingsPanel.appPlugins.shortcut.empty")}
       </span>
     </>
+  );
+}
+
+function EmptyState({
+  ariaLabel,
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  ariaLabel: string;
+  title: string;
+  description: string;
+  actionLabel: string;
+  onAction: () => void;
+}): React.ReactElement {
+  return (
+    <Empty
+      className="settings-empty-state"
+      aria-label={ariaLabel}
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        <div className="settings-empty-state__copy">
+          <div className="settings-empty-state__title">{title}</div>
+          <div className="settings-empty-state__description">{description}</div>
+        </div>
+      }
+    >
+      <Button type="primary" onClick={onAction}>
+        {actionLabel}
+      </Button>
+    </Empty>
   );
 }
 
@@ -157,32 +185,32 @@ export function AppPluginsPage(): React.ReactElement {
           status={<div className="governance-status"><AppPluginStatus plugin={selectedPlugin} /></div>}
           primaryActions={
             <div className="action-row">
-              <ChipsButton disabled={busy || !selectedPlugin.enabled} onPress={() => void launchPlugin(selectedPlugin)}>
+              <Button disabled={busy || !selectedPlugin.enabled} onClick={() => void launchPlugin(selectedPlugin)}>
                 {t("settingsPanel.appPlugins.actions.launch")}
-              </ChipsButton>
-              <ChipsButton disabled={busy || selectedPlugin.selfManaged} onPress={() => void togglePluginEnabled(selectedPlugin)}>
+              </Button>
+              <Button disabled={busy || selectedPlugin.selfManaged} onClick={() => void togglePluginEnabled(selectedPlugin)}>
                 {selectedPlugin.enabled
                   ? t("settingsPanel.appPlugins.actions.disable")
                   : t("settingsPanel.appPlugins.actions.enable")}
-              </ChipsButton>
+              </Button>
             </div>
           }
           secondaryActions={
             <div className="action-row">
-              <ChipsButton disabled={busy} onPress={() => void createPluginShortcut(selectedPlugin)}>
+              <Button disabled={busy} onClick={() => void createPluginShortcut(selectedPlugin)}>
                 {shortcut.exists
                   ? t("settingsPanel.appPlugins.actions.rebuildShortcut")
                   : t("settingsPanel.appPlugins.actions.createShortcut")}
-              </ChipsButton>
-              <ChipsButton disabled={busy || !shortcut.exists} onPress={() => void revealPluginShortcut(selectedPlugin)}>
+              </Button>
+              <Button disabled={busy || !shortcut.exists} onClick={() => void revealPluginShortcut(selectedPlugin)}>
                 {t("settingsPanel.appPlugins.actions.revealShortcut")}
-              </ChipsButton>
-              <ChipsButton disabled={busy || !shortcut.exists} onPress={() => void removePluginShortcut(selectedPlugin)}>
+              </Button>
+              <Button disabled={busy || !shortcut.exists} onClick={() => void removePluginShortcut(selectedPlugin)}>
                 {t("settingsPanel.appPlugins.actions.removeShortcut")}
-              </ChipsButton>
-              <ChipsButton disabled={busy || selectedPlugin.selfManaged} onPress={() => void uninstallPlugin(selectedPlugin)}>
+              </Button>
+              <Button disabled={busy || selectedPlugin.selfManaged} onClick={() => void uninstallPlugin(selectedPlugin)}>
                 {t("settingsPanel.appPlugins.actions.uninstall")}
-              </ChipsButton>
+              </Button>
             </div>
           }
           fieldGroups={[
@@ -227,7 +255,7 @@ export function AppPluginsPage(): React.ReactElement {
   return (
     <PageFrame
       title={t("settingsPanel.appPlugins.title")}
-      actions={<ChipsButton onPress={installWithFilePicker}>{t("settingsPanel.appPlugins.actions.install")}</ChipsButton>}
+      actions={<Button type="primary" onClick={installWithFilePicker}>{t("settingsPanel.appPlugins.actions.install")}</Button>}
     >
       <NotificationStack
         ariaLabel={t("settingsPanel.feedback.ariaLabel")}
@@ -240,6 +268,7 @@ export function AppPluginsPage(): React.ReactElement {
         title={t("settingsPanel.appPlugins.dropzone.title")}
         description={t("settingsPanel.appPlugins.dropzone.description")}
       />
+      <SettingsSection title={t("settingsPanel.appPlugins.sectionTitle")}>
       <SectionStateBoundary
         loading={loading}
         error={error}
@@ -249,7 +278,7 @@ export function AppPluginsPage(): React.ReactElement {
         }}
       >
         {plugins.length === 0 ? (
-          <ChipsEmptyState
+          <EmptyState
             ariaLabel={t("settingsPanel.appPlugins.empty.ariaLabel")}
             title={t("settingsPanel.appPlugins.empty.title")}
             description={t("settingsPanel.appPlugins.empty.description")}
@@ -270,9 +299,6 @@ export function AppPluginsPage(): React.ReactElement {
                   id={plugin.pluginId}
                   icon={<AppPluginIcon plugin={plugin} />}
                   title={plugin.name}
-                  summary={plugin.selfManaged
-                    ? t("settingsPanel.appPlugins.selfManaged.description")
-                    : plugin.description ?? plugin.pluginId}
                   status={<AppPluginStatus plugin={plugin} />}
                   meta={
                     <>
@@ -283,14 +309,14 @@ export function AppPluginsPage(): React.ReactElement {
                   }
                   actions={
                     <>
-                      <ChipsButton disabled={busy || !plugin.enabled} onPress={() => void launchPlugin(plugin)}>
+                      <Button disabled={busy || !plugin.enabled} onClick={() => void launchPlugin(plugin)}>
                         {t("settingsPanel.appPlugins.actions.launch")}
-                      </ChipsButton>
-                      <ChipsButton disabled={busy || plugin.selfManaged} onPress={() => void togglePluginEnabled(plugin)}>
+                      </Button>
+                      <Button disabled={busy || plugin.selfManaged} onClick={() => void togglePluginEnabled(plugin)}>
                         {plugin.enabled
                           ? t("settingsPanel.appPlugins.actions.disable")
                           : t("settingsPanel.appPlugins.actions.enable")}
-                      </ChipsButton>
+                      </Button>
                     </>
                   }
                   detailLabel={t("settingsPanel.common.details")}
@@ -301,6 +327,7 @@ export function AppPluginsPage(): React.ReactElement {
           </SettingsRecordList>
         )}
       </SectionStateBoundary>
+      </SettingsSection>
     </PageFrame>
   );
 }

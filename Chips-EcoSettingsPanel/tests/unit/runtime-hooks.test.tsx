@@ -5,10 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AppPluginGovernanceRecord,
-  LanguageGovernanceRecord,
-  ThemeGovernanceRecord,
 } from "../../src/shared/runtime/settings-runtime-service";
-import type { SettingsPanelError } from "../../src/shared/runtime/errors";
 import type { FeedbackItem } from "../../src/shared/ui/NotificationStack";
 
 type EventHandler = (payload?: unknown) => void | Promise<void>;
@@ -61,8 +58,6 @@ function createRuntimeContextMock() {
         return () => undefined;
       },
     },
-    currentTheme: null,
-    currentLocale: "zh-CN",
     ready: true,
     runtimeError: null,
     refreshRuntimeState: async () => undefined,
@@ -83,20 +78,14 @@ function createI18nMock() {
 
 function createServiceMock() {
   return {
-    listThemes: vi.fn(),
-    installTheme: vi.fn(),
-    applyTheme: vi.fn(),
-    uninstallPlugin: vi.fn(),
-    listLanguages: vi.fn(),
-    setCurrentLocale: vi.fn(),
     listAppPlugins: vi.fn(),
     installAppPlugin: vi.fn(),
     enablePlugin: vi.fn(),
     disablePlugin: vi.fn(),
+    uninstallPlugin: vi.fn(),
     openPluginFileDialog: vi.fn(),
     getPathForFile: vi.fn(),
     showConfirm: vi.fn(),
-    showMessage: vi.fn(),
   };
 }
 
@@ -165,7 +154,7 @@ describe("runtime hooks", () => {
         refreshLabels.push(label);
       }, [label]);
 
-      useHostRefresh(["theme.changed", "plugin.installed"], refresh);
+      useHostRefresh(["plugin.installed", "plugin.enabled"], refresh);
       return <div>{label}</div>;
     }
 
@@ -178,215 +167,9 @@ describe("runtime hooks", () => {
 
     expect(runtimeContextMock.client.events.on).toHaveBeenCalledTimes(2);
 
-    await emitEvent("theme.changed");
+    await emitEvent("plugin.installed");
 
     expect(refreshLabels).toEqual(["second"]);
-  });
-
-  it("refreshes theme governance state when Host emits theme.changed", async () => {
-    const { useThemeGovernance } = await import("../../src/features/themes/useThemeGovernance");
-    serviceMock.listThemes
-      .mockResolvedValueOnce([
-        {
-          pluginId: "theme.before",
-          themeId: "theme.before",
-          displayName: "Before Theme",
-          version: "1.0.0",
-          installed: true,
-          enabled: true,
-          current: true,
-          installPath: "/themes/before",
-          installedAt: 1,
-          isDefault: false,
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          pluginId: "theme.after",
-          themeId: "theme.after",
-          displayName: "After Theme",
-          version: "2.0.0",
-          installed: true,
-          enabled: true,
-          current: true,
-          installPath: "/themes/after",
-          installedAt: 2,
-          isDefault: false,
-        },
-      ]);
-
-    let latestState: {
-      themes: Array<{ themeId: string }>;
-    } = {
-      themes: [],
-    };
-
-    function Harness() {
-      latestState = useThemeGovernance();
-      return null;
-    }
-
-    renderer = createRenderer();
-    await renderer.render(<Harness />);
-
-    expect(serviceMock.listThemes).toHaveBeenCalledTimes(1);
-    expect(latestState.themes.map((theme: { themeId: string }) => theme.themeId)).toEqual(["theme.before"]);
-
-    await emitEvent("theme.changed");
-
-    expect(serviceMock.listThemes).toHaveBeenCalledTimes(2);
-    expect(latestState.themes.map((theme: { themeId: string }) => theme.themeId)).toEqual(["theme.after"]);
-  });
-
-  it("refreshes language governance state when Host emits language.changed", async () => {
-    const { useLanguageGovernance } = await import("../../src/features/languages/useLanguageGovernance");
-    serviceMock.listLanguages
-      .mockResolvedValueOnce([
-        { locale: "zh-CN", displayName: "中文", nativeName: "中文", current: true },
-        { locale: "en-US", displayName: "英文", nativeName: "English", current: false },
-      ])
-      .mockResolvedValueOnce([
-        { locale: "zh-CN", displayName: "中文", nativeName: "中文", current: false },
-        { locale: "en-US", displayName: "英文", nativeName: "English", current: true },
-      ]);
-
-    let latestState: {
-      languages: Array<{ locale: string; current: boolean }>;
-    } = {
-      languages: [],
-    };
-
-    function Harness() {
-      latestState = useLanguageGovernance();
-      return null;
-    }
-
-    renderer = createRenderer();
-    await renderer.render(<Harness />);
-
-    expect(serviceMock.listLanguages).toHaveBeenCalledWith("zh-CN");
-    expect(
-      latestState.languages.find((language: { locale: string; current: boolean }) => language.locale === "zh-CN")
-        ?.current,
-    ).toBe(true);
-
-    await emitEvent("language.changed", { locale: "en-US" });
-
-    expect(serviceMock.listLanguages).toHaveBeenCalledTimes(2);
-    expect(
-      latestState.languages.find((language: { locale: string; current: boolean }) => language.locale === "en-US")
-        ?.current,
-    ).toBe(true);
-  });
-
-  it("keeps theme governance state host-sourced when theme.apply is denied", async () => {
-    const { useThemeGovernance } = await import("../../src/features/themes/useThemeGovernance");
-    const initialTheme: ThemeGovernanceRecord = {
-      pluginId: "theme.before",
-      themeId: "theme.before",
-      displayName: "Before Theme",
-      version: "1.0.0",
-      installed: true,
-      enabled: true,
-      current: true,
-      installPath: "/themes/before",
-      installedAt: 1,
-      isDefault: false,
-    };
-    serviceMock.listThemes.mockResolvedValue([initialTheme]);
-    serviceMock.applyTheme.mockRejectedValue({
-      code: "PERMISSION_DENIED",
-      message: "Caller lacks permission: theme.write",
-      permission: {
-        action: "theme.apply",
-        required: ["theme.write"],
-        granted: ["theme.read"],
-      },
-    });
-
-    let latestState: {
-      themes: ThemeGovernanceRecord[];
-      applyTheme: (theme: ThemeGovernanceRecord) => Promise<void>;
-      error: SettingsPanelError | null;
-    } = {
-      themes: [],
-      applyTheme: async () => undefined,
-      error: null,
-    };
-
-    function Harness() {
-      latestState = useThemeGovernance();
-      return null;
-    }
-
-    renderer = createRenderer();
-    await renderer.render(<Harness />);
-
-    await React.act(async () => {
-      await latestState.applyTheme(initialTheme);
-      await flushReact();
-    });
-
-    expect(serviceMock.applyTheme).toHaveBeenCalledWith("theme.before");
-    expect(serviceMock.listThemes).toHaveBeenCalledTimes(1);
-    expect(latestState.themes).toEqual([initialTheme]);
-    expect(latestState.error).toMatchObject({
-      code: "PERMISSION_DENIED",
-      permission: {
-        required: ["theme.write"],
-      },
-    });
-  });
-
-  it("keeps language governance state host-sourced when i18n.setCurrent is denied", async () => {
-    const { useLanguageGovernance } = await import("../../src/features/languages/useLanguageGovernance");
-    const languages: LanguageGovernanceRecord[] = [
-      { locale: "zh-CN", displayName: "中文", nativeName: "中文", current: true },
-      { locale: "en-US", displayName: "英文", nativeName: "English", current: false },
-    ];
-    serviceMock.listLanguages.mockResolvedValue(languages);
-    serviceMock.setCurrentLocale.mockRejectedValue({
-      code: "PERMISSION_DENIED",
-      message: "Caller lacks permission: i18n.write",
-      permission: {
-        action: "i18n.setCurrent",
-        required: ["i18n.write"],
-        granted: ["i18n.read"],
-      },
-    });
-
-    let latestState: {
-      languages: LanguageGovernanceRecord[];
-      switchLocale: (locale: string) => Promise<void>;
-      error: SettingsPanelError | null;
-    } = {
-      languages: [],
-      switchLocale: async () => undefined,
-      error: null,
-    };
-
-    function Harness() {
-      latestState = useLanguageGovernance();
-      return null;
-    }
-
-    renderer = createRenderer();
-    await renderer.render(<Harness />);
-
-    await React.act(async () => {
-      await latestState.switchLocale("en-US");
-      await flushReact();
-    });
-
-    expect(serviceMock.setCurrentLocale).toHaveBeenCalledWith("en-US");
-    expect(serviceMock.listLanguages).toHaveBeenCalledTimes(1);
-    expect(latestState.languages).toEqual(languages);
-    expect(latestState.error).toMatchObject({
-      code: "PERMISSION_DENIED",
-      permission: {
-        required: ["i18n.write"],
-      },
-    });
   });
 
   it("refreshes app plugin governance state when Host emits plugin.disabled", async () => {

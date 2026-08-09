@@ -1,5 +1,5 @@
 import React from "react";
-import type { Client, PlatformLaunchContext, ThemeState } from "chips-sdk";
+import type { Client, PlatformLaunchContext } from "chips-sdk";
 import { appConfig } from "../../config/app-config";
 import type { RuntimeEventSource } from "../shared/runtime/event-source";
 import type { SettingsPanelError } from "../shared/runtime/errors";
@@ -31,8 +31,6 @@ export interface AppRuntimeValue {
   activeScene: SettingsSceneDefinition;
   setActiveSceneId(sceneId: SettingsSceneId): void;
   launchContext: PlatformLaunchContext;
-  currentTheme: ThemeState | null;
-  currentLocale: string;
   ready: boolean;
   phase: SettingsRuntimePhase;
   runtimeError: SettingsPanelError | null;
@@ -42,8 +40,6 @@ export interface AppRuntimeValue {
 export interface AppRuntimeProviderProps extends React.PropsWithChildren {
   client: Client;
   eventSource: RuntimeEventSource;
-  currentTheme: ThemeState | null;
-  currentLocale: string;
   ready: boolean;
   runtimeError: SettingsPanelError | null;
   refreshRuntimeState: () => Promise<void>;
@@ -78,8 +74,6 @@ export function AppRuntimeProvider({
   children,
   client,
   eventSource,
-  currentTheme,
-  currentLocale,
   ready,
   runtimeError,
   refreshRuntimeState,
@@ -109,8 +103,6 @@ export function AppRuntimeProvider({
     activeScene,
     setActiveSceneId,
     launchContext,
-    currentTheme,
-    currentLocale,
     ready,
     phase,
     runtimeError,
@@ -119,8 +111,6 @@ export function AppRuntimeProvider({
     activeScene,
     activeSceneId,
     client,
-    currentLocale,
-    currentTheme,
     environment,
     eventSource,
     launchContext,

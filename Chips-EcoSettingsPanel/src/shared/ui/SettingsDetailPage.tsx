@@ -1,5 +1,6 @@
 import React from "react";
-import { ChipsButton, ChipsIcon } from "@chips/component-library";
+import { Button } from "antd";
+import { ArrowLeftOutlined } from "@ant-design/icons";
 
 export interface DetailField {
   label: string;
@@ -46,65 +47,63 @@ export function SettingsDetailPage({
   return (
     <section className="settings-detail-page" aria-label={title}>
       <div className="settings-detail-page__toolbar">
-        <ChipsButton className="settings-detail-page__back" onPress={onBack}>
-          <span className="settings-detail-page__back-icon" aria-hidden="true">
-            <ChipsIcon descriptor={{ name: "chevron_left", style: "rounded", decorative: true }} size={18} />
-          </span>
-          <span>{backLabel}</span>
-        </ChipsButton>
+        <Button
+          type="text"
+          className="settings-detail-page__back"
+          icon={<ArrowLeftOutlined />}
+          onClick={onBack}
+        >
+          {backLabel}
+        </Button>
       </div>
-      <article className="settings-detail-card">
-        <div className="settings-detail-card__header">
-          {hero ? <div className="settings-detail-card__hero" aria-hidden="true">{hero}</div> : null}
-          <div className="settings-detail-card__heading">
-            <h2>
-              <span className="settings-detail-card__title">
-                <span>{title}</span>
-                {titleBadge ? <span className="settings-detail-card__title-badge">{titleBadge}</span> : null}
-              </span>
-            </h2>
-            {description ? <p>{description}</p> : null}
-          </div>
+      <header className="settings-detail-page__header">
+        <div className="settings-detail-page__heading">
+          <h1 className="settings-detail-page__title">
+            {hero ? <span className="settings-detail-page__hero" aria-hidden="true">{hero}</span> : null}
+            <span>{title}</span>
+            {titleBadge ? <span className="settings-detail-page__title-badge">{titleBadge}</span> : null}
+          </h1>
+          {description ? <p className="settings-detail-page__description">{description}</p> : null}
         </div>
         {status || primaryActions ? (
-          <div className="settings-detail-card__summary">
-            {status ? <div className="settings-detail-card__status">{status}</div> : null}
-            {primaryActions ? <div className="settings-detail-card__actions">{primaryActions}</div> : null}
+          <div className="settings-detail-page__summary">
+            {status ? <div className="settings-detail-page__status">{status}</div> : null}
+            {primaryActions ? <div className="settings-detail-page__actions">{primaryActions}</div> : null}
           </div>
         ) : null}
-        {resolvedFieldGroups.length > 0 ? (
-          <div className="settings-detail-groups">
-            {resolvedFieldGroups.map((group) => (
-              <section className="settings-detail-group" key={group.title || "default"}>
-                {group.title || group.description ? (
-                  <header className="settings-detail-group__header">
-                    {group.title ? <h3>{group.title}</h3> : null}
-                    {group.description ? <p>{group.description}</p> : null}
-                  </header>
-                ) : null}
-                <dl className="settings-detail-field-list">
-                  {group.fields.map((field) => (
-                    <div key={field.label} className="settings-detail-field-list__item">
-                      <dt>{field.label}</dt>
-                      <dd>{field.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            ))}
-          </div>
-        ) : null}
-        {children ? (
-          <div className="settings-detail-card__body">
-            {children}
-          </div>
-        ) : null}
-        {secondaryActions ? (
-          <section className="settings-detail-card__secondary-actions">
-            {secondaryActions}
-          </section>
-        ) : null}
-      </article>
+      </header>
+      {resolvedFieldGroups.length > 0 ? (
+        <div className="settings-detail-groups">
+          {resolvedFieldGroups.map((group) => (
+            <section className="settings-detail-group" key={group.title || "default"}>
+              {group.title || group.description ? (
+                <header className="settings-detail-group__header">
+                  {group.title ? <h3 className="settings-detail-group__title">{group.title}</h3> : null}
+                  {group.description ? <p className="settings-detail-group__description">{group.description}</p> : null}
+                </header>
+              ) : null}
+              <dl className="settings-detail-field-list">
+                {group.fields.map((field) => (
+                  <div key={field.label} className="settings-detail-field-list__item">
+                    <dt className="settings-detail-field-list__label">{field.label}</dt>
+                    <dd className="settings-detail-field-list__value">{field.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
+      ) : null}
+      {children ? (
+        <div className="settings-detail-page__body">
+          {children}
+        </div>
+      ) : null}
+      {secondaryActions ? (
+        <section className="settings-detail-page__secondary-actions">
+          {secondaryActions}
+        </section>
+      ) : null}
     </section>
   );
 }

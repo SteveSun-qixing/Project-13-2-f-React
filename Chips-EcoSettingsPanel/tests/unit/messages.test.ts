@@ -1,25 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LOCALE, formatMessage, getSupportedLocales, resolveLocale } from "../../src/shared/i18n/messages";
+import { formatMessage } from "../../src/lib/messages";
 
-describe("i18n messages", () => {
-  it("falls back to the default locale when an unsupported locale is requested", () => {
-    expect(resolveLocale("fr-FR")).toBe(DEFAULT_LOCALE);
-    expect(resolveLocale(undefined)).toBe(DEFAULT_LOCALE);
+describe("中文文案表", () => {
+  it("按 key 返回中文文案", () => {
+    expect(formatMessage("settingsPanel.app.title")).toBe("生态设置面板");
+    expect(formatMessage("settingsPanel.common.details")).toBe("详情");
   });
 
-  it("formats localized messages with parameter substitution", () => {
+  it("支持参数插值", () => {
     expect(
-      formatMessage("zh-CN", "settingsPanel.themes.feedback.switchSuccess", {
-        name: "暗夜主题",
+      formatMessage("settingsPanel.appPlugins.feedback.enableSuccess", {
+        name: "测试插件",
       }),
-    ).toBe("已切换到 暗夜主题。");
+    ).toBe("已启用 测试插件。");
   });
 
-  it("returns key placeholders for missing messages", () => {
-    expect(formatMessage("en-US", "settingsPanel.missing.key")).toBe("[[settingsPanel.missing.key]]");
-  });
-
-  it("exposes the supported locale list", () => {
-    expect(getSupportedLocales()).toEqual(["zh-CN", "en-US"]);
+  it("未知 key 原样返回，便于发现缺词", () => {
+    expect(formatMessage("settingsPanel.missing.key")).toBe("settingsPanel.missing.key");
   });
 });
