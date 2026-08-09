@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/component-library";
+import { EmbeddedDocumentFrame } from "@chips/ui";
 import { hasFrameRegionContent, type FrameRegionConfig, type LayoutConfig } from "../schema/layout-config";
 import type {
   BoxEntryCoverView,
@@ -8,7 +8,7 @@ import type {
   BoxLayoutRuntime,
   ResolvedRuntimeResource,
 } from "../shared/types";
-import { getLayoutMessage } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 const PAGE_LIMIT = 48;
 
@@ -16,7 +16,6 @@ export interface LayoutViewProps {
   initialView: BoxEntryPage;
   config: LayoutConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }
 
 interface CoverState {
@@ -36,8 +35,14 @@ const GRID_LAYOUT_STYLE = `
   min-width: 0;
   min-height: 100%;
   box-sizing: border-box;
-  color: var(--chips-sys-color-on-surface);
-  background-color: var(--chips-sys-color-surface);
+  color: #1d1d1f;
+  background-color: #ffffff;
+}
+
+[data-scope="chips-box-grid-layout"] *,
+[data-scope="chips-box-grid-layout"] *::before,
+[data-scope="chips-box-grid-layout"] *::after {
+  box-sizing: border-box;
 }
 
 [data-scope="chips-box-grid-layout"] [data-layout-background] {
@@ -49,29 +54,37 @@ const GRID_LAYOUT_STYLE = `
   pointer-events: none;
 }
 
+[data-scope="chips-box-grid-layout"] [data-layout-background] .chips-embedded-document-frame,
+[data-scope="chips-box-grid-layout"] [data-layout-background] iframe {
+  width: 100%;
+  height: 100%;
+}
+
 [data-scope="chips-box-grid-layout"] [data-layout-shell] {
   position: relative;
   display: grid;
-  gap: var(--chips-layout-gap-lg, var(--chips-base-space-4));
-  padding: var(--chips-layout-gap-lg, var(--chips-base-space-4));
+  gap: 16px;
+  padding: 16px;
   min-width: 0;
   min-height: 100%;
-  box-sizing: border-box;
 }
 
 [data-scope="chips-box-grid-layout"] [data-layout-top-region] {
   min-width: 0;
   min-block-size: clamp(132px, 24vw, 288px);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
+  border-radius: 12px;
   overflow: hidden;
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-[data-scope="chips-box-grid-layout"] [data-frame-region],
-[data-scope="chips-box-grid-layout"] [data-frame-region] [data-part="root"],
-[data-scope="chips-box-grid-layout"] [data-frame-region] [data-part="frame-container"],
-[data-scope="chips-box-grid-layout"] [data-frame-region] [data-part="iframe"] {
+[data-scope="chips-box-grid-layout"] [data-frame-region] {
+  width: 100%;
+  height: 100%;
+}
+
+[data-scope="chips-box-grid-layout"] [data-frame-region] .chips-embedded-document-frame,
+[data-scope="chips-box-grid-layout"] [data-frame-region] iframe {
   width: 100%;
   height: 100%;
 }
@@ -84,19 +97,18 @@ const GRID_LAYOUT_STYLE = `
 }
 
 [data-scope="chips-box-grid-layout"] [data-frame-region-status],
-[data-scope="chips-box-grid-layout"] [data-grid-cover-placeholder],
 [data-scope="chips-box-grid-layout"] [data-layout-empty],
 [data-scope="chips-box-grid-layout"] [data-layout-page-error] {
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background-color: #ffffff;
+  color: #6e6e73;
 }
 
 [data-scope="chips-box-grid-layout"] [data-layout-grid] {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
-  gap: var(--chips-layout-gap-md, var(--chips-base-space-3));
+  gap: 12px;
   align-items: start;
   min-width: 0;
   align-content: start;
@@ -108,7 +120,7 @@ const GRID_LAYOUT_STYLE = `
 
 [data-scope="chips-box-grid-layout"] [data-grid-entry] {
   display: grid;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
   align-content: start;
 }
@@ -117,58 +129,51 @@ const GRID_LAYOUT_STYLE = `
   position: relative;
   width: 100%;
   overflow: hidden;
-  border-radius: var(--chips-comp-box-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-box-root-surface, var(--chips-sys-color-surface));
-  border: var(--chips-layout-divider-thickness, 1px) solid var(--chips-sys-color-border-subtle);
+  border-radius: 12px;
+  background-color: #ffffff;
 }
 
-[data-scope="chips-box-grid-layout"] [data-grid-cover-shell] [data-scope="embedded-document-frame"] {
-  position: relative;
+[data-scope="chips-box-grid-layout"] [data-grid-cover-shell] .chips-embedded-document-frame,
+[data-scope="chips-box-grid-layout"] [data-grid-cover-shell] iframe {
+  width: 100%;
+  height: 100%;
+}
+
+[data-scope="chips-box-grid-layout"] [data-grid-cover-shell] iframe {
   display: block;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
-
-[data-scope="chips-box-grid-layout"] [data-grid-cover-shell] [data-part="frame-container"] {
-  width: 100%;
-  height: 100%;
-}
-
-[data-scope="chips-box-grid-layout"] [data-grid-cover-shell] [data-part="iframe"] {
-  display: block;
-  width: 100%;
-  height: 100%;
   border: none;
   background: transparent;
   pointer-events: none;
 }
 
-[data-scope="chips-box-grid-layout"] [data-grid-cover-shell] [data-part="status"] {
-  display: none;
-}
-
 [data-scope="chips-box-grid-layout"] [data-grid-cover-placeholder] {
   width: 100%;
-  min-height: 160px;
+  height: 100%;
+  min-height: 180px;
   display: grid;
   place-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
-  padding: var(--chips-base-space-4);
-  color: var(--chips-sys-color-on-surface-muted, var(--chips-sys-color-on-surface));
+  align-content: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background-color: #ffffff;
+  color: #1d1d1f;
   text-align: center;
   cursor: pointer;
+  font: inherit;
 }
 
 [data-scope="chips-box-grid-layout"] [data-grid-cover-placeholder-title] {
-  color: var(--chips-sys-color-on-surface);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
-  line-height: var(--chips-comp-text-root-line-height, 1.5);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 [data-scope="chips-box-grid-layout"] [data-grid-cover-placeholder-text],
 [data-scope="chips-box-grid-layout"] [data-grid-cover-placeholder-kind] {
-  font-size: var(--chips-comp-label-root-font-size, 12px);
+  font-size: 12px;
+  color: #6e6e73;
 }
 
 [data-scope="chips-box-grid-layout"] [data-grid-entry-title],
@@ -184,9 +189,9 @@ const GRID_LAYOUT_STYLE = `
 
 [data-scope="chips-box-grid-layout"] [data-grid-entry-title] {
   padding: 0;
-  color: var(--chips-sys-color-on-surface);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
-  line-height: var(--chips-comp-text-root-line-height, 1.5);
+  color: #1d1d1f;
+  font-weight: 700;
+  line-height: 1.5;
   text-align: center;
   width: 100%;
   min-width: 0;
@@ -196,24 +201,24 @@ const GRID_LAYOUT_STYLE = `
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: var(--chips-layout-gap-sm, var(--chips-base-space-2));
+  gap: 8px;
   min-width: 0;
 }
 
 [data-scope="chips-box-grid-layout"] [data-layout-load-more],
 [data-scope="chips-box-grid-layout"] [data-layout-retry] {
-  min-block-size: var(--chips-layout-density-comfortable, 40px);
-  padding-inline: var(--chips-base-space-4);
-  padding-block: var(--chips-base-space-2);
-  border-radius: var(--chips-comp-button-root-radius, var(--chips-base-radius-md));
-  background-color: var(--chips-comp-button-root-surface-idle);
-  color: var(--chips-comp-button-label-color-idle, var(--chips-sys-color-on-surface));
+  min-block-size: 40px;
+  padding-inline: 16px;
+  padding-block: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background-color: #ffffff;
+  color: #1d1d1f;
 }
 
 [data-scope="chips-box-grid-layout"] [data-layout-load-more]:disabled {
   cursor: default;
-  color: var(--chips-comp-button-label-color-disabled, var(--chips-sys-color-on-surface-muted));
-  background-color: var(--chips-comp-button-root-surface-disabled);
+  color: #6e6e73;
 }
 
 [data-scope="chips-box-grid-layout"] [data-layout-empty],
@@ -221,23 +226,23 @@ const GRID_LAYOUT_STYLE = `
 [data-scope="chips-box-grid-layout"] [data-frame-region-status] {
   display: grid;
   place-items: center;
-  gap: var(--chips-layout-gap-xs, var(--chips-base-space-2));
+  gap: 8px;
   min-height: 160px;
-  padding: var(--chips-base-space-4);
+  padding: 16px;
   text-align: center;
 }
 
 [data-scope="chips-box-grid-layout"] [data-layout-empty-title] {
-  color: var(--chips-sys-color-on-surface);
-  font-weight: var(--chips-comp-text-root-font-weight-strong, 700);
+  color: #1d1d1f;
+  font-weight: 700;
 }
 
 [data-scope="chips-box-grid-layout"] [data-grid-entry-title]:focus-visible,
 [data-scope="chips-box-grid-layout"] [data-grid-cover-placeholder]:focus-visible,
 [data-scope="chips-box-grid-layout"] [data-layout-load-more]:focus-visible,
 [data-scope="chips-box-grid-layout"] [data-layout-retry]:focus-visible {
-  outline: var(--chips-layout-focus-outline-width, 2px) solid var(--chips-comp-button-focus-outline, currentColor);
-  outline-offset: var(--chips-layout-focus-outline-offset, 2px);
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 `;
 
@@ -245,11 +250,11 @@ function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
 }
 
-function resolveEntryKindMessage(entry: BoxEntrySnapshot, locale?: string): string {
+function resolveEntryKindMessage(entry: BoxEntrySnapshot): string {
   if (entry.snapshot.contentType === "chips/box") {
-    return getLayoutMessage(locale, "layout.entry_type_box");
+    return formatMessage("layout.entry_type_box");
   }
-  return getLayoutMessage(locale, "layout.entry_type_card");
+  return formatMessage("layout.entry_type_card");
 }
 
 function toCssAspectRatio(value: string | number | undefined, fallback: string): string {
@@ -279,17 +284,15 @@ function toRatioToken(value: string | number | undefined, fallback: string): str
 function sortEntries(
   entries: BoxEntrySnapshot[],
   sortMode: LayoutConfig["props"]["sortMode"],
-  locale?: string
 ): BoxEntrySnapshot[] {
   if (sortMode === "manual") {
     return entries;
   }
 
   const direction = sortMode === "name-desc" ? -1 : 1;
-  const compareLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
 
   return [...entries].sort((left, right) => {
-    const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), compareLocale);
+    const compared = resolveEntryTitle(left).localeCompare(resolveEntryTitle(right), "zh-CN");
     if (compared !== 0) {
       return compared * direction;
     }
@@ -315,14 +318,12 @@ function appendUniqueEntries(
 function FrameRegionSurface({
   region,
   runtime,
-  locale,
   title,
   ratio,
   decorative = false,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
-  locale?: string;
   title: string;
   ratio: string;
   decorative?: boolean;
@@ -362,7 +363,7 @@ function FrameRegionSurface({
           title={title}
           srcDoc={region.html ?? ""}
           ratio={ratio}
-          disabled={decorative}
+          sandbox="allow-scripts"
         />
       </div>
     );
@@ -386,8 +387,8 @@ function FrameRegionSurface({
 
   const message =
     state.status === "loading"
-      ? getLayoutMessage(locale, "layout.asset_loading")
-      : getLayoutMessage(locale, "layout.asset_error");
+      ? formatMessage("layout.asset_loading")
+      : formatMessage("layout.asset_error");
 
   return (
     <div data-frame-region-status role={decorative ? undefined : "status"}>
@@ -399,11 +400,9 @@ function FrameRegionSurface({
 function CoverTile({
   entry,
   runtime,
-  locale,
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const [coverState, setCoverState] = useState<CoverState>(() => ({
     status: entry.snapshot.cover?.mode === "none" ? "idle" : "loading",
@@ -452,58 +451,64 @@ function CoverTile({
     fallbackRatio
   );
   const title = resolveEntryTitle(entry);
-
-  if (coverState.status === "ready" && coverState.view?.coverUrl) {
-    return (
-      <div
-        data-grid-cover-shell
-        style={{
-          aspectRatio,
-        }}
-      >
-        <EmbeddedDocumentFrame
-          title={coverState.view.title || title}
-          src={coverState.view.coverUrl}
-          ratio={ratioToken}
-          onActivate={handleOpen}
-        />
-      </div>
-    );
-  }
-
-  const message =
-    coverState.status === "loading"
-      ? getLayoutMessage(locale, "layout.loading")
-      : coverState.status === "error"
-        ? getLayoutMessage(locale, "layout.cover_error")
-        : getLayoutMessage(locale, "layout.cover_missing");
+  const coverView = coverState.status === "ready" ? coverState.view : undefined;
+  const showFrame = Boolean(coverView?.coverUrl);
+  const coverOpenLabel = `${formatMessage("layout.open_entry")}: ${title}`;
 
   return (
-    <button
-      type="button"
+    <div
       data-grid-cover-shell
-      data-grid-cover-placeholder
-      data-state={coverState.status}
+      role={showFrame ? "button" : undefined}
+      tabIndex={showFrame ? 0 : undefined}
+      aria-label={showFrame ? coverOpenLabel : undefined}
+      onClick={showFrame ? handleOpen : undefined}
+      onKeyDown={(event) => {
+        if (!showFrame) {
+          return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          handleOpen();
+        }
+      }}
       style={{
         aspectRatio,
       }}
-      onClick={handleOpen}
     >
-      <strong data-grid-cover-placeholder-title>{title}</strong>
-      <span data-grid-cover-placeholder-text>{message}</span>
-      <span data-grid-cover-placeholder-kind>{resolveEntryKindMessage(entry, locale)}</span>
-    </button>
+      {showFrame && coverView ? (
+        <EmbeddedDocumentFrame
+          title={coverView.title || title}
+          src={coverView.coverUrl}
+          ratio={ratioToken}
+          sandbox="allow-scripts"
+          onActivate={handleOpen}
+        />
+      ) : (
+        <button
+          type="button"
+          data-grid-cover-placeholder
+          aria-label={coverOpenLabel}
+          onClick={handleOpen}
+        >
+          <strong data-grid-cover-placeholder-title>{title}</strong>
+          <span data-grid-cover-placeholder-text>
+            {coverState.status === "loading"
+              ? formatMessage("layout.loading")
+              : formatMessage(coverState.status === "error" ? "layout.cover_error" : "layout.cover_missing")}
+          </span>
+          <span data-grid-cover-placeholder-kind>{resolveEntryKindMessage(entry)}</span>
+        </button>
+      )}
+    </div>
   );
 }
 
 function EntryCard({
   entry,
   runtime,
-  locale,
 }: {
   entry: BoxEntrySnapshot;
   runtime: BoxLayoutRuntime;
-  locale?: string;
 }) {
   const handleOpen = () => {
     void runtime.openEntry(entry.entryId);
@@ -519,7 +524,6 @@ function EntryCard({
       <CoverTile
         entry={entry}
         runtime={runtime}
-        locale={locale}
       />
       <button
         type="button"
@@ -533,7 +537,7 @@ function EntryCard({
   );
 }
 
-export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutViewProps) {
+export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const isMountedRef = useRef(true);
   const [items, setItems] = useState<BoxEntrySnapshot[]>(initialView.items);
   const [nextCursor, setNextCursor] = useState<string | undefined>(initialView.nextCursor);
@@ -557,8 +561,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
   }, [initialView]);
 
   const enabledEntries = useMemo(
-    () => sortEntries(items.filter((entry) => entry.enabled), config.props.sortMode, locale),
-    [config.props.sortMode, items, locale]
+    () => sortEntries(items.filter((entry) => entry.enabled), config.props.sortMode),
+    [config.props.sortMode, items]
   );
   const prefetchEntries = useMemo(
     () => items.filter((entry) => entry.enabled).slice(-PAGE_LIMIT),
@@ -612,7 +616,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
   }, [isLoadingNext, nextCursor, runtime]);
 
   return (
-    <section data-scope="chips-box-grid-layout">
+    <section data-scope="chips-box-grid-layout" aria-label={formatMessage("layout.aria_label")}>
       <style>{GRID_LAYOUT_STYLE}</style>
 
       {hasBackground ? (
@@ -620,8 +624,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <FrameRegionSurface
             region={config.props.background}
             runtime={runtime}
-            locale={locale}
-            title={getLayoutMessage(locale, "layout.background_title")}
+            title={formatMessage("layout.background_title")}
             ratio="16:9"
             decorative
           />
@@ -634,8 +637,7 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
             <FrameRegionSurface
               region={config.props.topRegion}
               runtime={runtime}
-              locale={locale}
-              title={getLayoutMessage(locale, "layout.top_region_title")}
+              title={formatMessage("layout.top_region_title")}
               ratio="16:5"
             />
           </div>
@@ -648,13 +650,12 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 key={entry.entryId}
                 entry={entry}
                 runtime={runtime}
-                locale={locale}
               />
             ))
           ) : (
             <div data-layout-empty>
-              <strong data-layout-empty-title>{getLayoutMessage(locale, "layout.empty")}</strong>
-              <span>{getLayoutMessage(locale, "layout.empty_hint")}</span>
+              <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
+              <span>{formatMessage("layout.empty_hint")}</span>
             </div>
           )}
         </div>
@@ -663,9 +664,9 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
           <div data-layout-footer data-total={total}>
             {pageError ? (
               <div data-layout-page-error role="status">
-                <span>{getLayoutMessage(locale, "layout.page_error")}</span>
+                <span>{formatMessage("layout.page_error")}</span>
                 <button type="button" data-layout-retry onClick={loadNextPage}>
-                  {getLayoutMessage(locale, "layout.retry")}
+                  {formatMessage("layout.retry")}
                 </button>
               </div>
             ) : (
@@ -676,8 +677,8 @@ export function LayoutViewPage({ initialView, config, runtime, locale }: LayoutV
                 disabled={isLoadingNext}
               >
                 {isLoadingNext
-                  ? getLayoutMessage(locale, "layout.loading_more")
-                  : getLayoutMessage(locale, "layout.load_more")}
+                  ? formatMessage("layout.loading_more")
+                  : formatMessage("layout.load_more")}
               </button>
             )}
           </div>

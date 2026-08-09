@@ -1,18 +1,9 @@
-import {
-  ChipsButton,
-  ChipsEmptyState,
-  ChipsGrid,
-  ChipsSection,
-  ChipsStack,
-  ChipsText,
-  ChipsView,
-} from "@chips/component-library";
+import { Button, Card, Descriptions } from "antd";
+import { PanelHeader, StateBoundary } from "@chips/ui";
 import { useAppRuntime } from "../app/AppRuntimeProvider";
-import { useAppText } from "../i18n/useAppText";
-import { resolveThemeLabel } from "../theme/theme-runtime";
+import { formatMessage } from "../lib/messages";
 
 export function EnvironmentStatusView() {
-  const { text } = useAppText();
   const runtime = useAppRuntime();
 
   function refreshEnvironment() {
@@ -20,51 +11,63 @@ export function EnvironmentStatusView() {
   }
 
   return (
-    <ChipsSection
-      title={text("app.workspace.environmentTitle")}
-      description={text("app.scenes.settings.description")}
-    >
-      <ChipsStack gap="md">
-        <ChipsGrid className="app-status-grid" minItemSize="12rem" gap="md">
-          <ChipsView className="app-status-item">
-            <ChipsText>{text("app.workspace.themeLabel")}</ChipsText>
-            <ChipsText className="app-status-item__value">
-              {resolveThemeLabel(runtime.theme)}
-            </ChipsText>
-          </ChipsView>
-          <ChipsView className="app-status-item">
-            <ChipsText>{text("app.workspace.localeLabel")}</ChipsText>
-            <ChipsText className="app-status-item__value">{runtime.locale}</ChipsText>
-          </ChipsView>
-          <ChipsView className="app-status-item">
-            <ChipsText>{text("app.workspace.surfaceLabel")}</ChipsText>
-            <ChipsText className="app-status-item__value">
-              {runtime.environment.surfaceId ?? runtime.environment.surfaceKind ?? text("app.workspace.unknown")}
-            </ChipsText>
-          </ChipsView>
-          <ChipsView className="app-status-item">
-            <ChipsText>{text("app.workspace.permissionLabel")}</ChipsText>
-            <ChipsText className="app-status-item__value">
-              {runtime.permissions.canInvokeCommand
-                ? text("app.workspace.permissionReady")
-                : text("app.workspace.permissionMissing")}
-            </ChipsText>
-          </ChipsView>
-        </ChipsGrid>
-        {runtime.diagnostics.length === 0 ? (
-          <ChipsEmptyState
-            title={text("app.workspace.emptyTitle")}
-            description={text("app.workspace.emptyDescription")}
-            actionLabel={text("app.workspace.emptyAction")}
-            ariaLabel={text("app.workspace.emptyTitle")}
-            onAction={refreshEnvironment}
-          />
-        ) : (
-          <ChipsButton type="button" onPress={runtime.clearDiagnostics}>
-            {text("app.workspace.emptyAction")}
-          </ChipsButton>
-        )}
-      </ChipsStack>
-    </ChipsSection>
+    <Card className="app-shell__section" variant="borderless">
+      <PanelHeader
+        title={formatMessage("app.workspace.environmentTitle")}
+        description={formatMessage("app.scenes.settings.description")}
+        extra={
+          <Button size="small" onClick={refreshEnvironment}>
+            {formatMessage("app.workspace.emptyAction")}
+          </Button>
+        }
+      />
+      <Descriptions
+        column={{ xs: 1, sm: 2, md: 3 }}
+        items={[
+          {
+            key: "appId",
+            label: "App ID",
+            children: runtime.environment.appId,
+          },
+          {
+            key: "pluginId",
+            label: "Plugin ID",
+            children: runtime.environment.pluginId,
+          },
+          {
+            key: "hostScene",
+            label: "Host Scene",
+            children:
+              runtime.environment.hostSceneId ?? formatMessage("app.workspace.unknown"),
+          },
+          {
+            key: "surfaceKind",
+            label: "Surface Kind",
+            children:
+              runtime.environment.surfaceKind ?? formatMessage("app.workspace.unknown"),
+          },
+          {
+            key: "surfaceId",
+            label: "Surface ID",
+            children:
+              runtime.environment.surfaceId ?? formatMessage("app.workspace.unknown"),
+          },
+          {
+            key: "sessionId",
+            label: "Session ID",
+            children:
+              runtime.environment.sessionId ?? formatMessage("app.workspace.unknown"),
+          },
+        ]}
+      />
+      <StateBoundary
+        empty={runtime.diagnostics.length === 0}
+        emptyText={formatMessage("app.workspace.emptyTitle")}
+      >
+        <span>
+          {formatMessage("app.workspace.diagnosticsLabel")}: {runtime.diagnostics.length}
+        </span>
+      </StateBoundary>
+    </Card>
   );
 }

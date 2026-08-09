@@ -48,6 +48,14 @@ function isTextTemplateFile(filePath) {
   return TEXT_TEMPLATE_EXTENSIONS.has(path.extname(withoutTemplateExt).toLowerCase());
 }
 
+function isRuntimeSourceTemplate(filePath) {
+  return /[/\\]src[/\\].*\.(?:ts|tsx|js|jsx|mjs|cjs)\.tpl$/.test(filePath);
+}
+
+function isMessagesTable(filePath) {
+  return /[/\\]src[/\\]lib[/\\]messages\.ts\.tpl$/.test(filePath);
+}
+
 function assertNotMatches(templateId, filePath, source, checks) {
   const relativePath = path.relative(path.join(TEMPLATE_ROOT, templateId), filePath);
   for (const { pattern, message } of checks) {
@@ -78,8 +86,8 @@ function main() {
     if (meta.supports?.sdk !== true) {
       throw new Error(`模板 ${templateId} 必须声明支持 SDK。`);
     }
-    if (meta.supports?.componentLibrary !== true) {
-      throw new Error(`模板 ${templateId} 必须声明支持组件库。`);
+    if (meta.supports?.uiKit !== "antd") {
+      throw new Error(`模板 ${templateId} 必须声明 antd UI 体系。`);
     }
 
     const required = [
@@ -99,9 +107,8 @@ function main() {
       path.join("src", "editor", "runtime.ts.tpl"),
       path.join("src", "schema", "layout-config.ts.tpl"),
       path.join("src", "shared", "types.ts.tpl"),
-      path.join("src", "shared", "i18n.ts.tpl"),
-      path.join("i18n", "zh-CN.json.tpl"),
-      path.join("i18n", "en-US.json.tpl"),
+      path.join("src", "lib", "messages.ts.tpl"),
+      path.join("tests", "setup.ts.tpl"),
       path.join("tests", "unit", "schema.test.ts.tpl"),
       path.join("tests", "unit", "layout-definition.test.tsx.tpl"),
     ];
@@ -125,6 +132,31 @@ function main() {
       ]);
     }
 
+    const runtimeSourceFiles = collectFiles(dir, isRuntimeSourceTemplate);
+    const runtimeSourceText = runtimeSourceFiles
+      .map((filePath) => fs.readFileSync(filePath, "utf8"))
+      .join("\n");
+    for (const [pattern, message] of [
+      [/\bChips[A-Z]/, "运行时源码不应引用已卸担的组件库组件"],
+      [/@chips\/component-library/, "运行时源码不应引用已卸担的组件库包"],
+      [/-{2}chips-(?:sys|comp|base|layout)-/, "运行时源码不应使用已废弃的主题变量"],
+      [/\b(?:localStorage|indexedDB)\b/, "运行时源码不应直接使用浏览器持久化存储"],
+      [/\b(?:file:\/\/|blob:|data:image)\b/, "运行时源码不应持久化运行时 URL"],
+      [/\b(?:readFile|writeFile|readdir)\b/, "运行时源码不应直接执行文件系统读写"],
+      [/\bfrom\s+["'](?:node:)?fs["']|\brequire\(["'](?:node:)?fs["']\)/, "运行时源码不应直接引入 fs"],
+      [/window\.chips\.invoke/, "运行时源码不应绕过 SDK/正式上下文直连 Bridge"],
+    ]) {
+      if (pattern.test(runtimeSourceText)) {
+        throw new Error(`模板 ${templateId} ${message}：${pattern}`);
+      }
+    }
+    for (const filePath of runtimeSourceFiles.filter((sourcePath) => !isMessagesTable(sourcePath))) {
+      const source = fs.readFileSync(filePath, "utf8");
+      assertNotMatches(templateId, filePath, source, [
+        { pattern: />[^<{]*[\u4e00-\u9fff][^<{]*</, message: "运行时源码不应硬编码中文用户文案" },
+      ]);
+    }
+
     const manifest = fs.readFileSync(path.join(dir, "manifest.yaml.tpl"), "utf8");
     if (/ui:\s*\n\s*surface:/.test(manifest)) {
       throw new Error(`模板 ${templateId} 的 layout manifest 不应声明 ui.surface。`);
@@ -135,10 +167,25 @@ function main() {
     if (!/layout:\s*\n\s*layoutType:\s*\{\{\s*LAYOUT_TYPE\s*\}\}/.test(manifest)) {
       throw new Error(`模板 ${templateId} 的 manifest 必须使用 LAYOUT_TYPE 渲染 layout.layoutType。`);
     }
+    for (const removedPermission of ["theme.read", "i18n.read", "i18n.write"]) {
+      if (manifest.includes(removedPermission)) {
+        throw new Error(`模板 ${templateId} 的 manifest 不应声明已移除的权限：${removedPermission}`);
+      }
+    }
 
     const packageJson = JSON.parse(fs.readFileSync(path.join(dir, "package.json.tpl"), "utf8"));
-    if (packageJson.dependencies?.["@chips/component-library"] !== "^0.1.0") {
-      throw new Error(`模板 ${templateId} 必须依赖 @chips/component-library 正式 semver。`);
+    for (const [depName, expectedVersion] of [
+      ["antd", "6.5.4"],
+      ["@ant-design/icons", "6.3.2"],
+      ["dayjs", "1.11.21"],
+      ["@chips/ui", "0.1.0"],
+    ]) {
+      if (packageJson.dependencies?.[depName] !== expectedVersion) {
+        throw new Error(`模板 ${templateId} 依赖 ${depName} 必须锁定 ${expectedVersion}。`);
+      }
+    }
+    if (packageJson.dependencies?.["@chips/component-library"] !== undefined) {
+      throw new Error(`模板 ${templateId} 不得依赖已卸担的 @chips/component-library。`);
     }
     if (packageJson.devDependencies?.["@types/node"] !== "^22.13.10") {
       throw new Error(`模板 ${templateId} 必须声明 @types/node 以支持 SDK 类型检查。`);
@@ -162,11 +209,14 @@ function main() {
     }
 
     const readme = fs.readFileSync(path.join(dir, "README.md.tpl"), "utf8");
-    if (!readme.includes("@chips/component-library")) {
-      throw new Error(`模板 ${templateId} README 必须说明组件库接入。`);
+    if (!readme.includes("@chips/ui")) {
+      throw new Error(`模板 ${templateId} README 必须说明共享层接入。`);
+    }
+    if (readme.includes("@chips/component-library")) {
+      throw new Error(`模板 ${templateId} README 不应引用已卸担的组件库。`);
     }
     for (const requiredText of [
-      "chipsdev create layout",
+      "chipsdev-r create layout",
       "renderEntryCover",
       "runtime.openEntry",
       "readBoxAsset",
@@ -222,33 +272,45 @@ function main() {
       }
     }
     for (const requiredText of [
-      "ChipsForm",
-      "ChipsSelect",
+      "ConfigProvider",
+      "appleTheme",
+      "Select",
       "FrameRegionEditor",
+      "createLayoutEditorRoot",
       "normalizeLayoutConfig",
+      "formatMessage",
     ]) {
       if (!editorPanelTs.includes(requiredText)) {
-        throw new Error(`模板 ${templateId} 编辑器面板缺少正式配置编辑样板：${requiredText}`);
+        throw new Error(`模板 ${templateId} 编辑器面板缺少 antd 配置编辑样板：${requiredText}`);
+      }
+    }
+    for (const forbiddenText of ["ChipsForm", "ChipsSelect", "@chips/component-library"]) {
+      if (editorPanelTs.includes(forbiddenText) || editorFrameRegionTs.includes(forbiddenText)) {
+        throw new Error(`模板 ${templateId} 编辑器不应包含旧体系残留：${forbiddenText}`);
       }
     }
     for (const requiredText of [
-      "importBoxAsset({",
-      "deleteBoxAsset(assetPath)",
-      "readBoxAsset(region.assetPath)",
-      "isSafeBoxAssetPath(imported.assetPath)",
-      "ChipsToolbar",
-      "ChipsSegmentedControl",
-      "EmbeddedDocumentFrame",
-      "data-frame-region-preview",
+      /importBoxAsset!?\(\{/,
+      /deleteBoxAsset\(assetPath\)/,
+      /readBoxAsset\(region\.assetPath!?\)/,
+      /isSafeBoxAssetPath\(imported\.assetPath\)/,
+      /Segmented/,
+      /Input\.TextArea/,
+      /data-drop-zone/,
     ]) {
-      if (!editorFrameRegionTs.includes(requiredText)) {
+      if (!requiredText.test(editorFrameRegionTs)) {
         throw new Error(`模板 ${templateId} 资产桥编辑器缺少正式行为：${requiredText}`);
       }
     }
-    for (const forbiddenText of ["Preview</strong>", "{entries.length} entries"]) {
+    for (const forbiddenText of ["Preview</strong>", "{entries.length} entries", "ChipsToolbar", "ChipsSegmentedControl", "ChipsErrorState"]) {
       if (editorPanelTs.includes(forbiddenText) || editorFrameRegionTs.includes(forbiddenText)) {
-        throw new Error(`模板 ${templateId} 编辑器不应包含硬编码英文文案：${forbiddenText}`);
+        throw new Error(`模板 ${templateId} 编辑器不应包含旧体系文案或控件：${forbiddenText}`);
       }
+    }
+
+    const messagesTs = fs.readFileSync(path.join(dir, "src", "lib", "messages.ts.tpl"), "utf8");
+    if (!messagesTs.includes("export function formatMessage")) {
+      throw new Error(`模板 ${templateId} 本地文案表缺少 formatMessage 导出。`);
     }
 
     const schemaTs = fs.readFileSync(path.join(dir, "src", "schema", "layout-config.ts.tpl"), "utf8");
@@ -289,10 +351,12 @@ function main() {
       "runtime.listEntries",
       "nextCursor",
       "EmbeddedDocumentFrame",
+      "from \"@chips/ui\"",
       ".readBoxAsset(region.assetPath)",
       ".prefetchEntries({",
       "runtime.openEntry",
       "data-layout-retry",
+      "formatMessage",
     ]) {
       if (!viewPageTs.includes(requiredText)) {
         throw new Error(`模板 ${templateId} 查看态 Runtime 样板缺少：${requiredText}`);
@@ -301,12 +365,14 @@ function main() {
     if (!viewRuntimeTs.includes("initialView: options.initialView")) {
       throw new Error(`模板 ${templateId} 查看态 runtime 必须向页面传入完整 initialView。`);
     }
+    if (!viewRuntimeTs.includes("ConfigProvider")) {
+      throw new Error(`模板 ${templateId} 查看态 runtime 必须包裹 ConfigProvider。`);
+    }
     for (const [pattern, message] of [
       [/\bCardCoverFrame\b/, "查看态不应默认使用卡片专用封面包装"],
-      [/#[0-9A-Fa-f]{3,8}\b/, "查看态不应包含硬编码颜色"],
-      [/\brgba\s*\(/, "查看态不应包含硬编码 rgba 颜色"],
-      [/\blinear-gradient\s*\(/, "查看态不应包含硬编码渐变"],
-      [/\bbox-shadow\s*:/, "查看态不应包含硬编码阴影"],
+      [/-{2}chips-(?:sys|comp|base|layout)-/, "查看态不应使用已废弃的主题变量"],
+      [/\[data-part=/, "查看态不应依赖旧 EmbeddedDocumentFrame DOM 契约"],
+      [/@chips\/component-library/, "查看态不应引用已卸担的组件库"],
     ]) {
       if (pattern.test(viewPageTs)) {
         throw new Error(`模板 ${templateId} ${message}：${pattern}`);

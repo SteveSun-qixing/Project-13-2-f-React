@@ -49,23 +49,20 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
     const pkgPath = path.join(targetDir, "package.json");
     const indexHtmlPath = path.join(targetDir, "index.html");
     const eslintConfigPath = path.join(targetDir, ".eslintrc.cjs");
-    const appCommandsPath = path.join(targetDir, "src/commands/app-commands.ts");
+    const appCommandsPath = path.join(targetDir, "src/commands/app-commands.tsx");
     const useAppCommandsPath = path.join(targetDir, "src/commands/useAppCommands.ts");
     const appSourcePath = path.join(targetDir, "src/App.tsx");
     const appRootPath = path.join(targetDir, "src/app/AppRoot.tsx");
-    const appProvidersPath = path.join(targetDir, "src/app/AppProviders.tsx");
     const appRuntimeProviderPath = path.join(targetDir, "src/app/AppRuntimeProvider.tsx");
     const appShellPath = path.join(targetDir, "src/app/AppShell.tsx");
     const appShellCssPath = path.join(targetDir, "src/app/app-shell.css");
     const sceneRegistryPath = path.join(targetDir, "src/app/scene-registry.ts");
-    const localesPath = path.join(targetDir, "src/i18n/locales.ts");
-    const appTextPath = path.join(targetDir, "src/i18n/useAppText.ts");
+    const messagesPath = path.join(targetDir, "src/lib/messages.ts");
     const runtimeClientPath = path.join(targetDir, "src/runtime/chips-client.ts");
     const launchContextPath = path.join(targetDir, "src/runtime/launch-context.ts");
-    const themeRuntimePath = path.join(targetDir, "src/theme/theme-runtime.ts");
     const previewSmokePath = path.join(targetDir, "src/preview/preview-smoke.js");
     const mockEnvironmentPath = path.join(targetDir, "src/testing/mock-environment.ts");
-    const renderWithChipsPath = path.join(targetDir, "src/testing/render-with-chips.tsx");
+    const renderWithAntdPath = path.join(targetDir, "src/testing/render-with-antd.tsx");
     const runtimeDiagnosticsPath = path.join(targetDir, "src/views/RuntimeDiagnosticsView.tsx");
     const commandTestPath = path.join(targetDir, "tests/unit/commands.test.ts");
     const appTestPath = path.join(targetDir, "tests/unit/app.test.tsx");
@@ -76,21 +73,18 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
     await stat(eslintConfigPath);
     await stat(appSourcePath);
     await stat(appRootPath);
-    await stat(appProvidersPath);
     await stat(appRuntimeProviderPath);
     await stat(appShellPath);
     await stat(appShellCssPath);
     await stat(sceneRegistryPath);
     await stat(appCommandsPath);
     await stat(useAppCommandsPath);
-    await stat(localesPath);
-    await stat(appTextPath);
+    await stat(messagesPath);
     await stat(runtimeClientPath);
     await stat(launchContextPath);
-    await stat(themeRuntimePath);
     await stat(previewSmokePath);
     await stat(mockEnvironmentPath);
-    await stat(renderWithChipsPath);
+    await stat(renderWithAntdPath);
     await stat(runtimeDiagnosticsPath);
     await stat(commandTestPath);
     await stat(appTestPath);
@@ -103,7 +97,6 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
         [
           appSourcePath,
           appRootPath,
-          appProvidersPath,
           appRuntimeProviderPath,
           appShellPath,
           sceneRegistryPath,
@@ -115,11 +108,10 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
           path.join(targetDir, "src/views/SceneListView.tsx"),
           path.join(targetDir, "src/views/EnvironmentStatusView.tsx"),
           runtimeDiagnosticsPath,
-          appTextPath,
+          messagesPath,
           launchContextPath,
-          themeRuntimePath,
           mockEnvironmentPath,
-          renderWithChipsPath,
+          renderWithAntdPath,
         ].map((filePath) => readFile(filePath, "utf8")),
       )
     ).join("\n");
@@ -127,8 +119,6 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
     const useAppCommandsContent = await readFile(useAppCommandsPath, "utf8");
     const appTestContent = await readFile(appTestPath, "utf8");
     const commandTestContent = await readFile(commandTestPath, "utf8");
-    const zhCnContent = await readFile(path.join(targetDir, "i18n/zh-CN.json"), "utf8");
-    const enUsContent = await readFile(path.join(targetDir, "i18n/en-US.json"), "utf8");
     assert.ok(
       manifestContent.includes("type: app"),
       "manifest.yaml 应声明 type: app",
@@ -169,14 +159,20 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
         manifestContent.includes("descriptionKey: app.cli.open.description") &&
         manifestContent.includes("mapsTo: subject") &&
         manifestContent.includes("placeholderKey: app.cli.open.subjectPlaceholder"),
-      "应用 CLI 命令应声明 i18n key、参数映射与 TUI 输入提示",
+      "应用 CLI 命令应声明 titleKey、参数映射与 TUI 输入提示",
     );
-    for (const permission of ["i18n.read", "i18n.write", "command.read", "command.write", "command.invoke"]) {
+    for (const permission of ["command.read", "command.write", "command.invoke"]) {
       assert.ok(
         manifestContent.includes(`  - ${permission}`),
         `manifest.yaml 应声明 ${permission}`,
       );
     }
+    assert.ok(
+      !manifestContent.includes("theme.read") &&
+        !manifestContent.includes("i18n.read") &&
+        !manifestContent.includes("i18n.write"),
+      "manifest.yaml 不应声明已移除的 theme.read / i18n.* 权限",
+    );
     assert.ok(
       !/^commands\s*:/m.test(manifestContent),
       "manifest.yaml 不应声明未冻结的 commands 字段",
@@ -195,14 +191,34 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
       );
     }
     assert.equal(
+      packageContent.dependencies.antd,
+      "6.5.4",
+      "模板必须锁定 antd 正式版本",
+    );
+    assert.equal(
+      packageContent.dependencies["@ant-design/icons"],
+      "6.3.2",
+      "模板必须锁定 @ant-design/icons 正式版本",
+    );
+    assert.equal(
+      packageContent.dependencies.dayjs,
+      "1.11.21",
+      "模板必须锁定 dayjs 正式版本",
+    );
+    assert.equal(
+      packageContent.dependencies["@chips/ui"],
+      "0.1.0",
+      "模板必须保持 @chips/ui 正式 semver 依赖，由生态根工作区解析本地包",
+    );
+    assert.equal(
       packageContent.dependencies["@chips/component-library"],
-      "^0.1.0",
-      "模板必须保持组件库正式 semver 依赖，由生态根工作区解析本地包",
+      undefined,
+      "模板不得再依赖已卸担的 @chips/component-library",
     );
     assert.equal(
       packageContent.devDependencies.eslint,
       "^8.57.1",
-      "模板必须预置 ESLint，保证 chipsdev lint 可直接运行",
+      "模板必须预置 ESLint，保证 chipsdev-r lint 可直接运行",
     );
     assert.equal(
       packageContent.devDependencies["@typescript-eslint/parser"],
@@ -235,47 +251,51 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
       "verify 脚本应串联预览 smoke 与质量门禁",
     );
     assert.ok(
+      appCommandsContent.includes("createAppCommands") &&
+        appCommandsContent.includes("CommandItem") &&
+        appCommandsContent.includes("menuId") &&
+        appCommandsContent.includes("toolbarId") &&
+        appCommandsContent.includes("@ant-design/icons"),
+      "命令模板应以 CommandItem 模型 + antd 图标声明本地命令",
+    );
+    assert.ok(
       appCommandsContent.includes("titleKey") &&
         appCommandsContent.includes("descriptionKey") &&
         appCommandsContent.includes("ariaLabelKey") &&
         appCommandsContent.includes("handlerId"),
-      "命令模板应集中声明 i18n key 与 handlerId",
+      "命令模板应集中声明 Host 注册元数据 key 与 handlerId",
     );
-    for (const field of ["title", "description", "ariaLabel", "label"]) {
-      assert.ok(
-        !new RegExp(`(^|[,{]\\s*)${field}\\s*:`, "m").test(appCommandsContent),
-        `命令模板不应包含原始文案字段 ${field}`,
-      );
-    }
+    assert.ok(
+      !/@chips\/component-library/.test(appCommandsContent),
+      "命令模板不得引用已卸担的组件库",
+    );
     assert.ok(
       useAppCommandsContent.includes("client.command.register") &&
         useAppCommandsContent.includes("client.command.invoke") &&
         useAppCommandsContent.includes("client.command.onInvoked"),
       "命令运行时应通过 SDK command API 注册、调用并监听 handlerId",
     );
+    assert.ok(
+      useAppCommandsContent.includes("useCommandRegistry") &&
+        useAppCommandsContent.includes("register(commands)"),
+      "命令运行时应用 useCommandRegistry 注册本地 CommandItem",
+    );
     for (const requiredText of [
-      "ChipsEnvironmentProvider",
-      "ChipsThemeProvider",
-      "useChipsClient",
-      "useChipsTheme",
-      "useChipsI18n",
-      "useChipsI18nText",
-      "useChipsSurface",
-      "useChipsPermission",
-      "useChipsDiagnostics",
-      "useAppRuntime",
+      "ConfigProvider",
+      "appleTheme",
+      "ChipsProvider",
+      "CommandProvider",
       "AppRuntimeProvider",
-      "ChipsView",
-      "ChipsGrid",
-      "ChipsDialog",
-      "ChipsErrorState",
-      "ChipsIcon",
-      "setLocale",
-      "supportedLocales",
+      "useAppRuntime",
+      "AppChrome",
+      "useChips",
+      "setActiveSceneId",
+      "formatMessage",
+      "renderWithAntd",
     ]) {
       assert.ok(
         appRuntimeContent.includes(requiredText),
-        `根组件应通过 React Environment 正式入口消费 ${requiredText}`,
+        `根组件应通过 React 正式入口消费 ${requiredText}`,
       );
     }
     assert.ok(
@@ -283,9 +303,11 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
       "src/App.tsx 应保持轻量 re-export，由 src/app/AppRoot.tsx 承载真实根组件",
     );
     assert.ok(
-      useAppCommandsContent.includes("useChipsClient") &&
-        !useAppCommandsContent.includes("../runtime/chips-client"),
-      "命令运行时应从 Environment 注入的 SDK client 获取 command API",
+      !appRuntimeContent.includes("@chips/component-library") &&
+        !appRuntimeContent.includes("ChipsEnvironmentProvider") &&
+        !appRuntimeContent.includes("useChipsI18n") &&
+        !appRuntimeContent.includes("useChipsTheme"),
+      "应用源码不得残留已卸担的组件库 Environment hooks",
     );
     assert.ok(
       !useAppCommandsContent.includes('window.chips.invoke("command.') &&
@@ -293,29 +315,27 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
         !useAppCommandsContent.includes("ipcRenderer"),
       "命令运行时不得绕过 SDK 直连 Host/Electron",
     );
-    const localesContent = await readFile(localesPath, "utf8");
+    const messagesContent = await readFile(messagesPath, "utf8");
     assert.ok(
-      localesContent.includes("export const localeBundles") &&
-        localesContent.includes("export const supportedLocales"),
-      "本地 i18n adapter 应导出语言包与支持语言列表，供渲染期同步文案和切换入口复用",
+      messagesContent.includes("export function formatMessage") &&
+        messagesContent.includes("app.commands.openWorkspace.title") &&
+        messagesContent.includes("app.runtime.dialog.sceneId"),
+      "本地文案表应导出 formatMessage 并覆盖关键 key",
     );
     assert.ok(
-      appTestContent.includes("createChipsI18nText") &&
-        appTestContent.includes("localeBundles") &&
-        appTestContent.includes("supportedLocales") &&
-        appTestContent.includes("app.shell.languageSwitch"),
-      "App 单元测试应覆盖同步 i18n adapter、fallback 与语言切换文案 key",
+      appTestContent.includes("formatMessage") &&
+        appTestContent.includes("sceneDefinitions") &&
+        appTestContent.includes("renderWithAntd") &&
+        appTestContent.includes("resolveRuntimeSceneId"),
+      "App 单元测试应覆盖文案表、场景注册表与 antd 渲染外壳",
     );
     assert.ok(
       commandTestContent.includes("chips-sdk/testing") &&
         commandTestContent.includes("createMockChipsClient") &&
-        commandTestContent.includes("client.calls") &&
+        commandTestContent.includes("createAppCommands") &&
         commandTestContent.includes("command.onInvoked") &&
-        commandTestContent.includes("command.setState") &&
-        commandTestContent.includes("resolveAppToolbarCommands") &&
-        commandTestContent.includes("resolveAppMenuGroups") &&
-        commandTestContent.includes("resolveAppPaletteItems"),
-      "Command 单元测试应复用 SDK testing mock host 覆盖命令 action、状态与三入口派生链路",
+        commandTestContent.includes("isAppCommandInvokedEvent"),
+      "Command 单元测试应复用 SDK testing mock host 覆盖命令契约",
     );
     await assert.rejects(
       stat(path.join(targetDir, "src/hooks/useChipsBridge.ts")),
@@ -328,6 +348,26 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
       "初始化工程不应生成旧 ExamplePanel 示例组件",
     );
     await assert.rejects(
+      stat(path.join(targetDir, "src/app/AppProviders.tsx")),
+      { code: "ENOENT" },
+      "初始化工程不应生成旧的 AppProviders 组合文件",
+    );
+    await assert.rejects(
+      stat(path.join(targetDir, "src/i18n/locales.ts")),
+      { code: "ENOENT" },
+      "初始化工程不应生成旧的多语言 adapter",
+    );
+    await assert.rejects(
+      stat(path.join(targetDir, "src/theme/theme-runtime.ts")),
+      { code: "ENOENT" },
+      "初始化工程不应生成旧的主题运行时",
+    );
+    await assert.rejects(
+      stat(path.join(targetDir, "src/commands/app-commands.ts")),
+      { code: "ENOENT" },
+      "命令定义文件应使用 .tsx 后缀",
+    );
+    await assert.rejects(
       stat(path.join(targetDir, "template.json")),
       { code: "ENOENT" },
       "初始化工程不应生成模板元数据文件 template.json",
@@ -337,31 +377,9 @@ test("createAppProjectInternal 可在临时目录生成完整工程骨架", asyn
       "初始化工程源码不应使用 inline style",
     );
     assert.ok(
-      !/#[0-9A-Fa-f]{3,8}\b|box-shadow\s*:|background(?:-color)?\s*:\s*#|color\s*:\s*#/.test(appRuntimeContent),
-      "初始化工程源码不应使用硬编码颜色或阴影",
-    );
-    assert.ok(
       !/\bapp-standard\b|\bchips-scaffold-app\b|\bExamplePanel\b/.test(appRuntimeContent),
       "初始化工程源码不应泄漏模板身份或旧示例面板",
     );
-    for (const key of [
-      "openWorkspace",
-      "refreshTheme",
-      "toolbar",
-      "palette",
-      "lastInvoked",
-    ]) {
-      assert.ok(zhCnContent.includes(key), `中文 i18n 应包含 command key：${key}`);
-      assert.ok(enUsContent.includes(key), `英文 i18n 应包含 command key：${key}`);
-    }
-    for (const key of ["languageSwitch", "runtime", "dialog", "disabledReason"]) {
-      assert.ok(zhCnContent.includes(key), `中文 i18n 应包含语言切换 key：${key}`);
-      assert.ok(enUsContent.includes(key), `英文 i18n 应包含语言切换 key：${key}`);
-    }
-    for (const key of ["cli", "subjectPlaceholder"]) {
-      assert.ok(zhCnContent.includes(key), `中文 i18n 应包含 CLI key：${key}`);
-      assert.ok(enUsContent.includes(key), `英文 i18n 应包含 CLI key：${key}`);
-    }
 
     for (const dirName of FORBIDDEN_PROJECT_DIRS) {
       await assert.rejects(

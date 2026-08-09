@@ -1,0 +1,51 @@
+const MESSAGES: Record<string, string> = {
+  "layout.aria_label": "网格箱子布局",
+  "layout.empty": "暂无条目",
+  "layout.empty_hint": "当前箱子还没有可显示的条目",
+  "layout.loading": "加载中…",
+  "layout.cover_missing": "无封面",
+  "layout.cover_error": "封面加载失败",
+  "layout.open_entry": "打开条目",
+  "layout.load_more": "加载更多",
+  "layout.loading_more": "正在加载",
+  "layout.page_error": "后续条目加载失败",
+  "layout.retry": "重试",
+  "layout.entry_type_card": "卡片",
+  "layout.entry_type_box": "箱子",
+  "layout.background_title": "箱子背景",
+  "layout.top_region_title": "顶部内容区",
+  "layout.asset_loading": "资源加载中…",
+  "layout.asset_error": "资源加载失败",
+  "editor.aria_label": "箱子布局编辑器",
+  "editor.head_title": "网格布局",
+  "editor.head_desc": "列数自动响应式适配，移动端固定为两列",
+  "editor.entry_count": "当前箱子包含 {count} 个条目",
+  "editor.sort_mode": "排序方式",
+  "editor.sort_manual": "手动顺序",
+  "editor.sort_name_asc": "按名称升序",
+  "editor.sort_name_desc": "按名称降序",
+  "editor.sort_manual_hint": "手动顺序请保持箱子结构中的条目顺序",
+  "editor.background_title": "箱子背景",
+  "editor.top_region_title": "顶部内容区",
+  "editor.frame_mode_none": "不显示",
+  "editor.frame_mode_image": "图片",
+  "editor.frame_mode_html": "代码",
+  "editor.drop_zone_hint": "点击选择图片，或拖拽图片到此处",
+  "editor.replace_hint": "点击或拖拽图片替换",
+  "editor.remove_image": "移除",
+  "editor.clear_code": "清空",
+  "editor.html_placeholder": "<section>在这里输入顶部区域或背景 HTML</section>",
+  "editor.asset_loading": "资源预览加载中…",
+  "editor.asset_bridge_missing": "箱子资源桥不可用",
+  "editor.import_failed": "图片导入失败",
+  "editor.imported_asset_path_invalid": "导入结果不是安全的箱子资源路径",
+  "editor.delete_failed": "资源删除失败",
+  "editor.read_failed": "图片读取失败",
+};
+
+export function formatMessage(key: string, params?: Record<string, string | number>): string {
+  const template = MESSAGES[key] ?? key;
+  return Object.entries(params ?? {}).reduce((text, [paramKey, value]) => {
+    return text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(value));
+  }, template);
+}

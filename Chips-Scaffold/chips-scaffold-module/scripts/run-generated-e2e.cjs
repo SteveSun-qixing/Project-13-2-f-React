@@ -275,7 +275,7 @@ const assertDefaultProjectContract = async (sandboxRoot, targetRelativePath, tar
   assert.equal(
     rootPackage.workspaces.includes(targetRelativePath),
     true,
-    "chipsdev create module should register generated project in root workspaces"
+    "chipsdev-r create module should register generated project in root workspaces"
   );
 
   const createdPackage = JSON.parse(await fsp.readFile(path.join(targetDir, "package.json"), "utf-8"));

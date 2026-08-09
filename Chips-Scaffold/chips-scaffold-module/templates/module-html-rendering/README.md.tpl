@@ -22,12 +22,12 @@ npm run package
 - method：`convert`
 - mode：`job`
 
-`options.target` 决定调用 `platform.renderHtmlToPdf` 或 `platform.renderHtmlToImage`。真实联调应使用 `chipsdev module invoke` 走 Host 模块服务。
+`options.target` 决定调用 `platform.renderHtmlToPdf` 或 `platform.renderHtmlToImage`。真实联调应使用 `chipsdev-r module invoke` 走 Host 模块服务。
 
 ## Host 联调
 
 ```bash
-chipsdev module invoke \
+chipsdev-r module invoke \
   --capability {{ MODULE_CAPABILITY }} \
   --method convert \
   --input-file /绝对路径/input.json \

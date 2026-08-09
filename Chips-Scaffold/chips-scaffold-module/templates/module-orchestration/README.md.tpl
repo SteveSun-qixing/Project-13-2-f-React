@@ -22,12 +22,12 @@ npm run package
 - method：`execute`
 - mode：`job`
 
-下游能力通过 `module.consumes` 声明，并通过 `ctx.module.invoke(...)`、`ctx.module.job.get(...)`、`ctx.module.job.cancel(...)` 调用和治理。创建工程时可使用 `chipsdev create module <dir> --template module-orchestration --consumes <capability>@<versionRange>` 写入初始依赖。
+下游能力通过 `module.consumes` 声明，并通过 `ctx.module.invoke(...)`、`ctx.module.job.get(...)`、`ctx.module.job.cancel(...)` 调用和治理。创建工程时可使用 `chipsdev-r create module <dir> --template module-orchestration --consumes <capability>@<versionRange>` 写入初始依赖。
 
 ## Host 联调
 
 ```bash
-chipsdev module invoke \
+chipsdev-r module invoke \
   --capability {{ MODULE_CAPABILITY }} \
   --method execute \
   --input-file /绝对路径/input.json \

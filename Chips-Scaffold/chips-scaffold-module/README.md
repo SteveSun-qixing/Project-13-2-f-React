@@ -23,13 +23,13 @@
 ## 创建工程
 
 ```bash
-chipsdev create module Chips-ModulePlugin/my-module
+chipsdev-r create module Chips-ModulePlugin/my-module
 
-chipsdev create module Chips-ModulePlugin/html-render \
+chipsdev-r create module Chips-ModulePlugin/html-render \
   --template module-html-rendering \
   --capability converter.html.render
 
-chipsdev create module Chips-ModulePlugin/file-orchestrator \
+chipsdev-r create module Chips-ModulePlugin/file-orchestrator \
   --template module-orchestration \
   --capability converter.file.convert \
   --consumes converter.card.to-html@^1.0.0 \
@@ -65,7 +65,7 @@ npm run verify
 生成工程的真实联调入口是：
 
 ```bash
-chipsdev module invoke \
+chipsdev-r module invoke \
   --capability <capability> \
   --method <method> \
   --input '<json>' \

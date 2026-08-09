@@ -6,25 +6,27 @@
 
 本插件工程实现了一个基础卡片插件（`type: card`），用于演示如何：
 
-- 在查看器中渲染基础卡片内容，并消费 Host 注入的主题 CSS；
+- 在查看器中渲染基础卡片内容，并解析 Host 注入的资源预览地址；
 - 在编辑引擎中提供编辑面板，编辑基础卡片配置；
 - 通过 `basecardDefinition` 同时对接 Host 通用链路与官方编辑引擎运行时；
 - 使用 YAML 配置文件保存基础卡片数据；
-- 使用 `@chips/component-library`、主题 token、多语言文案与基础错误处理。
+- 使用 antd（Ant Design v6）+ `@chips/ui` 共享层与简体中文直写文案。
 
 ## 项目结构
 
 ```text
 {{ PROJECT_NAME }}/
-├─ .eslintrc.cjs          # 工程级 ESLint 配置（供 chipsdev lint 调用）
+├─ .eslintrc.cjs          # 工程级 ESLint 配置（供 chipsdev-r lint 调用）
 ├─ manifest.yaml          # 插件清单（type: card）
 ├─ package.json           # NPM 配置
 ├─ tsconfig.json          # TypeScript 配置
 ├─ vitest.config.mts      # 生成工程测试配置
-├─ chips.config.mjs       # chipsdev 构建配置
+├─ chips.config.mjs       # chipsdev-r 构建配置
 ├─ src/
 │  ├─ index.ts            # 插件入口（注册渲染与编辑模块）
 │  │                      # 同时导出 basecardDefinition 正式契约
+│  ├─ lib/
+│  │  └─ messages.ts      # 简体中文文案总表与 formatMessage
 │  ├─ render/
 │  │  ├─ view.tsx         # 渲染模块：基础卡片视图
 │  │  └─ runtime.ts       # 渲染运行时挂载逻辑
@@ -34,13 +36,9 @@
 │  ├─ schema/
 │  │  └─ card-config.ts   # 配置 Schema 与类型定义
 │  └─ shared/
-│     ├─ i18n.ts          # 多语言取词工具
 │     └─ utils.ts         # 渲染与编辑共享工具函数
 ├─ config/
 │  └─ logging.ts          # 日志封装
-├─ i18n/
-│  ├─ zh-CN.json          # 中文文案
-│  └─ en-US.json          # 英文文案
 ├─ templates/
 │  ├─ default-card-config.yaml  # 默认基础卡片配置模板
 │  └─ parameters.md       # 参数表与填写说明
@@ -66,9 +64,9 @@ cd {{ PROJECT_NAME }}
 npm run dev
 ```
 
-基础卡片工程中的 `chips-sdk` 与 `chipsdev` 统一依赖生态根工作区解析；请通过 `chipsdev create` 将工程接入工作区，不再单独在项目目录执行首次依赖安装。
+基础卡片工程中的 `chips-sdk`、`chipsdev-r` 与 `@chips/ui` 统一依赖生态根工作区解析；请通过 `chipsdev-r create` 将工程接入工作区，不再单独在项目目录执行首次依赖安装。
 
-在开发模式下，使用 `chipsdev server` 启动本地开发环境，并根据 chipsdev 开发者命令行手册在 Host 开发工作区中加载插件进行调试。
+在开发模式下，使用 `chipsdev-r server` 启动本地开发环境，并根据 chipsdev-r 开发者命令行手册在 Host 开发工作区中加载插件进行调试。
 
 ## 配置结构
 
@@ -79,7 +77,7 @@ npm run dev
 本工程默认内置：
 
 - React 渲染与编辑运行时
-- `@chips/component-library` 查看态、表单控件、错误态与布局原语
+- antd（Ant Design v6）控件与 `@chips/ui` 共享层（`appleTheme` 苹果风格主题）
 - `normalizeBasecardConfig()` / `validateBasecardConfig()` 统一归一与校验基线
 - `collectBasecardResourcePaths()` 卡片根目录资源路径收集
 - `renderBasecardView()` / `renderBasecardEditor()` / `basecardDefinition` 正式入口
@@ -89,10 +87,10 @@ npm run dev
 
 生成工程默认提供以下正式脚本：
 
-- `npm run lint`：通过 chipsdev 调用 ESLint；
+- `npm run lint`：通过 chipsdev-r 调用 ESLint；
 - `npm run typecheck`：执行 TypeScript 严格类型检查；
-- `npm test`：通过 chipsdev 调用 Vitest；
-- `npm run build`：通过 chipsdev 生成插件构建产物；
+- `npm test`：通过 chipsdev-r 调用 Vitest；
+- `npm run build`：通过 chipsdev-r 生成插件构建产物；
 - `npm run validate`：校验 Manifest、构建产物和正式资源；
 - `npm run package`：按 Manifest 与构建产物生成 `.cpk` 插件包；
 - `npm run verify`：串联上述所有默认门禁。
@@ -113,11 +111,12 @@ npm run dev
 - `basecardDefinition.icon` 是运行时正式图标描述符；
 - `assets/icons/basecard-icon.svg` 只作为静态资源保留，来源说明见 `assets/icons/SOURCE.md`。
 
-## 主题接入约束
+## 视觉与文案约束
 
-- Host 会在渲染阶段向基础卡片插件注入 `themeCssText`，模板默认会把该样式挂载到渲染容器中；
-- 查看态不默认添加额外边框、阴影、圆角壳层，基础卡片外观由宿主装配层与主题包共同决定；
-- 基础卡片插件不得自行硬编码整套卡片主题色板，视觉风格应优先来自当前生效主题包与组件库公开 contract。
+- 编辑面板通过 `ConfigProvider(locale=zh_CN, theme=appleTheme)` 接入 antd 中文文案与苹果风格 token；
+- 查看态与编辑态视觉样式固定为生态统一苹果风格，不使用已废弃的主题系统变量（`--chips-sys-*`）；
+- 界面文案简体中文直写，统一维护在 `src/lib/messages.ts`，调用点使用 `formatMessage("key", params)`；
+- 查看态不默认添加额外边框、阴影、圆角壳层，基础卡片外观由宿主装配层决定。
 
 ## 资源与生命周期
 
@@ -130,9 +129,8 @@ npm run dev
 - 查看态和编辑态都支持重复挂载，新挂载前会清理同一容器上的旧 React root；
 - 编辑态 cleanup 会恢复 `html/body/container` 被本次挂载修改过的内联样式。
 
-## 多语言与组件库
+## 表单与文案
 
-- React 渲染期文案通过组件库 `createChipsI18nText()` 同步 adapter 读取本地语言包；
-- 编辑态表单默认使用 `ChipsForm`、`ChipsTextField`、`ChipsTextArea` 和 `ChipsErrorState`；
-- 查看态默认使用 `ChipsBox`、`ChipsStack` 和 `ChipsText`；
-- 用户可见文案应写入 `i18n/zh-CN.json` 与 `i18n/en-US.json`，源码中只保存稳定 key。
+- 编辑面板使用受控状态（做法 A）：原生 `<form>` + antd `Input` / `Input.TextArea` / `Button` 控件，字段变更直接同步配置并触发 `onChange`；
+- 校验失败时字段级错误与全局错误以 `formatMessage` 中文文案展示；
+- 用户可见文案统一写入 `src/lib/messages.ts`，源码中不硬编码中文界面文案。

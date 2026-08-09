@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createChipsI18nText, type ChipsLaunchContext, type ChipsSurfaceContext } from "@chips/component-library";
+import type { PlatformLaunchContext } from "chips-sdk";
 import { App } from "../../src/App";
 import { AppRoot } from "../../src/app/AppRoot";
 import {
@@ -7,9 +7,9 @@ import {
   resolveRuntimeSceneId,
 } from "../../src/app/AppRuntimeProvider";
 import { sceneDefinitions } from "../../src/app/scene-registry";
-import { localeBundles, supportedLocales, translateLocalKey } from "../../src/i18n/locales";
+import { formatMessage } from "../../src/lib/messages";
 import { createAppMockClient } from "../../src/testing/mock-environment";
-import { renderWithChips } from "../../src/testing/render-with-chips";
+import { renderWithAntd } from "../../src/testing/render-with-antd";
 
 describe("App (标准应用插件根组件)", () => {
   it("应当导出一个可用的 React 组件", () => {
@@ -17,54 +17,39 @@ describe("App (标准应用插件根组件)", () => {
     expect(App).toBe(AppRoot);
   });
 
-  it("应通过同步 i18n adapter 解析当前语言、fallback 与参数插值", () => {
-    expect(supportedLocales).toEqual(["zh-CN", "en-US"]);
-
-    const zhText = createChipsI18nText({
-      bundles: localeBundles,
-      locale: "zh-CN",
-      fallbackLocale: "en-US",
-      defaultLocale: "zh-CN",
-    });
-    const missingLocaleText = createChipsI18nText({
-      bundles: localeBundles,
-      locale: "fr-FR",
-      fallbackLocale: "en-US",
-      defaultLocale: "zh-CN",
-    });
-
-    expect(zhText("app.shell.languageSwitch", { locale: "en-US" })).toBe("切换到 en-US");
-    expect(missingLocaleText("app.shell.subtitle")).toBe("App workspace");
-    expect(translateLocalKey("app.commands.openWorkspace.title", "zh-CN")).toBe("打开工作区");
-    expect(zhText("app.missing.key")).toBe("app.missing.key");
+  it("应通过本地中文文案表解析文案与参数插值", () => {
+    expect(formatMessage("app.identity.displayName")).toBe("示例应用插件");
+    expect(formatMessage("app.commands.openWorkspace.title")).toBe("打开工作区");
+    expect(formatMessage("app.runtime.dialog.sceneId", { value: "main" })).toBe("场景：main");
+    expect(formatMessage("app.missing.key")).toBe("app.missing.key");
   });
 
   it("应提供场景注册表与 Host mock 渲染外壳", () => {
     expect(sceneDefinitions.map((scene) => scene.id)).toEqual(["main", "settings"]);
+    expect(sceneDefinitions[0]?.title).toBe("工作区");
 
     const client = createAppMockClient();
     expect(client.state.launchContext.sceneId).toBe("main");
     expect(client.state.permissions).toContain("command.invoke");
     client.restoreBridge();
 
-    const rendered = renderWithChips(<App />);
+    const rendered = renderWithAntd(<App />);
     expect(rendered.element).toBeTruthy();
     expect(rendered.client.state.launchContext.surfaceContext?.sceneId).toBe("main");
     rendered.client.restoreBridge();
   });
 
-  it("应从 surface / launch context 解析运行时场景和诊断对象", () => {
+  it("应从 launch context 解析运行时场景和诊断对象", () => {
     const client = createAppMockClient();
     expect(
       resolveRuntimeSceneId(
-        (client.state.launchContext.surfaceContext ?? null) as unknown as ChipsSurfaceContext | null,
-        client.state.launchContext as unknown as ChipsLaunchContext,
+        client.state.launchContext as unknown as PlatformLaunchContext,
       ),
     ).toBe("main");
 
     const diagnostic = createRuntimeDiagnostic(
       "APP_RUNTIME_TEST",
-      "Runtime test diagnostic.",
+      "运行时测试诊断。",
       "test",
       { sceneId: "main" },
     );

@@ -126,6 +126,15 @@ async function renderEditor({
   return cleanup ?? (() => undefined);
 }
 
+function clickSegmentedOption(container: HTMLElement, regionId: string, label: string): void {
+  const region = container.querySelector(`[data-frame-region-editor="${regionId}"]`);
+  expect(region).toBeTruthy();
+  const items = Array.from(region?.querySelectorAll(".ant-segmented-item") ?? []);
+  const item = items.find((candidate) => candidate.textContent === label);
+  expect(item, `找不到分段选项 ${label}`).toBeTruthy();
+  item?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 function clickButtonByText(container: HTMLElement, text: string): void {
   const button = Array.from(container.querySelectorAll("button"))
     .find((candidate) => candidate.textContent?.includes(text));
@@ -161,7 +170,7 @@ describe("layoutDefinition", () => {
 
     expect(container.textContent).toContain("Demo Card");
     expect(container.querySelector('[data-scope="chips-box-grid-layout"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
     expect(container.querySelector('[data-scope="card-cover-frame"]')).toBeNull();
     expect(container.textContent).not.toContain("Summary");
     expect(runtime.listEntries).not.toHaveBeenCalled();
@@ -292,7 +301,7 @@ describe("layoutDefinition", () => {
 
     expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/grid/background.png");
     expect(container.querySelector('[data-layout-background] img')).toBeTruthy();
-    expect(container.querySelector('[data-layout-top-region] [data-scope="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
   });
 
   it("does not update the DOM after cleanup while runtime promises are pending", async () => {
@@ -358,11 +367,11 @@ describe("layoutDefinition", () => {
 
     expect(container.querySelector('[data-scope="chips-box-layout-editor"]')).toBeTruthy();
     expect(container.textContent).toContain("当前箱子包含 2 个条目");
-    expect(container.querySelector('[data-scope="select"]')).toBeTruthy();
+    expect(container.querySelector(".ant-select")).toBeTruthy();
     expect(container.querySelector('input[type="number"]')).toBeNull();
 
     await act(async () => {
-      clickButtonByText(container, "图片");
+      clickSegmentedOption(container, "background", "图片");
       await Promise.resolve();
     });
 
@@ -435,7 +444,7 @@ describe("layoutDefinition", () => {
     expect(deleteBoxAsset).toHaveBeenCalledWith("assets/layouts/chips.layout.grid/background/old.png");
 
     await act(async () => {
-      clickButtonByText(container, "清空");
+      clickButtonByText(container, "移除");
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -456,7 +465,7 @@ describe("layoutDefinition", () => {
     });
 
     await act(async () => {
-      clickButtonByText(container, "图片");
+      clickSegmentedOption(container, "background", "图片");
       await Promise.resolve();
     });
 

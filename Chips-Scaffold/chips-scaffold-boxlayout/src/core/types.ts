@@ -7,7 +7,7 @@ export interface BoxlayoutScaffoldTemplateMeta {
   version: string;
   supports?: {
     sdk?: boolean;
-    componentLibrary?: boolean;
+    uiKit?: "antd";
   };
 }
 

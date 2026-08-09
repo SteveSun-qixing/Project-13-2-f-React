@@ -1,11 +1,11 @@
 {
   "id": "app-standard",
   "name": "标准应用插件模板",
-  "description": "适用于一般业务场景的单窗口应用插件模板，内建 React + SDK + 组件库 + 主题 + 多语言 + Command 示例。",
+  "description": "适用于一般业务场景的单窗口应用插件模板，内建 React + antd + @chips/ui 共享层 + 命令系统示例。",
   "tags": ["app", "standard", "single-window"],
   "supports": {
     "multiWindow": false,
     "sdk": true,
-    "componentLibrary": true
+    "uiKit": "antd"
   }
 }

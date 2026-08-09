@@ -2,20 +2,20 @@ export type AppSceneId = "main" | "settings";
 
 export interface AppSceneDefinition {
   id: AppSceneId;
-  titleKey: string;
-  descriptionKey: string;
+  title: string;
+  description: string;
 }
 
 export const sceneDefinitions: AppSceneDefinition[] = [
   {
     id: "main",
-    titleKey: "app.scenes.main.title",
-    descriptionKey: "app.scenes.main.description",
+    title: "工作区",
+    description: "当前应用场景与视图状态",
   },
   {
     id: "settings",
-    titleKey: "app.scenes.settings.title",
-    descriptionKey: "app.scenes.settings.description",
+    title: "设置",
+    description: "应用偏好与环境状态",
   },
 ];
 

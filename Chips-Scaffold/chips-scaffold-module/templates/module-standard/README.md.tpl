@@ -50,7 +50,7 @@ npm run package
 npm run verify
 ```
 
-模块插件工程应通过 `chipsdev create module` 接入生态工作区，不再单独手工拼装依赖。若工程位于生态根工作区内，`chipsdev create` 会自动完成工作区注册与 `volta.extends` 写入。
+模块插件工程应通过 `chipsdev-r create module` 接入生态工作区，不再单独手工拼装依赖。若工程位于生态根工作区内，`chipsdev-r create` 会自动完成工作区注册与 `volta.extends` 写入。
 
 `npm run verify` 会依次执行 lint、typecheck、test、build、validate 和 package。发布或进入开发工作区联调前至少运行一次 `npm run verify`。
 
@@ -63,10 +63,10 @@ npm run verify
 npm run package
 ```
 
-真实 Host 调用必须通过 `chipsdev module invoke` 或应用/SDK 的模块服务接口完成：
+真实 Host 调用必须通过 `chipsdev-r module invoke` 或应用/SDK 的模块服务接口完成：
 
 ```bash
-chipsdev module invoke \
+chipsdev-r module invoke \
   --capability {{ MODULE_CAPABILITY }} \
   --method run \
   --input '{"sourceText":"hello"}' \

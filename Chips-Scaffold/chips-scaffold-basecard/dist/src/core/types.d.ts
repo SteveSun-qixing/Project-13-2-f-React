@@ -6,7 +6,7 @@ export interface BasecardScaffoldTemplateMeta {
     version: string;
     supports?: {
         sdk?: boolean;
-        componentLibrary?: boolean;
+        uiKit?: "antd";
     };
 }
 export interface CreateBasecardProjectOptions {

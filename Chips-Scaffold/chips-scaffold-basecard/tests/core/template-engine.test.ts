@@ -72,13 +72,27 @@ describe("template-engine", () => {
       expect(manifest).toMatch(/capabilities:\n  cardTypes:\n    - base\.text/);
       expect(manifest).not.toMatch(/chips-scaffold-basecard/);
       expect(manifest).not.toMatch(/ui:\s*\n\s*surface:/);
+      expect(manifest).not.toMatch(/theme\.read|i18n\.read/);
       await expect(fs.stat(path.join(targetDir, ".eslintrc.cjs"))).resolves.toBeTruthy();
       await expect(fs.stat(path.join(targetDir, "vitest.config.mts"))).resolves.toBeTruthy();
-      await expect(fs.stat(path.join(targetDir, "src", "shared", "i18n.ts"))).resolves.toBeTruthy();
+      await expect(fs.stat(path.join(targetDir, "src", "lib", "messages.ts"))).resolves.toBeTruthy();
       await expect(fs.stat(path.join(targetDir, "tests", "unit", "schema.test.ts"))).resolves.toBeTruthy();
+      await expect(fs.stat(path.join(targetDir, "src", "shared", "i18n.ts"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.stat(path.join(targetDir, "i18n", "zh-CN.json"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.stat(path.join(targetDir, "i18n", "en-US.json"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
       expect(pkg.dependencies.react).toBe("^18.2.0");
       expect(pkg.dependencies["react-dom"]).toBe("^18.2.0");
-      expect(pkg.dependencies["@chips/component-library"]).toBe("^0.1.0");
+      expect(pkg.dependencies["@chips/component-library"]).toBeUndefined();
+      expect(pkg.dependencies.antd).toBe("6.5.4");
+      expect(pkg.dependencies["@ant-design/icons"]).toBe("6.3.2");
+      expect(pkg.dependencies.dayjs).toBe("1.11.21");
+      expect(pkg.dependencies["@chips/ui"]).toBe("0.1.0");
       expect(pkg.devDependencies["@types/react"]).toBe("^18.2.66");
       expect(pkg.devDependencies.eslint).toBe("^8.57.1");
       expect(pkg.devDependencies["@typescript-eslint/parser"]).toBe("^7.18.0");
@@ -123,14 +137,17 @@ describe("template-engine", () => {
       );
       expect(readme).toMatch(/Standard Basecard Plugin/);
       expect(readme).toMatch(/basecardDefinition/);
-      expect(readme).toMatch(/@chips\/component-library/);
+      expect(readme).toMatch(/@chips\/ui/);
+      expect(readme).toMatch(/\bantd\b/);
+      expect(readme).not.toMatch(/@chips\/component-library/);
       expect(readme).not.toMatch(/chips-scaffold-basecard/);
       expect(readme).not.toMatch(/\bchips dev\b/);
-      expect(chipsConfig).toMatch(/chipsdev/);
+      expect(chipsConfig).toMatch(/chipsdev-r/);
       expect(chipsConfig).not.toMatch(/\bchips dev\b|最小可用结构/);
       expect(vitestConfig).toMatch(/react\/jsx-runtime/);
       expect(vitestConfig).toMatch(/react-dom\/client/);
       expect(vitestConfig).toMatch(/dedupe:\s*\["react", "react-dom"\]/);
+      expect(vitestConfig).toMatch(/setupFiles:\s*\["tests\/setup\.ts"\]/);
       expect(indexTs).toMatch(/export const basecardDefinition/);
       expect(indexTs).toMatch(/export function renderBasecardView/);
       expect(indexTs).toMatch(/export function renderBasecardEditor/);
@@ -151,23 +168,30 @@ describe("template-engine", () => {
         path.join(targetDir, "src", "render", "view.tsx"),
         "utf8"
       );
-      expect(renderView).toMatch(/@chips\/component-library/);
+      expect(renderView).not.toMatch(/@chips\/component-library/);
       expect(renderView).toMatch(/resolveResourceUrl/);
       expect(renderView).toMatch(/releaseResourceUrl/);
       expect(renderView).toMatch(/openResource/);
+      expect(renderView).toMatch(/formatMessage/);
+      expect(renderView).toMatch(/Typography/);
       expect(renderView).not.toMatch(/chips-basecard__surface/);
       expect(renderView).not.toMatch(/box-shadow/);
       expect(renderView).not.toMatch(/radial-gradient/);
-      expect(renderView).not.toMatch(/rgba\(/);
       expect(renderView).not.toMatch(/>[^<{]*[\u4e00-\u9fff][^<{]*</);
 
       const editorPanel = await fs.readFile(
         path.join(targetDir, "src", "editor", "panel.tsx"),
         "utf8"
       );
-      expect(editorPanel).toMatch(/ChipsTextField/);
-      expect(editorPanel).toMatch(/ChipsTextArea/);
-      expect(editorPanel).toMatch(/ChipsForm/);
+      expect(editorPanel).not.toMatch(/ChipsForm|ChipsTextField|ChipsTextArea|ChipsErrorState|ChipsBox|ChipsStack|ChipsButton|ChipsText/);
+      expect(editorPanel).not.toMatch(/@chips\/component-library/);
+      expect(editorPanel).toMatch(/ConfigProvider/);
+      expect(editorPanel).toMatch(/appleTheme/);
+      expect(editorPanel).toMatch(/antd\/locale\/zh_CN/);
+      expect(editorPanel).toMatch(/<Input/);
+      expect(editorPanel).toMatch(/Input\.TextArea/);
+      expect(editorPanel).toMatch(/Button/);
+      expect(editorPanel).toMatch(/formatMessage/);
       expect(editorPanel).toMatch(/importResource/);
       expect(editorPanel).toMatch(/deleteResource/);
       expect(editorPanel).toMatch(/resource_path/);
@@ -175,8 +199,15 @@ describe("template-engine", () => {
       expect(editorPanel).not.toMatch(/<textarea/);
       expect(editorPanel).not.toMatch(/box-shadow/);
       expect(editorPanel).not.toMatch(/radial-gradient/);
-      expect(editorPanel).not.toMatch(/rgba\(/);
       expect(editorPanel).not.toMatch(/>[^<{]*[\u4e00-\u9fff][^<{]*</);
+
+      const messagesTs = await fs.readFile(
+        path.join(targetDir, "src", "lib", "messages.ts"),
+        "utf8"
+      );
+      expect(messagesTs).toMatch(/export function formatMessage/);
+      expect(messagesTs).toMatch(/basecard\.field\.title\.label/);
+      expect(messagesTs).toMatch(/basecard\.view\.ariaLabel/);
 
       const schemaTs = await fs.readFile(
         path.join(targetDir, "src", "schema", "card-config.ts"),
@@ -215,6 +246,7 @@ describe("template-engine", () => {
       expect(renderViewTest).toMatch(/openResource/);
       expect(editorPanelTest).toMatch(/importResource/);
       expect(editorPanelTest).toMatch(/deleteResource/);
+      expect(editorPanelTest).toMatch(/data-chips-basecard-field="title"/);
       expect(integrationTest).toMatch(/cleans editor container styles after unmount/);
 
       const generatedTextFiles = [

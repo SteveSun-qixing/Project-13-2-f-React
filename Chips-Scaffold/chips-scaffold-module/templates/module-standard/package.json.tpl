@@ -4,13 +4,13 @@
   "private": false,
   "type": "commonjs",
   "scripts": {
-    "dev": "chipsdev server",
-    "build": "chipsdev build",
-    "test": "chipsdev test",
-    "lint": "chipsdev lint",
+    "dev": "chipsdev-r server",
+    "build": "chipsdev-r build",
+    "test": "chipsdev-r test",
+    "lint": "chipsdev-r lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "validate": "chipsdev validate",
-    "package": "chipsdev package",
+    "validate": "chipsdev-r validate",
+    "package": "chipsdev-r package",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run validate && npm run package"
   },
   "devDependencies": {

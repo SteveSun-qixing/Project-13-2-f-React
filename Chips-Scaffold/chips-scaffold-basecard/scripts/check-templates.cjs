@@ -78,8 +78,11 @@ function main() {
       throw new Error(`模板 ${templateId} 缺少 template.json 元数据文件。`);
     }
     const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
-    if (meta.supports?.componentLibrary !== true) {
-      throw new Error(`模板 ${templateId} 必须声明支持组件库。`);
+    if (meta.supports?.sdk !== true) {
+      throw new Error(`模板 ${templateId} 必须声明支持 SDK。`);
+    }
+    if (meta.supports?.uiKit !== "antd") {
+      throw new Error(`模板 ${templateId} 必须声明 antd UI 体系。`);
     }
     const required = [
       "manifest.yaml.tpl",
@@ -89,7 +92,8 @@ function main() {
       "vitest.config.mts.tpl",
       "chips.config.mjs.tpl",
       "README.md.tpl",
-      path.join("src", "shared", "i18n.ts.tpl"),
+      path.join("src", "lib", "messages.ts.tpl"),
+      path.join("tests", "setup.ts.tpl"),
       path.join("tests", "unit", "render-view.test.tsx.tpl"),
       path.join("tests", "unit", "editor-panel.test.tsx.tpl"),
       path.join("tests", "unit", "schema.test.ts.tpl"),
@@ -116,12 +120,9 @@ function main() {
       .map((filePath) => fs.readFileSync(filePath, "utf8"))
       .join("\n");
     for (const [pattern, message] of [
-      [/#[0-9A-Fa-f]{3,8}\b/, "运行时源码不应包含硬编码颜色"],
-      [/\bbox-shadow\s*:/, "运行时源码不应包含硬编码阴影"],
-      [/\bradial-gradient\s*\(/, "运行时源码不应包含硬编码渐变"],
-      [/\brgba\s*\(/, "运行时源码不应包含硬编码 rgba 颜色"],
-      [/\bbackground(?:-color)?\s*:\s*#/, "运行时源码不应包含硬编码背景色"],
-      [/\bcolor\s*:\s*#/, "运行时源码不应包含硬编码文本色"],
+      [/\bChips[A-Z]/, "运行时源码不应引用已卸担的组件库组件"],
+      [/@chips\/component-library/, "运行时源码不应引用已卸担的组件库包"],
+      [/-{2}chips-(?:sys|comp|base|layout)-/, "运行时源码不应使用已废弃的主题变量"],
       [/\b(?:localStorage|indexedDB)\b/, "运行时源码不应直接使用浏览器持久化存储"],
       [/\b(?:file:\/\/|blob:|data:image)\b/, "运行时源码不应持久化运行时 URL"],
       [/\b(?:readFile|writeFile|readdir)\b/, "运行时源码不应直接执行文件系统读写"],
@@ -141,18 +142,36 @@ function main() {
     if (manifest.includes("chips-scaffold-basecard")) {
       throw new Error(`模板 ${templateId} 的 manifest 不应泄露脚手架包名。`);
     }
+    for (const removedPermission of ["theme.read", "i18n.read", "i18n.write"]) {
+      if (manifest.includes(removedPermission)) {
+        throw new Error(`模板 ${templateId} 的 manifest 不应声明已移除的权限：${removedPermission}`);
+      }
+    }
 
     const readme = fs.readFileSync(path.join(dir, "README.md.tpl"), "utf8");
     if (readme.includes("chips-scaffold-basecard")) {
       throw new Error(`模板 ${templateId} 的 README 不应泄露脚手架包名。`);
     }
-    if (!readme.includes("@chips/component-library")) {
-      throw new Error(`模板 ${templateId} 的 README 必须说明组件库接入。`);
+    if (!readme.includes("@chips/ui")) {
+      throw new Error(`模板 ${templateId} 的 README 必须说明共享层接入。`);
+    }
+    if (readme.includes("@chips/component-library")) {
+      throw new Error(`模板 ${templateId} 的 README 不应引用已卸担的组件库。`);
     }
 
     const packageJson = JSON.parse(fs.readFileSync(path.join(dir, "package.json.tpl"), "utf8"));
-    if (packageJson.dependencies?.["@chips/component-library"] !== "^0.1.0") {
-      throw new Error(`模板 ${templateId} 必须依赖 @chips/component-library 正式 semver。`);
+    for (const [depName, expectedVersion] of [
+      ["antd", "6.5.4"],
+      ["@ant-design/icons", "6.3.2"],
+      ["dayjs", "1.11.21"],
+      ["@chips/ui", "0.1.0"],
+    ]) {
+      if (packageJson.dependencies?.[depName] !== expectedVersion) {
+        throw new Error(`模板 ${templateId} 依赖 ${depName} 必须锁定 ${expectedVersion}。`);
+      }
+    }
+    if (packageJson.dependencies?.["@chips/component-library"] !== undefined) {
+      throw new Error(`模板 ${templateId} 不得依赖已卸担的 @chips/component-library。`);
     }
     for (const scriptName of ["lint", "typecheck", "test", "build", "validate", "package", "verify"]) {
       if (typeof packageJson.scripts?.[scriptName] !== "string") {
@@ -173,10 +192,15 @@ function main() {
     }
 
     const vitestConfig = fs.readFileSync(path.join(dir, "vitest.config.mts.tpl"), "utf8");
-    for (const requiredText of ["react/jsx-runtime", "react-dom/client", "dedupe: [\"react\", \"react-dom\"]"]) {
+    for (const requiredText of ["react/jsx-runtime", "react-dom/client", "dedupe: [\"react\", \"react-dom\"]", "setupFiles: [\"tests/setup.ts\"]"]) {
       if (!vitestConfig.includes(requiredText)) {
-        throw new Error(`模板 ${templateId} vitest.config.mts.tpl 缺少 React 去重配置：${requiredText}`);
+        throw new Error(`模板 ${templateId} vitest.config.mts.tpl 缺少测试环境配置：${requiredText}`);
       }
+    }
+
+    const messagesTs = fs.readFileSync(path.join(dir, "src", "lib", "messages.ts.tpl"), "utf8");
+    if (!messagesTs.includes("export function formatMessage")) {
+      throw new Error(`模板 ${templateId} 本地文案表缺少 formatMessage 导出。`);
     }
 
     const indexTs = fs.readFileSync(path.join(dir, "src", "index.ts.tpl"), "utf8");
@@ -210,37 +234,32 @@ function main() {
       ["src/editor/panel.tsx.tpl", editorPanel],
     ]) {
       for (const forbiddenText of [
+        "@chips/component-library",
         "chips-basecard__surface",
         "box-shadow",
         "radial-gradient",
-        "rgba(",
       ]) {
         if (source.includes(forbiddenText)) {
-          throw new Error(`模板 ${templateId} 的 ${fileName} 不应包含私有视觉值：${forbiddenText}`);
+          throw new Error(`模板 ${templateId} 的 ${fileName} 不应包含旧体系残留：${forbiddenText}`);
         }
       }
-    }
-    if (!renderView.includes("@chips/component-library")) {
-      throw new Error(`模板 ${templateId} 查看态必须消费 @chips/component-library。`);
-    }
-    for (const requiredText of ["ChipsForm", "ChipsTextField", "ChipsTextArea", "ChipsErrorState"]) {
-      if (!editorPanel.includes(requiredText)) {
-        throw new Error(`模板 ${templateId} 编辑态缺少组件库控件：${requiredText}`);
+      if (/\bChips[A-Z]/.test(source)) {
+        throw new Error(`模板 ${templateId} 的 ${fileName} 不应引用已卸担的组件库组件。`);
       }
     }
-    for (const forbiddenText of ["<input", "<textarea", "chips-basecard-editor__input"]) {
+    for (const requiredText of ["ConfigProvider", "appleTheme", "antd/locale/zh_CN", "Input", "Button", "formatMessage", "importResource", "deleteResource", "resource_path"]) {
+      if (!editorPanel.includes(requiredText)) {
+        throw new Error(`模板 ${templateId} 编辑态缺少 antd 面板样板：${requiredText}`);
+      }
+    }
+    for (const forbiddenText of ["<input", "<textarea", "chips-basecard-editor__input", "ChipsForm", "ChipsTextField", "ChipsTextArea", "ChipsErrorState"]) {
       if (editorPanel.includes(forbiddenText)) {
-        throw new Error(`模板 ${templateId} 编辑态不应保留原生控件样板：${forbiddenText}`);
+        throw new Error(`模板 ${templateId} 编辑态不应保留旧体系控件样板：${forbiddenText}`);
       }
     }
-    for (const requiredText of ["resolveResourceUrl", "releaseResourceUrl", "openResource"]) {
+    for (const requiredText of ["Typography", "formatMessage", "resolveResourceUrl", "releaseResourceUrl", "openResource"]) {
       if (!renderView.includes(requiredText)) {
-        throw new Error(`模板 ${templateId} 查看态缺少资源桥样板：${requiredText}`);
-      }
-    }
-    for (const requiredText of ["importResource", "deleteResource", "resource_path"]) {
-      if (!editorPanel.includes(requiredText)) {
-        throw new Error(`模板 ${templateId} 编辑态缺少资源桥样板：${requiredText}`);
+        throw new Error(`模板 ${templateId} 查看态缺少 antd 渲染样板：${requiredText}`);
       }
     }
   }

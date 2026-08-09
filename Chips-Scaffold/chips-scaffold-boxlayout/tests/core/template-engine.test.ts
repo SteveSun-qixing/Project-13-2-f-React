@@ -67,15 +67,31 @@ describe("template-engine", () => {
       expect(manifest).toMatch(/layoutType:\s+chips\.layout\.grid/);
       expect(manifest).toMatch(/displayName:\s+Standard Box Layout Plugin/);
       expect(manifest).not.toMatch(/ui:\s*\n\s*surface:/);
+      expect(manifest).not.toMatch(/theme\.read|i18n\.read/);
       await expect(fs.stat(path.join(targetDir, ".eslintrc.cjs"))).resolves.toBeTruthy();
       await expect(fs.stat(path.join(targetDir, "src", "index.ts"))).resolves.toBeTruthy();
       await expect(fs.stat(path.join(targetDir, "src", "view", "page.tsx"))).resolves.toBeTruthy();
       await expect(fs.stat(path.join(targetDir, "src", "editor", "panel.tsx"))).resolves.toBeTruthy();
       await expect(fs.stat(path.join(targetDir, "src", "editor", "frame-region-editor.tsx"))).resolves.toBeTruthy();
+      await expect(fs.stat(path.join(targetDir, "src", "lib", "messages.ts"))).resolves.toBeTruthy();
+      await expect(fs.stat(path.join(targetDir, "tests", "setup.ts"))).resolves.toBeTruthy();
       await expect(fs.stat(path.join(targetDir, "tests", "unit", "schema.test.ts"))).resolves.toBeTruthy();
+      await expect(fs.stat(path.join(targetDir, "src", "shared", "i18n.ts"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.stat(path.join(targetDir, "i18n", "zh-CN.json"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.stat(path.join(targetDir, "i18n", "en-US.json"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
       expect(pkg.dependencies.react).toBe("^18.2.0");
       expect(pkg.dependencies["react-dom"]).toBe("^18.2.0");
-      expect(pkg.dependencies["@chips/component-library"]).toBe("^0.1.0");
+      expect(pkg.dependencies["@chips/component-library"]).toBeUndefined();
+      expect(pkg.dependencies.antd).toBe("6.5.4");
+      expect(pkg.dependencies["@ant-design/icons"]).toBe("6.3.2");
+      expect(pkg.dependencies.dayjs).toBe("1.11.21");
+      expect(pkg.dependencies["@chips/ui"]).toBe("0.1.0");
       expect(pkg.devDependencies["@types/node"]).toBe("^22.13.10");
       expect(pkg.devDependencies["chips-sdk"]).toBe("^0.1.0");
       for (const scriptName of [
@@ -134,8 +150,10 @@ describe("template-engine", () => {
       const readme = await fs.readFile(path.join(targetDir, "README.md"), "utf8");
       expect(readme).toMatch(/Standard Box Layout Plugin/);
       expect(readme).toMatch(/layoutDefinition/);
-      expect(readme).toMatch(/@chips\/component-library/);
-      expect(readme).toMatch(/chipsdev create layout/);
+      expect(readme).toMatch(/@chips\/ui/);
+      expect(readme).toMatch(/\bantd\b/);
+      expect(readme).not.toMatch(/@chips\/component-library/);
+      expect(readme).toMatch(/chipsdev-r create layout/);
       expect(readme).toMatch(/renderEntryCover/);
       expect(readme).toMatch(/readBoxAsset/);
       expect(readme).toMatch(/importBoxAsset/);
@@ -146,6 +164,53 @@ describe("template-engine", () => {
       expect(readme).toMatch(/asset_refs/);
       expect(readme).toMatch(/npm run verify/);
       expect(readme).not.toMatch(/\bchips dev\b|chips-scaffold-boxlayout/);
+
+      const messagesTs = await fs.readFile(
+        path.join(targetDir, "src", "lib", "messages.ts"),
+        "utf8"
+      );
+      expect(messagesTs).toMatch(/export function formatMessage/);
+      expect(messagesTs).toMatch(/editor\.entry_count/);
+      expect(messagesTs).toMatch(/layout\.empty/);
+
+      const viewPage = await fs.readFile(
+        path.join(targetDir, "src", "view", "page.tsx"),
+        "utf8"
+      );
+      expect(viewPage).toMatch(/from\s+"@chips\/ui"/);
+      expect(viewPage).toMatch(/formatMessage/);
+      expect(viewPage).toMatch(/EmbeddedDocumentFrame/);
+      expect(viewPage).not.toMatch(/@chips\/component-library/);
+      expect(viewPage).not.toMatch(/-{2}chips-(?:sys|comp|base|layout)-/);
+      expect(viewPage).not.toMatch(/\[data-part=/);
+
+      const editorPanel = await fs.readFile(
+        path.join(targetDir, "src", "editor", "panel.tsx"),
+        "utf8"
+      );
+      expect(editorPanel).toMatch(/ConfigProvider/);
+      expect(editorPanel).toMatch(/appleTheme/);
+      expect(editorPanel).toMatch(/Select/);
+      expect(editorPanel).toMatch(/FrameRegionEditor/);
+      expect(editorPanel).not.toMatch(/@chips\/component-library/);
+      expect(editorPanel).not.toMatch(/\bChips[A-Z]/);
+
+      const editorRuntime = await fs.readFile(
+        path.join(targetDir, "src", "editor", "runtime.ts"),
+        "utf8"
+      );
+      const viewRuntime = await fs.readFile(
+        path.join(targetDir, "src", "view", "runtime.ts"),
+        "utf8"
+      );
+      expect(editorRuntime).toMatch(/createLayoutEditorRoot/);
+      expect(viewRuntime).toMatch(/ConfigProvider/);
+
+      const vitestConfig = await fs.readFile(
+        path.join(targetDir, "vitest.config.mts"),
+        "utf8"
+      );
+      expect(vitestConfig).toMatch(/setupFiles:\s*\["tests\/setup\.ts"\]/);
 
       const generatedTextFiles = [
         "manifest.yaml",

@@ -1,22 +1,26 @@
 import React, { useEffect, useState } from "react";
-import {
-  ChipsBox,
-  ChipsButton,
-  ChipsStack,
-  ChipsText,
-} from "@chips/component-library";
+import { Button, Typography } from "antd";
 import type { BasecardOpenResourceInput } from "../index";
 import type { BasecardConfig } from "../schema/card-config";
-import { createBasecardText } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 export const VIEW_STYLE_TEXT = `
 .chips-basecard {
   width: 100%;
+  color: #1d1d1f;
+  font: 14px/1.5 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-basecard,
 .chips-basecard * {
   box-sizing: border-box;
+}
+
+.chips-basecard__content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 
 .chips-basecard__title {
@@ -26,10 +30,14 @@ export const VIEW_STYLE_TEXT = `
 .chips-basecard__body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  color: #6e6e73;
 }
 
-.chips-basecard__resource,
-.chips-basecard__resource-path {
+.chips-basecard__resource {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -56,7 +64,6 @@ export function BasecardView({
   releaseResourceUrl,
   openResource,
 }: BasecardViewProps) {
-  const t = createBasecardText(config.locale);
   const resourcePath = config.resource_path;
   const [resourcePreview, setResourcePreview] = useState<ResourcePreviewState>({
     status: resourcePath ? "resolving" : "idle",
@@ -121,75 +128,47 @@ export function BasecardView({
   }
 
   return (
-    <ChipsBox
-      as="article"
+    <article
       className="chips-basecard"
       data-card-type={config.card_type}
-      aria-label={t("basecard.view.ariaLabel", { title: config.title })}
+      aria-label={formatMessage("basecard.view.ariaLabel", { title: config.title })}
     >
-      <ChipsStack
-        className="chips-basecard__content"
-        gap="var(--chips-comp-basecard-content-gap, var(--chips-sys-space-2))"
-      >
-        <ChipsText
-          as="div"
-          className="chips-basecard__title"
-          role="heading"
-          aria-level={2}
-          text={config.title}
-          emphasis="strong"
-        />
-        <ChipsText
-          as="div"
-          className="chips-basecard__body"
-          text={config.body}
-          tone="muted"
-        />
+      <div className="chips-basecard__content">
+        <Typography.Title level={2} className="chips-basecard__title">
+          {config.title}
+        </Typography.Title>
+        <Typography.Text className="chips-basecard__body" type="secondary">
+          {config.body}
+        </Typography.Text>
         {resourcePath ? (
-          <ChipsStack
+          <div
             className="chips-basecard__resource"
-            gap="var(--chips-comp-basecard-resource-gap, var(--chips-sys-space-2))"
             data-resource-state={resourcePreview.status}
           >
-            <ChipsText
-              as="span"
-              textKey="basecard.resource.previewLabel"
-              i18n={t}
-              tone="muted"
-            />
-            <ChipsText
-              as="code"
-              className="chips-basecard__resource-path"
-              text={resourcePath}
-              emphasis="code"
-            />
+            <Typography.Text type="secondary">
+              {formatMessage("basecard.resource.previewLabel")}
+            </Typography.Text>
+            <Typography.Text code className="chips-basecard__resource-path">
+              {resourcePath}
+            </Typography.Text>
             {resourcePreview.status === "resolving" ? (
-              <ChipsText
-                as="span"
-                textKey="basecard.resource.resolving"
-                i18n={t}
-                tone="muted"
-              />
+              <Typography.Text type="secondary">
+                {formatMessage("basecard.resource.resolving")}
+              </Typography.Text>
             ) : null}
             {resourcePreview.status === "error" ? (
-              <ChipsText
-                as="span"
-                textKey="basecard.resource.resolveFailed"
-                i18n={t}
-                tone="error"
-              />
+              <Typography.Text type="danger">
+                {formatMessage("basecard.resource.resolveFailed")}
+              </Typography.Text>
             ) : null}
             {openResource ? (
-              <ChipsButton
-                type="button"
-                onPress={handleOpenResource}
-              >
-                {t("basecard.resource.openAction")}
-              </ChipsButton>
+              <Button type="default" onClick={handleOpenResource}>
+                {formatMessage("basecard.resource.openAction")}
+              </Button>
             ) : null}
-          </ChipsStack>
+          </div>
         ) : null}
-      </ChipsStack>
-    </ChipsBox>
+      </div>
+    </article>
   );
 }

@@ -27,7 +27,7 @@ npm run package
 ## Host 联调
 
 ```bash
-chipsdev module invoke \
+chipsdev-r module invoke \
   --capability {{ MODULE_CAPABILITY }} \
   --method run \
   --input '{"value":"demo"}' \

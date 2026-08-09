@@ -208,7 +208,7 @@ describe("module template-engine", () => {
       const readme = await fs.readFile(path.join(targetDir, "README.md"), "utf8");
       expect(readme).toMatch(/Standard Module Plugin/);
       expect(readme).toMatch(/安装到 Host 中的无界面能力模块/);
-      expect(readme).toMatch(/chipsdev module invoke/);
+      expect(readme).toMatch(/chipsdev-r module invoke/);
       expect(readme).toMatch(/\.cpk/);
       expect(readme).toMatch(/MODULE_TIMEOUT/);
       expect(readme).toMatch(/MODULE_JOB_CANCELLED/);
@@ -435,7 +435,7 @@ describe("module template-engine", () => {
         for (const pattern of expected.source) {
           expect(source, templateId).toMatch(pattern);
         }
-        expect(readme, templateId).toMatch(/chipsdev module invoke/);
+        expect(readme, templateId).toMatch(/chipsdev-r module invoke/);
         expect(readme, templateId).toMatch(/\.cpk/);
         expect(readme, templateId).toMatch(/MODULE_TIMEOUT/);
         expect(readme, templateId).toMatch(/MODULE_JOB_CANCELLED/);

@@ -62,8 +62,7 @@ describe("mountBasecardView", () => {
     const openButton = findButtonByText(container, "打开资源");
     expect(openButton).toBeTruthy();
     expect(container.querySelector(".chips-basecard__surface")).toBeNull();
-    expect(container.querySelector('[data-scope="box"][data-part="root"]')).toBeTruthy();
-    expect(container.querySelector('[data-scope="text"][data-part="root"]')).toBeTruthy();
+    expect(container.querySelector('[data-chips-basecard-view-root="true"]')).toBeTruthy();
     expect(container.innerHTML).not.toContain("box-shadow");
     expect(container.innerHTML).not.toContain("radial-gradient");
     expect(container.innerHTML).not.toContain("rgba(");

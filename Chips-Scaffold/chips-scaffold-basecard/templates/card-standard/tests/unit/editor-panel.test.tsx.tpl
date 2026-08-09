@@ -46,15 +46,17 @@ describe("createBasecardEditorRoot", () => {
     });
 
     const titleInput = root.querySelector(
-      '[data-scope="text-field"][data-part="control"]'
+      '[data-chips-basecard-field="title"] input'
     ) as HTMLInputElement | null;
 
     if (!titleInput) {
       throw new Error("找不到标题输入框");
     }
 
-    expect(root.querySelector('[data-scope="form"][data-part="root"]')).toBeTruthy();
-    expect(root.querySelector('[data-scope="text-area"][data-part="control"]')).toBeTruthy();
+    expect(root.querySelector(".chips-basecard-editor__form")).toBeTruthy();
+    expect(root.querySelector('[data-chips-basecard-field="body"] textarea')).toBeTruthy();
+    expect(root.querySelector('[data-chips-basecard-field="resource_path"] input')).toBeTruthy();
+    expect(root.getAttribute("data-chips-basecard-editor-root")).toBe("true");
     expect(root.innerHTML).not.toContain("chips-basecard-editor__input");
     expect(root.innerHTML).not.toContain("box-shadow");
     expect(root.innerHTML).not.toContain("radial-gradient");

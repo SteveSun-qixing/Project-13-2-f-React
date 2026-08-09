@@ -135,6 +135,10 @@ async function main() {
       path.join(ecosystemRoot, "Chips-Scaffold"),
       path.join(tmpRoot, "Chips-Scaffold")
     );
+    await symlinkWorkspaceDir(
+      path.join(ecosystemRoot, "Chips-Ui"),
+      path.join(tmpRoot, "Chips-Ui")
+    );
     await copyWorkspaceDir(
       path.join(ecosystemRoot, "Chips-ComponentLibrary"),
       path.join(tmpRoot, "Chips-ComponentLibrary")
@@ -152,6 +156,7 @@ async function main() {
           },
           workspaces: [
             "Chips-SDK",
+            "Chips-Ui",
             "Chips-ComponentLibrary/packages/*",
             "Chips-ComponentLibrary/packages/adapters/*",
             "Chips-Scaffold/*",
@@ -193,7 +198,7 @@ async function main() {
 
     const rootPackage = JSON.parse(await readText(path.join(tmpRoot, "package.json")));
     if (!rootPackage.workspaces.includes("validation-projects/layout-smoke")) {
-      throw new Error("E2E: chipsdev create layout 未把生成工程登记到临时生态工作区。");
+      throw new Error("E2E: chipsdev-r create layout 未把生成工程登记到临时生态工作区。");
     }
 
     const createdPackage = JSON.parse(await readText(path.join(targetDir, "package.json")));
@@ -235,7 +240,7 @@ async function main() {
       throw new Error(`E2E: 生成工程 dist/ 下应有唯一 .cpk 输出，实际为 ${cpkFiles.length} 个。`);
     }
 
-    console.log("E2E: 真实 chipsdev create layout 与生成工程 verify 通过。");
+    console.log("E2E: 真实 chipsdev-r create layout 与生成工程 verify 通过。");
   } catch (error) {
     console.error("E2E: 生成工程失败", error);
     process.exitCode = 1;

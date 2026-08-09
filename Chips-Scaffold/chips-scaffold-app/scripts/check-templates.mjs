@@ -84,20 +84,15 @@ async function main() {
     "src/main.tsx.tpl",
     "src/App.tsx.tpl",
     "src/app/AppRoot.tsx.tpl",
-    "src/app/AppProviders.tsx.tpl",
     "src/app/AppRuntimeProvider.tsx.tpl",
     "src/app/AppShell.tsx.tpl",
     "src/app/app-shell.css.tpl",
     "src/app/scene-registry.ts.tpl",
     "config/app-config.ts.tpl",
     "config/logging.ts.tpl",
-    "i18n/zh-CN.json.tpl",
-    "i18n/en-US.json.tpl",
-    "src/i18n/locales.ts.tpl",
-    "src/i18n/useAppText.ts.tpl",
+    "src/lib/messages.ts.tpl",
     "src/runtime/chips-client.ts.tpl",
     "src/runtime/launch-context.ts.tpl",
-    "src/theme/theme-runtime.ts.tpl",
     "src/scenes/MainScene.tsx.tpl",
     "src/scenes/SettingsScene.tsx.tpl",
     "src/views/WorkspaceOverviewView.tsx.tpl",
@@ -105,10 +100,10 @@ async function main() {
     "src/views/SceneListView.tsx.tpl",
     "src/views/EnvironmentStatusView.tsx.tpl",
     "src/views/RuntimeDiagnosticsView.tsx.tpl",
-    "src/commands/app-commands.ts.tpl",
+    "src/commands/app-commands.tsx.tpl",
     "src/commands/useAppCommands.ts.tpl",
     "src/testing/mock-environment.ts.tpl",
-    "src/testing/render-with-chips.tsx.tpl",
+    "src/testing/render-with-antd.tsx.tpl",
     "src/preview/preview-smoke.js.tpl",
     "tests/unit/app.test.tsx.tpl",
     "tests/unit/commands.test.ts.tpl",
@@ -190,12 +185,39 @@ async function main() {
         );
         hasError = true;
       }
+      for (const [depName, expectedVersion] of [
+        ["antd", "6.5.4"],
+        ["@ant-design/icons", "6.3.2"],
+        ["dayjs", "1.11.21"],
+        ["@chips/ui", "0.1.0"],
+      ]) {
+        if (packageJson.dependencies?.[depName] !== expectedVersion) {
+          console.error(
+            `[check-templates] 模板 ${dir} 依赖 ${depName} 必须锁定 ${expectedVersion}`,
+          );
+          hasError = true;
+        }
+      }
+      if (packageJson.dependencies?.["@chips/component-library"] !== undefined) {
+        console.error(
+          `[check-templates] 模板 ${dir} 不得依赖已卸担的 @chips/component-library`,
+        );
+        hasError = true;
+      }
 
       const manifestText = await readFile(path.join(base, "manifest.yaml.tpl"), "utf8");
-      for (const permission of ["i18n.read", "i18n.write", "command.read", "command.write", "command.invoke"]) {
+      for (const permission of ["command.read", "command.write", "command.invoke"]) {
         if (!manifestText.includes(`  - ${permission}`)) {
           console.error(
             `[check-templates] 模板 ${dir} manifest.yaml.tpl 缺少权限：${permission}`,
+          );
+          hasError = true;
+        }
+      }
+      for (const removedPermission of ["theme.read", "i18n.read", "i18n.write"]) {
+        if (manifestText.includes(removedPermission)) {
+          console.error(
+            `[check-templates] 模板 ${dir} manifest.yaml.tpl 不应声明已移除的权限：${removedPermission}`,
           );
           hasError = true;
         }
@@ -246,19 +268,13 @@ async function main() {
       }
 
       const commandText = await readFile(
-        path.join(base, "src/commands/app-commands.ts.tpl"),
+        path.join(base, "src/commands/app-commands.tsx.tpl"),
         "utf8",
       );
-      for (const field of ["title", "description", "ariaLabel", "label"]) {
-        const rawFieldPattern = new RegExp(`(^|[,{]\\s*)${field}\\s*:`, "m");
-        if (rawFieldPattern.test(commandText)) {
-          console.error(
-            `[check-templates] 模板 ${dir} command definition 不应包含原始文案字段：${field}`,
-          );
-          hasError = true;
-        }
-      }
       for (const requiredText of [
+        "CommandItem",
+        "createAppCommands",
+        "appCommandDefinitions",
         "titleKey",
         "descriptionKey",
         "ariaLabelKey",
@@ -266,10 +282,13 @@ async function main() {
         "menuPlacement",
         "toolbarPlacement",
         "paletteKeywords",
+        "menuId",
+        "toolbarId",
+        "@ant-design/icons",
       ]) {
         if (!commandText.includes(requiredText)) {
           console.error(
-            `[check-templates] 模板 ${dir} command definition 缺少字段：${requiredText}`,
+            `[check-templates] 模板 ${dir} command 定义缺少：${requiredText}`,
           );
           hasError = true;
         }
@@ -285,23 +304,18 @@ async function main() {
         )
       ).join("\n");
       for (const requiredText of [
-        "ChipsEnvironmentProvider",
-        "useChipsClient",
-        "useChipsTheme",
-        "useChipsI18n",
-        "useChipsI18nText",
-        "useChipsSurface",
-        "useChipsPermission",
-        "useChipsDiagnostics",
+        "ConfigProvider",
+        "appleTheme",
+        "ChipsProvider",
+        "CommandProvider",
+        "useCommandRegistry",
+        "useAppCommands",
         "useAppRuntime",
         "AppRuntimeProvider",
-        "ChipsView",
-        "ChipsGrid",
-        "ChipsDialog",
-        "ChipsErrorState",
-        "ChipsIcon",
-        "setLocale",
-        "supportedLocales",
+        "AppChrome",
+        "useChips",
+        "formatMessage",
+        "renderWithAntd",
       ]) {
         if (!sourceText.includes(requiredText)) {
           console.error(
@@ -311,6 +325,20 @@ async function main() {
         }
       }
       for (const forbiddenPattern of [
+        /@chips\/component-library/,
+        /\bChipsEnvironmentProvider\b/,
+        /\bChipsThemeProvider\b/,
+        /\buseChipsI18n\b/,
+        /\buseChipsI18nText\b/,
+        /\buseChipsTheme\b/,
+        /\buseChipsSurface\b/,
+        /\buseChipsPermission\b/,
+        /\buseChipsDiagnostics\b/,
+        /\bChipsView\b/,
+        /\bChipsGrid\b/,
+        /\bChipsDialog\b/,
+        /\bChipsErrorState\b/,
+        /\bChipsIcon\b/,
         /\buseChipsBridge\b/,
         /window\.chips\.invoke\(["']command\./,
         /\bBrowserWindow\b/,
@@ -319,25 +347,22 @@ async function main() {
         /\brequire\(["'](?:node:)?fs["']\)/,
         /style=\{\{/,
         /\bExamplePanel\b/,
+        /--chips-sys-/,
+        /data-scope=/,
       ]) {
         if (forbiddenPattern.test(sourceText)) {
           console.error(
-            `[check-templates] 模板 ${dir} 源码包含禁止的 Host/Node 直连模式：${forbiddenPattern}`,
+            `[check-templates] 模板 ${dir} 源码包含禁止的旧体系模式：${forbiddenPattern}`,
           );
           hasError = true;
         }
       }
 
       const appShellCss = await readFile(path.join(base, "src/app/app-shell.css.tpl"), "utf8");
-      for (const forbiddenPattern of [
-        /#[0-9A-Fa-f]{3,8}\b/,
-        /\bbox-shadow\s*:/,
-        /\bbackground(?:-color)?\s*:\s*#/,
-        /\bcolor\s*:\s*#/,
-      ]) {
-        if (forbiddenPattern.test(`${sourceText}\n${appShellCss}`)) {
+      for (const forbiddenPattern of [/--chips-sys-/, /--chips-base-/, /--chips-comp-/, /data-scope/]) {
+        if (forbiddenPattern.test(appShellCss)) {
           console.error(
-            `[check-templates] 模板 ${dir} 源码或样式包含硬编码视觉值：${forbiddenPattern}`,
+            `[check-templates] 模板 ${dir} 应用私有样式包含旧主题变量：${forbiddenPattern}`,
           );
           hasError = true;
         }
@@ -360,21 +385,19 @@ async function main() {
         }
       }
 
-      const localesText = await readFile(path.join(base, "src/i18n/locales.ts.tpl"), "utf8");
-      for (const requiredText of ["localeBundles", "supportedLocales"]) {
-        if (!localesText.includes(`export const ${requiredText}`)) {
-          console.error(
-            `[check-templates] 模板 ${dir} 本地 i18n adapter 缺少导出：${requiredText}`,
-          );
-          hasError = true;
-        }
+      const messagesText = await readFile(path.join(base, "src/lib/messages.ts.tpl"), "utf8");
+      if (!messagesText.includes("export function formatMessage")) {
+        console.error(
+          `[check-templates] 模板 ${dir} 本地文案表缺少 formatMessage 导出`,
+        );
+        hasError = true;
       }
 
       const appTestText = await readFile(path.join(base, "tests/unit/app.test.tsx.tpl"), "utf8");
-      for (const requiredText of ["createChipsI18nText", "localeBundles", "supportedLocales", "app.shell.languageSwitch"]) {
+      for (const requiredText of ["formatMessage", "sceneDefinitions", "renderWithAntd", "resolveRuntimeSceneId"]) {
         if (!appTestText.includes(requiredText)) {
           console.error(
-            `[check-templates] 模板 ${dir} app 单元测试缺少同步 i18n adapter 覆盖：${requiredText}`,
+            `[check-templates] 模板 ${dir} app 单元测试缺少新体系覆盖：${requiredText}`,
           );
           hasError = true;
         }
@@ -399,12 +422,10 @@ async function main() {
       for (const requiredText of [
         "chips-sdk/testing",
         "createMockChipsClient",
-        "client.calls",
+        "createAppCommands",
         "command.onInvoked",
-        "command.setState",
-        "resolveAppToolbarCommands",
-        "resolveAppMenuGroups",
-        "resolveAppPaletteItems",
+        "isAppCommandInvokedEvent",
+        "APP_COMMAND_IDS",
       ]) {
         if (!commandTestText.includes(requiredText)) {
           console.error(
@@ -413,44 +434,9 @@ async function main() {
           hasError = true;
         }
       }
-
-      const zhCnText = await readFile(path.join(base, "i18n/zh-CN.json.tpl"), "utf8");
-      const enUsText = await readFile(path.join(base, "i18n/en-US.json.tpl"), "utf8");
-      const zhCnBundle = JSON.parse(zhCnText);
-      const enUsBundle = JSON.parse(enUsText);
-      for (const key of ["languageSwitch", "openWorkspace", "refreshTheme", "subjectPlaceholder"]) {
-        if (!zhCnText.includes(key) || !enUsText.includes(key)) {
-          console.error(
-            `[check-templates] 模板 ${dir} i18n 资源缺少关键 key：${key}`,
-          );
-          hasError = true;
-        }
-      }
-      const i18nKeys = new Set([
-        ...collectRegexGroupValues(sourceText, /text\(\s*["']([^"']+)["']/g),
-        ...collectRegexGroupValues(commandText, /(?:titleKey|descriptionKey|ariaLabelKey|disabledReasonKey)\s*:\s*["']([^"']+)["']/g),
-        ...collectRegexGroupValues(manifestText, /(?:titleKey|descriptionKey|placeholderKey)\s*:\s*([A-Za-z0-9_.-]+)/g),
-      ]);
-      for (const key of i18nKeys) {
-        if (!key.startsWith("app.")) {
-          continue;
-        }
-        if (typeof readPath(zhCnBundle, key) !== "string") {
-          console.error(
-            `[check-templates] 模板 ${dir} zh-CN 缺少源码引用的 i18n key：${key}`,
-          );
-          hasError = true;
-        }
-        if (typeof readPath(enUsBundle, key) !== "string") {
-          console.error(
-            `[check-templates] 模板 ${dir} en-US 缺少源码引用的 i18n key：${key}`,
-          );
-          hasError = true;
-        }
-      }
     } catch (error) {
       console.error(
-        `[check-templates] 模板 ${dir} command 契约扫描失败`,
+        `[check-templates] 模板 ${dir} 契约扫描失败`,
         error,
       );
       hasError = true;

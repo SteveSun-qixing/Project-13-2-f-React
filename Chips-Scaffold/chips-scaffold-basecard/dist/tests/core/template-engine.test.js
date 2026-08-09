@@ -90,13 +90,27 @@ async function removeDirIfExists(dir) {
             (0, vitest_1.expect)(manifest).toMatch(/capabilities:\n  cardTypes:\n    - base\.text/);
             (0, vitest_1.expect)(manifest).not.toMatch(/chips-scaffold-basecard/);
             (0, vitest_1.expect)(manifest).not.toMatch(/ui:\s*\n\s*surface:/);
+            (0, vitest_1.expect)(manifest).not.toMatch(/theme\.read|i18n\.read/);
             await (0, vitest_1.expect)(node_fs_1.promises.stat(path.join(targetDir, ".eslintrc.cjs"))).resolves.toBeTruthy();
             await (0, vitest_1.expect)(node_fs_1.promises.stat(path.join(targetDir, "vitest.config.mts"))).resolves.toBeTruthy();
-            await (0, vitest_1.expect)(node_fs_1.promises.stat(path.join(targetDir, "src", "shared", "i18n.ts"))).resolves.toBeTruthy();
+            await (0, vitest_1.expect)(node_fs_1.promises.stat(path.join(targetDir, "src", "lib", "messages.ts"))).resolves.toBeTruthy();
             await (0, vitest_1.expect)(node_fs_1.promises.stat(path.join(targetDir, "tests", "unit", "schema.test.ts"))).resolves.toBeTruthy();
+            await (0, vitest_1.expect)(node_fs_1.promises.stat(path.join(targetDir, "src", "shared", "i18n.ts"))).rejects.toMatchObject({
+                code: "ENOENT",
+            });
+            await (0, vitest_1.expect)(node_fs_1.promises.stat(path.join(targetDir, "i18n", "zh-CN.json"))).rejects.toMatchObject({
+                code: "ENOENT",
+            });
+            await (0, vitest_1.expect)(node_fs_1.promises.stat(path.join(targetDir, "i18n", "en-US.json"))).rejects.toMatchObject({
+                code: "ENOENT",
+            });
             (0, vitest_1.expect)(pkg.dependencies.react).toBe("^18.2.0");
             (0, vitest_1.expect)(pkg.dependencies["react-dom"]).toBe("^18.2.0");
-            (0, vitest_1.expect)(pkg.dependencies["@chips/component-library"]).toBe("^0.1.0");
+            (0, vitest_1.expect)(pkg.dependencies["@chips/component-library"]).toBeUndefined();
+            (0, vitest_1.expect)(pkg.dependencies.antd).toBe("6.5.4");
+            (0, vitest_1.expect)(pkg.dependencies["@ant-design/icons"]).toBe("6.3.2");
+            (0, vitest_1.expect)(pkg.dependencies.dayjs).toBe("1.11.21");
+            (0, vitest_1.expect)(pkg.dependencies["@chips/ui"]).toBe("0.1.0");
             (0, vitest_1.expect)(pkg.devDependencies["@types/react"]).toBe("^18.2.66");
             (0, vitest_1.expect)(pkg.devDependencies.eslint).toBe("^8.57.1");
             (0, vitest_1.expect)(pkg.devDependencies["@typescript-eslint/parser"]).toBe("^7.18.0");
@@ -128,7 +142,9 @@ async function removeDirIfExists(dir) {
             const indexTs = await node_fs_1.promises.readFile(path.join(targetDir, "src", "index.ts"), "utf8");
             (0, vitest_1.expect)(readme).toMatch(/Standard Basecard Plugin/);
             (0, vitest_1.expect)(readme).toMatch(/basecardDefinition/);
-            (0, vitest_1.expect)(readme).toMatch(/@chips\/component-library/);
+            (0, vitest_1.expect)(readme).toMatch(/@chips\/ui/);
+            (0, vitest_1.expect)(readme).toMatch(/\bantd\b/);
+            (0, vitest_1.expect)(readme).not.toMatch(/@chips\/component-library/);
             (0, vitest_1.expect)(readme).not.toMatch(/chips-scaffold-basecard/);
             (0, vitest_1.expect)(readme).not.toMatch(/\bchips dev\b/);
             (0, vitest_1.expect)(chipsConfig).toMatch(/chipsdev/);
@@ -136,6 +152,7 @@ async function removeDirIfExists(dir) {
             (0, vitest_1.expect)(vitestConfig).toMatch(/react\/jsx-runtime/);
             (0, vitest_1.expect)(vitestConfig).toMatch(/react-dom\/client/);
             (0, vitest_1.expect)(vitestConfig).toMatch(/dedupe:\s*\["react", "react-dom"\]/);
+            (0, vitest_1.expect)(vitestConfig).toMatch(/setupFiles:\s*\["tests\/setup\.ts"\]/);
             (0, vitest_1.expect)(indexTs).toMatch(/export const basecardDefinition/);
             (0, vitest_1.expect)(indexTs).toMatch(/export function renderBasecardView/);
             (0, vitest_1.expect)(indexTs).toMatch(/export function renderBasecardEditor/);
@@ -151,19 +168,26 @@ async function removeDirIfExists(dir) {
                 code: "ENOENT",
             });
             const renderView = await node_fs_1.promises.readFile(path.join(targetDir, "src", "render", "view.tsx"), "utf8");
-            (0, vitest_1.expect)(renderView).toMatch(/@chips\/component-library/);
+            (0, vitest_1.expect)(renderView).not.toMatch(/@chips\/component-library/);
             (0, vitest_1.expect)(renderView).toMatch(/resolveResourceUrl/);
             (0, vitest_1.expect)(renderView).toMatch(/releaseResourceUrl/);
             (0, vitest_1.expect)(renderView).toMatch(/openResource/);
+            (0, vitest_1.expect)(renderView).toMatch(/formatMessage/);
+            (0, vitest_1.expect)(renderView).toMatch(/Typography/);
             (0, vitest_1.expect)(renderView).not.toMatch(/chips-basecard__surface/);
             (0, vitest_1.expect)(renderView).not.toMatch(/box-shadow/);
             (0, vitest_1.expect)(renderView).not.toMatch(/radial-gradient/);
-            (0, vitest_1.expect)(renderView).not.toMatch(/rgba\(/);
             (0, vitest_1.expect)(renderView).not.toMatch(/>[^<{]*[\u4e00-\u9fff][^<{]*</);
             const editorPanel = await node_fs_1.promises.readFile(path.join(targetDir, "src", "editor", "panel.tsx"), "utf8");
-            (0, vitest_1.expect)(editorPanel).toMatch(/ChipsTextField/);
-            (0, vitest_1.expect)(editorPanel).toMatch(/ChipsTextArea/);
-            (0, vitest_1.expect)(editorPanel).toMatch(/ChipsForm/);
+            (0, vitest_1.expect)(editorPanel).not.toMatch(/ChipsForm|ChipsTextField|ChipsTextArea|ChipsErrorState|ChipsBox|ChipsStack|ChipsButton|ChipsText/);
+            (0, vitest_1.expect)(editorPanel).not.toMatch(/@chips\/component-library/);
+            (0, vitest_1.expect)(editorPanel).toMatch(/ConfigProvider/);
+            (0, vitest_1.expect)(editorPanel).toMatch(/appleTheme/);
+            (0, vitest_1.expect)(editorPanel).toMatch(/antd\/locale\/zh_CN/);
+            (0, vitest_1.expect)(editorPanel).toMatch(/<Input/);
+            (0, vitest_1.expect)(editorPanel).toMatch(/Input\.TextArea/);
+            (0, vitest_1.expect)(editorPanel).toMatch(/Button/);
+            (0, vitest_1.expect)(editorPanel).toMatch(/formatMessage/);
             (0, vitest_1.expect)(editorPanel).toMatch(/importResource/);
             (0, vitest_1.expect)(editorPanel).toMatch(/deleteResource/);
             (0, vitest_1.expect)(editorPanel).toMatch(/resource_path/);
@@ -171,8 +195,11 @@ async function removeDirIfExists(dir) {
             (0, vitest_1.expect)(editorPanel).not.toMatch(/<textarea/);
             (0, vitest_1.expect)(editorPanel).not.toMatch(/box-shadow/);
             (0, vitest_1.expect)(editorPanel).not.toMatch(/radial-gradient/);
-            (0, vitest_1.expect)(editorPanel).not.toMatch(/rgba\(/);
             (0, vitest_1.expect)(editorPanel).not.toMatch(/>[^<{]*[\u4e00-\u9fff][^<{]*</);
+            const messagesTs = await node_fs_1.promises.readFile(path.join(targetDir, "src", "lib", "messages.ts"), "utf8");
+            (0, vitest_1.expect)(messagesTs).toMatch(/export function formatMessage/);
+            (0, vitest_1.expect)(messagesTs).toMatch(/basecard\.field\.title\.label/);
+            (0, vitest_1.expect)(messagesTs).toMatch(/basecard\.view\.ariaLabel/);
             const schemaTs = await node_fs_1.promises.readFile(path.join(targetDir, "src", "schema", "card-config.ts"), "utf8");
             (0, vitest_1.expect)(schemaTs).toMatch(/resource_path\?:\s*string/);
             (0, vitest_1.expect)(schemaTs).toMatch(/isCardRootResourcePath/);
@@ -189,6 +216,7 @@ async function removeDirIfExists(dir) {
             (0, vitest_1.expect)(renderViewTest).toMatch(/openResource/);
             (0, vitest_1.expect)(editorPanelTest).toMatch(/importResource/);
             (0, vitest_1.expect)(editorPanelTest).toMatch(/deleteResource/);
+            (0, vitest_1.expect)(editorPanelTest).toMatch(/data-chips-basecard-field="title"/);
             (0, vitest_1.expect)(integrationTest).toMatch(/cleans editor container styles after unmount/);
             const generatedTextFiles = [
                 "manifest.yaml",

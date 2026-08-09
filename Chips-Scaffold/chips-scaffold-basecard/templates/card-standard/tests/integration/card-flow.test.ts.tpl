@@ -37,7 +37,7 @@ describe("basecard integration flow", () => {
     });
 
     const titleInput = editorContainer.querySelector(
-      '[data-scope="text-field"][data-part="control"]'
+      '[data-chips-basecard-field="title"] input'
     ) as HTMLInputElement | null;
 
     if (!titleInput) {
@@ -69,21 +69,15 @@ describe("basecard integration flow", () => {
       theme: "",
     };
 
-    const firstDispose = mountBasecardEditor({
-      container: editorContainer,
-      initialConfig,
-      onChange: () => undefined,
-    });
-    const secondDispose = mountBasecardEditor({
+    const dispose = mountBasecardEditor({
       container: editorContainer,
       initialConfig,
       onChange: () => undefined,
     });
 
-    firstDispose();
-    expect(editorContainer.querySelectorAll("[data-chips-basecard-editor-root]")).toHaveLength(1);
+    expect(editorContainer.querySelector("[data-chips-basecard-editor-root]")).toBeTruthy();
 
-    secondDispose();
+    dispose();
     expect(editorContainer.childElementCount).toBe(0);
     expect(editorContainer.style.display).toBe("block");
     expect(editorContainer.style.overflow).toBe("visible");

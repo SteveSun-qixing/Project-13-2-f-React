@@ -1,73 +1,59 @@
 import { describe, expect, it } from "vitest";
 import type { CommandInvokedEvent } from "chips-sdk";
 import { createMockChipsClient } from "chips-sdk/testing";
+import { appConfig } from "../../config/app-config";
 import {
   APP_COMMAND_HANDLER_IDS,
   APP_COMMAND_IDS,
   APP_PLUGIN_ID,
   appCommandDefinitions,
-  appCommandViews,
   createAppCommandStatus,
+  createAppCommands,
   getAppCommandHandlerId,
   isAppCommandInvokedEvent,
-  resolveAppMenuGroups,
-  resolveAppPaletteItems,
-  resolveAppToolbarCommands,
 } from "../../src/commands/app-commands";
-import { translateLocalKey } from "../../src/i18n/locales";
 
 describe("app command registry contract", () => {
-  it("declares serializable command metadata with i18n keys", () => {
+  it("declares serializable command metadata with Chinese titles", () => {
     expect(appCommandDefinitions.length).toBeGreaterThan(0);
 
     for (const definition of appCommandDefinitions) {
       const record = definition as unknown as Record<string, unknown>;
       expect(definition.commandId.startsWith(`${APP_PLUGIN_ID}.`)).toBe(true);
-      expect(definition.titleKey).toMatch(/^app\.commands\./);
-      expect(definition.descriptionKey).toMatch(/^app\.commands\./);
-      expect(definition.ariaLabelKey).toMatch(/^app\.commands\./);
+      expect(definition.titleKey.length).toBeGreaterThan(0);
       expect(definition.handlerId).toBeTypeOf("string");
       expect(definition.scope).toEqual({ kind: "app", appId: APP_PLUGIN_ID });
       expect(definition.menuPlacement?.length).toBeGreaterThan(0);
       expect(definition.toolbarPlacement?.length).toBeGreaterThan(0);
       expect(definition.paletteKeywords?.length).toBeGreaterThan(0);
-      expect(translateLocalKey(definition.titleKey, "zh-CN")).not.toBe(definition.titleKey);
-      expect(translateLocalKey(definition.titleKey, "en-US")).not.toBe(definition.titleKey);
-      if (definition.descriptionKey) {
-        expect(translateLocalKey(definition.descriptionKey, "zh-CN")).not.toBe(definition.descriptionKey);
-        expect(translateLocalKey(definition.descriptionKey, "en-US")).not.toBe(definition.descriptionKey);
-      }
-      if (definition.ariaLabelKey) {
-        expect(translateLocalKey(definition.ariaLabelKey, "zh-CN")).not.toBe(definition.ariaLabelKey);
-        expect(translateLocalKey(definition.ariaLabelKey, "en-US")).not.toBe(definition.ariaLabelKey);
-      }
       expect(record.title).toBeUndefined();
-      expect(record.description).toBeUndefined();
-      expect(record.ariaLabel).toBeUndefined();
       expect(record.label).toBeUndefined();
     }
   });
 
-  it("derives menu, toolbar, and palette entries from one command view registry", () => {
-    const i18n = (key: string) => translateLocalKey(key, "en-US");
-    const toolbarItems = resolveAppToolbarCommands(i18n);
-    const menuGroups = resolveAppMenuGroups(i18n);
-    const paletteItems = resolveAppPaletteItems(i18n);
-    const toolbarIds = toolbarItems.map((item) => item.commandId);
-    const menuIds = menuGroups.flatMap((group) => group.items.map((item) => item.commandId));
-    const paletteIds = paletteItems.map((item) => item.commandId);
+  it("derives local CommandItem entries with Chinese titles", () => {
+    const handlers = {
+      openWorkspace: () => undefined,
+      openSettings: () => undefined,
+    };
+    const commands = createAppCommands(handlers);
 
-    for (const command of appCommandViews) {
-      expect(toolbarIds).toContain(command.commandId);
-      expect(menuIds).toContain(command.commandId);
-      expect(paletteIds).toContain(command.commandId);
+    expect(commands.length).toBe(2);
+    for (const command of commands) {
+      expect(command.id.startsWith(`${appConfig.appId}.`)).toBe(true);
+      expect(command.title.length).toBeGreaterThan(0);
+      expect(typeof command.run).toBe("function");
+      expect(command.menuId).toBe("file");
+      expect(command.toolbarId).toBe("main");
     }
-    expect(toolbarItems[0].label).toBe("Open workspace");
-    expect(menuGroups.map((group) => group.groupId)).toEqual(["primary", "view"]);
-    expect(paletteItems.some((item) => item.commandId === APP_COMMAND_IDS.refreshTheme)).toBe(true);
+
+    const openWorkspace = commands.find((command) => command.id === APP_COMMAND_IDS.openWorkspace);
+    const openSettings = commands.find((command) => command.id === APP_COMMAND_IDS.openSettings);
+    expect(openWorkspace?.title).toBe("打开工作区");
+    expect(openSettings?.title).toBe("打开设置");
   });
 
-  it("uses SDK testing mock host for register/list/setState/invoke", async () => {
+  it("uses SDK testing mock host for register and invoke", async () => {
     const client = createMockChipsClient();
     const invoked: string[] = [];
     client.command.onInvoked((event) => {
@@ -78,33 +64,15 @@ describe("app command registry contract", () => {
       await client.command.register(definition);
     }
     const menuCommands = await client.command.list({ source: "menu" });
-    const toolbarCommands = await client.command.list({ source: "toolbar" });
     const paletteCommands = await client.command.list({ source: "palette" });
-    const disabledCommand = await client.command.setState(
-      APP_COMMAND_IDS.refreshTheme,
-      {
-        enabled: false,
-        disabledReasonKey: "app.commands.refreshTheme.disabledReason",
-      },
-      { context: { source: "toolbar" } },
-    );
-    const visibleCommands = await client.command.list({ source: "toolbar" });
-    const allCommands = await client.command.list({ source: "toolbar", includeDisabled: true });
     await client.command.invoke(APP_COMMAND_IDS.openWorkspace, {}, { source: "toolbar" });
 
-    expect(client.calls.map((call) => call.action)).toContain("command.setState");
-    expect(client.calls.slice(0, 4).map((call) => call.action)).toEqual([
+    expect(client.calls.slice(0, 2).map((call) => call.action)).toEqual([
       "command.register",
       "command.register",
-      "command.list",
-      "command.list",
     ]);
     expect(menuCommands.map((command) => command.commandId)).toEqual(Object.values(APP_COMMAND_IDS));
-    expect(toolbarCommands.map((command) => command.commandId)).toEqual(Object.values(APP_COMMAND_IDS));
     expect(paletteCommands.map((command) => command.commandId)).toEqual(Object.values(APP_COMMAND_IDS));
-    expect(disabledCommand?.diagnostic.enabled).toBe(false);
-    expect(visibleCommands.map((command) => command.commandId)).toEqual([APP_COMMAND_IDS.openWorkspace]);
-    expect(allCommands.map((command) => command.commandId)).toEqual(Object.values(APP_COMMAND_IDS));
     expect(client.calls.at(-1)?.payload).toMatchObject({
       commandId: APP_COMMAND_IDS.openWorkspace,
       source: "toolbar",
@@ -140,5 +108,14 @@ describe("app command registry contract", () => {
       invocationId: "invocation-test",
       source: "palette",
     });
+
+    const foreignEvent: CommandInvokedEvent = {
+      ...event,
+      commandId: "com.chips.other.command",
+      handlerId: "other:command",
+      ownerPluginId: "com.chips.other",
+    };
+    expect(isAppCommandInvokedEvent(foreignEvent)).toBe(false);
+    expect(getAppCommandHandlerId(foreignEvent)).toBeNull();
   });
 });

@@ -80,6 +80,7 @@ async function createWorkspaceSandbox(sandboxRoot) {
   for (const entry of [
     "Chips-SDK",
     "Chips-Scaffold",
+    "Chips-Ui",
     "Chips-ComponentLibrary",
     "ThemePack",
   ]) {
@@ -130,16 +131,26 @@ async function main() {
     const generatedPackage = JSON.parse(
       await readFile(path.join(projectDir, "package.json"), "utf8"),
     );
-    if (
-      generatedPackage.dependencies?.["@chips/component-library"] !== "^0.1.0"
-    ) {
-      throw new Error("E2E: 应用模板必须保留正式 semver 组件库依赖");
+    if (generatedPackage.dependencies?.["antd"] !== "6.5.4") {
+      throw new Error("E2E: 应用模板必须锁定 antd 6.5.4");
+    }
+    if (generatedPackage.dependencies?.["@ant-design/icons"] !== "6.3.2") {
+      throw new Error("E2E: 应用模板必须锁定 @ant-design/icons 6.3.2");
+    }
+    if (generatedPackage.dependencies?.["dayjs"] !== "1.11.21") {
+      throw new Error("E2E: 应用模板必须锁定 dayjs 1.11.21");
+    }
+    if (generatedPackage.dependencies?.["@chips/ui"] !== "0.1.0") {
+      throw new Error("E2E: 应用模板必须保留正式 semver @chips/ui 依赖");
+    }
+    if (generatedPackage.dependencies?.["@chips/component-library"] !== undefined) {
+      throw new Error("E2E: 应用模板不得依赖已卸担的 @chips/component-library");
     }
     if (generatedPackage.devDependencies?.["chips-sdk"] !== "^0.1.0") {
       throw new Error("E2E: 应用模板必须保留正式 semver SDK 依赖");
     }
     if (generatedPackage.volta?.extends !== "../../package.json") {
-      throw new Error("E2E: chipsdev create 应为新工程写入根工作区 volta.extends");
+      throw new Error("E2E: chipsdev-r create 应为新工程写入根工作区 volta.extends");
     }
     for (const scriptName of ["typecheck", "preview:smoke", "quality:gate", "verify"]) {
       if (typeof generatedPackage.scripts?.[scriptName] !== "string") {
@@ -154,9 +165,14 @@ async function main() {
     }
 
     const manifestText = await readFile(path.join(projectDir, "manifest.yaml"), "utf8");
-    for (const permission of ["i18n.read", "i18n.write", "command.read", "command.write", "command.invoke"]) {
+    for (const permission of ["command.read", "command.write", "command.invoke"]) {
       if (!manifestText.includes(`  - ${permission}`)) {
         throw new Error(`E2E: 应用模板 manifest 缺少 ${permission}`);
+      }
+    }
+    for (const removedPermission of ["theme.read", "i18n.read", "i18n.write"]) {
+      if (manifestText.includes(removedPermission)) {
+        throw new Error(`E2E: 应用模板 manifest 不应声明 ${removedPermission}`);
       }
     }
     if (/^commands\s*:/m.test(manifestText)) {
@@ -206,7 +222,7 @@ async function main() {
     }
 
     const commandSource = await readFile(
-      path.join(projectDir, "src", "commands", "app-commands.ts"),
+      path.join(projectDir, "src", "commands", "app-commands.tsx"),
       "utf8",
     );
     const appSource = await readFile(
@@ -218,7 +234,6 @@ async function main() {
         [
           "src/App.tsx",
           "src/app/AppRoot.tsx",
-          "src/app/AppProviders.tsx",
           "src/app/AppRuntimeProvider.tsx",
           "src/app/AppShell.tsx",
           "src/app/scene-registry.ts",
@@ -230,20 +245,15 @@ async function main() {
           "src/views/SceneListView.tsx",
           "src/views/EnvironmentStatusView.tsx",
           "src/views/RuntimeDiagnosticsView.tsx",
-          "src/i18n/useAppText.ts",
+          "src/lib/messages.ts",
           "src/runtime/launch-context.ts",
-          "src/theme/theme-runtime.ts",
           "src/testing/mock-environment.ts",
-          "src/testing/render-with-chips.tsx",
+          "src/testing/render-with-antd.tsx",
         ].map((relativePath) => readFile(path.join(projectDir, relativePath), "utf8")),
       )
     ).join("\n");
     const commandRuntimeSource = await readFile(
       path.join(projectDir, "src", "commands", "useAppCommands.ts"),
-      "utf8",
-    );
-    const localeSource = await readFile(
-      path.join(projectDir, "src", "i18n", "locales.ts"),
       "utf8",
     );
     const appTestSource = await readFile(
@@ -255,6 +265,9 @@ async function main() {
       "utf8",
     );
     for (const requiredText of [
+      "CommandItem",
+      "createAppCommands",
+      "appCommandDefinitions",
       "titleKey",
       "descriptionKey",
       "ariaLabelKey",
@@ -262,41 +275,38 @@ async function main() {
       "menuPlacement",
       "toolbarPlacement",
       "paletteKeywords",
+      "menuId",
+      "toolbarId",
+      "@ant-design/icons",
     ]) {
       if (!commandSource.includes(requiredText)) {
-        throw new Error(`E2E: command schema 缺少 ${requiredText}`);
+        throw new Error(`E2E: command 定义缺少 ${requiredText}`);
       }
     }
     for (const requiredText of [
       "client.command.register",
       "client.command.invoke",
       "client.command.onInvoked",
-      "createCommandAdapter",
-      "useChipsClient",
+      "useCommandRegistry",
+      "register(commands)",
     ]) {
       if (!commandRuntimeSource.includes(requiredText)) {
         throw new Error(`E2E: command runtime 缺少 ${requiredText}`);
       }
     }
     for (const requiredText of [
-      "ChipsEnvironmentProvider",
-      "ChipsThemeProvider",
-      "useChipsClient",
-      "useChipsTheme",
-      "useChipsI18n",
-      "useChipsI18nText",
-      "useChipsSurface",
-      "useChipsPermission",
-      "useChipsDiagnostics",
+      "ConfigProvider",
+      "appleTheme",
+      "ChipsProvider",
+      "CommandProvider",
+      "AppChrome",
+      "useCommandRegistry",
+      "useAppCommands",
       "useAppRuntime",
       "AppRuntimeProvider",
-      "ChipsView",
-      "ChipsGrid",
-      "ChipsDialog",
-      "ChipsErrorState",
-      "ChipsIcon",
-      "setLocale",
-      "supportedLocales",
+      "useChips",
+      "formatMessage",
+      "renderWithAntd",
     ]) {
       if (!sourceBundle.includes(requiredText)) {
         throw new Error(`E2E: App 环境入口缺少 ${requiredText}`);
@@ -305,29 +315,28 @@ async function main() {
     if (!appSource.includes("export { AppRoot as App } from \"./app/AppRoot\";")) {
       throw new Error("E2E: src/App.tsx 应保持轻量根组件 re-export");
     }
-    for (const requiredText of ["export const localeBundles", "export const supportedLocales"]) {
-      if (!localeSource.includes(requiredText)) {
-        throw new Error(`E2E: 本地 i18n adapter 缺少 ${requiredText}`);
-      }
-    }
-    for (const requiredText of ["createChipsI18nText", "localeBundles", "supportedLocales", "app.shell.languageSwitch"]) {
+    for (const requiredText of ["formatMessage", "sceneDefinitions", "renderWithAntd", "resolveRuntimeSceneId"]) {
       if (!appTestSource.includes(requiredText)) {
-        throw new Error(`E2E: app 单元测试缺少同步 i18n adapter 覆盖 ${requiredText}`);
+        throw new Error(`E2E: app 单元测试缺少新体系覆盖 ${requiredText}`);
       }
     }
     for (const requiredText of [
       "chips-sdk/testing",
       "createMockChipsClient",
-      "client.calls",
+      "createAppCommands",
       "command.onInvoked",
-      "command.setState",
-      "resolveAppToolbarCommands",
-      "resolveAppMenuGroups",
-      "resolveAppPaletteItems",
+      "isAppCommandInvokedEvent",
+      "APP_COMMAND_IDS",
     ]) {
       if (!commandTestSource.includes(requiredText)) {
         throw new Error(`E2E: command 单元测试缺少 SDK testing mock 覆盖 ${requiredText}`);
       }
+    }
+    if (/@chips\/component-library/.test(`${sourceBundle}\n${commandSource}\n${commandRuntimeSource}`)) {
+      throw new Error("E2E: 应用模板不得引用已卸担的 @chips/component-library");
+    }
+    if (/\bChipsEnvironmentProvider\b|\bChipsThemeProvider\b|\buseChipsI18n\b|\buseChipsTheme\b/.test(sourceBundle)) {
+      throw new Error("E2E: 应用模板不得残留已卸担的 Environment hooks");
     }
     if (/window\.chips\.invoke\(["']command\./.test(commandRuntimeSource)) {
       throw new Error("E2E: command runtime 不得绕过 SDK 直连 Bridge action");
@@ -338,19 +347,11 @@ async function main() {
     if (/style=\{\{/.test(sourceBundle)) {
       throw new Error("E2E: 应用模板源码不得使用 inline style");
     }
-    if (/#[0-9A-Fa-f]{3,8}\b|box-shadow\s*:|background(?:-color)?\s*:\s*#|color\s*:\s*#/.test(sourceBundle)) {
-      throw new Error("E2E: 应用模板源码不得使用硬编码颜色或阴影");
+    if (/--chips-sys-|--chips-base-|data-scope=/.test(sourceBundle)) {
+      throw new Error("E2E: 应用模板源码不得残留旧主题变量或 data-scope 结构");
     }
     if (/\bapp-standard\b|\bchips-scaffold-app\b|\bExamplePanel\b/.test(sourceBundle)) {
       throw new Error("E2E: 应用模板源码不得泄漏模板身份或旧示例面板");
-    }
-
-    const zhCnText = await readFile(path.join(projectDir, "i18n", "zh-CN.json"), "utf8");
-    const enUsText = await readFile(path.join(projectDir, "i18n", "en-US.json"), "utf8");
-    for (const key of ["openWorkspace", "refreshTheme", "lastInvoked", "palette", "languageSwitch", "runtime", "dialog"]) {
-      if (!zhCnText.includes(key) || !enUsText.includes(key)) {
-        throw new Error(`E2E: i18n 文件缺少 key：${key}`);
-      }
     }
 
     const previewReport = await readJsonReport(

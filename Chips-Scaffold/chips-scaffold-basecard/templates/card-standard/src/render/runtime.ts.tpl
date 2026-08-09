@@ -1,6 +1,9 @@
 import React from "react";
+import { ConfigProvider } from "antd";
+import zhCN from "antd/locale/zh_CN";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
+import { appleTheme } from "@chips/ui";
 import type { BasecardRenderContext } from "../index";
 import type { BasecardConfig } from "../schema/card-config";
 import { BasecardView, VIEW_STYLE_TEXT } from "./view";
@@ -14,7 +17,7 @@ type BasecardViewContainer = HTMLElement & {
 };
 
 export function mountBasecardView(ctx: BasecardRenderContext): () => void {
-  const { container, config, themeCssText } = ctx;
+  const { container, config } = ctx;
   const hostContainer = container as BasecardViewContainer;
 
   hostContainer.__chipsBasecardViewDispose?.();
@@ -35,15 +38,19 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
   flushSync(() => {
     state.root.render(
       React.createElement(
-        React.Fragment,
-        null,
-        React.createElement("style", null, `${themeCssText ?? ""}\n${VIEW_STYLE_TEXT}`),
-        React.createElement(BasecardView, {
-          config: config as BasecardConfig,
-          resolveResourceUrl: ctx.resolveResourceUrl,
-          releaseResourceUrl: ctx.releaseResourceUrl,
-          openResource: ctx.openResource,
-        }),
+        ConfigProvider,
+        { locale: zhCN, theme: appleTheme },
+        React.createElement(
+          React.Fragment,
+          null,
+          React.createElement("style", null, VIEW_STYLE_TEXT),
+          React.createElement(BasecardView, {
+            config: config as BasecardConfig,
+            resolveResourceUrl: ctx.resolveResourceUrl,
+            releaseResourceUrl: ctx.releaseResourceUrl,
+            openResource: ctx.openResource,
+          }),
+        ),
       ),
     );
   });

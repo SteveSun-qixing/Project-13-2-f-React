@@ -1,57 +1,44 @@
+import { useState } from "react";
+import { Button, Card, Flex, Input, Typography } from "antd";
+import { PanelHeader } from "@chips/ui";
 import {
-  ChipsButton,
-  ChipsForm,
-  ChipsSection,
-  ChipsText,
-  ChipsTextField,
-  useChipsState,
-} from "@chips/component-library";
-import { createRuntimeDiagnostic, useAppRuntime } from "../app/AppRuntimeProvider";
-import { useAppText } from "../i18n/useAppText";
+  createRuntimeDiagnostic,
+  useAppRuntime,
+} from "../app/AppRuntimeProvider";
+import { formatMessage } from "../lib/messages";
 
 export function StateBindingView() {
-  const { text } = useAppText();
   const runtime = useAppRuntime();
-  const titleState = useChipsState(text("app.identity.displayName"), {
-    name: "app.workspace.title",
-  });
-  const titleProps = titleState.binding.valueProps<string>();
+  const [title, setTitle] = useState(formatMessage("app.identity.displayName"));
 
   function handleSubmit() {
-    runtime.pushDiagnostic(createRuntimeDiagnostic(
-      "APP_STATE_BINDING_UPDATED",
-      "App state binding updated.",
-      "app",
-      {
-        title: titleState.value,
-      },
-    ));
+    runtime.pushDiagnostic(
+      createRuntimeDiagnostic("APP_STATE_BINDING_UPDATED", formatMessage("app.workspace.formResult", { title }), "app", { title }),
+    );
   }
 
   return (
-    <ChipsSection
-      title={text("app.workspace.formTitle")}
-      description={text("app.workspace.formDescription")}
-    >
-      <ChipsForm onSubmit={(event) => event.preventDefault()}>
-        <ChipsForm.Field name="title">
-          <ChipsForm.Label>{text("app.workspace.formLabel")}</ChipsForm.Label>
-          <ChipsForm.Control>
-            <ChipsTextField
-              name="title"
-              placeholder={text("app.workspace.formPlaceholder")}
-              value={titleProps.value}
-              onValueChange={(value) => titleProps.onValueChange(value)}
-            />
-          </ChipsForm.Control>
-          <ChipsForm.Hint>
-            <ChipsText>{titleState.value}</ChipsText>
-          </ChipsForm.Hint>
-        </ChipsForm.Field>
-        <ChipsButton type="button" onPress={handleSubmit}>
-          {text("app.workspace.formAction")}
-        </ChipsButton>
-      </ChipsForm>
-    </ChipsSection>
+    <Card className="app-shell__section" variant="borderless">
+      <PanelHeader
+        title={formatMessage("app.workspace.formTitle")}
+        description={formatMessage("app.workspace.formDescription")}
+      />
+      <Flex vertical gap={12}>
+        <Flex vertical gap={4}>
+          <Typography.Text className="app-shell__status-item-label">
+            {formatMessage("app.workspace.formLabel")}
+          </Typography.Text>
+          <Input
+            value={title}
+            aria-label={formatMessage("app.workspace.formLabel")}
+            placeholder={formatMessage("app.workspace.formPlaceholder")}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </Flex>
+        <Button type="primary" onClick={handleSubmit}>
+          {formatMessage("app.workspace.formAction")}
+        </Button>
+      </Flex>
+    </Card>
   );
 }

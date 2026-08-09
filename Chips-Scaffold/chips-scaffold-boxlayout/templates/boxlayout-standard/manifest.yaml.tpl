@@ -9,8 +9,6 @@ author:
   email: {{ AUTHOR_EMAIL }}
 permissions:
   - box.read
-  - theme.read
-  - i18n.read
 runtime:
   targets:
     desktop:

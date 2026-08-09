@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * 通过 chipsdev create card 生成标准基础卡片插件工程，并执行正式默认门禁。
+ * 通过 chipsdev-r create card 生成标准基础卡片插件工程，并执行正式默认门禁。
  */
 
 const fs = require("node:fs");
@@ -77,6 +77,7 @@ async function createWorkspaceSandbox(sandboxRoot) {
     "Chips-SDK",
     "Chips-Scaffold",
     "Chips-ComponentLibrary",
+    "Chips-Ui",
     "ThemePack",
   ]) {
     await symlinkDir(
@@ -160,7 +161,7 @@ async function main() {
       "README.md",
       ".eslintrc.cjs",
       "vitest.config.mts",
-      path.join("src", "shared", "i18n.ts"),
+      path.join("src", "lib", "messages.ts"),
       path.join("tests", "unit", "schema.test.ts"),
       path.join("tests", "unit", "render-view.test.tsx"),
       path.join("tests", "unit", "editor-panel.test.tsx"),
@@ -171,13 +172,22 @@ async function main() {
         throw new Error(`E2E: 生成工程缺少 ${relativePath}`);
       }
     }
+    for (const legacyPath of [
+      path.join("src", "shared", "i18n.ts"),
+      path.join("i18n", "zh-CN.json"),
+      path.join("i18n", "en-US.json"),
+    ]) {
+      if (fs.existsSync(path.join(targetDir, legacyPath))) {
+        throw new Error(`E2E: 生成工程不应残留旧多语言文件 ${legacyPath}`);
+      }
+    }
     if (fs.existsSync(path.join(targetDir, "template.json"))) {
       throw new Error("E2E: 生成工程不应包含脚手架模板元数据 template.json。");
     }
 
     const rootPackage = JSON.parse(await fsp.readFile(path.join(tmpRoot, "package.json"), "utf8"));
     if (!rootPackage.workspaces.includes("validation-projects/card-e2e")) {
-      throw new Error("E2E: chipsdev create card 未把生成工程登记到工作区。");
+      throw new Error("E2E: chipsdev-r create card 未把生成工程登记到工作区。");
     }
 
     const generatedPackage = JSON.parse(
@@ -192,10 +202,20 @@ async function main() {
       throw new Error("E2E: verify 必须串联 package 门禁。");
     }
     if (generatedPackage.volta?.extends !== "../../package.json") {
-      throw new Error("E2E: chipsdev create 应为新工程写入根工作区 volta.extends。");
+      throw new Error("E2E: chipsdev-r create 应为新工程写入根工作区 volta.extends。");
     }
-    if (generatedPackage.dependencies?.["@chips/component-library"] !== "^0.1.0") {
-      throw new Error("E2E: 基础卡片模板必须保留正式 semver 组件库依赖。");
+    if (generatedPackage.dependencies?.["@chips/component-library"] !== undefined) {
+      throw new Error("E2E: 基础卡片模板不得依赖已卸担的组件库。");
+    }
+    for (const [depName, expectedVersion] of [
+      ["antd", "6.5.4"],
+      ["@ant-design/icons", "6.3.2"],
+      ["dayjs", "1.11.21"],
+      ["@chips/ui", "0.1.0"],
+    ]) {
+      if (generatedPackage.dependencies?.[depName] !== expectedVersion) {
+        throw new Error(`E2E: 基础卡片模板必须锁定 ${depName} ${expectedVersion}。`);
+      }
     }
     if (generatedPackage.devDependencies?.["chips-sdk"] !== "^0.1.0") {
       throw new Error("E2E: 基础卡片模板必须保留正式 semver SDK 依赖。");
@@ -253,7 +273,7 @@ async function main() {
 
     await assertGeneratedTextIsClean(targetDir);
 
-    console.log("E2E: chipsdev create card 生成工程正式门禁通过。");
+    console.log("E2E: chipsdev-r create card 生成工程正式门禁通过。");
   } catch (error) {
     console.error("E2E: 生成工程失败", error);
     process.exitCode = 1;

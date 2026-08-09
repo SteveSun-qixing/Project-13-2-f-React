@@ -1,10 +1,12 @@
-import { ChipsStack } from "@chips/component-library";
+import { Flex } from "antd";
 import { EnvironmentStatusView } from "../views/EnvironmentStatusView";
+import { RuntimeDiagnosticsView } from "../views/RuntimeDiagnosticsView";
 
 export function SettingsScene() {
   return (
-    <ChipsStack gap="lg">
+    <Flex vertical gap={16}>
       <EnvironmentStatusView />
-    </ChipsStack>
+      <RuntimeDiagnosticsView />
+    </Flex>
   );
 }

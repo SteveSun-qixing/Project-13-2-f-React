@@ -1,15 +1,7 @@
 import React, { useEffect, useState } from "react";
-import {
-  ChipsBox,
-  ChipsButton,
-  ChipsErrorState,
-  ChipsForm,
-  ChipsStack,
-  ChipsText,
-  ChipsTextArea,
-  ChipsTextField,
-  type StandardErrorLike,
-} from "@chips/component-library";
+import { Button, ConfigProvider, Input } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type {
@@ -25,7 +17,7 @@ import {
   validateBasecardConfig,
   type BasecardConfig,
 } from "../schema/card-config";
-import { createBasecardText } from "../shared/i18n";
+import { formatMessage } from "../lib/messages";
 
 export interface BasecardEditorProps {
   initialConfig: BasecardConfig;
@@ -63,7 +55,10 @@ html, body {
   height: 100%;
   min-height: 0;
   overflow: auto;
-  padding: var(--chips-comp-basecard-editor-padding, var(--chips-sys-space-4));
+  padding: 16px;
+  color: #1d1d1f;
+  background-color: #ffffff;
+  font: 14px/1.5 "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-basecard-editor,
@@ -75,31 +70,76 @@ html, body {
   width: 100%;
 }
 
-.chips-basecard-editor__field {
+.chips-basecard-editor__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   min-width: 0;
+}
+
+.chips-basecard-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chips-basecard-editor__field-label {
+  color: #6e6e73;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chips-basecard-editor__field-error {
+  color: #ff3b30;
+  font-size: 12px;
 }
 
 .chips-basecard-editor__resource-dropzone {
+  display: grid;
+  place-items: center;
   width: 100%;
-  min-width: 0;
-  padding: var(--chips-comp-basecard-resource-dropzone-padding, var(--chips-sys-space-3));
+  min-height: 120px;
+  padding: 16px;
+  border: 1.5px dashed rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  color: #6e6e73;
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.chips-basecard-editor__resource-dropzone:hover {
+  border-color: #0a84ff;
+  background-color: rgba(10, 132, 255, 0.08);
+  color: #0a84ff;
+}
+
+.chips-basecard-editor__resource-dropzone:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 
 .chips-basecard-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
 }
-`;
 
-function toStandardError(errorKey: string | undefined): StandardErrorLike | null {
-  if (!errorKey) {
-    return null;
-  }
-
-  return {
-    code: errorKey,
-    message: errorKey,
-  };
+.chips-basecard-editor__error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background-color: rgba(255, 59, 48, 0.08);
+  color: #ff3b30;
+  font-size: 13px;
 }
+`;
 
 function toPreferredResourcePath(file: File): string {
   const fallbackName = "resource";
@@ -116,21 +156,7 @@ function BasecardEditor(props: BasecardEditorProps) {
   const [errors, setErrors] = useState<Record<string, string>>(() =>
     validateBasecardConfig(normalizeBasecardConfig(props.initialConfig)).errors
   );
-  const t = createBasecardText(config.locale);
-  const i18n = {
-    translate(
-      input: string | { key: string; params?: Record<string, string | number> },
-      params?: Record<string, string | number>,
-    ) {
-      return typeof input === "string" ? t(input, params) : t(input.key, input.params);
-    },
-  };
-  const titleError = toStandardError(errors.title);
-  const bodyError = toStandardError(errors.body);
-  const resourcePathError = toStandardError(errors.resource_path);
   const [resourceBridgeErrorKey, setResourceBridgeErrorKey] = useState<string | undefined>();
-  const resourceBridgeError = toStandardError(resourceBridgeErrorKey);
-  const firstError = resourceBridgeError ?? toStandardError(Object.values(errors)[0]);
 
   useEffect(() => {
     const next = normalizeBasecardConfig(props.initialConfig);
@@ -201,154 +227,127 @@ function BasecardEditor(props: BasecardEditorProps) {
     }
   }
 
+  const titleError = errors.title;
+  const bodyError = errors.body;
+  const resourcePathError = errors.resource_path;
+  const firstErrorKey = resourceBridgeErrorKey ?? Object.values(errors)[0];
+
   return (
-    <ChipsBox
-      as="section"
+    <section
       className="chips-basecard-editor chips-basecard-editor--standard"
-      aria-label={t("basecard.editor.ariaLabel")}
+      aria-label={formatMessage("basecard.editor.ariaLabel")}
     >
-      <ChipsForm.Root
+      <form
         className="chips-basecard-editor__form"
-        aria-label={t("basecard.editor.ariaLabel")}
+        aria-label={formatMessage("basecard.editor.ariaLabel")}
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
         }}
       >
-        <ChipsStack gap="var(--chips-comp-form-section-gap, var(--chips-sys-space-3))">
-          <ChipsForm.Field
-            className="chips-basecard-editor__field"
-            name="title"
-            error={titleError}
-            required
-          >
-            <ChipsTextField
+        <div className="chips-basecard-editor__stack">
+          <div className="chips-basecard-editor__field" data-chips-basecard-field="title">
+            <span className="chips-basecard-editor__field-label">
+              {formatMessage("basecard.field.title.label")}
+            </span>
+            <Input
               value={config.title}
-              labelKey="basecard.field.title.label"
-              ariaLabel={t("basecard.field.title.ariaLabel")}
-              ariaLabelKey="basecard.field.title.ariaLabel"
-              placeholder={t("basecard.field.title.placeholder")}
-              i18n={i18n}
-              error={titleError ? {
-                ...titleError,
-                message: t(titleError.message),
-              } : null}
-              required
-              onValueChange={(value) => {
-                updateConfig({ title: value });
+              aria-label={formatMessage("basecard.field.title.ariaLabel")}
+              placeholder={formatMessage("basecard.field.title.placeholder")}
+              status={titleError ? "error" : undefined}
+              onChange={(event) => {
+                updateConfig({ title: event.target.value });
               }}
             />
-            <ChipsForm.Error>
-              {titleError ? t(titleError.message) : null}
-            </ChipsForm.Error>
-          </ChipsForm.Field>
+            {titleError ? (
+              <span className="chips-basecard-editor__field-error" role="alert">
+                {formatMessage(titleError)}
+              </span>
+            ) : null}
+          </div>
 
-          <ChipsForm.Field
-            className="chips-basecard-editor__field"
-            name="body"
-            error={bodyError}
-            required
-          >
-            <ChipsTextArea
+          <div className="chips-basecard-editor__field" data-chips-basecard-field="body">
+            <span className="chips-basecard-editor__field-label">
+              {formatMessage("basecard.field.body.label")}
+            </span>
+            <Input.TextArea
               value={config.body}
-              labelKey="basecard.field.body.label"
-              ariaLabel={t("basecard.field.body.ariaLabel")}
-              ariaLabelKey="basecard.field.body.ariaLabel"
-              placeholder={t("basecard.field.body.placeholder")}
-              i18n={i18n}
-              error={bodyError ? {
-                ...bodyError,
-                message: t(bodyError.message),
-              } : null}
+              aria-label={formatMessage("basecard.field.body.ariaLabel")}
+              placeholder={formatMessage("basecard.field.body.placeholder")}
+              status={bodyError ? "error" : undefined}
               rows={6}
-              resize="block"
-              required
-              onValueChange={(value) => {
-                updateConfig({ body: value });
+              style={{ resize: "block" }}
+              onChange={(event) => {
+                updateConfig({ body: event.target.value });
               }}
             />
-            <ChipsForm.Error>
-              {bodyError ? t(bodyError.message) : null}
-            </ChipsForm.Error>
-          </ChipsForm.Field>
+            {bodyError ? (
+              <span className="chips-basecard-editor__field-error" role="alert">
+                {formatMessage(bodyError)}
+              </span>
+            ) : null}
+          </div>
 
-          <ChipsForm.Field
-            className="chips-basecard-editor__field"
-            name="resource_path"
-            error={resourcePathError}
-          >
-            <ChipsTextField
+          <div className="chips-basecard-editor__field" data-chips-basecard-field="resource_path">
+            <span className="chips-basecard-editor__field-label">
+              {formatMessage("basecard.resource.pathLabel")}
+            </span>
+            <Input
               value={config.resource_path ?? ""}
-              labelKey="basecard.resource.pathLabel"
-              ariaLabel={t("basecard.resource.pathAriaLabel")}
-              ariaLabelKey="basecard.resource.pathAriaLabel"
-              placeholder={t("basecard.resource.pathPlaceholder")}
-              i18n={i18n}
-              error={resourcePathError ? {
-                ...resourcePathError,
-                message: t(resourcePathError.message),
-              } : null}
-              onValueChange={(value) => {
-                updateConfig({ resource_path: value });
+              aria-label={formatMessage("basecard.resource.pathAriaLabel")}
+              placeholder={formatMessage("basecard.resource.pathPlaceholder")}
+              status={resourcePathError ? "error" : undefined}
+              onChange={(event) => {
+                updateConfig({ resource_path: event.target.value });
               }}
             />
-            <ChipsForm.Error>
-              {resourcePathError ? t(resourcePathError.message) : null}
-            </ChipsForm.Error>
-          </ChipsForm.Field>
+            {resourcePathError ? (
+              <span className="chips-basecard-editor__field-error" role="alert">
+                {formatMessage(resourcePathError)}
+              </span>
+            ) : null}
+          </div>
 
           {props.importResource ? (
-            <ChipsBox
-              as="section"
+            <div
               className="chips-basecard-editor__resource-dropzone"
               role="button"
               tabIndex={0}
-              aria-label={t("basecard.resource.dropzoneAriaLabel")}
+              aria-label={formatMessage("basecard.resource.dropzoneAriaLabel")}
               onDragOver={handleResourceDragOver}
               onDrop={handleResourceDrop}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                }
+              }}
               data-chips-basecard-resource-dropzone="true"
             >
-              <ChipsText
-                as="span"
-                textKey="basecard.resource.dropzoneLabel"
-                i18n={i18n}
-              />
-            </ChipsBox>
+              {formatMessage("basecard.resource.dropzoneLabel")}
+            </div>
           ) : null}
 
           {config.resource_path && props.deleteResource ? (
-            <ChipsStack
-              className="chips-basecard-editor__actions"
-              direction="horizontal"
-              gap="var(--chips-comp-basecard-editor-action-gap, var(--chips-sys-space-2))"
-              wrap
-            >
-              <ChipsButton
-                type="button"
-                onPress={() => {
+            <div className="chips-basecard-editor__actions">
+              <Button
+                type="default"
+                onClick={() => {
                   void handleDeleteResource();
                 }}
               >
-                {t("basecard.resource.deleteAction")}
-              </ChipsButton>
-            </ChipsStack>
+                {formatMessage("basecard.resource.deleteAction")}
+              </Button>
+            </div>
           ) : null}
 
-          {firstError ? (
-            <ChipsErrorState
-              error={{
-                ...firstError,
-                message: t(firstError.message),
-              }}
-              titleKey="basecard.error.title"
-              descriptionKey={firstError.message}
-              ariaLabel={t("basecard.error.ariaLabel")}
-              i18n={i18n}
-            />
+          {firstErrorKey ? (
+            <p className="chips-basecard-editor__error" role="alert">
+              {formatMessage(firstErrorKey)}
+            </p>
           ) : null}
-        </ChipsStack>
-      </ChipsForm.Root>
-    </ChipsBox>
+        </div>
+      </form>
+    </section>
   );
 }
 
@@ -363,10 +362,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): HTMLElemen
 
   flushSync(() => {
     reactRoot.render(
-      <>
+      <ConfigProvider locale={zhCN} theme={appleTheme}>
         <style>{EDITOR_STYLE_TEXT}</style>
         <BasecardEditor {...props} />
-      </>,
+      </ConfigProvider>,
     );
   });
 
