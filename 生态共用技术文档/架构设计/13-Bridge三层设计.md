@@ -4,6 +4,8 @@
 > **层级**：L5 Bridge Transport、L6 Runtime Client、L7 UI Hooks  
 > **当前实现状态**：Desktop preload transport + Direct transport 已落地
 
+> **状态注记（task030 卸担计划，2026-08）**：L5-L7 Bridge 链路保持有效（架构红线不变）；文中 "React 应用优先使用 `@chips/component-library` / `@chips/hooks` 的 `ChipsEnvironmentProvider` 与 `useChips*` hooks" 已失效——组件库废弃后，统一使用 `@chips/ui` 的 `ChipsProvider / useChips`（`生态共用技术文档/前端基础/03-共享层使用指南.md`）。
+
 ## 架构归属声明（2026-04-08）
 
 - L5-L7 运行时链路由 Host 内置实现并随 Host 发布。

@@ -22,18 +22,18 @@ npm install
 
 随后在一方工程中直接声明正式 semver 依赖（例如 `^0.1.0`），由生态根工作区自动链接到本地 `chips-sdk` 工作区包。
 
-脚手架模板中的默认依赖同样保持 semver 版本范围；当工程创建在生态根工作区内时，`chipsdev create` 只负责把新工程注册进根工作区，不再写入 `file:` 或其他临时依赖。
+脚手架模板中的默认依赖同样保持 semver 版本范围；当工程创建在生态根工作区内时，`chipsdev-r create` 只负责把新工程注册进根工作区，不再写入 `file:` 或其他临时依赖。
 
 安装后导入SDK模块。ES Module导入方式使用 `import * as Chips from "chips-sdk"`。CommonJS 导入方式使用 `const Chips = require("chips-sdk")`。
 
 ## 开发工作区与用户工作区
 
-与 SDK 配套的正式命令是 `chipsdev`。本轮实现后，开发态插件与主题调试必须明确区分两类工作区：
+与 SDK 配套的正式命令是 `chipsdev-r`。本轮实现后，开发态插件与主题调试必须明确区分两类工作区：
 
 - `chips` 管理用户工作区 `~/.chips-host`
-- `chipsdev` 管理开发工作区 `.chips-host-dev`
+- `chipsdev-r` 管理开发工作区 `.chips-host-dev`
 
-如果你在开发态需要安装插件、启用主题、切换主题或检查 Host 状态，应优先使用 `chipsdev plugin.* / theme.* / status / doctor`，不要手工改写开发工作区文件。
+如果你在开发态需要安装插件、启用主题、切换主题或检查 Host 状态，应优先使用 `chipsdev-r plugin.* / theme.* / status / doctor`，不要手工改写开发工作区文件。
 
 ## 初始化
 

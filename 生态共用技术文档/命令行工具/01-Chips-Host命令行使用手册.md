@@ -90,7 +90,7 @@ Chips Host命令行工具是管理本地薯片生态实例的核心工具。通�
 - 插件运行产物应位于包内 `dist/` 目录；
 - 包内不应再嵌套历史 `.cpk` 文件、重复 manifest 或无关发布元数据。
 
-推荐的标准工作流是先在插件工程目录执行 `chipsdev build && chipsdev package`，再执行 `chips plugin install <cpk路径>`。若包格式不符合要求，命令会返回如 `PLUGIN_PACKAGE_INVALID` 的结构化错误。
+推荐的标准工作流是先在插件工程目录执行 `chipsdev-r build && chipsdev-r package`，再执行 `chips plugin install <cpk路径>`。若包格式不符合要求，命令会返回如 `PLUGIN_PACKAGE_INVALID` 的结构化错误。
 
 在生态根工作区中，`chips` 命令应由根 `package.json` 显式声明的本地 `chips-host` 工具依赖提供；若开发机使用 Volta，还需要各子工程通过 `volta.extends` 继承根配置，避免 `chips` 回退到旧的全局工具版本。
 

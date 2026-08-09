@@ -4,6 +4,8 @@
 > **层级**：L3 Host Services  
 > **当前实现状态**：20 个服务域已在 Host 中注册
 
+> **状态注记（task030 卸担计划，2026-08）**：本文档描述 Host 服务域（含 theme/i18n 服务），属 Host 内部链路，保留有效；其中 command 图标由组件库 `ChipsIcon` 消费的口径已失效——插件侧图标统一使用 `@ant-design/icons`。
+
 ## 架构归属声明（2026-04-08）
 
 - Host 服务域位于 Kernel 之上、插件运行时之下。

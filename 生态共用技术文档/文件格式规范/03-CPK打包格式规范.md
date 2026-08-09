@@ -10,7 +10,7 @@ CPK是插件包的统一格式，采用ZIP压缩格式，扩展名为cpk。CPK�
 
 ## 目录结构
 
-CPK 文件内部以包根 `manifest.yaml` 为唯一正式清单源。`chipsdev package` 会把工程根 `manifest.yaml` 写入包根，把构建产物保留在包内 `dist/`，并收集 manifest 显式引用的正式静态资源。五类插件的差异由 manifest 字段、入口和运行时导出契约表达，不通过 `app/`、`card/`、`layout/`、`module/`、`theme/` 这类顶层包裹目录表达。
+CPK 文件内部以包根 `manifest.yaml` 为唯一正式清单源。`chipsdev-r package` 会把工程根 `manifest.yaml` 写入包根，把构建产物保留在包内 `dist/`，并收集 manifest 显式引用的正式静态资源。五类插件的差异由 manifest 字段、入口和运行时导出契约表达，不通过 `app/`、`card/`、`layout/`、`module/`、`theme/` 这类顶层包裹目录表达。
 
 ### 各类插件标准目录结构
 
@@ -27,7 +27,7 @@ CPK 文件内部以包根 `manifest.yaml` 为唯一正式清单源。`chipsdev p
 - `assets/`：应用图标、截图、静态资源；
 - `preview/`：预览资源；
 - `contracts/`：主题契约、模块 schema 或布局契约；
-- 其他由 `manifest.yaml` 显式引用且通过 `chipsdev validate` 校验存在的资源路径。
+- 其他由 `manifest.yaml` 显式引用且通过 `chipsdev-r validate` 校验存在的资源路径。
 
 包内不应包含：
 
@@ -72,9 +72,9 @@ CPK 文件内部以包根 `manifest.yaml` 为唯一正式清单源。`chipsdev p
 
 ## 打包工具
 
-系统提供基于 `chipsdev` 与 `chips` 的 CPK 工具链。开发者在插件工程中使用 `chipsdev package` 生成 `.cpk` 文件，使用 `chipsdev validate` 校验构建产物与清单结构；Host 侧通过 `chips plugin install <cpk路径>` 安装 `.cpk` 并执行运行时校验。
+系统提供基于 `chipsdev-r` 与 `chips` 的 CPK 工具链。开发者在插件工程中使用 `chipsdev-r package` 生成 `.cpk` 文件，使用 `chipsdev-r validate` 校验构建产物与清单结构；Host 侧通过 `chips plugin install <cpk路径>` 安装 `.cpk` 并执行运行时校验。
 
-`chipsdev package` 必须在写包前执行 Manifest 形态门禁；Host `plugin.install` 在安装目录、manifest 文件或 `.cpk` 时也必须执行同类类型边界校验。若发现以下问题，打包立即失败且不得生成新的 `.cpk`：
+`chipsdev-r package` 必须在写包前执行 Manifest 形态门禁；Host `plugin.install` 在安装目录、manifest 文件或 `.cpk` 时也必须执行同类类型边界校验。若发现以下问题，打包立即失败且不得生成新的 `.cpk`：
 
 - 缺少基础字段、`permissions` 不是数组、`runtime.targets` 不完整；
 - 应用插件缺少 `ui.surface`，或非应用插件声明 `ui.surface / ui.launcher / ui.window`；
@@ -86,7 +86,7 @@ CPK 文件内部以包根 `manifest.yaml` 为唯一正式清单源。`chipsdev p
 
 ## 签名机制
 
-签名属于发布来源治理能力，不是本地开发和本地 `.cpk` 安装的前置条件。当前 Host 运行时把本地开发与本地安装视为 `source = local` 主链路；当 manifest 声明 `source` 且不为 `local` 时，Host 会要求存在 `signature` 字段。完整远端来源、公钥验证、分发审核和公证流程应在发布安全文档中单独冻结，不应写成本地 `chipsdev package -> chips plugin install` 的必经步骤。
+签名属于发布来源治理能力，不是本地开发和本地 `.cpk` 安装的前置条件。当前 Host 运行时把本地开发与本地安装视为 `source = local` 主链路；当 manifest 声明 `source` 且不为 `local` 时，Host 会要求存在 `signature` 字段。完整远端来源、公钥验证、分发审核和公证流程应在发布安全文档中单独冻结，不应写成本地 `chipsdev-r package -> chips plugin install` 的必经步骤。
 
 ## 安全限制
 
@@ -101,9 +101,9 @@ CPK包内的代码运行在受限环境中。不能访问文件系统超出插�
 正式工作流仍建议保持：
 
 ```bash
-chipsdev build
-chipsdev validate
-chipsdev package
+chipsdev-r build
+chipsdev-r validate
+chipsdev-r package
 chips plugin install /绝对路径/产物.cpk
 chips plugin enable <pluginId>
 ```
@@ -131,11 +131,11 @@ manifest中的版本字段遵循语义化版本规范。主版本变化通常表
 
 当前正式命令边界：
 
-- `chipsdev theme inspect [--theme <themeId|path>]`：读取主题包 manifest、entry、contract、min functional set、token 覆盖并输出开发期检查报告；
-- `chipsdev validate`：校验当前主题工程 manifest 引用资源、构建产物和工程契约；
-- `chipsdev theme validate` / `chips theme validate`：对当前工作区内已启用主题逐个执行 `theme.apply + theme.resolve` 运行时门禁。
+- `chipsdev-r theme inspect [--theme <themeId|path>]`：读取主题包 manifest、entry、contract、min functional set、token 覆盖并输出开发期检查报告；
+- `chipsdev-r validate`：校验当前主题工程 manifest 引用资源、构建产物和工程契约；
+- `chipsdev-r theme validate` / `chips theme validate`：对当前工作区内已启用主题逐个执行 `theme.apply + theme.resolve` 运行时门禁。
 
-`chips theme validate` 不接收 `<theme-cpk>`、`--tokens` 或 `--components` 参数。未安装启用的主题包应先通过 `chipsdev package` 生成 `.cpk`，再用 `chips plugin install` / `chips plugin enable` 进入目标工作区。
+`chips theme validate` 不接收 `<theme-cpk>`、`--tokens` 或 `--components` 参数。未安装启用的主题包应先通过 `chipsdev-r package` 生成 `.cpk`，再用 `chips plugin install` / `chips plugin enable` 进入目标工作区。
 
 ### 校验失败处理
 

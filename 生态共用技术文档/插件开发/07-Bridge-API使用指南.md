@@ -317,5 +317,5 @@ permissions:
 
 - 应用单元测试优先使用 `chips-sdk/testing` 的 mock Host 与 mock client。
 - 组件库 Provider 场景可使用组件库测试环境注入 mock client。
-- 需要验证真实 route 时，运行目标项目的正式 `npm test`、`npm run validate`、`chipsdev run`、`chipsdev package` 等脚本。
+- 需要验证真实 route 时，运行目标项目的正式 `npm test`、`npm run validate`、`chipsdev-r run`、`chipsdev-r package` 等脚本。
 - TypeScript 项目优先从 `chips-sdk` 消费公开类型；生态内部需要低层 Bridge 类型时，以 Host `packages/bridge-api` 当前 `ChipsBridge` 形状为准。

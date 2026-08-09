@@ -11,7 +11,7 @@
 - `capabilityFallbacks`
 - `cli.commands`
 
-这些字段已经被 Host 运行时、`chipsdev validate`、Scaffold 模板和官方插件清单共同采用。
+这些字段已经被 Host 运行时、`chipsdev-r validate`、Scaffold 模板和官方插件清单共同采用。
 
 ## 1. 基础要求
 
@@ -19,11 +19,11 @@
 - 文件必须位于插件包根目录
 - 工程根 `manifest.yaml` 是唯一正式清单源
 
-`chipsdev` 当前正式行为：
+`chipsdev-r` 当前正式行为：
 
-- `chipsdev build` 只生成构建产物
-- `chipsdev run` 使用工程根 `manifest.yaml`
-- `chipsdev package` 将工程根 `manifest.yaml` 写入包根，并把构建产物放到包内 `dist/`
+- `chipsdev-r build` 只生成构建产物
+- `chipsdev-r run` 使用工程根 `manifest.yaml`
+- `chipsdev-r package` 将工程根 `manifest.yaml` 写入包根，并把构建产物放到包内 `dist/`
 
 ## 2. 基础字段
 
@@ -41,7 +41,8 @@
 
 - 必须是数组；
 - 无权限插件也必须显式写入 `permissions: []`；
-- 权限名采用点分命名空间，例如 `file.read`、`theme.read`、`zip.manage`。
+- 权限名采用点分命名空间，例如 `file.read`、`zip.manage`；
+- `theme.read / i18n.read` 已由 task030 废弃：插件侧不再读取主题与多语言，新插件不再声明（`command.*`、`resource.read`、`file.*`、`platform.read` 等保留）；仅 Host 内部保留链路（如主题插件类型）仍可出现在 Host 契约上下文中，见 8.4。
 
 `type` 取值：
 
@@ -50,6 +51,8 @@
 - `layout`
 - `module`
 - `theme`
+
+> `theme` 类型为 Host 内部保留契约（主题系统已废弃，见 8.4），插件开发不再面向主题插件。
 
 `entry` 规则：
 
@@ -228,13 +231,13 @@ cli:
 1. `cli` 必须是对象，`cli.commands` 必须是数组。
 2. 只有 `app` 与 `module` 插件允许声明 `cli.commands`；`card / layout / theme` 不允许声明。
 3. `commandPath` 必填，可写为空格分隔字符串或字符串数组，段名只能使用字母、数字和连字符。
-4. `titleKey` 必填，`descriptionKey` 可选，均为 i18n key。
+4. `titleKey` 必填，`descriptionKey` 可选，均为 Host CLI 契约字段（Host 内部解析，插件侧不再维护语言包）。
 5. `commandId` 可选；省略时 Host 归一为 `<pluginId>.cli.<commandPath以点连接>`。
 6. `permissions` 可选，但其中每一项都必须已出现在插件顶层 `permissions` 中。
 7. 同一插件内 `commandId`、参数 `name` 和短选项 `short` 不得重复。
 8. `commandPath` 第一段不得占用 Host 固定命令根：`help / host / start / stop / status / config / logs / theme / plugin / update / doctor / open / completion`。
 
-官方 app/module 脚手架会为生成工程默认写入 `cli.commands` 示例。脚手架命令路径第一段由项目名派生为只含字母、数字和连字符的安全根段；若派生结果命中 Host 固定命令根，应用模板追加 `-app`，模块模板追加 `-module`，保证生成工程默认可通过 Host 与 `chipsdev validate/package` 校验。
+官方 app/module 脚手架会为生成工程默认写入 `cli.commands` 示例。脚手架命令路径第一段由项目名派生为只含字母、数字和连字符的安全根段；若派生结果命中 Host 固定命令根，应用模板追加 `-app`，模块模板追加 `-module`，保证生成工程默认可通过 Host 与 `chipsdev-r validate/package` 校验。
 
 模块目标：
 
@@ -353,7 +356,7 @@ runtime:
 - 正式解析依据是 `layout.layoutType`
 - 必须声明 `layout.displayName`
 - 不得声明 `ui.surface`
-- 常见权限基线是 `box.read`、`theme.read`、`i18n.read`
+- 常见权限基线是 `box.read`（`theme.read / i18n.read` 已废弃，不再声明）
 
 标准布局插件示例：
 
@@ -365,8 +368,6 @@ type: layout
 entry: dist/index.mjs
 permissions:
   - box.read
-  - theme.read
-  - i18n.read
 runtime:
   targets:
     desktop:
@@ -431,11 +432,13 @@ module:
 
 ### 8.4 `theme`
 
+> 状态注记（task030）：主题系统已废弃，插件开发不再创建主题插件（`chips-scaffold-theme` 已归档）；以下类型与权限为 Host 内部保留契约，仅历史遗留工程与 Host 治理链路仍会解析。
+
 - 应声明 `runtime.targets`
 - 主题入口继续使用对象结构 `entry.tokens / entry.themeCss`
 - 必须声明 `themeId` 与显示名称字段；
 - `isDefault`、`parentTheme` 按主题继承和默认主题需要声明；
-- 主题契约资产通过 `ui.layout.contract` 与 `ui.layout.minFunctionalSet` 提供给 `chipsdev package` 收集，并由 Host 主题运行时按安装副本读取。
+- 主题契约资产通过 `ui.layout.contract` 与 `ui.layout.minFunctionalSet` 提供给 `chipsdev-r package` 收集，并由 Host 主题运行时按安装副本读取。
 
 标准主题插件示例：
 
@@ -471,11 +474,11 @@ ui:
 
 ## 9. CLI 与 Host 校验边界
 
-`chipsdev validate` 是工程打包前校验入口，当前至少检查基础字段、`permissions` 数组、完整 `runtime.targets`、应用插件 `ui.surface`、`capabilityFallbacks`、模块 provider 契约、`cli.commands` 基础结构和 manifest 声明资产存在性。
+`chipsdev-r validate` 是工程打包前校验入口，当前至少检查基础字段、`permissions` 数组、完整 `runtime.targets`、应用插件 `ui.surface`、`capabilityFallbacks`、模块 provider 契约、`cli.commands` 基础结构和 manifest 声明资产存在性。
 
-`chipsdev package` 在写入 `.cpk` 前必须复用 `chipsdev validate` 的 Manifest 形态校验。校验失败时不得生成新的 `.cpk`。
+`chipsdev-r package` 在写入 `.cpk` 前必须复用 `chipsdev-r validate` 的 Manifest 形态校验。校验失败时不得生成新的 `.cpk`。
 
-类型专属官方字段必须按 owner 类型声明，`chipsdev validate / package` 和 Host `plugin.install` 安装校验均不得接受越界声明：
+类型专属官方字段必须按 owner 类型声明，`chipsdev-r validate / package` 和 Host `plugin.install` 安装校验均不得接受越界声明：
 
 - `module` 只允许 `type: module` 插件声明。
 - `layout` 只允许 `type: layout` 插件声明。
@@ -532,7 +535,7 @@ ui:
 
 ## 11. 校验门禁
 
-当前 `chipsdev validate` 已正式校验：
+当前 `chipsdev-r validate` 已正式校验：
 
 1. `manifest.runtime.targets` 存在且结构正确
 2. `app` 插件必须声明 `manifest.ui.surface`
