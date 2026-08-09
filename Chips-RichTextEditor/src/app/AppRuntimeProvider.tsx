@@ -1,13 +1,9 @@
 import React from "react";
 import type { Client, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
-import { useChipsTheme, type ChipsThemeState } from "@chips/component-library";
 import { appConfig } from "../../config/app-config";
 import { createLogger, createTraceId } from "../../config/logging";
-import { resolveLocaleDirection, type SupportedLocale } from "../i18n/messages";
-import { useRichTextEditorText, type RichTextEditorTextResolver } from "../i18n/useRichTextEditorText";
 import { chipsClient } from "../runtime/chips-client";
 import { readLaunchContext } from "../runtime/launch-context";
-import { defaultThemeState } from "../runtime/theme-runtime";
 
 export interface RichTextEditorRuntimeEnvironment {
   appId: string;
@@ -26,9 +22,6 @@ export interface RichTextEditorRuntimeValue {
   launchContext: PlatformLaunchContext;
   surface: SurfaceContext | null;
   environment: RichTextEditorRuntimeEnvironment;
-  theme: ChipsThemeState;
-  locale: SupportedLocale;
-  t: RichTextEditorTextResolver;
 }
 
 const AppRuntimeContext = React.createContext<RichTextEditorRuntimeValue | null>(null);
@@ -64,9 +57,6 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     [traceId],
   );
   const [launchContext, setLaunchContext] = React.useState<PlatformLaunchContext>(() => readLaunchContext(client));
-  const { theme } = useChipsTheme();
-  const { locale, text } = useRichTextEditorText();
-  const activeTheme = theme ?? defaultThemeState;
 
   React.useEffect(() => {
     logger.info("富文本编辑器运行时已初始化", {
@@ -81,37 +71,6 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   React.useEffect(() => {
     setLaunchContext(readLaunchContext(client));
   }, [client]);
-
-  React.useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const previousLang = document.documentElement.getAttribute("lang");
-    const previousDir = document.documentElement.getAttribute("dir");
-    const previousLocale = document.documentElement.getAttribute("data-chips-locale");
-    document.documentElement.setAttribute("lang", locale);
-    document.documentElement.setAttribute("dir", resolveLocaleDirection(locale));
-    document.documentElement.setAttribute("data-chips-locale", locale);
-
-    return () => {
-      if (previousLang === null) {
-        document.documentElement.removeAttribute("lang");
-      } else {
-        document.documentElement.setAttribute("lang", previousLang);
-      }
-      if (previousDir === null) {
-        document.documentElement.removeAttribute("dir");
-      } else {
-        document.documentElement.setAttribute("dir", previousDir);
-      }
-      if (previousLocale === null) {
-        document.documentElement.removeAttribute("data-chips-locale");
-      } else {
-        document.documentElement.setAttribute("data-chips-locale", previousLocale);
-      }
-    };
-  }, [locale]);
 
   const environment = React.useMemo<RichTextEditorRuntimeEnvironment>(() => ({
     appId: appConfig.appId,
@@ -130,10 +89,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     launchContext,
     surface: launchContext.surfaceContext ?? null,
     environment,
-    theme: activeTheme,
-    locale,
-    t: text,
-  }), [activeTheme, client, environment, launchContext, locale, text, traceId]);
+  }), [client, environment, launchContext, traceId]);
 
   return <AppRuntimeContext.Provider value={value}>{children}</AppRuntimeContext.Provider>;
 }

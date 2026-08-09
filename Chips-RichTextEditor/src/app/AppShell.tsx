@@ -1,50 +1,28 @@
 import React from "react";
-import { ChipsCommandProvider } from "@chips/component-library";
-import { useRichTextEditorCommands } from "../commands/useRichTextEditorCommands";
+import { AppChrome, type MenuBarGroup } from "@chips/ui";
+import { useCommandRegistry } from "@chips/ui";
 import { RichTextEditorScene } from "./RichTextEditorScene";
-import { useAppRuntime } from "./AppRuntimeProvider";
 
 export function AppShell(): React.ReactElement {
-  const runtime = useAppRuntime();
-  const invocationContext = React.useMemo(
-    () => ({
-      pluginId: runtime.environment.pluginId,
-      sceneId: runtime.environment.hostSceneId,
-      ...(runtime.environment.surfaceId ? { surfaceId: runtime.environment.surfaceId } : {}),
-    }),
-    [runtime.environment.hostSceneId, runtime.environment.pluginId, runtime.environment.surfaceId],
-  );
-  const [commandRuntimeState, setCommandRuntimeState] = React.useState({
-    isBusy: false,
-    hasFilePath: false,
-    canPreview: false,
-  });
-  const commands = useRichTextEditorCommands({
-    client: runtime.client,
-    invocationContext,
-    runtimeState: commandRuntimeState,
-  });
+  const { commands } = useCommandRegistry();
+
+  const menus: MenuBarGroup[] = [
+    { menuId: "file", label: "文件", commands },
+    { menuId: "view", label: "查看", commands },
+    { menuId: "edit", label: "编辑", commands },
+    { menuId: "format", label: "格式", commands },
+  ];
+
+  const toolbarItems = commands.filter((command) => command.toolbarId === "document");
 
   return (
-    <ChipsCommandProvider
-      adapter={commands.adapter}
-      commands={commands.commandViews}
-      i18n={runtime.t}
-      query={{ includeDisabled: true }}
+    <AppChrome
+      appName="富文本编辑器"
+      menus={menus}
+      toolbarItems={toolbarItems}
+      paletteShortcut="Mod+Shift+P"
     >
-      <div
-        data-chips-app={runtime.environment.appId}
-        data-chips-scene={runtime.environment.activeSceneId}
-        data-chips-surface-kind={runtime.environment.surfaceKind}
-      >
-        <RichTextEditorScene
-          commands={commands}
-          commandRegistrationErrorCode={commands.errorCode}
-          commandRegistrationPhase={commands.phase}
-          onCommandRuntimeStateChange={setCommandRuntimeState}
-        />
-      </div>
-    </ChipsCommandProvider>
+      <RichTextEditorScene />
+    </AppChrome>
   );
 }
-

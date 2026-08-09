@@ -7,17 +7,20 @@
     "extends": "../package.json"
   },
   "scripts": {
-    "dev": "chipsdev server",
-    "run": "chipsdev run",
-    "build": "chipsdev build",
-    "test": "chipsdev test",
-    "lint": "chipsdev lint",
-    "validate": "chipsdev validate"
+    "dev": "chipsdev-r server",
+    "run": "chipsdev-r run",
+    "build": "chipsdev-r build",
+    "test": "chipsdev-r test",
+    "lint": "chipsdev-r lint",
+    "validate": "chipsdev-r validate"
   },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@chips/component-library": "^0.1.0",
+    "antd": "6.5.4",
+    "@ant-design/icons": "6.3.2",
+    "dayjs": "1.11.21",
+    "@chips/ui": "0.1.0",
     "yaml": "^2.3.4"
   },
   "devDependencies": {

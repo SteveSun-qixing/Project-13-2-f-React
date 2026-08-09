@@ -1,14 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { CardEditorErrorPayload, CardEditorResourceBridge } from "chips-sdk";
-import type { ChipsResolvedCommandView } from "@chips/component-library";
 import { appConfig } from "../../config/app-config";
 import { createLogger } from "../../config/logging";
-import {
-  RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS,
-  type RichTextEditorCommandId,
+import { useRichTextEditorCommands } from "../commands/useRichTextEditorCommands";
+import type {
+  RichTextEditorCommandHandlers,
+  RichTextEditorCommandState,
 } from "../commands/rich-text-editor-commands";
-import type { UseRichTextEditorCommandsResult } from "../commands/useRichTextEditorCommands";
-import { AppMenu, type AppMenuSection } from "../components/AppMenu";
 import { EditorFrame } from "../components/EditorFrame";
 import { InfoDialog, type InfoDialogSection } from "../components/InfoDialog";
 import { createEmptyRichTextCardDocument, type RichTextCompositeCardDocument } from "../lib/card-document";
@@ -21,6 +19,7 @@ import {
 import { pathExists } from "../lib/file-client";
 import { generateId62 } from "../lib/id";
 import { resolveLaunchCardPath } from "../lib/launch-target";
+import { formatMessage } from "../lib/messages";
 import {
   basename,
   ensureCardExtension,
@@ -32,6 +31,21 @@ import {
 } from "../lib/path";
 import { collectRichTextResourcePaths, type RichTextBaseCardConfig } from "../lib/richtext-card";
 import { useAppRuntime } from "./AppRuntimeProvider";
+
+const DOCUMENT_LOCALE = "zh-CN";
+const INITIAL_DRAFT_TITLE = "开始书写";
+const DOCUMENT_UNTITLED = "未命名文稿";
+const STATUS_OPENING = "正在打开…";
+const STATUS_SAVING = "正在保存…";
+const STATUS_SAVED = "已保存";
+const STATUS_UNSAVED = "未保存";
+const STATUS_ERROR = "保存失败";
+const EDITOR_LOADING = "正在装载富文本基础卡片编辑器…";
+const EDITOR_READY = "编辑器已就绪";
+const EDITOR_ERROR = "富文本基础卡片编辑器装载失败";
+const FILE_PATH_EMPTY = "尚未保存到文件";
+const RESOURCE_UNAVAILABLE = "当前资源尚未写入正式工作目录，保存后会自动收口。";
+const EDITOR_COMMAND_OWNED = "该编辑命令由富文本基础卡片编辑器接管。";
 
 interface NoticeState {
   tone: "info" | "success" | "error";
@@ -207,25 +221,9 @@ function createOpenedSession(
   };
 }
 
-export interface RichTextEditorSceneProps {
-  commands: UseRichTextEditorCommandsResult;
-  commandRegistrationErrorCode: string | null;
-  commandRegistrationPhase: string;
-  onCommandRuntimeStateChange(state: {
-    isBusy: boolean;
-    hasFilePath: boolean;
-    canPreview: boolean;
-  }): void;
-}
-
-export function RichTextEditorScene({
-  commands,
-  commandRegistrationErrorCode,
-  commandRegistrationPhase,
-  onCommandRuntimeStateChange,
-}: RichTextEditorSceneProps): React.ReactElement {
+export function RichTextEditorScene(): React.ReactElement {
   const runtime = useAppRuntime();
-  const { client, traceId, locale, t } = runtime;
+  const { client, traceId } = runtime;
   const [logger] = useState(() =>
     createLogger({
       scope: "rich-text-editor-scene",
@@ -234,21 +232,17 @@ export function RichTextEditorScene({
   );
   const [session, setSession] = useState<EditorDocumentSession>(() =>
     createDraftSession(
-      t("app.initialDraftTitle"),
-      locale,
+      INITIAL_DRAFT_TITLE,
+      DOCUMENT_LOCALE,
     ),
   );
   const [notice, setNotice] = useState<NoticeState | null>(null);
   const [isLoadingDocument, setIsLoadingDocument] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [editorState, setEditorState] = useState<"loading" | "ready" | "error">("loading");
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef(session);
-  const localeRef = useRef(locale);
-  const textRef = useRef(t);
   const saveStateRef = useRef(saveState);
   const saveTaskRef = useRef<Promise<string | null> | null>(null);
   const lastFailedAutosaveRevisionRef = useRef<number | null>(null);
@@ -260,20 +254,8 @@ export function RichTextEditorScene({
   }, [session]);
 
   useEffect(() => {
-    localeRef.current = locale;
-  }, [locale]);
-
-  useEffect(() => {
-    textRef.current = t;
-  }, [t]);
-
-  useEffect(() => {
     saveStateRef.current = saveState;
   }, [saveState]);
-
-  function currentMessage(key: string, params?: Record<string, string | number>): string {
-    return textRef.current(key, params);
-  }
 
   function releaseResourceUrl(resourcePath: string): void {
     const url = resolvedBlobUrlsRef.current.get(resourcePath);
@@ -290,10 +272,6 @@ export function RichTextEditorScene({
       URL.revokeObjectURL(url);
     });
     resolvedBlobUrlsRef.current.clear();
-  }
-
-  function createLocalizedDraftSession(): EditorDocumentSession {
-    return createDraftSession(currentMessage("app.initialDraftTitle"), localeRef.current);
   }
 
   async function pickAvailableResourcePath(preferredPath?: string): Promise<string> {
@@ -332,7 +310,7 @@ export function RichTextEditorScene({
     async resolveResourceUrl(resourcePath) {
       const normalizedPath = resourcePath.replace(/\\/g, "/").trim();
       if (!normalizedPath) {
-        throw new Error(currentMessage("app.resourceUnavailable"));
+        throw new Error(RESOURCE_UNAVAILABLE);
       }
 
       const current = sessionRef.current;
@@ -348,7 +326,7 @@ export function RichTextEditorScene({
       }
 
       if (current.pendingDeletions.includes(normalizedPath)) {
-        throw new Error(currentMessage("app.resourceUnavailable"));
+        throw new Error(RESOURCE_UNAVAILABLE);
       }
 
       if (current.runtimePaths) {
@@ -358,7 +336,7 @@ export function RichTextEditorScene({
         }
       }
 
-      throw new Error(currentMessage("app.resourceUnavailable"));
+      throw new Error(RESOURCE_UNAVAILABLE);
     },
     releaseResourceUrl(resourcePath) {
       releaseResourceUrl(resourcePath.replace(/\\/g, "/").trim());
@@ -441,7 +419,6 @@ export function RichTextEditorScene({
     lastFailedAutosaveRevisionRef.current = null;
     setSaveState("idle");
     setEditorState("loading");
-    setIsMenuOpen(false);
     setIsInfoOpen(false);
     setNotice(nextNotice);
     setSession(nextSession);
@@ -455,8 +432,8 @@ export function RichTextEditorScene({
 
     try {
       return await client.platform.showConfirm({
-        title: currentMessage("app.discardPromptTitle"),
-        message: currentMessage("app.discardPromptMessage"),
+        title: "放弃当前修改？",
+        message: "当前文稿还有未保存内容，继续操作会丢失这些更改。",
       });
     } catch (error) {
       logger.error("请求放弃修改确认框失败", error);
@@ -472,7 +449,7 @@ export function RichTextEditorScene({
     if (!isCardFilePath(normalizedPath)) {
       setNotice({
         tone: "error",
-        message: currentMessage("app.unsupportedPath"),
+        message: "请选择一个 .card 文件。",
       });
       return;
     }
@@ -497,7 +474,7 @@ export function RichTextEditorScene({
         options?.recoveredFromLaunch
           ? {
               tone: "info",
-              message: currentMessage("app.launchOpenRecovered"),
+              message: "已根据启动上下文恢复目标卡片",
             }
           : null,
       );
@@ -515,7 +492,7 @@ export function RichTextEditorScene({
       logger.error("打开富文本复合卡片失败", error);
       setNotice({
         tone: "error",
-        message: resolveErrorMessage(error, currentMessage("app.openFailed")),
+        message: resolveErrorMessage(error, "打开卡片文件失败"),
       });
     } finally {
       setIsLoadingDocument(false);
@@ -530,7 +507,7 @@ export function RichTextEditorScene({
 
     try {
       const selected = await client.platform.openFile({
-        title: currentMessage("app.dialogOpenTitle"),
+        title: "打开复合卡片文件",
         mode: "file",
         allowMultiple: false,
         mustExist: true,
@@ -548,7 +525,7 @@ export function RichTextEditorScene({
       logger.error("调用文件选择器失败", error);
       setNotice({
         tone: "error",
-        message: resolveErrorMessage(error, currentMessage("app.openFailed")),
+        message: resolveErrorMessage(error, "打开卡片文件失败"),
       });
     }
   }
@@ -561,10 +538,10 @@ export function RichTextEditorScene({
 
     const previousRuntimePaths = sessionRef.current.runtimePaths;
     switchSession(
-      createLocalizedDraftSession(),
+      createDraftSession(INITIAL_DRAFT_TITLE, DOCUMENT_LOCALE),
       {
         tone: "info",
-        message: currentMessage("app.newDocumentReady"),
+        message: "已创建新的富文本卡片草稿",
       },
     );
 
@@ -578,7 +555,7 @@ export function RichTextEditorScene({
       return current.filePath;
     }
 
-    const title = resolveDocumentTitle(current.document.title, currentMessage("app.documentUntitled"));
+    const title = resolveDocumentTitle(current.document.title, DOCUMENT_UNTITLED);
     return ensureCardExtension(sanitizeFileStem(title));
   }
 
@@ -595,7 +572,7 @@ export function RichTextEditorScene({
 
         if (mode === "save-as" || !targetFilePath) {
           const selectedPath = await client.platform.saveFile({
-            title: currentMessage("app.dialogSaveTitle"),
+            title: "保存复合卡片文件",
             defaultPath: resolveDefaultSavePath(snapshot),
           });
 
@@ -603,7 +580,7 @@ export function RichTextEditorScene({
             if (mode !== "autosave") {
               setNotice({
                 tone: "info",
-                message: currentMessage("app.saveCancelled"),
+                message: "已取消保存",
               });
             }
             return null;
@@ -620,8 +597,8 @@ export function RichTextEditorScene({
         const resolvedTitle = resolveDocumentTitleForSave(
           snapshot,
           targetFilePath,
-          currentMessage("app.initialDraftTitle"),
-          currentMessage("app.documentUntitled"),
+          INITIAL_DRAFT_TITLE,
+          DOCUMENT_UNTITLED,
         );
 
         setSaveState("saving");
@@ -688,7 +665,7 @@ export function RichTextEditorScene({
         if (mode !== "autosave") {
           setNotice({
             tone: "success",
-            message: currentMessage("app.saveSuccess", {
+            message: formatMessage("app.saveSuccess", {
               path: targetFilePath,
             }),
           });
@@ -702,8 +679,8 @@ export function RichTextEditorScene({
         return targetFilePath;
       } catch (error) {
         const message = error instanceof Error && error.name === "CardStructureValidationError"
-          ? currentMessage("app.cardStructureInvalid")
-          : resolveErrorMessage(error, currentMessage("app.saveFailed"));
+          ? "当前内容不符合卡片文件结构，已阻止保存。"
+          : resolveErrorMessage(error, "保存卡片文件失败");
         logger.error("保存富文本复合卡片失败", error);
         setSaveState("error");
         if (mode === "autosave") {
@@ -754,9 +731,50 @@ export function RichTextEditorScene({
     setEditorState("error");
     setNotice({
       tone: "error",
-      message: payload.message || t("app.editorError"),
+      message: payload.message || EDITOR_ERROR,
     });
   }
+
+  function handleEditorOwnedCommand(): void {
+    setNotice({
+      tone: "info",
+      message: EDITOR_COMMAND_OWNED,
+    });
+  }
+
+  function handlePreview(): void {
+    void (async () => {
+      const currentPath = sessionRef.current.filePath ?? (await saveCurrentSession("save"));
+      if (currentPath) {
+        await client.platform.shellOpenPath(currentPath);
+      }
+    })();
+  }
+
+  const commandHandlers: RichTextEditorCommandHandlers = {
+    newDocument: handleNewDocument,
+    openFile: handleOpenFile,
+    save: () => void saveCurrentSession("save"),
+    saveAs: () => void saveCurrentSession("save-as"),
+    exportCard: () => void saveCurrentSession("save-as"),
+    preview: handlePreview,
+    info: () => setIsInfoOpen(true),
+    undo: handleEditorOwnedCommand,
+    redo: handleEditorOwnedCommand,
+    find: handleEditorOwnedCommand,
+    format: handleEditorOwnedCommand,
+  };
+
+  const commandRuntimeState = useMemo<RichTextEditorCommandState>(
+    () => ({
+      isBusy: isLoadingDocument || saveState === "saving",
+      hasFilePath: !!session.filePath,
+      canPreview: !!session.filePath && !session.dirty && saveState !== "saving" && !isLoadingDocument,
+    }),
+    [isLoadingDocument, saveState, session.dirty, session.filePath],
+  );
+
+  useRichTextEditorCommands(commandHandlers, commandRuntimeState);
 
   useEffect(() => {
     if (launchHandledRef.current) {
@@ -774,59 +792,6 @@ export function RichTextEditorScene({
       skipDiscardCheck: true,
     });
   }, [runtime.launchContext]);
-
-  useEffect(() => {
-    const disposers = [
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.newDocument, () => handleNewDocument()),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.openFile, () => handleOpenFile()),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.save, async () => {
-        await saveCurrentSession("save");
-      }),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.saveAs, async () => {
-        await saveCurrentSession("save-as");
-      }),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.exportCard, async () => {
-        await saveCurrentSession("save-as");
-      }),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.preview, async () => {
-        const currentPath = sessionRef.current.filePath ?? await saveCurrentSession("save");
-        if (currentPath) {
-          await client.platform.shellOpenPath(currentPath);
-        }
-      }),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.info, () => {
-        setIsInfoOpen(true);
-      }),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.undo, () => {
-        setNotice({
-          tone: "info",
-          message: currentMessage("app.editorCommandOwned"),
-        });
-      }),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.redo, () => {
-        setNotice({
-          tone: "info",
-          message: currentMessage("app.editorCommandOwned"),
-        });
-      }),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.find, () => {
-        setNotice({
-          tone: "info",
-          message: currentMessage("app.editorCommandOwned"),
-        });
-      }),
-      commands.registerHandler(RICH_TEXT_EDITOR_COMMAND_HANDLER_IDS.format, () => {
-        setNotice({
-          tone: "info",
-          message: currentMessage("app.editorCommandOwned"),
-        });
-      }),
-    ];
-
-    return () => {
-      disposers.forEach((dispose) => dispose());
-    };
-  }, [client, commands.registerHandler]);
 
   useEffect(() => {
     if (!appConfig.featureFlags.enableAutosave) {
@@ -881,160 +846,94 @@ export function RichTextEditorScene({
   }, [notice]);
 
   useEffect(() => {
-    if (!isMenuOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && menuRef.current && !menuRef.current.contains(target)) {
-        setIsMenuOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsMenuOpen(false);
-      }
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isMenuOpen]);
-
-  useEffect(() => {
-    onCommandRuntimeStateChange({
-      isBusy: isLoadingDocument || saveState === "saving",
-      hasFilePath: !!session.filePath,
-      canPreview: !!session.filePath && !session.dirty && saveState !== "saving" && !isLoadingDocument,
-    });
-  }, [
-    isLoadingDocument,
-    onCommandRuntimeStateChange,
-    saveState,
-    session.dirty,
-    session.filePath,
-  ]);
-
-  useEffect(() => {
     return () => {
       releaseAllResourceUrls();
       void cleanupRuntimeSession(client, sessionRef.current.runtimePaths).catch(() => undefined);
     };
   }, [client]);
 
-  const displayedFilePath = session.filePath ?? t("app.filePathEmpty");
+  const displayedFilePath = session.filePath ?? FILE_PATH_EMPTY;
   const isSaving = saveState === "saving";
   const saveStatusLabel = isLoadingDocument
-    ? t("app.statusOpening")
+    ? STATUS_OPENING
     : saveState === "saving"
-      ? t("app.statusSaving")
+      ? STATUS_SAVING
       : saveState === "error"
-        ? t("app.statusError")
+        ? STATUS_ERROR
         : !session.filePath || session.dirty
-          ? t("app.statusUnsaved")
-          : t("app.statusSaved");
+          ? STATUS_UNSAVED
+          : STATUS_SAVED;
   const editorStatusLabel = editorState === "ready"
-    ? t("app.editorReady")
+    ? EDITOR_READY
     : editorState === "error"
-      ? t("app.editorError")
-      : t("app.editorLoading");
+      ? EDITOR_ERROR
+      : EDITOR_LOADING;
   const autosaveStatusLabel = appConfig.featureFlags.enableAutosave && session.filePath
     ? session.dirty
-      ? t("app.autosavePending")
-      : t("app.autosaveReady")
-    : t("app.autosaveUnavailable");
-  const storageLabel = session.document.config.content_source === "file" ? t("app.storageFile") : t("app.storageInline");
+      ? "存在待落盘改动"
+      : "自动保存已接管"
+    : "尚未绑定保存路径";
+  const storageLabel = session.document.config.content_source === "file" ? "Markdown 文件" : "正文内联";
   const runtimeNotice = notice ?? (
     isLoadingDocument
-      ? { tone: "info" as const, message: t("app.statusOpening") }
+      ? { tone: "info" as const, message: STATUS_OPENING }
       : isSaving
-        ? { tone: "info" as const, message: t("app.statusSaving") }
-        : commandRegistrationPhase === "error" && commandRegistrationErrorCode
-          ? { tone: "error" as const, message: t("app.commandRegistrationFailed", { code: commandRegistrationErrorCode }) }
+        ? { tone: "info" as const, message: STATUS_SAVING }
         : null
   );
-
-  const menuSections: AppMenuSection[] = [
-    {
-      id: "file",
-      title: t("app.menuGroupFile"),
-      menuId: "file",
-    },
-    {
-      id: "info",
-      title: t("app.menuGroupView"),
-      menuId: "view",
-    },
-    {
-      id: "edit",
-      title: t("app.menuGroupEdit"),
-      menuId: "edit",
-    },
-    {
-      id: "format",
-      title: t("app.menuGroupFormat"),
-      menuId: "format",
-    },
-  ];
 
   const infoSections: InfoDialogSection[] = [
     {
       id: "card",
-      title: t("app.infoSectionCard"),
+      title: "当前卡片",
       fields: [
-        { label: t("app.infoFieldTitle"), value: session.document.title || t("app.infoUnknown") },
-        { label: t("app.infoFieldPath"), value: <span className="rte-info-dialog__mono">{displayedFilePath}</span> },
-        { label: t("app.infoFieldCardId"), value: <span className="rte-info-dialog__mono">{session.document.cardId}</span> },
-        { label: t("app.infoFieldBaseCardId"), value: <span className="rte-info-dialog__mono">{session.document.baseCardId}</span> },
+        { label: "标题", value: session.document.title || "未知" },
+        { label: "文件路径", value: <span className="rte-info-dialog__mono">{displayedFilePath}</span> },
+        { label: "卡片 ID", value: <span className="rte-info-dialog__mono">{session.document.cardId}</span> },
+        { label: "基础卡片 ID", value: <span className="rte-info-dialog__mono">{session.document.baseCardId}</span> },
         {
-          label: t("app.infoFieldCreatedAt"),
-          value: formatTimestamp(session.document.createdAt, locale, t("app.infoUnknown")),
+          label: "创建时间",
+          value: formatTimestamp(session.document.createdAt, DOCUMENT_LOCALE, "未知"),
         },
         {
-          label: t("app.infoFieldModifiedAt"),
-          value: formatTimestamp(session.document.modifiedAt, locale, t("app.infoUnknown")),
+          label: "最近修改",
+          value: formatTimestamp(session.document.modifiedAt, DOCUMENT_LOCALE, "未知"),
         },
       ],
     },
     {
       id: "richtext",
-      title: t("app.infoSectionRichText"),
+      title: "富文本",
       fields: [
-        { label: t("app.infoFieldContentFormat"), value: session.document.config.content_format },
-        { label: t("app.infoFieldContentSource"), value: storageLabel },
+        { label: "正文格式", value: session.document.config.content_format },
+        { label: "存储方式", value: storageLabel },
         {
-          label: t("app.infoFieldContentFile"),
+          label: "正文资源",
           value: session.document.config.content_file
             ? <span className="rte-info-dialog__mono">{session.document.config.content_file}</span>
-            : t("app.infoNone"),
+            : "无",
         },
-        { label: t("app.infoFieldLocale"), value: session.document.config.locale ?? t("app.infoUnknown") },
+        { label: "正文语言", value: session.document.config.locale ?? "未知" },
         {
-          label: t("app.infoFieldTheme"),
-          value: session.document.config.theme?.trim() ? session.document.config.theme : t("app.infoFollowHostTheme"),
+          label: "正文主题",
+          value: session.document.config.theme?.trim() ? session.document.config.theme : "跟随宿主主题",
         },
         {
-          label: t("app.infoFieldResourceCount"),
+          label: "资源计数",
           value: String(collectRichTextResourcePaths(session.document.config).length + Object.keys(session.pendingImports).length),
         },
       ],
     },
     {
       id: "runtime",
-      title: t("app.infoSectionRuntime"),
+      title: "运行时",
       fields: [
-        { label: t("app.infoFieldSaveStatus"), value: saveStatusLabel },
-        { label: t("app.infoFieldEditorStatus"), value: editorStatusLabel },
-        { label: t("app.infoFieldAutosave"), value: autosaveStatusLabel },
-        { label: t("app.infoFieldThemePack"), value: runtime.theme.themeId },
+        { label: "保存状态", value: saveStatusLabel },
+        { label: "编辑器状态", value: editorStatusLabel },
+        { label: "自动保存", value: autosaveStatusLabel },
         {
-          label: t("app.infoFieldLastSavedAt"),
-          value: formatTimestamp(session.lastSavedAt, locale, t("app.infoNotSavedYet")),
+          label: "上次保存",
+          value: formatTimestamp(session.lastSavedAt, DOCUMENT_LOCALE, "尚未保存"),
         },
       ],
     },
@@ -1042,59 +941,43 @@ export function RichTextEditorScene({
 
   return (
     <div className="rte-app">
-        <AppMenu
-          ref={menuRef}
-          open={isMenuOpen}
-          buttonLabel={t("app.menuButtonLabel")}
-          commands={commands.commandViews}
-          i18n={t}
-          sections={menuSections}
-          onToggle={() => {
-            setIsMenuOpen((current) => !current);
-          }}
-          onCommand={(command: ChipsResolvedCommandView) => {
-            setIsMenuOpen(false);
-            void commands.invokeCommand(command.commandId as RichTextEditorCommandId, "menu");
-          }}
-        />
+      <main className="rte-app__workspace">
+        <section className="rte-app__editor-stage" aria-label="富文本编辑器">
+          <EditorFrame
+            key={session.editorKey}
+            client={client}
+            sessionKey={session.document.baseCardId}
+            initialConfig={session.editorInitialConfig}
+            resources={resourceBridge}
+            loadingLabel={EDITOR_LOADING}
+            errorLabel={EDITOR_ERROR}
+            onReady={() => {
+              setEditorState("ready");
+            }}
+            onChange={(nextConfig) => {
+              handleEditorChange(nextConfig);
+            }}
+            onError={handleEditorError}
+          />
+        </section>
+      </main>
 
-        <main className="rte-app__workspace">
-          <section className="rte-app__editor-stage" aria-label={t("app.title")}>
-            <EditorFrame
-              key={session.editorKey}
-              client={client}
-              sessionKey={session.document.baseCardId}
-              initialConfig={session.editorInitialConfig}
-              resources={resourceBridge}
-              loadingLabel={t("app.editorLoading")}
-              errorLabel={t("app.editorError")}
-              onReady={() => {
-                setEditorState("ready");
-              }}
-              onChange={(nextConfig) => {
-                handleEditorChange(nextConfig);
-              }}
-              onError={handleEditorError}
-            />
-          </section>
-        </main>
+      <InfoDialog
+        open={isInfoOpen}
+        title="当前文稿信息"
+        description="显示当前复合卡片、富文本正文与运行时状态。"
+        closeLabel="关闭"
+        sections={infoSections}
+        onClose={() => {
+          setIsInfoOpen(false);
+        }}
+      />
 
-        <InfoDialog
-          open={isInfoOpen}
-          title={t("app.infoDialogTitle")}
-          description={t("app.infoDialogDescription")}
-          closeLabel={t("app.infoClose")}
-          sections={infoSections}
-          onClose={() => {
-            setIsInfoOpen(false);
-          }}
-        />
-
-        {runtimeNotice ? (
-          <div className={`rte-toast rte-toast--${runtimeNotice.tone}`}>
-            {runtimeNotice.message}
-          </div>
-        ) : null}
+      {runtimeNotice ? (
+        <div className={`rte-toast rte-toast--${runtimeNotice.tone}`}>
+          {runtimeNotice.message}
+        </div>
+      ) : null}
     </div>
   );
 }
