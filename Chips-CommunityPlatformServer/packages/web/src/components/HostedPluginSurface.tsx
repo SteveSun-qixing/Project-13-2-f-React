@@ -1,4 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Result, Spin } from 'antd';
+import {
+  ArrowLeftOutlined,
+  ContainerOutlined,
+  CreditCardOutlined,
+  FileTextOutlined,
+  PictureOutlined,
+  StarOutlined,
+} from '@ant-design/icons';
 import {
   buildHostedPluginEntryUrl,
   buildHostedPluginRoute,
@@ -10,8 +19,6 @@ import {
   type HostSurfaceOpenRequest,
   type WebPluginSessionView,
 } from '../lib/host-runtime';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
-import { Icon, type IconName } from '../runtime/icons/Icon';
 import './HostedPluginSurface.css';
 
 interface HostedPluginSurfaceProps {
@@ -347,20 +354,21 @@ function normalizePluginChromeState(payload: unknown): PluginChromeState | null 
   };
 }
 
-function resolveChromeActionIcon(icon: string | undefined): IconName | null {
-  if (icon === 'cover' || icon === 'document' || icon === 'card' || icon === 'box' || icon === 'sparkles') {
-    return icon;
-  }
-  return null;
-}
-
 function ChromeActionIcon({ icon }: { icon?: string }) {
-  const resolvedIcon = resolveChromeActionIcon(icon);
-  return resolvedIcon ? (
-    <Icon name={resolvedIcon} size={20} />
-  ) : (
-    <span aria-hidden="true" className="hosted-plugin-surface__chrome-action-dot" />
-  );
+  switch (icon) {
+    case 'cover':
+      return <PictureOutlined style={{ fontSize: 20 }} />;
+    case 'document':
+      return <FileTextOutlined style={{ fontSize: 20 }} />;
+    case 'card':
+      return <CreditCardOutlined style={{ fontSize: 20 }} />;
+    case 'box':
+      return <ContainerOutlined style={{ fontSize: 20 }} />;
+    case 'sparkles':
+      return <StarOutlined style={{ fontSize: 20 }} />;
+    default:
+      return <span aria-hidden="true" className="hosted-plugin-surface__chrome-action-dot" />;
+  }
 }
 
 export function HostedPluginSurface({
@@ -369,7 +377,6 @@ export function HostedPluginSurface({
   autoDispose = true,
   surfaceMode = 'immersive',
 }: HostedPluginSurfaceProps) {
-  const { t } = useAppPreferences();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const embeddedHeightRef = useRef<number | null>(surfaceMode === 'document' ? DOCUMENT_SURFACE_INITIAL_HEIGHT : null);
   const [session, setSession] = useState<WebPluginSessionView | null>(initialSession);
@@ -411,7 +418,7 @@ export function HostedPluginSurface({
       })
       .catch((nextError) => {
         if (!cancelled) {
-          setError(nextError instanceof Error ? nextError.message : t('common.error'));
+          setError(nextError instanceof Error ? nextError.message : '出现了一点问题');
         }
       })
       .finally(() => {
@@ -423,7 +430,7 @@ export function HostedPluginSurface({
     return () => {
       cancelled = true;
     };
-  }, [initialSession, sessionId, t]);
+  }, [initialSession, sessionId]);
 
   useEffect(() => {
     if (!autoDispose || import.meta.env.DEV) {
@@ -668,7 +675,7 @@ export function HostedPluginSurface({
         respond({
           requestId: request.requestId,
           error: {
-            message: dispatchError instanceof Error ? dispatchError.message : t('common.error'),
+            message: dispatchError instanceof Error ? dispatchError.message : '出现了一点问题',
           },
         });
       }
@@ -678,7 +685,7 @@ export function HostedPluginSurface({
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [sessionId, surfaceMode, t]);
+  }, [sessionId, surfaceMode]);
 
   const dispatchChromeAction = (actionId: string) => {
     const frameWindow = iframeRef.current?.contentWindow;
@@ -730,8 +737,8 @@ export function HostedPluginSurface({
     return (
       <div className="hosted-plugin-surface hosted-plugin-surface--state">
         <div className="hosted-plugin-surface__state">
-          <span className="detail-transition-spinner" />
-          <span>{t('common.loading')}</span>
+          <Spin size="large" />
+          <span>加载中…</span>
         </div>
       </div>
     );
@@ -740,9 +747,7 @@ export function HostedPluginSurface({
   if (error || !session) {
     return (
       <div className="hosted-plugin-surface hosted-plugin-surface--state">
-        <section className="panel error-panel hosted-plugin-surface__state">
-          <h1>{error || t('detail.notFound')}</h1>
-        </section>
+        <Result status="error" title={error || '没有找到目标内容。'} />
       </div>
     );
   }
@@ -763,7 +768,7 @@ export function HostedPluginSurface({
                 aria-label={chromeState.back.label}
                 title={chromeState.back.label}
               >
-                <Icon name="arrow-left" size={20} />
+                <ArrowLeftOutlined style={{ fontSize: 20 }} />
               </button>
             ) : null}
 

@@ -1,10 +1,9 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
+import { CheckOutlined } from '@ant-design/icons';
 import { getInitial, getWorkCoverStyle } from '../lib/ui';
 import { prefetchCardOpenView } from '../lib/card-open-view-prefetch';
 import { prefetchBoxDetail } from '../lib/box-detail-prefetch';
-import { Icon } from '../runtime/icons/Icon';
 import type { CommunityWorkItem } from '../types/community';
 
 interface WorkTileProps {
@@ -15,7 +14,6 @@ interface WorkTileProps {
 }
 
 export function WorkTile({ item, manageMode = false, selected = false, onToggleSelection }: WorkTileProps) {
-  const { t } = useAppPreferences();
   const isCard = item.type === 'card';
   const coverStyle = getWorkCoverStyle(item.coverRatio) as CSSProperties;
   const rootRef = useRef<HTMLAnchorElement | HTMLButtonElement | null>(null);
@@ -87,7 +85,7 @@ export function WorkTile({ item, manageMode = false, selected = false, onToggleS
               className={`work-tile__selection-badge${selected ? ' is-selected' : ''}`}
               aria-hidden="true"
             >
-              {selected ? <Icon name="check" size={16} /> : null}
+              {selected ? <CheckOutlined /> : null}
             </span>
           ) : null}
         </div>
@@ -108,10 +106,7 @@ export function WorkTile({ item, manageMode = false, selected = false, onToggleS
         style={coverStyle}
         onClick={() => onToggleSelection?.(item)}
         aria-pressed={selected}
-        aria-label={t('profile.manageTileSelect', {
-          title: item.title,
-          type: item.type === 'card' ? t('common.card') : t('common.box'),
-        })}
+        aria-label={`选择${item.type === 'card' ? '卡片' : '箱子'} ${item.title}`}
       >
         {content}
       </button>
@@ -124,7 +119,7 @@ export function WorkTile({ item, manageMode = false, selected = false, onToggleS
       to={item.href}
       className={`work-tile work-tile--${item.type}`}
       style={coverStyle}
-      aria-label={`${item.title} · ${item.type === 'card' ? t('common.card') : t('common.box')}`}
+      aria-label={`${item.title} · ${item.type === 'card' ? '卡片' : '箱子'}`}
       onMouseEnter={prefetchWork}
       onFocus={prefetchWork}
     >

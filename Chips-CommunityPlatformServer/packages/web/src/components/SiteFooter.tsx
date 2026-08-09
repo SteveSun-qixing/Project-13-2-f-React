@@ -1,29 +1,27 @@
 import { Link } from 'react-router-dom';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
 import { useAuth } from '../contexts/AuthContext';
 
 export function SiteFooter() {
-  const { t } = useAppPreferences();
   const { user, isAuthenticated } = useAuth();
   const creatorUser = isAuthenticated && user?.role !== 'admin' ? user : null;
 
   return (
     <footer className="site-footer">
       <div className="site-footer__inner">
-        <span className="site-footer__brand">{t('footer.brand')}</span>
+        <span className="site-footer__brand">薯片社区</span>
 
-        <nav className="site-footer__links" aria-label={t('footer.ariaLabel')}>
-          <Link to="/about">{t('footer.about')}</Link>
+        <nav className="site-footer__links" aria-label="页脚相关链接">
+          <Link to="/about">社区简介</Link>
           {creatorUser ? (
             <>
-              <Link to={`/@${creatorUser.username}`}>{t('footer.profile')}</Link>
-              <Link to="/workspace">{t('footer.workspace')}</Link>
+              <Link to={`/@${creatorUser.username}`}>我的主页</Link>
+              <Link to="/workspace">工作区</Link>
             </>
           ) : null}
           {!isAuthenticated ? (
             <>
-              <Link to="/login">{t('footer.login')}</Link>
-              <Link to="/register">{t('footer.register')}</Link>
+              <Link to="/login">登录</Link>
+              <Link to="/register">注册</Link>
             </>
           ) : null}
         </nav>

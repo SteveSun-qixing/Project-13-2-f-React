@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Spin } from 'antd';
 import { HostedPluginSurface } from '../components/HostedPluginSurface';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
 import { closeWebPluginSession, createWebPluginSession, type WebPluginSessionView } from '../lib/host-runtime';
 import { getErrorMessage } from '../lib/ui';
 import './DocumentPluginRoutePage.css';
@@ -69,7 +69,6 @@ export function DocumentPluginRoutePage({
   pendingLabel,
   trigger,
 }: DocumentPluginRoutePageProps) {
-  const { t } = useAppPreferences();
   const [session, setSession] = useState<WebPluginSessionView | null>(null);
   const [sessionError, setSessionError] = useState('');
   const launchSequenceRef = useRef(0);
@@ -108,21 +107,21 @@ export function DocumentPluginRoutePage({
       })
       .catch((nextError) => {
         if (!disposed && launchSequenceRef.current === launchSequence) {
-          setSessionError(getErrorMessage(nextError, t('common.error')));
+          setSessionError(getErrorMessage(nextError, '出现了一点问题'));
         }
       });
 
     return () => {
       disposed = true;
     };
-  }, [session, source, t, trigger]);
+  }, [session, source, trigger]);
 
   if (loading) {
     return (
       <section className="document-plugin-route document-plugin-route--state" aria-live="polite">
         <div className="document-plugin-route__state-panel">
-          <span className="detail-transition-spinner" />
-          <h1>{t('common.loading')}</h1>
+          <Spin size="large" />
+          <h1>加载中…</h1>
         </div>
       </section>
     );
@@ -142,7 +141,7 @@ export function DocumentPluginRoutePage({
     return (
       <section className="document-plugin-route document-plugin-route--state" aria-live="polite">
         <div className="document-plugin-route__state-panel">
-          <span className="detail-transition-spinner" />
+          <Spin size="large" />
           <h1>{pendingLabel}</h1>
         </div>
       </section>
@@ -153,7 +152,7 @@ export function DocumentPluginRoutePage({
     return (
       <section className="document-plugin-route document-plugin-route--state" aria-live="polite">
         <div className="document-plugin-route__state-panel">
-          <h1>{t('detail.notFound')}</h1>
+          <h1>没有找到目标内容。</h1>
         </div>
       </section>
     );
@@ -163,7 +162,7 @@ export function DocumentPluginRoutePage({
     return (
       <section className="document-plugin-route document-plugin-route--state" aria-live="polite">
         <div className="document-plugin-route__state-panel">
-          <span className="detail-transition-spinner" />
+          <Spin size="large" />
           <h1>{pendingLabel}</h1>
         </div>
       </section>
@@ -174,7 +173,7 @@ export function DocumentPluginRoutePage({
     <section className="document-plugin-route">
       {source.kind === 'community-card' && (
         <div className="document-plugin-route__download-hint" role="note">
-          {t('card.downloadInClientHint')}
+          需要保存完整 .card？请在薯片客户端中打开并下载。
         </div>
       )}
       <HostedPluginSurface sessionId={session.sessionId} initialSession={session} surfaceMode="document" />

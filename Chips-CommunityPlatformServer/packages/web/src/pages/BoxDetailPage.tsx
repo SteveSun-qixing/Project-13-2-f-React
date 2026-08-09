@@ -2,12 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { BoxDetail } from '../api/content';
 import { DocumentPluginRoutePage, type DocumentRouteSource } from './DocumentPluginRoutePage';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
 import { prefetchBoxDetail, readPrefetchedBoxDetail } from '../lib/box-detail-prefetch';
 import { getErrorMessage } from '../lib/ui';
 
 export default function BoxDetailPage() {
-  const { t } = useAppPreferences();
   const { boxId } = useParams<{ boxId: string }>();
   const [box, setBox] = useState<BoxDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +28,7 @@ export default function BoxDetailPage() {
       })
       .catch((nextError) => {
         if (active) {
-          setError(getErrorMessage(nextError, t('detail.notFound')));
+          setError(getErrorMessage(nextError, '没有找到目标内容。'));
         }
       })
       .finally(() => {
@@ -42,7 +40,7 @@ export default function BoxDetailPage() {
     return () => {
       active = false;
     };
-  }, [boxId, t]);
+  }, [boxId]);
 
   const source: DocumentRouteSource | null =
     boxId && box?.documentUrl
@@ -66,7 +64,7 @@ export default function BoxDetailPage() {
       loading={loading}
       pending={Boolean(box && !box.documentUrl && !error)}
       error={error}
-      pendingLabel={t('box.notReady')}
+      pendingLabel="箱子查看文档正在准备中，请稍后刷新。"
       trigger="community-box-route"
     />
   );

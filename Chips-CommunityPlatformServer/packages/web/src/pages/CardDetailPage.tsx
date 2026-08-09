@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { cardsApi, type CardOpenView } from '../api/content';
 import { DocumentPluginRoutePage, type DocumentRouteSource } from './DocumentPluginRoutePage';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
 import { prefetchCardOpenView, readPrefetchedCardOpenView } from '../lib/card-open-view-prefetch';
 import { getErrorMessage } from '../lib/ui';
 
@@ -21,7 +20,6 @@ function isCardViewPending(card: CardOpenView): boolean {
 }
 
 export default function CardDetailPage() {
-  const { t } = useAppPreferences();
   const { cardId } = useParams<{ cardId: string }>();
   const [card, setCard] = useState<CardOpenView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +42,7 @@ export default function CardDetailPage() {
       })
       .catch((nextError) => {
         if (active) {
-          setError(getErrorMessage(nextError, t('detail.notFound')));
+          setError(getErrorMessage(nextError, '没有找到目标内容。'));
         }
       })
       .finally(() => {
@@ -56,7 +54,7 @@ export default function CardDetailPage() {
     return () => {
       active = false;
     };
-  }, [cardId, t]);
+  }, [cardId]);
 
   useEffect(() => {
     if (!cardId || !card || isCardViewReady(card) || card.status === 'error') {
@@ -100,7 +98,7 @@ export default function CardDetailPage() {
         );
       } catch (nextError) {
         if (!cancelled) {
-          setError(getErrorMessage(nextError, t('common.error')));
+          setError(getErrorMessage(nextError, '出现了一点问题'));
         }
       }
     };
@@ -113,7 +111,7 @@ export default function CardDetailPage() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [card, cardId, t]);
+  }, [card, cardId]);
 
   const documentUrl = card ? resolveCardDocumentUrl(card) : null;
   const source: DocumentRouteSource | null =
@@ -141,10 +139,10 @@ export default function CardDetailPage() {
       error={
         error ||
         (card?.status === 'error' || card?.viewState === 'render_error'
-          ? card.renderCache?.errorMessage || t('card.errorState')
+          ? card.renderCache?.errorMessage || '卡片处理失败，请稍后回到工作区查看状态。'
           : '')
       }
-      pendingLabel={t('card.notReady')}
+      pendingLabel="卡片仍在处理链路中，请稍后刷新。"
       trigger="community-card-route"
     />
   );

@@ -1,7 +1,10 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { App as AntdApp, ConfigProvider, Result } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
+import { appleTheme } from '@chips/ui';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { AppPreferencesProvider, useAppPreferences } from './contexts/AppPreferencesContext';
+import { SiteHeader } from './components/SiteHeader';
 import { SiteFooter } from './components/SiteFooter';
 import HomePage from './pages/HomePage';
 import AboutPage from './pages/AboutPage';
@@ -35,12 +38,11 @@ function isProfileRoute(pathname: string): boolean {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { t } = useAppPreferences();
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
-    return <div className="page-loader">{t('common.loading')}</div>;
+    return <div className="page-loader">加载中…</div>;
   }
 
   if (!isAuthenticated) {
@@ -51,11 +53,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function GuestRoute({ children }: { children: React.ReactNode }) {
-  const { t } = useAppPreferences();
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
-    return <div className="page-loader">{t('common.loading')}</div>;
+    return <div className="page-loader">加载中…</div>;
   }
 
   if (isAuthenticated && user) {
@@ -66,11 +67,10 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
 }
 
 function RootRedirect() {
-  const { t } = useAppPreferences();
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
-    return <div className="page-loader">{t('common.loading')}</div>;
+    return <div className="page-loader">加载中…</div>;
   }
 
   if (isAuthenticated && user?.role === 'admin') {
@@ -85,14 +85,9 @@ function RootRedirect() {
 }
 
 function NotFoundPage() {
-  const { t } = useAppPreferences();
-
   return (
     <div className="page-container">
-      <section className="panel empty-panel">
-        <h1>404</h1>
-        <p>{t('detail.notFound')}</p>
-      </section>
+      <Result status="404" title="404" subTitle="没有找到目标内容。" />
     </div>
   );
 }
@@ -171,6 +166,7 @@ function AppChrome() {
         routeMode === 'immersive' ? 'app-shell--immersive' : '',
       ].filter(Boolean).join(' ')}
     >
+      {isChromeVisible ? <SiteHeader /> : null}
       <AppRoutes />
       {shouldShowFooter ? <SiteFooter /> : null}
     </div>
@@ -179,13 +175,15 @@ function AppChrome() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AppPreferencesProvider>
-        <AuthProvider>
-          <AppChrome />
-        </AuthProvider>
-      </AppPreferencesProvider>
-    </BrowserRouter>
+    <ConfigProvider locale={zhCN} theme={appleTheme}>
+      <AntdApp>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppChrome />
+          </AuthProvider>
+        </BrowserRouter>
+      </AntdApp>
+    </ConfigProvider>
   );
 }
 

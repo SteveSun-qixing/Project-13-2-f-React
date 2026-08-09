@@ -1,7 +1,7 @@
+import { Button } from 'antd';
+import { LogoutOutlined, SettingOutlined } from '@ant-design/icons';
 import type { PublicUserProfile } from '../api/auth';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
 import { getInitial } from '../lib/ui';
-import { Icon } from '../runtime/icons/Icon';
 
 interface ProfileHeroProps {
   user: PublicUserProfile;
@@ -11,7 +11,6 @@ interface ProfileHeroProps {
 }
 
 export function ProfileHero({ user, isOwner, onOpenSettings, onLogout }: ProfileHeroProps) {
-  const { t } = useAppPreferences();
   const displayName = user.displayName || user.username;
 
   return (
@@ -30,29 +29,19 @@ export function ProfileHero({ user, isOwner, onOpenSettings, onLogout }: Profile
         <div className={`profile-hero__content${isOwner ? ' profile-hero__content--owner' : ''}`}>
           {isOwner ? (
             <div className="profile-hero__toolbar">
-              <button
-                type="button"
-                className="button button--secondary profile-hero__settings"
-                onClick={onOpenSettings}
-                aria-label={t('profile.settingsOpen')}
-              >
-                <Icon name="settings" />
-                <span>{t('profile.settingsOpen')}</span>
-              </button>
-              <button
-                type="button"
-                className="button button--ghost profile-hero__logout"
-                onClick={onLogout}
-                aria-label={t('common.logout')}
-              >
-                <Icon name="logout" />
-                <span>{t('common.logout')}</span>
-              </button>
+              <Button onClick={onOpenSettings} aria-label="编辑资料">
+                <SettingOutlined />
+                <span>编辑资料</span>
+              </Button>
+              <Button type="text" onClick={onLogout} aria-label="退出登录">
+                <LogoutOutlined />
+                <span>退出登录</span>
+              </Button>
             </div>
           ) : null}
           <h1>{displayName}</h1>
           <p className="profile-hero__username">@{user.username}</p>
-          <p className="profile-hero__bio">{user.bio || t('common.noDescription')}</p>
+          <p className="profile-hero__bio">{user.bio || '暂无简介'}</p>
         </div>
       </div>
     </header>

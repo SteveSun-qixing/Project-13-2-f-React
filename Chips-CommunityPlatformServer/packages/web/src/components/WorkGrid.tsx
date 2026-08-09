@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
-import { Icon } from '../runtime/icons/Icon';
+import { useNavigate } from 'react-router-dom';
+import { Alert, Button, Empty } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { getCommunityWorkSelectionKey, type CommunityWorkItem } from '../types/community';
 import { WorkTile } from './WorkTile';
 
@@ -27,29 +27,31 @@ export function WorkGrid({
   onToggleWorkSelection,
   onDeleteSelectedWorks,
 }: WorkGridProps) {
-  const { t } = useAppPreferences();
+  const navigate = useNavigate();
   const workCount = items.length;
 
   return (
     <section className="works-section">
       <div className="works-section__header">
         <div>
-          <h2>{t('profile.collectionTitle')}</h2>
+          <h2>最近发布</h2>
         </div>
 
         {isOwner ? (
           <div className="works-section__actions">
-            <Link to="/workspace" className="button button--primary button--icon" aria-label={t('profile.openWorkspace')}>
-              <Icon name="plus" />
-            </Link>
-            <button
-              type="button"
-              className={`button ${manageMode ? 'button--primary' : 'button--secondary'}`}
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              aria-label="进入工作区"
+              onClick={() => navigate('/workspace')}
+            />
+            <Button
+              type={manageMode ? 'primary' : 'default'}
               onClick={onToggleManageMode}
               disabled={isDeleting || workCount === 0}
             >
-              {manageMode ? t('profile.manageDone') : t('profile.manageAction')}
-            </button>
+              {manageMode ? '完成管理' : '管理作品'}
+            </Button>
           </div>
         ) : null}
       </div>
@@ -57,23 +59,24 @@ export function WorkGrid({
       {isOwner && manageMode ? (
         <div className="panel works-section__manage-bar">
           <div className="works-section__manage-copy">
-            <strong>{t('profile.manageTitle')}</strong>
-            <p className="muted">{t('profile.manageHint')}</p>
-            {manageError ? <div className="inline-notice inline-notice--danger">{manageError}</div> : null}
+            <strong>作品整理</strong>
+            <p className="muted">卡片和箱子都支持勾选后批量删除。</p>
+            {manageError ? <Alert type="error" message={manageError} showIcon /> : null}
           </div>
 
           <div className="works-section__manage-actions">
             <span className="works-section__manage-count">
-              {t('profile.manageSelectedCount', { count: selectedWorkKeys.size })}
+              已选择 {selectedWorkKeys.size} 个作品
             </span>
-            <button
-              type="button"
-              className="button button--secondary"
+            <Button
+              type="default"
+              danger
               onClick={onDeleteSelectedWorks}
-              disabled={isDeleting || selectedWorkKeys.size === 0}
+              loading={isDeleting}
+              disabled={selectedWorkKeys.size === 0}
             >
-              {isDeleting ? t('profile.manageDeleting') : t('profile.manageDelete')}
-            </button>
+              {isDeleting ? '正在删除…' : '删除所选作品'}
+            </Button>
           </div>
         </div>
       ) : null}
@@ -91,7 +94,9 @@ export function WorkGrid({
           ))}
         </div>
       ) : (
-        <div className="works-section__empty">{t('profile.empty')}</div>
+        <div className="works-section__empty">
+          <Empty description="这里还没有对外展示的内容。" />
+        </div>
       )}
     </section>
   );

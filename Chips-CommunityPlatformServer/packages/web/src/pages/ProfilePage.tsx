@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
+import { Button } from 'antd';
 import { authApi, type PublicUserProfile } from '../api/auth';
 import { boxesApi, cardsApi, type BoxSummary, type CardSummary } from '../api/content';
 import { ProfileHero } from '../components/ProfileHero';
 import { ProfileSettingsDialog, type ProfileSettingsPayload } from '../components/ProfileSettingsDialog';
 import { WorkGrid } from '../components/WorkGrid';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../lib/ui';
 import { getCommunityWorkSelectionKey, type CommunityWorkItem } from '../types/community';
@@ -66,7 +66,6 @@ function toPublicProfile(user: {
 
 export default function ProfilePage() {
   const { username: rawUsername } = useParams<{ username: string }>();
-  const { t } = useAppPreferences();
   const { user: authUser, isLoading: isAuthLoading, logout, refreshUser } = useAuth();
   const [reloadKey, setReloadKey] = useState(0);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
@@ -95,7 +94,7 @@ export default function ProfilePage() {
         user: null,
         items: [],
         loading: false,
-        error: t('profile.notFound'),
+        error: '没有找到这个用户。',
       });
       return;
     }
@@ -134,14 +133,14 @@ export default function ProfilePage() {
           user: null,
           items: [],
           loading: false,
-          error: getErrorMessage(error, t('profile.notFound')),
+          error: getErrorMessage(error, '没有找到这个用户。'),
         });
       });
 
     return () => {
       active = false;
     };
-  }, [reloadKey, t, username]);
+  }, [reloadKey, username]);
 
   const isOwner = useMemo(() => {
     if (isAuthLoading || !authUser || !state.user) {
@@ -205,7 +204,7 @@ export default function ProfilePage() {
     }
 
     const confirmed = window.confirm(
-      t('profile.manageDeleteConfirm', { count: selectedItems.length }),
+      `确定删除已选择的 ${selectedItems.length} 个作品吗？此操作无法撤销。`,
     );
     if (!confirmed) {
       return;
@@ -248,7 +247,7 @@ export default function ProfilePage() {
             : []
         )),
       );
-      setManageError(t('profile.manageDeleteFailed', { count: failedResults.length }));
+      setManageError(`有 ${failedResults.length} 个作品删除失败，请稍后重试。`);
     } else {
       setSelectedWorkKeys([]);
       setManageMode(false);
@@ -331,10 +330,10 @@ export default function ProfilePage() {
   } else if (!state.user || state.error) {
     pageBody = (
       <section className="panel error-panel profile-state">
-        <h1>{state.error || t('profile.notFound')}</h1>
-        <button type="button" className="button button--secondary" onClick={() => setReloadKey((value) => value + 1)}>
-          {t('common.retry')}
-        </button>
+        <h1>{state.error || '没有找到这个用户。'}</h1>
+        <Button onClick={() => setReloadKey((value) => value + 1)}>
+          重试
+        </Button>
       </section>
     );
   } else {

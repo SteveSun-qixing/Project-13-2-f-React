@@ -1,10 +1,10 @@
-import { Link, NavLink } from 'react-router-dom';
-import { useAppPreferences } from '../contexts/AppPreferencesContext';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Button } from 'antd';
 import { useAuth } from '../contexts/AuthContext';
 
 export function SiteHeader() {
-  const { t } = useAppPreferences();
   const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
   const showCreatorNav = isAuthenticated && user?.role !== 'admin';
 
   return (
@@ -13,30 +13,28 @@ export function SiteHeader() {
         <Link to="/" className="site-brand">
           <span className="site-brand__mark" />
           <div>
-            <strong>{t('brand.name')}</strong>
-            <span>{t('brand.tagline')}</span>
+            <strong>薯片社区</strong>
+            <span>欢迎页、社区简介、个人主页、上传工作区与后台管理</span>
           </div>
         </Link>
 
-        <nav className="site-nav" aria-label="Primary">
-          <NavLink to="/" end>{t('nav.home')}</NavLink>
-          <NavLink to="/about">{t('nav.about')}</NavLink>
-          {showCreatorNav && user ? <NavLink to={`/@${user.username}`}>{t('nav.profile')}</NavLink> : null}
-          {showCreatorNav ? <NavLink to="/workspace">{t('nav.workspace')}</NavLink> : null}
+        <nav className="site-nav" aria-label="主导航">
+          <NavLink to="/" end>欢迎</NavLink>
+          <NavLink to="/about">社区简介</NavLink>
+          {showCreatorNav && user ? <NavLink to={`/@${user.username}`}>我的主页</NavLink> : null}
+          {showCreatorNav ? <NavLink to="/workspace">工作区</NavLink> : null}
         </nav>
 
         <div className="site-actions">
           {isAuthenticated && user ? (
             <>
-              <Link to={`/@${user.username}`} className="button button--ghost">{user.username}</Link>
-              <button type="button" className="button button--secondary" onClick={() => void logout()}>
-                {t('common.logout')}
-              </button>
+              <Button onClick={() => navigate(`/@${user.username}`)}>{user.username}</Button>
+              <Button onClick={() => void logout()}>退出登录</Button>
             </>
           ) : (
             <>
-              <Link to="/login" className="button button--ghost">{t('nav.login')}</Link>
-              <Link to="/register" className="button button--primary">{t('nav.register')}</Link>
+              <Button type="text" onClick={() => navigate('/login')}>登录</Button>
+              <Button type="primary" onClick={() => navigate('/register')}>注册</Button>
             </>
           )}
         </div>
