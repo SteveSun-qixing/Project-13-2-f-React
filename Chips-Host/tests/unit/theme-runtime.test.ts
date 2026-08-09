@@ -68,8 +68,8 @@ describe('Theme Runtime', () => {
         chips: {
           ref: {
             color: {
-              blue: '#2563eb',
-              red: '#dc2626'
+              blue: '#0a84ff',
+              red: '#ff3b30'
             }
           }
         }
@@ -105,11 +105,11 @@ describe('Theme Runtime', () => {
     const layers = mergeThemeLayers([{ id: 'chips.test.theme', tokens: themeTokens }]);
     const resolved = resolveThemeFromLayers(layers);
 
-    expect(resolved.variables['chips.sys.color.primary']).toBe('#2563eb');
-    expect(resolved.variables['chips.sys.icon.color-accent']).toBe('#2563eb');
-    expect(resolved.variables['chips.sys.icon.color-danger']).toBe('#dc2626');
-    expect(resolved.variables['chips.comp.icon.accent']).toBe('#2563eb');
-    expect(resolved.variables['chips.comp.icon.danger']).toBe('#dc2626');
+    expect(resolved.variables['chips.sys.color.primary']).toBe('#0a84ff');
+    expect(resolved.variables['chips.sys.icon.color-accent']).toBe('#0a84ff');
+    expect(resolved.variables['chips.sys.icon.color-danger']).toBe('#ff3b30');
+    expect(resolved.variables['chips.comp.icon.accent']).toBe('#0a84ff');
+    expect(resolved.variables['chips.comp.icon.danger']).toBe('#ff3b30');
   });
 
   it('rejects circular same-layer token references', () => {

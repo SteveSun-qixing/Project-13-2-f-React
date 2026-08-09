@@ -138,12 +138,12 @@ Chips-SDK/
   - 调试日志控制与格式统一；
   - 性能采样工具（测量封装层额外开销）。
 - 开发者报告：
-  - `chipsdev preview` 报告；
-  - `chipsdev component gallery` 组件矩阵；
-  - `chipsdev theme inspect` 主题检查；
-  - `chipsdev quality gate` 门禁摘要；
-  - `chipsdev assimilate scan/report` 外部 Web 项目同化报告；
-  - `chipsdev diagnostics` 生态工具链诊断。
+  - `chipsdev-r preview` 报告；
+  - `chipsdev-r component gallery` 组件矩阵；
+  - `chipsdev-r theme inspect` 主题检查；
+  - `chipsdev-r quality gate` 门禁摘要；
+  - `chipsdev-r assimilate scan/report` 外部 Web 项目同化报告；
+  - `chipsdev-r diagnostics` 生态工具链诊断。
 
 建议文件：
 

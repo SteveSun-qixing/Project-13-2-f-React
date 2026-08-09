@@ -24,7 +24,7 @@ const run = (args, cwd) =>
         resolve();
         return;
       }
-      reject(new Error(`chipsdev ${args.join(' ')} exited with code ${code}`));
+      reject(new Error(`chipsdev-r ${args.join(' ')} exited with code ${code}`));
     });
   });
 
@@ -49,7 +49,7 @@ const runExpectFailure = (args, cwd) =>
         resolve({ stdout, stderr, code });
         return;
       }
-      reject(new Error(`chipsdev ${args.join(' ')} was expected to fail but exited with code ${code}`));
+      reject(new Error(`chipsdev-r ${args.join(' ')} was expected to fail but exited with code ${code}`));
     });
   });
 
@@ -168,7 +168,7 @@ const writeModuleManifest = async (workspace, extraLines = []) => {
 };
 
 const main = async () => {
-  console.log('Running chipsdev package compatibility tests...');
+  console.log('Running chipsdev-r package compatibility tests...');
   const workspace = await fsp.mkdtemp(path.join(os.tmpdir(), 'chipsdev-package-test-'));
 
   try {
@@ -417,7 +417,7 @@ const main = async () => {
       'validate should reject CLI targets owned by another plugin'
     );
 
-    console.log('chipsdev package compatibility tests completed.');
+    console.log('chipsdev-r package compatibility tests completed.');
   } finally {
     await fsp.rm(workspace, { recursive: true, force: true });
   }

@@ -4,12 +4,12 @@
   "private": false,
   "type": "commonjs",
   "scripts": {
-    "dev": "chipsdev server",
-    "build": "chipsdev build",
-    "test": "chipsdev test",
-    "lint": "chipsdev lint",
-    "validate": "chipsdev validate",
-    "package": "chipsdev package",
+    "dev": "chipsdev-r server",
+    "build": "chipsdev-r build",
+    "test": "chipsdev-r test",
+    "lint": "chipsdev-r lint",
+    "validate": "chipsdev-r validate",
+    "package": "chipsdev-r package",
     "e2e": "node ./tests/e2e/run-packaged-plugin.cjs"
   },
   "devDependencies": {

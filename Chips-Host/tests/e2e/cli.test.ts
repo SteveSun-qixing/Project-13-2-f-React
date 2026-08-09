@@ -497,10 +497,10 @@ describe('chips cli', () => {
     expect(fish.code).toBe(0);
     expect(fish.output).toContain('complete -c chips');
 
-    const dev = await captureRunCli(['completion', 'bash', 'chipsdev']);
+    const dev = await captureRunCli(['completion', 'bash', 'chipsdev-r']);
     expect(dev.code).toBe(0);
-    expect(dev.output).toContain('complete -F _chipsdev_completion chipsdev');
-    expect(dev.output).toContain('chipsdev __complete');
+    expect(dev.output).toContain('complete -F _chipsdev_completion chipsdev-r');
+    expect(dev.output).toContain('chipsdev-r __complete');
   });
 
   it('supports start/status/stop lifecycle', async () => {

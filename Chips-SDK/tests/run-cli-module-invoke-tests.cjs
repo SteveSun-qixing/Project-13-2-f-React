@@ -32,7 +32,7 @@ const runCapture = (args, cwd, env = process.env) =>
         resolve({ stdout, stderr });
         return;
       }
-      reject(new Error(`chipsdev ${args.join(' ')} exited with code ${code}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+      reject(new Error(`chipsdev-r ${args.join(' ')} exited with code ${code}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
     });
   });
 
@@ -77,8 +77,8 @@ const createModuleProject = async (targetDir) => {
         private: true,
         type: 'commonjs',
         scripts: {
-          build: 'chipsdev build',
-          validate: 'chipsdev validate'
+          build: 'chipsdev-r build',
+          validate: 'chipsdev-r validate'
         },
         devDependencies: {
           'chips-sdk': '^0.1.0',
@@ -230,7 +230,7 @@ const createCustomBuildModuleProject = async (targetDir) => {
         type: 'commonjs',
         scripts: {
           build: 'node ./scripts/build.mjs',
-          validate: 'chipsdev validate'
+          validate: 'chipsdev-r validate'
         },
         devDependencies: {
           'chips-sdk': '^0.1.0',
@@ -407,7 +407,7 @@ const writeMockElectronFiles = async (sandboxRoot) => {
 };
 
 const main = async () => {
-  console.log('Running chipsdev module invoke integration tests...');
+  console.log('Running chipsdev-r module invoke integration tests...');
 
   const sandboxRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'chipsdev-module-invoke-'));
   const moduleProject = path.join(sandboxRoot, 'module-project');
@@ -450,7 +450,7 @@ const main = async () => {
           moduleProject,
           env
         ),
-      /chipsdev module invoke 不支持参数：--unknown/
+      /chipsdev-r module invoke 不支持参数：--unknown/
     );
 
     const sync = await runCapture(
@@ -502,7 +502,7 @@ const main = async () => {
       builtBy: 'custom-build-script'
     });
 
-    console.log('chipsdev module invoke integration tests completed.');
+    console.log('chipsdev-r module invoke integration tests completed.');
   } finally {
     await fs.rm(sandboxRoot, { recursive: true, force: true });
   }

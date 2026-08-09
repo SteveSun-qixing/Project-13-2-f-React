@@ -44,10 +44,10 @@
 
 `npm run e2e` 会在临时开发工作区中执行正式链路：
 
-- `chipsdev build`
-- `chipsdev package`
-- `chipsdev plugin install`
-- `chipsdev plugin enable`
+- `chipsdev-r build`
+- `chipsdev-r package`
+- `chipsdev-r plugin install`
+- `chipsdev-r plugin enable`
 - Host `module.invoke`
 
 默认使用 Host Electron 导出能力 mock 做稳定回归；如果要联调真实业务 HTML 输入，可以追加：

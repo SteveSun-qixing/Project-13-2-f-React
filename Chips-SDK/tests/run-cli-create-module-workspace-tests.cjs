@@ -42,7 +42,7 @@ const withWritableNpmCache = (env, cacheRoot) => ({
 });
 
 const main = async () => {
-  console.log('Running chipsdev create module workspace integration tests...');
+  console.log('Running chipsdev-r create module workspace integration tests...');
 
   const sandboxRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'chipsdev-create-module-workspace-'));
 const linkedEntries = ['Chips-SDK', 'Chips-Scaffold', 'Chips-ComponentLibrary'];
@@ -65,10 +65,7 @@ const linkedEntries = ['Chips-SDK', 'Chips-Scaffold', 'Chips-ComponentLibrary'];
           workspaces: [
             'Chips-*',
             'Chips-BaseCardPlugin/*',
-            'Chips-ComponentLibrary/packages/*',
-            'Chips-ComponentLibrary/packages/adapters/*',
-            'Chips-Scaffold/*',
-            'ThemePack/*'
+            'Chips-Scaffold/*'
           ],
           overrides: TEST_NPM_OVERRIDES
         },
@@ -230,10 +227,6 @@ const linkedEntries = ['Chips-SDK', 'Chips-Scaffold', 'Chips-ComponentLibrary'];
         themeId: 'chips-official.default-theme',
       });
       await bootstrapRuntime.load();
-      const defaultTheme = await bootstrapRuntime.install(
-        path.join(ecosystemRoot, 'ThemePack', 'Chips-default', 'manifest.yaml')
-      );
-      await bootstrapRuntime.enable(defaultTheme.manifest.id);
 
       app = new HostApplication({ workspacePath: hostWorkspace });
       await app.start();
@@ -310,7 +303,7 @@ const linkedEntries = ['Chips-SDK', 'Chips-Scaffold', 'Chips-ComponentLibrary'];
       await fsp.rm(hostWorkspace, { recursive: true, force: true });
     }
 
-    console.log('chipsdev create module workspace integration tests completed.');
+    console.log('chipsdev-r create module workspace integration tests completed.');
   } finally {
     await fsp.rm(sandboxRoot, { recursive: true, force: true });
   }

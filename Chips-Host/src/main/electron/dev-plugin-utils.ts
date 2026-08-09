@@ -156,7 +156,7 @@ const warnSkippedConfiguredPlugin = (pluginId: string | undefined, sourcePath: s
   const label = pluginId ?? sourcePath;
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(
-    `[chipsdev] 跳过开发工作区插件同步：${label}（来源不可用或未完成构建：${sourcePath}）\n原因：${message}\n`
+    `[chipsdev-r] 跳过开发工作区插件同步：${label}（来源不可用或未完成构建：${sourcePath}）\n原因：${message}\n`
   );
 };
 

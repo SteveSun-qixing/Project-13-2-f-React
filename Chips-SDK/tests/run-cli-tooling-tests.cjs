@@ -32,7 +32,7 @@ const runCapture = (args, cwd, env = process.env) =>
         resolve({ stdout, stderr });
         return;
       }
-      reject(new Error(`chipsdev ${args.join(' ')} exited with code ${code}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+      reject(new Error(`chipsdev-r ${args.join(' ')} exited with code ${code}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
     });
   });
 
@@ -137,7 +137,7 @@ const createAssimilationTarget = async (targetDir) => {
 };
 
 const main = async () => {
-  console.log('Running chipsdev tooling command tests...');
+  console.log('Running chipsdev-r tooling command tests...');
 
   const sandbox = await fs.mkdtemp(path.join(os.tmpdir(), 'chipsdev-tooling-'));
   const appProject = path.join(sandbox, 'app');
@@ -161,22 +161,11 @@ const main = async () => {
 
     const componentGallery = await runJson(['component', 'gallery'], appProject, env);
     assert.equal(componentGallery.kind, 'chipsdev.component.gallery');
-    assert.equal(componentGallery.summary.status, 'passed');
-    assert.ok(componentGallery.summary.componentCount >= 40);
-    assert.ok(componentGallery.components.some((component) => component.component === 'button'));
+    assert.equal(componentGallery.summary.status, 'skipped');
+    assert.equal(componentGallery.summary.componentCount, 0);
     assert.ok(
-      componentGallery.components.every((component) => !component.contractPath.includes(`${path.sep}归档${path.sep}`))
+      componentGallery.checks.some((check) => check.name === 'componentLibrary.exists' && check.status === 'skipped')
     );
-
-    const themeInspect = await runJson(
-      ['theme', 'inspect', '--theme', 'chips-official.default-theme'],
-      appProject,
-      env
-    );
-    assert.equal(themeInspect.kind, 'chipsdev.theme.inspect');
-    assert.equal(themeInspect.summary.status, 'passed');
-    assert.equal(themeInspect.summary.themeCount, 1);
-    assert.equal(themeInspect.themes[0].contractSummary.missingRequiredTokenCount, 0);
 
     const qualityGate = await runJson(['quality', 'gate'], appProject, env);
     assert.equal(qualityGate.kind, 'chipsdev.quality.gate');
@@ -207,7 +196,7 @@ const main = async () => {
     assert.equal(savedReport.kind, 'chipsdev.assimilate.report');
     assert.equal(savedReport.migrationPlan.length, 4);
 
-    console.log('chipsdev tooling command tests completed.');
+    console.log('chipsdev-r tooling command tests completed.');
   } finally {
     await fs.rm(sandbox, { recursive: true, force: true });
   }

@@ -27,7 +27,7 @@ const run = (args, cwd, env = process.env) =>
         resolve();
         return;
       }
-      reject(new Error(`chipsdev ${args.join(' ')} exited with code ${code}`));
+      reject(new Error(`chipsdev-r ${args.join(' ')} exited with code ${code}`));
     });
   });
 
@@ -60,10 +60,10 @@ const withWritableNpmCache = (env, cacheRoot) => ({
 });
 
 const main = async () => {
-  console.log('Running chipsdev create workspace integration tests...');
+  console.log('Running chipsdev-r create workspace integration tests...');
 
   const sandboxRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'chipsdev-create-workspace-'));
-  const linkedEntries = ['Chips-SDK', 'Chips-Scaffold', 'Chips-ComponentLibrary'];
+  const linkedEntries = ['Chips-SDK', 'Chips-Scaffold', 'Chips-Ui'];
 
   try {
     for (const entry of linkedEntries) {
@@ -83,10 +83,7 @@ const main = async () => {
           workspaces: [
             'Chips-*',
             'Chips-BaseCardPlugin/*',
-            'Chips-ComponentLibrary/packages/*',
-            'Chips-ComponentLibrary/packages/adapters/*',
-            'Chips-Scaffold/*',
-            'ThemePack/*'
+            'Chips-Scaffold/*'
           ],
           overrides: TEST_NPM_OVERRIDES
         },
@@ -112,7 +109,8 @@ const main = async () => {
     assert.equal(rootPackage.workspaces.includes('validation-projects/card-viewer-smoke'), true);
 
     const createdPackage = JSON.parse(await fsp.readFile(path.join(targetDir, 'package.json'), 'utf-8'));
-    assert.equal(createdPackage.dependencies['@chips/component-library'], '^0.1.0');
+    assert.equal(createdPackage.dependencies['@chips/ui'], '0.1.0');
+    assert.equal(createdPackage.dependencies['antd'], '6.5.4');
     assert.equal(createdPackage.devDependencies['chips-sdk'], '^0.1.0');
     assert.equal(createdPackage.volta.extends, '../../package.json');
     const manifestText = await fsp.readFile(path.join(targetDir, 'manifest.yaml'), 'utf-8');
@@ -124,7 +122,7 @@ const main = async () => {
     await runBinary('npm', ['run', 'build'], targetDir, env);
     await runBinary('npm', ['test'], targetDir, env);
 
-    console.log('chipsdev create workspace integration tests completed.');
+    console.log('chipsdev-r create workspace integration tests completed.');
   } finally {
     await fsp.rm(sandboxRoot, { recursive: true, force: true });
   }

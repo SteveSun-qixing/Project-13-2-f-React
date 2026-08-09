@@ -42,7 +42,7 @@ const withWritableNpmCache = (env, cacheRoot) => ({
 });
 
 const main = async () => {
-  console.log('Running chipsdev create theme workspace integration tests...');
+  console.log('Running chipsdev-r create theme workspace integration tests...');
 
   const sandboxRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'chipsdev-create-theme-workspace-'));
   const linkedEntries = ['Chips-SDK', 'Chips-Scaffold', 'Chips-ComponentLibrary'];
@@ -156,7 +156,7 @@ const main = async () => {
       (error) => error && error.code === 'ENOENT'
     );
 
-    console.log('chipsdev create theme workspace integration tests completed.');
+    console.log('chipsdev-r create theme workspace integration tests completed.');
   } finally {
     await fsp.rm(sandboxRoot, { recursive: true, force: true });
   }

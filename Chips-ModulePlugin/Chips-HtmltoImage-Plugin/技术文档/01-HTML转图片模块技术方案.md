@@ -182,7 +182,7 @@ Host 正式 HTML 渲染导出能力至少需要支持：
 
 - `tests/integration/packaged-plugin.test.ts` 真实执行以下链路：
 - 打包 `Chips-CardtoHTML-Plugin` 与 `Chips-HtmltoImage-Plugin`
-- 通过 `chipsdev` 安装到临时 Host 工作区
+- 通过 `chipsdev-r` 安装到临时 Host 工作区
 - 安装并启用正式基础卡片插件与默认主题
 - 调用 `converter.card.to-html/convert`
 - 调用 `converter.html.to-image/convert`

@@ -64,8 +64,8 @@
 
 本仓补充了打包安装级验证脚本：
 
-- 先执行 `chipsdev build + chipsdev package`
-- 再执行 `chipsdev plugin install + chipsdev plugin enable`
+- 先执行 `chipsdev-r build + chipsdev-r package`
+- 再执行 `chipsdev-r plugin install + chipsdev-r plugin enable`
 - 最后在 Host 模块服务上调用 `module.invoke`
 
 为保证 CI 和终端环境下的稳定回归，该脚本默认使用 Host `BrowserWindow` mock 验证正式调用链路，而不是在测试进程里直接旁路 Electron。

@@ -42,7 +42,7 @@ const withWritableNpmCache = (env, cacheRoot) => ({
 });
 
 const main = async () => {
-  console.log('Running chipsdev create card workspace integration tests...');
+  console.log('Running chipsdev-r create card workspace integration tests...');
 
   const sandboxRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'chipsdev-create-card-workspace-'));
   const linkedEntries = ['Chips-SDK', 'Chips-Scaffold', 'Chips-ComponentLibrary'];
@@ -65,10 +65,7 @@ const main = async () => {
           workspaces: [
             'Chips-*',
             'Chips-BaseCardPlugin/*',
-            'Chips-ComponentLibrary/packages/*',
-            'Chips-ComponentLibrary/packages/adapters/*',
-            'Chips-Scaffold/*',
-            'ThemePack/*'
+            'Chips-Scaffold/*'
           ],
           overrides: TEST_NPM_OVERRIDES
         },
@@ -116,14 +113,14 @@ const main = async () => {
     assert.equal(
       builtEntry.includes('process.env.NODE_ENV'),
       false,
-      'chipsdev build must replace NODE_ENV checks in card plugin browser bundles'
+      'chipsdev-r build must replace NODE_ENV checks in card plugin browser bundles'
     );
 
     await run('npm', ['test'], targetDir, env);
     await run('npm', ['run', 'validate'], targetDir, env);
     await run('node', [cliPath, 'package'], targetDir, env);
 
-    console.log('chipsdev create card workspace integration tests completed.');
+    console.log('chipsdev-r create card workspace integration tests completed.');
   } finally {
     await fsp.rm(sandboxRoot, { recursive: true, force: true });
   }

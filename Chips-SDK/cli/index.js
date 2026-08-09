@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Chips Dev 开发者命令行工具（chipsdev）
+ * Chips Dev 开发者命令行工具（chipsdev-r）
  *
- * 统一入口：chipsdev <command> [options]
+ * 统一入口：chipsdev-r <command> [options]
  * 底层使用 Vite（dev server + build）与 Vitest（test），由 chips.config.mjs 驱动。
  */
 
@@ -162,12 +162,12 @@ const toErrorPayload = (error) => {
 const printHelp = () => {
   log(
     [
-      'Chips Dev 命令行工具 (chipsdev)',
+      'Chips Dev 命令行工具 (chipsdev-r)',
       '',
       '用法：',
-      '  chipsdev <command> [options]',
-      '  chipsdev',
-      '  chipsdev --interactive',
+      '  chipsdev-r <command> [options]',
+      '  chipsdev-r',
+      '  chipsdev-r --interactive',
       '',
       '可用命令：',
       '  init        初始化项目级开发配置（chips.config.mjs）',
@@ -199,12 +199,12 @@ const printHelp = () => {
       '  login       在本机保存开发者发布身份配置',
       '  publish     生成发布包元数据并校验，可对接后续正式发布系统',
       '  run         在开发环境下启动 Host 并运行应用插件',
-      '  version     查看 chipsdev 版本',
+      '  version     查看 chipsdev-r 版本',
       '  help        查看帮助信息',
       '',
       '交互模式：',
-      '  不带参数运行 chipsdev 会进入开发工作区 TUI；非交互终端下会安全返回提示。',
-      '  chipsdev --interactive 可显式进入同一 TUI。'
+      '  不带参数运行 chipsdev-r 会进入开发工作区 TUI；非交互终端下会安全返回提示。',
+      '  chipsdev-r --interactive 可显式进入同一 TUI。'
     ].join('\n')
   );
 };
@@ -827,7 +827,7 @@ const handleServer = async (mode = 'server') => {
 };
 
 const BUILD_SCRIPT_RECURSION_PATTERNS = [
-  /\bchipsdev\s+build\b/i,
+  /\bchipsdev-r\s+build\b/i,
   /\bnpm\s+run\s+build\b/i,
   /\bnpm\s+build\b/i,
   /\bpnpm\s+run\s+build\b/i,
@@ -912,7 +912,7 @@ const handleLint = async () => {
 
   if (!hasCliTool(projectRoot, 'eslint')) {
     throw new Error(
-      '未检测到 ESLint 可执行文件。请在工程中安装 eslint 并配置 .eslintrc 后再运行 chipsdev lint。'
+      '未检测到 ESLint 可执行文件。请在工程中安装 eslint 并配置 .eslintrc 后再运行 chipsdev-r lint。'
     );
   }
 
@@ -934,7 +934,7 @@ const handleE2E = async () => {
   }
 
   throw new Error(
-    '当前工程未定义 e2e 测试脚本。请在 package.json 中添加 "e2e" 脚本后再运行 chipsdev e2e。'
+    '当前工程未定义 e2e 测试脚本。请在 package.json 中添加 "e2e" 脚本后再运行 chipsdev-r e2e。'
   );
 };
 
@@ -1357,7 +1357,7 @@ const handlePackage = async () => {
   const hasOutDir = fs.existsSync(outDir) && fs.statSync(outDir).isDirectory();
   if (!hasOutDir) {
     throw new Error(
-      `未找到构建输出目录：${outDir}。请先运行 chipsdev build 再执行 chipsdev package。`
+      `未找到构建输出目录：${outDir}。请先运行 chipsdev-r build 再执行 chipsdev-r package。`
     );
   }
 
@@ -1766,7 +1766,7 @@ const handleValidate = async () => {
   const distExists = fs.existsSync(outDir) && fs.statSync(outDir).isDirectory();
 
   if (!distExists) {
-    errors.push(`构建输出目录不存在：${config.outDir}，请先运行 chipsdev build。`);
+    errors.push(`构建输出目录不存在：${config.outDir}，请先运行 chipsdev-r build。`);
   } else {
     const files = await fsp.readdir(outDir);
     if (files.length === 0) {
@@ -1793,7 +1793,7 @@ const handleValidate = async () => {
 
   if (!result.ok) {
     logError(result);
-    throw new Error('chipsdev validate 发现问题，请根据 errors 列表修复。');
+    throw new Error('chipsdev-r validate 发现问题，请根据 errors 列表修复。');
   }
 
   log(result);
@@ -1980,71 +1980,10 @@ const runHostCliCommand = async (projectRoot, workspacePath, args, extraEnv = {}
   });
 };
 
-const loadRuntimePluginRecords = async (workspacePath) => {
-  return loadJsonFile(path.join(workspacePath, 'plugin-runtime.json'), []);
-};
-
-const hasEnabledThemePlugin = (records) =>
-  records.some(
-    (record) =>
-      record &&
-      typeof record === 'object' &&
-      record.enabled === true &&
-      record.manifest &&
-      record.manifest.type === 'theme'
-  );
-
-const ensureDevWorkspaceThemeBootstrap = async (projectRoot, workspacePath) => {
-  const records = await loadRuntimePluginRecords(workspacePath);
-  if (hasEnabledThemePlugin(records)) {
-    return;
-  }
-
-  const ecosystemRoot = resolveEcosystemRoot();
-  const defaultThemePackageDir = path.join(ecosystemRoot, 'ThemePack', 'Chips-default');
-  const defaultThemeManifestPath = path.join(ecosystemRoot, 'ThemePack', 'Chips-default', 'manifest.yaml');
-  await ensurePackageBuildArtifact(
-    defaultThemePackageDir,
-    path.join(defaultThemePackageDir, 'dist', 'theme.css'),
-    'Chips 默认主题包'
-  );
-  const defaultThemePluginId = 'theme.theme.chips-official-default-theme';
-  const defaultThemeId = 'chips-official.default-theme';
-  const hasDefaultThemeInstalled = records.some(
-    (record) =>
-      record &&
-      typeof record === 'object' &&
-      record.manifest &&
-      record.manifest.id === defaultThemePluginId
-  );
-
-  if (!hasDefaultThemeInstalled) {
-    await runHostCliCommand(projectRoot, workspacePath, ['plugin', 'install', defaultThemeManifestPath], {
-      CHIPS_WORKSPACE_KIND: 'dev'
-    });
-  }
-
-  await runHostCliCommand(projectRoot, workspacePath, ['plugin', 'enable', defaultThemePluginId], {
-    CHIPS_WORKSPACE_KIND: 'dev'
-  });
-
-  const config = await loadJsonFile(path.join(workspacePath, 'config.json'), {});
-  if (typeof config['ui.theme'] !== 'string' || config['ui.theme'].trim().length === 0) {
-    await runHostCliCommand(projectRoot, workspacePath, ['theme', 'apply', defaultThemeId], {
-      CHIPS_WORKSPACE_KIND: 'dev'
-    });
-  }
-};
-
 const delegateHostManagedCommand = async (command, args) => {
   const projectRoot = resolveProjectRoot();
   const workspacePath = await resolveDevWorkspace(projectRoot);
-  const requiresThemeBootstrap = new Set(['theme', 'run', 'open']);
-  const forwardedArgs = command === 'completion' ? [command, ...args, 'chipsdev'] : [command, ...args];
-
-  if (requiresThemeBootstrap.has(command)) {
-    await ensureDevWorkspaceThemeBootstrap(projectRoot, workspacePath);
-  }
+  const forwardedArgs = command === 'completion' ? [command, ...args, 'chipsdev-r'] : [command, ...args];
 
   await runHostCliCommand(projectRoot, workspacePath, forwardedArgs, {
     CHIPS_WORKSPACE_KIND: 'dev'
@@ -2244,7 +2183,7 @@ const parseCreateArgs = (args) => {
   }
 
   if (positionals.length > 2) {
-    throw new Error(`chipsdev create 参数过多：${positionals.slice(2).join(' ')}`);
+    throw new Error(`chipsdev-r create 参数过多：${positionals.slice(2).join(' ')}`);
   }
 
   const [type, targetDir = '.'] = positionals;
@@ -2256,7 +2195,7 @@ const handleCreate = async (args) => {
 
   const { type, targetDir, options: createOptions } = parseCreateArgs(args);
   if (!type) {
-    throw new Error('chipsdev create 需要指定类型，例如：chipsdev create app my-app');
+    throw new Error('chipsdev-r create 需要指定类型，例如：chipsdev-r create app my-app');
   }
 
   const ecosystemRoot = resolveEcosystemRoot();
@@ -2264,7 +2203,7 @@ const handleCreate = async (args) => {
 
   if (!fs.existsSync(scaffoldRoot) || !fs.statSync(scaffoldRoot).isDirectory()) {
     throw new Error(
-      `未找到 Chips-Scaffold 目录：${scaffoldRoot}。请在包含 Chips-Scaffold 的工作区内运行 chipsdev。`
+      `未找到 Chips-Scaffold 目录：${scaffoldRoot}。请在包含 Chips-Scaffold 的工作区内运行 chipsdev-r。`
     );
   }
 
@@ -2454,7 +2393,7 @@ const handleCreate = async (args) => {
 const getChipsdevConfigPath = () => {
   const home = process.env.HOME || process.env.USERPROFILE;
   if (!home) {
-    throw new Error('无法确定用户主目录，无法保存 chipsdev 配置。');
+    throw new Error('无法确定用户主目录，无法保存 chipsdev-r 配置。');
   }
   return path.join(home, '.chipsdev', 'config.json');
 };
@@ -2470,7 +2409,7 @@ const handleLogin = async () => {
 
   await saveJsonFile(configPath, next);
   log({
-    message: '已在本机记录 chipsdev 本地发布身份时间，可供后续正式发布系统读取。',
+    message: '已在本机记录 chipsdev-r 本地发布身份时间，可供后续正式发布系统读取。',
     configPath
   });
 };
@@ -2484,7 +2423,7 @@ const handlePublish = async () => {
   const distExists = fs.existsSync(outDir) && fs.statSync(outDir).isDirectory();
   if (!distExists) {
     throw new Error(
-      `未找到构建输出目录：${config.outDir}。请先运行 chipsdev build && chipsdev package。`
+      `未找到构建输出目录：${config.outDir}。请先运行 chipsdev-r build && chipsdev-r package。`
     );
   }
 
@@ -2495,7 +2434,7 @@ const handlePublish = async () => {
 
   if (cpkFiles.length === 0) {
     throw new Error(
-      `未找到 .cpk 包。请先运行 chipsdev package 生成插件包。`
+      `未找到 .cpk 包。请先运行 chipsdev-r package 生成插件包。`
     );
   }
 
@@ -2552,7 +2491,7 @@ const handlePreview = async (args) => {
   });
 
   await printReport(report, options, (payload) => [
-    `chipsdev preview：${payload.summary.status}`,
+    `chipsdev-r preview：${payload.summary.status}`,
     `项目：${payload.project.manifest?.id ?? payload.project.config?.type ?? projectRoot}`,
     `模式：${payload.previewPlan.mode}；目标：${payload.previewPlan.target}`,
     '检查：',
@@ -2561,42 +2500,23 @@ const handlePreview = async (args) => {
 };
 
 const handleComponentCommand = async (args) => {
-  const [subcommand, ...rest] = args;
+  const [subcommand] = args;
 
   if (!subcommand || subcommand === 'help') {
     log(
       [
-        'chipsdev component 用法：',
-        '  chipsdev component gallery [--json] [--out <file>]',
+        'chipsdev-r component 用法：',
+        '  chipsdev-r component gallery [--json] [--out <file>]',
         '',
         '说明：',
-        '  - 从组件库 theme-contracts 与 token 构建产物生成组件 part/state/token 矩阵；',
-        '  - 同步读取组件库最新 quality/perf 报告摘要；',
-        '  - 默认输出人读摘要，--json 输出完整机器可读报告。'
+        '  - 自研组件库已于 task030 卸担计划废弃（antd v6 + @chips/ui 替代）；',
+        '  - 本命令仅保留命令占位，不再生成组件矩阵报告。'
       ].join('\n')
     );
     return;
   }
 
-  if (subcommand !== 'gallery') {
-    throw new Error(`不支持的 component 子命令：${subcommand}`);
-  }
-
-  const options = parseReportOptions(rest);
-  const report = createComponentGalleryReport({
-    ecosystemRoot: resolveEcosystemRoot()
-  });
-
-  await printReport(report, options, (payload) => [
-    `chipsdev component gallery：${payload.summary.status}`,
-    `组件数量：${payload.summary.componentCount}`,
-    `状态矩阵单元：${payload.summary.stateCellCount}`,
-    `必需 token 覆盖率：${Math.round(payload.summary.requiredTokenCoverage * 10000) / 100}%`,
-    `缺失必需 token：${payload.summary.missingRequiredTokenCount}`,
-    `组件库质量报告：${payload.reports.qualityGateLatest?.status ?? 'missing'}`,
-    '检查：',
-    ...renderCheckLines(payload.checks)
-  ]);
+  log('组件库已废弃（task030 卸担计划），chipsdev-r component 不再可用。替代方案：antd v6 + @chips/ui。');
 };
 
 const handleThemeInspect = async (args) => {
@@ -2604,8 +2524,8 @@ const handleThemeInspect = async (args) => {
   if (!subcommand || subcommand === 'help') {
     log(
       [
-        'chipsdev theme inspect 用法：',
-        '  chipsdev theme inspect [--theme <themeId|path>] [--json] [--out <file>]',
+        'chipsdev-r theme inspect 用法：',
+        '  chipsdev-r theme inspect [--theme <themeId|path>] [--json] [--out <file>]',
         '',
         '说明：',
         '  - 读取主题包 manifest、entry、contracts、tokens 与 dist 产物；',
@@ -2631,7 +2551,7 @@ const handleThemeInspect = async (args) => {
   });
 
   await printReport(report, options, (payload) => [
-    `chipsdev theme inspect：${payload.summary.status}`,
+    `chipsdev-r theme inspect：${payload.summary.status}`,
     `主题数量：${payload.summary.themeCount}`,
     `失败主题：${payload.summary.failedThemes.length}`,
     '主题：',
@@ -2651,8 +2571,8 @@ const handleQualityCommand = async (args) => {
   if (!subcommand || subcommand === 'help') {
     log(
       [
-        'chipsdev quality 用法：',
-        '  chipsdev quality gate [--json] [--out <file>]',
+        'chipsdev-r quality 用法：',
+        '  chipsdev-r quality gate [--json] [--out <file>]',
         '',
         '说明：',
         '  - 汇总当前项目、SDK route manifest、组件库 quality/perf 最新报告和主题检查摘要；',
@@ -2673,7 +2593,7 @@ const handleQualityCommand = async (args) => {
   });
 
   await printReport(report, options, (payload) => [
-    `chipsdev quality gate：${payload.summary.status}`,
+    `chipsdev-r quality gate：${payload.summary.status}`,
     `失败检查：${payload.summary.failedCheckCount}`,
     `警告检查：${payload.summary.warningCheckCount}`,
     `组件库质量：${payload.reports.componentLibraryQuality?.status ?? 'missing'}`,
@@ -2689,9 +2609,9 @@ const handleAssimilateCommand = async (args) => {
   if (!subcommand || subcommand === 'help') {
     log(
       [
-        'chipsdev assimilate 用法：',
-        '  chipsdev assimilate scan <path> [--json] [--out <file>]',
-        '  chipsdev assimilate report <path> [--json] [--out <file>]',
+        'chipsdev-r assimilate 用法：',
+        '  chipsdev-r assimilate scan <path> [--json] [--out <file>]',
+        '  chipsdev-r assimilate report <path> [--json] [--out <file>]',
         '',
         '说明：',
         '  - 扫描 React/Vite/静态 Web/Electron 混合项目的 Host 能力、样式、文案和组件替换风险；',
@@ -2706,7 +2626,7 @@ const handleAssimilateCommand = async (args) => {
     throw new Error(`不支持的 assimilate 子命令：${subcommand}`);
   }
   if (!targetPath) {
-    throw new Error(`chipsdev assimilate ${subcommand} 需要提供项目路径。`);
+    throw new Error(`chipsdev-r assimilate ${subcommand} 需要提供项目路径。`);
   }
 
   const targetRoot = path.resolve(resolveProjectRoot(), targetPath);
@@ -2721,7 +2641,7 @@ const handleAssimilateCommand = async (args) => {
   });
 
   await printReport(report, options, (payload) => [
-    `chipsdev assimilate ${subcommand}：${payload.summary.status}`,
+    `chipsdev-r assimilate ${subcommand}：${payload.summary.status}`,
     `同化评分：${payload.summary.score}`,
     `框架识别：${payload.project.frameworks.length > 0 ? payload.project.frameworks.join(', ') : 'unknown'}`,
     `扫描文件：${payload.project.scannedFileCount}`,
@@ -2742,7 +2662,7 @@ const handleDiagnostics = async (args) => {
   });
 
   await printReport(report, options, (payload) => [
-    `chipsdev diagnostics：${payload.summary.status}`,
+    `chipsdev-r diagnostics：${payload.summary.status}`,
     `Route 数量：${payload.routes.routeCount}`,
     `权限数量：${payload.routes.permissions.length}`,
     `组件矩阵：${payload.summaries.componentGallery.status}`,
@@ -2792,7 +2712,7 @@ const main = async () => {
 
   if (command === 'version') {
     const version = await loadPackageJsonVersion();
-    log({ name: 'chipsdev', version });
+    log({ name: 'chipsdev-r', version });
     process.exitCode = 0;
     return;
   }
@@ -2845,7 +2765,7 @@ const main = async () => {
     } else {
       logError({
         error: `未处理的命令：${command}`,
-        hint: '使用 `chipsdev help` 查看可用命令'
+        hint: '使用 `chipsdev-r help` 查看可用命令'
       });
       process.exitCode = 1;
       return;
@@ -2868,7 +2788,7 @@ const handleRun = async () => {
 
   if (manifest.type !== 'app') {
     throw new Error(
-      `chipsdev run 当前仅支持应用插件 (manifest.type === "app")，当前类型为：${manifest.type}`
+      `chipsdev-r run 当前仅支持应用插件 (manifest.type === "app")，当前类型为：${manifest.type}`
     );
   }
 
@@ -2876,7 +2796,6 @@ const handleRun = async () => {
   await handleBuild();
 
   const workspacePath = await resolveDevWorkspace(projectRoot);
-  await ensureDevWorkspaceThemeBootstrap(projectRoot, workspacePath);
   const { ecosystemRoot, hostPackageDir } = await resolveHostCliPath(projectRoot);
   const hostRunnerPath = path.join(hostPackageDir, 'dist', 'src', 'main', 'electron', 'dev-run-app.js');
 
@@ -2965,14 +2884,14 @@ const parseModuleInvokeArgs = (args) => {
       continue;
     }
 
-    throw new Error(`chipsdev module invoke 不支持参数：${token}`);
+    throw new Error(`chipsdev-r module invoke 不支持参数：${token}`);
   }
 
   if (typeof options.capability !== 'string' || options.capability.trim().length === 0) {
-    throw new Error('chipsdev module invoke 需要 --capability。');
+    throw new Error('chipsdev-r module invoke 需要 --capability。');
   }
   if (typeof options.method !== 'string' || options.method.trim().length === 0) {
-    throw new Error('chipsdev module invoke 需要 --method。');
+    throw new Error('chipsdev-r module invoke 需要 --method。');
   }
 
   return {
@@ -3018,7 +2937,6 @@ const handleModuleInvoke = async (args) => {
   const projectRoot = resolveProjectRoot();
   const options = parseModuleInvokeArgs(args);
   const workspacePath = await resolveDevWorkspace(projectRoot);
-  await ensureDevWorkspaceThemeBootstrap(projectRoot, workspacePath);
 
   const manifestPath = await resolveModuleManifestForInvoke(projectRoot, options.manifestPath);
   const { ecosystemRoot, hostPackageDir } = await resolveHostCliPath(projectRoot);
@@ -3052,8 +2970,8 @@ const handleModuleCommand = async (args) => {
   if (!subcommand || subcommand === 'help') {
     log(
       [
-        'chipsdev module 用法：',
-        '  chipsdev module invoke --capability <capability> --method <method> [--input <json>] [--input-file <path>] [--manifest <manifest.yaml>] [--timeout-ms <ms>]',
+        'chipsdev-r module 用法：',
+        '  chipsdev-r module invoke --capability <capability> --method <method> [--input <json>] [--input-file <path>] [--manifest <manifest.yaml>] [--timeout-ms <ms>]',
         '',
         '说明：',
         '  - 在真实 Electron Host 中执行模块 capability/method 调用；',

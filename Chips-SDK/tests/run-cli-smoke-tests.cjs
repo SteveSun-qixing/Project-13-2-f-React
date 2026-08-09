@@ -17,7 +17,7 @@ const run = (args, cwd = projectRoot) =>
     child.on('error', reject);
     child.on('exit', (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`chipsdev ${args.join(' ')} exited with code ${code}`));
+      else reject(new Error(`chipsdev-r ${args.join(' ')} exited with code ${code}`));
     });
   });
 
@@ -42,7 +42,7 @@ const withWritableNpmCache = (env, cacheRoot) => ({
 });
 
 const main = async () => {
-  console.log('Running chipsdev CLI smoke tests...');
+  console.log('Running chipsdev-r CLI smoke tests...');
   await run(['help']);
   await run(['version']);
 
@@ -114,28 +114,28 @@ const main = async () => {
   try {
     await run(['build'], buildProject);
     if (!fs.existsSync(path.join(buildProject, 'dist', 'index.html'))) {
-      throw new Error('chipsdev build did not produce dist/index.html');
+      throw new Error('chipsdev-r build did not produce dist/index.html');
     }
     if (!fs.existsSync(path.join(buildProject, 'dist', 'assets'))) {
-      throw new Error('chipsdev build did not produce dist/assets');
+      throw new Error('chipsdev-r build did not produce dist/assets');
     }
     if (fs.existsSync(path.join(buildProject, 'dist', 'manifest.yaml'))) {
-      throw new Error('chipsdev build must not copy manifest.yaml into dist/');
+      throw new Error('chipsdev-r build must not copy manifest.yaml into dist/');
     }
     const builtHtml = fs.readFileSync(path.join(buildProject, 'dist', 'index.html'), 'utf8');
     if (!builtHtml.includes('./assets/')) {
-      throw new Error('chipsdev build must emit relative asset paths for app plugins');
+      throw new Error('chipsdev-r build must emit relative asset paths for app plugins');
     }
 
     const env = withWritableNpmCache(process.env, npmCache);
     await runBinary('npm', ['install'], tempProject, env);
-    await runBinary('chipsdev', ['help'], tempProject, env);
+    await runBinary('chipsdev-r', ['help'], tempProject, env);
   } finally {
     fs.rmSync(buildProject, { recursive: true, force: true });
     fs.rmSync(tempProject, { recursive: true, force: true });
   }
 
-  console.log('chipsdev CLI smoke tests completed.');
+  console.log('chipsdev-r CLI smoke tests completed.');
 };
 
 main().catch((error) => {

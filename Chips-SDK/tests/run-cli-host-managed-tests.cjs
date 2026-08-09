@@ -22,7 +22,7 @@ const run = (args, cwd, env = process.env) =>
         resolve();
         return;
       }
-      reject(new Error(`chipsdev ${args.join(' ')} exited with code ${code}`));
+      reject(new Error(`chipsdev-r ${args.join(' ')} exited with code ${code}`));
     });
   });
 
@@ -64,18 +64,8 @@ const runCommand = (command, args, cwd, env = process.env) =>
     });
   });
 
-const ensureThemePackage = async (themeDir, outputFile, env) => {
-  try {
-    await fs.access(outputFile);
-    return;
-  } catch {
-    await runCommand('npm', ['run', 'build'], themeDir, env);
-    await run(['package'], themeDir, env);
-  }
-};
-
 const main = async () => {
-  console.log('Running chipsdev host-managed command tests...');
+  console.log('Running chipsdev-r host-managed command tests...');
 
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'chipsdev-host-managed-'));
   const env = {
@@ -95,51 +85,22 @@ const main = async () => {
 
     const completionScript = await runCapture(['completion', 'bash'], projectRoot, env);
     assert.equal(completionScript.code, 0);
-    assert.match(completionScript.stdout, /chipsdev __complete/);
-    assert.match(completionScript.stdout, /complete -F _chipsdev_completion chipsdev/);
+    assert.match(completionScript.stdout, /chipsdev-r __complete/);
+    assert.match(completionScript.stdout, /complete -F _chipsdev_r_completion chipsdev-r/);
 
     const privateCompletion = await runCapture(['__complete', ''], projectRoot, env);
     assert.equal(privateCompletion.code, 0);
     assert.match(privateCompletion.stdout, /completion/);
 
-    await run(['theme', 'current'], projectRoot, env);
     await run(['status'], projectRoot, env);
-
-    const runtimeRecords = JSON.parse(await fs.readFile(path.join(workspace, 'plugin-runtime.json'), 'utf-8'));
-    assert.equal(
-      runtimeRecords.some((record) => record.manifest?.id === 'theme.theme.chips-official-default-theme' && record.enabled === true),
-      true
-    );
 
     await run(['config', 'set', 'chipsdev.mode', 'isolated'], projectRoot, env);
     const config = JSON.parse(await fs.readFile(path.join(workspace, 'config.json'), 'utf-8'));
     assert.equal(config['chipsdev.mode'], 'isolated');
 
-    await run(['theme', 'current'], projectRoot, env);
-
-    const darkThemeManifestPath = path.join(
-      ecosystemRoot,
-      'ThemePack',
-      'Chips-theme-default-dark',
-      'dist',
-      'theme.theme.chips-official-default-dark-theme-1.0.0.cpk'
-    );
-    await ensureThemePackage(
-      path.join(ecosystemRoot, 'ThemePack', 'Chips-theme-default-dark'),
-      darkThemeManifestPath,
-      env
-    );
-    await run(['plugin', 'install', darkThemeManifestPath], projectRoot, env);
-    await run(['plugin', 'enable', 'theme.theme.chips-official-default-dark-theme'], projectRoot, env);
-    await run(['theme', 'apply', 'chips-official.default-dark-theme'], projectRoot, env);
-    await run(['theme', 'current'], projectRoot, env);
-
-    const nextConfig = JSON.parse(await fs.readFile(path.join(workspace, 'config.json'), 'utf-8'));
-    assert.equal(nextConfig['ui.theme'], 'chips-official.default-dark-theme');
-
     await run(['doctor'], projectRoot, env);
 
-    console.log('chipsdev host-managed command tests completed.');
+    console.log('chipsdev-r host-managed command tests completed.');
   } finally {
     await fs.rm(workspace, { recursive: true, force: true });
   }

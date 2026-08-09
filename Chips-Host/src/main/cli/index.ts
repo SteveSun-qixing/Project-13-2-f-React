@@ -75,7 +75,7 @@ interface CliCommandResolveResponse {
 }
 
 type CompletionShell = 'bash' | 'zsh' | 'fish';
-type CompletionCommandName = 'chips' | 'chipsdev';
+type CompletionCommandName = 'chips' | 'chipsdev-r' | 'chipsdev-r';
 
 interface ParsedGlobalOptions {
   json: boolean;
@@ -217,7 +217,7 @@ const normalizePluginSourcePath = (manifestPath: string): string => path.resolve
 
 const CLI_JOB_TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 const COMPLETION_SHELLS = new Set<CompletionShell>(['bash', 'zsh', 'fish']);
-const COMPLETION_COMMANDS = new Set<CompletionCommandName>(['chips', 'chipsdev']);
+const COMPLETION_COMMANDS = new Set<CompletionCommandName>(['chips', 'chipsdev-r', 'chipsdev-r']);
 const ELECTRON_APP_CLI_TIMEOUT_MS = 20_000;
 const ELECTRON_APP_CLI_TERMINATE_GRACE_MS = 1_000;
 
@@ -650,9 +650,9 @@ const resolveCompletionCandidates = async (
 };
 
 const renderCompletionScript = (shell: CompletionShell, commandName: CompletionCommandName = 'chips'): string => {
-  const functionName = commandName === 'chips' ? '_chips' : '_chipsdev';
-  const helperName = commandName === 'chips' ? '__chips_complete' : '__chipsdev_complete';
-  const bashFunctionName = commandName === 'chips' ? '_chips_completion' : '_chipsdev_completion';
+  const functionName = commandName === 'chips' ? '_chips' : commandName === 'chipsdev-r' ? '_chipsdev_r' : '_chipsdev';
+  const helperName = commandName === 'chips' ? '__chips_complete' : commandName === 'chipsdev-r' ? '__chipsdev_r_complete' : '__chipsdev_complete';
+  const bashFunctionName = commandName === 'chips' ? '_chips_completion' : commandName === 'chipsdev-r' ? '_chipsdev_r_completion' : '_chipsdev_completion';
   if (shell === 'fish') {
     return [
       `function ${helperName}`,
@@ -2454,7 +2454,7 @@ const runCliCommand = async (workspace: string, argv: string[]): Promise<number>
       }
       if (commandName && !COMPLETION_COMMANDS.has(commandName)) {
         print({
-          error: 'completion command name must be chips or chipsdev',
+          error: 'completion command name must be chips, chipsdev-r or chipsdev-r',
           supported: [...COMPLETION_COMMANDS]
         });
         return 2;

@@ -225,6 +225,12 @@ const bootThemeRuntime = (): void => {
     return;
   }
 
+  // 主题系统已废弃（task030 卸担计划）：插件不再消费主题 CSS。
+  // 无 theme.read 权限的插件（新体系插件均不声明）跳过主题注入，避免权限拒绝噪音。
+  if (!parsedBridgeContext.bridge.permissions?.includes('theme.read')) {
+    return;
+  }
+
   let refreshPromise: Promise<void> | null = null;
 
   const refresh = () => {

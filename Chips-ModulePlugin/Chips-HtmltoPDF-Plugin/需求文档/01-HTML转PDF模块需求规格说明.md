@@ -40,4 +40,4 @@
 - 参数变化能够影响 Host 打印请求并可测试
 - 上游 manifest、Host 导出诊断、输出冲突、覆盖提交、取消和清理路径均有测试覆盖
 - 错误路径具备单元测试覆盖，且 `test/build/validate` 全部通过
-- 打包产物能够通过 `chipsdev plugin install + plugin enable` 安装到开发工作区，并经 `module.invoke` 成功调用
+- 打包产物能够通过 `chipsdev-r plugin install + plugin enable` 安装到开发工作区，并经 `module.invoke` 成功调用

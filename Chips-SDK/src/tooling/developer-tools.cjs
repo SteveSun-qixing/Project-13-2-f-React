@@ -438,6 +438,30 @@ function loadComponentContracts(componentLibraryRoot) {
 
 function createComponentGalleryReport({ ecosystemRoot }) {
   const componentLibraryRoot = path.join(ecosystemRoot, "Chips-ComponentLibrary");
+  if (!fs.existsSync(componentLibraryRoot)) {
+    const archivedChecks = [
+      makeCheck("componentLibrary.exists", "skipped", {
+        path: componentLibraryRoot,
+        note: "自研组件库已于 task030 卸担计划废弃（antd v6 + @chips/ui 替代），本报告不再生成。"
+      })
+    ];
+    return {
+      ...createReportBase("chipsdev.component.gallery"),
+      input: { ecosystemRoot, componentLibraryRoot },
+      components: [],
+      reports: { qualityGateLatest: null, perfLatest: null },
+      summary: {
+        componentCount: 0,
+        stateCellCount: 0,
+        partCount: 0,
+        requiredTokenCount: 0,
+        missingRequiredTokenCount: 0,
+        requiredTokenCoverage: 1,
+        status: "skipped"
+      },
+      checks: archivedChecks
+    };
+  }
   const tokenPath = path.join(componentLibraryRoot, "packages", "tokens", "dist", "json", "tokens.json");
   const tokenTree = readJsonFile(tokenPath, null);
   const flatTokens = tokenTree ? flattenJsonLeaves(tokenTree) : {};
@@ -611,7 +635,7 @@ function createPreviewReport({ projectRoot, ecosystemRoot, mode = "mock", target
     makeCheck("manifest.surface", surfaceErrors.length === 0 ? "passed" : "failed", { errors: surfaceErrors }),
     makeCheck("manifest.entryAsset", entryPath && fs.existsSync(entryPath) ? "passed" : "warning", {
       path: entryPath,
-      note: "Build outputs may be absent before chipsdev build."
+      note: "Build outputs may be absent before chipsdev-r build."
     }),
     makeCheck("host.mock", fs.existsSync(path.join(ecosystemRoot, "Chips-SDK", "src", "testing", "index.ts")) ? "passed" : "failed", {
       entry: "chips-sdk/testing"
@@ -658,8 +682,8 @@ function createPreviewReport({ projectRoot, ecosystemRoot, mode = "mock", target
       realHost: {
         supported: true,
         commands: manifest?.type === "app"
-          ? ["chipsdev run"]
-          : ["chipsdev plugin install <package>", "chipsdev plugin enable <pluginId>"],
+          ? ["chipsdev-r run"]
+          : ["chipsdev-r plugin install <package>", "chipsdev-r plugin enable <pluginId>"],
         workspaceKind: "dev"
       },
       reportOnly: true
@@ -696,22 +720,26 @@ function createQualityGateReport({ projectRoot, ecosystemRoot }) {
     })
   ];
 
+  const componentLibraryExists = fs.existsSync(componentLibraryRoot);
   const ecosystemChecks = [
     makeCheck("sdk.routeManifest", fs.existsSync(routeManifestPath) ? "passed" : "failed", {
       path: routeManifestPath
     }),
-    makeCheck("componentLibrary.qualityGateLatest", latestQuality ? latestQuality.status ?? "warning" : "warning", {
+    makeCheck("componentLibrary.qualityGateLatest", componentLibraryExists ? (latestQuality ? latestQuality.status ?? "warning" : "warning") : "skipped", {
       path: latestQualityPath,
-      generatedAt: latestQuality?.generatedAt ?? null
+      generatedAt: latestQuality?.generatedAt ?? null,
+      note: componentLibraryExists ? undefined : "自研组件库已于 task030 卸担计划废弃（antd v6 + @chips/ui 替代）。"
     }),
-    makeCheck("componentLibrary.perfLatest", latestPerf?.summary?.passed === false ? "failed" : latestPerf ? "passed" : "warning", {
+    makeCheck("componentLibrary.perfLatest", componentLibraryExists ? (latestPerf?.summary?.passed === false ? "failed" : latestPerf ? "passed" : "warning") : "skipped", {
       path: latestPerfPath,
       generatedAt: latestPerf?.generatedAt ?? null,
-      summary: latestPerf?.summary ?? null
+      summary: latestPerf?.summary ?? null,
+      note: componentLibraryExists ? undefined : "自研组件库已于 task030 卸担计划废弃（antd v6 + @chips/ui 替代）。"
     }),
-    makeCheck("theme.inspect", themeReport.summary.status, {
+    makeCheck("theme.inspect", themeReport.summary.status === "failed" && themeReport.summary.themeCount === 0 ? "skipped" : themeReport.summary.status, {
       themeCount: themeReport.summary.themeCount,
-      failedThemes: themeReport.summary.failedThemes
+      failedThemes: themeReport.summary.failedThemes,
+      note: themeReport.summary.themeCount === 0 ? "主题系统已于 task030 卸担计划废弃（单一苹果主题，antd ConfigProvider）。" : undefined
     })
   ];
   const checks = projectChecks.concat(ecosystemChecks);
@@ -1029,7 +1057,7 @@ function createAssimilationScanReport({ targetRoot, reportLevel = "scan" }) {
         {
           order: 4,
           title: "Adopt component and quality gates",
-          actions: ["Replace native controls with Chips components", "Run chipsdev quality gate before packaging"]
+          actions: ["Replace native controls with Chips components", "Run chipsdev-r quality gate before packaging"]
         }
       ]
     : [];

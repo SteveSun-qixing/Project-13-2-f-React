@@ -59,7 +59,7 @@ const withWritableNpmCache = (env, cacheRoot) => ({
 });
 
 const main = async () => {
-  console.log('Running chipsdev create layout workspace integration tests...');
+  console.log('Running chipsdev-r create layout workspace integration tests...');
 
   const sandboxRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'chipsdev-create-layout-workspace-'));
   const workspaceEntries = [
@@ -92,10 +92,7 @@ const main = async () => {
           workspaces: [
             'Chips-*',
             'Chips-BaseCardPlugin/*',
-            'Chips-ComponentLibrary/packages/*',
-            'Chips-ComponentLibrary/packages/adapters/*',
-            'Chips-Scaffold/*',
-            'ThemePack/*'
+            'Chips-Scaffold/*'
           ],
           overrides: TEST_NPM_OVERRIDES
         },
@@ -155,7 +152,7 @@ const main = async () => {
     await run('npm', ['run', 'validate'], targetDir, env);
     await run('node', [cliPath, 'package'], targetDir, env);
 
-    console.log('chipsdev create layout workspace integration tests completed.');
+    console.log('chipsdev-r create layout workspace integration tests completed.');
   } finally {
     await fsp.rm(sandboxRoot, { recursive: true, force: true });
   }
