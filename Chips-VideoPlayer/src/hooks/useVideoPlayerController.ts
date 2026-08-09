@@ -1,17 +1,22 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type SyntheticEvent } from "react";
+import { useCallback, useMemo, useRef, type KeyboardEvent, type MutableRefObject, type SyntheticEvent } from "react";
 import {
-  PLAYBACK_RATES,
-  clampPlaybackTime,
-  clampVolume,
-  resolveMediaErrorKey,
   type VideoPlaybackOpenHints,
   type VideoTrackOption,
   type VideoDimensions,
 } from "../utils/video-player";
+import { writeVideoPlayerPreferences, type VideoPlayerPreferences } from "../utils/preferences";
+import { usePlaybackEngine, type PlaybackEngine, type PlaybackState } from "./usePlaybackEngine";
+import { readAudioTracks, readSubtitleTracks } from "./useTracks";
+import { isSurfaceFullscreen } from "./useFullscreen";
+import { useTracks, type TracksController } from "./useTracks";
+import { useFullscreen, type FullscreenController } from "./useFullscreen";
+import { useChromeVisibility, type ChromeVisibilityController, shouldAutoHideChrome } from "./useChromeVisibility";
+import { usePlayerKeyboard } from "./usePlayerKeyboard";
 
 interface UseVideoPlayerControllerOptions {
   sessionKey: string | null;
   playbackHints?: VideoPlaybackOpenHints;
+  preferences?: VideoPlayerPreferences;
 }
 
 export interface VideoPlayerSessionResetState {
@@ -48,16 +53,27 @@ export interface VideoPlayerController {
   errorKey: string | null;
   subtitleTracks: VideoTrackOption[];
   audioTracks: VideoTrackOption[];
+  isEnded: boolean;
+  chromeVisible: boolean;
+  loop: boolean;
+  toggleLoop: () => void;
   togglePlayback: () => Promise<void>;
   seekBy: (offsetSeconds: number) => void;
   seekTo: (nextTime: number) => void;
+  seekPreviewTo: (nextTime: number) => void;
+  commitSeek: (nextTime: number) => void;
   setVolumeLevel: (nextVolume: number) => void;
+  adjustVolume: (delta: number) => void;
   toggleMute: () => void;
   setPlaybackRate: (nextRate: number) => void;
   selectSubtitleTrack: (nextIndex: number | null) => void;
   selectAudioTrack: (nextIndex: number | null) => void;
   toggleFullscreen: () => Promise<void>;
   togglePictureInPicture: () => Promise<void>;
+  toggleChrome: () => void;
+  revealChrome: () => void;
+  scheduleChromeHide: (delayMs?: number) => void;
+  frameStep: (direction: "backward" | "forward") => void;
   handleKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
   handleLoadedMetadata: (event: SyntheticEvent<HTMLVideoElement>) => void;
   handleCanPlay: () => void;
@@ -72,51 +88,8 @@ export interface VideoPlayerController {
   handleError: () => void;
 }
 
-type PictureInPictureVideoElement = HTMLVideoElement & {
-  requestPictureInPicture?: () => Promise<unknown>;
-};
-
-type PictureInPictureDocument = Document & {
-  pictureInPictureEnabled?: boolean;
-  pictureInPictureElement?: Element | null;
-  exitPictureInPicture?: () => Promise<void>;
-};
-
-export interface TextTrackLike {
-  kind?: string;
-  label?: string;
-  language?: string;
-  mode?: string;
-}
-
-export interface TextTrackListLike {
-  length: number;
-  [index: number]: TextTrackLike | undefined;
-  addEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void;
-  removeEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void;
-}
-
-export interface AudioTrackLike {
-  id?: string;
-  kind?: string;
-  label?: string;
-  language?: string;
-  enabled?: boolean;
-}
-
-export interface AudioTrackListLike {
-  length: number;
-  [index: number]: AudioTrackLike | undefined;
-  addEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void;
-  removeEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void;
-}
-
-type VideoElementWithAudioTracks = HTMLVideoElement & {
-  audioTracks?: AudioTrackListLike;
-};
-
 export function resolveInitialRate(): number {
-  return PLAYBACK_RATES.includes(1) ? 1 : PLAYBACK_RATES[0] ?? 1;
+  return 1;
 }
 
 export function createVideoPlayerSessionResetState(): VideoPlayerSessionResetState {
@@ -132,541 +105,191 @@ export function createVideoPlayerSessionResetState(): VideoPlayerSessionResetSta
     isPictureInPicture: false,
     subtitleTracks: [],
     audioTracks: [],
-    playbackRate: resolveInitialRate(),
+    playbackRate: 1,
   };
 }
 
-export function isSubtitleTextTrack(track: TextTrackLike): boolean {
-  return track.kind === "subtitles" || track.kind === "captions";
+export interface KeyboardActionHandlers {
+  openKeyHelp: () => void;
 }
 
-export function readSubtitleTracks(video: { textTracks: TextTrackListLike }): VideoTrackOption[] {
-  const { textTracks } = video;
-  const subtitleTracks: VideoTrackOption[] = [];
-
-  for (let index = 0; index < textTracks.length; index += 1) {
-    const track = textTracks[index];
-    if (!track || !isSubtitleTextTrack(track)) {
-      continue;
-    }
-
-    subtitleTracks.push({
-      index,
-      label: track.label?.trim() ?? "",
-      language: track.language?.trim() ?? "",
-      kind: track.kind?.trim() ?? "",
-      selected: track.mode === "showing",
-    });
-  }
-
-  return subtitleTracks;
-}
-
-export function readAudioTracks(video: { audioTracks?: AudioTrackListLike }): VideoTrackOption[] {
-  const audioTracks = video.audioTracks;
-  if (!audioTracks) {
-    return [];
-  }
-
-  const resolvedTracks: VideoTrackOption[] = [];
-  for (let index = 0; index < audioTracks.length; index += 1) {
-    const track = audioTracks[index];
-    if (!track) {
-      continue;
-    }
-
-    resolvedTracks.push({
-      index,
-      label: track.label?.trim() ?? "",
-      language: track.language?.trim() ?? "",
-      kind: track.kind?.trim() ?? "",
-      selected: track.enabled === true,
-    });
-  }
-
-  return resolvedTracks;
-}
-
-export function isSurfaceFullscreen(
-  fullscreenElement: Element | null | undefined,
-  surface: Element | null | undefined,
-): boolean {
-  return Boolean(surface && fullscreenElement === surface);
-}
-
-export function useVideoPlayerController(options: UseVideoPlayerControllerOptions): VideoPlayerController {
-  const { playbackHints, sessionKey } = options;
+export function useVideoPlayerController(
+  options: UseVideoPlayerControllerOptions,
+  keyboardActions?: KeyboardActionHandlers,
+): VideoPlayerController {
+  const { playbackHints, preferences, sessionKey } = options;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(0.85);
-  const [playbackRate, setPlaybackRateState] = useState(resolveInitialRate);
-  const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [bufferedUntil, setBufferedUntil] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isPictureInPicture, setIsPictureInPicture] = useState(false);
-  const [videoSize, setVideoSize] = useState<VideoDimensions | null>(null);
-  const [errorKey, setErrorKey] = useState<string | null>(null);
-  const [subtitleTracks, setSubtitleTracks] = useState<VideoTrackOption[]>([]);
-  const [audioTracks, setAudioTracks] = useState<VideoTrackOption[]>([]);
 
-  const canUsePictureInPicture =
-    typeof document !== "undefined" &&
-    (document as PictureInPictureDocument).pictureInPictureEnabled === true;
+  const playback = usePlaybackEngine({ sessionKey, hints: playbackHints, preferences, videoRef });
+  const tracks = useTracks({ videoRef, sessionKey });
+  const fullscreen = useFullscreen({ surfaceRef, videoRef, sessionKey });
+  const chrome = useChromeVisibility({
+    state: {
+      hasVideo: Boolean(videoRef.current?.src),
+      isPlaying: playback.state.isPlaying,
+      isMorePanelOpen: false,
+      isDragActive: false,
+      hasOverlay: false,
+    },
+  });
 
-  function syncProgressState(video: HTMLVideoElement): void {
-    setCurrentTime(Number.isFinite(video.currentTime) ? video.currentTime : 0);
-    setDuration(Number.isFinite(video.duration) ? video.duration : 0);
-
-    if (video.buffered.length > 0) {
-      setBufferedUntil(video.buffered.end(video.buffered.length - 1));
-      return;
-    }
-
-    setBufferedUntil(0);
-  }
-
-function syncTrackState(video: HTMLVideoElement | null): void {
-    if (!video) {
-      setSubtitleTracks([]);
-      setAudioTracks([]);
-      return;
-    }
-
-    setSubtitleTracks(readSubtitleTracks(video));
-    setAudioTracks(readAudioTracks(video as VideoElementWithAudioTracks));
-  }
-
-  async function togglePlayback(): Promise<void> {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    if (video.paused) {
-      setErrorKey(null);
-      try {
-        await video.play();
-      } catch {
-        setErrorKey(resolveMediaErrorKey(video.error));
-      }
-      return;
-    }
-
-    video.pause();
-  }
-
-  function seekTo(nextTime: number): void {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    const targetTime = clampPlaybackTime(nextTime, video.duration);
-    video.currentTime = targetTime;
-    syncProgressState(video);
-  }
-
-  function seekBy(offsetSeconds: number): void {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    seekTo(video.currentTime + offsetSeconds);
-  }
-
-  function setVolumeLevel(nextVolume: number): void {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    const normalized = clampVolume(nextVolume);
-    video.volume = normalized;
-    video.muted = normalized === 0 ? true : false;
-    setVolume(normalized);
-    setIsMuted(video.muted);
-  }
-
-  function toggleMute(): void {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    video.muted = !video.muted;
-    setIsMuted(video.muted);
-  }
-
-  function setPlaybackRate(nextRate: number): void {
-    const video = videoRef.current;
-    const normalized = PLAYBACK_RATES.includes(nextRate) ? nextRate : resolveInitialRate();
-    if (video) {
-      video.playbackRate = normalized;
-    }
-    setPlaybackRateState(normalized);
-  }
-
-  function selectSubtitleTrack(nextIndex: number | null): void {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    for (let index = 0; index < video.textTracks.length; index += 1) {
-      const track = video.textTracks[index];
-      if (!track || !isSubtitleTextTrack(track)) {
-        continue;
-      }
-
-      track.mode = nextIndex === index ? "showing" : "disabled";
-    }
-
-    syncTrackState(video);
-  }
-
-  function selectAudioTrack(nextIndex: number | null): void {
-    const video = videoRef.current as VideoElementWithAudioTracks | null;
-    const trackList = video?.audioTracks;
-    if (!video || !trackList) {
-      return;
-    }
-
-    for (let index = 0; index < trackList.length; index += 1) {
-      const track = trackList[index];
-      if (!track) {
-        continue;
-      }
-
-      track.enabled = nextIndex === null ? index === 0 : index === nextIndex;
-    }
-
-    syncTrackState(video);
-  }
-
-  async function toggleFullscreen(): Promise<void> {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const surface = surfaceRef.current;
-    if (!surface || typeof surface.requestFullscreen !== "function") {
-      return;
-    }
-
-    if (document.fullscreenElement === surface) {
-      if (typeof document.exitFullscreen === "function") {
-        await document.exitFullscreen();
-      }
-      return;
-    }
-
-    await surface.requestFullscreen();
-  }
-
-  async function togglePictureInPicture(): Promise<void> {
-    if (typeof document === "undefined" || !canUsePictureInPicture) {
-      return;
-    }
-
-    const doc = document as PictureInPictureDocument;
-    const video = videoRef.current as PictureInPictureVideoElement | null;
-    if (!video || typeof video.requestPictureInPicture !== "function") {
-      return;
-    }
-
-    if (doc.pictureInPictureElement === video) {
-      await doc.exitPictureInPicture?.();
-      return;
-    }
-
-    await video.requestPictureInPicture();
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLElement>): void {
-    const target = event.target as HTMLElement | null;
-    if (target && target.closest("input, textarea, select")) {
-      return;
-    }
-
-    switch (event.key) {
-      case " ":
-      case "k":
-      case "K":
-        event.preventDefault();
-        void togglePlayback();
-        break;
-      case "ArrowLeft":
-        event.preventDefault();
-        seekBy(-5);
-        break;
-      case "ArrowRight":
-        event.preventDefault();
-        seekBy(5);
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        setVolumeLevel(volume + 0.05);
-        break;
-      case "ArrowDown":
-        event.preventDefault();
-        setVolumeLevel(volume - 0.05);
-        break;
-      case "f":
-      case "F":
-        event.preventDefault();
-        void toggleFullscreen();
-        break;
-      case "m":
-      case "M":
-        event.preventDefault();
-        toggleMute();
-        break;
-      default:
-        break;
-    }
-  }
-
-  function handleLoadedMetadata(event: SyntheticEvent<HTMLVideoElement>): void {
-    const video = event.currentTarget;
-    setVideoSize({
-      width: video.videoWidth,
-      height: video.videoHeight,
-    });
-    syncProgressState(video);
-    syncTrackState(video);
-  }
-
-  function handleCanPlay(): void {
-    syncTrackState(videoRef.current);
-    setIsReady(true);
-    setIsBuffering(false);
-    setErrorKey(null);
-  }
-
-  function handlePlaying(): void {
-    setIsReady(true);
-    setIsPlaying(true);
-    setIsBuffering(false);
-    setErrorKey(null);
-  }
-
-  function handlePause(): void {
-    setIsPlaying(false);
-    setIsBuffering(false);
-  }
-
-  function handleWaiting(): void {
-    setIsBuffering(true);
-  }
-
-  function handleEnded(): void {
-    setIsPlaying(false);
-    setIsBuffering(false);
-  }
-
-  function handleTimeUpdate(): void {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-    syncProgressState(video);
-  }
-
-  function handleDurationChange(): void {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-    setDuration(Number.isFinite(video.duration) ? video.duration : 0);
-  }
-
-  function handleProgress(): void {
-    const video = videoRef.current;
-    if (!video || video.buffered.length === 0) {
-      setBufferedUntil(0);
-      return;
-    }
-    setBufferedUntil(video.buffered.end(video.buffered.length - 1));
-  }
-
-  function handleVolumeChange(): void {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    setVolume(clampVolume(video.volume));
-    setIsMuted(video.muted);
-  }
-
-  function handleError(): void {
-    const video = videoRef.current;
-    setIsReady(false);
-    setIsPlaying(false);
-    setIsBuffering(false);
-    setErrorKey(resolveMediaErrorKey(video?.error ?? null));
-  }
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    const nextVolume = playbackHints?.muted ? 0 : 0.85;
-    const nextPlaybackRate = playbackHints?.playbackRate ?? resolveInitialRate();
-    video.volume = nextVolume;
-    video.playbackRate = nextPlaybackRate;
-    video.muted = playbackHints?.muted === true;
-    video.loop = playbackHints?.loop === true;
-    if (playbackHints && playbackHints.startTime > 0) {
-      video.currentTime = playbackHints.startTime;
-    }
-    setVolume(nextVolume);
-    setIsMuted(video.muted);
-    setPlaybackRateState(nextPlaybackRate);
-    setCurrentTime(Number.isFinite(video.currentTime) ? video.currentTime : 0);
-    if (playbackHints?.autoplay) {
-      void video.play().catch(() => undefined);
-    }
-  }, [playbackHints, sessionKey]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video) {
-      video.pause();
-    }
-
-    const resetState = createVideoPlayerSessionResetState();
-    setIsReady(resetState.isReady);
-    setIsPlaying(resetState.isPlaying);
-    setIsBuffering(resetState.isBuffering);
-    setDuration(resetState.duration);
-    setCurrentTime(resetState.currentTime);
-    setBufferedUntil(resetState.bufferedUntil);
-    setVideoSize(resetState.videoSize);
-    setErrorKey(resetState.errorKey);
-    setIsPictureInPicture(resetState.isPictureInPicture);
-    setSubtitleTracks(resetState.subtitleTracks);
-    setAudioTracks(resetState.audioTracks);
-    setPlaybackRateState(resetState.playbackRate);
-  }, [sessionKey]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const handleFullscreenChange = () => {
-      const surface = surfaceRef.current;
-      setIsFullscreen(isSurfaceFullscreen(document.fullscreenElement, surface));
-    };
-
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
+  const persistPreferences = useCallback((patch: Partial<VideoPlayerPreferences>): void => {
+    writeVideoPlayerPreferences(patch);
   }, []);
 
-  useEffect(() => {
-    const video = videoRef.current as PictureInPictureVideoElement | null;
-    if (!video) {
-      return;
-    }
+  const wrappedSetVolumeLevel = useCallback(
+    (nextVolume: number): void => {
+      playback.setVolumeLevel(nextVolume);
+      persistPreferences({ volume: nextVolume, muted: nextVolume === 0 });
+    },
+    [persistPreferences, playback],
+  );
 
-    const handleEnterPictureInPicture = () => {
-      setIsPictureInPicture(true);
+  const wrappedToggleMute = useCallback((): void => {
+    playback.toggleMute();
+    persistPreferences({ muted: !playback.state.isMuted });
+  }, [persistPreferences, playback]);
+
+  const wrappedSetPlaybackRate = useCallback(
+    (nextRate: number): void => {
+      playback.setPlaybackRate(nextRate);
+      persistPreferences({ playbackRate: nextRate });
+    },
+    [persistPreferences, playback],
+  );
+
+  const wrappedToggleLoop = useCallback((): void => {
+    playback.toggleLoop();
+    persistPreferences({ loop: !playback.state.loop });
+  }, [persistPreferences, playback]);
+
+  const wrappedSelectSubtitleTrack = useCallback(
+    (nextIndex: number | null): void => {
+      tracks.selectSubtitleTrack(nextIndex);
+      persistPreferences({ subtitleIndex: nextIndex });
+    },
+    [persistPreferences, tracks],
+  );
+
+  const seekToFraction = useCallback(
+    (fraction: number): void => {
+      const video = videoRef.current;
+      if (!video) {
+        return;
+      }
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      if (duration <= 0) {
+        return;
+      }
+      playback.commitSeek(duration * Math.min(1, Math.max(0, fraction)));
+    },
+    [playback],
+  );
+
+  const frameStep = useCallback(
+    (direction: "backward" | "forward"): void => {
+      const video = videoRef.current;
+      if (!video) {
+        return;
+      }
+
+      if (!video.paused) {
+        video.pause();
+      }
+
+      const frameSeconds = 1 / 24;
+      playback.commitSeek(video.currentTime + (direction === "backward" ? -frameSeconds : frameSeconds));
+    },
+    [playback],
+  );
+
+  const handleKeyDown = usePlayerKeyboard({
+    togglePlayback: playback.togglePlayback,
+    seekBy: playback.seekBy,
+    seekToFraction,
+    adjustVolume: playback.setVolumeLevel,
+    toggleMute: playback.toggleMute,
+    toggleFullscreen: fullscreen.toggleFullscreen,
+    togglePictureInPicture: fullscreen.togglePictureInPicture,
+    openKeyHelp: keyboardActions?.openKeyHelp ?? (() => undefined),
+    toggleChrome: chrome.toggle,
+    frameStep,
+  });
+
+  const controller = useMemo<VideoPlayerController>(() => {
+    const state: PlaybackState = playback.state;
+    return {
+      surfaceRef,
+      videoRef,
+      isReady: state.isReady,
+      isPlaying: state.isPlaying,
+      isBuffering: state.isBuffering,
+      isMuted: state.isMuted,
+      volume: state.volume,
+      playbackRate: state.playbackRate,
+      duration: state.duration,
+      currentTime: state.currentTime,
+      bufferedUntil: state.bufferedUntil,
+      isFullscreen: fullscreen.isFullscreen,
+      isPictureInPicture: fullscreen.isPictureInPicture,
+      canUsePictureInPicture: fullscreen.canUsePictureInPicture,
+      videoSize: state.videoSize,
+      errorKey: state.errorKey,
+      subtitleTracks: tracks.subtitleTracks,
+      audioTracks: tracks.audioTracks,
+      isEnded: state.isEnded,
+      chromeVisible: chrome.visible,
+      loop: state.loop,
+      toggleLoop: wrappedToggleLoop,
+      togglePlayback: playback.togglePlayback,
+      seekBy: playback.seekBy,
+      seekTo: playback.commitSeek,
+      seekPreviewTo: playback.seekPreviewTo,
+      commitSeek: playback.commitSeek,
+      setVolumeLevel: wrappedSetVolumeLevel,
+      adjustVolume: wrappedSetVolumeLevel,
+      toggleMute: wrappedToggleMute,
+      setPlaybackRate: wrappedSetPlaybackRate,
+      selectSubtitleTrack: wrappedSelectSubtitleTrack,
+      selectAudioTrack: tracks.selectAudioTrack,
+      toggleFullscreen: fullscreen.toggleFullscreen,
+      togglePictureInPicture: fullscreen.togglePictureInPicture,
+      toggleChrome: chrome.toggle,
+      revealChrome: chrome.reveal,
+      scheduleChromeHide: chrome.scheduleHide,
+      frameStep,
+      handleKeyDown: handleKeyDown.handleKeyDown,
+      handleLoadedMetadata: playback.handleLoadedMetadata,
+      handleCanPlay: playback.handleCanPlay,
+      handlePlaying: playback.handlePlaying,
+      handlePause: playback.handlePause,
+      handleWaiting: playback.handleWaiting,
+      handleEnded: playback.handleEnded,
+      handleTimeUpdate: playback.handleTimeUpdate,
+      handleDurationChange: playback.handleDurationChange,
+      handleProgress: playback.handleProgress,
+      handleVolumeChange: playback.handleVolumeChange,
+      handleError: playback.handleError,
     };
-    const handleLeavePictureInPicture = () => {
-      setIsPictureInPicture(false);
-    };
-
-    video.addEventListener("enterpictureinpicture", handleEnterPictureInPicture as EventListener);
-    video.addEventListener("leavepictureinpicture", handleLeavePictureInPicture as EventListener);
-
-    return () => {
-      video.removeEventListener("enterpictureinpicture", handleEnterPictureInPicture as EventListener);
-      video.removeEventListener("leavepictureinpicture", handleLeavePictureInPicture as EventListener);
-    };
-  }, [sessionKey]);
-
-  useEffect(() => {
-    const video = videoRef.current as VideoElementWithAudioTracks | null;
-    if (!video) {
-      return;
-    }
-
-    const syncTracks = () => {
-      syncTrackState(video);
-    };
-
-    video.textTracks.addEventListener("addtrack", syncTracks as EventListener);
-    video.textTracks.addEventListener("removetrack", syncTracks as EventListener);
-    video.textTracks.addEventListener("change", syncTracks as EventListener);
-
-    const audioTrackList = video.audioTracks;
-    audioTrackList?.addEventListener?.("addtrack", syncTracks as EventListener);
-    audioTrackList?.addEventListener?.("removetrack", syncTracks as EventListener);
-    audioTrackList?.addEventListener?.("change", syncTracks as EventListener);
-
-    syncTrackState(video);
-
-    return () => {
-      video.textTracks.removeEventListener("addtrack", syncTracks as EventListener);
-      video.textTracks.removeEventListener("removetrack", syncTracks as EventListener);
-      video.textTracks.removeEventListener("change", syncTracks as EventListener);
-      audioTrackList?.removeEventListener?.("addtrack", syncTracks as EventListener);
-      audioTrackList?.removeEventListener?.("removetrack", syncTracks as EventListener);
-      audioTrackList?.removeEventListener?.("change", syncTracks as EventListener);
-    };
-  }, [sessionKey]);
-
-  return {
-    surfaceRef,
-    videoRef,
-    isReady,
-    isPlaying,
-    isBuffering,
-    isMuted,
-    volume,
-    playbackRate,
-    duration,
-    currentTime,
-    bufferedUntil,
-    isFullscreen,
-    isPictureInPicture,
-    canUsePictureInPicture,
-    videoSize,
-    errorKey,
-    subtitleTracks,
-    audioTracks,
-    togglePlayback,
-    seekBy,
-    seekTo,
-    setVolumeLevel,
-    toggleMute,
-    setPlaybackRate,
-    selectSubtitleTrack,
-    selectAudioTrack,
-    toggleFullscreen,
-    togglePictureInPicture,
+  }, [
+    chrome.reveal,
+    chrome.scheduleHide,
+    chrome.toggle,
+    chrome.visible,
+    frameStep,
+    fullscreen,
     handleKeyDown,
-    handleLoadedMetadata,
-    handleCanPlay,
-    handlePlaying,
-    handlePause,
-    handleWaiting,
-    handleEnded,
-    handleTimeUpdate,
-    handleDurationChange,
-    handleProgress,
-    handleVolumeChange,
-    handleError,
-  };
+    playback,
+    tracks,
+    wrappedSelectSubtitleTrack,
+    wrappedSetPlaybackRate,
+    wrappedSetVolumeLevel,
+    wrappedToggleLoop,
+    wrappedToggleMute,
+  ]);
+
+  return controller;
 }
+
+export { shouldAutoHideChrome, isSurfaceFullscreen, readAudioTracks, readSubtitleTracks };

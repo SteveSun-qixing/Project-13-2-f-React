@@ -1,26 +1,131 @@
+/* =========================================================
+   Chips-VideoPlayer 全局视觉体系
+   ---------------------------------------------------------
+   分层约定：
+   1. 基础色板（:root）   —— 与主题无关的原始设计 token
+   2. 语义变量（浅色）    —— dock / panel / osd / timeline 等
+   3. 语义变量（深色）    —— 由 .video-player-stage--fullscreen 切换
+   4. 元素样式            —— 只引用语义变量，禁止散落硬编码
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   1. 基础色板（全局共享的设计 token）
+   --------------------------------------------------------- */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --video-player-bg: #000;
-  --video-player-surface-token: var(--chips-sys-color-surface, #121212);
-  --video-player-on-surface-token: var(--chips-sys-color-on-surface, #ffffff);
-  --video-player-shadow-token: var(--chips-sys-color-shadow, #000000);
-  --video-player-panel: color-mix(in srgb, var(--video-player-surface-token) 92%, transparent);
-  --video-player-panel-border: color-mix(in srgb, var(--video-player-on-surface-token) 10%, transparent);
-  --video-player-panel-soft: color-mix(in srgb, var(--video-player-on-surface-token) 6%, transparent);
-  --video-player-panel-strong: color-mix(in srgb, var(--video-player-on-surface-token) 12%, transparent);
-  --video-player-text: color-mix(in srgb, var(--video-player-on-surface-token) 92%, transparent);
-  --video-player-text-soft: var(--chips-sys-color-on-surface-soft, color-mix(in srgb, var(--video-player-on-surface-token) 58%, transparent));
-  --video-player-accent: var(--chips-sys-color-primary, var(--video-player-on-surface-token));
-  --video-player-danger: var(--chips-sys-color-error, #ff9a9a);
-  --video-player-success: var(--chips-sys-color-success, #8ce0a6);
-  --video-player-shadow: 0 18px 48px color-mix(in srgb, var(--video-player-shadow-token) 38%, transparent);
-  --video-player-radius-sm: var(--chips-base-radius-sm, var(--chips-ref-radius-sm, 10px));
-  --video-player-radius-md: var(--chips-base-radius-md, var(--chips-ref-radius-md, 14px));
-  --video-player-radius-lg: var(--chips-ref-radius-lg, 20px);
-  --video-player-transition-fast: var(--chips-motion-duration-fast, 150ms) var(--chips-motion-easing-standard, ease-out);
-  --video-player-transition-normal: var(--chips-motion-duration-normal, 220ms) var(--chips-motion-easing-standard, ease-out);
-  --video-player-focus-outline: var(--chips-comp-button-focus-outline, var(--video-player-accent));
+  --video-player-surface: #ffffff;
+  --video-player-canvas: #f5f5f7;
+  --video-player-on-surface: #1d1d1f;
+  --video-player-text-soft: #6e6e73;
+  --video-player-text-faint: #86868b;
+  --video-player-border: rgba(0, 0, 0, 0.08);
+  --video-player-primary: #0a84ff;
+  --video-player-danger: #ff3b30;
+  --video-player-success: #34c759;
+  --video-player-radius-sm: 8px;
+  --video-player-radius-md: 10px;
+  --video-player-radius-lg: 12px;
+  --video-player-shadow: 0 2px 6px rgba(0, 0, 0, 0.1), 0 16px 40px rgba(0, 0, 0, 0.2);
+  --video-player-transition-fast: 150ms ease-out;
+  --video-player-transition-normal: 220ms ease-out;
 }
+
+/* ---------------------------------------------------------
+   2. 语义变量 · 浅色（窗口内）
+   --------------------------------------------------------- */
+:root {
+  /* dock：底部控制栏 */
+  --dock-bg: rgba(255, 255, 255, 0.72);
+  --dock-fg: #1d1d1f;
+  --dock-border: rgba(0, 0, 0, 0.1);
+  --dock-hover-bg: rgba(0, 0, 0, 0.05);
+  --dock-active-bg: rgba(0, 0, 0, 0.12);
+
+  /* panel：侧栏 / 音量浮层 / 卡片 / 反馈条 */
+  --panel-bg: rgba(255, 255, 255, 0.92);
+  --panel-fg: #1d1d1f;
+  --panel-fg-soft: #6e6e73;
+  --panel-border: rgba(0, 0, 0, 0.1);
+  --panel-fill-soft: rgba(0, 0, 0, 0.05);
+  --panel-fill-strong: rgba(0, 0, 0, 0.12);
+  --panel-accent: #0a84ff;
+
+  /* osd：居中操作反馈（由 OSD 组件消费，见 Osd.css） */
+  --osd-bg: rgba(255, 255, 255, 0.85);
+  --osd-fg: #1d1d1f;
+  --osd-accent: #0a84ff;
+
+  /* timeline：时间轴与音量滑块（antd Slider 覆写） */
+  --timeline-buffer: rgba(0, 0, 0, 0.12);
+  --timeline-progress: #0a84ff;
+  --timeline-thumb: #ffffff;
+
+  /* 图标按钮 */
+  --icon-button-hover: rgba(0, 0, 0, 0.08);
+  --icon-button-active: rgba(0, 0, 0, 0.12);
+
+  /* 菜单：轨道菜单 / 浮层菜单项（后续任务消费） */
+  --menu-hover-bg: rgba(0, 0, 0, 0.05);
+  --menu-selected-bg: rgba(10, 132, 255, 0.12);
+  --menu-selected-fg: #0a84ff;
+
+  /* titlebar：播放中顶部信息条（后续任务消费） */
+  --titlebar-bg: rgba(255, 255, 255, 0.65);
+  --titlebar-fg: #1d1d1f;
+  --titlebar-fg-soft: #6e6e73;
+  --titlebar-border: rgba(0, 0, 0, 0.08);
+
+  /* ended：播放结束覆盖层（后续任务消费） */
+  --ended-overlay-bg: rgba(0, 0, 0, 0.32);
+}
+
+/* ---------------------------------------------------------
+   3. 语义变量 · 深色（全屏态，由 Stage 的 fullscreen 类切换）
+   --------------------------------------------------------- */
+.video-player-stage--fullscreen {
+  color-scheme: dark;
+
+  --dock-bg: rgba(18, 18, 20, 0.6);
+  --dock-fg: #ffffff;
+  --dock-border: rgba(255, 255, 255, 0.14);
+  --dock-hover-bg: rgba(255, 255, 255, 0.12);
+  --dock-active-bg: rgba(255, 255, 255, 0.2);
+
+  --panel-bg: rgba(24, 24, 28, 0.9);
+  --panel-fg: #ffffff;
+  --panel-fg-soft: rgba(255, 255, 255, 0.72);
+  --panel-border: rgba(255, 255, 255, 0.14);
+  --panel-fill-soft: rgba(255, 255, 255, 0.08);
+  --panel-fill-strong: rgba(255, 255, 255, 0.16);
+  --panel-accent: #0a84ff;
+
+  --osd-bg: rgba(24, 24, 28, 0.85);
+  --osd-fg: #ffffff;
+  --osd-accent: #0a84ff;
+
+  --timeline-buffer: rgba(255, 255, 255, 0.25);
+  --timeline-progress: rgba(255, 255, 255, 0.85);
+  --timeline-thumb: #ffffff;
+
+  --icon-button-hover: rgba(255, 255, 255, 0.14);
+  --icon-button-active: rgba(255, 255, 255, 0.22);
+
+  --menu-hover-bg: rgba(255, 255, 255, 0.1);
+  --menu-selected-bg: rgba(10, 132, 255, 0.32);
+  --menu-selected-fg: #4da3ff;
+
+  --titlebar-bg: rgba(18, 18, 20, 0.6);
+  --titlebar-fg: #ffffff;
+  --titlebar-fg-soft: rgba(255, 255, 255, 0.72);
+  --titlebar-border: rgba(255, 255, 255, 0.12);
+
+  --ended-overlay-bg: rgba(0, 0, 0, 0.5);
+}
+
+/* ---------------------------------------------------------
+   4. 元素样式
+   --------------------------------------------------------- */
 
 * {
   box-sizing: border-box;
@@ -43,7 +148,6 @@ body {
   position: fixed;
   inset: 0;
   background: var(--video-player-bg);
-  color: var(--video-player-text);
 }
 
 body {
@@ -66,10 +170,6 @@ input:disabled {
   cursor: not-allowed;
 }
 
-input[type="range"] {
-  accent-color: var(--video-player-accent);
-}
-
 .video-player-shell,
 .video-player-stage {
   position: absolute;
@@ -81,6 +181,8 @@ input[type="range"] {
   background: var(--video-player-bg);
   outline: none;
 }
+
+/* ---- 拖拽覆盖层 ---- */
 
 .video-player-stage--drag-active .video-player-viewport::after {
   opacity: 1;
@@ -96,7 +198,7 @@ input[type="range"] {
   content: "";
   position: absolute;
   inset: 16px;
-  border: 1px dashed color-mix(in srgb, var(--video-player-on-surface-token) 18%, transparent);
+  border: 1px dashed rgba(255, 255, 255, 0.28);
   border-radius: var(--video-player-radius-lg);
   opacity: 0;
   pointer-events: none;
@@ -109,37 +211,66 @@ input[type="range"] {
   display: block;
   object-fit: contain;
   background: var(--video-player-bg);
+  opacity: 0.001;
+  transition: opacity 300ms ease-out;
 }
 
-.video-player-empty {
+.video-player-media--ready {
+  opacity: 1;
+}
+
+/* ---- 空态 ---- */
+
+.video-player-empty.ant-btn {
   position: absolute;
   inset: 0;
+  width: auto;
+  height: auto;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   padding: 24px;
   border: 0;
+  border-radius: 0;
   background: transparent;
-  color: color-mix(in srgb, var(--video-player-on-surface-token) 86%, transparent);
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 400;
   transition: color var(--video-player-transition-fast);
 }
 
-.video-player-empty:hover {
-  color: var(--video-player-on-surface-token);
+.video-player-empty.ant-btn:hover,
+.video-player-empty.ant-btn:focus-visible {
+  color: #ffffff;
+  background: transparent;
 }
 
 .video-player-empty__icon {
-  width: 24px;
-  height: 24px;
+  width: 64px;
+  height: 64px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 28px;
+  line-height: 1;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(20px);
+  transition: transform var(--video-player-transition-normal), background var(--video-player-transition-fast);
 }
 
-.video-player-empty__icon svg {
-  width: 100%;
-  height: 100%;
+.video-player-empty.ant-btn:hover .video-player-empty__icon,
+.video-player-empty.ant-btn:focus-visible .video-player-empty__icon {
+  transform: scale(1.06);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.video-player-stage--drag-active .video-player-empty__icon {
+  transform: scale(1.1);
 }
 
 .video-player-empty__text {
@@ -147,6 +278,8 @@ input[type="range"] {
   line-height: 1;
   letter-spacing: 0.01em;
 }
+
+/* ---- 覆盖层卡片（加载 / 错误） ---- */
 
 .video-player-overlay {
   position: absolute;
@@ -156,27 +289,30 @@ input[type="range"] {
   padding: 24px;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--video-player-bg) 8%, transparent),
-    color-mix(in srgb, var(--video-player-bg) 42%, transparent)
+    rgba(0, 0, 0, 0.08),
+    rgba(0, 0, 0, 0.42)
   );
   pointer-events: none;
 }
 
 .video-player-overlay__card {
   max-width: min(420px, calc(100vw - 48px));
-  padding: 12px 16px;
-  border: 1px solid var(--video-player-panel-border);
+  padding: 16px 20px;
+  border: 1px solid var(--panel-border);
   border-radius: var(--video-player-radius-md);
-  background: color-mix(in srgb, var(--video-player-surface-token) 88%, transparent);
-  color: var(--video-player-text);
+  background: var(--panel-bg);
+  color: var(--panel-fg);
   text-align: center;
   line-height: 1.6;
   box-shadow: var(--video-player-shadow);
+  backdrop-filter: blur(20px);
 }
 
 .video-player-overlay__card--error {
   color: var(--video-player-danger);
 }
+
+/* ---- 反馈条 ---- */
 
 .video-player-feedback {
   position: absolute;
@@ -186,11 +322,13 @@ input[type="range"] {
   transform: translateX(-50%);
   max-width: min(calc(100vw - 48px), 720px);
   padding: 10px 14px;
+  border: 1px solid var(--panel-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--video-player-surface-token) 90%, transparent);
-  color: var(--video-player-text);
+  background: var(--panel-bg);
+  color: var(--panel-fg);
   font-size: 12px;
   box-shadow: var(--video-player-shadow);
+  backdrop-filter: blur(20px);
 }
 
 .video-player-feedback--error {
@@ -200,6 +338,8 @@ input[type="range"] {
 .video-player-feedback--success {
   color: var(--video-player-success);
 }
+
+/* ---- 侧栏（更多面板） ---- */
 
 .video-player-side-panel {
   position: absolute;
@@ -212,39 +352,46 @@ input[type="range"] {
   max-height: calc(100vh - 150px);
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--video-player-panel-border);
+  border: 1px solid var(--panel-border);
   border-radius: var(--video-player-radius-lg);
-  background: var(--video-player-panel);
+  background: var(--panel-bg);
   box-shadow: var(--video-player-shadow);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(20px);
   overflow: hidden;
 }
 
-.video-player-side-panel__tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 8px;
-  gap: 6px;
-  border-bottom: 1px solid var(--video-player-panel-soft);
+.video-player-side-panel__tabs.ant-tabs {
+  flex: 0 0 auto;
+  color: var(--panel-fg);
 }
 
-.video-player-side-panel__tab {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--video-player-radius-sm);
-  background: transparent;
-  color: var(--video-player-text-soft);
+.video-player-side-panel__tabs .ant-tabs-nav {
+  margin: 0;
+  padding: 8px 8px 0;
 }
 
-.video-player-side-panel__tab:hover {
-  color: var(--video-player-text);
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 4%, transparent);
+.video-player-side-panel__tabs .ant-tabs-nav::before {
+  border-bottom-color: var(--panel-border);
 }
 
-.video-player-side-panel__tab--active {
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 8%, transparent);
-  color: var(--video-player-text);
+.video-player-side-panel__tabs .ant-tabs-tab {
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.video-player-side-panel__tabs .ant-tabs-tab-btn {
+  color: var(--panel-fg-soft);
+  font-size: 13px;
+  transition: color var(--video-player-transition-fast);
+}
+
+.video-player-side-panel__tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--panel-fg);
+  font-weight: 500;
+}
+
+.video-player-side-panel__tabs .ant-tabs-ink-bar {
+  background: var(--panel-accent);
 }
 
 .video-player-side-panel__body {
@@ -262,7 +409,7 @@ input[type="range"] {
 }
 
 .video-player-side-panel__section-title {
-  color: var(--video-player-text-soft);
+  color: var(--panel-fg-soft);
   font-size: 12px;
 }
 
@@ -272,7 +419,7 @@ input[type="range"] {
   display: flex;
   align-items: center;
   padding: 24px 16px;
-  color: var(--video-player-text-soft);
+  color: var(--panel-fg-soft);
   line-height: 1.6;
   overflow-y: auto;
 }
@@ -286,35 +433,35 @@ input[type="range"] {
   overflow-y: auto;
 }
 
-.video-player-side-option {
+.video-player-side-option.ant-btn:not(.ant-btn-primary) {
+  color: var(--panel-fg);
+}
+
+.video-player-side-option.ant-btn {
   width: 100%;
+  height: auto;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 44px;
   padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: var(--video-player-radius-md);
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 3%, transparent);
-  color: var(--video-player-text);
+  font-weight: 400;
   text-align: left;
+  white-space: normal;
 }
 
-.video-player-side-option:hover {
-  border-color: var(--video-player-panel-border);
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 5%, transparent);
+.video-player-side-option.ant-btn > span:first-child {
+  flex: 1;
+  overflow-wrap: anywhere;
 }
 
-.video-player-side-option--active {
-  border-color: color-mix(in srgb, var(--video-player-on-surface-token) 16%, transparent);
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 9%, transparent);
-}
-
-.video-player-side-option small {
-  color: var(--video-player-text-soft);
+.video-player-side-option.ant-btn small {
+  color: var(--panel-fg-soft);
   font-size: 11px;
 }
+
+/* ---- 信息网格 ---- */
 
 .video-player-info-grid {
   display: grid;
@@ -327,16 +474,16 @@ input[type="range"] {
   gap: 6px;
   padding: 12px;
   border-radius: var(--video-player-radius-md);
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 3%, transparent);
+  background: var(--panel-fill-soft);
 }
 
 .video-player-info-grid__item span {
-  color: var(--video-player-text-soft);
+  color: var(--panel-fg-soft);
   font-size: 11px;
 }
 
 .video-player-info-grid__item strong {
-  color: var(--video-player-text);
+  color: var(--panel-fg);
   font-size: 13px;
   font-weight: 500;
   line-height: 1.5;
@@ -353,22 +500,53 @@ input[type="range"] {
   gap: 8px;
 }
 
-.video-player-chip-button {
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid transparent;
+.video-player-chip-button.ant-btn:not(.ant-btn-primary) {
+  color: var(--panel-fg);
+}
+
+.video-player-chip-button.ant-btn {
+  min-width: 48px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 4%, transparent);
-  color: var(--video-player-text);
+  font-weight: 500;
 }
 
-.video-player-chip-button:hover {
-  border-color: var(--video-player-panel-border);
+/* ---- dock（底部控制栏） ---- */
+
+.video-player-titlebar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--titlebar-bg, rgba(255, 255, 255, 0.65));
+  color: var(--titlebar-fg, #1d1d1f);
 }
 
-.video-player-chip-button--active {
-  border-color: color-mix(in srgb, var(--video-player-on-surface-token) 16%, transparent);
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 10%, transparent);
+.video-player-titlebar__title {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-player-titlebar__meta {
+  flex: 0 0 auto;
+  color: var(--titlebar-fg-soft, #6e6e73);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.video-player-context-menu .ant-menu {
+  min-width: 200px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+
+.video-player-context-menu .ant-menu-item {
+  border-radius: 6px;
 }
 
 .video-player-dock {
@@ -381,55 +559,49 @@ input[type="range"] {
   display: grid;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--video-player-panel-border);
+  border: 1px solid var(--dock-border);
   border-radius: var(--video-player-radius-lg);
-  background: var(--video-player-panel);
+  background: var(--dock-bg);
   box-shadow: var(--video-player-shadow);
-  backdrop-filter: blur(14px);
-  transition: opacity var(--video-player-transition-normal), transform var(--video-player-transition-normal);
+  backdrop-filter: blur(20px);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
 }
 
 .video-player-dock--hidden {
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-50%) translateY(18px);
+  transform: translateX(-50%) translateY(8px);
 }
 
-.video-player-timeline {
+.video-player-timeline.ant-slider {
   width: 100%;
   margin: 0;
-  appearance: none;
-  background: transparent;
+  padding: 6px 0;
 }
 
-.video-player-timeline::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 14%, transparent);
+/* antd Slider 覆写（时间轴 + 音量滑块，统一引用语义变量） */
+.video-player-dock .ant-slider .ant-slider-rail {
+  background-color: var(--timeline-buffer);
 }
 
-.video-player-timeline::-webkit-slider-thumb {
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: -4px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--video-player-accent);
+.video-player-dock .ant-slider:hover .ant-slider-rail {
+  background-color: var(--timeline-buffer);
 }
 
-.video-player-timeline::-moz-range-track {
-  height: 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 14%, transparent);
+.video-player-dock .ant-slider .ant-slider-track {
+  background-color: var(--timeline-progress);
 }
 
-.video-player-timeline::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--video-player-accent);
+.video-player-dock .ant-slider .ant-slider-handle::after {
+  background-color: var(--timeline-thumb);
+  box-shadow: 0 0 0 2px var(--timeline-progress);
+}
+
+.video-player-dock .ant-slider .ant-slider-handle:hover::after,
+.video-player-dock .ant-slider .ant-slider-handle:active::after,
+.video-player-dock .ant-slider .ant-slider-handle:focus::after {
+  box-shadow: 0 0 0 3px var(--timeline-progress);
+  outline: none;
 }
 
 .video-player-toolbar {
@@ -442,94 +614,42 @@ input[type="range"] {
   flex: 1;
 }
 
-.video-player-icon-button {
-  position: relative;
+/* ---- 图标按钮 ---- */
+
+.video-player-icon-button.ant-btn {
   width: 40px;
   height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 0;
   border-radius: var(--video-player-radius-sm);
-  background: transparent;
-  color: var(--video-player-text);
-  transition: background var(--video-player-transition-fast), color var(--video-player-transition-fast), opacity var(--video-player-transition-fast);
+  color: var(--dock-fg);
+  transition: background var(--video-player-transition-fast), color var(--video-player-transition-fast),
+    opacity var(--video-player-transition-fast);
 }
 
-.video-player-icon-button:hover:not(:disabled),
-.video-player-icon-button:focus-visible {
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 8%, transparent);
+.video-player-icon-button.ant-btn:hover {
+  background: var(--icon-button-hover);
 }
 
-.video-player-icon-button:focus-visible {
-  outline: var(--chips-layout-focus-outline-width, 2px) solid var(--video-player-focus-outline);
-  outline-offset: var(--chips-layout-focus-outline-offset, 2px);
+.video-player-icon-button.ant-btn:active {
+  background: var(--icon-button-active);
 }
 
-.video-player-icon-button--active {
-  background: color-mix(in srgb, var(--video-player-on-surface-token) 10%, transparent);
+.video-player-icon-button.ant-btn:focus-visible {
+  outline: 2px solid var(--video-player-primary);
+  outline-offset: 2px;
 }
 
-.video-player-icon-button:disabled {
+.video-player-icon-button--active.ant-btn {
+  background: var(--icon-button-active);
+}
+
+.video-player-icon-button.ant-btn:disabled {
   opacity: 0.34;
 }
 
-.video-player-icon-button::before,
-.video-player-icon-button::after {
-  position: absolute;
-  left: 50%;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 8px);
-  transition: opacity var(--video-player-transition-fast), transform var(--video-player-transition-fast);
-}
-
-.video-player-icon-button::before {
-  content: attr(data-tooltip);
-  bottom: calc(100% + 10px);
-  padding: 7px 10px;
-  border-radius: var(--video-player-radius-sm);
-  background: color-mix(in srgb, var(--video-player-surface-token) 96%, transparent);
-  color: var(--video-player-on-surface-token);
-  white-space: nowrap;
-  font-size: 12px;
-  line-height: 1;
-  box-shadow: 0 10px 26px color-mix(in srgb, var(--video-player-shadow-token) 28%, transparent);
-}
-
-.video-player-icon-button::after {
-  content: "";
-  bottom: calc(100% + 4px);
-  width: 8px;
-  height: 8px;
-  background: color-mix(in srgb, var(--video-player-surface-token) 96%, transparent);
-  transform: translate(-50%, 8px) rotate(45deg);
-}
-
-.video-player-icon-button:hover:not(:disabled)::before,
-.video-player-icon-button:focus-visible::before {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
-.video-player-icon-button:hover:not(:disabled)::after,
-.video-player-icon-button:focus-visible::after {
-  opacity: 1;
-  transform: translate(-50%, 0) rotate(45deg);
-}
-
-.video-player-icon-button__icon {
-  width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.video-player-icon-button__icon svg {
-  width: 100%;
-  height: 100%;
-}
+/* ---- 音量 ---- */
 
 .video-player-volume {
   position: relative;
@@ -545,10 +665,11 @@ input[type="range"] {
   align-items: center;
   justify-content: center;
   padding: 12px 10px;
-  border: 1px solid var(--video-player-panel-border);
+  border: 1px solid var(--panel-border);
   border-radius: var(--video-player-radius-md);
-  background: color-mix(in srgb, var(--video-player-surface-token) 96%, transparent);
+  background: var(--panel-bg);
   box-shadow: var(--video-player-shadow);
+  backdrop-filter: blur(20px);
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, 8px);
@@ -562,12 +683,42 @@ input[type="range"] {
   transform: translate(-50%, 0);
 }
 
-.video-player-volume__slider {
-  width: 112px;
+.video-player-volume__slider.ant-slider {
+  height: 112px;
   margin: 0;
-  transform: rotate(-90deg);
-  transform-origin: center;
 }
+
+/* ---------------------------------------------------------
+   5. 全屏深色态 · antd 组件覆写
+   （非 antd 部分已通过语义变量自动切换；
+     antd 组件文字色等不消费项目变量，需在此显式补齐。
+     全屏时 dock 内部还会由集成层包 ConfigProvider dark 主题，
+     两者叠加不冲突。）
+   --------------------------------------------------------- */
+
+.video-player-stage--fullscreen .video-player-dock .ant-btn:not(.ant-btn-primary) {
+  color: var(--dock-fg);
+}
+
+.video-player-stage--fullscreen .video-player-side-panel .ant-btn:not(.ant-btn-primary) {
+  color: var(--panel-fg);
+}
+
+.video-player-stage--fullscreen .video-player-side-panel__tabs .ant-tabs-tab-btn {
+  color: var(--panel-fg-soft);
+}
+
+.video-player-stage--fullscreen .video-player-side-panel__tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--panel-fg);
+}
+
+.video-player-stage--fullscreen .video-player-side-panel__tabs .ant-tabs-ink-bar {
+  background: var(--panel-accent);
+}
+
+/* ---------------------------------------------------------
+   6. 响应式
+   --------------------------------------------------------- */
 
 @media (max-width: 860px) {
   .video-player-side-panel {
@@ -608,7 +759,7 @@ input[type="range"] {
     gap: 4px;
   }
 
-  .video-player-icon-button {
+  .video-player-icon-button.ant-btn {
     width: 38px;
     height: 38px;
   }

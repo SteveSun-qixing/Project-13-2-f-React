@@ -1,87 +1,98 @@
 import { describe, expect, it } from "vitest";
 import {
-  VIDEO_PLAYER_COMMAND_HANDLER_IDS,
+  createVideoPlayerCommands,
   VIDEO_PLAYER_COMMAND_IDS,
-  createVideoPlayerCommandState,
-  createVideoPlayerCommandStatus,
-  createVideoPlayerCommandViews,
-  videoPlayerCommandDefinitions,
 } from "../../src/commands/video-player-commands";
+import { appConfig } from "../../config/app-config";
+
+const noopHandlers = {
+  openFile: () => undefined,
+  saveCopy: () => undefined,
+  togglePlayback: () => undefined,
+  seekBackward: () => undefined,
+  seekForward: () => undefined,
+  toggleMute: () => undefined,
+  toggleFullscreen: () => undefined,
+  togglePictureInPicture: () => undefined,
+  toggleMorePanel: () => undefined,
+};
+
+const noVideoState = {
+  hasVideo: false,
+  isSaving: false,
+  canUsePictureInPicture: false,
+};
+
+const readyState = {
+  hasVideo: true,
+  isSaving: false,
+  canUsePictureInPicture: true,
+};
 
 describe("video player commands", () => {
-  it("使用稳定命令 id、handlerId 和 i18n key 字段", () => {
-    expect(Object.values(VIDEO_PLAYER_COMMAND_IDS)).toHaveLength(videoPlayerCommandDefinitions.length);
-    expect(Object.values(VIDEO_PLAYER_COMMAND_HANDLER_IDS)).toHaveLength(videoPlayerCommandDefinitions.length);
+  it("uses stable app scoped command ids with Chinese titles", () => {
+    const commands = createVideoPlayerCommands(noopHandlers, noVideoState);
 
-    for (const definition of videoPlayerCommandDefinitions) {
-      expect(definition.commandId).toMatch(/^com\.chips\.video-player\./);
-      expect(definition.titleKey).toMatch(/^video-player\.commands\./);
-      expect(definition.handlerId).toMatch(/^video-player:/);
-      expect(definition).not.toHaveProperty("title");
-      expect(definition).not.toHaveProperty("description");
-      expect(definition).not.toHaveProperty("ariaLabel");
+    expect(commands.length).toBeGreaterThanOrEqual(9);
+
+    for (const command of commands) {
+      expect(command.id.startsWith(`${appConfig.appId}.`)).toBe(true);
+      expect(command.title.length).toBeGreaterThan(0);
+      expect(typeof command.run).toBe("function");
     }
   });
 
-  it("根据播放器运行态派生命令状态", () => {
-    const emptyState = {
-      hasVideo: false,
+  it("enables only open and more panel when no video is loaded", () => {
+    const commands = createVideoPlayerCommands(noopHandlers, noVideoState);
+
+    const open = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.openFile);
+    const save = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.saveCopy);
+    const togglePlayback = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.togglePlayback);
+    const seekBackward = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.seekBackward);
+    const seekForward = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.seekForward);
+    const toggleMute = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.toggleMute);
+    const toggleFullscreen = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.toggleFullscreen);
+    const togglePictureInPicture = commands.find(
+      (command) => command.id === VIDEO_PLAYER_COMMAND_IDS.togglePictureInPicture,
+    );
+    const toggleMorePanel = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.toggleMorePanel);
+
+    expect(open?.enabled).not.toBe(false);
+    expect(save?.enabled).toBe(false);
+    expect(togglePlayback?.enabled).toBe(false);
+    expect(seekBackward?.enabled).toBe(false);
+    expect(seekForward?.enabled).toBe(false);
+    expect(toggleMute?.enabled).toBe(false);
+    expect(toggleFullscreen?.enabled).toBe(false);
+    expect(togglePictureInPicture?.enabled).toBe(false);
+    expect(toggleMorePanel?.enabled).not.toBe(false);
+  });
+
+  it("projects runtime state into command enabled flags", () => {
+    const commands = createVideoPlayerCommands(noopHandlers, readyState);
+
+    const save = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.saveCopy);
+    const togglePlayback = commands.find((command) => command.id === VIDEO_PLAYER_COMMAND_IDS.togglePlayback);
+    const togglePictureInPicture = commands.find(
+      (command) => command.id === VIDEO_PLAYER_COMMAND_IDS.togglePictureInPicture,
+    );
+
+    expect(save?.enabled).toBe(true);
+    expect(togglePlayback?.enabled).toBe(true);
+    expect(togglePictureInPicture?.enabled).toBe(true);
+  });
+
+  it("keeps picture-in-picture disabled when the host does not support it", () => {
+    const commands = createVideoPlayerCommands(noopHandlers, {
+      hasVideo: true,
       isSaving: false,
       canUsePictureInPicture: false,
-      isPlaying: false,
-      isMuted: false,
-      isFullscreen: false,
-      isPictureInPicture: false,
-      isMorePanelOpen: false,
-    };
-
-    expect(createVideoPlayerCommandState(VIDEO_PLAYER_COMMAND_IDS.togglePlayback, emptyState).enabled).toBe(false);
-
-    const readyState = {
-      ...emptyState,
-      hasVideo: true,
-      canUsePictureInPicture: true,
-      isPlaying: true,
-      isMuted: true,
-      isFullscreen: true,
-      isPictureInPicture: true,
-      isMorePanelOpen: true,
-    };
-
-    expect(createVideoPlayerCommandState(VIDEO_PLAYER_COMMAND_IDS.togglePlayback, readyState).checked).toBe(true);
-    expect(createVideoPlayerCommandState(VIDEO_PLAYER_COMMAND_IDS.toggleMute, readyState).checked).toBe(true);
-    expect(createVideoPlayerCommandState(VIDEO_PLAYER_COMMAND_IDS.toggleFullscreen, readyState).checked).toBe(true);
-    expect(createVideoPlayerCommandState(VIDEO_PLAYER_COMMAND_IDS.togglePictureInPicture, readyState).checked).toBe(true);
-    expect(createVideoPlayerCommandState(VIDEO_PLAYER_COMMAND_IDS.toggleMorePanel, readyState).checked).toBe(true);
-    expect(createVideoPlayerCommandViews(readyState)).toHaveLength(videoPlayerCommandDefinitions.length);
-  });
-
-  it("只接收属于视频播放器的 command.invoked 事件", () => {
-    expect(
-      createVideoPlayerCommandStatus({
-        commandId: VIDEO_PLAYER_COMMAND_IDS.openFile,
-        invocationId: "invoke-1",
-        source: "toolbar",
-        command: videoPlayerCommandDefinitions[0] as never,
-        handlerId: VIDEO_PLAYER_COMMAND_HANDLER_IDS.openFile,
-        ownerPluginId: "com.chips.video-player",
-      }),
-    ).toMatchObject({
-      commandId: VIDEO_PLAYER_COMMAND_IDS.openFile,
-      handlerId: VIDEO_PLAYER_COMMAND_HANDLER_IDS.openFile,
-      source: "toolbar",
     });
 
-    expect(
-      createVideoPlayerCommandStatus({
-        commandId: VIDEO_PLAYER_COMMAND_IDS.openFile,
-        invocationId: "invoke-2",
-        source: "toolbar",
-        command: videoPlayerCommandDefinitions[0] as never,
-        handlerId: VIDEO_PLAYER_COMMAND_HANDLER_IDS.openFile,
-        ownerPluginId: "com.chips.other",
-      }),
-    ).toBeNull();
+    const togglePictureInPicture = commands.find(
+      (command) => command.id === VIDEO_PLAYER_COMMAND_IDS.togglePictureInPicture,
+    );
+
+    expect(togglePictureInPicture?.enabled).toBe(false);
   });
 });
-

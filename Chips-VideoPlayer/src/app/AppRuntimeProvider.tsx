@@ -1,27 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  useChipsDiagnostics,
-  useChipsI18n,
-  useChipsI18nText,
-  useChipsPermission,
-  useChipsSurface,
-  useChipsTheme,
-  type ChipsRuntimeDiagnostic,
-  type ChipsRuntimeStatus,
-} from "@chips/component-library";
-import type { Client, CommandInvocationContext, CommandSource, PlatformHostKind, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
+import type { Client, PlatformHostKind, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
 import { appConfig } from "../../config/app-config";
 import { createLogger } from "../../config/logging";
-import { VideoPlayerStage } from "../components/VideoPlayerStage";
-import {
-  VIDEO_PLAYER_COMMAND_HANDLER_IDS,
-  VIDEO_PLAYER_COMMAND_IDS,
-  type VideoPlayerCommandId,
-  type VideoPlayerCommandRuntimeState,
-} from "../commands/video-player-commands";
-import { useVideoPlayerCommands, type UseVideoPlayerCommandsResult } from "../commands/useVideoPlayerCommands";
-import { localeBundles, DEFAULT_LOCALE, FALLBACK_LOCALE } from "../i18n/locales";
-import { useVideoPlayerController } from "../hooks/useVideoPlayerController";
+import { useVideoPlayerController, type VideoPlayerController } from "../hooks/useVideoPlayerController";
+import { readVideoPlayerPreferences } from "../utils/preferences";
+import { formatMessage } from "../lib/messages";
 import { chipsClient, videoPlayerTraceId } from "../runtime/chips-client";
 import { readLaunchContext } from "../runtime/launch-context";
 import { resolveLaunchVideoTarget } from "../utils/launch-resource";
@@ -37,29 +20,6 @@ import {
   type ViewerFeedback,
 } from "../utils/video-player";
 import { getSceneDefinition, type VideoPlayerSceneDefinition, type VideoPlayerSceneId } from "./scene-registry";
-
-export type VideoPlayerRuntimePhase = "launching" | "active" | "error";
-
-export interface VideoPlayerRuntimePermissions {
-  values: string[];
-  canReadResource: boolean;
-  canWriteFile: boolean;
-  canReadPlatform: boolean;
-  canReadTheme: boolean;
-  canReadI18n: boolean;
-  canReadCommand: boolean;
-  canWriteCommand: boolean;
-  canInvokeCommand: boolean;
-}
-
-export interface VideoPlayerRuntimeStatus {
-  phase: VideoPlayerRuntimePhase;
-  theme: ChipsRuntimeStatus;
-  i18n: ChipsRuntimeStatus;
-  surface: ChipsRuntimeStatus;
-  diagnostics: ChipsRuntimeStatus;
-  ready: boolean;
-}
 
 export interface VideoPlayerRuntimeEnvironment {
   appId: string;
@@ -86,18 +46,15 @@ export interface VideoPlayerRuntimeValue {
   isSaving: boolean;
   hostKind: PlatformHostKind;
   isMorePanelOpen: boolean;
-  commands: UseVideoPlayerCommandsResult;
-  permissions: VideoPlayerRuntimePermissions;
-  diagnostics: ChipsRuntimeDiagnostic[];
-  status: VideoPlayerRuntimeStatus;
+  controller: VideoPlayerController;
   t: (key: string, params?: Record<string, string | number>) => string;
   openVideoTarget(target: LaunchVideoTarget): Promise<void>;
   openFile(): Promise<void>;
   saveVideo(): Promise<void>;
-  dropFile(file: File | null): Promise<void>;
+  dropFile(files: File[]): Promise<void>;
   setMorePanelOpen(open: boolean): void;
-  invokeCommand(commandId: VideoPlayerCommandId, source: CommandSource): Promise<void>;
-  renderPlayerStage(): React.ReactElement;
+  queueCount: number;
+  playNext(): Promise<void>;
 }
 
 const AppRuntimeContext = React.createContext<VideoPlayerRuntimeValue | null>(null);
@@ -146,22 +103,6 @@ function resolveDroppedFilePath(client: Client, file: File): string {
   return (file as File & { path?: string }).path ?? "";
 }
 
-function resolvePhase(
-  themeStatus: ChipsRuntimeStatus,
-  i18nStatus: ChipsRuntimeStatus,
-  surfaceStatus: ChipsRuntimeStatus,
-): VideoPlayerRuntimePhase {
-  if (themeStatus === "error" || i18nStatus === "error" || surfaceStatus === "error") {
-    return "error";
-  }
-
-  if (themeStatus === "loading" || i18nStatus === "loading" || surfaceStatus === "loading") {
-    return "launching";
-  }
-
-  return "active";
-}
-
 export interface AppRuntimeProviderProps {
   children: React.ReactNode;
 }
@@ -177,19 +118,8 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       }),
     [traceId],
   );
-  const theme = useChipsTheme();
-  const i18n = useChipsI18n();
-  const surfaceRuntime = useChipsSurface();
-  const permission = useChipsPermission();
-  const diagnostics = useChipsDiagnostics();
-  const t = useChipsI18nText({
-    bundles: localeBundles,
-    defaultLocale: DEFAULT_LOCALE,
-    fallbackLocale: FALLBACK_LOCALE,
-  });
-  const fallbackLaunchContext = useMemo(() => readLaunchContext(client), [client]);
-  const launchContext = (surfaceRuntime.launchContext as PlatformLaunchContext | null) ?? fallbackLaunchContext;
-  const surface = (surfaceRuntime.surface as SurfaceContext | null) ?? launchContext.surfaceContext ?? null;
+  const [launchContext, setLaunchContext] = useState<PlatformLaunchContext>(() => readLaunchContext(client));
+  const surface = launchContext.surfaceContext ?? null;
   const hostSceneId = resolveHostSceneId(launchContext, surface);
   const activeScene = getSceneDefinition(hostSceneId);
   const activeSceneId = activeScene.id;
@@ -200,22 +130,13 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   const [hostKind, setHostKind] = useState<PlatformHostKind>("desktop");
   const [isMorePanelOpen, setMorePanelOpen] = useState(false);
   const launchHandledRef = React.useRef(false);
+  const initialPreferencesRef = React.useRef(readVideoPlayerPreferences());
+  const [queue, setQueue] = useState<LaunchVideoTarget[]>([]);
   const controller = useVideoPlayerController({
     sessionKey: videoSource ? `${videoSource.sourceId}:${videoSource.revision}` : null,
     playbackHints: videoSource?.playbackHints,
+    preferences: initialPreferencesRef.current,
   });
-
-  const permissions = useMemo<VideoPlayerRuntimePermissions>(() => ({
-    values: permission.permissions,
-    canReadResource: permission.hasPermission("resource.read"),
-    canWriteFile: permission.hasPermission("file.write"),
-    canReadPlatform: permission.hasPermission("platform.read"),
-    canReadTheme: permission.hasPermission("theme.read"),
-    canReadI18n: permission.hasPermission("i18n.read"),
-    canReadCommand: permission.hasPermission("command.read"),
-    canWriteCommand: permission.hasPermission("command.write"),
-    canInvokeCommand: permission.hasPermission("command.invoke"),
-  }), [permission]);
 
   const environment = useMemo<VideoPlayerRuntimeEnvironment>(() => ({
     appId: appConfig.appId,
@@ -228,37 +149,12 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     launchParams: unwrapLaunchParams(launchContext, surface),
   }), [activeSceneId, hostSceneId, launchContext, surface]);
 
-  const commandInvocationContext = useMemo<CommandInvocationContext>(() => ({
-    pluginId: environment.pluginId,
-    sceneId: environment.hostSceneId,
-    surfaceId: environment.surfaceId ?? undefined,
-  }), [environment.hostSceneId, environment.pluginId, environment.surfaceId]);
-
-  const commandRuntimeState = useMemo<VideoPlayerCommandRuntimeState>(() => ({
-    hasVideo: Boolean(videoSource),
-    isSaving,
-    canUsePictureInPicture: controller.canUsePictureInPicture,
-    isPlaying: controller.isPlaying,
-    isMuted: controller.isMuted,
-    isFullscreen: controller.isFullscreen,
-    isPictureInPicture: controller.isPictureInPicture,
-    isMorePanelOpen,
-  }), [
-    controller.canUsePictureInPicture,
-    controller.isFullscreen,
-    controller.isMuted,
-    controller.isPictureInPicture,
-    controller.isPlaying,
-    isMorePanelOpen,
-    isSaving,
-    videoSource,
-  ]);
-
-  const commands = useVideoPlayerCommands({
-    client,
-    invocationContext: commandInvocationContext,
-    runtimeState: commandRuntimeState,
-  });
+  const text = useCallback(
+    (key: string, params?: Record<string, string | number>): string => {
+      return formatMessage(key, params);
+    },
+    [],
+  );
 
   const resolvePlayableUri = useCallback(async (target: LaunchVideoTarget): Promise<string> => {
     const preferredSourceId = target.filePath ?? target.sourceId;
@@ -274,7 +170,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     if (!target.sourceId.trim()) {
       setFeedback({
         tone: "error",
-        message: t("video-player.errors.missingPath"),
+        message: text("video-player.errors.missingPath"),
       });
       return;
     }
@@ -282,7 +178,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     if (!isSupportedVideoResource(target)) {
       setFeedback({
         tone: "error",
-        message: t("video-player.errors.unsupportedFile", {
+        message: text("video-player.errors.unsupportedFile", {
           extensions: SUPPORTED_VIDEO_EXTENSION_LABEL,
         }),
       });
@@ -320,17 +216,17 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       logger.error("打开视频失败", error);
       setFeedback({
         tone: "error",
-        message: resolveErrorMessage(error, t("video-player.errors.openFailed")),
+        message: resolveErrorMessage(error, text("video-player.errors.openFailed")),
       });
     } finally {
       setIsResolving(false);
     }
-  }, [logger, resolvePlayableUri, t]);
+  }, [logger, resolvePlayableUri, text]);
 
   const openFile = useCallback(async (): Promise<void> => {
     try {
       const selected = await client.platform.openFile({
-        title: t("video-player.dialogs.openFileTitle"),
+        title: text("video-player.dialogs.openFileTitle"),
         mode: "file",
         allowMultiple: false,
         mustExist: true,
@@ -347,16 +243,16 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       logger.error("调用系统文件选择器失败", error);
       setFeedback({
         tone: "error",
-        message: resolveErrorMessage(error, t("video-player.errors.openFailed")),
+        message: resolveErrorMessage(error, text("video-player.errors.openFailed")),
       });
     }
-  }, [client, logger, openVideoTarget, t]);
+  }, [client, logger, openVideoTarget, text]);
 
   const saveVideo = useCallback(async (): Promise<void> => {
     if (!videoSource) {
       setFeedback({
         tone: "error",
-        message: t("video-player.errors.missingPath"),
+        message: text("video-player.errors.missingPath"),
       });
       return;
     }
@@ -373,14 +269,14 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       link.remove();
       setFeedback({
         tone: "info",
-        message: t("video-player.status.downloadFallback"),
+        message: text("video-player.status.downloadFallback"),
       });
       return;
     }
 
     try {
       const destinationPath = await client.platform.saveFile({
-        title: t("video-player.dialogs.saveFileTitle"),
+        title: text("video-player.dialogs.saveFileTitle"),
         defaultPath: videoSource.filePath,
       });
 
@@ -391,7 +287,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       if (destinationPath === videoSource.filePath) {
         setFeedback({
           tone: "info",
-          message: t("video-player.status.samePath"),
+          message: text("video-player.status.samePath"),
         });
         return;
       }
@@ -409,7 +305,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       });
       setFeedback({
         tone: "success",
-        message: t("video-player.status.saveSuccess", {
+        message: text("video-player.status.saveSuccess", {
           path: destinationPath,
         }),
       });
@@ -417,40 +313,66 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       logger.error("保存视频失败", error);
       setFeedback({
         tone: "error",
-        message: resolveErrorMessage(error, t("video-player.errors.saveFailed")),
+        message: resolveErrorMessage(error, text("video-player.errors.saveFailed")),
       });
     } finally {
       setIsSaving(false);
     }
-  }, [client, hostKind, logger, t, videoSource]);
+  }, [client, hostKind, logger, text, videoSource]);
 
-  const dropFile = useCallback(async (file: File | null): Promise<void> => {
-    if (!file) {
-      return;
-    }
-
-    const filePath = resolveDroppedFilePath(client, file);
-    if (!filePath) {
-      setFeedback({
-        tone: "error",
-        message: t("video-player.errors.openFailed"),
-      });
-      return;
-    }
-
-    await openVideoTarget({
-      sourceId: filePath,
-      filePath,
-      fileName: resolveFileName(filePath),
+  const playNext = useCallback(async (): Promise<void> => {
+    setQueue((current) => {
+      if (current.length === 0) {
+        return current;
+      }
+      const [next, ...rest] = current;
+      if (next) {
+        void openVideoTarget(next);
+      }
+      return rest;
     });
-  }, [client, openVideoTarget, t]);
+  }, [openVideoTarget]);
 
-  const invokeCommand = useCallback(
-    async (commandId: VideoPlayerCommandId, source: CommandSource): Promise<void> => {
-      await commands.invokeCommand(commandId, source);
-    },
-    [commands],
-  );
+  const enqueueTargets = useCallback((targets: LaunchVideoTarget[]): void => {
+    if (targets.length === 0) {
+      return;
+    }
+    setQueue((current) => [...current, ...targets]);
+  }, []);
+
+  const dropFile = useCallback(async (files: File[]): Promise<void> => {
+    const validFiles = (files ?? []).filter((file) => file);
+    if (validFiles.length === 0) {
+      return;
+    }
+
+    const targets: LaunchVideoTarget[] = [];
+    for (const file of validFiles) {
+      const filePath = resolveDroppedFilePath(client, file);
+      if (!filePath) {
+        setFeedback({
+          tone: "error",
+          message: text("video-player.errors.openFailed"),
+        });
+        continue;
+      }
+      targets.push({
+        sourceId: filePath,
+        filePath,
+        fileName: resolveFileName(filePath),
+      });
+    }
+
+    if (targets.length === 0) {
+      return;
+    }
+
+    const [first, ...rest] = targets;
+    if (first) {
+      enqueueTargets(rest);
+      await openVideoTarget(first);
+    }
+  }, [client, openVideoTarget, text]);
 
   useEffect(() => {
     if (appConfig.featureFlags.enableDiagnosticsLogging) {
@@ -502,6 +424,13 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   }, [environment.launchParams, launchContext, logger, openVideoTarget]);
 
   useEffect(() => {
+    if (!controller.isEnded) {
+      return;
+    }
+    void playNext();
+  }, [controller.isEnded, playNext]);
+
+  useEffect(() => {
     if (!feedback || feedback.tone === "error") {
       return;
     }
@@ -514,63 +443,6 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
       window.clearTimeout(timeoutId);
     };
   }, [feedback]);
-
-  useEffect(() => {
-    const handlers = [
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.openFile, () => openFile()),
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.saveCopy, () => saveVideo()),
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.togglePlayback, () => controller.togglePlayback()),
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.seekBackward, () => controller.seekBy(-5)),
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.seekForward, () => controller.seekBy(5)),
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.toggleMute, () => controller.toggleMute()),
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.toggleFullscreen, () => controller.toggleFullscreen()),
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.togglePictureInPicture, () => controller.togglePictureInPicture()),
-      commands.registerHandler(VIDEO_PLAYER_COMMAND_HANDLER_IDS.toggleMorePanel, () => {
-        setMorePanelOpen((current) => !current);
-      }),
-    ];
-
-    return () => {
-      handlers.forEach((dispose) => dispose());
-    };
-  }, [commands, controller, openFile, saveVideo]);
-
-  const status = useMemo<VideoPlayerRuntimeStatus>(() => {
-    const phase = resolvePhase(theme.status, i18n.status, surfaceRuntime.status);
-    return {
-      phase,
-      theme: theme.status,
-      i18n: i18n.status,
-      surface: surfaceRuntime.status,
-      diagnostics: diagnostics.status,
-      ready: phase === "active",
-    };
-  }, [diagnostics.status, i18n.status, surfaceRuntime.status, theme.status]);
-
-  const renderPlayerStage = useCallback(() => (
-    <VideoPlayerStage
-      videoSource={videoSource}
-      controller={controller}
-      isResolving={isResolving}
-      isSaving={isSaving}
-      feedback={feedback}
-      isMorePanelOpen={isMorePanelOpen}
-      onMorePanelOpenChange={setMorePanelOpen}
-      onInvokeCommand={invokeCommand}
-      onDropFile={dropFile}
-      t={t}
-    />
-  ), [
-    controller,
-    dropFile,
-    feedback,
-    invokeCommand,
-    isMorePanelOpen,
-    isResolving,
-    isSaving,
-    t,
-    videoSource,
-  ]);
 
   const value = useMemo<VideoPlayerRuntimeValue>(() => ({
     client,
@@ -586,41 +458,35 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     isSaving,
     hostKind,
     isMorePanelOpen,
-    commands,
-    permissions,
-    diagnostics: diagnostics.diagnostics,
-    status,
-    t,
+    controller,
+    t: text,
     openVideoTarget,
     openFile,
     saveVideo,
     dropFile,
     setMorePanelOpen,
-    invokeCommand,
-    renderPlayerStage,
+    queueCount: queue.length,
+    playNext,
   }), [
     activeScene,
     activeSceneId,
     client,
-    commands,
-    diagnostics.diagnostics,
+    controller,
     dropFile,
     environment,
     feedback,
     hostKind,
-    invokeCommand,
     isMorePanelOpen,
     isResolving,
     isSaving,
     launchContext,
     openFile,
     openVideoTarget,
-    permissions,
-    renderPlayerStage,
+    playNext,
+    enqueueTargets,
     saveVideo,
-    status,
     surface,
-    t,
+    text,
     traceId,
     videoSource,
   ]);

@@ -1,0 +1,78 @@
+.video-player-osd {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+/* 深浅色通过 --osd-bg / --osd-fg 语义变量切换，默认浅色；深色态由集成方在父级覆盖，例如：
+   .video-player-stage--fullscreen .video-player-osd__card { --osd-bg: rgba(18, 18, 20, 0.6); --osd-fg: #ffffff; } */
+.video-player-osd__card {
+  --osd-bg: rgba(255, 255, 255, 0.78);
+  --osd-fg: #1d1d1f;
+  --osd-accent: var(--video-player-primary, #0a84ff);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  padding: 26px 40px 22px;
+  border-radius: 26px;
+  background: var(--osd-bg);
+  color: var(--osd-fg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 16px 40px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  animation: video-player-osd-enter 220ms ease-out both;
+}
+
+@keyframes video-player-osd-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.video-player-osd__icon {
+  font-size: 44px;
+  line-height: 1;
+  color: var(--osd-fg);
+}
+
+.video-player-osd__title {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.video-player-osd__subtitle {
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+  opacity: 0.72;
+}
+
+.video-player-osd__progress {
+  width: 180px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.video-player-osd__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--osd-accent);
+  transition: width var(--video-player-transition-fast, 150ms ease-out);
+}

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { App } from "../../src/App";
 import { AppRoot } from "../../src/app/AppRoot";
-import { AppProviders } from "../../src/app/AppProviders";
 import { AppRuntimeProvider } from "../../src/app/AppRuntimeProvider";
 import { AppShell } from "../../src/app/AppShell";
 
@@ -10,9 +9,8 @@ describe("App (视频播放器根组件)", () => {
     expect(App).toBeTypeOf("function");
   });
 
-  it("应当采用 AppRuntime / Providers / Shell 的 vNext 入口结构", () => {
+  it("应当采用 AppRuntime / AppRoot / Shell 的入口结构", () => {
     expect(App).toBe(AppRoot);
-    expect(AppProviders).toBeTypeOf("function");
     expect(AppRuntimeProvider).toBeTypeOf("function");
     expect(AppShell).toBeTypeOf("function");
   });

@@ -56,9 +56,9 @@ export interface VideoChromeVisibilityState {
   hasOverlay: boolean;
 }
 
-export const SUPPORTED_VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".m4v", ".ogv", ".ogg"];
+export const SUPPORTED_VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".m4v", ".ogv"];
 export const SUPPORTED_VIDEO_EXTENSION_LABEL = SUPPORTED_VIDEO_EXTENSIONS.join(" ");
-export const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2];
+export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 const DEFAULT_PLAYBACK_OPEN_HINTS: VideoPlaybackOpenHints = {
   autoplay: false,
@@ -74,7 +74,6 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   ".mov": "video/quicktime",
   ".m4v": "video/x-m4v",
   ".ogv": "video/ogg",
-  ".ogg": "video/ogg",
 };
 
 export function resolveExtension(value: string): string {
