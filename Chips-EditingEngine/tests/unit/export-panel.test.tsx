@@ -423,4 +423,42 @@ describe('ExportPanel', () => {
     expect(statFile).toHaveBeenCalledWith('/exports/story-board.card');
     expect(document.body.textContent).toContain('导出失败：导出目标文件未生成');
   });
+
+  it('hides conversion formats when their module providers are not installed', async () => {
+    moduleListProviders.mockResolvedValue([]);
+
+    await act(async () => {
+      root.render(<ExportPanel cardId="card-1" />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(document.body.querySelector('[data-testid="export-format-card"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="export-format-html"]')).toBeNull();
+    expect(document.body.querySelector('[data-testid="export-format-pdf"]')).toBeNull();
+    expect(document.body.querySelector('[data-testid="export-format-image"]')).toBeNull();
+  });
+
+  it('hides conversion formats when the availability check fails', async () => {
+    moduleListProviders.mockRejectedValue(new Error('bridge unavailable'));
+
+    await act(async () => {
+      root.render(<ExportPanel cardId="card-1" />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(document.body.querySelector('[data-testid="export-format-card"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="export-format-html"]')).toBeNull();
+    expect(document.body.querySelector('[data-testid="export-format-pdf"]')).toBeNull();
+    expect(document.body.querySelector('[data-testid="export-format-image"]')).toBeNull();
+  });
 });

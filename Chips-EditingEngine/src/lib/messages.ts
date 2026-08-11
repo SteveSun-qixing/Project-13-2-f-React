@@ -99,6 +99,19 @@ const MESSAGES: Record<string, string> = {
     'card_settings.export_output_missing': '导出目标文件未生成',
     'card_settings.export_unavailable': '当前导出格式尚未接入正式链路',
 
+    // Box Settings
+    'box_settings.export_box': '导出为 .box',
+    'box_settings.export_format': '导出格式',
+    'box_settings.export_start': '开始导出',
+    'box_settings.export_save_box': '保存 .box 文件',
+    'box_settings.export_saving_box_state': '正在保存箱子状态…',
+    'box_settings.export_create_package': '正在打包…',
+    'box_settings.export_verify_output': '正在校验导出文件…',
+    'box_settings.export_output_missing': '导出目标文件未生成',
+    'box_settings.export_done_with_path': '导出完成：{path}',
+    'box_settings.export_failed': '导出失败：{error}',
+    'box_settings.export_unknown_error': '未知错误',
+
     // Edit Panel
     'edit_panel.title': '属性编辑',
     'edit_panel.empty_hint': '请在左侧选择要编辑的内容',

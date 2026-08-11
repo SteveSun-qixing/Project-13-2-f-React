@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
 }
 
 .basic-info-panel__field {
@@ -27,6 +28,7 @@
 
 .basic-info-panel__tag-input {
   flex: 1;
+  min-width: 0;
 }
 
 .basic-info-panel__tag-add-btn {
@@ -51,7 +53,8 @@
 }
 
 .basic-info-panel__metadata-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(80px, auto) minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   font-size: 13px;
@@ -59,8 +62,6 @@
 
 .basic-info-panel__metadata-label {
   color: #6e6e73;
-  min-width: 80px;
-  flex-shrink: 0;
 }
 
 .basic-info-panel__metadata-value {
@@ -71,4 +72,24 @@
 .basic-info-panel__metadata-value--mono {
   font-family: 'SF Mono', Monaco, monospace;
   font-size: 12px;
+}
+
+@media (max-width: 480px) {
+  .basic-info-panel__tag-input-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .basic-info-panel__tag-add-btn {
+    width: 100%;
+  }
+
+  .basic-info-panel__metadata {
+    padding: 14px;
+  }
+
+  .basic-info-panel__metadata-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
 }

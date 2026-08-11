@@ -6,6 +6,7 @@ import { getChipsClient } from '../../../services/bridge-client';
 import { fileService } from '../../../services/file-service';
 import { ENGINE_ICONS } from '../../../icons/descriptors';
 import { RuntimeIcon } from '../../../icons/RuntimeIcon';
+import { buildDefaultExportPath, ensureFileExtension } from './export-utils';
 import './ExportPanel.css';
 
 interface ExportPanelProps {
@@ -28,88 +29,58 @@ const MODULE_JOB_POLL_INTERVAL_MS = 120;
 const CONVERSION_PROGRESS_OFFSET = 20;
 const CONVERSION_PROGRESS_SCALE = 0.8;
 
-function normalizePathForCompare(filePath: string): string {
-  return filePath.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
-}
-
-function getParentPath(filePath: string): string {
-  const normalized = normalizePathForCompare(filePath);
-  const lastSlashIndex = normalized.lastIndexOf('/');
-  if (lastSlashIndex < 0) {
-    return '';
-  }
-  return lastSlashIndex === 0 ? '/' : normalized.slice(0, lastSlashIndex);
-}
-
-function stripCardExtension(fileName: string): string {
-  return fileName.toLowerCase().endsWith('.card')
-    ? fileName.slice(0, -'.card'.length)
-    : fileName;
-}
-
-function sanitizeExportFileName(fileName: string): string {
-  return stripCardExtension(fileName)
-    .replace(/[\u0000-\u001f]/g, '')
-    .replace(/[<>:"/\\|?*]/g, '')
-    .trim();
-}
-
-function ensureCardExtension(filePath: string): string {
-  return filePath.toLowerCase().endsWith('.card')
-    ? filePath
-    : `${filePath}.card`;
-}
-
-function ensureFileExtension(filePath: string, extension: string): string {
-  return filePath.toLowerCase().endsWith(extension.toLowerCase())
-    ? filePath
-    : `${filePath}${extension}`;
-}
-
-function buildDefaultExportPath(
-  cardPath: string,
-  cardName: string | undefined,
-  cardId: string,
-  extension: string,
-): string {
-  const parentPath = getParentPath(cardPath);
-  const fallbackName = sanitizeExportFileName(cardName ?? '') || cardId || 'card-export';
-  const defaultPath = `${parentPath}/${fallbackName}${extension}`;
-
-  if (normalizePathForCompare(defaultPath) === normalizePathForCompare(cardPath)) {
-    return `${parentPath}/${fallbackName}-export${extension}`;
-  }
-
-  return defaultPath;
-}
-
 function buildSaveDialogOptions(
   format: ExportFormat,
   cardPath: string,
   cardName: string | undefined,
   cardId: string,
 ): PlatformDialogSaveOptions {
+  const fallbackName = cardId || 'card-export';
   switch (format) {
     case 'card':
       return {
         title: formatMessage('card_settings.export_save_card'),
-        defaultPath: buildDefaultExportPath(cardPath, cardName, cardId, '.card'),
+        defaultPath: buildDefaultExportPath({
+          sourcePath: cardPath,
+          displayName: cardName,
+          fallbackName,
+          sourceExtension: '.card',
+          targetExtension: '.card',
+        }),
       };
     case 'html':
       return {
         title: formatMessage('card_settings.export_save_html'),
-        defaultPath: buildDefaultExportPath(cardPath, cardName, cardId, '.zip'),
+        defaultPath: buildDefaultExportPath({
+          sourcePath: cardPath,
+          displayName: cardName,
+          fallbackName,
+          sourceExtension: '.card',
+          targetExtension: '.zip',
+        }),
       };
     case 'pdf':
       return {
         title: formatMessage('card_settings.export_save_pdf'),
-        defaultPath: buildDefaultExportPath(cardPath, cardName, cardId, '.pdf'),
+        defaultPath: buildDefaultExportPath({
+          sourcePath: cardPath,
+          displayName: cardName,
+          fallbackName,
+          sourceExtension: '.card',
+          targetExtension: '.pdf',
+        }),
       };
     case 'image':
     default:
       return {
         title: formatMessage('card_settings.export_save_image'),
-        defaultPath: buildDefaultExportPath(cardPath, cardName, cardId, '.png'),
+        defaultPath: buildDefaultExportPath({
+          sourcePath: cardPath,
+          displayName: cardName,
+          fallbackName,
+          sourceExtension: '.card',
+          targetExtension: '.png',
+        }),
       };
   }
 }
@@ -117,7 +88,7 @@ function buildSaveDialogOptions(
 function normalizeOutputPath(format: ExportFormat, outputPath: string): string {
   switch (format) {
     case 'card':
-      return ensureCardExtension(outputPath);
+      return ensureFileExtension(outputPath, '.card');
     case 'html':
       return ensureFileExtension(outputPath, '.zip');
     case 'pdf':
@@ -245,6 +216,7 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
     pdf: false,
     image: false,
   });
+  const [availabilityResolved, setAvailabilityResolved] = useState(false);
   const card = getCard(cardId);
 
   // Reset status when cardId changes
@@ -285,6 +257,7 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
           pdf: hasFileConverter && hasCardToHtml && hasHtmlToPdf,
           image: hasFileConverter && hasCardToHtml && hasHtmlToImage,
         });
+        setAvailabilityResolved(true);
       } catch (error) {
         if (disposed) {
           return;
@@ -297,6 +270,7 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
           pdf: false,
           image: false,
         });
+        setAvailabilityResolved(true);
       }
     };
 
@@ -337,6 +311,12 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
       available: exportAvailability.image,
     },
   ], [exportAvailability]);
+
+  // 能力动态检查完成后，只展示当前 Host 中已启用模块支持的格式；
+  // 检查未完成前只展示无需模块即可导出的 .card 格式。
+  const visibleFormats = availabilityResolved
+    ? exportFormats.filter((fmt) => fmt.available)
+    : exportFormats.filter((fmt) => fmt.key === 'card');
 
   const handleExport = async (format: ExportFormat) => {
     if (exportStatus === 'exporting') return;
@@ -478,16 +458,13 @@ export function ExportPanel({ cardId, onBeforeExport }: ExportPanelProps) {
           {formatMessage('card_settings.export_format')}
         </label>
         <div className="export-panel__grid">
-          {exportFormats.map(fmt => (
+          {visibleFormats.map(fmt => (
             <button
               key={fmt.key}
               type="button"
               className="export-panel__format-card"
               data-testid={`export-format-${fmt.key}`}
-              disabled={exportStatus === 'exporting' || fmt.available === false}
-              title={fmt.available === false
-                ? formatMessage('card_settings.export_unavailable')
-                : undefined}
+              disabled={exportStatus === 'exporting'}
               onClick={() => handleExport(fmt.key as ExportFormat)}
             >
               <span className="export-panel__format-icon" aria-hidden="true">

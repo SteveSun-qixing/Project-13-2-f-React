@@ -1,16 +1,14 @@
-/* ============================================================
- * 对话框容器（antd Modal 内容区）—— 固定尺寸（不随标签页内容变化）
- * ============================================================ */
-.card-settings-dialog-root {
-  max-width: 1080px;
+/* 卡片和箱子共享同一弹窗几何尺寸。内容只能在弹窗内部滚动。 */
+.card-settings-dialog-root .ant-modal {
+  max-width: calc(100vw - 32px);
+  padding-bottom: 0;
 }
 
-.card-settings-dialog-root .ant-modal-content {
+.card-settings-dialog-root .document-settings-dialog__container {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 85dvh;
-  max-height: calc(100dvh - 48px);
+  height: min(720px, calc(100dvh - 48px)) !important;
   box-sizing: border-box;
   padding: 0;
   overflow: hidden;
@@ -21,7 +19,7 @@
 /* ============================================================
  * 头部
  * ============================================================ */
-.card-settings-dialog-root .ant-modal-header {
+.card-settings-dialog-root .document-settings-dialog__header {
   flex-shrink: 0;
   margin: 0;
   padding: 16px 24px;
@@ -38,53 +36,40 @@
 /* ============================================================
  * 主体 - 顶部标签页 + 内容
  * ============================================================ */
-.card-settings-dialog-root .ant-modal-body {
+.card-settings-dialog-root .document-settings-dialog__body {
   flex: 1;
   min-height: 0;
   padding: 0;
   overflow: hidden;
 }
 
-.card-settings-dialog-root .ant-tabs {
+.document-settings-dialog__tabs {
   display: flex;
-  flex: 1;
+  height: 100%;
   min-height: 0;
+  min-width: 0;
   flex-direction: column;
   overflow: hidden;
 }
 
-.card-settings-dialog-root .ant-tabs-nav {
+.document-settings-dialog__tabs > .document-settings-dialog__tabs-header {
   flex-shrink: 0;
   margin: 0;
   padding: 12px 24px 0;
 }
 
-.card-settings-dialog-root .ant-tabs-body-holder {
-  display: flex;
-  flex-direction: column;
+.document-settings-dialog__tabs > .document-settings-dialog__tabs-body {
   flex: 1;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
 }
 
-.card-settings-dialog-root .ant-tabs-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.card-settings-dialog-root .ant-tabs-content {
+.document-settings-dialog__tabs > .document-settings-dialog__tabs-body > .ant-tabs-body {
   height: 100%;
 }
 
-.card-settings-dialog-root .ant-tabs-content-active {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
+.document-settings-dialog__tabs > .document-settings-dialog__tabs-body > .ant-tabs-body > .document-settings-dialog__tabs-content {
   height: 100%;
   min-height: 0;
   min-width: 0;
@@ -94,8 +79,12 @@
 /* 面板内容区内边距 */
 .card-settings-dialog__panel {
   height: 100%;
-  padding: 20px 24px;
+  min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 24px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .card-settings-dialog__panel--cover {
@@ -104,55 +93,44 @@
   overflow: hidden;
 }
 
-/* ============================================================
- * 底部按钮（共享：卡片/箱子设置）
- * ============================================================ */
-.card-settings-dialog-root .ant-modal-footer {
+.document-settings-dialog__form,
+.document-settings-dialog__content {
+  width: min(100%, 720px);
+  margin: 0 auto;
+}
+
+.document-settings-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.card-settings-dialog-root .document-settings-dialog__footer {
   flex-shrink: 0;
   margin: 0;
   padding: 14px 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.settings-dialog__secondary-btn {
-  height: 32px;
-  padding: 0 16px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1d1d1f;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease;
-}
+@media (max-width: 640px) {
+  .card-settings-dialog-root .ant-modal {
+    max-width: calc(100vw - 24px);
+  }
 
-.settings-dialog__secondary-btn:hover {
-  background: #f5f5f7;
-}
+  .card-settings-dialog-root .document-settings-dialog__container {
+    height: calc(100dvh - 24px) !important;
+  }
 
-.settings-dialog__primary-btn {
-  height: 32px;
-  padding: 0 16px;
-  border: none;
-  border-radius: 8px;
-  background: #0a84ff;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    opacity 120ms ease;
-}
+  .card-settings-dialog-root .document-settings-dialog__header,
+  .card-settings-dialog-root .document-settings-dialog__footer {
+    padding-inline: 16px;
+  }
 
-.settings-dialog__primary-btn:hover:not(:disabled) {
-  background: #3395ff;
-}
+  .document-settings-dialog__tabs > .document-settings-dialog__tabs-header {
+    padding-inline: 16px;
+  }
 
-.settings-dialog__primary-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  .card-settings-dialog__panel {
+    padding: 16px;
+  }
 }

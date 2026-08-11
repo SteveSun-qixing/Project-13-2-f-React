@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -256,7 +258,46 @@ describe('CardSettingsDialog', () => {
       );
     });
 
+    const modal = document.body.querySelector('.ant-modal') as HTMLElement | null;
+
     expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
-    expect(document.body.querySelector('.ant-modal')).not.toBeNull();
+    expect(modal).not.toBeNull();
+    expect(modal?.style.width).toBe('960px');
+    expect(modal?.querySelector('.document-settings-dialog__container')).not.toBeNull();
+    expect(document.body.querySelector('.document-settings-dialog__body')).not.toBeNull();
+    expect(document.body.querySelector('.document-settings-dialog__tabs-header')).not.toBeNull();
+    expect(document.body.querySelector('.document-settings-dialog__tabs-body')).not.toBeNull();
+    expect(document.body.querySelector('.document-settings-dialog__tabs-content')).not.toBeNull();
+    expect(document.body.querySelector('.document-settings-dialog__tabs')).not.toBeNull();
+
+    await act(async () => {
+      await clickTab('封面');
+    });
+
+    expect((document.body.querySelector('.ant-modal') as HTMLElement | null)?.style.width).toBe('960px');
+    expect(document.body.querySelector('.document-settings-dialog__container')).not.toBeNull();
+    expect(document.body.querySelector('.document-settings-dialog__tabs-content')).not.toBeNull();
+  });
+
+  it('binds the fixed responsive height and overflow chain to Ant Design semantic elements', () => {
+    const css = readFileSync(
+      path.resolve(process.cwd(), 'src/components/CardSettings/CardSettingsDialog.css'),
+      'utf8',
+    );
+
+    expect(css).toMatch(
+      /\.card-settings-dialog-root \.document-settings-dialog__container\s*{[^}]*height:\s*min\(720px,\s*calc\(100dvh - 48px\)\)\s*!important;/s,
+    );
+    expect(css).toMatch(
+      /\.card-settings-dialog-root \.document-settings-dialog__body\s*{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s,
+    );
+    expect(css).toMatch(
+      /\.document-settings-dialog__tabs > \.document-settings-dialog__tabs-body\s*{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s,
+    );
+    expect(css).toMatch(
+      /\.card-settings-dialog__panel\s*{[^}]*height:\s*100%;[^}]*overflow-y:\s*auto;/s,
+    );
+    expect(css).not.toContain('.ant-modal-content');
+    expect(css).not.toContain('.ant-tabs-content-holder');
   });
 });

@@ -1,9 +1,13 @@
-import { Flex, Modal, Tabs } from 'antd';
+import { Button, Flex, Modal, Tabs } from 'antd';
 import { useEffect, useState } from 'react';
 import { useCard } from '../../context/CardContext';
 import { BasicInfoPanel } from './panels/BasicInfoPanel';
 import { CoverPanel, type CoverPanelDraft } from './panels/CoverPanel';
 import { ExportPanel } from './panels/ExportPanel';
+import {
+  DOCUMENT_SETTINGS_MODAL_CLASS_NAMES,
+  DOCUMENT_SETTINGS_TABS_CLASS_NAMES,
+} from './document-settings-dialog-layout';
 import './CardSettingsDialog.css';
 
 interface CardSettingsDialogProps {
@@ -67,28 +71,30 @@ export function CardSettingsDialog({
       open={visible}
       title="卡片设置"
       onCancel={onClose}
-      width="90%"
+      width={960}
       centered
       destroyOnHidden
       mask={{ closable: true }}
       rootClassName="card-settings-dialog-root"
+      classNames={DOCUMENT_SETTINGS_MODAL_CLASS_NAMES}
       footer={
         <Flex justify="flex-end" gap={12}>
-          <button type="button" className="settings-dialog__secondary-btn" onClick={onClose}>
+          <Button onClick={onClose}>
             取消
-          </button>
-          <button
-            type="button"
-            className="settings-dialog__primary-btn"
+          </Button>
+          <Button
+            type="primary"
             onClick={() => { void handleSave(); }}
             disabled={isSaveDisabled}
           >
             保存
-          </button>
+          </Button>
         </Flex>
       }
     >
       <Tabs
+        className="document-settings-dialog__tabs"
+        classNames={DOCUMENT_SETTINGS_TABS_CLASS_NAMES}
         activeKey={activeTab}
         onChange={(key: string) => setActiveTab(key)}
         items={[
@@ -97,12 +103,14 @@ export function CardSettingsDialog({
             label: '基础信息',
             children: (
               <div className="card-settings-dialog__panel">
-                <BasicInfoPanel
-                  cardId={cardId}
-                  cardInfo={card}
-                  onUpdateName={handleUpdateName}
-                  onUpdateTags={handleUpdateTags}
-                />
+                <div className="document-settings-dialog__form">
+                  <BasicInfoPanel
+                    cardId={cardId}
+                    cardInfo={card}
+                    onUpdateName={handleUpdateName}
+                    onUpdateTags={handleUpdateTags}
+                  />
+                </div>
               </div>
             ),
           },
@@ -127,10 +135,12 @@ export function CardSettingsDialog({
             label: '导出',
             children: (
               <div className="card-settings-dialog__panel">
-                <ExportPanel
-                  cardId={cardId}
-                  onBeforeExport={applyCoverDraft}
-                />
+                <div className="document-settings-dialog__content">
+                  <ExportPanel
+                    cardId={cardId}
+                    onBeforeExport={applyCoverDraft}
+                  />
+                </div>
               </div>
             ),
           },
