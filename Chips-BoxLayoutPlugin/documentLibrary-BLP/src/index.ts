@@ -10,6 +10,7 @@ import {
 import type { LayoutConfig } from "./schema/layout-config";
 import type {
   BoxEntryCoverView,
+  BoxEntryDocumentView,
   BoxEntryPage,
   BoxEntryQuery,
   BoxEntrySnapshot,
@@ -20,6 +21,7 @@ import type {
 
 export type {
   BoxEntryCoverView,
+  BoxEntryDocumentView,
   BoxEntryPage,
   BoxEntryQuery,
   BoxEntrySnapshot,

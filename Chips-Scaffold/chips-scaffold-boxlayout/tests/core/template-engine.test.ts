@@ -136,6 +136,9 @@ describe("template-engine", () => {
       expect(sharedTypes).toMatch(/"documentFile"/);
       expect(sharedTypes).toMatch(/"document-window"/);
       expect(sharedTypes).toMatch(/documentType\?:\s*"card" \| "box"/);
+      expect(sharedTypes).toMatch(/BoxEntryDocumentView/);
+      expect(sharedTypes).toMatch(/renderEntryDocument\(/);
+      expect(sharedTypes).toMatch(/releaseEntryDocument\(/);
       expect(sharedTypes).not.toMatch(/\bcardId\b|\bcardInfo\b|\bcardFile\b|\bcard-window\b/);
 
       const layoutConfig = await fs.readFile(
@@ -155,6 +158,8 @@ describe("template-engine", () => {
       expect(readme).not.toMatch(/@chips\/component-library/);
       expect(readme).toMatch(/chipsdev-r create layout/);
       expect(readme).toMatch(/renderEntryCover/);
+      expect(readme).toMatch(/renderEntryDocument/);
+      expect(readme).toMatch(/releaseEntryDocument/);
       expect(readme).toMatch(/readBoxAsset/);
       expect(readme).toMatch(/importBoxAsset/);
       expect(readme).toMatch(/deleteBoxAsset/);

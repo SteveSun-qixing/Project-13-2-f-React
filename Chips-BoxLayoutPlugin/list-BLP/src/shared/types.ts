@@ -12,6 +12,14 @@ export interface BoxEntryCoverView {
   ratio?: string;
 }
 
+export interface BoxEntryDocumentView {
+  entryId: string;
+  documentType: "card";
+  title: string;
+  documentUrl: string;
+  renderSessionId: string;
+}
+
 export interface BoxSessionInfo {
   boxId: string;
   boxFile: string;
@@ -25,6 +33,8 @@ export interface BoxSessionInfo {
     listEntries: true;
     readEntryDetail: true;
     renderEntryCover: true;
+    renderEntryDocument: true;
+    releaseEntryDocument: true;
     resolveEntryResource: true;
     readBoxAsset: true;
     prefetchEntries: true;
@@ -82,6 +92,14 @@ export interface BoxLayoutRuntime {
     fields: Array<"documentInfo" | "coverDescriptor" | "previewDescriptor" | "runtimeProps" | "status">;
   }): Promise<Array<{ entryId: string; detail: Record<string, unknown> }>>;
   renderEntryCover(entryId: string): Promise<BoxEntryCoverView>;
+  renderEntryDocument(
+    entryId: string,
+    options?: {
+      mode?: "view" | "preview";
+      interactionPolicy?: "native" | "delegate";
+    },
+  ): Promise<BoxEntryDocumentView>;
+  releaseEntryDocument(renderSessionId: string): Promise<void>;
   resolveEntryResource(request: {
     entryId: string;
     resource: {

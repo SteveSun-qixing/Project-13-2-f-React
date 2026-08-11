@@ -53,6 +53,8 @@ chipsdev-r create layout <targetDir>
 
 条目封面显示优先调用 `runtime.renderEntryCover(entryId)`，并用 `@chips/ui` 的 `EmbeddedDocumentFrame` 承载 Host 返回的正式文档入口。点击封面或标题只调用 `runtime.openEntry(entryId)`，打开窗口和外部跳转由 Host 决定。
 
+需要在布局页面内显示完整卡片时，调用 `runtime.renderEntryDocument(entryId, { mode, interactionPolicy })` 获取 Host 托管的 `documentUrl` 和 `renderSessionId`，以受控 iframe 挂载；切换条目或卸载时必须调用 `runtime.releaseEntryDocument(renderSessionId)`。布局插件不得把 `resolveEntryResource(kind: "documentFile")` 返回的原始 `.card` 文件 URL 当成可渲染网页，也不得自行解析卡片包。引用箱子的条目不支持递归内嵌，应继续显示封面或通过 `runtime.openEntry(entryId)` 打开。
+
 布局自有背景和顶部区域资源通过 `runtime.readBoxAsset(assetPath)` 读取。`resourceUrl` 只用于当前会话预览或渲染，不写入布局配置。
 
 查看态还会对即将使用的条目调用 `runtime.prefetchEntries({ entryIds, targets: ["cover"] })`，并在分页、封面和箱子资源失败时显示本地化错误状态。

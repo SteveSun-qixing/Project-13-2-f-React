@@ -41,6 +41,14 @@ function createRuntime(overrides: Partial<BoxLayoutRuntime> = {}): BoxLayoutRunt
       mimeType: "text/html",
       ratio: "3:4",
     })),
+    renderEntryDocument: vi.fn((entryId: string) => Promise.resolve({
+      entryId,
+      documentType: "card" as const,
+      title: `Document ${entryId}`,
+      documentUrl: `chips-render://document/${entryId}`,
+      renderSessionId: `render-${entryId}`,
+    })),
+    releaseEntryDocument: vi.fn().mockResolvedValue(undefined),
     resolveEntryResource: vi.fn(),
     readBoxAsset: vi.fn().mockResolvedValue({
       resourceUrl: "chips-render://asset/background",

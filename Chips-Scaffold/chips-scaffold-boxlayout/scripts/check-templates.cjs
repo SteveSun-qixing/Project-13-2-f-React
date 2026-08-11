@@ -218,6 +218,8 @@ function main() {
     for (const requiredText of [
       "chipsdev-r create layout",
       "renderEntryCover",
+      "renderEntryDocument",
+      "releaseEntryDocument",
       "runtime.openEntry",
       "readBoxAsset",
       "importBoxAsset",
@@ -240,6 +242,9 @@ function main() {
       '"documentFile"',
       '"document-window"',
       'documentType?: "card" | "box"',
+      "BoxEntryDocumentView",
+      "renderEntryDocument(",
+      "releaseEntryDocument(",
     ]) {
       if (!typesTs.includes(requiredText)) {
         throw new Error(`模板 ${templateId} 运行时类型缺少正式字段：${requiredText}`);

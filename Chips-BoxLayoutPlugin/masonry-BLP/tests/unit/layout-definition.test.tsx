@@ -51,6 +51,8 @@ function createRuntime(overrides: Partial<BoxLayoutRuntime> = {}): BoxLayoutRunt
       mimeType: "text/html",
       ratio: "3:4",
     })),
+    renderEntryDocument: vi.fn(),
+    releaseEntryDocument: vi.fn().mockResolvedValue(undefined),
     resolveEntryResource: vi.fn(),
     readBoxAsset: vi.fn().mockResolvedValue({
       resourceUrl: "chips-render://asset/background",
