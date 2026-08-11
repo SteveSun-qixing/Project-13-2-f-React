@@ -35,18 +35,13 @@ export function WorkGrid({
   return (
     <section className="works-section">
       <div className="works-section__header">
-        <div>
-          <h2>{t("profile.collectionTitle")}</h2>
-        </div>
+        <h2 className="works-section__title">{t("profile.collectionTitle")}</h2>
 
         {isOwner ? (
           <div className="works-section__actions">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              aria-label={t("profile.openWorkspace")}
-              onClick={() => navigate("/workspace")}
-            />
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/workspace")}>
+              {t("profile.uploadWork")}
+            </Button>
             <Button
               type={manageMode ? "primary" : "default"}
               onClick={onToggleManageMode}
@@ -59,19 +54,17 @@ export function WorkGrid({
       </div>
 
       {isOwner && manageMode ? (
-        <div className="panel works-section__manage-bar">
-          <div className="works-section__manage-copy">
-            <strong>{t("profile.manageTitle")}</strong>
-            <p className="muted">{t("profile.manageHint")}</p>
-            {manageError ? <div className="inline-notice inline-notice--danger">{manageError}</div> : null}
-          </div>
-
+        <div className="works-section__manage-bar">
+          <span className="works-section__manage-count">
+            {t("profile.manageSelectedCount", { count: selectedWorkKeys.size })}
+          </span>
           <div className="works-section__manage-actions">
-            <span className="works-section__manage-count">
-              {t("profile.manageSelectedCount", { count: selectedWorkKeys.size })}
-            </span>
+            {manageError ? <div className="inline-notice inline-notice--danger">{manageError}</div> : null}
+            <Button type="default" onClick={onToggleManageMode} disabled={isDeleting}>
+              {t("common.cancel")}
+            </Button>
             <Button
-              type="default"
+              type="primary"
               danger
               onClick={onDeleteSelectedWorks}
               loading={isDeleting}

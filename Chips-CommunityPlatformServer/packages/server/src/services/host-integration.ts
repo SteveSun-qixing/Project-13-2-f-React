@@ -271,12 +271,6 @@ export class HostIntegrationService {
       await this.installAndEnablePlugin(source);
     }
 
-    await this.host.kernel.invoke(
-      'theme.apply',
-      { id: env.HOST_ACTIVE_THEME_ID },
-      this.createKernelContext()
-    );
-
     this.initialized = true;
     console.log('[HostIntegration] Service initialized successfully');
   }
@@ -605,12 +599,11 @@ export class HostIntegrationService {
     const defaultLayoutPlugins = [
       path.join(root, 'Chips-BoxLayoutPlugin/grid-BLP'),
     ];
-    const defaultThemePlugins = [
-      path.join(root, 'ThemePack/Chips-default'),
-    ];
+    const defaultThemePlugins: string[] = [];
     const defaultModulePlugins = [
       this.resolvePackagedPluginSource(path.join(root, 'Chips-ModulePlugin/Chips-CardtoHTML-Plugin')),
       this.resolvePackagedPluginSource(path.join(root, 'Chips-ModulePlugin/Chips-FileConversion-Plugin')),
+      this.resolvePackagedPluginSource(path.join(root, 'Chips-ModulePlugin/Chips-CommunityUploader-Plugin')),
     ];
 
     return {
@@ -831,7 +824,7 @@ export class HostIntegrationService {
 
     let current = process.cwd();
     for (let index = 0; index < 8; index += 1) {
-      const marker = path.join(current, 'ThemePack', 'Chips-default', 'manifest.yaml');
+      const marker = path.join(current, 'Chips-Ui', 'package.json');
       if (fsSync.existsSync(marker)) {
         this.ecosystemRoot = current;
         return current;

@@ -41,6 +41,8 @@ export async function buildApp() {
 
   await fastify.register(fastifyHelmet, {
     contentSecurityPolicy: false, // CSP 由 Nginx 层控制
+    // 社区 API 的图片/资源会被 Host 窗口与网页以 <img>/<iframe> 跨源引用（卡片封面、渲染产物等），需允许跨源
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
   });
 
   const extraOrigins = env.CORS_EXTRA_ORIGINS.split(',')

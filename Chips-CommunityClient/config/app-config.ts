@@ -13,7 +13,7 @@ export interface AppConfig {
 export const appConfig: AppConfig = {
   appId: "com.chips.community-client",
   defaultSceneId: "main",
-  communityServerUrl: "https://www.chipscard.space",
+  communityServerUrl: "http://127.0.0.1:3000",
   featureFlags: {
     enableDebugPanel: false,
     enableDiagnosticsLogging: true,

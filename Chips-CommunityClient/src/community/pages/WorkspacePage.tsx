@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, Button } from "antd";
+import { Alert, Button, Spin } from "antd";
 import {
   ArrowLeftOutlined,
-  CheckOutlined,
-  FileTextOutlined,
+  CheckCircleFilled,
+  ExclamationCircleFilled,
+  InfoCircleOutlined,
   UploadOutlined,
-  WarningOutlined,
+  WarningFilled,
 } from "@ant-design/icons";
 import type { Client } from "chips-sdk";
 import { chipsClient } from "../../runtime/chips-client";
@@ -30,12 +31,19 @@ interface UploadWarning {
 }
 
 interface UploadFileResult {
+  filePath: string;
   fileName: string;
   kind: UploadKind;
   ok: boolean;
   message: string;
   communityUrl: string;
   warnings?: UploadWarning[];
+}
+
+interface ActiveFileState {
+  fileName: string;
+  stage: string;
+  percent: number | null;
 }
 
 function formatUploadProgress(stage: string, percent: number): string | null {
@@ -63,11 +71,121 @@ export default function WorkspacePage() {
   const transferRef = useRef(createCommunityTransferService(client));
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({ kind: "idle" });
   const [batch, setBatch] = useState<{ current: number; total: number } | null>(null);
+  const [activeFile, setActiveFile] = useState<ActiveFileState | null>(null);
   const [results, setResults] = useState<UploadFileResult[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
-  if (!user) {
-    return null;
-  }
+  const uploadFiles = async (filePaths: string[]) => {
+    if (!isAuthenticated) {
+      setUploadStatus({ kind: "error", message: t("workspace.uploadRequiresLogin") });
+      return;
+    }
+
+    const paths = filePaths.filter(Boolean);
+    if (paths.length === 0) {
+      setUploadStatus({ kind: "error", message: t("workspace.uploadSelectFile") });
+      return;
+    }
+
+    setUploadStatus({ kind: "idle" });
+    setResults([]);
+    setBatch({ current: 0, total: paths.length });
+    setActiveFile(null);
+
+    const outcomes: UploadFileResult[] = [];
+
+    for (let index = 0; index < paths.length; index += 1) {
+      const filePath = paths[index]!;
+      const fileName = getFileName(filePath);
+      const kind = getUploadKind(filePath);
+      setBatch({ current: index + 1, total: paths.length });
+      setActiveFile({ fileName, stage: t("workspace.uploading"), percent: null });
+
+      const reportProgress = (progress: TransferJobProgress) => {
+        setActiveFile({
+          fileName,
+          stage:
+            formatUploadProgress(progress.message || progress.stage, progress.percent) ??
+            t("workspace.uploading"),
+          percent: progress.percent > 0 ? progress.percent : null,
+        });
+      };
+
+      try {
+        if (kind === "box") {
+          const result = await transferRef.current.uploadBox(filePath, reportProgress);
+          outcomes.push({
+            filePath,
+            fileName,
+            kind,
+            ok: true,
+            message: t("workspace.boxUploadResultSummary", {
+              uploaded: result.uploadedCards.length,
+              skipped: result.skippedCards.length,
+            }),
+            communityUrl: result.communityUrl,
+            warnings: result.warnings,
+          });
+        } else {
+          const result = await transferRef.current.uploadCard(filePath, reportProgress);
+          outcomes.push({
+            filePath,
+            fileName,
+            kind,
+            ok: true,
+            message: t("workspace.uploadResultPublished"),
+            communityUrl: result.communityUrl,
+          });
+        }
+      } catch (nextError) {
+        outcomes.push({
+          filePath,
+          fileName,
+          kind,
+          ok: false,
+          message: getErrorMessage(nextError, t("common.error")),
+          communityUrl: "",
+        });
+      }
+
+      setActiveFile(null);
+      setResults([...outcomes]);
+    }
+
+    setBatch(null);
+
+    const successItems = outcomes.filter((item) => item.ok);
+    const failedCount = outcomes.length - successItems.length;
+    const cardSuccessCount = successItems.filter((item) => item.kind === "card").length;
+    const boxSuccessCount = successItems.filter((item) => item.kind === "box").length;
+    const firstSuccess = successItems[0];
+
+    if (failedCount === 0) {
+      let message = t("workspace.uploadComplete", { count: cardSuccessCount });
+      let openLabel = t("workspace.uploadCompleteOpen");
+      if (cardSuccessCount === 0 && boxSuccessCount > 0) {
+        message = t("workspace.boxUploadComplete", { count: boxSuccessCount });
+        openLabel = t("workspace.boxUploadCompleteOpen");
+      } else if (boxSuccessCount > 0) {
+        message = t("workspace.uploadCompleteMixed", { cards: cardSuccessCount, boxes: boxSuccessCount });
+        openLabel =
+          firstSuccess?.kind === "box"
+            ? t("workspace.boxUploadCompleteOpen")
+            : t("workspace.uploadCompleteOpen");
+      }
+      setUploadStatus({
+        kind: "success",
+        message,
+        communityUrl: firstSuccess?.communityUrl ?? "",
+        openLabel,
+      });
+    } else {
+      setUploadStatus({
+        kind: "error",
+        message: t("workspace.uploadBatchFailed", { success: successItems.length, failed: failedCount }),
+      });
+    }
+  };
 
   const handleUpload = async () => {
     if (!isAuthenticated) {
@@ -78,6 +196,7 @@ export default function WorkspacePage() {
     setUploadStatus({ kind: "idle" });
     setResults([]);
     setBatch(null);
+    setActiveFile(null);
 
     let filePaths: string[] = [];
     try {
@@ -99,105 +218,27 @@ export default function WorkspacePage() {
       return;
     }
 
-    setBatch({ current: 0, total: filePaths.length });
-    const outcomes: UploadFileResult[] = [];
+    await uploadFiles(filePaths);
+  };
 
-    for (let index = 0; index < filePaths.length; index += 1) {
-      const filePath = filePaths[index]!;
-      const fileName = getFileName(filePath);
-      const kind = getUploadKind(filePath);
-      setBatch({ current: index + 1, total: filePaths.length });
-      setUploadStatus({
-        kind: "working",
-        label: t("workspace.uploadBatchProgress", {
-          current: index + 1,
-          total: filePaths.length,
-          phase: t("workspace.uploading"),
-        }),
-        percent: null,
-      });
+  const handleDrop = async (event: React.DragEvent) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(event.dataTransfer.files ?? []);
+    const paths = files
+      .map((file) => client.platform.getPathForFile(file) || (file as File & { path?: string }).path)
+      .filter((path): path is string => Boolean(path));
 
-      const reportProgress = (progress: TransferJobProgress) => {
-        setUploadStatus({
-          kind: "working",
-          label: t("workspace.uploadBatchProgress", {
-            current: index + 1,
-            total: filePaths.length,
-            phase: formatUploadProgress(progress.message || progress.stage, progress.percent) ?? t("workspace.uploading"),
-          }),
-          percent: progress.percent > 0 ? progress.percent : null,
-        });
-      };
-
-      try {
-        if (kind === "box") {
-          const result = await transferRef.current.uploadBox(filePath, reportProgress);
-          outcomes.push({
-            fileName,
-            kind,
-            ok: true,
-            message: t("workspace.boxUploadResultSummary", {
-              uploaded: result.uploadedCards.length,
-              skipped: result.skippedCards.length,
-            }),
-            communityUrl: result.communityUrl,
-            warnings: result.warnings,
-          });
-        } else {
-          const result = await transferRef.current.uploadCard(filePath, reportProgress);
-          outcomes.push({
-            fileName,
-            kind,
-            ok: true,
-            message: t("workspace.uploadResultPublished"),
-            communityUrl: result.communityUrl,
-          });
-        }
-      } catch (nextError) {
-        outcomes.push({
-          fileName,
-          kind,
-          ok: false,
-          message: getErrorMessage(nextError, t("common.error")),
-          communityUrl: "",
-        });
-      }
-
-      setResults([...outcomes]);
+    if (paths.length === 0) {
+      setUploadStatus({ kind: "error", message: t("workspace.uploadSelectFile") });
+      return;
     }
 
-    setBatch(null);
+    await uploadFiles(paths);
+  };
 
-    const successItems = outcomes.filter((item) => item.ok);
-    const failedCount = outcomes.length - successItems.length;
-    const cardSuccessCount = successItems.filter((item) => item.kind === "card").length;
-    const boxSuccessCount = successItems.filter((item) => item.kind === "box").length;
-    const firstSuccess = successItems[0];
-
-    if (failedCount === 0) {
-      let message = t("workspace.uploadComplete", { count: cardSuccessCount });
-      let openLabel = t("workspace.uploadCompleteOpen");
-      if (cardSuccessCount === 0 && boxSuccessCount > 0) {
-        message = t("workspace.boxUploadComplete", { count: boxSuccessCount });
-        openLabel = t("workspace.boxUploadCompleteOpen");
-      } else if (boxSuccessCount > 0) {
-        message = t("workspace.uploadCompleteMixed", { cards: cardSuccessCount, boxes: boxSuccessCount });
-        openLabel = firstSuccess?.kind === "box"
-          ? t("workspace.boxUploadCompleteOpen")
-          : t("workspace.uploadCompleteOpen");
-      }
-      setUploadStatus({
-        kind: "success",
-        message,
-        communityUrl: firstSuccess?.communityUrl ?? "",
-        openLabel,
-      });
-    } else {
-      setUploadStatus({
-        kind: "error",
-        message: t("workspace.uploadBatchFailed", { success: successItems.length, failed: failedCount }),
-      });
-    }
+  const handleRetry = async (filePath: string) => {
+    await uploadFiles([filePath]);
   };
 
   const handleOpenCommunityUrl = () => {
@@ -207,46 +248,70 @@ export default function WorkspacePage() {
     void client.platform.openExternal(uploadStatus.communityUrl);
   };
 
+  const totalCount = batch?.total ?? results.length;
+  const doneCount = results.filter((item) => item.ok).length + (batch ? batch.current - 1 : results.length);
+  const hasQueue = Boolean(batch || activeFile || results.length > 0);
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="page-container workspace-page">
-      <header className="workspace-page__header">
+      <div className="workspace-page__head">
+        <button
+          type="button"
+          className="workspace-page__back"
+          aria-label={t("workspace.backToProfile")}
+          onClick={() => navigate(profileHref)}
+        >
+          <ArrowLeftOutlined />
+        </button>
         <div>
-          <span className="eyebrow">{t("workspace.title")}</span>
           <h1>{t("workspace.title")}</h1>
-          <p className="muted">{t("workspace.subtitle")}</p>
+          <p>{t("workspace.subtitle")}</p>
         </div>
+      </div>
 
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(profileHref)}>
-          {t("workspace.backToProfile")}
+      {/* 上传区 */}
+      <section
+        className={`workspace-dropzone${isDragging ? " workspace-dropzone--dragging" : ""}`}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+        }}
+        onDrop={(event) => void handleDrop(event)}
+      >
+        <div className="workspace-dropzone__icon" aria-hidden="true">
+          <UploadOutlined />
+        </div>
+        <h2>{t("workspace.dropzoneTitle")}</h2>
+        <p className="workspace-dropzone__desc">{t("workspace.dropzoneSubtitle")}</p>
+        <div className="workspace-dropzone__formats">
+          <span className="format-chip">{t("workspace.formatCard")}</span>
+          <span className="format-chip">{t("workspace.formatBox")}</span>
+        </div>
+        <Button
+          type="primary"
+          size="large"
+          className="workspace-dropzone__button"
+          onClick={() => void handleUpload()}
+          loading={uploadStatus.kind === "working"}
+          disabled={!isAuthenticated}
+        >
+          {t("workspace.uploadAction")}
         </Button>
-      </header>
-
-      <section className="panel workspace-upload">
-        <div className="workspace-upload__icon" aria-hidden="true">
-          <UploadOutlined style={{ fontSize: 28 }} />
-        </div>
-        <div className="workspace-upload__copy">
-          <h2>{t("workspace.uploadTitle")}</h2>
-          <p>{t("workspace.uploadSubtitle")}</p>
-        </div>
-
-        <div className="workspace-upload__action">
-          <Button
-            type="primary"
-            onClick={() => void handleUpload()}
-            loading={uploadStatus.kind === "working"}
-            disabled={!isAuthenticated}
-          >
-            {uploadStatus.kind === "working" ? t("workspace.uploading") : t("workspace.uploadAction")}
-          </Button>
-        </div>
 
         {!isAuthenticated ? (
-          <Alert type="error" message={t("workspace.uploadRequiresLogin")} showIcon />
-        ) : null}
-
-        {uploadStatus.kind === "working" ? (
-          <Alert type="info" message={uploadStatus.label} />
+          <Alert type="error" message={t("workspace.uploadRequiresLogin")} showIcon style={{ marginTop: 18 }} />
         ) : null}
 
         {uploadStatus.kind === "success" ? (
@@ -261,60 +326,123 @@ export default function WorkspacePage() {
                 </Button>
               ) : null
             }
+            style={{ marginTop: 18, textAlign: "left" }}
           />
         ) : null}
 
         {uploadStatus.kind === "error" ? (
-          <Alert type="error" message={uploadStatus.message} showIcon />
-        ) : null}
-
-        {results.length > 0 ? (
-          <ul className="workspace-upload__results" aria-label={t("workspace.uploadResultListLabel")}>
-            {results.map((item) => (
-              <li
-                key={`${item.fileName}-${item.kind}`}
-                className={`workspace-upload__result${item.ok ? " workspace-upload__result--ok" : " workspace-upload__result--fail"}`}
-              >
-                {item.ok ? <CheckOutlined /> : <WarningOutlined />}
-                <div className="workspace-upload__result-body">
-                  <span className="workspace-upload__result-name">{item.fileName}</span>
-                  <span className="workspace-upload__result-message">{item.message}</span>
-                </div>
-                {item.kind === "box" && item.warnings && item.warnings.length > 0 ? (
-                  <ul className="workspace-upload__warnings" aria-label={t("workspace.boxUploadWarningsLabel")}>
-                    {item.warnings.map((warning) => (
-                      <li key={`${warning.code}-${warning.message}`}>{warning.message}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <Alert type="error" showIcon message={uploadStatus.message} style={{ marginTop: 18, textAlign: "left" }} />
         ) : null}
       </section>
 
-      <section className="panel workspace-client-publish">
-        <div className="workspace-client-publish__icon" aria-hidden="true">
-          <FileTextOutlined style={{ fontSize: 28 }} />
-        </div>
-        <div className="workspace-client-publish__copy">
-          <h2>{t("workspace.clientOnlyTitle")}</h2>
-          <p>{t("workspace.clientOnlyBody")}</p>
-        </div>
-        <div className="workspace-client-publish__steps" aria-label={t("workspace.clientOnlyStepsLabel")}>
-          <article>
-            <strong>{t("workspace.clientOnlyStepCreate")}</strong>
-            <span>{t("workspace.clientOnlyStepCreateBody")}</span>
-          </article>
-          <article>
-            <strong>{t("workspace.clientOnlyStepPublish")}</strong>
-            <span>{t("workspace.clientOnlyStepPublishBody")}</span>
-          </article>
-          <article>
-            <strong>{t("workspace.clientOnlyStepView")}</strong>
-            <span>{t("workspace.clientOnlyStepViewBody")}</span>
-          </article>
-        </div>
+      {/* 任务队列 */}
+      {hasQueue ? (
+        <section className="workspace-queue" aria-label={t("workspace.uploadResultListLabel")}>
+          <div className="workspace-queue__head">
+            <h2>{t("workspace.queueTitle")}</h2>
+            <span className="workspace-queue__summary">
+              {t("workspace.queueSummary", { done: doneCount, total: totalCount })}
+            </span>
+          </div>
+
+          {activeFile ? (
+            <div className="queue-task" role="status">
+              <div className="queue-task__icon queue-task__icon--working">
+                <Spin size="small" />
+              </div>
+              <div className="queue-task__body">
+                <div className="queue-task__name">{activeFile.fileName}</div>
+                <div className="queue-task__status">{activeFile.stage}</div>
+                <div className="queue-task__progress">
+                  <div
+                    className="queue-task__progress-bar"
+                    style={{ width: activeFile.percent ? `${Math.min(100, Math.round(activeFile.percent))}%` : "100%" }}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {results.map((item, index) => {
+            const isSuccess = item.ok && (!item.warnings || item.warnings.length === 0);
+            const hasWarnings = item.ok && item.warnings && item.warnings.length > 0;
+            const isFailed = !item.ok;
+
+            return (
+              <div
+                key={`${item.filePath}-${index}`}
+                className={`queue-task queue-task--${isSuccess ? "success" : hasWarnings ? "warning" : "error"}`}
+              >
+                <div
+                  className={`queue-task__icon ${isSuccess ? "queue-task__icon--success" : hasWarnings ? "queue-task__icon--warning" : "queue-task__icon--error"}`}
+                >
+                  {isSuccess ? (
+                    <CheckCircleFilled />
+                  ) : hasWarnings ? (
+                    <WarningFilled />
+                  ) : (
+                    <ExclamationCircleFilled />
+                  )}
+                </div>
+                <div className="queue-task__body">
+                  <div className="queue-task__name">{item.fileName}</div>
+                  <div className="queue-task__status">
+                    {isSuccess ? (
+                      <span className="queue-task__status--success">{t("workspace.taskPublished")}</span>
+                    ) : hasWarnings ? (
+                      <span className="queue-task__status--warning">
+                        {t("workspace.taskPublishedWithWarnings", { count: item.warnings?.length ?? 0 })}
+                      </span>
+                    ) : (
+                      <span className="queue-task__status--error">{item.message}</span>
+                    )}
+                  </div>
+                  {hasWarnings ? (
+                    <ul className="queue-task__warnings">
+                      {item.warnings?.map((warning) => (
+                        <li key={`${warning.code}-${warning.message}`}>
+                          <InfoCircleOutlined /> {warning.message}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+                <div className="queue-task__action">
+                  {isSuccess || hasWarnings ? (
+                    item.communityUrl ? (
+                      <button
+                        type="button"
+                        className="queue-task__link"
+                        onClick={() => void client.platform.openExternal(item.communityUrl)}
+                      >
+                        {t("workspace.taskOpenInCommunity")} →
+                      </button>
+                    ) : null
+                  ) : (
+                    <Button
+                      size="small"
+                      onClick={() => void handleRetry(item.filePath)}
+                      disabled={uploadStatus.kind === "working"}
+                    >
+                      {t("workspace.taskRetry")}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      ) : null}
+
+      {/* 上传说明 */}
+      <section className="workspace-hint">
+        <h3>{t("workspace.hintTitle")}</h3>
+        <ul>
+          <li>{t("workspace.hintFormat")}</li>
+          <li>{t("workspace.hintPack")}</li>
+          <li>{t("workspace.hintVisibility")}</li>
+          <li>{t("workspace.hintProcess")}</li>
+        </ul>
       </section>
     </div>
   );

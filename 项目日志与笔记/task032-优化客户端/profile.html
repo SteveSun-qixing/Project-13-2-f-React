@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>个人主页 · 薯片社区设计稿</title>
+<style>
+  :root {
+    --blue: #0a84ff;
+    --blue-hover: #3395ff;
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --text-2: #6e6e73;
+    --text-3: #86868b;
+    --border: rgba(0, 0, 0, 0.08);
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 10px;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== 页面容器 ===== */
+  .page { max-width: 1080px; margin: 0 auto; padding: 32px 24px 72px; }
+
+  /* ===== 个人资料卡片 ===== */
+  .profile-card {
+    position: relative;
+    background: var(--surface); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow); padding: 40px 44px 36px;
+    display: flex; gap: 40px; align-items: flex-start;
+  }
+  .profile-card__avatar {
+    width: 112px; height: 112px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #ffd60a, #ff9f0a);
+    border: 4px solid #fff; box-shadow: 0 0 0 1px var(--border), var(--shadow);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 42px; font-weight: 700; color: #fff;
+  }
+  .profile-card__body { flex: 1; min-width: 0; }
+  .profile-card__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .profile-card__name { font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
+  .profile-card__username { color: var(--text-2); font-size: 15px; margin-top: 4px; }
+  .profile-card__bio { margin-top: 14px; font-size: 15px; line-height: 1.6; color: var(--text); max-width: 560px; }
+
+  /* ===== 右上角折叠菜单（设计展示：展开状态） ===== */
+  .menu {
+    position: absolute; top: 18px; right: 18px;
+  }
+  .menu__trigger {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(0, 0, 0, 0.05); border: none; cursor: pointer;
+    color: var(--text); font-size: 18px; font-weight: 700; letter-spacing: 1px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .menu__trigger:hover { background: rgba(0, 0, 0, 0.09); }
+  .menu__pop {
+    position: absolute; top: 46px; right: 0; width: 200px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.14);
+    padding: 6px; z-index: 10;
+  }
+  .menu__item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 10px 12px; border: none; border-radius: 9px;
+    background: transparent; font-size: 14px; color: var(--text); cursor: pointer;
+    transition: background 0.15s;
+  }
+  .menu__item:hover { background: rgba(0, 0, 0, 0.05); }
+  .menu__item--danger { color: #ff3b30; }
+  .menu__item--danger:hover { background: rgba(255, 59, 48, 0.08); }
+  .menu__divider { height: 1px; background: var(--border); margin: 6px 8px; }
+
+  /* ===== 作品区 ===== */
+  .works { margin-top: 36px; }
+  .works__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .works__title { font-size: 21px; font-weight: 700; }
+  .works__actions { display: flex; align-items: center; gap: 10px; }
+  .btn--sm {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    height: 34px; padding: 0 16px; border-radius: 9px;
+    font-size: 13px; font-weight: 600; border: none; cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+  }
+  .btn--sm:active { transform: scale(0.97); }
+  .btn--sm-primary { background: var(--blue); color: #fff; }
+  .btn--sm-primary:hover { background: var(--blue-hover); }
+  .btn--sm-secondary { background: rgba(0, 0, 0, 0.05); color: var(--text); }
+  .btn--sm-secondary:hover { background: rgba(0, 0, 0, 0.09); }
+
+  /* 瀑布流：多列布局，卡片保持各自比例，错落排布 */
+  .grid {
+    columns: 3 250px;
+    column-gap: 20px;
+  }
+  .grid .work {
+    break-inside: avoid;
+    margin-bottom: 26px;
+  }
+
+  /* ===== 作品卡片：iframe 窗口 + 标题在下方 ===== */
+  .work { cursor: default; transition: transform 0.18s; }
+  .work:hover { transform: translateY(-3px); }
+  .grid .work:hover { transform: none; }
+  .grid .work:hover .work__window { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+  .work__window {
+    position: relative;
+    background: var(--surface); border-radius: var(--radius-md);
+    box-shadow: var(--shadow); overflow: hidden;
+    border: 1px solid var(--border);
+    transition: box-shadow 0.18s;
+  }
+  .work:hover .work__window { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+
+  /* 模拟 iframe 渲染的卡片内容 */
+  .work__frame { position: absolute; inset: 0; }
+
+  /* — 照片卡片内容 — */
+  .frame-photo { background: linear-gradient(160deg, #3a6db5 0%, #0a84ff 60%, #5ac8fa 100%); }
+  .frame-photo__sun { position: absolute; top: 14%; right: 16%; width: 34%; height: 34%; border-radius: 50%; background: rgba(255, 214, 10, 0.75); filter: blur(2px); }
+  .frame-photo__hills { position: absolute; left: 0; right: 0; bottom: 0; height: 42%; background: linear-gradient(180deg, transparent, rgba(10, 70, 140, 0.65)); border-radius: 60% 40% 0 0 / 30% 26% 0 0; }
+  .frame-photo__meta { position: absolute; left: 12px; bottom: 10px; color: rgba(255,255,255,0.92); font-size: 11px; }
+
+  /* — 文档卡片内容 — */
+  .frame-doc { background: #fdfdfd; padding: 18px 20px; }
+  .frame-doc__bar { height: 10px; border-radius: 5px; background: rgba(0,0,0,0.12); margin-bottom: 8px; width: 55%; }
+  .frame-doc__bar--short { width: 38%; }
+  .frame-doc__line { height: 6px; border-radius: 3px; background: rgba(0,0,0,0.07); margin-bottom: 6px; }
+  .frame-doc__line--wide { width: 92%; } .frame-doc__line--mid { width: 78%; } .frame-doc__line--narrow { width: 64%; }
+
+  /* — 音乐卡片内容 — */
+  .frame-music { background: linear-gradient(135deg, #ff9f0a, #ff375f); display: flex; flex-direction: column; justify-content: flex-end; padding: 14px; }
+  .frame-music__disc { position: absolute; top: 16%; right: 12%; width: 44%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at center, #1d1d1f 12%, #ffd60a 13%, #1d1d1f 15%, rgba(255,255,255,0.16) 16%, rgba(255,255,255,0.08) 55%, rgba(0,0,0,0.18) 56%); }
+  .frame-music__title { color: #fff; font-size: 14px; font-weight: 700; }
+  .frame-music__artist { color: rgba(255,255,255,0.85); font-size: 11px; margin-top: 2px; }
+  .frame-music__play { position: absolute; top: 8%; left: 12%; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; color: #1d1d1f; font-size: 15px; }
+
+  /* — 视频卡片内容 — */
+  .frame-video { background: linear-gradient(160deg, #101418, #1d2935 70%, #2c3e50); }
+  .frame-video__play { position: absolute; inset: 0; margin: auto; width: 54px; height: 54px; border-radius: 50%; background: rgba(255,255,255,0.22); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; }
+  .frame-video__time { position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 5px; }
+
+  /* — 箱子内容 — */
+  .frame-box { background: linear-gradient(160deg, #34c759, #0a84ff); display: grid; place-items: center; }
+  .frame-box__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; width: 60%; }
+  .frame-box__cell { background: rgba(255,255,255,0.92); border-radius: 10px; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+
+  /* — 书籍卡片内容 — */
+  .frame-book { background: linear-gradient(135deg, #b06ab3, #6e4b7a); display: flex; flex-direction: column; justify-content: flex-end; padding: 14px; }
+  .frame-book__title { color: #fff; font-size: 14px; font-weight: 700; }
+  .frame-book__author { color: rgba(255,255,255,0.85); font-size: 11px; margin-top: 2px; }
+
+  /* 标题在窗口下方，居中 */
+  .work__body { padding: 10px 4px 0; text-align: center; }
+  .work__title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ===== 管理模式操作栏（设计展示） ===== */
+  .manage-bar {
+    position: sticky; bottom: 20px; margin-top: 24px;
+    background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .manage-bar__check {
+    position: absolute; top: 8px; right: 8px; z-index: 2;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95); border: 1.5px solid var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px; font-weight: 700;
+  }
+  .manage-bar__check--on { background: var(--blue); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 36px; padding: 0 18px; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 500; border: none; cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn--secondary { background: rgba(0, 0, 0, 0.05); color: var(--text); }
+  .btn--secondary:hover { background: rgba(0, 0, 0, 0.09); }
+  .btn--danger { background: rgba(255, 59, 48, 0.1); color: #ff3b30; }
+  .btn--danger:hover { background: rgba(255, 59, 48, 0.16); }
+
+  .foot { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 56px; }
+</style>
+</head>
+<body>
+
+<main class="page">
+
+  <!-- 个人资料卡片 -->
+  <section class="profile-card">
+    <!-- 右上角折叠菜单（设计展示：展开状态） -->
+    <div class="menu">
+      <button class="menu__trigger" aria-label="更多操作">⋯</button>
+      <div class="menu__pop">
+        <button class="menu__item">✏️ 编辑资料</button>
+        <button class="menu__item">🔗 分享主页</button>
+        <div class="menu__divider"></div>
+        <button class="menu__item menu__item--danger">退出登录</button>
+      </div>
+    </div>
+
+    <div class="profile-card__avatar">七</div>
+    <div class="profile-card__body">
+      <div class="profile-card__head">
+        <h1 class="profile-card__name">七月流火</h1>
+      </div>
+      <p class="profile-card__username">@julyfire</p>
+      <p class="profile-card__bio">用卡片记录灵感，用箱子整理世界。喜欢摄影、音乐与读书，正在把生活中的美好做成可以分享的作品。</p>
+    </div>
+  </section>
+
+  <!-- 作品区（不区分卡片/箱子） -->
+  <section class="works">
+    <div class="works__head">
+      <h2 class="works__title">作品</h2>
+      <div class="works__actions">
+        <button class="btn btn--sm btn--sm-primary">⬆ 上传作品</button>
+        <button class="btn btn--sm btn--sm-secondary">管理</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- 照片卡片：iframe 窗口渲染 -->
+      <article class="work">
+        <div class="work__window" style="aspect-ratio: 4 / 3;">
+          <div class="work__frame frame-photo">
+            <div class="frame-photo__sun"></div>
+            <div class="frame-photo__hills"></div>
+            <span class="frame-photo__meta">街拍</span>
+          </div>
+        </div>
+        <div class="work__body">
+          <div class="work__title">胶片感的午后 · 老城街拍</div>
+          
+        </div>
+      </article>
+
+      <!-- 文档卡片 -->
+      <article class="work">
+        <div class="work__window" style="aspect-ratio: 16 / 10;">
+          <div class="work__frame frame-doc">
+            <div class="frame-doc__bar"></div>
+            <div class="frame-doc__bar frame-doc__bar--short"></div>
+            <div class="frame-doc__line frame-doc__line--wide"></div>
+            <div class="frame-doc__line frame-doc__line--mid"></div>
+            <div class="frame-doc__line frame-doc__line--narrow"></div>
+            <div class="frame-doc__line frame-doc__line--wide"></div>
+          </div>
+        </div>
+        <div class="work__body">
+          <div class="work__title">《设计沉思录》读书笔记</div>
+          
+        </div>
+      </article>
+
+      <!-- 音乐卡片 -->
+      <article class="work">
+        <div class="work__window" style="aspect-ratio: 1 / 1;">
+          <div class="work__frame frame-music">
+            <div class="frame-music__play">▶</div>
+            <div class="frame-music__disc"></div>
+            <div class="frame-music__title">夏日歌单 · 循环不腻的 12 首</div>
+            <div class="frame-music__artist">Playlist · 48 分钟</div>
+          </div>
+        </div>
+        <div class="work__body">
+          <div class="work__title">夏日歌单 · 循环不腻的 12 首</div>
+          
+        </div>
+      </article>
+
+      <!-- 视频卡片 -->
+      <article class="work">
+        <div class="work__window" style="aspect-ratio: 16 / 9;">
+          <div class="work__frame frame-video">
+            <div class="frame-video__play">▶</div>
+            <span class="frame-video__time">01:24 / 04:12</span>
+          </div>
+        </div>
+        <div class="work__body">
+          <div class="work__title">无人机航拍 · 海岸线清晨</div>
+          
+        </div>
+      </article>
+
+      <!-- 箱子 -->
+      <article class="work">
+        <div class="work__window" style="aspect-ratio: 4 / 3;">
+          <div class="work__frame frame-box">
+            <div class="frame-box__grid">
+              <div class="frame-box__cell">🖼️</div>
+              <div class="frame-box__cell">🎵</div>
+              <div class="frame-box__cell">📖</div>
+              <div class="frame-box__cell">🎬</div>
+            </div>
+          </div>
+        </div>
+        <div class="work__body">
+          <div class="work__title">2026 摄影作品集 · 上半年</div>
+          
+        </div>
+      </article>
+
+      <!-- 书籍卡片 -->
+      <article class="work">
+        <div class="work__window" style="aspect-ratio: 3 / 4;">
+          <div class="work__frame frame-book">
+            <div class="frame-book__title">《苹果设计之道》</div>
+            <div class="frame-book__author">重点摘录与思考</div>
+          </div>
+        </div>
+        <div class="work__body">
+          <div class="work__title">《苹果设计之道》重点摘录</div>
+          
+        </div>
+      </article>
+
+      <!-- 箱子 -->
+      <article class="work">
+        <div class="work__window" style="aspect-ratio: 16 / 10;">
+          <div class="work__frame frame-box">
+            <div class="frame-box__grid">
+              <div class="frame-box__cell">🗺️</div>
+              <div class="frame-box__cell">🏔️</div>
+              <div class="frame-box__cell">🍜</div>
+              <div class="frame-box__cell">📷</div>
+            </div>
+          </div>
+        </div>
+        <div class="work__body">
+          <div class="work__title">旅游攻略合集 · 江浙沪周边</div>
+          
+        </div>
+      </article>
+
+      <!-- 照片卡片 -->
+      <article class="work">
+        <div class="work__window" style="aspect-ratio: 1 / 1;">
+          <div class="work__frame frame-photo">
+            <div class="frame-photo__sun" style="background:rgba(255,255,255,0.85);"></div>
+            <div class="frame-photo__hills" style="background:linear-gradient(180deg, transparent, rgba(30,60,90,0.6));"></div>
+            <span class="frame-photo__meta">散步</span>
+          </div>
+        </div>
+        <div class="work__body">
+          <div class="work__title">雨后的江边散步</div>
+          
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- 管理模式操作栏（设计展示：点击"管理"后出现） -->
+  <div class="manage-bar">
+    <span style="font-size:14px;">已选择 <b style="color:var(--blue);">2</b> 个作品</span>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn--secondary">取消</button>
+      <button class="btn btn--danger">删除所选作品</button>
+    </div>
+  </div>
+
+  <p class="foot">薯片社区 · 个人主页设计稿 v2（task032）· 纯外观展示，无功能</p>
+</main>
+
+</body>
+</html>

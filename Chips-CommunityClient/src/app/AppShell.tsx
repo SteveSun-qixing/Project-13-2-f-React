@@ -9,7 +9,7 @@ import {
 } from "react-router-dom";
 import { Result } from "antd";
 import type { Client } from "chips-sdk";
-import { AppChrome, type MenuBarGroup } from "@chips/ui";
+import { AppChrome } from "@chips/ui";
 import { chipsClient } from "../runtime/chips-client";
 import { CommunityPreferencesProvider, useAppPreferences } from "../community/contexts/PreferencesContext";
 import { AuthProvider, useAuth } from "../community/contexts/AuthContext";
@@ -98,11 +98,13 @@ function NotFoundPage() {
 
 function AppRoutes() {
   const location = useLocation();
-  const shouldShowFooter = !isProfileRoute(location.pathname);
+  const isProfile = isProfileRoute(location.pathname);
+  const shouldShowHeader = !isProfile;
+  const shouldShowFooter = !isProfile;
 
   return (
     <>
-      <SiteHeader />
+      {shouldShowHeader ? <SiteHeader /> : null}
       <main className="app-shell__main">
         <Routes>
           <Route path="/" element={<RootRedirect />} />
@@ -144,16 +146,13 @@ function AppRoutes() {
 
 function AppChromeShell() {
   const navigate = useNavigate();
-  const commands = useAppCommands({
+  useAppCommands({
     openWorkspace: () => navigate("/workspace"),
     openSettings: () => navigate("/settings"),
   });
 
-  const menus: MenuBarGroup[] = [{ menuId: "app", label: "应用", commands }];
-  const toolbarItems = commands.filter((command) => command.toolbarId === "main");
-
   return (
-    <AppChrome appName="薯片社区" menus={menus} toolbarItems={toolbarItems} paletteShortcut="Mod+P">
+    <AppChrome paletteShortcut="Mod+P">
       <AppRoutes />
     </AppChrome>
   );

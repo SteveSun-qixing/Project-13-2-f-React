@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>工作区 · 薯片社区设计稿</title>
+<style>
+  :root {
+    --blue: #0a84ff;
+    --blue-hover: #3395ff;
+    --green: #34c759;
+    --orange: #ff9f0a;
+    --red: #ff3b30;
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --text-2: #6e6e73;
+    --text-3: #86868b;
+    --border: rgba(0, 0, 0, 0.08);
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 10px;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== 顶部毛玻璃导航 ===== */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 52px; padding: 0 24px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav__brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; cursor: default; }
+  .nav__brand-mark {
+    width: 22px; height: 22px; border-radius: 7px;
+    background: linear-gradient(135deg, #0a84ff, #5ac8fa);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 12px; font-weight: 800;
+  }
+  .nav__links { display: flex; gap: 4px; }
+  .nav__link {
+    padding: 6px 14px; border-radius: 8px; font-size: 14px; color: var(--text-2); cursor: default;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav__link:hover { background: rgba(0, 0, 0, 0.05); color: var(--text); }
+  .nav__link--active { color: var(--text); font-weight: 600; }
+  .nav__right { display: flex; align-items: center; gap: 10px; }
+  .nav__avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(135deg, #5ac8fa, #0a84ff);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px; font-weight: 600; cursor: default;
+  }
+
+  /* ===== 页面容器 ===== */
+  .page { max-width: 960px; margin: 0 auto; padding: 32px 24px 72px; }
+
+  /* ===== 页头 ===== */
+  .page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+  .page-head__back {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(0, 0, 0, 0.05); border: none; cursor: pointer;
+    font-size: 16px; color: var(--text); display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .page-head__back:hover { background: rgba(0, 0, 0, 0.09); }
+  .page-head__title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+  .page-head__sub { font-size: 13px; color: var(--text-2); margin-top: 3px; }
+
+  /* ===== 上传区 ===== */
+  .dropzone {
+    background: var(--surface); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow); padding: 56px 32px; text-align: center;
+    border: 2px dashed rgba(10, 132, 255, 0.35);
+    background-image: radial-gradient(rgba(10,132,255,0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+    cursor: default;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+  .dropzone:hover { border-color: var(--blue); background-color: rgba(10, 132, 255, 0.03); }
+  .dropzone__icon {
+    width: 76px; height: 76px; margin: 0 auto 20px; border-radius: 24px;
+    background: rgba(10, 132, 255, 0.1); color: var(--blue);
+    display: flex; align-items: center; justify-content: center; font-size: 34px;
+  }
+  .dropzone__title { font-size: 20px; font-weight: 700; }
+  .dropzone__desc { font-size: 14px; color: var(--text-2); margin-top: 8px; }
+  .dropzone__formats { margin-top: 16px; display: inline-flex; gap: 8px; }
+  .format-chip {
+    font-size: 12px; font-weight: 600; color: var(--text-2);
+    background: rgba(0, 0, 0, 0.05); padding: 4px 12px; border-radius: 999px;
+  }
+  .dropzone__btn { margin-top: 24px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 42px; padding: 0 28px; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 600; border: none; cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn--primary { background: var(--blue); color: #fff; }
+  .btn--primary:hover { background: var(--blue-hover); }
+  .btn--secondary { background: rgba(0, 0, 0, 0.05); color: var(--text); }
+  .btn--secondary:hover { background: rgba(0, 0, 0, 0.09); }
+
+  /* ===== 任务队列 ===== */
+  .queue { margin-top: 28px; }
+  .queue__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .queue__title { font-size: 17px; font-weight: 700; }
+  .queue__summary { font-size: 13px; color: var(--text-2); }
+
+  .task {
+    background: var(--surface); border-radius: var(--radius-md);
+    box-shadow: var(--shadow); padding: 16px 20px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .task__icon {
+    width: 44px; height: 44px; border-radius: var(--radius-sm); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .task__icon--card { background: rgba(10, 132, 255, 0.1); }
+  .task__icon--box { background: rgba(52, 199, 89, 0.12); }
+  .task__icon--success { background: rgba(52, 199, 89, 0.12); color: var(--green); }
+  .task__icon--warning { background: rgba(255, 159, 10, 0.12); color: var(--orange); }
+  .task__icon--error { background: rgba(255, 59, 48, 0.1); color: var(--red); }
+  .task__body { flex: 1; min-width: 0; }
+  .task__name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .task__status { font-size: 12px; color: var(--text-2); margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+  .task__status--success { color: var(--green); }
+  .task__status--warning { color: var(--orange); }
+  .task__status--error { color: var(--red); }
+  .task__action { flex-shrink: 0; }
+
+  /* 进度条 */
+  .progress { height: 5px; border-radius: 999px; background: rgba(0, 0, 0, 0.07); margin-top: 8px; overflow: hidden; }
+  .progress__bar { height: 100%; border-radius: 999px; background: var(--blue); width: 68%; transition: width 0.3s; }
+  .progress__bar--working { background: linear-gradient(90deg, var(--blue), #5ac8fa); }
+
+  /* 链接按钮 */
+  .link-btn {
+    font-size: 13px; font-weight: 600; color: var(--blue); cursor: pointer;
+    background: none; border: none; padding: 6px 10px; border-radius: 8px;
+    transition: background 0.15s;
+  }
+  .link-btn:hover { background: rgba(10, 132, 255, 0.08); }
+
+  /* ===== 说明卡片 ===== */
+  .hint {
+    margin-top: 28px; background: var(--surface); border-radius: var(--radius-md);
+    box-shadow: var(--shadow); padding: 20px 24px;
+  }
+  .hint__title { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+  .hint__list { list-style: none; }
+  .hint__list li {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13px; color: var(--text-2); line-height: 1.6; padding: 5px 0;
+  }
+  .hint__list li::before { content: "•"; color: var(--blue); font-weight: 700; }
+
+  .foot { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 48px; }
+</style>
+</head>
+<body>
+
+<!-- 顶部导航 -->
+<header class="nav">
+  <div class="nav__brand"><span class="nav__brand-mark">片</span>薯片社区</div>
+  <nav class="nav__links">
+    <span class="nav__link">首页</span>
+    <span class="nav__link">探索</span>
+    <span class="nav__link">我的主页</span>
+    <span class="nav__link nav__link--active">工作区</span>
+  </nav>
+  <div class="nav__right">
+    <span style="font-size:13px;color:var(--text-2);cursor:default;">设计稿 · 工作区</span>
+    <div class="nav__avatar">七</div>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- 页头 -->
+  <div class="page-head">
+    <button class="page-head__back">←</button>
+    <div>
+      <h1 class="page-head__title">工作区</h1>
+      <p class="page-head__sub">把本地作品发布到社区，分享给所有人</p>
+    </div>
+  </div>
+
+  <!-- 上传区 -->
+  <section class="dropzone">
+    <div class="dropzone__icon">⬆</div>
+    <div class="dropzone__title">把作品拖到这里</div>
+    <p class="dropzone__desc">或者点击按钮选择本地文件，支持一次上传多个作品</p>
+    <div class="dropzone__formats">
+      <span class="format-chip">.card · 卡片</span>
+      <span class="format-chip">.box · 箱子</span>
+    </div>
+    <div class="dropzone__btn">
+      <button class="btn btn--primary">选择文件</button>
+    </div>
+  </section>
+
+  <!-- 任务队列（设计展示：上传中的样子） -->
+  <section class="queue">
+    <div class="queue__head">
+      <span class="queue__title">上传任务</span>
+      <span class="queue__summary">已完成 2 / 4</span>
+    </div>
+
+    <!-- 任务 1：成功 -->
+    <div class="task">
+      <div class="task__icon task__icon--success">✓</div>
+      <div class="task__body">
+        <div class="task__name">胶片感的午后 · 老城街拍.card</div>
+        <div class="task__status task__status--success">已发布 · 2 分钟前</div>
+      </div>
+      <div class="task__action"><button class="link-btn">在社区打开 →</button></div>
+    </div>
+
+    <!-- 任务 2：成功（箱子） -->
+    <div class="task">
+      <div class="task__icon task__icon--success">✓</div>
+      <div class="task__body">
+        <div class="task__name">2026 摄影作品集 · 上半年.box</div>
+        <div class="task__status task__status--success">已发布 · 2 分钟前</div>
+      </div>
+      <div class="task__action"><button class="link-btn">在社区打开 →</button></div>
+    </div>
+
+    <!-- 任务 3：处理中 -->
+    <div class="task">
+      <div class="task__icon task__icon--card">🎨</div>
+      <div class="task__body">
+        <div class="task__name">无人机航拍 · 海岸线清晨.card</div>
+        <div class="task__status">正在上传资源与封面 … 68%</div>
+        <div class="progress"><div class="progress__bar progress__bar--working" style="width:68%;"></div></div>
+      </div>
+      <div class="task__action" style="font-size:12px;color:var(--text-3);">3.2 MB / 4.7 MB</div>
+    </div>
+
+    <!-- 任务 4：警告 -->
+    <div class="task">
+      <div class="task__icon task__icon--warning">⚠</div>
+      <div class="task__body">
+        <div class="task__name">旅游攻略合集 · 江浙沪周边.box</div>
+        <div class="task__status task__status--warning">已发布，但有 1 条提示：外置资源已替换为网络引用</div>
+      </div>
+      <div class="task__action"><button class="link-btn">查看提示 →</button></div>
+    </div>
+
+    <!-- 任务 5：失败（设计展示） -->
+    <div class="task">
+      <div class="task__icon task__icon--error">✕</div>
+      <div class="task__body">
+        <div class="task__name">测试文件.unknown</div>
+        <div class="task__status task__status--error">上传失败：不支持的格式，仅支持 .card 与 .box 文件</div>
+      </div>
+      <div class="task__action"><button class="btn btn--secondary" style="height:30px;padding:0 14px;font-size:12px;">重试</button></div>
+    </div>
+  </section>
+
+  <!-- 说明卡片 -->
+  <section class="hint">
+    <div class="hint__title">上传说明</div>
+    <ul class="hint__list">
+      <li>支持卡片（.card）与箱子（.box）文件，可一次选择多个</li>
+      <li>上传前请确认作品中的资源均已打包完整，保证离线可查看</li>
+      <li>默认以"公开"状态发布，所有人可见；发布后可在个人主页管理</li>
+      <li>上传过程会自动处理资源与封面，完成后可在社区直接打开预览</li>
+    </ul>
+  </section>
+
+  <p class="foot">薯片社区 · 工作区设计稿（task032）· 纯外观展示，无功能</p>
+</main>
+
+</body>
+</html>
