@@ -1510,6 +1510,8 @@ describe("createClient", () => {
           listEntries: true,
           readEntryDetail: true,
           renderEntryCover: true,
+          renderEntryDocument: true,
+          releaseEntryDocument: true,
           resolveEntryResource: true,
           readBoxAsset: true,
           prefetchEntries: true,
@@ -1585,6 +1587,17 @@ describe("createClient", () => {
             },
           };
         }
+        if (action === "box.renderEntryDocument") {
+          return {
+            view: {
+              entryId: "e9K2m1P4q7",
+              documentType: "card",
+              title: "完整卡片",
+              documentUrl: "chips-render://session/card-entry/index.html",
+              renderSessionId: "card-entry-session-1",
+            },
+          };
+        }
         if (action === "box.openEntry") {
           return {
             result: {
@@ -1597,7 +1610,11 @@ describe("createClient", () => {
         if (action === "box.resolveEntryResource" || action === "box.readBoxAsset") {
           return { resource: runtimeResource };
         }
-        if (action === "box.prefetchEntries" || action === "box.closeView") {
+        if (
+          action === "box.prefetchEntries"
+          || action === "box.releaseEntryDocument"
+          || action === "box.closeView"
+        ) {
           return { ack: true };
         }
         throw { code: "SERVICE_NOT_FOUND", message: action };
@@ -1647,6 +1664,20 @@ describe("createClient", () => {
       mimeType: "text/html",
       ratio: "3:4",
     });
+    await expect(client.box.renderEntryDocument("session-1", "e9K2m1P4q7", {
+      mode: "preview",
+      interactionPolicy: "delegate",
+      locale: "zh-CN",
+    })).resolves.toEqual({
+      entryId: "e9K2m1P4q7",
+      documentType: "card",
+      title: "完整卡片",
+      documentUrl: "chips-render://session/card-entry/index.html",
+      renderSessionId: "card-entry-session-1",
+    });
+    await expect(
+      client.box.releaseEntryDocument("session-1", "card-entry-session-1"),
+    ).resolves.toBeUndefined();
     await expect(
       client.box.resolveEntryResource("session-1", "e9K2m1P4q7", { kind: "cover" }),
     ).resolves.toEqual(runtimeResource);

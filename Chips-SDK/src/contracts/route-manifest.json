@@ -187,6 +187,17 @@
       "idempotent": true,
       "retries": 0
     },
+    "box.releaseEntryDocument": {
+      "action": "box.releaseEntryDocument",
+      "schemaIn": "schemas/box.releaseEntryDocument.request.json",
+      "schemaOut": "schemas/box.releaseEntryDocument.response.json",
+      "permission": [
+        "box.read"
+      ],
+      "timeoutMs": 8000,
+      "idempotent": true,
+      "retries": 0
+    },
     "box.releaseRenderSession": {
       "action": "box.releaseRenderSession",
       "schemaIn": "schemas/box.releaseRenderSession.request.json",
@@ -218,6 +229,17 @@
       ],
       "timeoutMs": 10000,
       "idempotent": true,
+      "retries": 0
+    },
+    "box.renderEntryDocument": {
+      "action": "box.renderEntryDocument",
+      "schemaIn": "schemas/box.renderEntryDocument.request.json",
+      "schemaOut": "schemas/box.renderEntryDocument.response.json",
+      "permission": [
+        "box.read"
+      ],
+      "timeoutMs": 12000,
+      "idempotent": false,
       "retries": 0
     },
     "box.renderLayoutEditor": {
@@ -394,6 +416,17 @@
       ],
       "timeoutMs": 10000,
       "idempotent": false,
+      "retries": 0
+    },
+    "card.resolveResourceUrl": {
+      "action": "card.resolveResourceUrl",
+      "schemaIn": "schemas/card.resolveResourceUrl.request.json",
+      "schemaOut": "schemas/card.resolveResourceUrl.response.json",
+      "permission": [
+        "card.read"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": true,
       "retries": 0
     },
     "card.unpack": {

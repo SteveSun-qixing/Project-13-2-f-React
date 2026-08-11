@@ -139,6 +139,8 @@ describe('route manifest contract', () => {
       'box.listEntries',
       'box.readEntryDetail',
       'box.renderEntryCover',
+      'box.renderEntryDocument',
+      'box.releaseEntryDocument',
       'box.openEntry',
       'box.resolveEntryResource',
       'box.readBoxAsset',

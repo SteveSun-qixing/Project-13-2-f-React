@@ -30,6 +30,8 @@ type BoxTag = string | string[];
 type EntryDetailField = 'documentInfo' | 'coverDescriptor' | 'previewDescriptor' | 'runtimeProps' | 'status';
 type EntryResourceKind = 'cover' | 'preview' | 'documentFile' | 'custom';
 type PrefetchTarget = 'cover' | 'preview' | 'documentInfo';
+export type BoxEntryDocumentRenderMode = 'view' | 'preview';
+export type BoxEntryDocumentInteractionPolicy = 'native' | 'delegate';
 
 export interface BoxValidationResult {
   valid: boolean;
@@ -126,6 +128,8 @@ export interface BoxSessionInfo {
     listEntries: true;
     readEntryDetail: true;
     renderEntryCover: true;
+    renderEntryDocument: true;
+    releaseEntryDocument: true;
     resolveEntryResource: true;
     readBoxAsset: true;
     prefetchEntries: true;
@@ -161,6 +165,14 @@ export interface BoxEntryCoverView {
   ratio?: string;
 }
 
+export interface BoxEntryDocumentView {
+  entryId: string;
+  documentType: 'card';
+  title: string;
+  documentUrl: string;
+  renderSessionId: string;
+}
+
 export interface ResolvedRuntimeResource {
   resourceUrl: string;
   mimeType: string;
@@ -186,6 +198,32 @@ export interface BoxServiceResolveEntryResourceOptions extends BoxServiceReadEnt
   openCardFile?: (cardFile: string) => Promise<BoxEntryOpenResult>;
   openBoxFile?: (boxFile: string) => Promise<BoxEntryOpenResult>;
   openExternalUrl?: (url: string) => Promise<void>;
+}
+
+export interface BoxServiceRenderEntryDocumentOptions {
+  ownerKey: string;
+  mode?: BoxEntryDocumentRenderMode;
+  interactionPolicy?: BoxEntryDocumentInteractionPolicy;
+  renderCardFile: (
+    cardFile: string,
+    options: {
+      mode: BoxEntryDocumentRenderMode;
+      interactionPolicy: BoxEntryDocumentInteractionPolicy;
+    }
+  ) => Promise<{
+    title: string;
+    documentUrl: string;
+    sessionId: string;
+  }>;
+}
+
+export interface BoxServiceReleaseEntryDocumentOptions {
+  ownerKey: string;
+  releaseCardRenderSession: (renderSessionId: string) => Promise<void>;
+}
+
+export interface BoxServiceCloseViewOptions {
+  releaseCardRenderSession?: (renderSessionId: string) => Promise<void>;
 }
 
 export interface BoxOpenViewOptions {
@@ -274,6 +312,9 @@ interface BoxSessionRecord {
   activeLayoutType: string;
   availableLayouts: string[];
   resourceCache: Map<string, ResolvedRuntimeResource>;
+  entryDocumentRenderSessions: Map<string, { entryId: string }>;
+  pendingEntryDocumentOperations: Set<Promise<void>>;
+  closing: boolean;
 }
 
 interface RenderSessionEntry {
@@ -302,6 +343,14 @@ interface LayoutPluginModule {
         listEntries(query?: BoxEntryQuery): Promise<BoxEntryPage>;
         readEntryDetail(request: { entryIds: string[]; fields: EntryDetailField[] }): Promise<Array<{ entryId: string; detail: Record<string, unknown> }>>;
         renderEntryCover(entryId: string): Promise<BoxEntryCoverView>;
+        renderEntryDocument(
+          entryId: string,
+          options?: {
+            mode?: BoxEntryDocumentRenderMode;
+            interactionPolicy?: BoxEntryDocumentInteractionPolicy;
+          }
+        ): Promise<BoxEntryDocumentView>;
+        releaseEntryDocument(renderSessionId: string): Promise<void>;
         resolveEntryResource(request: {
           entryId: string;
           resource: {
@@ -744,6 +793,12 @@ const createBoxLayoutViewDocument = (options: {
     '        renderEntryCover(entryId) {',
     "          return requestRuntime('renderEntryCover', { entryId });",
     '        },',
+    '        renderEntryDocument(entryId, options) {',
+    "          return requestRuntime('renderEntryDocument', { entryId, options });",
+    '        },',
+    '        releaseEntryDocument(renderSessionId) {',
+    "          return requestRuntime('releaseEntryDocument', { renderSessionId });",
+    '        },',
     '        resolveEntryResource(request) {',
     "          return requestRuntime('resolveEntryResource', { request });",
     '        },',
@@ -1181,7 +1236,10 @@ export class BoxService {
         entryMap: new Map(loaded.entries.map((entry) => [entry.entryId, entry])),
         activeLayoutType,
         availableLayouts,
-        resourceCache: new Map()
+        resourceCache: new Map(),
+        entryDocumentRenderSessions: new Map(),
+        pendingEntryDocumentOperations: new Set(),
+        closing: false
       };
       this.sessions.set(sessionId, session);
 
@@ -1434,6 +1492,134 @@ export class BoxService {
     });
   }
 
+  public async renderEntryDocument(
+    sessionId: string,
+    entryId: string,
+    options: BoxServiceRenderEntryDocumentOptions
+  ): Promise<BoxEntryDocumentView> {
+    const session = this.requireSession(sessionId, options.ownerKey);
+    let finishOperation!: () => void;
+    const operation = new Promise<void>((resolve) => {
+      finishOperation = resolve;
+    });
+    session.pendingEntryDocumentOperations.add(operation);
+
+    try {
+      const entry = session.entryMap.get(entryId);
+      if (!entry) {
+        throw createError('BOX_ENTRY_NOT_FOUND', `Box entry not found: ${entryId}`, { sessionId, entryId });
+      }
+      if (!entry.enabled) {
+        throw createError('BOX_ENTRY_DOCUMENT_UNAVAILABLE', 'Disabled box entries cannot be rendered as documents.', {
+          sessionId,
+          entryId
+        });
+      }
+
+      const locator = this.resolveEntryLocator(entry.url, session.extractedDir);
+      if (locator.scheme !== 'file:' || !locator.filePath) {
+        throw createError('BOX_ENTRY_DOCUMENT_UNAVAILABLE', 'Remote box entries are not available for inline rendering.', {
+          sessionId,
+          entryId,
+          url: entry.url,
+          scheme: locator.scheme
+        });
+      }
+
+      const exists = await this.pathExists(locator.filePath);
+      if (!exists) {
+        throw createError('BOX_ENTRY_DOCUMENT_UNAVAILABLE', `Entry document file is missing: ${entryId}`, {
+          sessionId,
+          entryId
+        });
+      }
+      if (session.closing) {
+        throw createError('BOX_VIEW_SESSION_NOT_FOUND', `Box view session is closing: ${sessionId}`, { sessionId });
+      }
+
+      const documentKind = this.resolveDocumentKind(entry, locator);
+      if (documentKind !== 'card') {
+        throw createError('BOX_ENTRY_DOCUMENT_TYPE_UNSUPPORTED', 'Box entries cannot be recursively rendered inline.', {
+          sessionId,
+          entryId,
+          documentType: documentKind
+        });
+      }
+
+      let rendered: Awaited<ReturnType<BoxServiceRenderEntryDocumentOptions['renderCardFile']>>;
+      try {
+        rendered = await options.renderCardFile(locator.filePath, {
+          mode: options.mode ?? 'view',
+          interactionPolicy: options.interactionPolicy ?? 'native'
+        });
+      } catch (error) {
+        throw createError('BOX_ENTRY_RENDER_FAILED', `Failed to render box entry document: ${entryId}`, {
+          sessionId,
+          entryId,
+          reason: error instanceof Error ? error.message : String(error),
+          causeCode: error && typeof error === 'object' && 'code' in error
+            ? String((error as { code?: unknown }).code ?? '')
+            : undefined
+        });
+      }
+
+      session.entryDocumentRenderSessions.set(rendered.sessionId, { entryId });
+      if (session.closing) {
+        throw createError('BOX_VIEW_SESSION_NOT_FOUND', `Box view session closed while rendering entry: ${sessionId}`, {
+          sessionId,
+          entryId
+        });
+      }
+      return {
+        entryId,
+        documentType: 'card',
+        title: rendered.title || entry.snapshot.title || entry.snapshot.documentId || entry.entryId,
+        documentUrl: rendered.documentUrl,
+        renderSessionId: rendered.sessionId
+      };
+    } finally {
+      session.pendingEntryDocumentOperations.delete(operation);
+      finishOperation();
+    }
+  }
+
+  public async releaseEntryDocument(
+    sessionId: string,
+    renderSessionId: string,
+    options: BoxServiceReleaseEntryDocumentOptions
+  ): Promise<{ ack: true }> {
+    const session = this.requireSession(sessionId, options.ownerKey);
+    const normalizedRenderSessionId = asString(renderSessionId)?.trim();
+    if (!normalizedRenderSessionId) {
+      throw createError('INVALID_ARGUMENT', 'renderSessionId is required for entry document release.');
+    }
+    const ownedRenderSession = session.entryDocumentRenderSessions.get(normalizedRenderSessionId);
+    if (!ownedRenderSession) {
+      throw createError(
+        'BOX_ENTRY_RENDER_SESSION_NOT_FOUND',
+        'Entry document render session was not created by the current box session.',
+        { sessionId, renderSessionId: normalizedRenderSessionId }
+      );
+    }
+
+    let finishOperation!: () => void;
+    const operation = new Promise<void>((resolve) => {
+      finishOperation = resolve;
+    });
+    session.pendingEntryDocumentOperations.add(operation);
+    session.entryDocumentRenderSessions.delete(normalizedRenderSessionId);
+    try {
+      await options.releaseCardRenderSession(normalizedRenderSessionId);
+      return { ack: true };
+    } catch (error) {
+      session.entryDocumentRenderSessions.set(normalizedRenderSessionId, ownedRenderSession);
+      throw error;
+    } finally {
+      session.pendingEntryDocumentOperations.delete(operation);
+      finishOperation();
+    }
+  }
+
   public async openEntry(
     sessionId: string,
     entryId: string,
@@ -1562,9 +1748,22 @@ export class BoxService {
     return { ack: true };
   }
 
-  public async closeView(sessionId: string, ownerKey: string): Promise<{ ack: true }> {
+  public async closeView(
+    sessionId: string,
+    ownerKey: string,
+    options: BoxServiceCloseViewOptions = {}
+  ): Promise<{ ack: true }> {
     const session = this.requireSession(sessionId, ownerKey);
+    session.closing = true;
     this.sessions.delete(sessionId);
+    await Promise.allSettled([...session.pendingEntryDocumentOperations]);
+    const renderSessionIds = [...session.entryDocumentRenderSessions.keys()];
+    session.entryDocumentRenderSessions.clear();
+    if (options.releaseCardRenderSession && renderSessionIds.length > 0) {
+      await Promise.allSettled(
+        renderSessionIds.map((renderSessionId) => options.releaseCardRenderSession?.(renderSessionId))
+      );
+    }
     await fs.rm(session.extractedDir, { recursive: true, force: true });
     return { ack: true };
   }
@@ -2026,6 +2225,8 @@ export class BoxService {
         listEntries: true,
         readEntryDetail: true,
         renderEntryCover: true,
+        renderEntryDocument: true,
+        releaseEntryDocument: true,
         resolveEntryResource: true,
         readBoxAsset: true,
         prefetchEntries: true,

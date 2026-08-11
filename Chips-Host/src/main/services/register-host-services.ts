@@ -7131,6 +7131,66 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           })
         )
       },
+      renderEntryDocument: {
+        descriptor: descriptor<
+          {
+            sessionId: string;
+            entryId: string;
+            options?: {
+              mode?: 'view' | 'preview';
+              interactionPolicy?: 'native' | 'delegate';
+              locale?: string;
+              themeId?: string;
+            };
+          },
+          { view: unknown }
+        >(
+          'box.renderEntryDocument',
+          ['box.read'],
+          12_000,
+          false,
+          0,
+          withMetrics(state, 'box.renderEntryDocument', async (input, routeContext) => {
+            const themeContext = resolveRenderThemeContext(
+              state,
+              input.options?.themeId ? [input.options.themeId] : []
+            );
+            const locale = input.options?.locale ?? state.locale;
+            if (!state.locales[locale]) {
+              throw createError('I18N_LOCALE_NOT_FOUND', `Locale not found: ${locale}`, { locale });
+            }
+            const view = await ctx.getBoxService().renderEntryDocument(input.sessionId, input.entryId, {
+              ownerKey: resolveBoxSessionOwnerKey(routeContext),
+              mode: input.options?.mode,
+              interactionPolicy: input.options?.interactionPolicy,
+              renderCardFile: (cardFile, renderOptions) => ctx.getCardService().render(cardFile, {
+                target: 'card-iframe',
+                mode: renderOptions.mode,
+                interactionPolicy: renderOptions.interactionPolicy,
+                locale,
+                theme: themeContext.renderTheme,
+                themeCssText: themeContext.css
+              })
+            });
+            return { view };
+          })
+        )
+      },
+      releaseEntryDocument: {
+        descriptor: descriptor<{ sessionId: string; renderSessionId: string }, { ack: true }>(
+          'box.releaseEntryDocument',
+          ['box.read'],
+          8_000,
+          true,
+          0,
+          withMetrics(state, 'box.releaseEntryDocument', async (input, routeContext) => {
+            return ctx.getBoxService().releaseEntryDocument(input.sessionId, input.renderSessionId, {
+              ownerKey: resolveBoxSessionOwnerKey(routeContext),
+              releaseCardRenderSession: (renderSessionId) => ctx.getCardService().releaseRenderSession(renderSessionId)
+            });
+          })
+        )
+      },
       renderCover: {
         descriptor: descriptor<{ boxFile: string }, { view: unknown }>(
           'box.renderCover',
@@ -7243,7 +7303,13 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           true,
           0,
           withMetrics(state, 'box.closeView', async (input, routeContext) => {
-            const result = await ctx.getBoxService().closeView(input.sessionId, resolveBoxSessionOwnerKey(routeContext));
+            const result = await ctx.getBoxService().closeView(
+              input.sessionId,
+              resolveBoxSessionOwnerKey(routeContext),
+              {
+                releaseCardRenderSession: (renderSessionId) => ctx.getCardService().releaseRenderSession(renderSessionId)
+              }
+            );
             await ctx.kernel.events.emit('box.session.closed', 'box-service', {
               sessionId: input.sessionId
             });

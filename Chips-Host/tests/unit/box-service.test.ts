@@ -542,7 +542,8 @@ describe('BoxService', () => {
     expect(body.indexOf('--chips-layout-gap-md: 1.171875vw;')).toBeLessThan(
       body.indexOf('#chips-box-layout-editor-root')
     );
-    expect(body).toContain('html, body { margin: 0; padding: 0; width: 100%; height: 100%; min-height: 100%; background: transparent; }');
+    expect(body).toContain('html { margin: 0; padding: 0; width: 100%; height: 100%; min-height: 100%; background: transparent; }');
+    expect(body).toContain('body { margin: 0; padding: 0; width: 100%; height: 100%; min-height: 100%; min-width: 0;');
     expect(body).toContain('#chips-box-layout-editor-root { width: 100%; height: 100%; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }');
     expect(body).toContain('--chips-layout-gap-md: 1.171875vw;');
     expect(body).toContain('--chips-layout-size-navigation-primary-min: 15.625vw;');
@@ -616,6 +617,8 @@ describe('BoxService', () => {
           listEntries: true,
           readEntryDetail: true,
           renderEntryCover: true,
+          renderEntryDocument: true,
+          releaseEntryDocument: true,
           resolveEntryResource: true,
           readBoxAsset: true,
           prefetchEntries: true,
@@ -664,6 +667,188 @@ describe('BoxService', () => {
   });
 
   describe('embedded card entries', () => {
+    it('renders embedded cards as owned child sessions and releases them on demand or close', async () => {
+      const workspace = await createWorkspace();
+      const sourceDir = path.join(workspace, 'source-box');
+      const boxFile = path.join(workspace, 'travel.box');
+      await writeText(path.join(sourceDir, 'cards/day-01.card'), 'embedded card');
+      await createBoxDirectoryWithStructure(
+        sourceDir,
+        [
+          'entries:',
+          `  - entry_id: "${ENTRY_ID}"`,
+          '    url: cards/day-01.card',
+          '    enabled: true',
+          '    snapshot:',
+          '      title: "第一天"',
+          '      content_type: "chips/card"',
+          ''
+        ].join('\n')
+      );
+
+      const service = new BoxService();
+      await service.pack(sourceDir, boxFile);
+      const opened = await service.openView(boxFile, { ownerKey: 'app:test-viewer' });
+      const released: string[] = [];
+      const renderedFiles: string[] = [];
+
+      const first = await service.renderEntryDocument(opened.sessionId, ENTRY_ID, {
+        ownerKey: 'app:test-viewer',
+        mode: 'preview',
+        interactionPolicy: 'delegate',
+        renderCardFile: async (cardFile, options) => {
+          renderedFiles.push(cardFile);
+          expect(options).toEqual({ mode: 'preview', interactionPolicy: 'delegate' });
+          return {
+            title: '嵌入式卡片',
+            documentUrl: 'chips-render://session/card-render-1/index.html',
+            sessionId: 'card-render-1'
+          };
+        }
+      });
+
+      expect(renderedFiles[0]?.endsWith(path.join('cards', 'day-01.card'))).toBe(true);
+      expect(first).toEqual({
+        entryId: ENTRY_ID,
+        documentType: 'card',
+        title: '嵌入式卡片',
+        documentUrl: 'chips-render://session/card-render-1/index.html',
+        renderSessionId: 'card-render-1'
+      });
+
+      await expect(service.releaseEntryDocument(opened.sessionId, first.renderSessionId, {
+        ownerKey: 'app:test-viewer',
+        releaseCardRenderSession: async (renderSessionId) => {
+          released.push(renderSessionId);
+        }
+      })).resolves.toEqual({ ack: true });
+      expect(released).toEqual(['card-render-1']);
+      await expect(service.releaseEntryDocument(opened.sessionId, first.renderSessionId, {
+        ownerKey: 'app:test-viewer',
+        releaseCardRenderSession: async () => undefined
+      })).rejects.toMatchObject({ code: 'BOX_ENTRY_RENDER_SESSION_NOT_FOUND' });
+
+      await service.renderEntryDocument(opened.sessionId, ENTRY_ID, {
+        ownerKey: 'app:test-viewer',
+        renderCardFile: async () => ({
+          title: '嵌入式卡片',
+          documentUrl: 'chips-render://session/card-render-2/index.html',
+          sessionId: 'card-render-2'
+        })
+      });
+      await expect(service.closeView(opened.sessionId, 'app:test-viewer', {
+        releaseCardRenderSession: async (renderSessionId) => {
+          released.push(renderSessionId);
+        }
+      })).resolves.toEqual({ ack: true });
+      expect(released).toEqual(['card-render-1', 'card-render-2']);
+    });
+
+    it('rejects remote cards and nested boxes for inline document rendering', async () => {
+      const workspace = await createWorkspace();
+      const sourceDir = path.join(workspace, 'source-box');
+      const boxFile = path.join(workspace, 'travel.box');
+      const nestedBoxFile = path.join(workspace, 'nested.box');
+      await writeText(nestedBoxFile, 'nested box');
+      await createBoxDirectoryWithStructure(
+        sourceDir,
+        [
+          'entries:',
+          `  - entry_id: "${ENTRY_ID}"`,
+          '    url: "https://example.com/cards/day-01.card"',
+          '    enabled: true',
+          '    snapshot:',
+          '      content_type: "chips/card"',
+          '  - entry_id: "f3J8n2Q6r1"',
+          `    url: "${pathToFileURL(nestedBoxFile).href}"`,
+          '    enabled: true',
+          '    snapshot:',
+          '      content_type: "chips/box"',
+          ''
+        ].join('\n')
+      );
+
+      const service = new BoxService();
+      await service.pack(sourceDir, boxFile);
+      const opened = await service.openView(boxFile, { ownerKey: 'app:test-viewer' });
+      const renderCardFile = async () => ({
+        title: 'unused',
+        documentUrl: 'chips-render://session/unused/index.html',
+        sessionId: 'unused'
+      });
+
+      try {
+        await expect(service.renderEntryDocument(opened.sessionId, ENTRY_ID, {
+          ownerKey: 'app:test-viewer',
+          renderCardFile
+        })).rejects.toMatchObject({ code: 'BOX_ENTRY_DOCUMENT_UNAVAILABLE' });
+        await expect(service.renderEntryDocument(opened.sessionId, 'f3J8n2Q6r1', {
+          ownerKey: 'app:test-viewer',
+          renderCardFile
+        })).rejects.toMatchObject({ code: 'BOX_ENTRY_DOCUMENT_TYPE_UNSUPPORTED' });
+      } finally {
+        await service.closeView(opened.sessionId, 'app:test-viewer');
+      }
+    });
+
+    it('releases an inline card render that completes while the box view is closing', async () => {
+      const workspace = await createWorkspace();
+      const sourceDir = path.join(workspace, 'source-box');
+      const boxFile = path.join(workspace, 'travel.box');
+      await writeText(path.join(sourceDir, 'cards/day-01.card'), 'embedded card');
+      await createBoxDirectoryWithStructure(
+        sourceDir,
+        [
+          'entries:',
+          `  - entry_id: "${ENTRY_ID}"`,
+          '    url: "cards/day-01.card"',
+          '    enabled: true',
+          '    snapshot:',
+          '      document_id: "c7H1k2L9m3"',
+          '      title: "嵌入式卡片"',
+          '      content_type: "chips/card"',
+          ''
+        ].join('\n')
+      );
+
+      const service = new BoxService();
+      await service.pack(sourceDir, boxFile);
+      const opened = await service.openView(boxFile, { ownerKey: 'app:test-viewer' });
+      let completeRender!: () => void;
+      const renderBarrier = new Promise<void>((resolve) => {
+        completeRender = resolve;
+      });
+      let notifyRenderStarted!: () => void;
+      const renderStarted = new Promise<void>((resolve) => {
+        notifyRenderStarted = resolve;
+      });
+      const released: string[] = [];
+
+      const rendering = service.renderEntryDocument(opened.sessionId, ENTRY_ID, {
+        ownerKey: 'app:test-viewer',
+        renderCardFile: async () => {
+          notifyRenderStarted();
+          await renderBarrier;
+          return {
+            title: '晚到卡片',
+            documentUrl: 'chips-render://session/card-render-late/index.html',
+            sessionId: 'card-render-late'
+          };
+        }
+      });
+      await renderStarted;
+      const closing = service.closeView(opened.sessionId, 'app:test-viewer', {
+        releaseCardRenderSession: async (renderSessionId) => {
+          released.push(renderSessionId);
+        }
+      });
+
+      completeRender();
+      await expect(rendering).rejects.toMatchObject({ code: 'BOX_VIEW_SESSION_NOT_FOUND' });
+      await expect(closing).resolves.toEqual({ ack: true });
+      expect(released).toEqual(['card-render-late']);
+    });
+
     it('packs embedded card files and inspects them through the normalized entry model', async () => {
       const workspace = await createWorkspace();
       const sourceDir = path.join(workspace, 'source-box');

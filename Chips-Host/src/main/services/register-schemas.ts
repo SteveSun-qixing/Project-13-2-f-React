@@ -943,6 +943,7 @@ export const registerHostSchemas = (): void => {
   schemaRegistry.register('schemas/card.renderEditor.response.json', objectWithKeys(['view']));
   registerPair('card.releaseRenderSession', ['sessionId'], ['ack']);
   registerPair('card.resolveDocumentPath', ['documentUrl'], ['path']);
+  registerPair('card.resolveResourceUrl', ['cardRootDir', 'resourcePath'], ['uri']);
   registerPair('card.validate', ['cardFile']);
   registerPair('card.open', ['cardFile'], ['result']);
 
@@ -965,6 +966,8 @@ export const registerHostSchemas = (): void => {
   registerPair('box.listEntries', ['sessionId'], ['page']);
   registerPair('box.readEntryDetail', ['sessionId', 'entryIds', 'fields'], ['items']);
   registerPair('box.renderEntryCover', ['sessionId', 'entryId'], ['view']);
+  registerPair('box.renderEntryDocument', ['sessionId', 'entryId'], ['view']);
+  registerPair('box.releaseEntryDocument', ['sessionId', 'renderSessionId'], ['ack']);
   registerPair('box.resolveEntryResource', ['sessionId', 'entryId', 'resource'], ['resource']);
   registerPair('box.openEntry', ['sessionId', 'entryId'], ['result']);
   registerPair('box.readBoxAsset', ['sessionId', 'assetPath'], ['resource']);

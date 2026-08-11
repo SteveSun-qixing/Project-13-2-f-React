@@ -750,6 +750,23 @@ client.box.getLayoutInitialQuery(
   config: Record<string, unknown>,
 ): Promise<BoxEntryQuery | undefined>
 client.box.releaseRenderSession(sessionId: string): Promise<void>
+client.box.renderEntryDocument(
+  sessionId: string,
+  entryId: string,
+  options?: {
+    mode?: 'view' | 'preview',
+    interactionPolicy?: 'native' | 'delegate',
+    locale?: string,
+    themeId?: string,
+  },
+): Promise<{
+  entryId: string,
+  documentType: 'card',
+  title: string,
+  documentUrl: string,
+  renderSessionId: string,
+}>
+client.box.releaseEntryDocument(sessionId: string, renderSessionId: string): Promise<void>
 ```
 
 说明：
@@ -776,7 +793,11 @@ client.box.documentWindow.render({
 - Host 托管的布局查看文档必须已注入完整主题 CSS、Material Symbols `@font-face` 与解析后的 token variables；SDK 和应用层不自行注入图标字体，也不拼接主题字体路径；
 - `documentWindow` 返回的 iframe URL 是 Host 托管的正式文档入口，Electron 桌面端可使用 `chips-render://...` 等受控协议地址；应用层不得假定它一定是 `file://`，也不得绕过 Host 自行读取临时布局文档；
 - SDK 负责挂载 iframe，并桥接 `chips.box-layout:*` 运行时消息；
+- 布局文档通过 Runtime 调用 `renderEntryDocument(entryId, options)` 时，SDK 会固定使用当前 `box.openView` 会话，并自动继承外层 `documentWindow.render` 的 `locale/themeId`；布局消息中的 `sessionId` 不能切换 SDK 已绑定的箱子会话；
+- 布局拿到条目 `documentUrl` 后自行挂载受控子 iframe，处理 `chips.composite:ready/resize/resource-open/node-error/fatal-error/interaction`；切换或卸载时调用 `releaseEntryDocument(renderSessionId)`；
+- `resolveEntryResource(kind='documentFile')` 只提供原始文档资源定位，不能用来显示完整卡片；
 - 销毁返回的 iframe 时，正式链路需要同时关闭 `box.openView` 创建的查看会话并释放 `box.renderLayoutFrame` 创建的 render session；SDK 返回的 `dispose()` 已封装该流程。
+- `dispose()` 触发的 `box.closeView` 还会兜底回收布局未显式释放的条目卡片子会话。
 
 箱子编辑器面板接口：
 
@@ -831,6 +852,7 @@ const disposeError = client.box.editorPanel.onError(result.frame, (payload) => {
 
 - `resourcePath` 一律使用相对于卡片根目录的路径；
 - 只读场景可只传 `rootPath`，SDK 会用它为 `resolveResourceUrl` 生成 `file://` URL；
+- 官方 Host 承载的查看态和编辑引擎预览必须使用 Host/SDK 的 `card.resolveResourceUrl(cardRootDir, resourcePath)` 正式链路；Electron 桌面端返回的 `chips-render://card-root/...` 受控 URL 不得被转换为 `file://`。`rootPath` 生成 `file://` 仅适用于没有 Host 资源路由的 SDK 辅助场景，不得作为 Host 沙箱预览基址；
 - `resolveResourceUrl(...)` 返回的是正式运行时资源 URL；若编辑器需要读取 Markdown、纯文本、JSON 等正文内容，应由编辑器自己基于该 URL 读取并解析，而不是依赖富文本专用正文读取接口；
 - 对 `file://` 资源，请求方应通过正式文件服务读取正文；对 `blob:` 或 Host 受控协议 URL，请求方可按对应协议自行读取；
 - 若编辑器支持导入或删除卡片内部资源，宿主必须实现 `importResource/deleteResource`；

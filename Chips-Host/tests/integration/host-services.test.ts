@@ -1343,6 +1343,35 @@ describe('Host services integration', () => {
     });
     expect(entryCover.view.coverUrl).toBeTruthy();
 
+    const entryDocument = await runtime.invoke<{
+      view: {
+        entryId: string;
+        documentType: 'card';
+        title: string;
+        documentUrl: string;
+        renderSessionId: string;
+      };
+    }>('box.renderEntryDocument', {
+      sessionId: openedBox.sessionId,
+      entryId: firstEntryId,
+      options: {
+        mode: 'view',
+        interactionPolicy: 'native',
+        locale: 'zh-CN',
+      },
+    });
+    expect(entryDocument.view).toMatchObject({
+      entryId: firstEntryId,
+      documentType: 'card',
+      title: detail.items[0]?.detail.documentInfo?.metadata?.name,
+      renderSessionId: expect.any(String),
+    });
+    expectManagedDocumentUrl(entryDocument.view.documentUrl);
+    await expect(runtime.invoke('box.releaseEntryDocument', {
+      sessionId: openedBox.sessionId,
+      renderSessionId: entryDocument.view.renderSessionId,
+    })).resolves.toMatchObject({ ack: true });
+
     const renderedBox = await runtime.invoke<{
       view: { title: string; layoutType: string; pluginId: string; documentUrl: string; sessionId: string };
     }>('box.renderLayoutFrame', {

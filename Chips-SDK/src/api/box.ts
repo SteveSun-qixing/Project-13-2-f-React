@@ -5,6 +5,15 @@ export type BoxTag = string | string[];
 export type BoxEntryDetailField = "documentInfo" | "coverDescriptor" | "previewDescriptor" | "runtimeProps" | "status";
 export type BoxEntryResourceKind = "cover" | "preview" | "documentFile" | "custom";
 export type BoxPrefetchTarget = "cover" | "preview" | "documentInfo";
+export type BoxEntryDocumentRenderMode = "view" | "preview";
+export type BoxEntryDocumentInteractionPolicy = "native" | "delegate";
+
+export interface BoxEntryDocumentRenderOptions {
+  mode?: BoxEntryDocumentRenderMode;
+  interactionPolicy?: BoxEntryDocumentInteractionPolicy;
+  locale?: string;
+  themeId?: string;
+}
 
 export interface BoxValidationResult {
   valid: boolean;
@@ -107,6 +116,8 @@ export interface BoxSessionInfo {
     listEntries: true;
     readEntryDetail: true;
     renderEntryCover: true;
+    renderEntryDocument: true;
+    releaseEntryDocument: true;
     resolveEntryResource: true;
     readBoxAsset: true;
     prefetchEntries: true;
@@ -140,6 +151,14 @@ export interface BoxEntryCoverView {
   coverUrl: string;
   mimeType: string;
   ratio?: string;
+}
+
+export interface BoxEntryDocumentView {
+  entryId: string;
+  documentType: "card";
+  title: string;
+  documentUrl: string;
+  renderSessionId: string;
 }
 
 export interface ResolvedRuntimeResource {
@@ -238,6 +257,12 @@ export interface BoxApi {
   listEntries(sessionId: string, query?: BoxEntryQuery): Promise<BoxEntryPage>;
   readEntryDetail(sessionId: string, entryIds: string[], fields: BoxEntryDetailField[]): Promise<BoxEntryDetailItem[]>;
   renderEntryCover(sessionId: string, entryId: string): Promise<BoxEntryCoverView>;
+  renderEntryDocument(
+    sessionId: string,
+    entryId: string,
+    options?: BoxEntryDocumentRenderOptions,
+  ): Promise<BoxEntryDocumentView>;
+  releaseEntryDocument(sessionId: string, renderSessionId: string): Promise<void>;
   openEntry(sessionId: string, entryId: string): Promise<BoxEntryOpenResult>;
   resolveEntryResource(
     sessionId: string,
@@ -284,6 +309,8 @@ type BoxLayoutRuntimeAction =
   | "listEntries"
   | "readEntryDetail"
   | "renderEntryCover"
+  | "renderEntryDocument"
+  | "releaseEntryDocument"
   | "resolveEntryResource"
   | "readBoxAsset"
   | "prefetchEntries"
@@ -294,6 +321,11 @@ type BoxLayoutRuntimeRequestPayload = {
   action: BoxLayoutRuntimeAction;
   sessionId?: string;
   entryId?: string;
+  renderSessionId?: string;
+  options?: {
+    mode?: BoxEntryDocumentRenderMode;
+    interactionPolicy?: BoxEntryDocumentInteractionPolicy;
+  };
   request?: {
     entryId?: string;
     entryIds?: string[];
@@ -495,6 +527,29 @@ export function createBoxApi(client: CoreClient): BoxApi {
       );
       return result.view;
     },
+    async renderEntryDocument(sessionId, entryId, options) {
+      if (!sessionId || !entryId) {
+        throw createError("INVALID_ARGUMENT", "box.renderEntryDocument: sessionId and entryId are required.");
+      }
+      const result = await client.invoke<
+        { sessionId: string; entryId: string; options?: BoxEntryDocumentRenderOptions },
+        { view: BoxEntryDocumentView }
+      >("box.renderEntryDocument", {
+        sessionId,
+        entryId,
+        options,
+      });
+      return result.view;
+    },
+    async releaseEntryDocument(sessionId, renderSessionId) {
+      if (!sessionId || !renderSessionId) {
+        throw createError(
+          "INVALID_ARGUMENT",
+          "box.releaseEntryDocument: sessionId and renderSessionId are required.",
+        );
+      }
+      await client.invoke("box.releaseEntryDocument", { sessionId, renderSessionId });
+    },
     async openEntry(sessionId, entryId) {
       if (!sessionId || !entryId) {
         throw createError("INVALID_ARGUMENT", "box.openEntry: sessionId and entryId are required.");
@@ -673,7 +728,10 @@ export function createBoxApi(client: CoreClient): BoxApi {
             },
           },
         );
-        const cleanupBridge = attachBoxLayoutRuntimeBridge(frameResult.frame, client, opened.sessionId);
+        const cleanupBridge = attachBoxLayoutRuntimeBridge(frameResult.frame, client, opened.sessionId, {
+          locale,
+          themeId,
+        });
         const originalDispose = frameResult.dispose;
         frameResult.dispose = async () => {
           cleanupBridge();
@@ -783,6 +841,7 @@ function attachBoxLayoutRuntimeBridge(
   frame: HTMLIFrameElement,
   client: CoreClient,
   sessionId: string,
+  renderContext: { locale?: string; themeId?: string } = {},
 ): () => void {
   if (typeof window === "undefined") {
     return () => undefined;
@@ -810,7 +869,7 @@ function attachBoxLayoutRuntimeBridge(
       return;
     }
 
-    void handleBoxLayoutRuntimeRequest(client, sessionId, payload)
+    void handleBoxLayoutRuntimeRequest(client, sessionId, payload, renderContext)
       .then((result) => {
         source.postMessage(
           {
@@ -849,8 +908,9 @@ async function handleBoxLayoutRuntimeRequest(
   client: CoreClient,
   sessionId: string,
   payload: BoxLayoutRuntimeRequestPayload,
+  renderContext: { locale?: string; themeId?: string },
 ): Promise<unknown> {
-  const effectiveSessionId = normalizeString(payload.sessionId) ?? sessionId;
+  const effectiveSessionId = normalizeString(sessionId);
   if (!effectiveSessionId) {
     throw createError("INVALID_ARGUMENT", "box.documentWindow.runtime: sessionId is required.");
   }
@@ -892,6 +952,47 @@ async function handleBoxLayoutRuntimeRequest(
         },
       );
       return result.view;
+    }
+    case "renderEntryDocument": {
+      const entryId = normalizeString(payload.entryId);
+      if (!entryId) {
+        throw createError(
+          "INVALID_ARGUMENT",
+          "box.documentWindow.runtime.renderEntryDocument: entryId is required.",
+        );
+      }
+      const result = await client.invoke<
+        {
+          sessionId: string;
+          entryId: string;
+          options?: BoxEntryDocumentRenderOptions;
+        },
+        { view: BoxEntryDocumentView }
+      >("box.renderEntryDocument", {
+        sessionId: effectiveSessionId,
+        entryId,
+        options: {
+          mode: payload.options?.mode,
+          interactionPolicy: payload.options?.interactionPolicy,
+          locale: renderContext.locale,
+          themeId: renderContext.themeId,
+        },
+      });
+      return result.view;
+    }
+    case "releaseEntryDocument": {
+      const renderSessionId = normalizeString(payload.renderSessionId);
+      if (!renderSessionId) {
+        throw createError(
+          "INVALID_ARGUMENT",
+          "box.documentWindow.runtime.releaseEntryDocument: renderSessionId is required.",
+        );
+      }
+      await client.invoke("box.releaseEntryDocument", {
+        sessionId: effectiveSessionId,
+        renderSessionId,
+      });
+      return null;
     }
     case "resolveEntryResource": {
       const entryId = normalizeString(payload.request?.entryId) ?? normalizeString(payload.entryId);

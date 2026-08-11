@@ -57,6 +57,8 @@ const openViewResult = {
       listEntries: true,
       readEntryDetail: true,
       renderEntryCover: true,
+      renderEntryDocument: true,
+      releaseEntryDocument: true,
       resolveEntryResource: true,
       readBoxAsset: true,
       prefetchEntries: true,
@@ -171,6 +173,17 @@ describe("Document window SDK contract", () => {
             },
           };
         }
+        if (action === "box.renderEntryDocument") {
+          return {
+            view: {
+              entryId: "food-entry-1",
+              documentType: "card",
+              title: "点心百宝盒",
+              documentUrl: "chips-render://card-entry-session/index.html",
+              renderSessionId: "card-entry-session-1",
+            },
+          };
+        }
         if (action === "box.resolveEntryResource" || action === "box.readBoxAsset") {
           return {
             resource: {
@@ -192,7 +205,11 @@ describe("Document window SDK contract", () => {
             },
           };
         }
-        if (action === "box.releaseRenderSession" || action === "box.closeView") {
+        if (
+          action === "box.releaseRenderSession"
+          || action === "box.releaseEntryDocument"
+          || action === "box.closeView"
+        ) {
           return { ack: true };
         }
 
@@ -306,6 +323,69 @@ describe("Document window SDK contract", () => {
           payload: {
             sessionId: "box-view-session-1",
             entryId: "food-entry-1",
+          },
+        },
+      ]),
+    );
+
+    window.dispatchEvent(new MessageEvent("message", {
+      source: contentWindow,
+      origin: "null",
+      data: {
+        type: "chips.box-layout:runtime-request",
+        payload: {
+          requestId: "render-entry-document-1",
+          action: "renderEntryDocument",
+          sessionId: "untrusted-other-session",
+          entryId: "food-entry-1",
+          options: {
+            mode: "preview",
+            interactionPolicy: "delegate",
+          },
+        },
+      },
+    }));
+    await Promise.resolve();
+
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        {
+          action: "box.renderEntryDocument",
+          payload: {
+            sessionId: "box-view-session-1",
+            entryId: "food-entry-1",
+            options: {
+              mode: "preview",
+              interactionPolicy: "delegate",
+              locale: undefined,
+              themeId: undefined,
+            },
+          },
+        },
+      ]),
+    );
+
+    window.dispatchEvent(new MessageEvent("message", {
+      source: contentWindow,
+      origin: "null",
+      data: {
+        type: "chips.box-layout:runtime-request",
+        payload: {
+          requestId: "release-entry-document-1",
+          action: "releaseEntryDocument",
+          renderSessionId: "card-entry-session-1",
+        },
+      },
+    }));
+    await Promise.resolve();
+
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        {
+          action: "box.releaseEntryDocument",
+          payload: {
+            sessionId: "box-view-session-1",
+            renderSessionId: "card-entry-session-1",
           },
         },
       ]),
