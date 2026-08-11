@@ -159,7 +159,7 @@ export interface LayoutSkeletonProps {
 }
 
 /**
- * 布局骨架容器：包裹布局形态骨架，底部（或传入位置）附空状态提示。
+ * 布局骨架容器：包裹布局形态骨架，顶部附空状态提示。
  * 各布局插件空状态统一使用：<LayoutSkeleton hint={<EmptyHint />}>…自身形态骨架…</LayoutSkeleton>
  */
 export function LayoutSkeleton({
@@ -177,16 +177,16 @@ export function LayoutSkeleton({
         flexDirection: "column",
         alignItems: "stretch",
         justifyContent: "center",
-        gap: 16,
+        gap: 12,
         minHeight,
-        padding: "36px 24px",
+        padding: "28px 24px 36px",
         boxSizing: "border-box",
         overflow: "hidden",
         background: "#ffffff",
       }}
     >
-      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>{children}</div>
       {hint}
+      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>{children}</div>
     </div>
   );
 }
