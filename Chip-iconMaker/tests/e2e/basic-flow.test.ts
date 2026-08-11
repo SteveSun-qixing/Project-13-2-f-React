@@ -96,7 +96,11 @@ describe("应用插件预览与质量脚本 smoke", () => {
     expect(appRoot).toContain("CommandProvider");
     expect(shell).toContain("AppChrome");
     expect(shell).toContain("IconMakerScene");
-    expect(shell).toContain("appName=\"图标工坊\"");
+    expect(shell).toContain("paletteShortcut=\"Mod+P\"");
+    expect(shell).not.toContain("appName=");
+    expect(shell).not.toContain("menus=");
+    expect(shell).not.toContain("toolbarItems=");
+    expect(shell).not.toContain("toolbarExtra=");
   });
 
   it("应保持应用结构背景单层，无主题系统残留", () => {

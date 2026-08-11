@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Client, PlatformHostKind, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
+import { resolveHostSceneId, resolveSurfaceKind } from "@chips/ui";
 import { appConfig } from "../../config/app-config";
 import { createLogger } from "../../config/logging";
 import { useVideoPlayerController, type VideoPlayerController } from "../hooks/useVideoPlayerController";
@@ -80,19 +81,7 @@ function unwrapLaunchParams(
   };
 }
 
-function resolveHostSceneId(
-  launchContext: PlatformLaunchContext | null,
-  surface: SurfaceContext | null,
-): string {
-  return surface?.sceneId ?? launchContext?.sceneId ?? appConfig.defaultSceneId;
-}
 
-function resolveSurfaceKind(
-  launchContext: PlatformLaunchContext | null,
-  surface: SurfaceContext | null,
-): string {
-  return surface?.kind ?? launchContext?.kind ?? "window";
-}
 
 function resolveDroppedFilePath(client: Client, file: File): string {
   const bridgePath = client.platform.getPathForFile(file);
@@ -120,7 +109,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   );
   const [launchContext, setLaunchContext] = useState<PlatformLaunchContext>(() => readLaunchContext(client));
   const surface = launchContext.surfaceContext ?? null;
-  const hostSceneId = resolveHostSceneId(launchContext, surface);
+  const hostSceneId = resolveHostSceneId(launchContext, appConfig.defaultSceneId);
   const activeScene = getSceneDefinition(hostSceneId);
   const activeSceneId = activeScene.id;
   const [videoSource, setVideoSource] = useState<VideoSource | null>(null);
@@ -145,7 +134,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
     hostSceneId,
     surfaceId: surface?.surfaceId ?? launchContext.surfaceId ?? null,
     sessionId: surface?.sessionId ?? launchContext.sessionId ?? null,
-    surfaceKind: resolveSurfaceKind(launchContext, surface),
+    surfaceKind: resolveSurfaceKind(launchContext),
     launchParams: unwrapLaunchParams(launchContext, surface),
   }), [activeSceneId, hostSceneId, launchContext, surface]);
 

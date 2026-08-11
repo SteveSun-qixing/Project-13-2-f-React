@@ -29,7 +29,8 @@ import {
   type ViewerFeedback,
 } from "../utils/music-player";
 import { chipsClient, musicPlayerTraceId } from "../runtime/chips-client";
-import { readLaunchContext, resolveHostSceneId, resolveLaunchParams, resolveSurfaceKind } from "../runtime/launch-context";
+import { readLaunchContext } from "../runtime/launch-context";
+import { resolveHostSceneId, resolveLaunchParams, resolveSurfaceKind } from "@chips/ui";
 import { defaultMusicPlayerScene, getMusicPlayerScene, type MusicPlayerSceneDefinition } from "./scene-registry";
 
 type HostKind = "desktop" | "web" | "mobile" | "headless";

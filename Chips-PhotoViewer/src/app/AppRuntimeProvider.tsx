@@ -1,4 +1,5 @@
 import React from "react";
+import { resolveHostSceneId, resolveSurfaceKind, resolveLaunchParams } from "@chips/ui";
 import type { Client, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
 import { appConfig } from "../../config/app-config";
 import { createLogger, createTraceId } from "../../config/logging";
@@ -200,20 +201,8 @@ function clampImageIndex(target: LaunchImageTarget, index: number): number {
   return Math.max(0, Math.min(target.images.length - 1, Math.trunc(index)));
 }
 
-function resolveHostSceneId(launchContext: PlatformLaunchContext): string {
-  return launchContext.surfaceContext?.sceneId ?? launchContext.sceneId ?? appConfig.defaultSceneId;
-}
 
-function resolveSurfaceKind(launchContext: PlatformLaunchContext): string {
-  return launchContext.surfaceContext?.kind ?? launchContext.kind ?? "window";
-}
 
-function resolveLaunchParams(launchContext: PlatformLaunchContext): Record<string, unknown> {
-  return {
-    ...launchContext.launchParams,
-    ...launchContext.surfaceContext?.launchParams,
-  };
-}
 
 export interface AppRuntimeProviderProps {
   children: React.ReactNode;
@@ -887,7 +876,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   const environment = React.useMemo<PhotoViewerRuntimeEnvironment>(() => ({
     appId: appConfig.appId,
     pluginId: launchContext.surfaceContext?.pluginId ?? launchContext.pluginId ?? appConfig.appId,
-    hostSceneId: resolveHostSceneId(launchContext),
+    hostSceneId: resolveHostSceneId(launchContext, appConfig.defaultSceneId),
     activeSceneId,
     surfaceId: launchContext.surfaceContext?.surfaceId ?? launchContext.surfaceId ?? null,
     sessionId: launchContext.surfaceContext?.sessionId ?? launchContext.sessionId ?? null,

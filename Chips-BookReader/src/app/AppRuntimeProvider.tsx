@@ -1,4 +1,5 @@
 import React, { startTransition } from "react";
+import { resolveHostSceneId, resolveLaunchParams, resolveSurfaceKind } from "@chips/ui";
 import type { Client, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
 import { appConfig } from "../../config/app-config";
 import { createLogger, createTraceId } from "../../config/logging";
@@ -142,20 +143,8 @@ function resolveLocalBookPath(target: LaunchBookTarget): string | undefined {
   return isLikelyLocalPath(sourceId) && !isProbablyRemoteBookSource(sourceId) ? sourceId : undefined;
 }
 
-function resolveHostSceneId(launchContext: PlatformLaunchContext): string {
-  return launchContext.surfaceContext?.sceneId ?? launchContext.sceneId ?? appConfig.defaultSceneId;
-}
 
-function resolveSurfaceKind(launchContext: PlatformLaunchContext): string {
-  return launchContext.surfaceContext?.kind ?? launchContext.kind ?? "window";
-}
 
-function resolveLaunchParams(launchContext: PlatformLaunchContext): Record<string, unknown> {
-  return {
-    ...launchContext.surfaceContext?.launchParams,
-    ...launchContext.launchParams,
-  };
-}
 
 export interface AppRuntimeProviderProps {
   children: React.ReactNode;
@@ -534,12 +523,12 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps): React
   const environment = React.useMemo<BookReaderRuntimeEnvironment>(() => ({
     appId: appConfig.appId,
     pluginId: launchContext.surfaceContext?.pluginId ?? launchContext.pluginId ?? appConfig.appId,
-    hostSceneId: resolveHostSceneId(launchContext),
+    hostSceneId: resolveHostSceneId(launchContext, appConfig.defaultSceneId),
     activeSceneId,
     surfaceId: launchContext.surfaceContext?.surfaceId ?? launchContext.surfaceId ?? null,
     sessionId: launchContext.surfaceContext?.sessionId ?? launchContext.sessionId ?? null,
     surfaceKind: resolveSurfaceKind(launchContext),
-    launchParams: resolveLaunchParams(launchContext),
+    launchParams: resolveLaunchParams(launchContext, { surfacePriority: false }),
   }), [activeSceneId, launchContext]);
 
   const readerThemePalette = React.useMemo(

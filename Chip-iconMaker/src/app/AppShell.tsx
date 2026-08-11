@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { AppChrome, StateBoundary, type MenuBarGroup } from "@chips/ui";
+import { AppChrome, StateBoundary } from "@chips/ui";
 import { APP_COMMAND_HANDLER_IDS } from "../commands/app-commands";
 import { useAppCommands } from "../commands/useAppCommands";
 import { formatMessage } from "../lib/messages";
@@ -50,20 +50,10 @@ export function AppShell() {
     }
   }, [commands.lastInvoked, runtime]);
 
-  const menus: MenuBarGroup[] = [
-    { menuId: "file", label: "文件", commands: commands.commands },
-  ];
-
-  const toolbarItems = commands.commands.filter((command) => command.toolbarId === "main");
   const isLoading = commands.phase === "registering" || !runtime.ready;
 
   return (
-    <AppChrome
-      appName="图标工坊"
-      menus={menus}
-      toolbarItems={toolbarItems}
-      paletteShortcut="Mod+P"
-    >
+    <AppChrome paletteShortcut="Mod+P">
       <StateBoundary loading={isLoading} minHeight={320}>
         <main className="app-shell__workspace" aria-label="图标生成工作台">
           <IconMakerScene text={formatMessage} />

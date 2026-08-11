@@ -75,7 +75,7 @@ Chips-EcoSettingsPanel/
 - 已完成注册表驱动的设置壳层与 5 个一级 Scene：应用插件、卡片插件、布局插件、模块插件、预览与质量。
 - 根组件采用统一样板：`ConfigProvider(zhCN, appleTheme) + App + ChipsProvider + CommandProvider + RuntimeProvider + AppRuntimeProvider + AppShell`。
 - 命令系统已本地化：`settings-commands.tsx` 导出共享层 `CommandItem[]`，经 `useCommandRegistry` 注册；Host 侧 `client.command.register/invoke/onInvoked/unregister` 链路保持不变，`manifest.yaml` 保留 `command.read/write/invoke`。
-- 左侧导航使用 antd `Layout/Menu` 保持左导航 + 内容布局语义，顶部菜单栏/工具栏/命令面板由共享层 `AppChrome` 提供。
+- 左侧导航使用 antd `Layout/Menu` 保持左导航 + 内容布局语义，应用窗口顶部不再铺设菜单栏/工具栏；命令面板由共享层 `AppChrome` 提供（`Mod+P` 呼出，命令注册链路不变）。
 - 治理列表已从 `ChipsDataGrid` 迁移为 antd `Table`（`rowKey` 必填、行/列交互等价还原）。
 - 已从 `manifest.yaml` 与 `settings-permissions.ts` 移除 `theme.read`、`i18n.read`；`theme.write`、`i18n.write` 按卸担计划保留。
 - 已移除主题/多语言运行时读取与 `theme.changed` / `language.changed` 订阅，运行时就绪态改为 `platform.getInfo()` 探活。

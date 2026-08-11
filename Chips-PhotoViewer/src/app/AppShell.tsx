@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { AppChrome, type MenuBarGroup } from "@chips/ui";
+import { AppChrome } from "@chips/ui";
 import { Filmstrip, type FilmstripItem } from "../components/Filmstrip";
 import { InfoPanel, type InfoPanelField } from "../components/InfoPanel";
 import { PhotoViewerStage } from "../components/PhotoViewerStage";
@@ -12,23 +12,6 @@ export function AppShell(): React.ReactElement {
   const runtime = useAppRuntime();
   const commands = usePhotoViewerCommands();
   const text = runtime.t;
-
-  const menus: MenuBarGroup[] = [
-    { menuId: "file", label: text("photo-viewer.commands.menu.file"), commands },
-    { menuId: "edit", label: text("photo-viewer.commands.menu.edit"), commands },
-    { menuId: "view", label: text("photo-viewer.commands.menu.view"), commands },
-    { menuId: "navigate", label: text("photo-viewer.commands.menu.navigate"), commands },
-  ];
-
-  const toolbarItems = commands.filter((command) => command.toolbarId === "viewer");
-
-  const sequenceCount = runtime.imageTarget?.images.length ?? 0;
-  const hasSequence = sequenceCount > 1;
-  const toolbarExtra = hasSequence ? (
-    <span className="photo-viewer-toolbar-sequence" aria-live="polite">
-      {runtime.currentImageIndex + 1} / {sequenceCount}
-    </span>
-  ) : null;
 
   const hasImage = runtime.imageSource !== null;
   const hasPreviousImage = Boolean(runtime.imageTarget && runtime.currentImageIndex > 0);
@@ -163,15 +146,7 @@ export function AppShell(): React.ReactElement {
 
   return (
     <>
-      <AppChrome
-        appName={text("photo-viewer.app.title")}
-        menus={menus}
-        toolbarItems={toolbarItems}
-        toolbarExtra={toolbarExtra}
-        paletteShortcut="Mod+P"
-        immersive={hasImage}
-        immersiveContentClass="photo-viewer-stage--viewing"
-      >
+      <AppChrome paletteShortcut="Mod+P" immersive={hasImage} immersiveContentClass="photo-viewer-stage--viewing">
         <PhotoViewerStage
           imageSource={runtime.imageSource}
           imageDimensions={runtime.imageDimensions}

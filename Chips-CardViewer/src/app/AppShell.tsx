@@ -1,5 +1,5 @@
 import React from "react";
-import { AppChrome, type MenuBarGroup } from "@chips/ui";
+import { AppChrome } from "@chips/ui";
 import {
   CARD_VIEWER_COMMAND_HANDLER_IDS,
   CARD_VIEWER_COMMAND_IDS,
@@ -153,13 +153,8 @@ export function AppShell(): React.ReactElement {
   );
 
   if (runtime.openedTarget === null) {
-    const menus: MenuBarGroup[] = [
-      { menuId: "file", label: "文件", commands: commandsApi.commands },
-    ];
-    const toolbarItems = commandsApi.commands.filter((command) => command.toolbarId === "main");
-
     return (
-      <AppChrome appName={undefined} menus={menus} toolbarItems={toolbarItems} paletteShortcut="Mod+P">
+      <AppChrome paletteShortcut="Mod+P">
         {shell}
       </AppChrome>
     );

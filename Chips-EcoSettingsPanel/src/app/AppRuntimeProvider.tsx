@@ -1,4 +1,5 @@
 import React from "react";
+import { resolveHostSceneId, resolveSurfaceKind, resolveLaunchParams } from "@chips/ui";
 import type { Client, PlatformLaunchContext } from "chips-sdk";
 import { appConfig } from "../../config/app-config";
 import type { RuntimeEventSource } from "../shared/runtime/event-source";
@@ -55,20 +56,8 @@ function getLaunchContext(client: Client): PlatformLaunchContext {
   }
 }
 
-function resolveHostSceneId(launchContext: PlatformLaunchContext): string {
-  return launchContext.surfaceContext?.sceneId ?? launchContext.sceneId ?? defaultSceneDefinition.id;
-}
 
-function resolveSurfaceKind(launchContext: PlatformLaunchContext): string {
-  return launchContext.surfaceContext?.kind ?? launchContext.kind ?? "window";
-}
 
-function resolveLaunchParams(launchContext: PlatformLaunchContext): Record<string, unknown> {
-  return {
-    ...launchContext.launchParams,
-    ...launchContext.surfaceContext?.launchParams,
-  };
-}
 
 export function AppRuntimeProvider({
   children,
@@ -79,7 +68,7 @@ export function AppRuntimeProvider({
   refreshRuntimeState,
 }: AppRuntimeProviderProps): React.ReactElement {
   const launchContext = React.useMemo(() => getLaunchContext(client), [client]);
-  const initialSceneId = getSceneDefinition(resolveHostSceneId(launchContext)).id;
+  const initialSceneId = getSceneDefinition(resolveHostSceneId(launchContext, defaultSceneDefinition.id)).id;
   const [activeSceneId, setActiveSceneId] = React.useState<SettingsSceneId>(initialSceneId);
   const activeScene = getSceneDefinition(activeSceneId);
   const phase = runtimeError ? "error" : ready ? "active" : "loading";
@@ -87,7 +76,7 @@ export function AppRuntimeProvider({
   const environment = React.useMemo<SettingsRuntimeEnvironment>(() => ({
     appId: appConfig.appId,
     pluginId: launchContext.surfaceContext?.pluginId ?? launchContext.pluginId ?? appConfig.appId,
-    hostSceneId: resolveHostSceneId(launchContext),
+    hostSceneId: resolveHostSceneId(launchContext, defaultSceneDefinition.id),
     activeSceneId,
     surfaceId: launchContext.surfaceContext?.surfaceId ?? launchContext.surfaceId ?? null,
     sessionId: launchContext.surfaceContext?.sessionId ?? launchContext.sessionId ?? null,

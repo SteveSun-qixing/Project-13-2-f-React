@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Client, PlatformLaunchContext, SurfaceContext } from "chips-sdk";
 import { useChips } from "@chips/ui";
+import { resolveHostSceneId } from "@chips/ui";
 import { appConfig } from "../../config/app-config";
 import { readLaunchContext } from "../runtime/launch-context";
 import {
@@ -53,16 +54,9 @@ export interface AppRuntimeValue {
 
 const AppRuntimeContext = createContext<AppRuntimeValue | null>(null);
 
-function resolveHostSceneId(launchContext: PlatformLaunchContext | null): string {
-  return (
-    launchContext?.surfaceContext?.sceneId ??
-    launchContext?.sceneId ??
-    appConfig.defaultSceneId
-  );
-}
 
 export function resolveRuntimeSceneId(launchContext: PlatformLaunchContext | null): AppSceneId {
-  return getSceneDefinition(resolveHostSceneId(launchContext)).id;
+  return getSceneDefinition(resolveHostSceneId(launchContext, appConfig.defaultSceneId)).id;
 }
 
 export function createRuntimeDiagnostic(
@@ -116,7 +110,7 @@ export function AppRuntimeProvider({ children }: AppRuntimeProviderProps) {
     appId: appConfig.appId,
     pluginId: launchContext?.pluginId ?? surface?.pluginId ?? appConfig.appId,
     sceneId: activeSceneId,
-    hostSceneId: resolveHostSceneId(launchContext),
+    hostSceneId: resolveHostSceneId(launchContext, appConfig.defaultSceneId),
     surfaceId: launchContext?.surfaceId ?? surface?.surfaceId ?? null,
     sessionId: launchContext?.sessionId ?? surface?.sessionId ?? null,
     surfaceKind: launchContext?.kind ?? surface?.kind ?? "window",
