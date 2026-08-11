@@ -16,9 +16,19 @@
 
 .box-editor-panel .ant-tabs-nav {
   flex-shrink: 0;
+  padding: 0 14px;
 }
 
-.box-editor-panel .ant-tabs-content-holder {
+.box-editor-panel .ant-tabs-body-holder {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.box-editor-panel .ant-tabs-body {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -31,13 +41,14 @@
   height: 100%;
 }
 
-.box-editor-panel .ant-tabs-tabpane {
-  height: 100%;
-}
-
-.box-editor-panel .ant-tabs-tabpane-active {
+.box-editor-panel .ant-tabs-content-active {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .box-editor-panel__tab-content {
@@ -47,7 +58,7 @@
   gap: 16px;
   min-height: 0;
   min-width: 0;
-  padding: 14px 2px 18px;
+  padding: 14px 14px 18px;
   box-sizing: border-box;
 }
 

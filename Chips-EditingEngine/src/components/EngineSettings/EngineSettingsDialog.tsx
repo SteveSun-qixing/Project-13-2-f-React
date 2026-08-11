@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AppstoreOutlined,
-  ControlOutlined,
-  BgColorsOutlined,
-  ThunderboltOutlined,
-} from '@ant-design/icons';
-import { Flex, Modal } from 'antd';
+import { Modal, Tabs } from 'antd';
 import { useSettings } from '../../context/SettingsContext';
 import './EngineSettingsDialog.css';
 
@@ -15,17 +9,7 @@ interface EngineSettingsDialogProps {
   onClose: () => void;
 }
 
-interface SettingsCategory {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-}
-
-const BUILTIN_CATEGORIES: SettingsCategory[] = [
-  { id: 'general', label: '通用', icon: <ControlOutlined /> },
-  { id: 'appearance', label: '外观', icon: <BgColorsOutlined /> },
-  { id: 'shortcuts', label: '快捷键', icon: <ThunderboltOutlined /> },
-];
+const BUILTIN_TAB_IDS = ['general', 'appearance', 'shortcuts'];
 
 const RESETTABLE_CATEGORY_IDS = new Set(['general', 'appearance', 'shortcuts']);
 
@@ -35,30 +19,30 @@ export function EngineSettingsDialog({
   onClose,
 }: EngineSettingsDialogProps) {
   const { registeredPanels, getSetting, setSetting } = useSettings();
-  const [activeCategoryId, setActiveCategoryId] = useState<string>('');
+  const [activeTabId, setActiveTabId] = useState<string>('');
 
   useEffect(() => {
     if (visible) {
-      setActiveCategoryId(initialCategory ?? BUILTIN_CATEGORIES[0].id);
+      setActiveTabId(initialCategory ?? BUILTIN_TAB_IDS[0]);
     }
   }, [visible, initialCategory]);
 
-  const categories = useMemo<SettingsCategory[]>(() => {
-    const allCategories: SettingsCategory[] = [...BUILTIN_CATEGORIES];
+  const tabItems = useMemo(() => {
+    const items = [
+      { key: 'general', label: '通用' },
+      { key: 'appearance', label: '外观' },
+      { key: 'shortcuts', label: '快捷键' },
+    ];
     registeredPanels.forEach((panel) => {
-      allCategories.push({
-        id: panel.id,
-        label: panel.name,
-        icon: <AppstoreOutlined />,
-      });
+      items.push({ key: panel.id, label: panel.name });
     });
-    return allCategories;
+    return items;
   }, [registeredPanels]);
 
-  const canResetActiveCategory = RESETTABLE_CATEGORY_IDS.has(activeCategoryId);
+  const canResetActiveCategory = RESETTABLE_CATEGORY_IDS.has(activeTabId);
 
   const handleResetCategory = () => {
-    switch (activeCategoryId) {
+    switch (activeTabId) {
       case 'general':
         setSetting('defaultWorkspacePath', '');
         return;
@@ -71,7 +55,7 @@ export function EngineSettingsDialog({
   };
 
   const renderCategoryContent = () => {
-    switch (activeCategoryId) {
+    switch (activeTabId) {
       case 'general':
         return (
           <div className="engine-settings-dialog__section">
@@ -133,13 +117,13 @@ export function EngineSettingsDialog({
       open={visible}
       title="引擎设置"
       onCancel={onClose}
-      width={720}
+      width="88%"
       centered
       destroyOnHidden
       mask={{ closable: true }}
       rootClassName="engine-settings-dialog-root"
       footer={
-        <Flex justify="flex-end" gap={12}>
+        <div className="engine-settings-dialog__footer">
           <button
             type="button"
             className="engine-settings-dialog__btn"
@@ -155,28 +139,23 @@ export function EngineSettingsDialog({
           >
             完成
           </button>
-        </Flex>
+        </div>
       }
     >
-      <div className="engine-settings-dialog__layout">
-        <nav className="engine-settings-dialog__sidebar" aria-label="设置分类">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              className={`engine-settings-dialog__category-btn ${activeCategoryId === category.id ? 'engine-settings-dialog__category-btn--active' : ''}`}
-              onClick={() => setActiveCategoryId(category.id)}
-            >
-              <span className="engine-settings-dialog__category-icon">{category.icon}</span>
-              <span className="engine-settings-dialog__category-label">{category.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="engine-settings-dialog__main">
-          {renderCategoryContent()}
-        </div>
-      </div>
+      <Tabs
+        className="engine-settings-dialog__tabs"
+        activeKey={activeTabId}
+        onChange={(key: string) => setActiveTabId(key)}
+        items={tabItems.map((item) => ({
+          key: item.key,
+          label: item.label,
+          children: (
+            <div className="engine-settings-dialog__main">
+              {renderCategoryContent()}
+            </div>
+          ),
+        }))}
+      />
     </Modal>
   );
 }

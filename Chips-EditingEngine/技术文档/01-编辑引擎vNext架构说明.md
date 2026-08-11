@@ -128,26 +128,29 @@ npm run validate
 
 ## 9. 设置弹窗与封面编辑器（2026-08 优化）
 
-### 9.1 弹窗尺寸约定（固定）
+### 9.1 弹窗尺寸约定（响应式、不随内容变化）
 
-| 弹窗 | 固定尺寸 | 说明 |
-|---|---|---|
-| 卡片设置（CardSettingsDialog） | 宽 860 / 高 680 | 左侧分类导航 + 右侧内容 |
-| 箱子设置（BoxSettingsDialog） | 宽 860 / 高 680 | 同卡片设置布局 |
-| 引擎设置（EngineSettingsDialog） | 宽 720 / 高 520 | 左侧分类 + 右侧内容 |
-| 封面制作器（CoverMaker） | 宽 920 / 高 660 | 顶部模式 Segmented + 左表单右预览 |
-| 封面裁剪（CoverCropDialog） | 宽 720 / 高 560 | 舞台区 flex 填充 |
+| 弹窗 | 尺寸规则 |
+|---|---|
+| 卡片设置（CardSettingsDialog） | 宽 90%（上限 1080px）/ 高 85dvh |
+| 箱子设置（BoxSettingsDialog） | 宽 90%（上限 1080px）/ 高 85dvh |
+| 引擎设置（EngineSettingsDialog） | 宽 88%（上限 920px）/ 高 80dvh |
+| 封面制作器（CoverMaker） | 宽 90%（上限 1120px）/ 高 85dvh |
+| 封面裁剪（CoverCropDialog） | 宽 78vw（上限 960px）/ 高 70vh |
 
-- 全部采用 antd Modal（mask closable、destroyOnHidden、居中），高度通过 `rootClassName` + CSS 固定（不使用 Modal styles.content，antd v6 无该键）。
-- 卡片/箱子设置弹窗从"顶部 Tabs + 720↔1180 宽度跳动"改为**苹果系统设置式左侧分类导航**（`.settings-sidebar`：196px 浅灰底、选中项深灰圆角高亮、图标着色），切分类不再跳动。
+- 全部采用 antd Modal（mask closable、destroyOnHidden、居中）；
+- **尺寸跟随应用窗口响应式调整**（vw/dvh 视口单位），**不随标签页/内容变化**：宽度由 Modal `width="90%"` 决定，高度由 `.ant-modal-content { height: 85dvh }` 决定，内容区在固定尺寸内滚动（flex + `min-height: 0` + `overflow: hidden`）；`max-width` 仅作超大屏上限，`max-height: calc(100dvh - 48px)` 防止溢出屏幕。
+- 卡片/箱子设置弹窗采用**顶部标签页**（antd Tabs）切换分类，弹窗尺寸固定不跳动；板块设计参考苹果系统设置的清爽分区（标签页栏、浅色内容底、圆角卡片区），不刻板照搬其左侧导航形态。
 
 ### 9.2 封面编辑器（CoverPanel）交互优化
 
-- 布局：左预览（280px，棋盘格底、封面投影卡）+ 右编辑区滚动；
-- 比例选择：9 个苹果风格小卡片（比例图形 + 文字），Tooltip 提示，选中蓝框高亮；
-- 方向（竖版/横版）与编辑模式（图片/HTML）：antd `Segmented`；
+- 布局：左预览（280px，白底、封面投影卡）+ 右编辑区；
+- 编辑区为**两个子标签页**：
+  - 「选择比例」：9 个苹果风格小卡片（比例图形 + 文字，Tooltip 提示，选中蓝框高亮）+ 方向 Segmented（竖版/横版，预览比例与封面内容随方向同步）；
+  - 「编辑封面内容」：模式 Segmented（图片/HTML）+ 上传卡或 HTML 编辑；
 - 上传：苹果风格虚线拖放卡（图标 + 主文案 + 提示），已选后显示文件名 + 「裁剪」「移除」操作（antd Button）；
 - HTML 编辑：等宽字体、聚焦蓝环；
+- 默认封面模板（`createDefaultCoverHtml`）：白底干净样式，横竖方向自适应排版；
 - 裁剪弹窗舞台区改为 flex 填充固定尺寸容器。
 
 ### 9.3 封面制作器（CoverMaker）
@@ -159,11 +162,11 @@ npm run validate
 ### 9.4 引擎设置（EngineSettingsDialog）
 
 - 自绘 overlay 改为 antd Modal，固定 720×520；
-- 左侧分类列表苹果化（选中高亮、图标着色），内容区滚动；底部「重置」「完成」。
+- 分类切换改为顶部标签页（Tabs），内容区滚动；底部「重置」「完成」。
 
 ### 9.5 关键文件
 
-- `src/components/CardSettings/CardSettingsDialog.tsx` + `SettingsSidebar.css`（共享侧栏）
+- `src/components/CardSettings/CardSettingsDialog.tsx` + `CardSettingsDialog.css`
 - `src/components/BoxWindow/BoxSettingsDialog.tsx`
 - `src/components/CardSettings/panels/CoverPanel.tsx` + `CoverPanel.css`
 - `src/components/CardSettings/panels/CoverCropDialog.css`
@@ -171,4 +174,4 @@ npm run validate
 - `src/components/EngineSettings/EngineSettingsDialog.tsx` + `EngineSettingsDialog.css`
 - 文案：`src/lib/messages.ts`（新增 `card_settings.cover_orientation_label`）
 
-测试：`tests/unit/card-settings-dialog.test.tsx` 的 `clickTab` 改为点击 `.settings-sidebar__item`（适配新导航）。
+测试：`tests/unit/card-settings-dialog.test.tsx` 的 `clickTab` 按 `[role="tab"]` 查找（顶部标签页）。

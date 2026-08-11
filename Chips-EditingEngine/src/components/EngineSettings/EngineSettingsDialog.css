@@ -1,10 +1,15 @@
 /* ============================================================
- * 引擎设置 —— 苹果设置风格（antd Modal 内，固定尺寸 720x520）
+ * 引擎设置 —— antd Modal 内，固定尺寸 720x520，顶部标签页
  * ============================================================ */
+.engine-settings-dialog-root {
+  max-width: 920px;
+}
+
 .engine-settings-dialog-root .ant-modal-content {
   display: flex;
   flex-direction: column;
-  height: 520px;
+  width: 100%;
+  height: 80dvh;
   max-height: calc(100dvh - 48px);
   box-sizing: border-box;
   padding: 0;
@@ -42,83 +47,37 @@
 }
 
 /* ------------------------------------------------------------
- * 布局：左分类 + 右内容
+ * 顶部标签页 + 内容
  * ------------------------------------------------------------ */
-.engine-settings-dialog__layout {
+.engine-settings-dialog__tabs {
   display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
 }
 
-.engine-settings-dialog__sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 190px;
+.engine-settings-dialog__tabs .ant-tabs-nav {
   flex-shrink: 0;
-  padding: 12px;
-  background: #f2f2f7;
-  border-right: 1px solid rgba(0, 0, 0, 0.06);
-  overflow-y: auto;
+  margin: 0;
+  padding: 12px 24px 0;
 }
 
-.engine-settings-dialog__category-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: #1d1d1f;
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
-}
-
-.engine-settings-dialog__category-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.engine-settings-dialog__category-btn--active,
-.engine-settings-dialog__category-btn--active:hover {
-  background: rgba(0, 0, 0, 0.08);
-  color: #1d1d1f;
-}
-
-.engine-settings-dialog__category-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  font-size: 15px;
-  color: #6e6e73;
-  flex-shrink: 0;
-}
-
-.engine-settings-dialog__category-btn--active .engine-settings-dialog__category-icon {
-  color: #0a84ff;
-}
-
-.engine-settings-dialog__category-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ------------------------------------------------------------
- * 内容区
- * ------------------------------------------------------------ */
-.engine-settings-dialog__main {
+.engine-settings-dialog__tabs .ant-tabs-content-holder {
   flex: 1;
-  min-width: 0;
   min-height: 0;
+  overflow: hidden;
+}
+
+.engine-settings-dialog__tabs .ant-tabs-content {
+  height: 100%;
+}
+
+.engine-settings-dialog__tabs .ant-tabs-tabpane {
+  height: 100%;
+}
+
+.engine-settings-dialog__main {
+  height: 100%;
   padding: 20px 24px;
   overflow-y: auto;
   background: #ffffff;
@@ -195,6 +154,12 @@
 /* ------------------------------------------------------------
  * 底部按钮
  * ------------------------------------------------------------ */
+.engine-settings-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .engine-settings-dialog__btn {
   height: 32px;
   padding: 0 16px;
