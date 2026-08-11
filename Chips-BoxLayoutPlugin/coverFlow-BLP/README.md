@@ -43,6 +43,8 @@
 
 布局自有背景和顶部内容区通过 `runtime.readBoxAsset(assetPath)` 读取。插件不直接读取 `.box`、文件系统、网络或 Host 临时路径。
 
+顶部内容区无固定比例与最小高度限制：图片模式按图片自然宽高比正常显示并撑满容器宽度、背景透明；HTML 模式按 iframe 实际内容高度显示，拿不到测量值时以容器宽度的 3 倍为上限。背景区保持固定 `16:9` 比例展示，不受顶部区域调整影响。
+
 ## 编辑态能力
 
 编辑器通过组件库表单控件输出完整归一化配置快照，宿主负责持久化和自动保存。支持参数：
@@ -54,8 +56,8 @@
 - `spacing`：`tight`、`regular`、`wide`
 - `showReflection`：是否显示封面倒影
 - `wheelSensitivity`：`low`、`medium`、`high`
-- `background`：背景区 iframe 资源
-- `topRegion`：顶部内容区 iframe 资源
+- `background`：背景区 iframe 资源，固定 `16:9` 比例
+- `topRegion`：顶部内容区 iframe 资源，无固定比例，HTML 模式按内容高度自适应显示（上限为容器宽度 3 倍）
 
 背景区和顶部内容区图片只通过 Host 注入的 asset bridge 管理：
 

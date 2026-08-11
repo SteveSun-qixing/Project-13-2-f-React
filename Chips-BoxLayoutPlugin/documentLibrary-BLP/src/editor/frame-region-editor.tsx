@@ -22,7 +22,8 @@ export interface FrameRegionEditorProps {
   region: FrameRegionConfig;
   title: string;
   description: string;
-  previewRatio: string;
+  previewRatio?: string;
+  previewAutoHeight?: boolean;
   preferredAssetPrefix: string;
   readBoxAsset?(assetPath: string): Promise<ResolvedRuntimeResource>;
   importBoxAsset?(input: { file: File; preferredPath?: string }): Promise<{ assetPath: string }>;
@@ -66,11 +67,13 @@ function FrameRegionPreview({
   region,
   title,
   ratio,
+  autoHeight = false,
   readBoxAsset,
 }: {
   region: FrameRegionConfig;
   title: string;
-  ratio: string;
+  ratio?: string;
+  autoHeight?: boolean;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
 }) {
   const [state, setState] = React.useState<PreviewState>({ status: "idle" });
@@ -127,7 +130,9 @@ function FrameRegionPreview({
       <EmbeddedDocumentFrame
         title={title}
         srcDoc={region.html}
-        ratio={ratio}
+        ratio={autoHeight ? undefined : ratio}
+        autoHeight={autoHeight}
+        maxHeightFactor={autoHeight ? 3 : undefined}
         sandbox="allow-scripts"
       />
     );
@@ -172,6 +177,7 @@ export function FrameRegionEditor({
   title,
   description,
   previewRatio,
+  previewAutoHeight = false,
   preferredAssetPrefix,
   readBoxAsset,
   importBoxAsset,
@@ -463,11 +469,17 @@ export function FrameRegionEditor({
 
       <div data-frame-region-preview-shell>
         <span data-frame-region-preview-label>{formatMessage("editor.preview")}</span>
-        <div data-frame-region-preview style={{ aspectRatio: previewRatio.replace(":", " / ") }}>
+        <div
+          data-frame-region-preview
+          style={previewAutoHeight || !previewRatio
+            ? undefined
+            : { aspectRatio: previewRatio.replace(":", " / ") }}
+        >
           <FrameRegionPreview
             region={region}
             title={title}
             ratio={previewRatio}
+            autoHeight={previewAutoHeight}
             readBoxAsset={readBoxAsset}
           />
         </div>

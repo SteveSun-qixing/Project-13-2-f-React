@@ -68,6 +68,8 @@
 - `swipeThreshold`：拖拽切换阈值，范围 80-260；
 - `reviewLoop`：`stop-at-end` 或 `loop`；
 - `background` / `topRegion`：受控 iframe 区域配置；
+
+顶部内容区不设固定比例和最小高度。图片模式按图片自然宽高比显示并始终撑满区域宽度，区域背景透明；HTML 模式优先按 iframe 实际内容高度显示，拿不到高度时以容器宽度的 3 倍为上限（测量值同样受该上限钳制）。背景区域保持固定 16:9 比例、cover 铺满和白底等既有行为不变，编辑器预览与查看态保持一致。
 - `assetRefs`：由配置中的安全 `assets/` 相对路径同步生成。
 
 `.box/content.yaml` 的正式存储字段使用 snake_case，camelCase 与 snake_case 的转换由 Host/SDK/编辑引擎正式链路负责。布局插件只消费 Host 注入的运行时对象，不直接写 YAML。

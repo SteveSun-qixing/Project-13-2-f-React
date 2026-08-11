@@ -56,7 +56,7 @@ chipsdev-r create layout <targetDir>
 - `showCovers`：控制查看态是否为条目显示正式封面。
 - `cardDensity`：`compact`、`comfortable`、`spacious`，控制条目卡片密度。
 - `points`：时间点列表，每个时间点包含 `id`、`label`、可选 `date`、可选 `note` 与绑定的 `entryIds`。
-- `background` / `topRegion`：复用受控区域配置，支持 `none`、`image`、`html`。
+- `background` / `topRegion`：复用受控区域配置，支持 `none`、`image`、`html`。背景区保持固定 `16:9` 比例；顶部区域无固定比例与最小高度限制，图片模式按图片自然宽高比显示并撑满容器宽度、背景透明，HTML 模式按 iframe 实际内容高度显示，上限为容器宽度 3 倍。
 
 未绑定到任何时间点的启用条目会在查看态归入“未安排条目”，避免因为配置未完成而丢失可见内容。
 

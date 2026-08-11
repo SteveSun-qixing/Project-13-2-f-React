@@ -48,6 +48,8 @@
 
 背景和顶部内容区通过 `runtime.readBoxAsset(assetPath)` 读取箱子自有资源，图片和 HTML 都通过 `@chips/ui` 的 `EmbeddedDocumentFrame` 受控文档区域显示。`resourceUrl` 只用于当前会话渲染，不写入布局配置。
 
+背景区保持固定 `16:9` 比例并以 cover 填充；顶部内容区无固定比例和高度限制：图片模式按图片自然宽高比显示、宽度始终 100% 撑满容器且背景透明，HTML 模式优先按 iframe 实际内容高度显示，拿不到测量值时高度上限为容器宽度的 3 倍。
+
 ## 编辑器与资源桥
 
 编辑器通过 antd 控件组织配置项，所有可见文案来自 `src/lib/messages.ts`。

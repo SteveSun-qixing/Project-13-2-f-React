@@ -37,7 +37,7 @@
 其中：
 
 - `layoutDefinition.icon` 是运行时正式图标描述符；
-- `assets/icons/layout-icon.svg` 只作为静态资源保留，来源说明见 `assets/icons/SOURCE.md`。
+- `assets/icons/layout-icon.svg/.png/.ico/.icns` 是插件静态身份图标四件套，来源与渲染链路说明见 `assets/icons/SOURCE.md`。
 
 ## 常用命令
 

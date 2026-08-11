@@ -21,6 +21,7 @@
 - 点击点位先选中条目，再次点击或按 Enter 通过 `runtime.openEntry(entryId)` 打开条目；
 - `showCoverOnSelect` 开启时，仅在选中点位后调用 `runtime.renderEntryCover(entryId)` 加载封面；
 - `host-map` 是正式 Host 地图能力预留模式，当前布局插件不会联网请求地图瓦片、地理编码或路线服务。
+- 顶部区域无固定比例与高度限制：图片模式按图片自然宽高比显示、宽度撑满且背景透明；HTML 模式按 iframe 实际内容高度显示，拿不到测量值时以容器宽度的 3 倍为高度上限。
 
 ## 配置结构
 
