@@ -81,11 +81,12 @@ describe("mountBasecardView", () => {
       config: createConfig(),
     });
 
-    expect(container.querySelector(".chips-webpage-card__message")?.textContent).toBe("暂无网页内容");
+    expect(container.querySelector(".chips-webpage-card__empty")?.textContent).toBe("暂无网页内容");
+    expect(container.querySelector(".chips-webpage-card__empty-icon")).not.toBeNull();
     cleanup();
   });
 
-  it("renders a remote webpage iframe for a valid URL source", async () => {
+  it("renders a remote webpage iframe with a tightened sandbox", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -101,12 +102,38 @@ describe("mountBasecardView", () => {
 
     const frame = container.querySelector("iframe");
     expect(frame?.getAttribute("src")).toBe("https://example.com/page");
+    expect(frame?.getAttribute("sandbox")).toBe("allow-scripts allow-forms allow-popups");
+    expect(frame?.getAttribute("sandbox")).not.toContain("allow-same-origin");
+    expect(frame?.getAttribute("sandbox")).not.toContain("allow-modals");
     cleanup();
   });
 
-  it("routes remote webpage open intent through openResource", async () => {
+  it("shows the embed blocked message when iframe load does not fire in time", async () => {
+    vi.useFakeTimers();
+    try {
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      const cleanup = mountBasecardView({
+        container,
+        config: createConfig({
+          source_type: "url",
+          source_url: "https://example.com/blocked",
+        }),
+      });
+
+      await vi.advanceTimersByTimeAsync(10000);
+
+      const errorOverlay = container.querySelector(".chips-webpage-card__overlay--error");
+      expect(errorOverlay?.textContent).toContain("该网页禁止被 iframe 嵌入。");
+      cleanup();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the loading overlay visible while the iframe source is pending", async () => {
     const container = document.createElement("div");
-    const openResource = vi.fn();
     document.body.appendChild(container);
 
     const cleanup = mountBasecardView({
@@ -115,34 +142,16 @@ describe("mountBasecardView", () => {
         source_type: "url",
         source_url: "https://example.com/page",
       }),
-      openResource,
     });
 
     await flushAsyncWork();
 
-    const openButton = container.querySelector('[data-webpage-open-source="true"] button') as HTMLButtonElement | null;
-    if (!openButton) {
-      throw new Error("未找到网页打开按钮");
-    }
-
-    openButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-
-    expect(openResource).toHaveBeenCalledWith({
-      resourceId: "https://example.com/page",
-      mimeType: "text/html",
-      title: "打开网页链接",
-      payload: {
-        kind: "chips.webpage-card",
-        version: "1.0.0",
-        cardType: "WebPageCard",
-        sourceType: "url",
-        url: "https://example.com/page",
-      },
-    });
+    const loadingOverlay = container.querySelector(".chips-webpage-card__overlay--loading");
+    expect(loadingOverlay?.textContent).toBe("网页加载中...");
     cleanup();
   });
 
-  it("loads bundled index.html and injects a base href into srcdoc", async () => {
+  it("loads bundled index.html through a resolved entry url", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -160,17 +169,13 @@ describe("mountBasecardView", () => {
     await flushAsyncWork();
 
     const frame = container.querySelector("iframe");
-    const srcDoc = frame?.getAttribute("srcdoc") ?? "";
-    expect(srcDoc).toContain('<base href="file:///workspace/card/web-bundle/" />');
-    expect(srcDoc).toContain("<main>bundle</main>");
-    expect(srcDoc).toContain("chips:webpage-card:viewport");
-    expect(srcDoc).toContain("--chips-webpage-card-viewport-width");
+    expect(frame?.getAttribute("src")).toBe("file:///workspace/card/web-bundle/index.html");
+    expect(frame?.getAttribute("srcdoc")).toBeNull();
     cleanup();
   });
 
   it("routes bundled webpage entry open intent through openResource", async () => {
     const container = document.createElement("div");
-    const openResource = vi.fn();
     document.body.appendChild(container);
 
     const cleanup = mountBasecardView({
@@ -182,37 +187,17 @@ describe("mountBasecardView", () => {
         resource_paths: ["web-bundle/index.html", "web-bundle/assets/app.js"],
       }),
       resolveResourceUrl: async () => "file:///workspace/card/web-bundle/index.html",
-      openResource,
     });
 
     await flushAsyncWork();
 
-    const openButton = container.querySelector('[data-webpage-open-source="true"] button') as HTMLButtonElement | null;
-    if (!openButton) {
-      throw new Error("未找到网页包打开按钮");
-    }
-
-    openButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-
-    expect(openResource).toHaveBeenCalledWith({
-      resourceId: "web-bundle/index.html",
-      mimeType: "text/html",
-      title: "打开网页包入口",
-      fileName: "index.html",
-      payload: {
-        kind: "chips.webpage-card",
-        version: "1.0.0",
-        cardType: "WebPageCard",
-        sourceType: "bundle",
-        bundleRoot: "web-bundle",
-        entryFile: "index.html",
-        resourcePaths: ["web-bundle/index.html", "web-bundle/assets/app.js"],
-      },
-    });
+    const frame = container.querySelector("iframe");
+    expect(frame?.getAttribute("src")).toBe("file:///workspace/card/web-bundle/index.html");
+    expect(container.querySelector('[data-webpage-open-source="true"]')).toBeNull();
     cleanup();
   });
 
-  it("使用真实网页包目录渲染入口并通过 openResource 暴露 text/html 打开意图", async () => {
+  it("使用真实网页包目录渲染入口为 iframe src", async () => {
     const webpageArchivePath = requireFileMaterial("昙花网页.zip");
     expect(statSync(webpageArchivePath).size).toBeGreaterThan(0);
 
@@ -220,19 +205,9 @@ describe("mountBasecardView", () => {
     const indexPath = requireFileMaterial("昙花/index.html");
     const scriptPath = requireFileMaterial("昙花/script.js");
     const stylesPath = requireFileMaterial("昙花/styles.css");
-    const indexHtml = readFileSync(indexPath, "utf-8");
 
     const container = document.createElement("div");
-    const openResource = vi.fn();
     document.body.appendChild(container);
-
-    (globalThis as typeof globalThis & { chips?: { invoke?: unknown } }).chips = {
-      invoke: vi.fn(async (action: string, input: { path?: string }) => {
-        expect(action).toBe("file.read");
-        expect(input.path).toBe(indexPath);
-        return { content: indexHtml };
-      }),
-    };
 
     const cleanup = mountBasecardView({
       container,
@@ -248,41 +223,16 @@ describe("mountBasecardView", () => {
         }
         throw new Error(`测试未期望解析资源：${resourcePath}`);
       },
-      openResource,
     });
 
     await flushAsyncWork();
 
     const frame = container.querySelector("iframe");
-    const srcDoc = frame?.getAttribute("srcdoc") ?? "";
     expect(webpageDir).toContain("ProductFinishedProductTestingSpace");
     expect(scriptPath).toContain("script.js");
     expect(stylesPath).toContain("styles.css");
-    expect(srcDoc).toContain(`<base href="${new URL(`file://${webpageDir}/`).href}" />`);
-    expect(srcDoc).toContain("chips:webpage-card:viewport");
-
-    const openButton = container.querySelector('[data-webpage-open-source="true"] button') as HTMLButtonElement | null;
-    if (!openButton) {
-      throw new Error("未找到网页包打开按钮");
-    }
-
-    openButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-
-    expect(openResource).toHaveBeenCalledWith({
-      resourceId: "昙花/index.html",
-      mimeType: "text/html",
-      title: "打开网页包入口",
-      fileName: "index.html",
-      payload: {
-        kind: "chips.webpage-card",
-        version: "1.0.0",
-        cardType: "WebPageCard",
-        sourceType: "bundle",
-        bundleRoot: "昙花",
-        entryFile: "index.html",
-        resourcePaths: ["昙花/index.html", "昙花/styles.css", "昙花/script.js"],
-      },
-    });
+    expect(frame?.getAttribute("src")).toBe(`file://${indexPath}`);
+    expect(frame?.getAttribute("srcdoc")).toBeNull();
     cleanup();
   });
 

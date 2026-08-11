@@ -122,6 +122,12 @@ function flushDelayedAsyncWork(): Promise<void> {
   });
 }
 
+function setInputValue(input: HTMLInputElement, value: string): void {
+  const prototypeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  prototypeSetter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 describe("createBasecardEditorRoot", () => {
   const initialConfig: BasecardConfig = {
     card_type: "MusicCard",
@@ -152,8 +158,7 @@ describe("createBasecardEditorRoot", () => {
       throw new Error("找不到歌曲名输入框");
     }
 
-    titleInput.value = "Prelude";
-    titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+    setInputValue(titleInput, "Prelude");
 
     expect(lastConfig).toMatchObject({
       audio_file: "",

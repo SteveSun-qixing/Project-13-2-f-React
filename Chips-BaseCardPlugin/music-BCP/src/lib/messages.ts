@@ -53,6 +53,7 @@ const MESSAGES: Record<string, string> = {
   "music.editor.errors.lyrics_import_failed": "歌词导入失败。",
   "music.editor.errors.operation_failed": "操作失败",
   "music.editor.errors.validation_failed": "配置需要调整",
+  "music.editor.notices.metadata_skipped": "音频文件较大（超过 100MB），已跳过嵌入信息解析，请手动补充歌曲信息。",
 };
 
 export function formatMessage(key: string, params?: Record<string, string | number>): string {

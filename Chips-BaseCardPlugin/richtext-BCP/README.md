@@ -25,7 +25,9 @@
 
 - 界面文案：简体中文直写（task030 后全生态统一），文案总表见 `src/lib/messages.ts`
 - 图标：悬浮工具框与右键菜单统一使用 `@ant-design/icons`，antd 无对应物时使用等宽文本字形（`H1`/`H2`/`H3`、`¶`、`❝`）
-- 视觉：固定为生态统一苹果风格（固定色值 + 共享层 `appleTheme`），不消费已废弃的主题系统变量
+- 视觉：固定为生态统一苹果风格（固定色值常量：字体栈 `-apple-system, ...`、标题 13/15/17/20/22 体系、圆角 8~12px），不消费已废弃的主题系统变量
+- 链接：悬浮工具框“链接”按钮打开编辑面板内部自绘弹层（`role="dialog"`），不依赖 `window.prompt`；查看态外链统一 `target="_blank"` + `rel="noopener noreferrer"`
+- 生命周期：查看态与编辑态均支持同一容器重复挂载，新挂载前先执行上次 cleanup（`src/shared/container-lifecycle.ts`）
 
 ## 正式导出
 

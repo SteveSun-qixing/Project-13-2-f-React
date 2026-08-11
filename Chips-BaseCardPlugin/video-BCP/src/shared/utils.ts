@@ -1,6 +1,8 @@
+import React, { useEffect, useState } from "react";
 import type { BasecardConfig } from "../schema/card-config";
 
 const BASE62_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const SUPPORTED_URL_PROTOCOLS = new Set(["http:", "https:"]);
 
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -163,4 +165,87 @@ export function deriveMetaLine(config: BasecardConfig): string {
   return [config.creator.trim(), config.publish_time.trim()]
     .filter((value) => value.length > 0)
     .join(" · ");
+}
+
+export async function resolveResourceUrlWithRetry(
+  resolveResourceUrl: ((resourcePath: string) => Promise<string>) | undefined,
+  resourcePath: string,
+): Promise<string> {
+  if (!resolveResourceUrl) {
+    return "";
+  }
+
+  try {
+    return await resolveResourceUrl(resourcePath);
+  } catch (firstError) {
+    await new Promise((resolve) => setTimeout(resolve, 16));
+    return resolveResourceUrl(resourcePath).catch(() => {
+      throw firstError;
+    });
+  }
+}
+
+export function getImmediateResourceUrl(
+  resourcePath: string,
+  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
+): string {
+  const normalizedPath = normalizeRelativeCardResourcePath(resourcePath);
+  if (!normalizedPath) {
+    return "";
+  }
+
+  return resolveResourceUrl ? "" : normalizedPath;
+}
+
+export function isSupportedImportUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return SUPPORTED_URL_PROTOCOLS.has(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+export function useResolvedResourceUrl(
+  resourcePath: string,
+  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
+  releaseResourceUrl?: (resourcePath: string) => Promise<void> | void,
+): string {
+  const [resolvedUrl, setResolvedUrl] = useState(() => getImmediateResourceUrl(resourcePath, resolveResourceUrl));
+
+  useEffect(() => {
+    let cancelled = false;
+    const normalizedPath = normalizeRelativeCardResourcePath(resourcePath);
+
+    if (!normalizedPath) {
+      setResolvedUrl("");
+      return undefined;
+    }
+
+    if (!resolveResourceUrl) {
+      setResolvedUrl(normalizedPath);
+      return undefined;
+    }
+
+    setResolvedUrl("");
+
+    void resolveResourceUrlWithRetry(resolveResourceUrl, normalizedPath)
+      .then((nextUrl) => {
+        if (!cancelled) {
+          setResolvedUrl(nextUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedUrl("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      void Promise.resolve(releaseResourceUrl?.(normalizedPath)).catch(() => undefined);
+    };
+  }, [releaseResourceUrl, resolveResourceUrl, resourcePath]);
+
+  return resolvedUrl;
 }

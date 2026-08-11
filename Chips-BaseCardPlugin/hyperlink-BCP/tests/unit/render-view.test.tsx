@@ -86,6 +86,47 @@ describe("mountBasecardView", () => {
     dispose();
   });
 
+  it("preserves description trailing whitespace and newlines", () => {
+    const container = document.createElement("div");
+    const config = createConfig({
+      description: "  First line\nSecond line\n",
+    });
+
+    const dispose = mountBasecardView({
+      container,
+      config,
+    });
+
+    const descriptionEl = container.querySelector(".chips-hyperlink-card__description");
+    expect(descriptionEl?.textContent).toBe("  First line\nSecond line\n");
+
+    dispose();
+  });
+
+  it("falls back to the glyph when the icon image fails to load", async () => {
+    const container = document.createElement("div");
+    const config = createConfig({
+      icon_url: "https://example.com/favicon.png",
+    });
+
+    const dispose = mountBasecardView({
+      container,
+      config,
+    });
+
+    const img = container.querySelector("img.chips-hyperlink-card__icon-image") as HTMLImageElement | null;
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute("referrerpolicy")).toBe("no-referrer");
+
+    img?.dispatchEvent(new Event("error"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(container.querySelector("img.chips-hyperlink-card__icon-image")).toBeNull();
+    expect(container.querySelector(".chips-hyperlink-card__icon-fallback")?.textContent).toBe("↗");
+
+    dispose();
+  });
+
   it("does not call legacy transfer or platform bridges when openResource is absent", () => {
     const invoke = vi.fn();
     (window as unknown as { chips?: unknown }).chips = { invoke };

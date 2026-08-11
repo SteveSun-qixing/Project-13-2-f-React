@@ -1,6 +1,8 @@
 import {
   dedupeResourcePaths,
+  isArchiveFormat,
   isNonEmptyString,
+  isSupportedEbookFormat,
   normalizeBookFormat,
   normalizeRelativeCardResourcePath,
 } from "../shared/utils";
@@ -146,6 +148,10 @@ export function validateBasecardConfig(config: BasecardConfig): ConfigValidation
 
   if (config.image_sort_basis !== "filename" && config.image_sort_basis !== "entry-time") {
     errors.image_sort_basis = "图片排序依据必须为 filename 或 entry-time。";
+  }
+
+  if (isNonEmptyString(config.book_format) && !isSupportedEbookFormat(config.book_format) && !isArchiveFormat(config.book_format)) {
+    errors.book_format = "book_format 必须为受支持的电子书或图片包格式。";
   }
 
   if (config.source_type === "ebook" && config.book_file && !isNonEmptyString(config.book_format)) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from "react";
-import { ConfigProvider, Input, Segmented, Switch, Tag, Tooltip } from "antd";
+import { ConfigProvider, Input, Segmented, Switch, Tooltip } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
@@ -100,10 +100,9 @@ html, body {
   font-weight: 600;
 }
 
-.chips-basecard-editor__field .ant-input,
-.chips-basecard-editor__field .ant-input-affix-wrapper {
-  width: 100%;
-  border-radius: 8px;
+.chips-basecard-editor__required-mark {
+  margin-inline-start: 4px;
+  color: #ff3b30;
 }
 
 .chips-basecard-editor__field-description,
@@ -146,6 +145,7 @@ html, body {
   color: #6e6e73;
   font-size: 12px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .chips-basecard-editor__switch-row .ant-switch {
@@ -164,27 +164,15 @@ html, body {
   background: rgba(0, 0, 0, 0.04);
 }
 
-.chips-basecard-editor__badge {
-  margin-inline-end: 0;
-  border: none;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.chips-basecard-editor__badge[data-tone="success"] {
-  background: rgba(52, 199, 89, 0.12);
+.chips-basecard-editor__security-title[data-tone="success"] {
   color: #34c759;
 }
 
-.chips-basecard-editor__badge[data-tone="warning"] {
-  background: rgba(255, 159, 10, 0.12);
+.chips-basecard-editor__security-title[data-tone="warning"] {
   color: #ff9f0a;
 }
 
-.chips-basecard-editor__badge[data-tone="error"] {
-  background: rgba(255, 59, 48, 0.12);
+.chips-basecard-editor__security-title[data-tone="error"] {
   color: #ff3b30;
 }
 
@@ -194,13 +182,27 @@ html, body {
   justify-content: center;
   min-width: 28px;
   min-height: 28px;
-  border: 1px solid rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   background: transparent;
   color: #6e6e73;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.chips-basecard-editor__help-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+}
+
+.chips-basecard-editor__help-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.14);
+  color: #1d1d1f;
 }
 
 .chips-basecard-editor__errors {
@@ -273,6 +275,7 @@ function BasecardEditor(props: BasecardEditorProps) {
   const [errors, setErrors] = useState<Record<string, string>>(() =>
     validateBasecardConfig(normalizeBasecardConfig(props.initialConfig)).errors
   );
+  const [helpOpen, setHelpOpen] = useState(false);
   const anchorInputId = useId();
   const urlInputId = useId();
   const descriptionInputId = useId();
@@ -320,6 +323,9 @@ function BasecardEditor(props: BasecardEditorProps) {
           <div className="chips-basecard-editor__field">
             <label className="chips-basecard-editor__field-label" htmlFor={anchorInputId}>
               {formatMessage("hyperlink.anchorText")}
+              <span className="chips-basecard-editor__required-mark" aria-hidden="true">
+                *
+              </span>
             </label>
             <Input
               id={anchorInputId}
@@ -327,6 +333,7 @@ function BasecardEditor(props: BasecardEditorProps) {
               value={config.anchor_text}
               placeholder={formatMessage("hyperlink.placeholder.anchorText")}
               required
+              aria-invalid={anchorError ? true : undefined}
               status={anchorError ? "error" : undefined}
               onChange={(event) => {
                 updateConfig({ anchor_text: event.target.value });
@@ -340,6 +347,9 @@ function BasecardEditor(props: BasecardEditorProps) {
           <div className="chips-basecard-editor__field">
             <label className="chips-basecard-editor__field-label" htmlFor={urlInputId}>
               {formatMessage("hyperlink.url")}
+              <span className="chips-basecard-editor__required-mark" aria-hidden="true">
+                *
+              </span>
             </label>
             <Input
               id={urlInputId}
@@ -351,6 +361,7 @@ function BasecardEditor(props: BasecardEditorProps) {
               autoCorrect="off"
               spellCheck={false}
               required
+              aria-invalid={urlError ? true : undefined}
               status={urlError ? "error" : undefined}
               onChange={(event) => {
                 updateConfig({ url: event.target.value });
@@ -473,31 +484,40 @@ function BasecardEditor(props: BasecardEditorProps) {
           </h2>
           <div className="chips-basecard-editor__security-row">
             <span className="chips-basecard-editor__security-copy">
-              <span className="chips-basecard-editor__security-title">{securityText}</span>
+              <span
+                className="chips-basecard-editor__security-title"
+                data-tone={getSecurityTone(urlAnalysis.reason)}
+              >
+                {securityText}
+              </span>
               <span className="chips-basecard-editor__security-description">
                 {formatMessage("hyperlink.security.description", {
                   url: urlAnalysis.normalizedUrl || urlAnalysis.input || formatMessage("hyperlink.view.emptyUrl"),
                 })}
               </span>
             </span>
-            <span className="chips-basecard-editor__switch-row">
-              <Tag
-                className="chips-basecard-editor__badge"
-                data-tone={getSecurityTone(urlAnalysis.reason)}
+            <Tooltip
+              title={formatMessage("hyperlink.security.tooltip")}
+              open={helpOpen}
+              onOpenChange={(open) => {
+                setHelpOpen(open);
+              }}
+            >
+              <span
+                className="chips-basecard-editor__help-button"
+                role="button"
+                tabIndex={0}
+                aria-label={formatMessage("hyperlink.security.tooltip")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setHelpOpen((open) => !open);
+                  }
+                }}
               >
-                {securityText}
-              </Tag>
-              <Tooltip title={formatMessage("hyperlink.security.tooltip")}>
-                <span
-                  className="chips-basecard-editor__help-button"
-                  role="button"
-                  tabIndex={0}
-                  aria-label={formatMessage("hyperlink.security.tooltip")}
-                >
-                  ?
-                </span>
-              </Tooltip>
-            </span>
+                ?
+              </span>
+            </Tooltip>
           </div>
         </section>
 

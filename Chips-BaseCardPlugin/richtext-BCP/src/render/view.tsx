@@ -10,7 +10,7 @@ html, body {
   width: 100%;
   min-height: 100%;
   color: #1d1d1f;
-  font: 14px/1.7 "SF Pro Text", "PingFang SC", sans-serif;
+  font: 14px/1.7 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   background: transparent;
 }
 
@@ -69,6 +69,37 @@ html, body {
   color: #6e6e73;
 }
 
+.chips-richtext-card__surface h1 {
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.chips-richtext-card__surface h2 {
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.chips-richtext-card__surface h3 {
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.chips-richtext-card__surface h4 {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.chips-richtext-card__surface h5,
+.chips-richtext-card__surface h6 {
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
 .chips-richtext-card__surface del {
   text-decoration-thickness: 1.5px;
 }
@@ -82,7 +113,7 @@ html, body {
 .chips-richtext-card__surface mark {
   padding: 0 0.18em;
   border-radius: 0.28em;
-  background: color-mix(in srgb, #ffcc00 30%, #ffffff);
+  background: rgba(10, 132, 255, 0.2);
   color: inherit;
 }
 
@@ -117,7 +148,7 @@ html, body {
   padding: 14px 16px;
   overflow-x: auto;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 16px;
+  border-radius: 12px;
   background: #f2f2f7;
   color: #1d1d1f;
   white-space: pre-wrap;
@@ -137,7 +168,7 @@ html, body {
   table-layout: fixed;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .chips-richtext-card__surface th,
@@ -172,7 +203,7 @@ html, body {
   margin: 0 0 16px;
   padding: 14px 16px;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 16px;
+  border-radius: 12px;
   background: #f2f2f7;
 }
 

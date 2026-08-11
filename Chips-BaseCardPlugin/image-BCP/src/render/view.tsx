@@ -9,11 +9,13 @@ import {
   normalizeRelativeCardResourcePath,
 } from "../shared/utils";
 
+const MAX_RESOURCE_RETRY_COUNT = 3;
+
 export const VIEW_STYLE_TEXT = `
 .chips-image-card {
   width: 100%;
   color: #1d1d1f;
-  font: 14px/1.5 "SF Pro Text", "PingFang SC", sans-serif;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-image-card *,
@@ -31,7 +33,7 @@ export const VIEW_STYLE_TEXT = `
   place-items: center;
   min-height: 220px;
   border: 1px dashed rgba(0, 0, 0, 0.08);
-  border-radius: 24px;
+  border-radius: 12px;
   background:
     radial-gradient(circle at top, rgba(10, 132, 255, 0.09), transparent 52%),
     #ffffff;
@@ -51,11 +53,31 @@ export const VIEW_STYLE_TEXT = `
 .chips-image-card__image-frame {
   position: relative;
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: 12px;
   background:
     linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.02)),
     #ffffff;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.chips-image-card__image-frame--interactive {
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chips-image-card__image-frame--interactive:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 20px rgba(0, 0, 0, 0.10);
+}
+
+.chips-image-card__image-frame--interactive:active {
+  transform: scale(0.99);
+}
+
+.chips-image-card__image-frame--interactive:focus-visible {
+  outline: 2px solid rgba(10, 132, 255, 0.6);
+  outline-offset: 2px;
 }
 
 .chips-image-card__image {
@@ -128,6 +150,24 @@ export const VIEW_STYLE_TEXT = `
   overscroll-behavior-x: contain;
 }
 
+.chips-image-card__horizontal::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.chips-image-card__horizontal::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.chips-image-card__horizontal::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.chips-image-card__horizontal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .chips-image-card__horizontal-track {
   display: flex;
   align-items: stretch;
@@ -182,15 +222,22 @@ function ImageFrame(props: {
     onOpenResource,
     canOpenResource = false,
   } = props;
+  const [loadFailed, setLoadFailed] = useState(false);
   const isInteractive = canOpenResource && typeof onOpenResource === "function" && src.trim().length > 0;
+
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [src]);
 
   return (
     <div
-      className="chips-image-card__image-frame"
+      className={[
+        "chips-image-card__image-frame",
+        isInteractive ? "chips-image-card__image-frame--interactive" : "",
+      ].filter(Boolean).join(" ")}
       style={{
         ...(aspectRatio ? { aspectRatio } : undefined),
         borderRadius: `${radius}px`,
-        ...(isInteractive ? { cursor: "pointer" } : undefined),
       }}
       {...(isInteractive
         ? {
@@ -206,7 +253,7 @@ function ImageFrame(props: {
           }
         : undefined)}
     >
-      {src ? (
+      {src && !loadFailed ? (
         <img
           src={src}
           alt={image.alt ?? ""}
@@ -217,6 +264,7 @@ function ImageFrame(props: {
             dimmed ? "chips-image-card__image--dimmed" : "",
           ].filter(Boolean).join(" ")}
           onError={() => {
+            setLoadFailed(true);
             onResourceError?.();
           }}
           loading="lazy"
@@ -349,6 +397,8 @@ export function ImageCardView({
   openResource,
 }: ImageCardViewProps) {
   const horizontalRef = useRef<HTMLDivElement | null>(null);
+  const mountedRef = useRef(true);
+  const retryCountsRef = useRef(new Map<string, number>());
   const [resolvedFileUrls, setResolvedFileUrls] = useState<Map<string, string>>(new Map());
   const effectiveLayoutType = getEffectiveLayoutType(config);
   const layoutOptions = config.layout_options ?? defaultLayoutOptions;
@@ -372,6 +422,8 @@ export function ImageCardView({
 
   useEffect(() => {
     let cancelled = false;
+    mountedRef.current = true;
+    retryCountsRef.current.clear();
 
     if (!resolveResourceUrl || fileResourcePaths.length === 0) {
       setResolvedFileUrls((current) => (current.size === 0 ? current : new Map()));
@@ -401,6 +453,7 @@ export function ImageCardView({
 
     return () => {
       cancelled = true;
+      mountedRef.current = false;
 
       for (const resourcePath of fileResourcePaths) {
         void Promise.resolve(releaseResourceUrl?.(resourcePath)).catch(() => undefined);
@@ -426,6 +479,11 @@ export function ImageCardView({
     void Promise.resolve(releaseResourceUrl?.(normalizedPath)).catch(() => undefined);
     void resolveResourceUrlWithRetry(resolveResourceUrl, normalizedPath)
       .then((resourceUrl) => {
+        if (!mountedRef.current) {
+          void Promise.resolve(releaseResourceUrl?.(normalizedPath)).catch(() => undefined);
+          return;
+        }
+
         setResolvedFileUrls((current) => {
           const next = new Map(current);
           next.set(normalizedPath, resourceUrl);
@@ -433,6 +491,36 @@ export function ImageCardView({
         });
       })
       .catch(() => undefined);
+  };
+
+  const handleResourceLoadError = (image: ImageItem): void => {
+    if (image.source !== "file") {
+      return;
+    }
+
+    const normalizedPath = normalizeRelativeCardResourcePath(image.file_path);
+    if (!normalizedPath) {
+      return;
+    }
+
+    const retryCount = (retryCountsRef.current.get(normalizedPath) ?? 0) + 1;
+    retryCountsRef.current.set(normalizedPath, retryCount);
+    if (retryCount > MAX_RESOURCE_RETRY_COUNT) {
+      retryCountsRef.current.delete(normalizedPath);
+      void Promise.resolve(releaseResourceUrl?.(normalizedPath)).catch(() => undefined);
+      setResolvedFileUrls((current) => {
+        if (!current.has(normalizedPath)) {
+          return current;
+        }
+
+        const next = new Map(current);
+        next.delete(normalizedPath);
+        return next;
+      });
+      return;
+    }
+
+    retryResource(normalizedPath);
   };
 
   const handleHorizontalWheel: React.WheelEventHandler<HTMLDivElement> = (event) => {
@@ -448,9 +536,16 @@ export function ImageCardView({
       return;
     }
 
+    let resourceId = "";
     if (image.source === "file") {
       const normalizedPath = normalizeRelativeCardResourcePath(image.file_path);
       if (!normalizedPath || !resolvedFileUrls.has(normalizedPath)) {
+        return;
+      }
+      resourceId = normalizedPath;
+    } else {
+      resourceId = image.url?.trim() ?? "";
+      if (!resourceId) {
         return;
       }
     }
@@ -460,7 +555,7 @@ export function ImageCardView({
       ?.trim();
 
     openResource({
-      resourceId: src,
+      resourceId,
       mimeType: inferMimeTypeFromSource(image),
       title: displayTitle,
       fileName: resolveResourceFileName(image),
@@ -506,9 +601,7 @@ export function ImageCardView({
                     handleOpenImageResource(singleImage, getImageDisplaySource(singleImage, resolvedFileUrls));
                   }}
                   onResourceError={() => {
-                    if (singleImage.source === "file") {
-                      retryResource(singleImage.file_path);
-                    }
+                    handleResourceLoadError(singleImage);
                   }}
                 />
               </div>
@@ -562,9 +655,7 @@ export function ImageCardView({
                       handleOpenImageResource(image, src);
                     }}
                     onResourceError={() => {
-                      if (image.source === "file") {
-                        retryResource(image.file_path);
-                      }
+                      handleResourceLoadError(image);
                     }}
                   />
                   {isOverflowCell ? (

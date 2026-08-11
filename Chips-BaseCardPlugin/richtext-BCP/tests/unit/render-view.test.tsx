@@ -242,4 +242,58 @@ $$`,
 
     dispose();
   });
+
+  it("opens external and relative links in a new tab with safe rel attributes", async () => {
+    const container = document.createElement("div");
+    const dispose = mountBasecardView({
+      container,
+      config: createConfig({
+        content_text: "[外链](https://example.com/a.png) [内部](docs/manual.md) [锚点](#section)",
+      }),
+    });
+
+    await waitFor(() => Boolean(container.querySelector(".ProseMirror a")));
+
+    const links = Array.from(container.querySelectorAll<HTMLAnchorElement>(".ProseMirror a"));
+    const external = links.find((link) => link.getAttribute("href") === "https://example.com/a.png");
+    const internal = links.find((link) => link.getAttribute("href") === "docs/manual.md");
+    const anchor = links.find((link) => link.getAttribute("href") === "#section");
+
+    expect(external).toBeDefined();
+    expect(external?.getAttribute("target")).toBe("_blank");
+    expect(external?.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(internal).toBeDefined();
+    expect(internal?.getAttribute("target")).toBe("_blank");
+    expect(internal?.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(anchor).toBeDefined();
+    expect(anchor?.getAttribute("target")).toBe("_blank");
+    expect(anchor?.getAttribute("rel")).toBe("noopener noreferrer");
+
+    dispose();
+  });
+
+  it("executes the previous mount cleanup before a repeated view mount", async () => {
+    const container = document.createElement("div");
+    const releaseResourceUrl = vi.fn(async () => undefined);
+    const mount = (contentText: string) => mountBasecardView({
+      container,
+      config: createConfig({ content_text: contentText }),
+      resolveResourceUrl: async (resourcePath) => `https://runtime.example/${resourcePath}`,
+      releaseResourceUrl,
+    });
+
+    mount("# 第一次挂载");
+    await waitFor(() => Boolean(container.querySelector(".ProseMirror")));
+    expect(container.querySelectorAll(".ProseMirror")).toHaveLength(1);
+    expect(container.querySelectorAll("style")).toHaveLength(1);
+
+    mount("# 第二次挂载");
+    await waitFor(() => Boolean(container.querySelector(".ProseMirror")));
+
+    expect(container.querySelectorAll(".ProseMirror")).toHaveLength(1);
+    expect(container.querySelectorAll("style")).toHaveLength(1);
+    expect(container.textContent).toContain("第二次挂载");
+    expect(container.textContent).not.toContain("第一次挂载");
+    expect(releaseResourceUrl).not.toHaveBeenCalled();
+  });
 });

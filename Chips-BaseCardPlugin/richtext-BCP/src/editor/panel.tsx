@@ -17,7 +17,7 @@ import {
 } from "@milkdown/core";
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { Editor as MilkdownEditor } from "@milkdown/core";
+import type { CmdKey, Editor as MilkdownEditor } from "@milkdown/core";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import {
   commonmark,
@@ -121,6 +121,8 @@ type EditorController = {
   contextMenu: HTMLDivElement;
   contextMenuContent: HTMLDivElement;
   errorList: HTMLUListElement;
+  linkPopup: HTMLDivElement;
+  linkInput: HTMLInputElement;
   locale: string;
   theme: string;
   props: BasecardEditorProps;
@@ -132,6 +134,7 @@ type EditorController = {
   sessionFileName: string;
   lastCommittedSignature: string;
   lastResolvedResources: Set<string>;
+  previewSyncSequence: number;
   isComposing: boolean;
   isImporting: boolean;
   rerunCommitAfterImport: boolean;
@@ -155,7 +158,7 @@ html, body {
   background: #ffffff;
 }
 
-#chips-basecard-editor-root {
+.chips-basecard-editor-root {
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -176,7 +179,7 @@ html, body {
   padding: 14px 16px 16px;
   background: #ffffff;
   color: #1d1d1f;
-  font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: 14px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   isolation: isolate;
 }
 
@@ -218,6 +221,7 @@ html, body {
 }
 
 .chips-basecard-editor__editor-host .ProseMirror {
+  position: relative;
   min-height: 100%;
   outline: none;
   color: inherit;
@@ -254,6 +258,46 @@ html, body {
   color: #6e6e73;
 }
 
+.chips-basecard-editor__editor-host .ProseMirror h1 {
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.chips-basecard-editor__editor-host .ProseMirror h2 {
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.chips-basecard-editor__editor-host .ProseMirror h3 {
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.chips-basecard-editor__editor-host .ProseMirror h4 {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.chips-basecard-editor__editor-host .ProseMirror h5,
+.chips-basecard-editor__editor-host .ProseMirror h6 {
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.chips-basecard-editor__editor-host--empty .ProseMirror::before {
+  content: "${formatMessage("basecard.placeholder.empty")}";
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  color: #86868b;
+}
+
 .chips-basecard-editor__editor-host .ProseMirror del {
   text-decoration-thickness: 1.5px;
 }
@@ -267,7 +311,7 @@ html, body {
 .chips-basecard-editor__editor-host .ProseMirror mark {
   padding: 0 0.18em;
   border-radius: 0.28em;
-  background: color-mix(in srgb, #ffcc00 30%, #ffffff);
+  background: rgba(10, 132, 255, 0.2);
   color: inherit;
 }
 
@@ -296,7 +340,7 @@ html, body {
   padding: 14px 16px;
   overflow-x: auto;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 16px;
+  border-radius: 12px;
   background: #f2f2f7;
   color: #1d1d1f;
   white-space: pre-wrap;
@@ -316,7 +360,7 @@ html, body {
   table-layout: fixed;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .chips-basecard-editor__editor-host .ProseMirror th,
@@ -351,7 +395,7 @@ html, body {
   margin: 0 0 16px;
   padding: 14px 16px;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 16px;
+  border-radius: 12px;
   background: #f2f2f7;
 }
 
@@ -574,6 +618,95 @@ html, body {
   padding-left: 18px;
 }
 
+.chips-basecard-editor__link-popup {
+  position: absolute;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(320px, calc(100% - 32px));
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: color-mix(in srgb, #ffffff 94%, transparent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(16px);
+}
+
+.chips-basecard-editor__link-popup[hidden] {
+  display: none;
+}
+
+.chips-basecard-editor__link-popup-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  font: inherit;
+  outline: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.chips-basecard-editor__link-popup-input::placeholder {
+  color: #86868b;
+}
+
+.chips-basecard-editor__link-popup-input:focus {
+  background: #ffffff;
+  border-color: rgba(10, 132, 255, 0.85);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.16);
+}
+
+.chips-basecard-editor__link-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.chips-basecard-editor__link-popup-button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.chips-basecard-editor__link-popup-button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.28);
+}
+
+.chips-basecard-editor__link-popup-button--cancel {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  color: #1d1d1f;
+}
+
+.chips-basecard-editor__link-popup-button--cancel:hover {
+  background: #f5f5f7;
+}
+
+.chips-basecard-editor__link-popup-button--confirm {
+  border: 0;
+  background: #0a84ff;
+  color: #ffffff;
+}
+
+.chips-basecard-editor__link-popup-button--confirm:hover {
+  background: #3395ff;
+}
+
 `;
 
 const PREVIEW_COMMIT_DELAY_MS = 120;
@@ -607,12 +740,8 @@ const TOOLBAR_BUTTONS: ToolbarButton[] = [
     key: "link",
     labelKey: "basecard.toolbar.link",
     icon: "link",
-    run: async (controller) => {
-      const url = askUserForValue(formatMessage("basecard.prompt.linkUrl"));
-      if (!url) {
-        return;
-      }
-      runCommand(controller, toggleLinkCommand.key, { href: url });
+    run: (controller) => {
+      openLinkInputPopup(controller);
     },
   },
   {
@@ -721,12 +850,47 @@ const TOOLBAR_ICON_GLYPHS: Partial<Record<ToolbarIconName, string>> = {
   blockquote: "❝",
 };
 
-function askUserForValue(label: string): string | null {
-  if (typeof window === "undefined" || typeof window.prompt !== "function") {
-    return null;
+function openLinkInputPopup(controller: EditorController): void {
+  hideTooltip(controller);
+  controller.linkInput.value = "";
+  positionLinkInputPopup(controller);
+  controller.linkPopup.hidden = false;
+  controller.linkInput.focus();
+}
+
+function closeLinkInputPopup(controller: EditorController): void {
+  controller.linkPopup.hidden = true;
+  const editor = controller.editor;
+  if (editor) {
+    editor.action((ctx) => {
+      ctx.get(editorViewCtx).focus();
+    });
   }
-  const value = window.prompt(label);
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function positionLinkInputPopup(controller: EditorController): void {
+  const frameRect = controller.surfaceFrame.getBoundingClientRect();
+  const popupWidth = controller.linkPopup.offsetWidth || 296;
+  const popupHeight = controller.linkPopup.offsetHeight || 96;
+  const left = Math.min(
+    Math.max(16, frameRect.width / 2 - popupWidth / 2),
+    Math.max(16, frameRect.width - popupWidth - 16),
+  );
+  const top = Math.min(
+    Math.max(16, frameRect.height / 2 - popupHeight / 2),
+    Math.max(16, frameRect.height - popupHeight - 16),
+  );
+  controller.linkPopup.style.left = `${left}px`;
+  controller.linkPopup.style.top = `${top}px`;
+}
+
+function confirmLinkInput(controller: EditorController): void {
+  const url = controller.linkInput.value.trim();
+  closeLinkInputPopup(controller);
+  if (!url) {
+    return;
+  }
+  runCommand(controller, toggleLinkCommand.key, { href: url });
 }
 
 function mountRuntimeIcon(host: ReactIslandHost, element: React.ReactElement): void {
@@ -1006,6 +1170,16 @@ function clearPreviewTimer(controller: EditorController): void {
   }
 }
 
+function deriveSessionMarkdownFileName(contentFile: string | undefined): string {
+  const seed = contentFile?.replace(/\.md$/i, "").replace(/^richtext-?/i, "");
+  return createRichTextMarkdownFileName(seed);
+}
+
+function updateEmptyEditorState(controller: EditorController): void {
+  const isEmpty = !hasMeaningfulMarkdownContent(controller.currentMarkdown);
+  controller.editorHost.classList.toggle("chips-basecard-editor__editor-host--empty", isEmpty);
+}
+
 function emitPreviewConfig(controller: EditorController): void {
   if (controller.disposed) {
     return;
@@ -1048,86 +1222,98 @@ function scheduleCommit(controller: EditorController, reason: "change" | "flush"
   }
 
   clearPreviewTimer(controller);
-  void commitCurrentMarkdown(controller);
+  void commitCurrentMarkdown(controller).catch(() => undefined);
 }
 
 function buildConfigSignature(config: BasecardConfig): string {
   return JSON.stringify(config);
 }
 
-async function commitCurrentMarkdown(controller: EditorController): Promise<void> {
-  if (controller.disposed || !controller.editor) {
-    return;
-  }
-
+async function commitCurrentMarkdown(controller: EditorController, allowDisposed = false): Promise<void> {
   if (controller.isImporting) {
     controller.rerunCommitAfterImport = true;
     return;
   }
 
-  const markdown = normalizeMarkdown(controller.editor.action(getMarkdown()));
-  controller.currentMarkdown = markdown;
-
-  const hasContent = hasMeaningfulMarkdownContent(markdown);
-  if (!hasContent) {
-    setErrors(controller, [formatMessage("basecard.validation.bodyRequired")]);
+  if ((controller.disposed && !allowDisposed) || !controller.editor) {
     return;
   }
 
-  const plainTextLength = countUnicodeCharacters(extractPlainTextFromMarkdown(markdown));
-  let nextConfig: BasecardConfig;
+  try {
+    const markdown = normalizeMarkdown(controller.editor.action(getMarkdown()));
+    controller.currentMarkdown = markdown;
 
-  if (shouldUseFileStorage(plainTextLength)) {
-    if (!controller.props.importResource) {
-      setErrors(controller, [formatMessage("basecard.validation.importUnavailable")]);
+    const hasContent = hasMeaningfulMarkdownContent(markdown);
+    if (!hasContent) {
+      setErrors(controller, [formatMessage("basecard.validation.bodyRequired")]);
       return;
     }
 
-    controller.isImporting = true;
-    try {
-      const currentPreferredPath = controller.currentFilePath || controller.sessionFileName;
-      const file = new File([markdown], currentPreferredPath, { type: "text/markdown;charset=utf-8" });
-      const imported = await controller.props.importResource({
-        file,
-        preferredPath: currentPreferredPath,
-      });
-      const nextFilePath = imported.path;
-      if (controller.currentFilePath && controller.currentFilePath !== nextFilePath && controller.props.deleteResource) {
-        await controller.props.deleteResource(controller.currentFilePath);
+    const plainTextLength = countUnicodeCharacters(extractPlainTextFromMarkdown(markdown));
+    let nextConfig: BasecardConfig;
+
+    if (shouldUseFileStorage(plainTextLength)) {
+      if (!controller.props.importResource) {
+        setErrors(controller, [formatMessage("basecard.validation.importUnavailable")]);
+        return;
       }
-      controller.currentFilePath = nextFilePath;
-      nextConfig = createFileBasecardConfig(nextFilePath, controller.locale, controller.theme);
-    } finally {
-      controller.isImporting = false;
+
+      controller.isImporting = true;
+      try {
+        const currentPreferredPath = controller.currentFilePath || controller.sessionFileName;
+        const file = new File([markdown], currentPreferredPath, { type: "text/markdown;charset=utf-8" });
+        const imported = await controller.props.importResource({
+          file,
+          preferredPath: currentPreferredPath,
+        });
+        const nextFilePath = imported.path;
+        if (controller.currentFilePath && controller.currentFilePath !== nextFilePath && controller.props.deleteResource) {
+          await controller.props.deleteResource(controller.currentFilePath);
+        }
+        controller.currentFilePath = nextFilePath;
+        nextConfig = createFileBasecardConfig(nextFilePath, controller.locale, controller.theme);
+      } catch (error) {
+        setErrors(controller, [
+          `${formatMessage("basecard.validation.importFailed")}：${error instanceof Error ? error.message : String(error)}`,
+        ]);
+        return;
+      } finally {
+        controller.isImporting = false;
+      }
+    } else {
+      if (controller.currentFilePath && controller.props.deleteResource) {
+        await controller.props.deleteResource(controller.currentFilePath);
+        controller.currentFilePath = undefined;
+      }
+      nextConfig = createInlineBasecardConfig(markdown, controller.locale, controller.theme);
     }
-  } else {
-    if (controller.currentFilePath && controller.props.deleteResource) {
-      await controller.props.deleteResource(controller.currentFilePath);
-      controller.currentFilePath = undefined;
+
+    const validation = validateBasecardConfig(nextConfig);
+    if (!validation.valid) {
+      setErrors(controller, Object.values(validation.errors));
+      return;
     }
-    nextConfig = createInlineBasecardConfig(markdown, controller.locale, controller.theme);
-  }
 
-  const validation = validateBasecardConfig(nextConfig);
-  if (!validation.valid) {
-    setErrors(controller, Object.values(validation.errors));
-    return;
-  }
+    setErrors(controller, []);
+    const signature = buildConfigSignature(nextConfig);
+    if (signature !== controller.lastCommittedSignature) {
+      controller.lastCommittedSignature = signature;
+      controller.props.onChange(nextConfig);
+    }
 
-  setErrors(controller, []);
-  const signature = buildConfigSignature(nextConfig);
-  if (signature !== controller.lastCommittedSignature) {
-    controller.lastCommittedSignature = signature;
-    controller.props.onChange(nextConfig);
-  }
-
-  if (controller.rerunCommitAfterImport) {
-    controller.rerunCommitAfterImport = false;
-    void commitCurrentMarkdown(controller);
+    if (controller.rerunCommitAfterImport) {
+      controller.rerunCommitAfterImport = false;
+      void commitCurrentMarkdown(controller).catch(() => undefined);
+    }
+  } catch (error) {
+    controller.isImporting = false;
+    setErrors(controller, [
+      `${formatMessage("basecard.status.commitFailed")}：${error instanceof Error ? error.message : String(error)}`,
+    ]);
   }
 }
 
-function runCommand<T>(controller: EditorController, commandKey: string | { name?: string }, payload?: T): void {
+function runCommand<T>(controller: EditorController, commandKey: CmdKey<T>, payload?: T): void {
   if (!controller.editor) {
     return;
   }
@@ -1136,8 +1322,7 @@ function runCommand<T>(controller: EditorController, commandKey: string | { name
   hideTooltip(controller);
   hideContextMenu(controller, false);
 
-  const key = typeof commandKey === "string" ? commandKey : (commandKey as { name?: string }).name ?? commandKey;
-  controller.editor.action(callCommand(key as never, payload));
+  controller.editor.action(callCommand(commandKey, payload));
   void syncPreviewResources(controller);
   scheduleCommit(controller, "change");
   updateToolbarPosition(controller);
@@ -1312,12 +1497,21 @@ async function syncPreviewResources(controller: EditorController): Promise<void>
     return;
   }
 
-  for (const resourcePath of controller.lastResolvedResources) {
+  const sequence = ++controller.previewSyncSequence;
+  const previouslyResolved = controller.lastResolvedResources;
+  controller.lastResolvedResources = new Set<string>();
+  for (const resourcePath of previouslyResolved) {
     controller.props.releaseResourceUrl?.(resourcePath);
   }
-  controller.lastResolvedResources.clear();
 
   const resolved = await rewriteRelativeResourceUrls(controller.editorHost, controller.props.resolveResourceUrl);
+  if (sequence !== controller.previewSyncSequence) {
+    for (const resourcePath of resolved) {
+      controller.props.releaseResourceUrl?.(resourcePath);
+    }
+    return;
+  }
+
   resolved.forEach((resourcePath) => controller.lastResolvedResources.add(resourcePath));
 }
 
@@ -1328,7 +1522,7 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
   const ownerWindow = ownerDocument.defaultView ?? window;
   const tooltipId = `chips-basecard-editor-tooltip-${Math.random().toString(36).slice(2, 10)}`;
 
-  root.id = "chips-basecard-editor-root";
+  root.className = "chips-basecard-editor-root";
 
   const style = document.createElement("style");
   style.textContent = EDITOR_STYLE_TEXT;
@@ -1397,6 +1591,58 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
   errors.appendChild(errorList);
   editorRoot.appendChild(errors);
 
+  const linkPopup = document.createElement("div");
+  linkPopup.className = "chips-basecard-editor__link-popup";
+  linkPopup.hidden = true;
+  linkPopup.setAttribute("role", "dialog");
+  linkPopup.setAttribute("aria-label", formatMessage("basecard.prompt.linkUrl"));
+  surfaceFrame.appendChild(linkPopup);
+
+  const linkInput = document.createElement("input");
+  linkInput.type = "text";
+  linkInput.className = "chips-basecard-editor__link-popup-input";
+  linkInput.placeholder = formatMessage("basecard.prompt.linkUrl");
+  linkInput.setAttribute("aria-label", formatMessage("basecard.prompt.linkUrl"));
+  linkPopup.appendChild(linkInput);
+
+  const linkActions = document.createElement("div");
+  linkActions.className = "chips-basecard-editor__link-popup-actions";
+  linkPopup.appendChild(linkActions);
+
+  const linkCancelButton = document.createElement("button");
+  linkCancelButton.type = "button";
+  linkCancelButton.className =
+    "chips-basecard-editor__link-popup-button chips-basecard-editor__link-popup-button--cancel";
+  linkCancelButton.textContent = formatMessage("basecard.link.cancel");
+  linkActions.appendChild(linkCancelButton);
+
+  const linkConfirmButton = document.createElement("button");
+  linkConfirmButton.type = "button";
+  linkConfirmButton.className =
+    "chips-basecard-editor__link-popup-button chips-basecard-editor__link-popup-button--confirm";
+  linkConfirmButton.textContent = formatMessage("basecard.link.confirm");
+  linkActions.appendChild(linkConfirmButton);
+
+  linkInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      confirmLinkInput(controller);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeLinkInputPopup(controller);
+    }
+  });
+  linkCancelButton.addEventListener("click", () => {
+    closeLinkInputPopup(controller);
+  });
+  linkConfirmButton.addEventListener("click", () => {
+    confirmLinkInput(controller);
+  });
+
   const controller: EditorController = {
     root,
     surfaceFrame,
@@ -1409,6 +1655,8 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
     contextMenu,
     contextMenuContent,
     errorList,
+    linkPopup,
+    linkInput,
     locale: config.locale ?? "zh-CN",
     theme: config.theme ?? "",
     props,
@@ -1416,9 +1664,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
     focused: false,
     currentMarkdown: "",
     currentFilePath: config.content_source === "file" ? config.content_file : undefined,
-    sessionFileName: createRichTextMarkdownFileName(config.content_file?.replace(/\.md$/i, "")),
+    sessionFileName: deriveSessionMarkdownFileName(config.content_file),
     lastCommittedSignature: "",
     lastResolvedResources: new Set<string>(),
+    previewSyncSequence: 0,
     isComposing: false,
     isImporting: false,
     rerunCommitAfterImport: false,
@@ -1434,6 +1683,10 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
         hideTooltip(controller);
         hideContextMenu(controller, false);
         return;
+      }
+
+      if (!controller.linkPopup.hidden && !linkPopup.contains(target)) {
+        closeLinkInputPopup(controller);
       }
 
       if (!root.contains(target)) {
@@ -1453,6 +1706,12 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
     },
     handleDocumentKeyDown: (event) => {
       if (event.key !== "Escape") {
+        return;
+      }
+
+      if (!controller.linkPopup.hidden) {
+        event.preventDefault();
+        closeLinkInputPopup(controller);
         return;
       }
 
@@ -1535,6 +1794,7 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
         resolveResourceUrl: props.resolveResourceUrl,
       }));
       controller.currentMarkdown = markdown;
+      updateEmptyEditorState(controller);
       controller.editor = await Editor.make()
         .config((ctx) => {
           ctx.set(rootCtx, editorHost);
@@ -1570,7 +1830,11 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
         .create();
 
       if (controller.disposed) {
-        await controller.editor.destroy();
+        const created = controller.editor;
+        controller.editor = undefined;
+        if (created) {
+          await created.destroy();
+        }
         return;
       }
 
@@ -1578,6 +1842,7 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
         const manager = ctx.get(listenerCtx);
         manager.markdownUpdated((_listenerCtx, nextMarkdown) => {
           controller.currentMarkdown = normalizeMarkdown(nextMarkdown);
+          updateEmptyEditorState(controller);
           void syncPreviewResources(controller);
           scheduleCommit(controller, "change");
         });
@@ -1633,15 +1898,18 @@ export function createBasecardEditorRoot(props: BasecardEditorProps): EditorRoot
   })();
 
   root.__chipsDispose = () => {
-    const editor = controller.editor;
-    clearPreviewTimer(controller);
-    if (editor) {
-      void commitCurrentMarkdown(controller).catch(() => undefined);
+    if (controller.disposed) {
+      return;
     }
 
+    clearPreviewTimer(controller);
+    controller.previewSyncSequence += 1;
     controller.disposed = true;
+    const editor = controller.editor;
     if (editor) {
+      void commitCurrentMarkdown(controller, true).catch(() => undefined);
       void editor.destroy();
+      controller.editor = undefined;
     }
     for (const resourcePath of controller.lastResolvedResources) {
       controller.props.releaseResourceUrl?.(resourcePath);

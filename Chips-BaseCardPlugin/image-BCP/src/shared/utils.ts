@@ -170,7 +170,7 @@ export function getImageDisplaySource(
     return "";
   }
 
-  return resolvedFileUrls.get(resourcePath) ?? resourcePath;
+  return resolvedFileUrls.get(resourcePath) ?? "";
 }
 
 export function getSpacingMetrics(layoutOptions?: LayoutOptions): {

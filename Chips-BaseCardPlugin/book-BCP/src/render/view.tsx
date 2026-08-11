@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Button, Empty, Image, Tag } from "antd";
 import { ReadOutlined } from "@ant-design/icons";
 import type { BasecardConfig } from "../schema/card-config";
 import { formatMessage } from "../lib/messages";
+import { useResolvedResourceMap } from "../shared/use-resolved-resources";
 import {
   buildOpenResourceDescriptor,
   deriveDisplayAuthor,
@@ -11,13 +12,24 @@ import {
   inferBookMimeType,
   inferImageMimeTypeFromPath,
   isNonEmptyString,
-  normalizeRelativeCardResourcePath,
   resolveFileName,
-  resolveResourceUrlWithRetry,
   sortImageItems,
   type BookCardOpenPayload,
   type BookOpenResource,
 } from "../shared/utils";
+
+const COVER_FALLBACK_IMAGE =
+  "data:image/svg+xml;charset=utf-8," +
+  encodeURIComponent(
+    [
+      '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="192" viewBox="0 0 128 192">',
+      '<rect width="128" height="192" rx="8" fill="#f2f2f7"/>',
+      '<g transform="translate(16 48) scale(0.1154)" fill="#6e6e73">',
+      '<path d="M928 161H699.2c-49.1 0-97.1 14.1-138.4 40.7L512 233l-48.8-31.3A255.2 255.2 0 0 0 324.8 161H96c-17.7 0-32 14.3-32 32v568c0 17.7 14.3 32 32 32h228.8c49.1 0 97.1 14.1 138.4 40.7l44.4 28.6c1.3.8 2.8 1.3 4.3 1.3s3-.4 4.3-1.3l44.4-28.6C602 807.1 650.1 793 699.2 793H928c17.7 0 32-14.3 32-32V193c0-17.7-14.3-32-32-32zM324.8 721H136V233h188.8c35.4 0 69.8 10.1 99.5 29.2l48.8 31.3 6.9 4.5v462c-47.6-25.6-100.8-39-155.2-39zm563.2 0H699.2c-54.4 0-107.6 13.4-155.2 39V298l6.9-4.5 48.8-31.3c29.7-19.1 64.1-29.2 99.5-29.2H888v488zM396.9 361H211.1c-3.9 0-7.1 3.4-7.1 7.5v45c0 4.1 3.2 7.5 7.1 7.5h185.7c3.9 0 7.1-3.4 7.1-7.5v-45c.1-4.1-3.1-7.5-7-7.5zm223.1 7.5v45c0 4.1 3.2 7.5 7.1 7.5h185.7c3.9 0 7.1-3.4 7.1-7.5v-45c0-4.1-3.2-7.5-7.1-7.5H627.1c-3.9 0-7.1 3.4-7.1 7.5zM396.9 501H211.1c-3.9 0-7.1 3.4-7.1 7.5v45c0 4.1 3.2 7.5 7.1 7.5h185.7c3.9 0 7.1-3.4 7.1-7.5v-45c.1-4.1-3.1-7.5-7-7.5zm416 0H627.1c-3.9 0-7.1 3.4-7.1 7.5v45c0 4.1 3.2 7.5 7.1 7.5h185.7c3.9 0 7.1-3.4 7.1-7.5v-45c.1-4.1-3.1-7.5-7-7.5z"/>',
+      "</g>",
+      "</svg>",
+    ].join(""),
+  );
 
 export const VIEW_STYLE_TEXT = `
 .chips-book-card {
@@ -25,7 +37,7 @@ export const VIEW_STYLE_TEXT = `
   --chips-book-card-cover-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
   width: 100%;
   color: #1d1d1f;
-  font: 14px/1.5 "SF Pro Text", "PingFang SC", sans-serif;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
 }
 
 .chips-book-card,
@@ -65,7 +77,14 @@ export const VIEW_STYLE_TEXT = `
 }
 
 .chips-book-card__button:hover {
-  background: #f2f2f7;
+  background: #ebebed;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.chips-book-card__button:active {
+  background: #e4e4e8;
+  box-shadow: none;
+  transform: translateY(1px);
 }
 
 .chips-book-card__button:focus-visible {
@@ -151,6 +170,10 @@ export const VIEW_STYLE_TEXT = `
   margin-top: 4px;
 }
 
+.chips-book-card__meta .ant-tag {
+  margin-inline-end: 0;
+}
+
 .chips-book-card__meta-item {
   display: inline-flex;
   align-items: center;
@@ -221,57 +244,6 @@ export interface BasecardViewProps {
   }) => void;
 }
 
-function useResolvedResources(
-  resourcePaths: string[],
-  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
-  releaseResourceUrl?: (resourcePath: string) => Promise<void> | void,
-): Map<string, string> {
-  const [resolved, setResolved] = useState<Map<string, string>>(new Map());
-  const resourceKey = resourcePaths.join("\n");
-  const normalizedPaths = useMemo(() => (
-    Array.from(new Set(resourcePaths
-      .map((path) => normalizeRelativeCardResourcePath(path))
-      .filter((path): path is string => Boolean(path))))
-  ), [resourceKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const next = new Map<string, string>();
-
-    async function resolveAll() {
-      for (const resourcePath of normalizedPaths) {
-        if (!resolveResourceUrl) {
-          next.set(resourcePath, resourcePath);
-          continue;
-        }
-
-        try {
-          next.set(resourcePath, await resolveResourceUrlWithRetry(resolveResourceUrl, resourcePath));
-        } catch {
-          next.set(resourcePath, "");
-        }
-      }
-
-      if (!cancelled) {
-        setResolved(next);
-      }
-    }
-
-    void resolveAll();
-
-    return () => {
-      cancelled = true;
-      if (releaseResourceUrl && resolveResourceUrl) {
-        for (const resourcePath of normalizedPaths) {
-          void releaseResourceUrl(resourcePath);
-        }
-      }
-    };
-  }, [normalizedPaths, releaseResourceUrl, resolveResourceUrl]);
-
-  return resolved;
-}
-
 function MetaItem(props: { children: React.ReactNode }) {
   return (
     <Tag className="chips-book-card__meta-item">
@@ -284,10 +256,11 @@ function Cover(props: { src: string; alt: string }) {
   if (props.src) {
     return (
       <Image
-        className="chips-book-card__cover-image"
+        classNames={{ image: "chips-book-card__cover-image" }}
         src={props.src}
         alt={props.alt}
         preview={false}
+        fallback={COVER_FALLBACK_IMAGE}
         loading="lazy"
         draggable={false}
       />
@@ -374,15 +347,14 @@ export function BasecardView({
     [config.image_sequence, config.image_sort_basis],
   );
   const coverPath = config.cover_image || sortedImages[0]?.file_path || "";
-  const resourcePaths = [
-    config.book_file,
-    coverPath,
-    ...sortedImages.map((image) => image.file_path),
-  ];
-  const resolvedUrls = useResolvedResources(resourcePaths, resolveResourceUrl, releaseResourceUrl);
+  const resolvedUrls = useResolvedResourceMap(
+    coverPath ? [coverPath] : [],
+    resolveResourceUrl,
+    releaseResourceUrl,
+  );
+  const coverUrl = coverPath ? (resolvedUrls.get(coverPath) ?? "") : "";
   const title = deriveDisplayTitle(config, formatMessage("view.untitled"));
   const author = deriveDisplayAuthor(config, formatMessage("view.unknown_author"));
-  const coverUrl = coverPath ? (resolvedUrls.get(coverPath) || coverPath) : "";
   const hasPrimaryResource = config.source_type === "image-sequence"
     ? sortedImages.length > 0
     : isNonEmptyString(config.book_file);

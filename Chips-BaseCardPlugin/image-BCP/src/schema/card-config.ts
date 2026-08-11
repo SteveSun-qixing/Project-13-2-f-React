@@ -3,6 +3,7 @@ import {
   normalizeRelativeCardResourcePath,
   validateImageUrl,
 } from "../shared/utils";
+import { formatMessage } from "../lib/messages";
 
 export type ImageSourceType = "file" | "url";
 export type LayoutType = "single" | "grid" | "long-scroll" | "horizontal-scroll";
@@ -142,32 +143,32 @@ export function validateBasecardConfig(config: BasecardConfig): ConfigValidation
   const errors: Record<string, string> = {};
 
   if (config.card_type !== "ImageCard") {
-    errors.card_type = "image.validation.cardType";
+    errors.card_type = formatMessage("image.validation.cardType");
   }
 
   config.images.forEach((image, index) => {
     if (!isNonEmptyString(image.id)) {
-      errors[`images.${index}.id`] = "image.validation.imageIdRequired";
+      errors[`images.${index}.id`] = formatMessage("image.validation.imageIdRequired");
     }
 
     if (image.source === "file") {
       if (!isNonEmptyString(image.file_path)) {
-        errors[`images.${index}.file_path`] = "image.validation.filePathRequired";
+        errors[`images.${index}.file_path`] = formatMessage("image.validation.filePathRequired");
       }
     } else if (image.source === "url") {
       if (!isNonEmptyString(image.url)) {
-        errors[`images.${index}.url`] = "image.validation.urlRequired";
+        errors[`images.${index}.url`] = formatMessage("image.validation.urlRequired");
       } else if (!validateImageUrl(image.url)) {
-        errors[`images.${index}.url`] = "image.validation.urlInvalid";
+        errors[`images.${index}.url`] = formatMessage("image.validation.urlInvalid");
       }
     } else {
-      errors[`images.${index}.source`] = "image.validation.source";
+      errors[`images.${index}.source`] = formatMessage("image.validation.source");
     }
   });
 
   const layoutOptions = config.layout_options ?? defaultLayoutOptions;
   if (layoutOptions.single_width_percent && (layoutOptions.single_width_percent < 10 || layoutOptions.single_width_percent > 100)) {
-    errors.layout_options_single_width_percent = "image.validation.singleWidthPercent";
+    errors.layout_options_single_width_percent = formatMessage("image.validation.singleWidthPercent");
   }
 
   if (
@@ -175,7 +176,7 @@ export function validateBasecardConfig(config: BasecardConfig): ConfigValidation
     layoutOptions.spacing_mode !== "none" &&
     layoutOptions.spacing_mode !== "comfortable"
   ) {
-    errors.layout_options_spacing_mode = "image.validation.spacingMode";
+    errors.layout_options_spacing_mode = formatMessage("image.validation.spacingMode");
   }
 
   return {

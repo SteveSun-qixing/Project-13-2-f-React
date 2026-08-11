@@ -70,4 +70,43 @@ describe("archive image bundle utilities", () => {
     ]);
     expect(((entries[0]?.entryTime) ?? 0) > ((entries[1]?.entryTime) ?? 0)).toBe(true);
   });
+
+  it("decodes UTF-8 flagged ZIP names as UTF-8", () => {
+    const zip = createStoredZip([
+      {
+        path: "comic/中国-封面.jpg",
+        data: JPEG_BYTES,
+        utf8: true,
+      },
+    ]);
+
+    const entries = parseZipEntries(toArrayBuffer(zip));
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.path).toBe("comic/中国-封面.jpg");
+    expect(entries[0]?.fileName).toBe("中国-封面.jpg");
+  });
+
+  it("decodes non-UTF-8 flagged ZIP names with the CP437 codepage", () => {
+    const zip = createStoredZip([
+      {
+        path: "comic/Übung-é.jpg",
+        rawName: new Uint8Array([
+          0x63, 0x6f, 0x6d, 0x69, 0x63, 0x2f,
+          0x9a,
+          0x62, 0x75, 0x6e, 0x67, 0x2d,
+          0x82,
+          0x2e, 0x6a, 0x70, 0x67,
+        ]),
+        utf8: false,
+        data: JPEG_BYTES,
+      },
+    ]);
+
+    const entries = parseZipEntries(toArrayBuffer(zip));
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.path).toBe("comic/Übung-é.jpg");
+    expect(entries[0]?.fileName).toBe("Übung-é.jpg");
+  });
 });

@@ -5,6 +5,7 @@ import type { Editor as MilkdownEditor } from "@milkdown/core";
 import type { BasecardRenderContext } from "../index";
 import { formatMessage } from "../lib/messages";
 import { normalizeBasecardConfig } from "../schema/card-config";
+import { registerContainerCleanup, runPreviousContainerCleanup } from "../shared/container-lifecycle";
 import { configureRichTextMarkdown, richTextMarkdownPlugins } from "../shared/markdown-extensions";
 import { loadMarkdownFromConfig, rewriteRelativeResourceUrls } from "../shared/resource-links";
 import { VIEW_STYLE_TEXT } from "./view";
@@ -17,6 +18,8 @@ type ViewState = {
 
 export function mountBasecardView(ctx: BasecardRenderContext): () => void {
   const { container } = ctx;
+  runPreviousContainerCleanup(container);
+
   const config = normalizeBasecardConfig(ctx.config as unknown as Record<string, unknown>);
   const state: ViewState = {
     disposed: false,
@@ -89,14 +92,29 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
         .create();
 
       if (state.disposed) {
-        await state.editor.destroy();
+        const editor = state.editor;
+        state.editor = undefined;
+        if (editor) {
+          await editor.destroy();
+        }
         return;
       }
 
       const resolved = await rewriteRelativeResourceUrls(surface, ctx.resolveResourceUrl, ctx.openResource);
+      if (state.disposed) {
+        for (const resourcePath of resolved) {
+          void ctx.releaseResourceUrl?.(resourcePath);
+        }
+        return;
+      }
       resolved.forEach((resourcePath) => state.resolvedResources.add(resourcePath));
       hideStatus();
     } catch (error) {
+      const editor = state.editor;
+      state.editor = undefined;
+      if (editor) {
+        await editor.destroy();
+      }
       if (state.disposed) {
         return;
       }
@@ -108,19 +126,24 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
     }
   })();
 
-  return () => {
+  return registerContainerCleanup(container, () => {
+    if (state.disposed) {
+      return;
+    }
     state.disposed = true;
-    const destroyPromise = state.editor?.destroy();
-    if (destroyPromise) {
-      void destroyPromise;
+    const editor = state.editor;
+    state.editor = undefined;
+    if (editor) {
+      void editor.destroy();
     }
     if (ctx.releaseResourceUrl) {
       for (const resourcePath of state.resolvedResources) {
         void ctx.releaseResourceUrl(resourcePath);
       }
     }
+    state.resolvedResources.clear();
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
-  };
+  });
 }

@@ -103,4 +103,47 @@ describe("basecard integration flow (markdown richtext)", () => {
       chipsWindow.chips = previousChips;
     }
   });
+
+  it("executes the previous cleanup before a repeated editor mount into the same container", async () => {
+    const editorContainer = document.createElement("div");
+    const mount = (contentText: string) => mountBasecardEditor({
+      container: editorContainer,
+      initialConfig: createConfig({ content_text: contentText }),
+      onChange: vi.fn(),
+    });
+
+    mount("第一次编辑");
+    await waitFor(() => Boolean(editorContainer.querySelector(".ProseMirror")));
+    expect(editorContainer.querySelectorAll(".ProseMirror")).toHaveLength(1);
+    expect(editorContainer.querySelectorAll(".chips-basecard-editor-root")).toHaveLength(1);
+
+    mount("第二次编辑");
+    await waitFor(() => Boolean(editorContainer.querySelector(".ProseMirror")));
+
+    expect(editorContainer.querySelectorAll(".ProseMirror")).toHaveLength(1);
+    expect(editorContainer.querySelectorAll(".chips-basecard-editor-root")).toHaveLength(1);
+    expect(editorContainer.textContent).toContain("第二次编辑");
+    expect(editorContainer.textContent).not.toContain("第一次编辑");
+  });
+
+  it("restores the container styles when the editor is disposed", () => {
+    const editorContainer = document.createElement("div");
+    editorContainer.style.height = "120px";
+    editorContainer.style.width = "320px";
+
+    const disposeEditor = mountBasecardEditor({
+      container: editorContainer,
+      initialConfig: createConfig(),
+      onChange: vi.fn(),
+    });
+
+    expect(editorContainer.style.height).toBe("100%");
+    expect(editorContainer.style.width).toBe("100%");
+
+    disposeEditor();
+
+    expect(editorContainer.style.height).toBe("120px");
+    expect(editorContainer.style.width).toBe("320px");
+    expect(editorContainer.childElementCount).toBe(0);
+  });
 });

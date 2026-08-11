@@ -7,7 +7,7 @@
 - `locale`：保留的契约兼容字段；生态界面文案统一简体中文直写，插件不再消费该字段。
 - `anchor_text`：锚文本，必填；会显示为复合卡片中的长条按钮文字。
 - `url`：跳转链接，必填；必须是有效的 `http` 或 `https` 地址，查看态点击后通过宿主 `openResource(...)` 上抛，由 Host `resource.open` 统一路由。
-- `description`：链接描述，可选；显示在链接标题下方。
+- `description`：链接描述，可选；显示在链接标题下方。归一化时保留原始空白与换行，不做裁剪。
 - `icon_url`：链接图标 URL，可选；必须是有效的 `http` 或 `https` 地址。
 - `open_mode`：打开方式偏好，取值为 `external-browser` 或 `resource-router`；该字段作为 `resource.open` payload 透传，最终打开方式由 Host 决定。
 - `display_density`：显示密度，取值为 `compact`、`comfortable` 或 `spacious`。

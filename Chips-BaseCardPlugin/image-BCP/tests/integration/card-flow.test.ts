@@ -105,7 +105,8 @@ describe("image basecard integration flow", () => {
 
     expect(currentConfig.images).toHaveLength(1);
     expect(currentConfig.images[0]?.file_path).toBe("gallery-shot.webp");
-    expect(viewContainer.querySelector("img")?.getAttribute("src")).toBe("gallery-shot.webp");
+    expect(viewContainer.querySelector("img")).toBeNull();
+    expect(viewContainer.querySelector(".chips-image-card__placeholder")?.textContent).toBe("图片暂时不可用");
   }, 15000);
 
   it("forwards TIFF conversion from the formal editor entry to the mounted editor", async () => {

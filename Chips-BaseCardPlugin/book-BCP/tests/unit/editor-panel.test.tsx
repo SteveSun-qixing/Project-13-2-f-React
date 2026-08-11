@@ -61,6 +61,25 @@ function dispatchFileDrop(target: Element, files: File[]): void {
   target.dispatchEvent(event);
 }
 
+function dispatchDragEvent(target: Element, type: string, relatedTarget: EventTarget | null = null): void {
+  const event = new Event(type, {
+    bubbles: true,
+    cancelable: true,
+  });
+  Object.defineProperty(event, "dataTransfer", {
+    value: {
+      dropEffect: "none",
+    },
+    configurable: true,
+  });
+  Object.defineProperty(event, "relatedTarget", {
+    value: relatedTarget,
+    configurable: true,
+  });
+
+  target.dispatchEvent(event);
+}
+
 describe("createBasecardEditorRoot", () => {
   it("imports ebook files through host resource import", async () => {
     let lastConfig: BasecardConfig | undefined;
@@ -283,5 +302,202 @@ describe("createBasecardEditorRoot", () => {
       book_name: "Manual Title",
       card_type: "base.book",
     });
+  });
+
+  it("does not reset local edits when the initialConfig object identity changes", () => {
+    let lastConfig: BasecardConfig | undefined;
+    const root = createBasecardEditorRoot({
+      initialConfig: {
+        ...emptyConfig,
+        book_name: "Initial",
+      },
+      onChange: (next) => {
+        lastConfig = next;
+      },
+    });
+
+    const nameInput = root.querySelector('[data-role="book-name-input"]') as HTMLInputElement | null;
+    if (!nameInput) {
+      throw new Error("找不到书名输入框");
+    }
+
+    changeTextInput(nameInput, "Edited");
+
+    expect(lastConfig?.book_name).toBe("Edited");
+    expect((nameInput as HTMLInputElement).value).toBe("Edited");
+  });
+
+  it("reports resource deletion failures when clearing the main resource", async () => {
+    const deleteResource = vi.fn(async () => {
+      throw new Error("delete denied");
+    });
+    const initialConfig: BasecardConfig = {
+      ...emptyConfig,
+      book_file: "old/book.epub",
+      book_format: "epub",
+      book_name: "Old",
+      resource_paths: ["old/book.epub"],
+    };
+
+    const root = createBasecardEditorRoot({
+      initialConfig,
+      onChange: () => undefined,
+      deleteResource,
+    });
+
+    const clearButton = Array.from(root.querySelectorAll("button")).find((button) => (
+      button.textContent?.includes("移除资源")
+    ));
+    if (!clearButton) {
+      throw new Error("找不到移除资源按钮");
+    }
+
+    clearButton.click();
+    await flushAsyncWork();
+
+    expect(deleteResource).toHaveBeenCalledWith("old/book.epub");
+    expect(root.querySelector(".chips-book-editor__status--error")?.textContent).toContain("资源删除失败");
+  });
+
+  it("renders a numbered image list with resolved thumbnails", async () => {
+    const resolveResourceUrl = vi.fn(async (resourcePath: string) => `file:///tmp/${resourcePath}`);
+    const initialConfig: BasecardConfig = {
+      ...emptyConfig,
+      source_type: "image-sequence",
+      book_format: "cbz",
+      cover_image: "comic/001.jpg",
+      image_sequence: [
+        {
+          id: "one",
+          file_path: "comic/001.jpg",
+          file_name: "001.jpg",
+          mime_type: "image/jpeg",
+        },
+        {
+          id: "two",
+          file_path: "comic/002.jpg",
+          file_name: "002.jpg",
+          mime_type: "image/jpeg",
+        },
+      ],
+      resource_paths: ["comic/001.jpg", "comic/002.jpg"],
+    };
+
+    const root = createBasecardEditorRoot({
+      initialConfig,
+      onChange: () => undefined,
+      resolveResourceUrl,
+    });
+
+    await flushAsyncWork();
+
+    const items = root.querySelectorAll('[role="listitem"]');
+    expect(items).toHaveLength(2);
+    expect(items[0]?.querySelector(".chips-book-editor__image-list-index")?.textContent).toBe("1");
+    expect(items[1]?.querySelector(".chips-book-editor__image-list-index")?.textContent).toBe("2");
+    expect(items[0]?.querySelector("img")?.getAttribute("src")).toBe("file:///tmp/comic/001.jpg");
+    expect(items[1]?.querySelector("img")?.getAttribute("src")).toBe("file:///tmp/comic/002.jpg");
+  });
+
+  it("shows thumbnail placeholders when no resolver is available", () => {
+    const initialConfig: BasecardConfig = {
+      ...emptyConfig,
+      source_type: "image-sequence",
+      book_format: "cbz",
+      image_sequence: [
+        {
+          id: "one",
+          file_path: "comic/001.jpg",
+          file_name: "001.jpg",
+          mime_type: "image/jpeg",
+        },
+      ],
+      resource_paths: ["comic/001.jpg"],
+    };
+
+    const root = createBasecardEditorRoot({
+      initialConfig,
+      onChange: () => undefined,
+    });
+
+    const item = root.querySelector('[role="listitem"]');
+    expect(item?.querySelector("img")).toBeNull();
+    expect(item?.querySelector(".chips-book-editor__image-list-thumb")).not.toBeNull();
+    expect(item?.querySelector(".chips-book-editor__image-list-index")?.textContent).toBe("1");
+  });
+
+  it("renders the image sort control as an antd Select", () => {
+    const initialConfig: BasecardConfig = {
+      ...emptyConfig,
+      source_type: "image-sequence",
+      book_format: "cbz",
+      image_sequence: [
+        {
+          id: "one",
+          file_path: "comic/001.jpg",
+          file_name: "001.jpg",
+          mime_type: "image/jpeg",
+        },
+      ],
+      resource_paths: ["comic/001.jpg"],
+    };
+
+    const root = createBasecardEditorRoot({
+      initialConfig,
+      onChange: () => undefined,
+    });
+
+    const select = root.querySelector('[data-role="image-sort-select"]');
+    expect(select).not.toBeNull();
+    expect(select?.textContent).toContain("文件名");
+    expect(root.querySelector("select")).toBeNull();
+  });
+
+  it("highlights the dropzone with drag-active while dragging over it", async () => {
+    const root = createBasecardEditorRoot({
+      initialConfig: emptyConfig,
+      onChange: () => undefined,
+    });
+
+    const mainDropzone = root.querySelector('[data-role="main-dropzone"]');
+    if (!mainDropzone) {
+      throw new Error("找不到主上传拖放区域");
+    }
+
+    expect(mainDropzone.getAttribute("data-state")).toBe("idle");
+
+    dispatchDragEvent(mainDropzone, "dragenter");
+    await flushAsyncWork();
+    expect(mainDropzone.getAttribute("data-state")).toBe("drag-active");
+
+    dispatchDragEvent(mainDropzone, "dragleave", null);
+    await flushAsyncWork();
+    expect(mainDropzone.getAttribute("data-state")).toBe("idle");
+  });
+
+  it("keeps the dropzone highlighted while dragging across children", async () => {
+    const root = createBasecardEditorRoot({
+      initialConfig: emptyConfig,
+      onChange: () => undefined,
+    });
+
+    const mainDropzone = root.querySelector('[data-role="main-dropzone"]');
+    if (!mainDropzone) {
+      throw new Error("找不到主上传拖放区域");
+    }
+
+    const innerInput = mainDropzone.querySelector("input");
+    if (!innerInput) {
+      throw new Error("找不到主上传输入框");
+    }
+
+    dispatchDragEvent(mainDropzone, "dragenter");
+    dispatchDragEvent(mainDropzone, "dragleave", innerInput);
+    await flushAsyncWork();
+    expect(mainDropzone.getAttribute("data-state")).toBe("drag-active");
+
+    dispatchDragEvent(mainDropzone, "dragleave", null);
+    await flushAsyncWork();
+    expect(mainDropzone.getAttribute("data-state")).toBe("idle");
   });
 });

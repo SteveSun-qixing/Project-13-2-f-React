@@ -32,10 +32,12 @@ import {
   cloneConfig,
   dedupeResourcePaths,
   generateStableId,
+  isSupportedImportUrl,
   normalizeRelativeCardResourcePath,
   resolveFileName,
   sanitizeImportedFileName,
   stripFileExtension,
+  useResolvedResourceUrl,
 } from "../shared/utils";
 
 export interface BasecardEditorProps {
@@ -63,7 +65,6 @@ type BusyField = ResourceField | SubtitleBusyField | null;
 const VIDEO_ACCEPT = ".mp4,.webm,.mov,.m4v,.ogv,.ogg,video/*";
 const COVER_ACCEPT = "image/*";
 const SUBTITLE_ACCEPT = ".vtt,.srt,.ass,.ssa,text/vtt,text/plain,application/x-subrip";
-const SUPPORTED_URL_PROTOCOLS = new Set(["http:", "https:"]);
 const DEFAULT_THUMBNAIL_OPTIONS = {
   timeSeconds: 0,
   format: "png",
@@ -328,7 +329,6 @@ html, body {
   min-height: 34px;
 }
 
-.chips-video-editor__button,
 .chips-video-editor__input.ant-input {
   width: 100%;
   min-height: 40px;
@@ -338,41 +338,45 @@ html, body {
   color: inherit;
   font: inherit;
   outline: none;
+  padding: 0 14px;
   transition:
     border-color 0.16s ease,
     box-shadow 0.16s ease;
 }
 
-.chips-video-editor__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 14px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.chips-video-editor__button:hover,
-.chips-video-editor__button:focus-visible,
 .chips-video-editor__input.ant-input:hover,
 .chips-video-editor__input.ant-input:focus {
   border-color: rgba(10, 132, 255, 0.42);
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
 }
 
-.chips-video-editor__button:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-  box-shadow: none;
-}
-
-.chips-video-editor__input.ant-input {
-  padding: 0 14px;
-}
-
-.chips-video-editor__button .ant-btn {
-  min-height: 40px;
+.chips-video-editor__file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
+  background: #ffffff;
+  color: #1d1d1f;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.chips-video-editor__file-button:hover,
+.chips-video-editor__file-button:focus-visible {
+  border-color: rgba(10, 132, 255, 0.42);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
+}
+
+.chips-video-editor__file-button:focus-visible {
+  outline: 2px solid rgba(10, 132, 255, 0.6);
+  outline-offset: 2px;
 }
 
 .chips-video-editor__field-row {
@@ -502,6 +506,22 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function normalizePlaybackRate(value: number | null): number {
+  if (value === null || !Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(4, Math.max(0.25, value));
+}
+
+function normalizeStartTime(value: number | null): number {
+  if (value === null || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, value);
+}
+
 function hasMetadataChanged(a: BasecardConfig, b: BasecardConfig): boolean {
   return a.video_title !== b.video_title
     || a.creator !== b.creator
@@ -546,89 +566,6 @@ function getVisibleErrors(errors: Record<string, string>): string[] {
 
 function translateErrorMessages(errors: Record<string, string>): string[] {
   return getVisibleErrors(errors).map((message) => formatMessage(message));
-}
-
-async function resolveResourceUrlWithRetry(
-  resolveResourceUrl: ((resourcePath: string) => Promise<string>) | undefined,
-  resourcePath: string,
-): Promise<string> {
-  if (!resolveResourceUrl) {
-    return "";
-  }
-
-  try {
-    return await resolveResourceUrl(resourcePath);
-  } catch (firstError) {
-    await new Promise((resolve) => setTimeout(resolve, 16));
-    return resolveResourceUrl(resourcePath).catch(() => {
-      throw firstError;
-    });
-  }
-}
-
-function getImmediateResourceUrl(
-  resourcePath: string,
-  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
-): string {
-  const normalizedPath = normalizeRelativeCardResourcePath(resourcePath);
-  if (!normalizedPath) {
-    return "";
-  }
-
-  return resolveResourceUrl ? "" : normalizedPath;
-}
-
-function useResolvedEditorResourceUrl(
-  resourcePath: string,
-  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
-  releaseResourceUrl?: (resourcePath: string) => Promise<void> | void,
-): string {
-  const [resolvedUrl, setResolvedUrl] = useState(() => getImmediateResourceUrl(resourcePath, resolveResourceUrl));
-
-  useEffect(() => {
-    let cancelled = false;
-    const normalizedPath = normalizeRelativeCardResourcePath(resourcePath);
-
-    if (!normalizedPath) {
-      setResolvedUrl("");
-      return undefined;
-    }
-
-    if (!resolveResourceUrl) {
-      setResolvedUrl(normalizedPath);
-      return undefined;
-    }
-
-    setResolvedUrl("");
-
-    void resolveResourceUrlWithRetry(resolveResourceUrl, normalizedPath)
-      .then((nextUrl) => {
-        if (!cancelled) {
-          setResolvedUrl(nextUrl);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setResolvedUrl("");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      void Promise.resolve(releaseResourceUrl?.(normalizedPath)).catch(() => undefined);
-    };
-  }, [releaseResourceUrl, resolveResourceUrl, resourcePath]);
-
-  return resolvedUrl;
-}
-
-function isSupportedImportUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    return SUPPORTED_URL_PROTOCOLS.has(parsed.protocol);
-  } catch {
-    return false;
-  }
 }
 
 function isSubtitleBusyField(value: BusyField, subtitleId: string): boolean {
@@ -791,6 +728,8 @@ function getSubtitleKindLabel(kind: SubtitleKind): string {
 
 function BasecardEditor(props: BasecardEditorProps) {
   const [config, setConfig] = useState(() => normalizeBasecardConfig(props.initialConfig));
+  const [playbackRateDraft, setPlaybackRateDraft] = useState<number | null>(config.playback.playback_rate);
+  const [startTimeDraft, setStartTimeDraft] = useState<number | null>(config.playback.start_time);
   const [errors, setErrors] = useState<Record<string, string>>(() =>
     validateBasecardConfig(normalizeBasecardConfig(props.initialConfig)).errors,
   );
@@ -822,6 +761,11 @@ function BasecardEditor(props: BasecardEditorProps) {
     configRef.current = nextLocalConfig;
     setConfig(nextLocalConfig);
     setErrors(validateBasecardConfig(nextLocalConfig).errors);
+
+    if (!shouldPreserveDraftMetadata) {
+      setPlaybackRateDraft(nextLocalConfig.playback.playback_rate);
+      setStartTimeDraft(nextLocalConfig.playback.start_time);
+    }
   }, [props.initialConfig]);
 
   useEffect(() => {
@@ -839,8 +783,8 @@ function BasecardEditor(props: BasecardEditorProps) {
     () => translateErrorMessages(errors),
     [errors],
   );
-  const videoPreviewUrl = useResolvedEditorResourceUrl(config.video_file, props.resolveResourceUrl, props.releaseResourceUrl);
-  const coverPreviewUrl = useResolvedEditorResourceUrl(config.cover_image, props.resolveResourceUrl, props.releaseResourceUrl);
+  const videoPreviewUrl = useResolvedResourceUrl(config.video_file, props.resolveResourceUrl, props.releaseResourceUrl);
+  const coverPreviewUrl = useResolvedResourceUrl(config.cover_image, props.resolveResourceUrl, props.releaseResourceUrl);
 
   function applyLocalConfig(nextConfig: BasecardConfig) {
     const normalized = normalizeBasecardConfig(nextConfig);
@@ -1172,7 +1116,7 @@ function BasecardEditor(props: BasecardEditorProps) {
           ? {
             ...track,
             ...patch,
-            default: patch.default === true ? true : track.default,
+            default: patch.default ?? track.default,
           }
           : patch.default === true
             ? { ...track, default: false }
@@ -1284,19 +1228,15 @@ function BasecardEditor(props: BasecardEditorProps) {
               void handleUrlImport(field);
             }}
           />
-          <span
+          <Button
             data-role={`${field}-url-submit`}
-            className="chips-video-editor__button"
+            disabled={isBusy || inputValue.trim().length === 0}
+            onClick={() => {
+              void handleUrlImport(field);
+            }}
           >
-            <Button
-              disabled={isBusy || inputValue.trim().length === 0}
-              onClick={() => {
-                void handleUrlImport(field);
-              }}
-            >
-              {formatMessage("video.editor.actions.import_url")}
-            </Button>
-          </span>
+            {formatMessage("video.editor.actions.import_url")}
+          </Button>
         </div>
       </div>
     );
@@ -1331,11 +1271,13 @@ function BasecardEditor(props: BasecardEditorProps) {
               title={formatMessage("video.editor.errors.validation_failed")}
               subTitle={flattenedErrors[0]}
             />
-            <ul className="chips-video-editor__errors-list">
-              {flattenedErrors.map((message) => (
-                <li key={message}>{message}</li>
-              ))}
-            </ul>
+            {flattenedErrors.length > 1 ? (
+              <ul className="chips-video-editor__errors-list">
+                {flattenedErrors.slice(1).map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         ) : null}
 
@@ -1372,7 +1314,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                     </div>
                   </div>
                   <div className="chips-video-editor__resource-actions">
-                    <label className="chips-video-editor__button">
+                    <label className="chips-video-editor__file-button">
                       {formatMessage("video.editor.actions.replace_video")}
                       <input
                         data-role="replace-video-input"
@@ -1428,7 +1370,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                     </div>
                   </div>
                   <div className="chips-video-editor__resource-actions">
-                    <label className="chips-video-editor__button">
+                    <label className="chips-video-editor__file-button">
                       {formatMessage("video.editor.actions.replace_cover")}
                       <input
                         data-role="replace-cover-input"
@@ -1542,19 +1484,15 @@ function BasecardEditor(props: BasecardEditorProps) {
                       void handleSubtitleUrlImport();
                     }}
                   />
-                  <span
+                  <Button
                     data-role="subtitle-url-submit"
-                    className="chips-video-editor__button"
+                    disabled={isBusy || urlDrafts.subtitle.trim().length === 0}
+                    onClick={() => {
+                      void handleSubtitleUrlImport();
+                    }}
                   >
-                    <Button
-                      disabled={isBusy || urlDrafts.subtitle.trim().length === 0}
-                      onClick={() => {
-                        void handleSubtitleUrlImport();
-                      }}
-                    >
-                      {formatMessage("video.editor.actions.import_url")}
-                    </Button>
-                  </span>
+                    {formatMessage("video.editor.actions.import_url")}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1616,15 +1554,13 @@ function BasecardEditor(props: BasecardEditorProps) {
                         disabled={isBusy}
                         aria-label={formatMessage("video.editor.subtitles.default")}
                         onChange={(checked) => {
-                          if (checked) {
-                            handleUpdateSubtitle(track.id, { default: true });
-                          }
+                          handleUpdateSubtitle(track.id, { default: checked });
                         }}
                       />
                     </div>
 
                     <div className="chips-video-editor__subtitle-actions">
-                      <label className="chips-video-editor__button">
+                      <label className="chips-video-editor__file-button">
                         {formatMessage("video.editor.subtitles.replace")}
                         <input
                           data-role={`replace-subtitle-input-${track.id}`}
@@ -1765,13 +1701,19 @@ function BasecardEditor(props: BasecardEditorProps) {
             <label className="chips-video-editor__field-row">
               <span className="chips-video-editor__field-label">{formatMessage("video.editor.playback.playback_rate")}</span>
               <InputNumber
-                value={config.playback.playback_rate}
+                value={playbackRateDraft}
                 min={0.25}
                 max={4}
                 step={0.25}
                 aria-label={formatMessage("video.editor.playback.playback_rate")}
                 onChange={(value) => {
-                  handlePlaybackPatch({ playback_rate: value ?? 1 });
+                  setPlaybackRateDraft(value);
+                  handlePlaybackPatch({ playback_rate: normalizePlaybackRate(value) });
+                }}
+                onBlur={() => {
+                  const normalized = normalizePlaybackRate(playbackRateDraft);
+                  setPlaybackRateDraft(normalized);
+                  handlePlaybackPatch({ playback_rate: normalized });
                 }}
               />
             </label>
@@ -1779,12 +1721,18 @@ function BasecardEditor(props: BasecardEditorProps) {
             <label className="chips-video-editor__field-row">
               <span className="chips-video-editor__field-label">{formatMessage("video.editor.playback.start_time")}</span>
               <InputNumber
-                value={config.playback.start_time}
+                value={startTimeDraft}
                 min={0}
                 step={1}
                 aria-label={formatMessage("video.editor.playback.start_time")}
                 onChange={(value) => {
-                  handlePlaybackPatch({ start_time: value ?? 0 });
+                  setStartTimeDraft(value);
+                  handlePlaybackPatch({ start_time: normalizeStartTime(value) });
+                }}
+                onBlur={() => {
+                  const normalized = normalizeStartTime(startTimeDraft);
+                  setStartTimeDraft(normalized);
+                  handlePlaybackPatch({ start_time: normalized });
                 }}
               />
             </label>

@@ -43,6 +43,10 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value.trim() : undefined;
 }
 
+function asRawString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 function asBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
@@ -72,7 +76,7 @@ export function normalizeBasecardConfig(
     locale: asString(record.locale) ?? defaultBasecardConfig.locale,
     anchor_text: asString(record.anchor_text) ?? defaultBasecardConfig.anchor_text,
     url: normalizeHyperlinkUrl(rawUrl),
-    description: asString(record.description) ?? defaultBasecardConfig.description,
+    description: asRawString(record.description) ?? defaultBasecardConfig.description,
     icon_url: rawIconUrl ? normalizeHyperlinkUrl(rawIconUrl) : defaultBasecardConfig.icon_url,
     open_mode: normalizeOpenMode(record.open_mode),
     display_density: normalizeDisplayDensity(record.display_density),

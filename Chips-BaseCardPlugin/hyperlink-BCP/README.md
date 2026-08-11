@@ -10,7 +10,7 @@
 
 - `anchor_text`：锚文本；
 - `url`：链接，必须是有效的 `http` 或 `https` 地址。
-- `description`：可选描述；
+- `description`：可选描述，保留原始空白与换行；
 - `icon_url`：可选图标 URL，必须是有效的 `http` 或 `https` 地址；
 - `open_mode`：打开方式偏好，作为 `resource.open` payload 透传；
 - `display_density`：查看态显示密度；
@@ -110,7 +110,7 @@ npm run dev
 ## 视觉与文案约束
 
 - 视觉固定为生态统一苹果风格：antd token 与共享层 `appleTheme`（`@chips/ui`），查看态样式为插件自有 CSS（固定色值，不再读取主题 CSS 变量）；不引入第二套视觉体系。
-- 编辑面板入口统一套用 `ConfigProvider locale={zhCN} theme={appleTheme}`；表单按 antd 受控组件实现（做法 A），`onChange` 语义不变。
+- 查看态与编辑面板入口统一套用 `ConfigProvider locale={zhCN} theme={appleTheme}`；表单按 antd 受控组件实现（做法 A），`onChange` 语义不变。
 - 用户可见文案统一简体中文直写，总表维护在 `src/lib/messages.ts`（`formatMessage` 插值），不再使用多语言系统。
 - 查看态不渲染 Host 注入的 `themeCssText`（`BasecardRenderContext.themeCssText` 作为宿主契约字段保留、不消费）。
 

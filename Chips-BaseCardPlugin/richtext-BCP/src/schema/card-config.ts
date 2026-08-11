@@ -1,6 +1,5 @@
 import {
   DEFAULT_RICHTEXT_MARKDOWN,
-  LEGACY_RICHTEXT_CARD_TYPE,
   MARKDOWN_CONTENT_FORMAT,
   RICHTEXT_CARD_TYPE,
   collectMarkdownResourcePaths,
@@ -77,10 +76,8 @@ function inferContentSource(record: Record<string, unknown>): RichTextContentSou
   return "inline";
 }
 
-function normalizeCardType(input: unknown): typeof RICHTEXT_CARD_TYPE {
-  return input === RICHTEXT_CARD_TYPE || input === LEGACY_RICHTEXT_CARD_TYPE
-    ? RICHTEXT_CARD_TYPE
-    : RICHTEXT_CARD_TYPE;
+function normalizeCardType(_input: unknown): typeof RICHTEXT_CARD_TYPE {
+  return RICHTEXT_CARD_TYPE;
 }
 
 function normalizeCapabilities(input: unknown): RichTextMarkdownCapabilities {

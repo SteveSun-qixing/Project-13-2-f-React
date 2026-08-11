@@ -3,6 +3,12 @@ import { mountBasecardView } from "../../src/render/runtime";
 import { mountBasecardEditor } from "../../src/editor/runtime";
 import type { BasecardConfig } from "../../src/schema/card-config";
 
+function setInputValue(input: HTMLInputElement, value: string): void {
+  const prototypeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  prototypeSetter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 describe("music basecard integration flow", () => {
   it("updates the rendered title when the editor emits a valid config", async () => {
     const viewContainer = document.createElement("div");
@@ -54,8 +60,7 @@ describe("music basecard integration flow", () => {
       throw new Error("找不到歌曲名输入框");
     }
 
-    musicNameInput.value = "Updated Echo";
-    musicNameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    setInputValue(musicNameInput, "Updated Echo");
 
     await new Promise((resolve) => {
       setTimeout(resolve, 20);

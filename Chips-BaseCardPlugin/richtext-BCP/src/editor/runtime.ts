@@ -1,5 +1,6 @@
 import type { BasecardEditorContext } from "../index";
 import { normalizeBasecardConfig } from "../schema/card-config";
+import { registerContainerCleanup, runPreviousContainerCleanup } from "../shared/container-lifecycle";
 import { createBasecardEditorRoot } from "./panel";
 
 type StyleSnapshot = {
@@ -30,6 +31,8 @@ function restoreStyle(target: HTMLElement, snapshot: StyleSnapshot): void {
 
 export function mountBasecardEditor(ctx: BasecardEditorContext): () => void {
   const { container, initialConfig, onChange } = ctx;
+  runPreviousContainerCleanup(container);
+
   const ownerDocument = container.ownerDocument;
   const html = ownerDocument.documentElement as HTMLElement;
   const body = ownerDocument.body as HTMLElement;
@@ -69,7 +72,7 @@ export function mountBasecardEditor(ctx: BasecardEditorContext): () => void {
 
   container.appendChild(root);
 
-  return () => {
+  return registerContainerCleanup(container, () => {
     root.__chipsDispose?.();
     restoreStyle(html, htmlStyle);
     restoreStyle(body, bodyStyle);
@@ -78,5 +81,5 @@ export function mountBasecardEditor(ctx: BasecardEditorContext): () => void {
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
-  };
+  });
 }

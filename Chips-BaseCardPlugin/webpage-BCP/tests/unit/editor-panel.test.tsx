@@ -147,6 +147,45 @@ describe("createBasecardEditorRoot", () => {
     expect(lastConfig.display_mode).toBe("fixed");
   });
 
+  it("clears the source and syncs the segmented mode back to url", async () => {
+    let lastConfig = createConfig({
+      source_type: "bundle",
+      bundle_root: "old-bundle",
+      entry_file: "index.html",
+      resource_paths: ["old-bundle/index.html", "old-bundle/assets/app.js"],
+    });
+    const deleteResource = vi.fn(async () => undefined);
+
+    const root = createBasecardEditorRoot({
+      initialConfig: lastConfig,
+      onChange: (next) => {
+        lastConfig = next;
+      },
+      deleteResource,
+    }) as DisposableRoot;
+    mountedRoots.push(root);
+    document.body.appendChild(root);
+
+    clickSegmentedOption(root, '[data-source-mode="bundle"]');
+    await flushAsyncWork();
+
+    const clearButton = Array.from(root.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("清除来源"));
+    if (!clearButton) {
+      throw new Error("未找到清除来源按钮");
+    }
+
+    clearButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushAsyncWork();
+
+    expect(deleteResource).toHaveBeenCalledTimes(2);
+    expect(lastConfig.source_type).toBe("url");
+    expect(lastConfig.source_url).toBe("");
+    expect(lastConfig.resource_paths).toEqual([]);
+    expect(root.querySelector(".chips-webpage-editor__url-field")).not.toBeNull();
+    expect(root.querySelector(".chips-webpage-editor__dropzone")).toBeNull();
+  });
+
   it("imports a webpage bundle in file mode and replaces previous bundle resources", async () => {
     let lastConfig = createConfig({
       source_type: "bundle",
@@ -205,6 +244,11 @@ describe("createBasecardEditorRoot", () => {
           "application/javascript",
           "image/png",
           "font/woff2",
+          "font/ttf",
+          "video/mp4",
+          "audio/mpeg",
+          "application/wasm",
+          "application/pdf",
         ]),
         extensions: expect.arrayContaining([
           ".html",
@@ -212,6 +256,17 @@ describe("createBasecardEditorRoot", () => {
           ".js",
           ".png",
           ".woff2",
+          ".ttf",
+          ".otf",
+          ".eot",
+          ".mp4",
+          ".webm",
+          ".mp3",
+          ".ogg",
+          ".wav",
+          ".wasm",
+          ".pdf",
+          ".map",
         ]),
       },
       stripSingleRootDir: true,

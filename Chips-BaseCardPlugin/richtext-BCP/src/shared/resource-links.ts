@@ -107,17 +107,18 @@ export async function rewriteRelativeResourceUrls(
   resolveResourceUrl?: (resourcePath: string) => Promise<string>,
   openResource?: RichTextOpenResource,
 ): Promise<string[]> {
-  if (!resolveResourceUrl && !openResource) {
-    return [];
-  }
-
   const tracked = new Set<string>();
   const tasks: Array<Promise<void>> = [];
 
   for (const element of Array.from(container.querySelectorAll<HTMLElement>("img[src], a[href]"))) {
     const attribute = element.tagName.toLowerCase() === "img" ? "src" : "href";
+    const isAnchor = attribute === "href";
     const rawValue = element.getAttribute(attribute) ?? "";
     if (!isRelativeResourcePath(rawValue)) {
+      if (isAnchor) {
+        element.setAttribute("target", "_blank");
+        element.setAttribute("rel", "noopener noreferrer");
+      }
       continue;
     }
 
@@ -127,7 +128,7 @@ export async function rewriteRelativeResourceUrls(
     }
 
     tracked.add(resourcePath);
-    if (attribute === "href") {
+    if (isAnchor) {
       element.setAttribute("target", "_blank");
       element.setAttribute("rel", "noopener noreferrer");
       if (openResource) {

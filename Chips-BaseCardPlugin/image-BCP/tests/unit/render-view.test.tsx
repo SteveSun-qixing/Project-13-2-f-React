@@ -207,7 +207,7 @@ describe("mountBasecardView", () => {
     interactiveFrame.click();
 
     expect(openResource).toHaveBeenCalledWith({
-      resourceId: "chips-render://card-root/test-token/assets/cover.png",
+      resourceId: "assets/cover.png",
       mimeType: "image/png",
       title: "Cover",
       fileName: "cover.png",
@@ -249,7 +249,7 @@ describe("mountBasecardView", () => {
     interactiveFrame.click();
 
     expect(openResource).toHaveBeenCalledWith({
-      resourceId: "chips-render://card-root/test-token/assets/cover.png",
+      resourceId: "assets/cover.png",
       mimeType: "image/png",
       title: undefined,
       fileName: "cover.png",
@@ -322,8 +322,136 @@ describe("mountBasecardView", () => {
     image.dispatchEvent(new Event("error"));
     await flushAsyncWork();
 
+    const imageAfterRetry = container.querySelector("img") as HTMLImageElement | null;
     expect(resolveResourceUrl).toHaveBeenCalledTimes(2);
-    expect(image.getAttribute("src")).toBe("blob:cover.png:fresh");
+    expect(imageAfterRetry?.getAttribute("src")).toBe("blob:cover.png:fresh");
+
+    cleanup();
+  });
+
+  it("shows the placeholder instead of a broken image for URL sources", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const cleanup = mountBasecardView({
+      container,
+      config: createConfig({
+        images: [
+          {
+            id: "image-1",
+            source: "url",
+            url: "https://example.com/broken.png",
+          },
+        ],
+      }),
+    });
+
+    const image = container.querySelector("img") as HTMLImageElement | null;
+    if (!image) {
+      throw new Error("未找到渲染图片");
+    }
+
+    image.dispatchEvent(new Event("error"));
+    await flushAsyncWork();
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".chips-image-card__placeholder")?.textContent).toBe("图片暂时不可用");
+
+    cleanup();
+  });
+
+  it("stops retrying and shows the placeholder after repeated load failures", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    let resolveCallCount = 0;
+    const resolveResourceUrl = vi.fn(async (resourcePath: string) => {
+      resolveCallCount += 1;
+      return `blob:${resourcePath}:stale-${resolveCallCount}`;
+    });
+
+    const cleanup = mountBasecardView({
+      container,
+      config: createConfig({
+        images: [
+          {
+            id: "image-1",
+            source: "file",
+            file_path: "cover.png",
+          },
+        ],
+      }),
+      resolveResourceUrl,
+      releaseResourceUrl: vi.fn(),
+    });
+
+    await flushAsyncWork();
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const image = container.querySelector("img") as HTMLImageElement | null;
+      if (!image) {
+        throw new Error(`第 ${attempt + 1} 次加载失败时未找到渲染图片`);
+      }
+      image.dispatchEvent(new Event("error"));
+      await flushAsyncWork();
+    }
+
+    expect(resolveResourceUrl).toHaveBeenCalledTimes(4);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".chips-image-card__placeholder")?.textContent).toBe("图片暂时不可用");
+
+    cleanup();
+  });
+
+  it("releases an in-flight retried URL when the view unmounts", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const releaseResourceUrl = vi.fn();
+    let callIndex = 0;
+    let pendingResolve: ((value: string) => void) | undefined;
+    const resolveResourceUrl = vi.fn(async (resourcePath: string) => {
+      callIndex += 1;
+      if (callIndex === 2) {
+        return new Promise<string>((resolve) => {
+          pendingResolve = resolve;
+        });
+      }
+      return `blob:${resourcePath}:stale`;
+    });
+
+    const cleanup = mountBasecardView({
+      container,
+      config: createConfig({
+        images: [
+          {
+            id: "image-1",
+            source: "file",
+            file_path: "cover.png",
+          },
+        ],
+      }),
+      resolveResourceUrl,
+      releaseResourceUrl,
+    });
+
+    await flushAsyncWork();
+
+    const image = container.querySelector("img") as HTMLImageElement | null;
+    if (!image) {
+      throw new Error("未找到渲染图片");
+    }
+
+    image.dispatchEvent(new Event("error"));
+    await flushAsyncWork();
+
+    cleanup();
+
+    pendingResolve?.("blob:cover.png:fresh");
+    await flushAsyncWork();
+
+    expect(releaseResourceUrl).toHaveBeenCalledTimes(3);
+    expect(releaseResourceUrl).toHaveBeenCalledWith("cover.png");
 
     cleanup();
   });

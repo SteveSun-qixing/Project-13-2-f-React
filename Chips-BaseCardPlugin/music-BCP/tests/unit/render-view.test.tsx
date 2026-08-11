@@ -61,7 +61,7 @@ describe("mountBasecardView", () => {
     button.click();
 
     expect(openResource).toHaveBeenCalledWith({
-      resourceId: "file:///tmp/tracks/demo.mp3",
+      resourceId: "tracks/demo.mp3",
       mimeType: "audio/mpeg",
       title: "Evergreen",
       fileName: "demo.mp3",
@@ -76,11 +76,11 @@ describe("mountBasecardView", () => {
         }),
         resources: expect.objectContaining({
           audio: expect.objectContaining({
-            resourceId: "file:///tmp/tracks/demo.mp3",
+            resourceId: "tracks/demo.mp3",
             relativePath: "tracks/demo.mp3",
           }),
           cover: expect.objectContaining({
-            resourceId: "file:///tmp/covers/demo.jpg",
+            resourceId: "covers/demo.jpg",
             relativePath: "covers/demo.jpg",
           }),
         }),
@@ -193,7 +193,7 @@ describe("mountBasecardView", () => {
 
     expect(resolveCount).toBe(3);
     expect(openResource).toHaveBeenCalledWith({
-      resourceId: "file:///tmp/tracks/retry.mp3",
+      resourceId: "tracks/retry.mp3",
       mimeType: "audio/mpeg",
       title: "Retry Song",
       fileName: "retry.mp3",
@@ -201,7 +201,7 @@ describe("mountBasecardView", () => {
         kind: "chips.music-card",
         resources: expect.objectContaining({
           audio: expect.objectContaining({
-            resourceId: "file:///tmp/tracks/retry.mp3",
+            resourceId: "tracks/retry.mp3",
             relativePath: "tracks/retry.mp3",
           }),
         }),

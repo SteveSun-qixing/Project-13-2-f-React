@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ConfigProvider, InputNumber, Progress, Rate, Segmented } from "antd";
+import { ConfigProvider, InputNumber, Progress, Rate, Segmented, theme } from "antd";
 import { HeartFilled } from "@ant-design/icons";
 import zhCN from "antd/locale/zh_CN";
 import { appleTheme } from "@chips/ui";
@@ -97,11 +97,10 @@ html, body {
 }
 
 .chips-score-editor__rating .ant-rate {
-  font-size: 30px;
-}
-
-.chips-score-editor__rating--hearts .ant-rate {
-  color: #ff3b30;
+  display: inline-flex;
+  justify-content: center;
+  max-width: 100%;
+  font-size: 32px;
 }
 
 .chips-score-editor__number-grid {
@@ -133,6 +132,49 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
+.chips-score-editor__preview-numeric {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+  min-width: 0;
+  color: #1d1d1f;
+}
+
+.chips-score-editor__preview-numeric-score {
+  font-size: 42px;
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.chips-score-editor__preview-numeric-separator {
+  margin: 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.chips-score-editor__preview-numeric-total {
+  color: #6e6e73;
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.chips-score-editor__preview-numeric--compact .chips-score-editor__preview-numeric-score {
+  font-size: 30px;
+}
+
+.chips-score-editor__preview-numeric--compact .chips-score-editor__preview-numeric-separator {
+  margin: 0 6px;
+  font-size: 17px;
+}
+
+.chips-score-editor__preview-numeric--compact .chips-score-editor__preview-numeric-total {
+  font-size: 15px;
+}
+
 .chips-score-editor__sr-only {
   position: absolute;
   width: 1px;
@@ -147,7 +189,6 @@ html, body {
 
 .chips-basecard-editor__errors {
   min-height: 0;
-  color: #ff3b30;
   font-size: 13px;
 }
 
@@ -175,6 +216,7 @@ function getRatingShape(config: BasecardConfig): "heart" | "star" {
 }
 
 function BasecardEditor(props: BasecardEditorProps) {
+  const { token } = theme.useToken();
   const [config, setConfig] = useState(() => normalizeBasecardConfig(props.initialConfig));
   const configRef = useRef(config);
   const [errors, setErrors] = useState<Record<string, string>>(() =>
@@ -184,9 +226,12 @@ function BasecardEditor(props: BasecardEditorProps) {
   const formattedScore = formatNumber(config.score);
   const formattedTotal = formatNumber(config.total_score);
   const progressPercent = formatNumber(ratio * 100);
+  const numericCompact = formattedScore.length + formattedTotal.length >= 9;
   const styleLabelId = React.useId();
   const valueLabelId = React.useId();
   const previewLabelId = React.useId();
+  const totalScoreInputId = React.useId();
+  const scoreValueInputId = React.useId();
 
   useEffect(() => {
     const next = normalizeBasecardConfig(props.initialConfig);
@@ -220,6 +265,16 @@ function BasecardEditor(props: BasecardEditorProps) {
   });
   const isHearts = getRatingShape(config) === "heart";
 
+  function handleRatingKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (event.key === "Home") {
+      event.preventDefault();
+      updateConfig({ score: 1, total_score: SYMBOL_SCORE_TOTAL });
+    } else if (event.key === "End") {
+      event.preventDefault();
+      updateConfig({ score: SYMBOL_SCORE_TOTAL, total_score: SYMBOL_SCORE_TOTAL });
+    }
+  }
+
   return (
     <div className="chips-basecard-editor chips-basecard-editor--standard">
       <section className="chips-score-editor__group" aria-labelledby={styleLabelId}>
@@ -247,25 +302,31 @@ function BasecardEditor(props: BasecardEditorProps) {
         </div>
 
         {isSymbolScoreStyle(config.style) ? (
-          <Rate
-            aria-labelledby={valueLabelId}
-            className={[
-              "chips-score-editor__rating",
-              isHearts ? "chips-score-editor__rating--hearts" : "",
-            ].filter(Boolean).join(" ")}
-            count={SYMBOL_SCORE_TOTAL}
-            character={isHearts ? <HeartFilled /> : undefined}
-            value={config.score}
-            onChange={(score) => {
-              updateConfig({ score, total_score: SYMBOL_SCORE_TOTAL });
-            }}
-          />
+          <div className="chips-score-editor__rating-wrap" onKeyDown={handleRatingKeyDown}>
+            <Rate
+              aria-labelledby={valueLabelId}
+              className={[
+                "chips-score-editor__rating",
+                isHearts ? "chips-score-editor__rating--hearts" : "",
+              ].filter(Boolean).join(" ")}
+              count={SYMBOL_SCORE_TOTAL}
+              character={isHearts ? <HeartFilled /> : undefined}
+              style={isHearts ? { color: token.colorError } : undefined}
+              value={config.score}
+              onChange={(score) => {
+                updateConfig({ score, total_score: SYMBOL_SCORE_TOTAL });
+              }}
+            />
+          </div>
         ) : (
           <div className="chips-score-editor__number-grid">
             <div className="chips-score-editor__number-field">
-              <div className="chips-score-editor__label">{formatMessage("score.totalScore")}</div>
+              <label className="chips-score-editor__label" htmlFor={totalScoreInputId}>
+                {formatMessage("score.totalScore")}
+              </label>
               <InputNumber
                 className="chips-score-editor__number-input"
+                id={totalScoreInputId}
                 max={MAX_TOTAL_SCORE}
                 min={1}
                 step={0.1}
@@ -276,9 +337,12 @@ function BasecardEditor(props: BasecardEditorProps) {
               />
             </div>
             <div className="chips-score-editor__number-field">
-              <div className="chips-score-editor__label">{formatMessage("score.scoreValue")}</div>
+              <label className="chips-score-editor__label" htmlFor={scoreValueInputId}>
+                {formatMessage("score.scoreValue")}
+              </label>
               <InputNumber
                 className="chips-score-editor__number-input"
+                id={scoreValueInputId}
                 max={config.total_score}
                 min={0}
                 step={0.1}
@@ -313,7 +377,39 @@ function BasecardEditor(props: BasecardEditorProps) {
           </div>
         ) : null}
 
-        <div className="chips-basecard-editor__errors">
+        {config.style === "score" ? (
+          <div className="chips-score-editor__preview">
+            <div
+              className={[
+                "chips-score-editor__preview-numeric",
+                numericCompact ? "chips-score-editor__preview-numeric--compact" : "",
+              ].filter(Boolean).join(" ")}
+              role="img"
+              aria-label={scoreValueText}
+            >
+              <span aria-hidden="true" className="chips-score-editor__preview-numeric-score">
+                {formattedScore}
+              </span>
+              <span
+                aria-hidden="true"
+                className="chips-score-editor__preview-numeric-separator"
+                style={{ color: token.colorTextBase, opacity: 0.36 }}
+              >
+                /
+              </span>
+              <span aria-hidden="true" className="chips-score-editor__preview-numeric-total">
+                {formattedTotal}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div
+          className="chips-basecard-editor__errors"
+          role="alert"
+          aria-live="polite"
+          style={{ color: token.colorError }}
+        >
           {Object.keys(errors).length > 0 ? (
             <ul className="chips-basecard-editor__errors-list">
               {Object.entries(errors).map(([key, message]) => (

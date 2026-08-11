@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Empty, Image } from "antd";
+import { SoundOutlined } from "@ant-design/icons";
 import type { MusicCardOpenPayload, MusicCardOpenResource } from "chips-sdk";
 import type { BasecardConfig } from "../schema/card-config";
 import { DEFAULT_MUSIC_COVER_URL } from "../shared/default-cover";
@@ -34,7 +35,7 @@ export const VIEW_STYLE_TEXT = `
   min-height: 108px;
   padding: 12px 14px;
   border: none;
-  border-radius: 20px;
+  border-radius: 12px;
   background: rgba(242, 242, 247, 0.94);
 }
 
@@ -44,16 +45,24 @@ export const VIEW_STYLE_TEXT = `
   font: inherit;
   text-align: left;
   appearance: none;
-  outline: none;
   -webkit-tap-highlight-color: transparent;
   transition:
-    background-color 0.16s ease;
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
-.chips-music-card__surface-button:hover,
+.chips-music-card__surface-button:hover {
+  background: #e8e8ed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
 .chips-music-card__surface-button:focus-visible {
-  background: rgba(242, 242, 247, 0.98);
-  outline: none;
+  outline: 2px solid rgba(10, 132, 255, 0.6);
+  outline-offset: 2px;
+}
+
+.chips-music-card__surface-button:active {
+  background: #dcdce1;
 }
 
 .chips-music-card__cover {
@@ -126,10 +135,9 @@ export const VIEW_STYLE_TEXT = `
 
 .chips-music-card__empty {
   min-height: 108px;
-  border-radius: 20px;
-  border: 1px dashed rgba(0, 0, 0, 0.14);
+  border-radius: 12px;
+  background: rgba(242, 242, 247, 0.94);
   color: #6e6e73;
-  background: #ffffff;
   text-align: center;
 }
 
@@ -159,7 +167,7 @@ export const VIEW_STYLE_TEXT = `
     gap: 12px;
     min-height: 92px;
     padding: 10px 12px;
-    border-radius: 16px;
+    border-radius: 12px;
   }
 
   .chips-music-card__cover {
@@ -218,14 +226,11 @@ function buildOpenResourceDescriptor(
 
 function buildMusicCardOpenPayload(input: {
   config: BasecardConfig;
-  audioUrl: string;
-  coverUrl: string;
-  lyricsUrl: string;
   displayTitle: string;
   artistLabel: string;
 }): MusicCardOpenPayload | null {
   const audio = buildOpenResourceDescriptor(
-    input.audioUrl,
+    input.config.audio_file,
     input.config.audio_file,
     inferAudioMimeType(input.config.audio_file),
   );
@@ -233,8 +238,8 @@ function buildMusicCardOpenPayload(input: {
     return null;
   }
 
-  const cover = buildOpenResourceDescriptor(input.coverUrl, input.config.album_cover);
-  const lyrics = buildOpenResourceDescriptor(input.lyricsUrl, input.config.lyrics_file);
+  const cover = buildOpenResourceDescriptor(input.config.album_cover, input.config.album_cover);
+  const lyrics = buildOpenResourceDescriptor(input.config.lyrics_file, input.config.lyrics_file);
 
   return {
     kind: "chips.music-card",
@@ -327,9 +332,6 @@ export function MusicBasecardView({
   const canOpen = Boolean(openResource && audioUrl);
   const openPayload = buildMusicCardOpenPayload({
     config,
-    audioUrl,
-    coverUrl,
-    lyricsUrl,
     displayTitle,
     artistLabel,
   });
@@ -375,7 +377,7 @@ export function MusicBasecardView({
         <div className="chips-music-card__empty">
           <Empty
             className="chips-music-card__empty-state"
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            image={<SoundOutlined aria-hidden={true} style={{ fontSize: 42, color: "#86868b" }} />}
             description={
               <>
                 <span className="chips-music-card__empty-title">
@@ -399,8 +401,13 @@ export function MusicBasecardView({
           type="button"
           className="chips-music-card__surface-button"
           onClick={() => {
+            const resourceId = normalizeRelativeCardResourcePath(config.audio_file);
+            if (!resourceId) {
+              return;
+            }
+
             openResource?.({
-              resourceId: audioUrl,
+              resourceId,
               mimeType: inferAudioMimeType(config.audio_file),
               title: displayTitle,
               fileName: resolveFileName(config.audio_file),

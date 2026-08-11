@@ -112,6 +112,8 @@ describe("webpage basecard integration flow", () => {
     await flushAsyncWork();
 
     expect(currentConfig.bundle_root).toBe("webpage-bundle-abc123");
-    expect(viewContainer.querySelector("iframe")?.getAttribute("srcdoc")).toContain("<article>bundle-page</article>");
+    expect(viewContainer.querySelector("iframe")?.getAttribute("src")).toBe(
+      "file:///workspace/card/webpage-bundle-abc123/index.html",
+    );
   });
 });

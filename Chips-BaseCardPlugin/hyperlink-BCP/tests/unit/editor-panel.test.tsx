@@ -81,14 +81,14 @@ describe("createBasecardEditorRoot", () => {
 
     setInputValue(anchorInput, "Chips Docs");
     setInputValue(urlInput, "https://example.com/docs");
-    setTextAreaValue(descriptionInput, "Developer docs");
+    setTextAreaValue(descriptionInput, "Developer docs\n");
     setInputValue(iconInput, "https://example.com/favicon.png");
 
     expect(lastConfig).toMatchObject({
       card_type: "HyperlinkCard",
       anchor_text: "Chips Docs",
       url: "https://example.com/docs",
-      description: "Developer docs",
+      description: "Developer docs\n",
       icon_url: "https://example.com/favicon.png",
       open_mode: "external-browser",
       display_density: "comfortable",
@@ -114,6 +114,31 @@ describe("createBasecardEditorRoot", () => {
     expect(root.textContent).toContain("链接必须是有效的 http 或 https 地址。");
   });
 
+  it("marks required fields and announces invalid input state", async () => {
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig(),
+      onChange: () => undefined,
+    });
+
+    const anchorLabel = Array.from(root.querySelectorAll(".chips-basecard-editor__field-label")).find(
+      (label) => label.textContent?.includes("锚文本"),
+    );
+    const urlLabel = Array.from(root.querySelectorAll(".chips-basecard-editor__field-label")).find(
+      (label) => label.textContent?.includes("链接") && !label.textContent?.includes("图标"),
+    );
+
+    expect(anchorLabel?.textContent).toContain("*");
+    expect(urlLabel?.textContent).toContain("*");
+
+    const urlInput = getInputByLabel(root, "链接");
+    expect(urlInput.hasAttribute("aria-invalid")).toBe(false);
+
+    setInputValue(urlInput, "ftp://example.com/file");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(urlInput.getAttribute("aria-invalid")).toBe("true");
+  });
+
   it("renders security controls with antd components", () => {
     const root = createBasecardEditorRoot({
       initialConfig: createConfig({ url: "http://example.com" }),
@@ -122,7 +147,35 @@ describe("createBasecardEditorRoot", () => {
 
     expect(root.querySelector(".ant-segmented")).not.toBeNull();
     expect(root.querySelector(".ant-switch")).not.toBeNull();
-    expect(root.querySelector(".chips-basecard-editor__badge")?.textContent).toContain("非加密链接");
-    expect(root.querySelector(".chips-basecard-editor__help-button")).not.toBeNull();
+    expect(root.querySelector(".chips-basecard-editor__security-title")?.textContent).toContain("非加密链接");
+    expect(root.querySelector(".chips-basecard-editor__security-row")?.textContent?.match(/非加密链接/g)).toHaveLength(1);
+    expect(root.querySelector(".chips-basecard-editor__badge")).toBeNull();
+    const helpButton = root.querySelector(".chips-basecard-editor__help-button");
+    expect(helpButton).not.toBeNull();
+    expect(helpButton?.getAttribute("role")).toBe("button");
+    expect(helpButton?.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("activates the help button with keyboard", async () => {
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig(),
+      onChange: () => undefined,
+    });
+    document.body.appendChild(root);
+
+    const helpButton = root.querySelector(".chips-basecard-editor__help-button") as HTMLElement | null;
+
+    const keyEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    helpButton?.dispatchEvent(keyEvent);
+    expect(keyEvent.defaultPrevented).toBe(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(document.querySelector(".ant-tooltip")).not.toBeNull();
+
+    root.remove();
   });
 });

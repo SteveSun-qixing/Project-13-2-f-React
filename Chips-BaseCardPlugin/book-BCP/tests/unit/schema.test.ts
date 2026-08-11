@@ -71,4 +71,37 @@ describe("book basecard schema", () => {
     expect(inferBookMimeType("book.azw3")).toBe("application/vnd.amazon.ebook");
     expect(inferBookMimeType("base.pdf")).toBe("application/pdf");
   });
+
+  it("rejects book_format values outside the supported whitelist", () => {
+    const supported = normalizeBasecardConfig({
+      card_type: "base.book",
+      source_type: "ebook",
+      book_file: "book.epub",
+      book_format: "epub",
+    });
+    expect(validateBasecardConfig(supported).valid).toBe(true);
+
+    const archive = normalizeBasecardConfig({
+      card_type: "base.book",
+      source_type: "image-sequence",
+      image_sequence: [
+        {
+          id: "one",
+          file_path: "comic/001.jpg",
+          file_name: "001.jpg",
+        },
+      ],
+      book_format: "cbz",
+    });
+    expect(validateBasecardConfig(archive).valid).toBe(true);
+
+    const invalid = normalizeBasecardConfig({
+      card_type: "base.book",
+      source_type: "ebook",
+      book_file: "book.epub",
+      book_format: "hardcover",
+    });
+    expect(validateBasecardConfig(invalid).valid).toBe(false);
+    expect(validateBasecardConfig(invalid).errors.book_format).toBeDefined();
+  });
 });

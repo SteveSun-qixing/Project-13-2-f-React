@@ -337,4 +337,48 @@ describe("createBasecardEditorRoot", () => {
 
     expect(lastConfig?.playback.autoplay).toBe(true);
   });
+
+  it("turns the default subtitle off when its switch is disabled", async () => {
+    const importResource = vi.fn(async (input: { preferredPath?: string }) => ({
+      path: input.preferredPath ?? "resource.bin",
+    }));
+
+    let lastConfig: BasecardConfig | undefined;
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig({
+        video_file: "demo.mp4",
+      }),
+      onChange(next) {
+        lastConfig = next;
+      },
+      importResource,
+    });
+
+    const subtitleInput = root.querySelector('[data-role="subtitle-input"]') as HTMLInputElement | null;
+    if (!subtitleInput) {
+      throw new Error("找不到字幕上传输入框");
+    }
+
+    const subtitleFile = new File(["WEBVTT"], "demo.zh.vtt", { type: "text/vtt" });
+    Object.defineProperty(subtitleInput, "files", {
+      configurable: true,
+      value: [subtitleFile],
+    });
+    subtitleInput.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const defaultSwitch = root.querySelector(".chips-video-editor__switch-row .ant-switch") as HTMLButtonElement | null;
+    if (!defaultSwitch) {
+      throw new Error("找不到默认字幕开关");
+    }
+
+    defaultSwitch.click();
+    await Promise.resolve();
+
+    expect(lastConfig?.subtitles[0]?.default).toBe(false);
+
+    root.remove();
+  });
 });

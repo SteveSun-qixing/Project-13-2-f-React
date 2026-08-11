@@ -36,6 +36,7 @@ const MESSAGES: Record<string, string> = {
   "editor.error.unsupported_format": "不支持的电子书格式。",
   "editor.error.cover_not_image": "封面文件不是可识别的图片。",
   "editor.error.import_failed": "资源导入失败。",
+  "editor.error.resource_delete_failed": "资源删除失败",
 };
 
 export function formatMessage(key: string, params?: Record<string, string | number>): string {

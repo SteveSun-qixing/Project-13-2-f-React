@@ -1,5 +1,5 @@
-import React, { useEffect, useId, useRef, useState } from "react";
-import { Button, ConfigProvider, Input, Result } from "antd";
+import React, { useId, useRef, useState } from "react";
+import { Button, ConfigProvider, Input, Result, Select } from "antd";
 import { PictureOutlined, UploadOutlined } from "@ant-design/icons";
 import zhCN from "antd/locale/zh_CN";
 import { appleTheme } from "@chips/ui";
@@ -20,6 +20,7 @@ import {
 } from "../schema/card-config";
 import { parseEpubMetadata } from "../shared/epub";
 import { formatMessage } from "../lib/messages";
+import { useResolvedResourceMap } from "../shared/use-resolved-resources";
 import {
   createResourcePathsForConfig,
   detectImageMimeType,
@@ -32,7 +33,6 @@ import {
   normalizeBookFormat,
   resolveFileExtension,
   resolveFileName,
-  resolveResourceUrlWithRetry,
   sanitizeImportedFileName,
   sortImageItems,
   stripFileExtension,
@@ -222,23 +222,6 @@ html, body {
   min-width: 0;
 }
 
-.chips-book-editor__select {
-  width: 100%;
-  min-height: 42px;
-  padding: 0 12px;
-  border: 1px solid var(--chips-book-editor-border-color);
-  border-radius: 8px;
-  background: #ffffff;
-  color: inherit;
-  font: inherit;
-  outline: none;
-}
-
-.chips-book-editor__select:focus {
-  border-color: #0a84ff;
-  box-shadow: 0 0 0 3px var(--chips-book-editor-focus-ring);
-}
-
 .chips-book-editor__dropzone {
   position: relative;
   display: grid;
@@ -255,6 +238,11 @@ html, body {
 .chips-book-editor__dropzone[data-state="busy"] {
   cursor: progress;
   opacity: 0.72;
+}
+
+.chips-book-editor__dropzone[data-state="drag-active"] {
+  border-color: #0a84ff;
+  background: rgba(10, 132, 255, 0.08);
 }
 
 .chips-book-editor__dropzone:hover,
@@ -349,10 +337,43 @@ html, body {
 
 .chips-book-editor__image-list-item {
   display: grid;
-  gap: 2px;
-  padding: 6px 10px;
+  grid-template-columns: 20px 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 5px 10px;
   min-height: 54px;
   min-width: 0;
+}
+
+.chips-book-editor__image-list-item + .chips-book-editor__image-list-item {
+  border-top: 1px solid var(--chips-book-editor-subtle-separator-color);
+}
+
+.chips-book-editor__image-list-index {
+  color: #6e6e73;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.chips-book-editor__image-list-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #f2f2f7;
+}
+
+.chips-book-editor__image-list-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chips-book-editor__image-list-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chips-book-editor__image-list-path {
@@ -395,7 +416,18 @@ async function deleteRemovedResources(
   }
 
   const removed = getRemovedInternalResourcePaths(previous, next);
-  await Promise.all(removed.map((resourcePath) => deleteResource(resourcePath)));
+  try {
+    await Promise.all(removed.map((resourcePath) => deleteResource(resourcePath)));
+  } catch (caughtError) {
+    const reason = caughtError instanceof Error && isNonEmptyString(caughtError.message)
+      ? caughtError.message
+      : "";
+    throw new Error(
+      reason
+        ? `${formatMessage("editor.error.resource_delete_failed")}：${reason}`
+        : formatMessage("editor.error.resource_delete_failed"),
+    );
+  }
 }
 
 function getFirstDroppedFile(event: React.DragEvent<HTMLElement>): File | null {
@@ -419,66 +451,26 @@ function getFirstDroppedFile(event: React.DragEvent<HTMLElement>): File | null {
   return null;
 }
 
-function useResolvedPreview(
-  resourcePath: string,
-  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
-  releaseResourceUrl?: (resourcePath: string) => Promise<void> | void,
-): string {
-  const [url, setUrl] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!resourcePath) {
-      setUrl("");
-      return undefined;
-    }
-
-    if (!resolveResourceUrl) {
-      setUrl(resourcePath);
-      return undefined;
-    }
-
-    void resolveResourceUrlWithRetry(resolveResourceUrl, resourcePath)
-      .then((resolvedUrl) => {
-        if (!cancelled) {
-          setUrl(resolvedUrl);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setUrl("");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      void releaseResourceUrl?.(resourcePath);
-    };
-  }, [releaseResourceUrl, resolveResourceUrl, resourcePath]);
-
-  return url;
-}
-
 function BasecardEditor(props: BasecardEditorProps) {
   const [config, setConfig] = useState(() => normalizeBasecardConfig(props.initialConfig));
   const [busy, setBusy] = useState<BusyState>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [dragActive, setDragActive] = useState<DropzoneKind | null>(null);
   const mainInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const bookNameInputId = useId();
   const bookAuthorInputId = useId();
-  const coverPreview = useResolvedPreview(
-    config.cover_image || config.image_sequence[0]?.file_path || "",
+  const coverPreviewPath = config.cover_image || config.image_sequence[0]?.file_path || "";
+  const imageListPaths = config.image_sequence.map((image) => image.file_path);
+  const resolvedResourceUrls = useResolvedResourceMap(
+    coverPreviewPath ? [coverPreviewPath, ...imageListPaths] : imageListPaths,
     props.resolveResourceUrl,
     props.releaseResourceUrl,
   );
+  const coverPreview = coverPreviewPath ? (resolvedResourceUrls.get(coverPreviewPath) ?? "") : "";
   const validation = validateBasecardConfig(config);
   const validationError = firstValidationError(validation.errors);
-
-  useEffect(() => {
-    setConfig(normalizeBasecardConfig(props.initialConfig));
-  }, [props.initialConfig]);
 
   async function commit(nextConfig: BasecardConfig) {
     const normalized = normalizeBasecardConfig(nextConfig);
@@ -707,8 +699,16 @@ function BasecardEditor(props: BasecardEditorProps) {
       image_sequence: [],
       resource_paths: [],
     });
-    await commit(next);
-    setStatus(formatMessage("editor.status.cleared"));
+    try {
+      await commit(next);
+      setStatus(formatMessage("editor.status.cleared"));
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : formatMessage("editor.error.resource_delete_failed"),
+      );
+    }
   }
 
   async function clearCover() {
@@ -721,8 +721,16 @@ function BasecardEditor(props: BasecardEditorProps) {
         images: config.image_sequence,
       }),
     });
-    await commit(next);
-    setStatus(formatMessage("editor.status.cover_cleared"));
+    try {
+      await commit(next);
+      setStatus(formatMessage("editor.status.cover_cleared"));
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : formatMessage("editor.error.resource_delete_failed"),
+      );
+    }
   }
 
   function changeSortBasis(nextBasis: ImageSortBasis) {
@@ -749,8 +757,25 @@ function BasecardEditor(props: BasecardEditorProps) {
     event.dataTransfer.dropEffect = busy === null ? "copy" : "none";
   }
 
+  function prepareDragEnter(event: React.DragEvent<HTMLElement>, kind: DropzoneKind) {
+    prepareDrop(event);
+    if (busy === null) {
+      setDragActive(kind);
+    }
+  }
+
+  function prepareDragLeave(event: React.DragEvent<HTMLElement>, kind: DropzoneKind) {
+    prepareDrop(event);
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+
+    setDragActive((current) => (current === kind ? null : current));
+  }
+
   function handleDrop(event: React.DragEvent<HTMLElement>, kind: DropzoneKind) {
     prepareDrop(event);
+    setDragActive(null);
     if (busy !== null) {
       return;
     }
@@ -803,9 +828,14 @@ function BasecardEditor(props: BasecardEditorProps) {
             <label
               className="chips-book-editor__dropzone"
               data-role="main-dropzone"
-              data-state={busy === "main" ? "busy" : "idle"}
-              onDragEnter={prepareDrop}
+              data-state={busy === "main" ? "busy" : dragActive === "main" ? "drag-active" : "idle"}
+              onDragEnter={(event) => {
+                prepareDragEnter(event, "main");
+              }}
               onDragOver={prepareDrop}
+              onDragLeave={(event) => {
+                prepareDragLeave(event, "main");
+              }}
               onDrop={(event) => {
                 handleDrop(event, "main");
               }}
@@ -854,14 +884,36 @@ function BasecardEditor(props: BasecardEditorProps) {
                     overflowY: "auto",
                   }}
                 >
-                  {imageListItems.map((item) => (
-                    <div key={item.value} className="chips-book-editor__image-list-item" role="listitem">
-                      <strong>{item.label}</strong>
-                      <span className="chips-book-editor__image-list-path">
-                        {String(item.resourcePath ?? "")}
-                      </span>
-                    </div>
-                  ))}
+                  {imageListItems.map((item, index) => {
+                    const thumbUrl = resolvedResourceUrls.get(item.resourcePath) ?? "";
+                    return (
+                      <div key={item.value} className="chips-book-editor__image-list-item" role="listitem">
+                        <span className="chips-book-editor__image-list-index" aria-hidden="true">
+                          {index + 1}
+                        </span>
+                        {thumbUrl ? (
+                          <img
+                            className="chips-book-editor__image-list-thumb"
+                            src={thumbUrl}
+                            alt=""
+                            loading="lazy"
+                            draggable={false}
+                          />
+                        ) : (
+                          <span
+                            className="chips-book-editor__image-list-thumb"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span className="chips-book-editor__image-list-copy">
+                          <strong>{item.label}</strong>
+                          <span className="chips-book-editor__image-list-path">
+                            {String(item.resourcePath ?? "")}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
@@ -886,9 +938,14 @@ function BasecardEditor(props: BasecardEditorProps) {
               <label
                 className="chips-book-editor__dropzone"
                 data-role="cover-dropzone"
-                data-state={busy === "cover" ? "busy" : "idle"}
-                onDragEnter={prepareDrop}
+                data-state={busy === "cover" ? "busy" : dragActive === "cover" ? "drag-active" : "idle"}
+                onDragEnter={(event) => {
+                  prepareDragEnter(event, "cover");
+                }}
                 onDragOver={prepareDrop}
+                onDragLeave={(event) => {
+                  prepareDragLeave(event, "cover");
+                }}
                 onDrop={(event) => {
                   handleDrop(event, "cover");
                 }}
@@ -974,17 +1031,17 @@ function BasecardEditor(props: BasecardEditorProps) {
               <label className="chips-book-editor__field-row">
               <span className="chips-book-editor__label">{formatMessage("editor.image_sort_basis")}</span>
               <span className="chips-book-editor__control">
-                <select
+                <Select<ImageSortBasis>
                   data-role="image-sort-select"
-                  className="chips-book-editor__select"
                   value={config.image_sort_basis}
-                  onChange={(event) => {
-                    changeSortBasis(event.currentTarget.value as ImageSortBasis);
+                  onChange={(value) => {
+                    changeSortBasis(value);
                   }}
-                >
-                  <option value="filename">{formatMessage("editor.sort.filename")}</option>
-                  <option value="entry-time">{formatMessage("editor.sort.entry_time")}</option>
-                </select>
+                  options={[
+                    { value: "filename", label: formatMessage("editor.sort.filename") },
+                    { value: "entry-time", label: formatMessage("editor.sort.entry_time") },
+                  ]}
+                />
               </span>
               </label>
             ) : null}

@@ -51,6 +51,16 @@ const WEBPAGE_BUNDLE_INCLUDE_RULE: NonNullable<BasecardArchiveImportRequest["inc
     "font/woff2",
     "application/font-woff",
     "application/font-woff2",
+    "font/ttf",
+    "font/otf",
+    "application/vnd.ms-fontobject",
+    "video/mp4",
+    "video/webm",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "application/wasm",
+    "application/pdf",
   ],
   extensions: [
     ".html",
@@ -70,6 +80,17 @@ const WEBPAGE_BUNDLE_INCLUDE_RULE: NonNullable<BasecardArchiveImportRequest["inc
     ".ico",
     ".woff",
     ".woff2",
+    ".ttf",
+    ".otf",
+    ".eot",
+    ".mp4",
+    ".webm",
+    ".mp3",
+    ".ogg",
+    ".wav",
+    ".wasm",
+    ".pdf",
+    ".map",
   ],
 };
 
@@ -206,10 +227,6 @@ const EDITOR_STYLE_TEXT = `
   font-size: 12px;
   line-height: 1.6;
   color: rgba(29, 29, 31, 0.76);
-}
-
-.chips-webpage-editor__status--error {
-  color: #ff3b30;
 }
 
 .chips-webpage-editor__segmented .ant-segmented {
@@ -428,6 +445,9 @@ function WebpageCardEditor(props: BasecardEditorProps) {
     }
 
     try {
+      if (!isLatestMutation(mutationId)) {
+        return;
+      }
       if (currentConfig.source_type === "bundle" && currentConfig.resource_paths.length > 0) {
         await removeAllBundleResources(currentConfig.resource_paths, props.deleteResource);
       }
@@ -460,6 +480,9 @@ function WebpageCardEditor(props: BasecardEditorProps) {
     const currentConfig = configRef.current;
 
     try {
+      if (!isLatestMutation(mutationId)) {
+        return;
+      }
       if (currentConfig.source_type === "bundle" && currentConfig.resource_paths.length > 0) {
         await removeAllBundleResources(currentConfig.resource_paths, props.deleteResource);
       }
@@ -469,6 +492,7 @@ function WebpageCardEditor(props: BasecardEditorProps) {
 
       const clearedConfig = createClearedConfig(currentConfig);
       emitChange(clearedConfig);
+      setSourceMode("url");
       setUrlInput("");
       setErrorText("");
       setStatusText(formatMessage("editor.source_cleared"));
@@ -504,6 +528,9 @@ function WebpageCardEditor(props: BasecardEditorProps) {
       });
       const currentConfig = configRef.current;
 
+      if (!isLatestMutation(mutationId)) {
+        return;
+      }
       if (currentConfig.source_type === "bundle" && currentConfig.resource_paths.length > 0) {
         await removeAllBundleResources(currentConfig.resource_paths, props.deleteResource);
       }
@@ -551,7 +578,6 @@ function WebpageCardEditor(props: BasecardEditorProps) {
     const nextUrl = urlInput.trim();
     if (nextUrl.length === 0) {
       setErrorText("");
-      setStatusText("");
       return;
     }
 
@@ -691,63 +717,69 @@ function WebpageCardEditor(props: BasecardEditorProps) {
             )}
           </div>
         ) : (
-          <div
-            className={`chips-webpage-editor__dropzone ${isDragActive ? "chips-webpage-editor__dropzone--active" : ""}`}
-            data-drop-active={isDragActive ? "true" : "false"}
-            role="button"
-            tabIndex={isImporting ? -1 : 0}
-            aria-disabled={isImporting ? "true" : "false"}
-            onClick={() => {
-              if (!isImporting) {
-                fileInputRef.current?.click();
-              }
-            }}
-            onKeyDown={(event) => {
-              if (isImporting) {
-                return;
-              }
-              if (event.key === "Enter" || event.key === " ") {
+          <>
+            <div
+              className={`chips-webpage-editor__dropzone ${isDragActive ? "chips-webpage-editor__dropzone--active" : ""}`}
+              data-drop-active={isDragActive ? "true" : "false"}
+              role="button"
+              tabIndex={isImporting ? -1 : 0}
+              aria-disabled={isImporting ? "true" : "false"}
+              onClick={() => {
+                if (!isImporting) {
+                  fileInputRef.current?.click();
+                }
+              }}
+              onKeyDown={(event) => {
+                if (isImporting) {
+                  return;
+                }
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              onDragEnter={(event) => {
                 event.preventDefault();
-                fileInputRef.current?.click();
-              }
-            }}
-            onDragEnter={(event) => {
-              event.preventDefault();
-              if (!isImporting) {
-                setIsDragActive(true);
-              }
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              if (!isImporting) {
-                event.dataTransfer.dropEffect = "copy";
-                setIsDragActive(true);
-              }
-            }}
-            onDragLeave={(event) => {
-              if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                return;
-              }
-              setIsDragActive(false);
-            }}
-            onDrop={handleDrop}
-          >
-            <input
-              id={fileInputId}
-              ref={fileInputRef}
-              className="chips-webpage-editor__file-input"
-              type="file"
-              accept=".zip,application/zip"
-              disabled={isImporting}
-              onChange={handleFileInputChange}
-            />
-            <strong className="chips-webpage-editor__dropzone-title">
-              <UploadOutlined aria-hidden="true" style={{ fontSize: 18 }} />
-              {isImporting ? formatMessage("editor.importing") : formatMessage("editor.bundle_upload_title")}
-            </strong>
-            <p className="chips-webpage-editor__dropzone-text">{formatMessage("editor.bundle_hint")}</p>
-            <p className="chips-webpage-editor__dropzone-text">{formatMessage("editor.bundle_upload_action")}</p>
-          </div>
+                if (!isImporting) {
+                  setIsDragActive(true);
+                }
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!isImporting) {
+                  event.dataTransfer.dropEffect = "copy";
+                  setIsDragActive(true);
+                }
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  return;
+                }
+                setIsDragActive(false);
+              }}
+              onDrop={handleDrop}
+            >
+              <input
+                id={fileInputId}
+                ref={fileInputRef}
+                className="chips-webpage-editor__file-input"
+                type="file"
+                accept=".zip,application/zip"
+                disabled={isImporting}
+                onChange={handleFileInputChange}
+              />
+              <strong className="chips-webpage-editor__dropzone-title">
+                <UploadOutlined aria-hidden="true" style={{ fontSize: 18 }} />
+                {isImporting ? formatMessage("editor.importing") : formatMessage("editor.bundle_upload_title")}
+              </strong>
+              <p className="chips-webpage-editor__dropzone-text">{formatMessage("editor.bundle_hint")}</p>
+              <p className="chips-webpage-editor__dropzone-text">{formatMessage("editor.bundle_supported")}</p>
+              <p className="chips-webpage-editor__dropzone-text">{formatMessage("editor.bundle_upload_action")}</p>
+            </div>
+            {sourceMode === "bundle" && errorText && (
+              <p className="chips-webpage-editor__url-error">{errorText}</p>
+            )}
+          </>
         )}
       </section>
 
@@ -792,11 +824,6 @@ function WebpageCardEditor(props: BasecardEditorProps) {
 
       {statusText && !errorText && (
         <p className="chips-webpage-editor__status" aria-live="polite">{statusText}</p>
-      )}
-      {errorText && (
-        <p className="chips-webpage-editor__status chips-webpage-editor__status--error" aria-live="polite">
-          {errorText}
-        </p>
       )}
     </form>
   );

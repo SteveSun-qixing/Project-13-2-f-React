@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBasecardEditorRoot } from "../../src/editor/panel";
+import { formatMessage } from "../../src/lib/messages";
 import type { BasecardConfig } from "../../src/schema/card-config";
 
 function createConfig(overrides: Partial<BasecardConfig> = {}): BasecardConfig {
@@ -162,6 +163,105 @@ describe("createBasecardEditorRoot (Milkdown)", () => {
     await waitFor(() => Boolean(root.querySelector(".chips-basecard-editor__errors:not([hidden])")));
 
     expect(root.textContent).toContain("内容不能为空");
+  });
+
+  it("shows the empty placeholder before any content is entered", async () => {
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig({
+        content_text: "",
+      }),
+      onChange: () => undefined,
+    });
+
+    await waitFor(() => Boolean(root.querySelector(".ProseMirror")));
+
+    expect(root.querySelector(".chips-basecard-editor__editor-host--empty")).not.toBeNull();
+    expect(root.textContent).toContain("开始输入…");
+  });
+
+  it("hides the empty placeholder once the document has content", async () => {
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig({
+        content_text: "有内容",
+      }),
+      onChange: () => undefined,
+    });
+
+    await waitFor(() => Boolean(root.querySelector(".ProseMirror")));
+
+    expect(root.querySelector(".chips-basecard-editor__editor-host--empty")).toBeNull();
+  });
+
+  it("surfaces markdown import failures instead of failing silently", async () => {
+    const importResource = vi.fn(async () => {
+      throw new Error("模拟导入失败");
+    });
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig({
+        content_text: "字".repeat(201),
+      }),
+      onChange: () => undefined,
+      importResource,
+    });
+
+    await waitFor(() => Boolean(root.querySelector(".ProseMirror")));
+
+    root.__chipsDispose?.();
+
+    await waitFor(() => Boolean(root.querySelector(".chips-basecard-editor__errors:not([hidden])")));
+
+    expect(importResource).toHaveBeenCalledTimes(1);
+    expect(root.textContent).toContain("Markdown 文件保存失败");
+    expect(root.textContent).toContain("模拟导入失败");
+  });
+
+  it("shows the link input popup from the toolbar link button instead of window.prompt", async () => {
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig(),
+      onChange: () => undefined,
+    });
+
+    await waitFor(() => Boolean(root.querySelector(".ProseMirror")));
+
+    const toolbarButtons = Array.from(root.querySelectorAll(".chips-basecard-editor__toolbar-button"));
+    const linkButton = toolbarButtons.find((button) =>
+      button.getAttribute("aria-label") === formatMessage("basecard.toolbar.link"));
+    expect(linkButton).toBeDefined();
+
+    linkButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    const popup = root.querySelector(".chips-basecard-editor__link-popup") as HTMLDivElement | null;
+    expect(popup).not.toBeNull();
+    expect(popup?.hidden).toBe(false);
+    const input = popup?.querySelector("input") as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    expect(input?.getAttribute("placeholder")).toBe(formatMessage("basecard.prompt.linkUrl"));
+
+    input?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(popup?.hidden).toBe(true);
+
+    linkButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(popup?.hidden).toBe(false);
+    if (input) {
+      input.value = "https://example.com";
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    }
+    expect(popup?.hidden).toBe(true);
+
+    linkButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const cancelButton = popup?.querySelector(
+      ".chips-basecard-editor__link-popup-button--cancel",
+    ) as HTMLButtonElement | null;
+    cancelButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(popup?.hidden).toBe(true);
+
+    linkButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(popup?.hidden).toBe(false);
+    document.body.appendChild(root);
+    const surface = root.querySelector(".chips-basecard-editor__surface") as HTMLDivElement | null;
+    surface?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    expect(popup?.hidden).toBe(true);
+    document.body.removeChild(root);
   });
 
   it("shows tooltip on toolbar hover and opens the editor context menu on right click", async () => {

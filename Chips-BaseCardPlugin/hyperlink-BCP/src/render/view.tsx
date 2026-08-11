@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button, Tag } from "antd";
 import type { BasecardOpenResourceInput } from "../index";
 import type { BasecardConfig } from "../schema/card-config";
@@ -110,6 +110,11 @@ export const VIEW_STYLE_TEXT = `
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.14);
 }
 
+.chips-hyperlink-card__surface[data-openable="true"]:active,
+.chips-hyperlink-card__surface-button:active .chips-hyperlink-card__surface {
+  background: #e5e5ea;
+}
+
 .chips-hyperlink-card__icon-frame {
   display: inline-flex;
   align-items: center;
@@ -153,7 +158,7 @@ export const VIEW_STYLE_TEXT = `
 
 .chips-hyperlink-card__title {
   min-width: 0;
-  font-weight: 650;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -252,13 +257,15 @@ function resolveAriaLabel(params: {
 
 export function BasecardView({ config, openResource }: BasecardViewProps) {
   const anchorText = config.anchor_text || formatMessage("hyperlink.view.emptyAnchorText");
-  const description = (config.description ?? "").trim();
+  const description = config.description ?? "";
   const analysis = analyzeHyperlinkUrl(config.url);
   const iconAnalysis = config.icon_url ? analyzeHyperlinkUrl(config.icon_url) : null;
   const canOpen = Boolean(openResource && analysis.openable);
   const securityText = formatMessage(getSecurityLabelKey(analysis, Boolean(openResource)));
   const displayUrl = analysis.normalizedUrl || analysis.input || formatMessage("hyperlink.view.emptyUrl");
   const hostname = analysis.hostname || displayUrl;
+  const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null);
+  const iconUrl = iconAnalysis?.openable ? iconAnalysis.normalizedUrl : null;
   const ariaLabel = resolveAriaLabel({
     title: anchorText,
     urlText: displayUrl,
@@ -272,12 +279,16 @@ export function BasecardView({ config, openResource }: BasecardViewProps) {
       data-openable={canOpen ? "true" : "false"}
     >
       <span className="chips-hyperlink-card__icon-frame" aria-hidden="true">
-        {iconAnalysis?.openable ? (
+        {iconUrl && failedIconUrl !== iconUrl ? (
           <img
             className="chips-hyperlink-card__icon-image"
-            src={iconAnalysis.normalizedUrl}
+            src={iconUrl}
             alt=""
             draggable={false}
+            referrerPolicy="no-referrer"
+            onError={() => {
+              setFailedIconUrl(iconUrl);
+            }}
           />
         ) : (
           <span className="chips-hyperlink-card__icon-fallback">↗</span>
@@ -295,7 +306,7 @@ export function BasecardView({ config, openResource }: BasecardViewProps) {
             </Tag>
           ) : null}
         </span>
-        {description ? (
+        {description.trim() ? (
           <span className="chips-hyperlink-card__description">{description}</span>
         ) : null}
         <span className="chips-hyperlink-card__meta">

@@ -1,5 +1,5 @@
 import React from "react";
-import { Progress, Rate } from "antd";
+import { Progress, Rate, theme } from "antd";
 import { HeartFilled } from "@ant-design/icons";
 import { getScoreRatio, isSymbolScoreStyle, type BasecardConfig } from "../schema/card-config";
 import { formatMessage } from "../lib/messages";
@@ -19,6 +19,7 @@ export const VIEW_STYLE_TEXT = `
 .chips-score-card__surface {
   width: 100%;
   min-width: 0;
+  container-type: inline-size;
 }
 
 .chips-score-card__surface--symbols {
@@ -47,16 +48,36 @@ export const VIEW_STYLE_TEXT = `
 }
 
 .chips-score-card__rating .ant-rate {
+  display: inline-flex;
+  justify-content: center;
+  max-width: 100%;
   font-size: 38px;
 }
 
-.chips-score-card__rating--hearts .ant-rate {
-  color: #ff3b30;
+@container (max-width: 240px) {
+  .chips-score-card__rating .ant-rate {
+    font-size: 30px;
+  }
+}
+
+@container (max-width: 180px) {
+  .chips-score-card__rating .ant-rate {
+    font-size: 24px;
+  }
+}
+
+@container (max-width: 140px) {
+  .chips-score-card__rating .ant-rate {
+    font-size: 19px;
+  }
 }
 
 .chips-score-card__numeric {
   display: inline-flex;
   align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
   min-width: 0;
   color: #1d1d1f;
 }
@@ -70,7 +91,6 @@ export const VIEW_STYLE_TEXT = `
 
 .chips-score-card__numeric-separator {
   margin: 0 8px;
-  color: rgba(0, 0, 0, 0.36);
   font-size: 24px;
   font-weight: 600;
 }
@@ -80,6 +100,19 @@ export const VIEW_STYLE_TEXT = `
   font-size: 22px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+}
+
+.chips-score-card__numeric--compact .chips-score-card__numeric-score {
+  font-size: 30px;
+}
+
+.chips-score-card__numeric--compact .chips-score-card__numeric-separator {
+  margin: 0 6px;
+  font-size: 17px;
+}
+
+.chips-score-card__numeric--compact .chips-score-card__numeric-total {
+  font-size: 15px;
 }
 
 .chips-score-card__progress {
@@ -134,6 +167,7 @@ function renderSymbols(
   config: BasecardConfig,
   ariaLabel: string,
   labelId: string,
+  heartColor: string,
 ): React.ReactElement {
   const symbolKind = getRatingShape(config);
   const isHearts = symbolKind === "heart";
@@ -152,6 +186,7 @@ function renderSymbols(
         count={config.total_score}
         character={isHearts ? <HeartFilled /> : undefined}
         disabled
+        style={isHearts ? { color: heartColor } : undefined}
         value={config.score}
       />
     </>
@@ -159,10 +194,12 @@ function renderSymbols(
 }
 
 export function BasecardView({ config }: BasecardViewProps) {
+  const { token } = theme.useToken();
   const scoreText = formatNumber(config.score);
   const totalText = formatNumber(config.total_score);
   const ratio = getScoreRatio(config);
   const percentText = formatNumber(ratio * 100);
+  const numericCompact = scoreText.length + totalText.length >= 9;
   const ariaLabel = formatMessage("score.accessible.value", {
     score: scoreText,
     total: totalText,
@@ -178,14 +215,27 @@ export function BasecardView({ config }: BasecardViewProps) {
           isSymbolScoreStyle(config.style) ? "chips-score-card__surface--symbols" : "",
         ].filter(Boolean).join(" ")}
       >
-        {isSymbolScoreStyle(config.style) ? renderSymbols(config, ariaLabel, ratingLabelId) : null}
+        {isSymbolScoreStyle(config.style)
+          ? renderSymbols(config, ariaLabel, ratingLabelId, token.colorError)
+          : null}
 
         {config.style === "score" ? (
-          <div className="chips-score-card__numeric" role="img" aria-label={ariaLabel}>
+          <div
+            className={[
+              "chips-score-card__numeric",
+              numericCompact ? "chips-score-card__numeric--compact" : "",
+            ].filter(Boolean).join(" ")}
+            role="img"
+            aria-label={ariaLabel}
+          >
             <span aria-hidden="true" className="chips-score-card__numeric-score">
               {scoreText}
             </span>
-            <span aria-hidden="true" className="chips-score-card__numeric-separator">
+            <span
+              aria-hidden="true"
+              className="chips-score-card__numeric-separator"
+              style={{ color: token.colorTextBase, opacity: 0.36 }}
+            >
               /
             </span>
             <span aria-hidden="true" className="chips-score-card__numeric-total">
@@ -203,6 +253,8 @@ export function BasecardView({ config }: BasecardViewProps) {
               aria-labelledby={progressLabelId}
               aria-valuetext={formatMessage("score.progress.percent", { percent: percentText })}
               className="chips-score-card__progress-control"
+              // aria-valuenow 统一取 Math.round 整值，完整精度保留在 aria-valuetext
+              {...{ "aria-valuenow": Math.round(ratio * 100) }}
               percent={ratio * 100}
               showInfo={false}
               size={["100%", 14]}

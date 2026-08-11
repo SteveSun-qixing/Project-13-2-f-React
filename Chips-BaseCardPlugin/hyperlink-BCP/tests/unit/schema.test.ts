@@ -32,7 +32,7 @@ describe("basecard schema", () => {
       card_type: "HyperlinkCard",
       anchor_text: "Chips",
       url: "https://example.com/docs",
-      description: "Docs",
+      description: "  Docs  ",
       icon_url: "https://example.com/favicon.png",
       open_mode: "external-browser",
       display_density: "comfortable",
@@ -40,6 +40,17 @@ describe("basecard schema", () => {
       locale: "zh-CN",
       theme: "",
     });
+  });
+
+  it("preserves description trailing whitespace and newlines during normalization", () => {
+    const normalized = normalizeBasecardConfig({
+      card_type: "HyperlinkCard",
+      anchor_text: "Chips",
+      url: "https://example.com",
+      description: "  First line\nSecond line  \n",
+    });
+
+    expect(normalized.description).toBe("  First line\nSecond line  \n");
   });
 
   it("validates only http and https links", () => {

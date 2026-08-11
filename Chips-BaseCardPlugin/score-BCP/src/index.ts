@@ -104,7 +104,10 @@ export interface BasecardEditorContext {
 }
 
 export function renderBasecardView(ctx: BasecardRenderContext): () => void {
-  return mountBasecardView(ctx);
+  return mountBasecardView({
+    ...ctx,
+    config: normalizeBasecardConfig(ctx.config),
+  });
 }
 
 export function renderBasecardEditor(ctx: BasecardEditorContext): () => void {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mountBasecardView } from "../../src/render/runtime";
+import { renderBasecardView } from "../../src/index";
 import type { BasecardConfig } from "../../src/schema/card-config";
 
 function createConfig(overrides?: Partial<BasecardConfig>): BasecardConfig {
@@ -65,6 +66,7 @@ describe("mountBasecardView", () => {
     expect(checkedItems).toHaveLength(2);
     expect(container.querySelectorAll('svg[data-icon="heart"]')).toHaveLength(10);
     expect(container.querySelector(".chips-score-card__sr-only")?.textContent).toBe("2 / 5 分");
+    expect(rating?.style.color).toBeTruthy();
 
     dispose();
   });
@@ -118,6 +120,76 @@ describe("mountBasecardView", () => {
     expect(container.querySelector(".chips-score-card__sr-only")?.textContent).toBe("4 / 8 分");
     expect(container.querySelector(".chips-score-card__progress-score")?.textContent).toBe("4 / 8");
     expect(container.querySelector(".chips-score-card__progress-percent")?.textContent).toBe("50%");
+
+    dispose();
+  });
+
+  it("keeps progress aria-valuenow rounded while aria-valuetext keeps full precision", () => {
+    const container = document.createElement("div");
+
+    const dispose = mountBasecardView({
+      container,
+      config: createConfig({
+        style: "progress",
+        score: 1,
+        total_score: 3,
+      }),
+    });
+    const progress = container.querySelector(
+      ".chips-score-card__progress-control",
+    ) as HTMLElement | null;
+    const track = container.querySelector(
+      ".chips-score-card__progress-control .ant-progress-track",
+    ) as HTMLElement | null;
+
+    expect(progress?.getAttribute("aria-valuenow")).toBe("33");
+    expect(progress?.getAttribute("aria-valuetext")).toBe("33.33%");
+    expect(track?.style.width).toMatch(/^33\.33/);
+    expect(container.querySelector(".chips-score-card__progress-percent")?.textContent).toBe(
+      "33.33%",
+    );
+
+    dispose();
+  });
+
+  it("compacts long numeric values instead of overflowing", () => {
+    const container = document.createElement("div");
+
+    const dispose = mountBasecardView({
+      container,
+      config: createConfig({
+        style: "score",
+        score: 99999,
+        total_score: 100000,
+      }),
+    });
+    const numeric = container.querySelector(".chips-score-card__numeric") as HTMLElement | null;
+
+    expect(numeric?.classList.contains("chips-score-card__numeric--compact")).toBe(true);
+    expect(container.querySelector(".chips-score-card__numeric-score")?.textContent).toBe("99,999");
+    expect(container.querySelector(".chips-score-card__numeric-total")?.textContent).toBe(
+      "100,000",
+    );
+
+    dispose();
+  });
+
+  it("normalizes illegal symbol config through the public entry without crashing", () => {
+    const container = document.createElement("div");
+
+    const dispose = renderBasecardView({
+      container,
+      config: {
+        card_type: "ScoreCard",
+        style: "stars",
+        score: 4.5,
+        total_score: 100,
+      },
+    });
+    const fullStars = container.querySelectorAll(".ant-rate-star-full");
+
+    expect(fullStars).toHaveLength(5);
+    expect(container.querySelector(".chips-score-card__sr-only")?.textContent).toBe("5 / 5 分");
 
     dispose();
   });

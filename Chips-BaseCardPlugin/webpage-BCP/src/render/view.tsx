@@ -1,13 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "antd";
-import { ExportOutlined } from "@ant-design/icons";
-import type { BasecardOpenResourceInput } from "../index";
+import { GlobalOutlined } from "@ant-design/icons";
 import type { BasecardConfig } from "../schema/card-config";
 import { formatMessage } from "../lib/messages";
 import {
-  createSrcDocDocument,
-  deriveBaseHref,
-  loadTextFromRuntimeUrl,
   publishViewportToFrame,
   WEBPAGE_CONTENT_HEIGHT_MESSAGE_TYPE,
   type WebpageViewportPayload,
@@ -18,6 +13,7 @@ const FIXED_RATIO_WIDTH = 7;
 const FIXED_RATIO_HEIGHT = 16;
 const FALLBACK_WIDTH = 640;
 const MIN_FREE_VIEWPORT_HEIGHT = 160;
+const EMBED_DETECTION_TIMEOUT_MS = 10000;
 
 function calculateFixedHeight(width: number): number {
   return Math.max(MIN_FREE_VIEWPORT_HEIGHT, Math.round((width / FIXED_RATIO_WIDTH) * FIXED_RATIO_HEIGHT));
@@ -244,50 +240,50 @@ export const VIEW_STYLE_TEXT = `
   background: transparent;
 }
 
-.chips-webpage-card__message {
+.chips-webpage-card__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 24px;
+  text-align: center;
+  box-sizing: border-box;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.chips-webpage-card__overlay--error {
+  color: #ff3b30;
+}
+
+.chips-webpage-card__overlay--loading {
+  color: #1d1d1f;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.chips-webpage-card__empty {
   min-height: 180px;
   width: 100%;
   padding: 28px 24px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   text-align: center;
-  color: #1d1d1f;
+  color: #86868b;
   box-sizing: border-box;
 }
 
-.chips-webpage-card__message--error {
-  color: #ff3b30;
+.chips-webpage-card__empty-icon {
+  font-size: 42px;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.24);
 }
 
-.chips-webpage-card__toolbar {
-  position: absolute;
-  z-index: 1;
-  inset-block-start: 10px;
-  inset-inline-end: 10px;
-  display: flex;
-  justify-content: flex-end;
-  pointer-events: none;
-}
-
-.chips-webpage-card__open-button {
-  pointer-events: auto;
-  min-height: 34px;
-  border: 1px solid rgba(0, 0, 0, 0.18);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  color: #1d1d1f;
-  padding: 0 10px;
-  backdrop-filter: blur(10px);
-}
-
-.chips-webpage-card__open-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.chips-webpage-card__loading {
+.chips-webpage-card__empty-text {
   font-size: 14px;
   line-height: 1.6;
 }
@@ -297,14 +293,12 @@ export interface WebpageCardViewProps {
   config: BasecardConfig;
   resolveResourceUrl?: (resourcePath: string) => Promise<string>;
   releaseResourceUrl?: (resourcePath: string) => Promise<void> | void;
-  openResource?: (input: BasecardOpenResourceInput) => void;
 }
 
 export function WebpageCardView({
   config,
   resolveResourceUrl,
   releaseResourceUrl,
-  openResource,
 }: WebpageCardViewProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -315,13 +309,11 @@ export function WebpageCardView({
   const [errorText, setErrorText] = useState("");
   const [layoutHeight, setLayoutHeight] = useState(baseHeight);
   const [scrollMode, setScrollMode] = useState(false);
-  const [bundleSrcDoc, setBundleSrcDoc] = useState<string | null>(null);
+  const [bundleEntryUrl, setBundleEntryUrl] = useState<string | null>(null);
 
   const hasUrlSource = config.source_type === "url" && Boolean(config.source_url?.trim());
   const hasBundleSource = config.source_type === "bundle" && Boolean(config.bundle_root?.trim());
   const validUrl = hasUrlSource ? validateWebpageUrl(config.source_url ?? "") : false;
-  const bundleEntryPath = getBundleEntryPath(config);
-  const canOpenSource = Boolean(openResource) && ((hasUrlSource && validUrl) || Boolean(bundleEntryPath));
   const viewportPayload = useMemo(
     // Free mode may grow the outer iframe to the measured content height, but the embedded page
     // must keep receiving a stable viewport height to avoid measurement feedback loops.
@@ -336,15 +328,10 @@ export function WebpageCardView({
     [baseHeight, config, config.max_height_ratio, protocolViewportHeight, scrollMode, width],
   );
   const baseHeightRef = useRef(baseHeight);
-  const viewportPayloadRef = useRef<WebpageViewportPayload>(viewportPayload);
 
   useEffect(() => {
     baseHeightRef.current = baseHeight;
   }, [baseHeight]);
-
-  useEffect(() => {
-    viewportPayloadRef.current = viewportPayload;
-  }, [viewportPayload]);
 
   useEffect(() => {
     if (config.display_mode === "fixed") {
@@ -359,7 +346,7 @@ export function WebpageCardView({
     let cancelled = false;
     const entryPath = getBundleEntryPath(config);
     if (!hasBundleSource || !entryPath) {
-      setBundleSrcDoc(null);
+      setBundleEntryUrl(null);
       return;
     }
 
@@ -373,21 +360,15 @@ export function WebpageCardView({
         const resolvedEntryUrl = resolveResourceUrl
           ? await resolveResourceUrl(entryPath)
           : entryPath;
-        const htmlText = await loadTextFromRuntimeUrl(resolvedEntryUrl, entryPath);
-        const srcDoc = createSrcDocDocument(
-          htmlText,
-          deriveBaseHref(resolvedEntryUrl),
-          viewportPayloadRef.current,
-        );
         if (cancelled) {
           return;
         }
-        setBundleSrcDoc(srcDoc);
+        setBundleEntryUrl(resolvedEntryUrl);
       } catch (error) {
         if (cancelled) {
           return;
         }
-        setBundleSrcDoc(null);
+        setBundleEntryUrl(null);
         setStatus("error");
         setErrorText(error instanceof Error ? error.message : formatMessage("view.bundle_failed"));
       }
@@ -408,7 +389,7 @@ export function WebpageCardView({
 
   const iframeSource = useMemo(() => {
     if (hasBundleSource) {
-      return bundleSrcDoc ? { type: "srcDoc" as const, value: bundleSrcDoc } : null;
+      return bundleEntryUrl ? { type: "src" as const, value: bundleEntryUrl } : null;
     }
 
     if (!hasUrlSource) {
@@ -423,47 +404,7 @@ export function WebpageCardView({
       type: "src" as const,
       value: config.source_url?.trim() ?? "",
     };
-  }, [bundleSrcDoc, config.source_url, hasBundleSource, hasUrlSource, validUrl]);
-
-  const openCurrentSource = () => {
-    if (!openResource) {
-      return;
-    }
-
-    if (hasUrlSource && validUrl && config.source_url) {
-      openResource({
-        resourceId: config.source_url.trim(),
-        mimeType: "text/html",
-        title: formatMessage("view.open_url_title"),
-        payload: {
-          kind: "chips.webpage-card",
-          version: "1.0.0",
-          cardType: config.card_type,
-          sourceType: "url",
-          url: config.source_url.trim(),
-        },
-      });
-      return;
-    }
-
-    if (bundleEntryPath) {
-      openResource({
-        resourceId: bundleEntryPath,
-        mimeType: "text/html",
-        title: formatMessage("view.open_bundle_title"),
-        fileName: config.entry_file ?? "index.html",
-        payload: {
-          kind: "chips.webpage-card",
-          version: "1.0.0",
-          cardType: config.card_type,
-          sourceType: "bundle",
-          bundleRoot: config.bundle_root ?? "",
-          entryFile: config.entry_file ?? "index.html",
-          resourcePaths: config.resource_paths,
-        },
-      });
-    }
-  };
+  }, [bundleEntryUrl, config.source_url, hasBundleSource, hasUrlSource, validUrl]);
 
   useEffect(() => {
     if (!iframeSource) {
@@ -513,8 +454,17 @@ export function WebpageCardView({
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let frameWindow: Window | null = null;
+    let loadTimeoutId = 0;
+
+    const clearLoadTimeout = () => {
+      if (loadTimeoutId) {
+        window.clearTimeout(loadTimeoutId);
+        loadTimeoutId = 0;
+      }
+    };
 
     const clearObservers = () => {
+      clearLoadTimeout();
       if (intervalId) {
         window.clearInterval(intervalId);
       }
@@ -582,6 +532,10 @@ export function WebpageCardView({
       }
 
       applyMeasurement();
+      if (config.display_mode === "fixed") {
+        return;
+      }
+
       try {
         mutationObserver = new MutationObserver(() => applyMeasurement());
         mutationObserver.observe(accessibleDocument.documentElement, {
@@ -638,6 +592,7 @@ export function WebpageCardView({
     };
 
     const handleLoad = () => {
+      clearLoadTimeout();
       attachToFrameDocument();
     };
     const handleError = () => {
@@ -652,6 +607,17 @@ export function WebpageCardView({
     frameElement.addEventListener("error", handleError);
     window.addEventListener("message", handleWindowMessage);
 
+    loadTimeoutId = window.setTimeout(() => {
+      setStatus("error");
+      setScrollMode(false);
+      setErrorText(
+        config.source_type === "url"
+          ? formatMessage("view.embed_blocked")
+          : formatMessage("view.load_failed"),
+      );
+      setLayoutHeight(baseHeight);
+    }, EMBED_DETECTION_TIMEOUT_MS);
+
     return () => {
       frameElement.removeEventListener("load", handleLoad);
       frameElement.removeEventListener("error", handleError);
@@ -664,7 +630,10 @@ export function WebpageCardView({
     return (
       <div className="chips-webpage-card">
         <div className="chips-webpage-card__viewport">
-          <div className="chips-webpage-card__message">{formatMessage("view.empty")}</div>
+          <div className="chips-webpage-card__empty">
+            <GlobalOutlined aria-hidden="true" className="chips-webpage-card__empty-icon" />
+            <span className="chips-webpage-card__empty-text">{formatMessage("view.empty")}</span>
+          </div>
         </div>
       </div>
     );
@@ -677,7 +646,7 @@ export function WebpageCardView({
         style={{ height: `${layoutHeight}px` }}
       >
         {status === "error" ? (
-          <div className="chips-webpage-card__message chips-webpage-card__message--error">
+          <div className="chips-webpage-card__overlay chips-webpage-card__overlay--error">
             {errorText || formatMessage("view.load_failed")}
           </div>
         ) : iframeSource ? (
@@ -685,34 +654,14 @@ export function WebpageCardView({
             ref={iframeRef}
             className="chips-webpage-card__frame"
             src={iframeSource.type === "src" ? iframeSource.value : undefined}
-            srcDoc={iframeSource.type === "srcDoc" ? iframeSource.value : undefined}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            sandbox="allow-scripts allow-forms allow-popups"
             loading="lazy"
             title="webpage-card-frame"
           />
         ) : null}
 
-        {canOpenSource && (
-          <div className="chips-webpage-card__toolbar" data-webpage-open-source="true">
-            <Button
-              type="default"
-              className="chips-webpage-card__open-button"
-              aria-label={formatMessage("view.open_source")}
-              onClick={(event) => {
-                event.stopPropagation();
-                openCurrentSource();
-              }}
-            >
-              <span className="chips-webpage-card__open-content">
-                <ExportOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-                <span>{formatMessage("view.open_source")}</span>
-              </span>
-            </Button>
-          </div>
-        )}
-
         {status === "loading" && (
-          <div className="chips-webpage-card__message chips-webpage-card__loading">
+          <div className="chips-webpage-card__overlay chips-webpage-card__overlay--loading">
             {formatMessage("view.loading")}
           </div>
         )}

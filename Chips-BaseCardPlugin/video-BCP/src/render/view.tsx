@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Empty, Image, Tag } from "antd";
-import { CaretRightFilled } from "@ant-design/icons";
+import React, { useEffect, useRef } from "react";
+import { Empty, Image, Skeleton, Tag } from "antd";
+import { CaretRightFilled, VideoCameraOutlined } from "@ant-design/icons";
 import type { VideoCardOpenPayload, VideoCardOpenResource, VideoCardOpenSubtitleResource } from "chips-sdk";
 import type { BasecardConfig } from "../schema/card-config";
 import { formatMessage } from "../lib/messages";
@@ -11,6 +11,7 @@ import {
   inferVideoMimeType,
   normalizeRelativeCardResourcePath,
   resolveFileName,
+  useResolvedResourceUrl,
 } from "../shared/utils";
 
 export const VIEW_STYLE_TEXT = `
@@ -41,13 +42,14 @@ export const VIEW_STYLE_TEXT = `
 }
 
 .chips-video-card__surface-button:focus-visible {
-  outline: none;
+  outline: 2px solid rgba(10, 132, 255, 0.6);
+  outline-offset: 2px;
 }
 
 .chips-video-card__poster-shell {
   position: relative;
   width: 100%;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   background:
     linear-gradient(160deg, rgba(242, 242, 247, 0.98), rgba(242, 242, 247, 0.96)),
@@ -70,6 +72,18 @@ export const VIEW_STYLE_TEXT = `
   background: #030712;
 }
 
+.chips-video-card__poster-skeleton {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.chips-video-card__poster-skeleton .ant-skeleton-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
 .chips-video-card__empty {
   display: grid;
   place-items: center;
@@ -83,6 +97,16 @@ export const VIEW_STYLE_TEXT = `
 .chips-video-card__empty .ant-empty {
   min-height: 100%;
   margin-block: 0;
+}
+
+.chips-video-card__empty-icon {
+  font-size: 56px;
+  line-height: 1;
+  color: #c7c7cc;
+}
+
+.chips-video-card__empty-desc {
+  color: #86868b;
 }
 
 .chips-video-card__overlay {
@@ -169,10 +193,6 @@ export const VIEW_STYLE_TEXT = `
 }
 
 @media (max-width: 560px) {
-  .chips-video-card__poster-shell {
-    border-radius: 14px;
-  }
-
   .chips-video-card__play-badge {
     width: 60px;
     height: 60px;
@@ -191,80 +211,6 @@ export interface BasecardViewProps {
     fileName?: string;
     payload?: VideoCardOpenPayload;
   }) => void;
-}
-
-async function resolveResourceUrlWithRetry(
-  resolveResourceUrl: ((resourcePath: string) => Promise<string>) | undefined,
-  resourcePath: string,
-): Promise<string> {
-  if (!resolveResourceUrl) {
-    return "";
-  }
-
-  try {
-    return await resolveResourceUrl(resourcePath);
-  } catch (firstError) {
-    await new Promise((resolve) => setTimeout(resolve, 16));
-    return resolveResourceUrl(resourcePath).catch(() => {
-      throw firstError;
-    });
-  }
-}
-
-function getImmediateResourceUrl(
-  resourcePath: string,
-  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
-): string {
-  const normalizedPath = normalizeRelativeCardResourcePath(resourcePath);
-  if (!normalizedPath) {
-    return "";
-  }
-
-  return resolveResourceUrl ? "" : normalizedPath;
-}
-
-function useResolvedResourceUrl(
-  resourcePath: string,
-  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
-  releaseResourceUrl?: (resourcePath: string) => Promise<void> | void,
-): string {
-  const [resolvedUrl, setResolvedUrl] = useState(() => getImmediateResourceUrl(resourcePath, resolveResourceUrl));
-
-  useEffect(() => {
-    let cancelled = false;
-    const normalizedPath = normalizeRelativeCardResourcePath(resourcePath);
-
-    if (!normalizedPath) {
-      setResolvedUrl("");
-      return undefined;
-    }
-
-    if (!resolveResourceUrl) {
-      setResolvedUrl(normalizedPath);
-      return undefined;
-    }
-
-    setResolvedUrl("");
-
-    void resolveResourceUrlWithRetry(resolveResourceUrl, normalizedPath)
-      .then((nextUrl) => {
-        if (!cancelled) {
-          setResolvedUrl(nextUrl);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setResolvedUrl("");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      void Promise.resolve(releaseResourceUrl?.(normalizedPath)).catch(() => undefined);
-    };
-  }, [releaseResourceUrl, resolveResourceUrl, resourcePath]);
-
-  return resolvedUrl;
 }
 
 function VideoFallbackPoster(props: { src: string }) {
@@ -409,53 +355,6 @@ function buildVideoCardOpenPayload(input: {
   };
 }
 
-function useResolvedResourceUrlMap(
-  resourcePaths: string[],
-  resolveResourceUrl?: (resourcePath: string) => Promise<string>,
-  releaseResourceUrl?: (resourcePath: string) => Promise<void> | void,
-): Map<string, string> {
-  const [resolved, setResolved] = useState<Map<string, string>>(new Map());
-  const resourceKey = resourcePaths.join("\n");
-
-  useEffect(() => {
-    let cancelled = false;
-    const normalizedPaths = Array.from(new Set(
-      resourcePaths
-        .map((resourcePath) => normalizeRelativeCardResourcePath(resourcePath))
-        .filter((resourcePath): resourcePath is string => Boolean(resourcePath)),
-    ));
-
-    if (!resolveResourceUrl) {
-      setResolved(new Map(normalizedPaths.map((resourcePath) => [resourcePath, resourcePath])));
-      return undefined;
-    }
-
-    setResolved(new Map());
-
-    void Promise.all(normalizedPaths.map(async (resourcePath) => {
-      try {
-        const url = await resolveResourceUrlWithRetry(resolveResourceUrl, resourcePath);
-        return [resourcePath, url] as const;
-      } catch {
-        return [resourcePath, ""] as const;
-      }
-    })).then((entries) => {
-      if (!cancelled) {
-        setResolved(new Map(entries.filter(([, url]) => url)));
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      normalizedPaths.forEach((resourcePath) => {
-        void Promise.resolve(releaseResourceUrl?.(resourcePath)).catch(() => undefined);
-      });
-    };
-  }, [releaseResourceUrl, resolveResourceUrl, resourceKey]);
-
-  return resolved;
-}
-
 export function BasecardView({
   config,
   resolveResourceUrl,
@@ -464,11 +363,6 @@ export function BasecardView({
 }: BasecardViewProps) {
   const videoUrl = useResolvedResourceUrl(config.video_file, resolveResourceUrl, releaseResourceUrl);
   const coverUrl = useResolvedResourceUrl(config.cover_image, resolveResourceUrl, releaseResourceUrl);
-  useResolvedResourceUrlMap(
-    config.subtitles.map((subtitle) => subtitle.file_path),
-    resolveResourceUrl,
-    releaseResourceUrl,
-  );
   const displayTitle = deriveDisplayTitle(config);
   const metaLine = deriveMetaLine(config);
   const canOpen = Boolean(openResource && normalizeRelativeCardResourcePath(config.video_file));
@@ -477,6 +371,17 @@ export function BasecardView({
     displayTitle,
   });
   const subtitleCount = config.subtitles.length;
+  const coverConfigured = Boolean(normalizeRelativeCardResourcePath(config.cover_image));
+
+  const posterSkeleton = (
+    <div
+      className="chips-video-card__poster-skeleton"
+      role="status"
+      aria-label={formatMessage("video.view.poster_loading")}
+    >
+      <Skeleton.Image active style={{ width: "100%", height: "100%", borderRadius: 0 }} />
+    </div>
+  );
 
   const content = (
     <>
@@ -489,12 +394,12 @@ export function BasecardView({
             className="chips-video-card__poster"
             loading="lazy"
           />
+        ) : coverConfigured ? (
+          posterSkeleton
         ) : videoUrl ? (
           <VideoFallbackPoster src={videoUrl} />
         ) : (
-          <div className="chips-video-card__empty">
-            <Empty description={formatMessage("video.view.cover_unavailable")} />
-          </div>
+          posterSkeleton
         )}
 
         <div className="chips-video-card__overlay" aria-hidden="true">
@@ -538,7 +443,11 @@ export function BasecardView({
       <div className="chips-video-card" data-card-type={config.card_type}>
         <div className="chips-video-card__poster-shell">
           <div className="chips-video-card__empty">
-            <Empty description={formatMessage("video.view.empty")} />
+            <Empty
+              image={<VideoCameraOutlined className="chips-video-card__empty-icon" />}
+              styles={{ image: { height: "auto" } }}
+              description={<span className="chips-video-card__empty-desc">{formatMessage("video.view.empty")}</span>}
+            />
           </div>
         </div>
       </div>

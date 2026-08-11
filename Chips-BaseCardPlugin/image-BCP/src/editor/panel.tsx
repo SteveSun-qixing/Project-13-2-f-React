@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Button, ConfigProvider } from "antd";
-import { DeleteOutlined } from "@ant-design/icons";
+import { Button, ConfigProvider, Input, Select, Slider, Tooltip } from "antd";
+import { DeleteOutlined, RedoOutlined, UndoOutlined } from "@ant-design/icons";
 import zhCN from "antd/locale/zh_CN";
 import { appleTheme } from "@chips/ui";
 import { createPortal, flushSync } from "react-dom";
@@ -148,7 +148,6 @@ html, body {
 }
 
 .chips-image-editor__icon-button,
-.chips-image-editor__action-button,
 .chips-image-editor__ghost-button,
 .chips-image-editor__mini-button,
 .chips-image-editor__layout-card,
@@ -186,7 +185,6 @@ html, body {
   opacity: 0.45;
 }
 
-.chips-image-editor__action-button,
 .chips-image-editor__ghost-button,
 .chips-image-editor__mini-button {
   display: inline-flex;
@@ -195,16 +193,9 @@ html, body {
   gap: 8px;
   min-height: 40px;
   padding: 0 14px;
-  border-radius: 14px;
+  border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
-}
-
-.chips-image-editor__action-button {
-  background: linear-gradient(135deg, #0a84ff, #0a84ff);
-  border-color: rgba(10, 132, 255, 0.26);
-  color: #ffffff;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
 }
 
 .chips-image-editor__ghost-button {
@@ -214,38 +205,28 @@ html, body {
 .chips-image-editor__mini-button {
   min-height: 36px;
   padding: 0 12px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(242, 242, 247, 0.94);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
 }
 
-.chips-image-editor__action-button:hover,
 .chips-image-editor__ghost-button:hover,
 .chips-image-editor__mini-button:hover:not(:disabled),
 .chips-image-editor__icon-button:hover:not(:disabled),
 .chips-image-editor__layout-card:hover:not(:disabled),
-.chips-image-editor__align-button:hover:not(:disabled),
-.chips-image-editor__select:hover,
-.chips-image-editor__number-input:hover,
-.chips-image-editor__text-input:hover,
-.chips-image-editor__slider:hover {
+.chips-image-editor__align-button:hover:not(:disabled) {
   border-color: rgba(10, 132, 255, 0.42);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
   transform: translateY(-1px);
 }
 
-.chips-image-editor__action-button:focus-visible,
 .chips-image-editor__ghost-button:focus-visible,
 .chips-image-editor__mini-button:focus-visible,
 .chips-image-editor__icon-button:focus-visible,
 .chips-image-editor__layout-card:focus-visible,
-.chips-image-editor__align-button:focus-visible,
-.chips-image-editor__select:focus-visible,
-.chips-image-editor__number-input:focus-visible,
-.chips-image-editor__text-input:focus-visible,
-.chips-image-editor__slider:focus-visible {
+.chips-image-editor__align-button:focus-visible {
   outline: none;
   border-color: rgba(10, 132, 255, 0.68);
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.14);
@@ -269,8 +250,8 @@ html, body {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 14px 14px 128px;
-  scroll-padding-bottom: 128px;
+  padding: 14px 14px 184px;
+  scroll-padding-bottom: 184px;
   scrollbar-gutter: stable;
 }
 
@@ -281,6 +262,23 @@ html, body {
 .chips-image-editor__body::-webkit-scrollbar-thumb {
   background: rgba(110, 110, 115, 0.48);
   border-radius: 999px;
+}
+
+.chips-image-editor__history-bar {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
 }
 
 .chips-image-editor__stack {
@@ -297,11 +295,11 @@ html, body {
   min-width: 0;
   padding: 16px;
   border: 1px solid rgba(110, 110, 115, 0.18);
-  border-radius: 20px;
+  border-radius: 12px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 242, 247, 0.88)),
     #ffffff;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .chips-image-editor__section-header {
@@ -345,7 +343,7 @@ html, body {
   min-height: 156px;
   padding: 18px;
   border: 1.5px dashed rgba(10, 132, 255, 0.38);
-  border-radius: 24px;
+  border-radius: 12px;
   background:
     radial-gradient(circle at top, rgba(10, 132, 255, 0.13), transparent 55%),
     linear-gradient(180deg, rgba(242, 242, 247, 0.94), rgba(255, 255, 255, 0.98));
@@ -370,7 +368,7 @@ html, body {
   justify-content: center;
   width: 56px;
   height: 56px;
-  border-radius: 18px;
+  border-radius: 12px;
   background: rgba(10, 132, 255, 0.12);
   color: #0a84ff;
   font-size: 24px;
@@ -449,26 +447,13 @@ html, body {
   font-weight: 700;
 }
 
-.chips-image-editor__text-input,
-.chips-image-editor__number-input,
-.chips-image-editor__select {
-  width: 100%;
-  min-height: 42px;
-  padding: 0 14px;
-  border: 1px solid rgba(110, 110, 115, 0.22);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.94);
-  color: inherit;
-  font: inherit;
-}
-
 .chips-image-editor__details-form {
   display: grid;
   gap: 12px;
   margin-top: 14px;
   padding: 14px;
   border: 1px solid rgba(110, 110, 115, 0.18);
-  border-radius: 18px;
+  border-radius: 12px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 242, 247, 0.88)),
     #ffffff;
@@ -517,16 +502,8 @@ html, body {
   gap: 8px;
 }
 
-.chips-image-editor__text-input::placeholder {
-  color: rgba(110, 110, 115, 0.92);
-}
-
 .chips-image-editor__url-field {
   flex: 1 1 260px;
-}
-
-.chips-image-editor__slider {
-  width: 100%;
 }
 
 .chips-image-editor__hint-banner {
@@ -535,9 +512,9 @@ html, body {
   gap: 10px;
   min-height: 42px;
   padding: 0 14px;
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(10, 132, 255, 0.08);
-  color: #5e5ce6;
+  color: #0a84ff;
   font-size: 13px;
   font-weight: 600;
 }
@@ -555,7 +532,7 @@ html, body {
   align-items: flex-start;
   min-height: 120px;
   padding: 14px;
-  border-radius: 18px;
+  border-radius: 12px;
   text-align: left;
   cursor: pointer;
 }
@@ -565,7 +542,7 @@ html, body {
   background:
     radial-gradient(circle at top, rgba(10, 132, 255, 0.12), transparent 55%),
     rgba(10, 132, 255, 0.06);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .chips-image-editor__layout-card:disabled {
@@ -579,7 +556,7 @@ html, body {
   justify-content: center;
   width: 38px;
   height: 38px;
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.06);
   font-size: 18px;
 }
@@ -612,7 +589,7 @@ html, body {
   align-items: flex-start;
   min-height: 84px;
   padding: 12px 14px;
-  border-radius: 16px;
+  border-radius: 12px;
   text-align: left;
 }
 
@@ -701,7 +678,7 @@ html, body {
     box-shadow 0.16s ease,
     transform 0.16s ease,
     opacity 0.16s ease;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .chips-image-editor__image-tile[data-dragging="true"] {
@@ -714,14 +691,15 @@ html, body {
 
 .chips-image-editor__image-tile[data-dragging="false"]:hover {
   border-color: rgba(10, 132, 255, 0.28);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 16px rgba(0, 0, 0, 0.08);
 }
 
 .chips-image-editor__image-tile[data-selected="true"] {
   border-color: rgba(10, 132, 255, 0.62);
   box-shadow:
     0 0 0 3px rgba(10, 132, 255, 0.12),
-    0 14px 28px rgba(0, 0, 0, 0.1);
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .chips-image-editor__image-tile:focus-visible {
@@ -775,7 +753,7 @@ html, body {
   background:
     linear-gradient(180deg, rgba(242, 242, 247, 0.96), rgba(229, 229, 234, 0.96)),
     rgba(229, 229, 234, 0.92);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .chips-image-editor__add-tile-icon {
@@ -815,12 +793,12 @@ html, body {
   min-height: 52px;
   padding: 0 16px;
   border: 1px solid rgba(255, 59, 48, 0.36);
-  border-radius: 18px;
+  border-radius: 12px;
   background: rgba(255, 59, 48, 0.08);
   color: #ff3b30;
   font-size: 13px;
   font-weight: 700;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
   transform: translate(-50%, 18px);
   opacity: 0;
   pointer-events: none;
@@ -841,7 +819,7 @@ html, body {
 .chips-image-editor__delete-tray[data-over="true"] {
   border-color: rgba(255, 59, 48, 0.52);
   background: rgba(255, 59, 48, 0.1);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 16px rgba(0, 0, 0, 0.08);
 }
 
 .chips-image-editor__drag-preview {
@@ -867,7 +845,7 @@ html, body {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 242, 247, 0.96)),
     rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.10);
   border: 1px solid rgba(110, 110, 115, 0.18);
   transform: scale(1.02);
 }
@@ -898,7 +876,7 @@ html, body {
   min-height: 180px;
   padding: 24px;
   border: 1px dashed rgba(110, 110, 115, 0.35);
-  border-radius: 22px;
+  border-radius: 12px;
   background: rgba(242, 242, 247, 0.72);
   color: #6e6e73;
   text-align: center;
@@ -912,7 +890,7 @@ html, body {
 
 .chips-image-editor__message {
   padding: 10px 14px;
-  border-radius: 16px;
+  border-radius: 12px;
   font-size: 13px;
 }
 
@@ -923,23 +901,23 @@ html, body {
 
 @media (max-width: 880px) {
   .chips-image-editor__body {
-    padding: 14px 14px 124px;
+    padding: 14px 14px 180px;
   }
 
   .chips-image-editor__section {
     padding: 16px;
-    border-radius: 20px;
+    border-radius: 12px;
   }
 }
 
 @media (max-width: 640px) {
   .chips-image-editor__body {
-    padding: 12px 12px 120px;
+    padding: 12px 12px 176px;
   }
 
   .chips-image-editor__section {
     padding: 14px;
-    border-radius: 18px;
+    border-radius: 12px;
   }
 
   .chips-image-editor__section-header {
@@ -1093,6 +1071,7 @@ function LayoutCard(props: {
       type="button"
       className="chips-image-editor__layout-card"
       data-active={active ? "true" : "false"}
+      aria-pressed={active}
       disabled={disabled}
       onClick={() => {
         if (!disabled) {
@@ -1122,6 +1101,7 @@ function ChoiceButton(props: {
       type="button"
       className="chips-image-editor__layout-card chips-image-editor__choice-button"
       data-active={active ? "true" : "false"}
+      aria-pressed={active}
       onClick={onClick}
     >
       <span className="chips-image-editor__choice-title">{title}</span>
@@ -1154,6 +1134,11 @@ function ImageGridItem(props: {
     tileRef,
     style,
   } = props;
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [previewUrl]);
 
   return (
     <div
@@ -1177,13 +1162,14 @@ function ImageGridItem(props: {
         }
       }}
     >
-      {previewUrl ? (
+      {previewUrl && !loadFailed ? (
         <span className="chips-image-editor__tile-media">
           <img
             src={previewUrl}
             alt=""
             draggable={false}
             onError={() => {
+              setLoadFailed(true);
               onPreviewError(image);
             }}
           />
@@ -1287,6 +1273,7 @@ function ImageCardEditor(props: BasecardEditorProps) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [messages, setMessages] = useState<string[]>([]);
+  const [historyCounts, setHistoryCounts] = useState({ redo: 0, undo: 0 });
   const configRef = useRef(config);
   const previewUrlsRef = useRef(previewUrls);
   const previewOriginsRef = useRef(new Map<string, PreviewOrigin>());
@@ -1295,6 +1282,7 @@ function ImageCardEditor(props: BasecardEditorProps) {
     undo: [],
     redo: [],
   });
+  const historySessionRef = useRef<BasecardConfig | null>(null);
   const resolvingPathsRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
   const uploaderRef = useRef<HTMLDivElement | null>(null);
@@ -1438,6 +1426,38 @@ function ImageCardEditor(props: BasecardEditorProps) {
     return cloneConfig(configRef.current);
   }
 
+  function pushUndoSnapshot(snapshot: BasecardConfig): void {
+    historyRef.current.undo.push(snapshot);
+    if (historyRef.current.undo.length > HISTORY_LIMIT) {
+      historyRef.current.undo.shift();
+    }
+    historyRef.current.redo = [];
+    setHistoryCounts({
+      redo: historyRef.current.redo.length,
+      undo: historyRef.current.undo.length,
+    });
+  }
+
+  function beginHistorySession(): void {
+    if (historySessionRef.current) {
+      return;
+    }
+    historySessionRef.current = cloneCurrentConfig();
+  }
+
+  function endHistorySession(): void {
+    const sessionStart = historySessionRef.current;
+    historySessionRef.current = null;
+    if (!sessionStart) {
+      return;
+    }
+
+    if (stringifyConfig(sessionStart) === stringifyConfig(configRef.current)) {
+      return;
+    }
+    pushUndoSnapshot(sessionStart);
+  }
+
   async function importFileToCardRoot(
     file: File,
     occupiedPaths: Set<string>,
@@ -1448,48 +1468,59 @@ function ImageCardEditor(props: BasecardEditorProps) {
 
     const preferredPath = getPreferredImagePath(file, occupiedPaths);
     let resourcePath = preferredPath;
+    let pendingImportedPaths: string[] = [];
 
-    if (props.importResource) {
-      const result = await props.importResource({
-        file,
-        preferredPath: getPreferredSourcePath(file, preferredPath),
-      });
-      resourcePath = normalizeRelativeCardResourcePath(result.path) ?? preferredPath;
-    }
-
-    if (isTiffImageFile(file)) {
-      if (!props.importResource) {
-        throw new Error(formatMessage("error.import_resource_unavailable"));
+    try {
+      if (props.importResource) {
+        const result = await props.importResource({
+          file,
+          preferredPath: getPreferredSourcePath(file, preferredPath),
+        });
+        resourcePath = normalizeRelativeCardResourcePath(result.path) ?? preferredPath;
+        pendingImportedPaths = [resourcePath];
       }
 
-      if (!props.convertTiffToPng) {
-        throw new Error(formatMessage("error.tiff_conversion_unavailable"));
+      if (isTiffImageFile(file)) {
+        if (!props.importResource) {
+          throw new Error(formatMessage("error.import_resource_unavailable"));
+        }
+
+        if (!props.convertTiffToPng) {
+          throw new Error(formatMessage("error.tiff_conversion_unavailable"));
+        }
+
+        const outputPath = syncAvailablePath(toPngOutputPath(resourcePath), occupiedPaths);
+        const converted = await props.convertTiffToPng({
+          resourcePath,
+          outputPath,
+          overwrite: false,
+        });
+        const convertedPath = normalizeRelativeCardResourcePath(converted.path) ?? outputPath;
+        if (resourcePath !== convertedPath) {
+          await props.deleteResource?.(resourcePath).catch(() => undefined);
+        }
+        resourcePath = convertedPath;
+        pendingImportedPaths = [resourcePath];
       }
 
-      const outputPath = syncAvailablePath(toPngOutputPath(resourcePath), occupiedPaths);
-      const converted = await props.convertTiffToPng({
+      occupiedPaths.add(resourcePath);
+      if (!isTiffImageFile(file)) {
+        importedFilesRef.current.set(resourcePath, file);
+      }
+
+      await ensurePreviewForPath(resourcePath, isTiffImageFile(file) ? undefined : file);
+
+      return {
         resourcePath,
-        outputPath,
-        overwrite: false,
-      });
-      const convertedPath = normalizeRelativeCardResourcePath(converted.path) ?? outputPath;
-      if (resourcePath !== convertedPath) {
-        await props.deleteResource?.(resourcePath).catch(() => undefined);
+        previewFile: isTiffImageFile(file) ? undefined : file,
+      };
+    } catch (error) {
+      for (const importedPath of pendingImportedPaths) {
+        importedFilesRef.current.delete(importedPath);
+        await props.deleteResource?.(importedPath).catch(() => undefined);
       }
-      resourcePath = convertedPath;
+      throw error;
     }
-
-    occupiedPaths.add(resourcePath);
-    if (!isTiffImageFile(file)) {
-      importedFilesRef.current.set(resourcePath, file);
-    }
-
-    await ensurePreviewForPath(resourcePath, isTiffImageFile(file) ? undefined : file);
-
-    return {
-      resourcePath,
-      previewFile: isTiffImageFile(file) ? undefined : file,
-    };
   }
 
   function rewriteConfigResourcePath(fromPath: string, toPath: string): void {
@@ -1663,11 +1694,7 @@ function ImageCardEditor(props: BasecardEditorProps) {
     }
 
     if (options?.pushHistory) {
-      historyRef.current.undo.push(previousConfig);
-      if (historyRef.current.undo.length > HISTORY_LIMIT) {
-        historyRef.current.undo.shift();
-      }
-      historyRef.current.redo = [];
+      pushUndoSnapshot(previousConfig);
     }
 
     configRef.current = nextConfig;
@@ -1695,17 +1722,17 @@ function ImageCardEditor(props: BasecardEditorProps) {
           }
         : image
     ));
-    commitConfigUpdate(nextConfig, { pushHistory: true });
+    commitConfigUpdate(nextConfig);
   }
 
-  function updateLayoutOptions(nextOptions: Partial<LayoutOptions>): void {
+  function updateLayoutOptions(nextOptions: Partial<LayoutOptions>, pushHistory = true): void {
     const nextConfig = cloneCurrentConfig();
     nextConfig.layout_options = {
       ...defaultLayoutOptions,
       ...nextConfig.layout_options,
       ...nextOptions,
     };
-    commitConfigUpdate(nextConfig, { pushHistory: true });
+    commitConfigUpdate(nextConfig, pushHistory ? { pushHistory: true } : undefined);
   }
 
   function handleUndo(): void {
@@ -1720,6 +1747,10 @@ function ImageCardEditor(props: BasecardEditorProps) {
     setConfig(configRef.current);
     setShowUploader(configRef.current.images.length === 0);
     setSelectedImageId(configRef.current.images[0]?.id ?? null);
+    setHistoryCounts({
+      redo: historyRef.current.redo.length,
+      undo: historyRef.current.undo.length,
+    });
     props.onChange(cloneConfig(configRef.current));
     void syncResourceChain(currentConfig, configRef.current);
   }
@@ -1736,6 +1767,10 @@ function ImageCardEditor(props: BasecardEditorProps) {
     setConfig(configRef.current);
     setShowUploader(configRef.current.images.length === 0);
     setSelectedImageId(configRef.current.images[0]?.id ?? null);
+    setHistoryCounts({
+      redo: historyRef.current.redo.length,
+      undo: historyRef.current.undo.length,
+    });
     props.onChange(cloneConfig(configRef.current));
     void syncResourceChain(currentConfig, configRef.current);
   }
@@ -2180,8 +2215,7 @@ function ImageCardEditor(props: BasecardEditorProps) {
     const inTextField =
       activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
 
-    const isMac = navigator.platform.includes("Mac");
-    const modKey = isMac ? event.metaKey : event.ctrlKey;
+    const modKey = event.metaKey || event.ctrlKey;
     if (modKey && event.key.toLowerCase() === "z" && !event.shiftKey && !inTextField) {
       event.preventDefault();
       handleUndo();
@@ -2219,6 +2253,8 @@ function ImageCardEditor(props: BasecardEditorProps) {
     ...config.layout_options,
   };
   const hasMultipleImages = config.images.length > 1;
+  const canUndo = historyCounts.undo > 0;
+  const canRedo = historyCounts.redo > 0;
   const spacing = getSpacingMetrics(layoutOptions);
   const layoutCards: LayoutCardDefinition[] = [
     {
@@ -2321,7 +2357,7 @@ function ImageCardEditor(props: BasecardEditorProps) {
                 <div className="chips-image-editor__section-copy">
                   <div className="chips-image-editor__section-title">{formatMessage("layout.title")}</div>
                   <div className="chips-image-editor__section-hint">
-                    {!hasMultipleImages ? formatMessage("hint.single_auto") : formatMessage("layout.type")}
+                    {hasMultipleImages ? formatMessage("layout.type") : ""}
                   </div>
                 </div>
               </div>
@@ -2348,18 +2384,17 @@ function ImageCardEditor(props: BasecardEditorProps) {
                   <>
                     <label className="chips-image-editor__field">
                       <span className="chips-image-editor__field-label">{formatMessage("layout.width_percent")}</span>
-                      <input
-                        className="chips-image-editor__slider"
-                        type="range"
+                      <Slider
                         min={10}
                         max={100}
                         step={5}
                         value={layoutOptions.single_width_percent}
-                        onChange={(event) => {
-                          updateLayoutOptions({
-                            single_width_percent: Number.parseInt(event.target.value, 10),
-                          });
+                        onFocus={beginHistorySession}
+                        onBlur={endHistorySession}
+                        onChange={(value) => {
+                          updateLayoutOptions({ single_width_percent: value }, false);
                         }}
+                        onChangeComplete={endHistorySession}
                       />
                       <span className="chips-image-editor__section-hint">
                         {layoutOptions.single_width_percent}
@@ -2383,6 +2418,7 @@ function ImageCardEditor(props: BasecardEditorProps) {
                                 ? "true"
                                 : "false"
                             }
+                            aria-pressed={(layoutOptions.single_alignment ?? "center") === value}
                             title={label}
                             onClick={() => {
                               updateLayoutOptions({
@@ -2402,19 +2438,19 @@ function ImageCardEditor(props: BasecardEditorProps) {
                   <>
                     <label className="chips-image-editor__field">
                       <span className="chips-image-editor__field-label">{formatMessage("layout.grid_mode")}</span>
-                      <select
-                        className="chips-image-editor__select"
+                      <Select
                         value={layoutOptions.grid_mode}
-                        onChange={(event) => {
+                        options={[
+                          { value: "2x2", label: formatMessage("layout.grid_2x2") },
+                          { value: "3x3", label: formatMessage("layout.grid_3x3") },
+                          { value: "3-column-infinite", label: formatMessage("layout.grid_3col_infinite") },
+                        ]}
+                        onChange={(value) => {
                           updateLayoutOptions({
-                            grid_mode: event.target.value as GridMode,
+                            grid_mode: value as GridMode,
                           });
                         }}
-                      >
-                        <option value="2x2">{formatMessage("layout.grid_2x2")}</option>
-                        <option value="3x3">{formatMessage("layout.grid_3x3")}</option>
-                        <option value="3-column-infinite">{formatMessage("layout.grid_3col_infinite")}</option>
-                      </select>
+                      />
                     </label>
                     <label className="chips-image-editor__field">
                       <span className="chips-image-editor__field-label">{formatMessage("layout.spacing")}</span>
@@ -2651,11 +2687,11 @@ function ImageCardEditor(props: BasecardEditorProps) {
                       {formatMessage("editor.image_title")}
                     </span>
                     <div className="chips-image-editor__details-control">
-                      <input
-                        className="chips-image-editor__text-input"
-                        type="text"
+                      <Input
                         value={selectedImage.title ?? ""}
                         placeholder={formatMessage("editor.image_title_placeholder")}
+                        onFocus={beginHistorySession}
+                        onBlur={endHistorySession}
                         onChange={(event) => {
                           updateImageFields(selectedImage.id, {
                             title: event.currentTarget.value,
@@ -2670,11 +2706,11 @@ function ImageCardEditor(props: BasecardEditorProps) {
                       {formatMessage("editor.image_alt")}
                     </span>
                     <div className="chips-image-editor__details-control">
-                      <input
-                        className="chips-image-editor__text-input"
-                        type="text"
+                      <Input
                         value={selectedImage.alt ?? ""}
                         placeholder={formatMessage("editor.image_alt_placeholder")}
+                        onFocus={beginHistorySession}
+                        onBlur={endHistorySession}
                         onChange={(event) => {
                           updateImageFields(selectedImage.id, {
                             alt: event.currentTarget.value,
@@ -2699,19 +2735,15 @@ function ImageCardEditor(props: BasecardEditorProps) {
                     />
                     {formatMessage("editor.replace_file")}
                   </label>
-                  <input
-                    className="chips-image-editor__text-input chips-image-editor__url-field"
-                    type="text"
+                  <Input
+                    className="chips-image-editor__url-field"
                     value={replaceUrlInput}
                     placeholder={formatMessage("editor.replace_url_placeholder")}
                     onChange={(event) => {
                       setReplaceUrlInput(event.currentTarget.value);
                     }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        handleReplaceWithUrl(selectedImage.id);
-                      }
+                    onPressEnter={() => {
+                      handleReplaceWithUrl(selectedImage.id);
                     }}
                   />
                   <Button
@@ -2775,33 +2807,51 @@ function ImageCardEditor(props: BasecardEditorProps) {
                 <div className="chips-image-editor__divider">{formatMessage("editor.section_or")}</div>
 
                 <div className="chips-image-editor__row">
-                  <input
-                    className="chips-image-editor__text-input chips-image-editor__url-field"
-                    type="text"
+                  <Input
+                    className="chips-image-editor__url-field"
                     value={urlInput}
                     placeholder={formatMessage("editor.url_placeholder")}
                     onChange={(event) => {
-                      setUrlInput(event.target.value);
+                      setUrlInput(event.currentTarget.value);
                     }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        handleAddByUrl();
-                      }
-                    }}
+                    onPressEnter={handleAddByUrl}
                   />
-                  <button
-                    type="button"
-                    className="chips-image-editor__action-button"
+                  <Button
+                    type="primary"
                     onClick={handleAddByUrl}
                   >
                     {formatMessage("editor.add_by_url")}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : null}
           </section>
         </div>
+      </div>
+
+      <div className="chips-image-editor__history-bar">
+        <Tooltip title={formatMessage("toolbar.undo")}>
+          <button
+            type="button"
+            className="chips-image-editor__icon-button"
+            aria-label={formatMessage("toolbar.undo")}
+            disabled={!canUndo}
+            onClick={handleUndo}
+          >
+            <UndoOutlined aria-hidden={true} />
+          </button>
+        </Tooltip>
+        <Tooltip title={formatMessage("toolbar.redo")}>
+          <button
+            type="button"
+            className="chips-image-editor__icon-button"
+            aria-label={formatMessage("toolbar.redo")}
+            disabled={!canRedo}
+            onClick={handleRedo}
+          >
+            <RedoOutlined aria-hidden={true} />
+          </button>
+        </Tooltip>
       </div>
 
       <div

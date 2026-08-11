@@ -116,6 +116,69 @@ describe("createBasecardEditorRoot", () => {
     expect(lastConfig?.style).toBe("progress");
     expect(lastConfig?.total_score).toBe(20);
     expect(lastConfig?.score).toBe(15);
+
+    const numberFields = Array.from(
+      root.querySelectorAll(".chips-score-editor__number-field"),
+    ) as HTMLElement[];
+    for (const field of numberFields) {
+      const label = field.querySelector("label");
+      const input = field.querySelector("input");
+      expect(label?.htmlFor).toBeTruthy();
+      expect(label?.htmlFor).toBe(input?.id);
+    }
+  });
+
+  it("shows a big numeric preview matching the view style for score style", () => {
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig({
+        style: "score",
+        score: 6,
+        total_score: 10,
+      }),
+      onChange: () => {},
+    });
+
+    const preview = root.querySelector(
+      ".chips-score-editor__preview-numeric",
+    ) as HTMLElement | null;
+
+    expect(preview).not.toBeNull();
+    expect(preview?.getAttribute("role")).toBe("img");
+    expect(preview?.getAttribute("aria-label")).toBe("6 / 10 分");
+    expect(
+      root.querySelector(".chips-score-editor__preview-numeric-score")?.textContent,
+    ).toBe("6");
+    expect(
+      root.querySelector(".chips-score-editor__preview-numeric-total")?.textContent,
+    ).toBe("10");
+    expect(
+      root.querySelector(".chips-score-editor__preview-numeric-separator")?.textContent,
+    ).toBe("/");
+  });
+
+  it("supports Home and End keyboard jumps on the rating", async () => {
+    let lastConfig: BasecardConfig | undefined;
+    const root = createBasecardEditorRoot({
+      initialConfig: createConfig({ score: 3 }),
+      onChange: (next) => {
+        lastConfig = next;
+      },
+    });
+
+    const rating = root.querySelector(".chips-score-editor__rating") as HTMLElement | null;
+    if (!rating) {
+      throw new Error("找不到评分控件");
+    }
+
+    await pressKeyWithFlush(rating, "End", 35);
+
+    expect(lastConfig?.score).toBe(5);
+    expect(lastConfig?.total_score).toBe(5);
+
+    await pressKeyWithFlush(rating, "Home", 36);
+
+    expect(lastConfig?.score).toBe(1);
+    expect(lastConfig?.total_score).toBe(5);
   });
 
   it("supports keyboard rating updates through Rate", async () => {

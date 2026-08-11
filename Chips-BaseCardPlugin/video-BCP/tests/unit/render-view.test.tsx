@@ -146,7 +146,7 @@ describe("mountBasecardView", () => {
 
     expect(resolveResourceUrl).toHaveBeenCalledWith("videos/demo.mp4");
     expect(resolveResourceUrl).toHaveBeenCalledWith("videos/demo-cover.jpg");
-    expect(resolveResourceUrl).toHaveBeenCalledWith("videos/demo.en.vtt");
+    expect(resolveResourceUrl).not.toHaveBeenCalledWith("videos/demo.en.vtt");
     expect(openResource).toHaveBeenCalledWith(expect.objectContaining({
       resourceId: "videos/demo.mp4",
       payload: expect.objectContaining({
@@ -172,7 +172,29 @@ describe("mountBasecardView", () => {
     dispose();
     expect(releaseResourceUrl).toHaveBeenCalledWith("videos/demo.mp4");
     expect(releaseResourceUrl).toHaveBeenCalledWith("videos/demo-cover.jpg");
-    expect(releaseResourceUrl).toHaveBeenCalledWith("videos/demo.en.vtt");
+    expect(releaseResourceUrl).not.toHaveBeenCalledWith("videos/demo.en.vtt");
+  });
+
+  it("shows a skeleton placeholder while the poster is being resolved", async () => {
+    const container = document.createElement("div");
+    const resolveResourceUrl = vi.fn(() => new Promise<string>(() => undefined));
+    const config = createConfig({
+      video_file: "demo.mp4",
+      cover_image: "demo-cover.jpg",
+    });
+
+    const dispose = mountBasecardView({
+      container,
+      config,
+      resolveResourceUrl,
+    });
+    await Promise.resolve();
+
+    const skeletonEl = container.querySelector(".chips-video-card__poster-skeleton");
+    expect(skeletonEl).not.toBeNull();
+    expect(container.querySelector(".chips-video-card__empty")).toBeNull();
+
+    dispose();
   });
 
   it("renders the empty state when no video is configured", () => {

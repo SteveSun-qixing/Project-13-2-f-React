@@ -1,6 +1,9 @@
 import React from "react";
+import { ConfigProvider } from "antd";
+import zhCN from "antd/locale/zh_CN";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
+import { appleTheme } from "@chips/ui";
 import type { BasecardRenderContext } from "../index";
 import { normalizeBasecardConfig } from "../schema/card-config";
 import { VIEW_STYLE_TEXT, WebpageCardView } from "./view";
@@ -29,14 +32,13 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
   flushSync(() => {
     state.root.render(
       React.createElement(
-        React.Fragment,
-        null,
+        ConfigProvider,
+        { locale: zhCN, theme: appleTheme },
         React.createElement("style", null, VIEW_STYLE_TEXT),
         React.createElement(WebpageCardView, {
           config,
           resolveResourceUrl: ctx.resolveResourceUrl,
           releaseResourceUrl: ctx.releaseResourceUrl,
-          openResource: ctx.openResource,
         }),
       ),
     );

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Button, ConfigProvider, Image, Progress, Result, Space } from "antd";
+import { Button, ConfigProvider, Image, Input, Progress, Result, Skeleton, Space } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { appleTheme } from "@chips/ui";
 import { flushSync } from "react-dom";
@@ -17,7 +17,7 @@ import {
   type ProductionTeamRole,
 } from "../schema/card-config";
 import { formatMessage } from "../lib/messages";
-import { parseEmbeddedAudioMetadata } from "../shared/audio-metadata";
+import { parseEmbeddedAudioMetadata, type EmbeddedAudioMetadata } from "../shared/audio-metadata";
 import {
   buildDerivedResourcePath,
   cloneConfig,
@@ -60,6 +60,7 @@ type BusyField = ResourceField | null;
 const AUDIO_ACCEPT = ".mp3,.flac,.wav,.ogg,.oga,.m4a,.aac,.opus,.webm,audio/*";
 const COVER_ACCEPT = "image/*";
 const LYRICS_ACCEPT = ".lrc,.txt,.srt,text/plain";
+const MAX_METADATA_PARSE_BYTES = 100 * 1024 * 1024;
 
 const EDITOR_STYLE_TEXT = `
 html, body {
@@ -223,8 +224,8 @@ html, body {
   gap: 12px;
   padding: 14px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 14px;
-  background: rgba(242, 242, 247, 0.78);
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .chips-music-editor__row-label,
@@ -470,98 +471,6 @@ audio.chips-music-editor__audio-preview {
   gap: 8px;
 }
 
-.chips-music-editor__button,
-.chips-music-editor__input,
-.chips-music-editor__textarea {
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.98);
-  color: inherit;
-  font: inherit;
-  outline: none;
-  transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
-}
-
-.chips-music-editor__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  min-height: 34px;
-  padding: 0 13px;
-  font-weight: 650;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.chips-music-editor__button--subtle {
-  background: rgba(242, 242, 247, 0.92);
-}
-
-.chips-music-editor__button--file {
-  position: relative;
-  overflow: hidden;
-}
-
-.chips-music-editor__input {
-  width: 100%;
-  min-height: 36px;
-  padding: 0 12px;
-}
-
-.chips-music-editor__textarea {
-  width: 100%;
-  min-height: 78px;
-  padding: 10px 12px;
-  resize: vertical;
-}
-
-.chips-music-editor__button:hover,
-.chips-music-editor__button:focus-visible,
-.chips-music-editor__input:hover,
-.chips-music-editor__input:focus,
-.chips-music-editor__textarea:hover,
-.chips-music-editor__textarea:focus {
-  border-color: rgba(10, 132, 255, 0.42);
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
-}
-
-.chips-music-editor__button:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-  box-shadow: none;
-}
-
-.chips-music-editor .ant-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 13px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 10px;
-  background: rgba(242, 242, 247, 0.92);
-  color: inherit;
-  font-weight: 650;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.chips-music-editor .ant-btn:hover,
-.chips-music-editor .ant-btn:focus-visible {
-  border-color: rgba(10, 132, 255, 0.42);
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
-  background: rgba(242, 242, 247, 0.92);
-}
-
-.chips-music-editor .ant-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-  box-shadow: none;
-}
-
 .chips-music-editor__toolbar {
   display: flex;
   align-items: center;
@@ -571,13 +480,6 @@ audio.chips-music-editor__audio-preview {
 
 .chips-music-editor__field-row--multiline {
   align-items: start;
-}
-
-.chips-music-editor__hidden-input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
 }
 
 .chips-music-editor__hint {
@@ -611,10 +513,6 @@ audio.chips-music-editor__audio-preview {
   justify-content: flex-end;
 }
 
-.chips-music-editor__team-card-actions .chips-music-editor__button {
-  min-width: 96px;
-}
-
 .chips-music-editor__team-empty {
   padding: 12px 0 4px;
   color: #6e6e73;
@@ -643,7 +541,7 @@ audio.chips-music-editor__audio-preview {
     justify-content: stretch;
   }
 
-  .chips-music-editor__team-card-actions .chips-music-editor__button {
+  .chips-music-editor__team-card-actions .ant-btn {
     width: 100%;
   }
 }
@@ -761,12 +659,52 @@ function normalizeRoleUpdate(
   return productionTeam.map((role) => (role.id === roleId ? updater(role) : role));
 }
 
+function FilePickerButton(props: {
+  label: string;
+  role: string;
+  accept: string;
+  disabled: boolean;
+  onFileSelected: (file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <>
+      <Button
+        type="default"
+        disabled={props.disabled}
+        onClick={() => {
+          inputRef.current?.click();
+        }}
+      >
+        {props.label}
+      </Button>
+      <input
+        ref={inputRef}
+        data-role={props.role}
+        type="file"
+        accept={props.accept}
+        disabled={props.disabled}
+        style={{ display: "none" }}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) {
+            props.onFileSelected(file);
+          }
+          event.currentTarget.value = "";
+        }}
+      />
+    </>
+  );
+}
+
 function BasecardEditor(props: BasecardEditorProps) {
   const [config, setConfig] = useState(() => normalizeBasecardConfig(props.initialConfig));
   const [errors, setErrors] = useState<Record<string, string>>(() =>
     validateBasecardConfig(normalizeBasecardConfig(props.initialConfig)).errors,
   );
   const [panelError, setPanelError] = useState("");
+  const [panelNotice, setPanelNotice] = useState("");
   const [busyField, setBusyField] = useState<BusyField>(null);
   const [dragField, setDragField] = useState<ResourceField | null>(null);
   const configRef = useRef(config);
@@ -899,9 +837,21 @@ function BasecardEditor(props: BasecardEditorProps) {
     }
   }
 
+  async function deleteOutgoingResourcesOrThrow(resourcePaths: string[]): Promise<void> {
+    for (const resourcePath of dedupeResourcePaths(resourcePaths)) {
+      const normalizedPath = normalizeRelativeCardResourcePath(resourcePath);
+      if (!normalizedPath || !props.deleteResource) {
+        continue;
+      }
+
+      await props.deleteResource(normalizedPath);
+    }
+  }
+
   async function withBusyField(field: ResourceField, task: () => Promise<void>): Promise<void> {
     setBusyField(field);
     setPanelError("");
+    setPanelNotice("");
 
     try {
       await task();
@@ -913,17 +863,27 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   async function handleAudioUpload(file: File): Promise<void> {
     await withBusyField("audio", async () => {
+      const currentConfig = configRef.current;
+      const importedPaths: string[] = [];
+
       try {
         const preferredAudioPath = sanitizeImportedFileName(file.name, "track.mp3");
-        const currentConfig = configRef.current;
         const importedAudio = await importRequiredResource(file, preferredAudioPath);
-        const embeddedMetadata = parseEmbeddedAudioMetadata({
-          bytes: await file.arrayBuffer(),
-          fileName: file.name,
-          mimeType: file.type,
-        });
+        importedPaths.push(importedAudio.path);
+
+        let embeddedMetadata: EmbeddedAudioMetadata = {};
+        if (file.size > MAX_METADATA_PARSE_BYTES) {
+          setPanelNotice(formatMessage("music.editor.notices.metadata_skipped"));
+        } else {
+          embeddedMetadata = parseEmbeddedAudioMetadata({
+            bytes: await file.arrayBuffer(),
+            fileName: file.name,
+            mimeType: file.type,
+          });
+        }
+
         const nextStem = stripFileExtension(resolveFileName(importedAudio.path) || resolveFileName(file.name) || "track");
-        const deletions: string[] = [];
+        const outgoingPaths: string[] = [];
 
         let nextConfig = normalizeBasecardConfig({
           ...currentConfig,
@@ -953,10 +913,11 @@ function BasecardEditor(props: BasecardEditorProps) {
             ),
             nextStem,
           );
-          deletions.push(...importedCover.cleanupPaths);
+          importedPaths.push(importedCover.path);
+          await Promise.all(importedCover.cleanupPaths.map((path) => deleteResourceQuietly(path)));
 
           if (currentConfig.album_cover && currentConfig.album_cover !== importedCover.path) {
-            deletions.push(currentConfig.album_cover);
+            outgoingPaths.push(currentConfig.album_cover);
           }
 
           nextConfig = normalizeBasecardConfig({
@@ -973,9 +934,10 @@ function BasecardEditor(props: BasecardEditorProps) {
             createLyricsFile(lyricsFileName, lyricsContent),
             lyricsFileName,
           );
+          importedPaths.push(importedLyrics.path);
 
           if (currentConfig.lyrics_file && currentConfig.lyrics_file !== importedLyrics.path) {
-            deletions.push(currentConfig.lyrics_file);
+            outgoingPaths.push(currentConfig.lyrics_file);
           }
 
           nextConfig = normalizeBasecardConfig({
@@ -984,14 +946,15 @@ function BasecardEditor(props: BasecardEditorProps) {
           });
         }
 
-        commitConfig(nextConfig);
-
         if (currentConfig.audio_file && currentConfig.audio_file !== importedAudio.path) {
-          deletions.push(currentConfig.audio_file);
+          outgoingPaths.push(currentConfig.audio_file);
         }
 
-        await Promise.all(dedupeResourcePaths(deletions).map((path) => deleteResourceQuietly(path)));
+        await deleteOutgoingResourcesOrThrow(outgoingPaths);
+
+        commitConfig(nextConfig);
       } catch (error) {
+        await Promise.all(dedupeResourcePaths(importedPaths).map((path) => deleteResourceQuietly(path)));
         setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.audio_import_failed")));
       }
     });
@@ -999,22 +962,25 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   async function handleCoverUpload(file: File): Promise<void> {
     await withBusyField("cover", async () => {
+      const currentConfig = configRef.current;
+      const importedPaths: string[] = [];
+
       try {
-        const currentConfig = configRef.current;
         const baseName = resolveFileName(currentConfig.audio_file) || resolveFileName(file.name) || "cover";
         const importedCover = await importCoverResource(file, baseName);
+        importedPaths.push(importedCover.path);
+        await Promise.all(importedCover.cleanupPaths.map((path) => deleteResourceQuietly(path)));
+
+        if (currentConfig.album_cover && currentConfig.album_cover !== importedCover.path) {
+          await deleteOutgoingResourcesOrThrow([currentConfig.album_cover]);
+        }
 
         commitConfig({
           ...currentConfig,
           album_cover: importedCover.path,
         });
-
-        await Promise.all(importedCover.cleanupPaths.map((resourcePath) => deleteResourceQuietly(resourcePath)));
-
-        if (currentConfig.album_cover && currentConfig.album_cover !== importedCover.path) {
-          await deleteResourceQuietly(currentConfig.album_cover);
-        }
       } catch (error) {
+        await Promise.all(dedupeResourcePaths(importedPaths).map((path) => deleteResourceQuietly(path)));
         setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.cover_import_failed")));
       }
     });
@@ -1022,8 +988,10 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   async function handleLyricsUpload(file: File): Promise<void> {
     await withBusyField("lyrics", async () => {
+      const currentConfig = configRef.current;
+      const importedPaths: string[] = [];
+
       try {
-        const currentConfig = configRef.current;
         const baseName = resolveFileName(currentConfig.audio_file) || resolveFileName(file.name) || "lyrics";
         const preferredLyricsPath = buildDerivedResourcePath(
           baseName,
@@ -1031,16 +999,18 @@ function BasecardEditor(props: BasecardEditorProps) {
           resolveFileExtension(file.name) || "txt",
         );
         const importedLyrics = await importRequiredResource(file, preferredLyricsPath);
+        importedPaths.push(importedLyrics.path);
+
+        if (currentConfig.lyrics_file && currentConfig.lyrics_file !== importedLyrics.path) {
+          await deleteOutgoingResourcesOrThrow([currentConfig.lyrics_file]);
+        }
 
         commitConfig({
           ...currentConfig,
           lyrics_file: importedLyrics.path,
         });
-
-        if (currentConfig.lyrics_file && currentConfig.lyrics_file !== importedLyrics.path) {
-          await deleteResourceQuietly(currentConfig.lyrics_file);
-        }
       } catch (error) {
+        await Promise.all(dedupeResourcePaths(importedPaths).map((path) => deleteResourceQuietly(path)));
         setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.lyrics_import_failed")));
       }
     });
@@ -1048,34 +1018,70 @@ function BasecardEditor(props: BasecardEditorProps) {
 
   async function handleRemoveAudio(): Promise<void> {
     await withBusyField("audio", async () => {
-      const currentPath = configRef.current.audio_file;
-      commitConfig({
-        ...configRef.current,
-        audio_file: "",
-      });
-      await deleteResourceQuietly(currentPath);
+      const currentPath = normalizeRelativeCardResourcePath(configRef.current.audio_file);
+      if (!currentPath || !props.deleteResource) {
+        commitConfig({
+          ...configRef.current,
+          audio_file: "",
+        });
+        return;
+      }
+
+      try {
+        await props.deleteResource(currentPath);
+        commitConfig({
+          ...configRef.current,
+          audio_file: "",
+        });
+      } catch (error) {
+        setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.delete_failed")));
+      }
     });
   }
 
   async function handleRemoveCover(): Promise<void> {
     await withBusyField("cover", async () => {
-      const currentPath = configRef.current.album_cover;
-      commitConfig({
-        ...configRef.current,
-        album_cover: "",
-      });
-      await deleteResourceQuietly(currentPath);
+      const currentPath = normalizeRelativeCardResourcePath(configRef.current.album_cover);
+      if (!currentPath || !props.deleteResource) {
+        commitConfig({
+          ...configRef.current,
+          album_cover: "",
+        });
+        return;
+      }
+
+      try {
+        await props.deleteResource(currentPath);
+        commitConfig({
+          ...configRef.current,
+          album_cover: "",
+        });
+      } catch (error) {
+        setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.delete_failed")));
+      }
     });
   }
 
   async function handleRemoveLyrics(): Promise<void> {
     await withBusyField("lyrics", async () => {
-      const currentPath = configRef.current.lyrics_file;
-      commitConfig({
-        ...configRef.current,
-        lyrics_file: "",
-      });
-      await deleteResourceQuietly(currentPath);
+      const currentPath = normalizeRelativeCardResourcePath(configRef.current.lyrics_file);
+      if (!currentPath || !props.deleteResource) {
+        commitConfig({
+          ...configRef.current,
+          lyrics_file: "",
+        });
+        return;
+      }
+
+      try {
+        await props.deleteResource(currentPath);
+        commitConfig({
+          ...configRef.current,
+          lyrics_file: "",
+        });
+      } catch (error) {
+        setPanelError(resolveErrorMessage(error, formatMessage("music.editor.errors.delete_failed")));
+      }
     });
   }
 
@@ -1221,6 +1227,10 @@ function BasecardEditor(props: BasecardEditorProps) {
           </div>
         ) : null}
 
+        {panelNotice ? (
+          <div className="chips-music-editor__alert">{panelNotice}</div>
+        ) : null}
+
         {flattenedErrors.length > 0 ? (
           <div className="chips-music-editor__alert chips-music-editor__alert--error">
             <Result
@@ -1247,7 +1257,7 @@ function BasecardEditor(props: BasecardEditorProps) {
                   percent={100}
                   status="active"
                   showInfo={false}
-                  size={{ width: 42, height: 4 }}
+                  size={{ width: 42, height: 6 }}
                   aria-label={formatMessage(`music.editor.status.${busyField}`)}
                 />
                 {formatMessage(`music.editor.status.${busyField}`)}
@@ -1279,34 +1289,25 @@ function BasecardEditor(props: BasecardEditorProps) {
                       </span>
                     </div>
                     <div className="chips-music-editor__resource-actions">
-                      <label className="chips-music-editor__button chips-music-editor__button--file">
-                        {formatMessage("music.editor.audio.replace")}
-                        <input
-                          data-role="replace-audio-input"
-                          className="chips-music-editor__hidden-input"
-                          type="file"
-                          accept={AUDIO_ACCEPT}
-                          disabled={busyField !== null}
-                          onChange={(event) => {
-                            const file = event.currentTarget.files?.[0];
-                            if (file) {
-                              void handleAudioUpload(file);
-                            }
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
+                      <FilePickerButton
+                        label={formatMessage("music.editor.audio.replace")}
+                        role="replace-audio-input"
+                        accept={AUDIO_ACCEPT}
+                        disabled={busyField !== null}
+                        onFileSelected={(file) => {
+                          void handleAudioUpload(file);
+                        }}
+                      />
+                      <Button
+                        type="default"
                         data-role="remove-audio"
-                        className="chips-music-editor__button chips-music-editor__button--subtle"
                         disabled={busyField !== null}
                         onClick={() => {
                           void handleRemoveAudio();
                         }}
                       >
                         {formatMessage("music.editor.actions.remove")}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   <div className="chips-music-editor__resource-meta">
@@ -1318,7 +1319,9 @@ function BasecardEditor(props: BasecardEditorProps) {
                         src={audioPreviewUrl}
                         title={displayTitle}
                       />
-                    ) : null}
+                    ) : (
+                      <Skeleton active paragraph={{ rows: 1 }} title={false} />
+                    )}
                   </div>
                 </div>
               ) : renderUploadSurface({
@@ -1347,34 +1350,25 @@ function BasecardEditor(props: BasecardEditorProps) {
                       <span className="chips-music-editor__resource-tile-name">{resolveFileName(config.album_cover)}</span>
                     </div>
                     <div className="chips-music-editor__resource-actions">
-                      <label className="chips-music-editor__button chips-music-editor__button--file">
-                        {formatMessage("music.editor.cover.replace")}
-                        <input
-                          data-role="replace-cover-input"
-                          className="chips-music-editor__hidden-input"
-                          type="file"
-                          accept={COVER_ACCEPT}
-                          disabled={busyField !== null}
-                          onChange={(event) => {
-                            const file = event.currentTarget.files?.[0];
-                            if (file) {
-                              void handleCoverUpload(file);
-                            }
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
+                      <FilePickerButton
+                        label={formatMessage("music.editor.cover.replace")}
+                        role="replace-cover-input"
+                        accept={COVER_ACCEPT}
+                        disabled={busyField !== null}
+                        onFileSelected={(file) => {
+                          void handleCoverUpload(file);
+                        }}
+                      />
+                      <Button
+                        type="default"
                         data-role="remove-cover"
-                        className="chips-music-editor__button chips-music-editor__button--subtle"
                         disabled={busyField !== null}
                         onClick={() => {
                           void handleRemoveCover();
                         }}
                       >
                         {formatMessage("music.editor.cover.remove")}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -1408,34 +1402,25 @@ function BasecardEditor(props: BasecardEditorProps) {
                       <span className="chips-music-editor__resource-tile-name">{resolveFileName(config.lyrics_file)}</span>
                     </div>
                     <div className="chips-music-editor__resource-actions">
-                      <label className="chips-music-editor__button chips-music-editor__button--file">
-                        {formatMessage("music.editor.lyrics.replace")}
-                        <input
-                          data-role="replace-lyrics-input"
-                          className="chips-music-editor__hidden-input"
-                          type="file"
-                          accept={LYRICS_ACCEPT}
-                          disabled={busyField !== null}
-                          onChange={(event) => {
-                            const file = event.currentTarget.files?.[0];
-                            if (file) {
-                              void handleLyricsUpload(file);
-                            }
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
+                      <FilePickerButton
+                        label={formatMessage("music.editor.lyrics.replace")}
+                        role="replace-lyrics-input"
+                        accept={LYRICS_ACCEPT}
+                        disabled={busyField !== null}
+                        onFileSelected={(file) => {
+                          void handleLyricsUpload(file);
+                        }}
+                      />
+                      <Button
+                        type="default"
                         data-role="remove-lyrics"
-                        className="chips-music-editor__button chips-music-editor__button--subtle"
                         disabled={busyField !== null}
                         onClick={() => {
                           void handleRemoveLyrics();
                         }}
                       >
                         {formatMessage("music.editor.lyrics.remove")}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -1464,13 +1449,12 @@ function BasecardEditor(props: BasecardEditorProps) {
                 {formatMessage("music.editor.fields.music_name")}
               </span>
               <div className="chips-music-editor__field-control">
-                <input
+                <Input
                   data-role="music-name-input"
                   type="text"
-                  className="chips-music-editor__input"
                   value={config.music_name}
                   placeholder={deriveDisplayTitle(config) || formatMessage("music.editor.fields.music_name_placeholder")}
-                  onInput={(event) => {
+                  onChange={(event) => {
                     updateConfig({ music_name: event.currentTarget.value });
                   }}
                 />
@@ -1482,13 +1466,12 @@ function BasecardEditor(props: BasecardEditorProps) {
                 {formatMessage("music.editor.fields.album_name")}
               </span>
               <div className="chips-music-editor__field-control">
-                <input
+                <Input
                   data-role="album-name-input"
                   type="text"
-                  className="chips-music-editor__input"
                   value={config.album_name}
                   placeholder={formatMessage("music.editor.fields.album_name_placeholder")}
-                  onInput={(event) => {
+                  onChange={(event) => {
                     updateConfig({ album_name: event.currentTarget.value });
                   }}
                 />
@@ -1500,12 +1483,11 @@ function BasecardEditor(props: BasecardEditorProps) {
                 {formatMessage("music.editor.fields.release_date")}
               </span>
               <div className="chips-music-editor__field-control">
-                <input
+                <Input
                   data-role="release-date-input"
                   type="date"
-                  className="chips-music-editor__input"
                   value={config.release_date}
-                  onInput={(event) => {
+                  onChange={(event) => {
                     updateConfig({ release_date: event.currentTarget.value });
                   }}
                 />
@@ -1517,13 +1499,12 @@ function BasecardEditor(props: BasecardEditorProps) {
                 {formatMessage("music.editor.fields.language")}
               </span>
               <div className="chips-music-editor__field-control">
-                <input
+                <Input
                   data-role="language-input"
                   type="text"
-                  className="chips-music-editor__input"
                   value={config.language}
                   placeholder={formatMessage("music.editor.fields.language_placeholder")}
-                  onInput={(event) => {
+                  onChange={(event) => {
                     updateConfig({ language: event.currentTarget.value });
                   }}
                 />
@@ -1535,13 +1516,12 @@ function BasecardEditor(props: BasecardEditorProps) {
                 {formatMessage("music.editor.fields.genre")}
               </span>
               <div className="chips-music-editor__field-control">
-                <input
+                <Input
                   data-role="genre-input"
                   type="text"
-                  className="chips-music-editor__input"
                   value={config.genre}
                   placeholder={formatMessage("music.editor.fields.genre_placeholder")}
-                  onInput={(event) => {
+                  onChange={(event) => {
                     updateConfig({ genre: event.currentTarget.value });
                   }}
                 />
@@ -1576,13 +1556,12 @@ function BasecardEditor(props: BasecardEditorProps) {
                         {formatMessage("music.editor.team.role_label")}
                       </span>
                       <div className="chips-music-editor__field-control">
-                        <input
+                        <Input
                           data-role={`team-role-input-${role.id}`}
                           type="text"
-                          className="chips-music-editor__input"
                           value={role.role}
                           placeholder={formatMessage("music.editor.team.role_placeholder")}
-                          onInput={(event) => {
+                          onChange={(event) => {
                             handleUpdateTeamRole(role.id, {
                               role: event.currentTarget.value,
                             });
@@ -1599,12 +1578,12 @@ function BasecardEditor(props: BasecardEditorProps) {
                         {formatMessage("music.editor.team.people_label")}
                       </span>
                       <div className="chips-music-editor__field-control">
-                        <textarea
+                        <Input.TextArea
                           data-role={`team-people-input-${role.id}`}
-                          className="chips-music-editor__textarea"
                           value={role.people.join("\n")}
                           placeholder={formatMessage("music.editor.team.people_placeholder")}
-                          onInput={(event) => {
+                          rows={4}
+                          onChange={(event) => {
                             handleUpdateTeamRole(role.id, {
                               people: event.currentTarget.value
                                 .split(/\r?\n/u)
