@@ -403,7 +403,7 @@ export function CoverMaker({
       open={visible}
       title={formatMessage('cover_maker.title')}
       onCancel={onClose}
-      width={920}
+      width="90%"
       centered
       destroyOnHidden
       mask={{ closable: true }}

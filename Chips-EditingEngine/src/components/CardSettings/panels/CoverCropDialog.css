@@ -11,9 +11,9 @@
 }
 
 .cover-crop-dialog__panel {
-  width: 720px;
-  max-width: calc(100dvw - 48px);
-  height: 560px;
+  width: 78vw;
+  max-width: 960px;
+  height: 70vh;
   max-height: calc(100dvh - 48px);
   display: flex;
   flex-direction: column;

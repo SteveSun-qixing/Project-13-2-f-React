@@ -1,5 +1,5 @@
 import React, { startTransition, useDeferredValue, useEffect, useRef, useState } from 'react';
-import { Button, Segmented, Tooltip } from 'antd';
+import { Button, Segmented, Tabs, Tooltip } from 'antd';
 import { DeleteOutlined, PictureOutlined } from '@ant-design/icons';
 import { fileService } from '../../../services/file-service';
 import { formatMessage } from '../../../lib/messages';
@@ -17,6 +17,7 @@ import './CoverPanel.css';
 
 type CoverEditorMode = 'image' | 'html';
 type CoverOrientation = 'portrait' | 'landscape';
+type EditorTabId = 'ratio' | 'content';
 
 interface RatioPreset {
   id: string;
@@ -150,6 +151,7 @@ export function CoverPanel({
   const initialGeneratedImageSource = extractGeneratedImageSource(initialHtml);
 
   const [mode, setMode] = useState<CoverEditorMode>(initialMode);
+  const [editorTab, setEditorTab] = useState<EditorTabId>('ratio');
   const [selectedPresetId, setSelectedPresetId] = useState(initialPresetId);
   const [orientation, setOrientation] = useState<CoverOrientation>(initialOrientation);
   const [htmlCode, setHtmlCode] = useState(initialHtml);
@@ -387,153 +389,171 @@ export function CoverPanel({
       </div>
 
       <div className="cover-panel__editor-pane">
-        <div className="cover-panel__editor-scroll">
-          <section className="cover-panel__section">
-            <div className="cover-panel__section-header">
-              <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_ratio_label')}</h3>
-              <p className="cover-panel__section-desc">
-                {formatMessage('card_settings.cover_ratio_desc')}
-              </p>
-            </div>
+        <Tabs
+          className="cover-panel__editor-tabs"
+          activeKey={editorTab}
+          onChange={(key: string) => setEditorTab(key as EditorTabId)}
+          items={[
+            {
+              key: 'ratio',
+              label: formatMessage('card_settings.cover_tab_ratio'),
+              children: (
+                <section className="cover-panel__section">
+                  <div className="cover-panel__section-header">
+                    <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_ratio_label')}</h3>
+                    <p className="cover-panel__section-desc">
+                      {formatMessage('card_settings.cover_ratio_desc')}
+                    </p>
+                  </div>
 
-            <div className="cover-panel__ratio-grid">
-              {ratioOptions.map((item) => (
-                <Tooltip key={item.id} title={item.label} placement="top">
-                  <button
-                    type="button"
-                    className={`cover-panel__ratio-card ${selectedPresetId === item.id ? 'cover-panel__ratio-card--active' : ''}`}
-                    onClick={() => setSelectedPresetId(item.id)}
-                    aria-label={item.label}
-                  >
-                    <span
-                      className="cover-panel__ratio-card-shape"
-                      style={{ aspectRatio: item.ratio.replace(':', ' / ') }}
-                    />
-                    <span className="cover-panel__ratio-card-label">{item.label}</span>
-                  </button>
-                </Tooltip>
-              ))}
-            </div>
+                  <div className="cover-panel__ratio-grid">
+                    {ratioOptions.map((item) => (
+                      <Tooltip key={item.id} title={item.label} placement="top">
+                        <button
+                          type="button"
+                          className={`cover-panel__ratio-card ${selectedPresetId === item.id ? 'cover-panel__ratio-card--active' : ''}`}
+                          onClick={() => setSelectedPresetId(item.id)}
+                          aria-label={item.label}
+                        >
+                          <span
+                            className="cover-panel__ratio-card-shape"
+                            style={{ aspectRatio: item.ratio.replace(':', ' / ') }}
+                          />
+                          <span className="cover-panel__ratio-card-label">{item.label}</span>
+                        </button>
+                      </Tooltip>
+                    ))}
+                  </div>
 
-            <div className="cover-panel__orientation-row">
-              <span className="cover-panel__orientation-label">
-                {formatMessage('card_settings.cover_orientation_label')}
-              </span>
-              <Segmented
-                value={orientation}
-                onChange={(value) => setOrientation(value as CoverOrientation)}
-                options={[
-                  { value: 'portrait', label: formatMessage('card_settings.cover_orientation_portrait') },
-                  { value: 'landscape', label: formatMessage('card_settings.cover_orientation_landscape') },
-                ]}
-              />
-            </div>
-          </section>
-
-          <section className="cover-panel__section">
-            <div className="cover-panel__section-header">
-              <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_mode_label')}</h3>
-              <p className="cover-panel__section-desc">
-                {formatMessage('card_settings.cover_mode_desc')}
-              </p>
-            </div>
-
-            <Segmented
-              value={mode}
-              onChange={(value) => setMode(value as CoverEditorMode)}
-              options={[
-                { value: 'image', label: formatMessage('cover_maker.mode_image') },
-                { value: 'html', label: formatMessage('cover_maker.mode_html') },
-              ]}
-            />
-          </section>
-
-          {mode === 'image' ? (
-            <section className="cover-panel__section">
-              <div className="cover-panel__section-header">
-                <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_image_title')}</h3>
-                <p className="cover-panel__section-desc">
-                  {formatMessage('card_settings.cover_image_desc')}
-                </p>
-              </div>
-
-              <label className="cover-panel__upload-card">
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  className="cover-panel__file-input"
-                  onChange={(event) => {
-                    void handleUploadImage(event);
-                  }}
-                />
-                <span className="cover-panel__upload-icon">
-                  <PictureOutlined />
-                </span>
-                <span className="cover-panel__upload-title">{formatMessage('cover_maker.image_upload_text')}</span>
-                <span className="cover-panel__upload-hint">{formatMessage('cover_maker.image_upload_hint')}</span>
-              </label>
-
-              {imageDraft ? (
-                <div className="cover-panel__asset-card">
-                  <div className="cover-panel__asset-info">
-                    <span className="cover-panel__asset-title">{imageDraft.fileName}</span>
-                    <span className="cover-panel__asset-meta">
-                      {formatMessage('card_settings.cover_image_ready')}
+                  <div className="cover-panel__orientation-row">
+                    <span className="cover-panel__orientation-label">
+                      {formatMessage('card_settings.cover_orientation_label')}
                     </span>
+                    <Segmented
+                      value={orientation}
+                      onChange={(value) => setOrientation(value as CoverOrientation)}
+                      options={[
+                        { value: 'portrait', label: formatMessage('card_settings.cover_orientation_portrait') },
+                        { value: 'landscape', label: formatMessage('card_settings.cover_orientation_landscape') },
+                      ]}
+                    />
                   </div>
+                </section>
+              ),
+            },
+            {
+              key: 'content',
+              label: formatMessage('card_settings.cover_tab_content'),
+              children: (
+                <div className="cover-panel__editor-scroll">
+                  <section className="cover-panel__section">
+                    <div className="cover-panel__section-header">
+                      <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_mode_label')}</h3>
+                      <p className="cover-panel__section-desc">
+                        {formatMessage('card_settings.cover_mode_desc')}
+                      </p>
+                    </div>
 
-                  <div className="cover-panel__asset-actions">
-                    <Button
-                      type="primary"
-                      size="small"
-                      onClick={() => setIsCropDialogOpen(true)}
-                    >
-                      {formatMessage('card_settings.cover_crop_action')}
-                    </Button>
-                    <Tooltip title={formatMessage('cover_maker.remove')}>
-                      <Button
-                        size="small"
-                        icon={<DeleteOutlined />}
-                        onClick={handleRemoveUploadedImage}
+                    <Segmented
+                      value={mode}
+                      onChange={(value) => setMode(value as CoverEditorMode)}
+                      options={[
+                        { value: 'image', label: formatMessage('cover_maker.mode_image') },
+                        { value: 'html', label: formatMessage('cover_maker.mode_html') },
+                      ]}
+                    />
+                  </section>
+
+                  {mode === 'image' ? (
+                    <section className="cover-panel__section">
+                      <div className="cover-panel__section-header">
+                        <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_image_title')}</h3>
+                        <p className="cover-panel__section-desc">
+                          {formatMessage('card_settings.cover_image_desc')}
+                        </p>
+                      </div>
+
+                      <label className="cover-panel__upload-card">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          className="cover-panel__file-input"
+                          onChange={(event) => {
+                            void handleUploadImage(event);
+                          }}
+                        />
+                        <span className="cover-panel__upload-icon">
+                          <PictureOutlined />
+                        </span>
+                        <span className="cover-panel__upload-title">{formatMessage('cover_maker.image_upload_text')}</span>
+                        <span className="cover-panel__upload-hint">{formatMessage('cover_maker.image_upload_hint')}</span>
+                      </label>
+
+                      {imageDraft ? (
+                        <div className="cover-panel__asset-card">
+                          <div className="cover-panel__asset-info">
+                            <span className="cover-panel__asset-title">{imageDraft.fileName}</span>
+                            <span className="cover-panel__asset-meta">
+                              {formatMessage('card_settings.cover_image_ready')}
+                            </span>
+                          </div>
+
+                          <div className="cover-panel__asset-actions">
+                            <Button
+                              type="primary"
+                              size="small"
+                              onClick={() => setIsCropDialogOpen(true)}
+                            >
+                              {formatMessage('card_settings.cover_crop_action')}
+                            </Button>
+                            <Tooltip title={formatMessage('cover_maker.remove')}>
+                              <Button
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                onClick={handleRemoveUploadedImage}
+                              />
+                            </Tooltip>
+                          </div>
+                        </div>
+                      ) : initialMode === 'image' ? (
+                        <div className="cover-panel__info-card">
+                          <span className="cover-panel__info-title">{formatMessage('card_settings.cover_image_current_title')}</span>
+                          <span className="cover-panel__info-text">
+                            {formatMessage('card_settings.cover_image_current_desc')}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="cover-panel__info-card">
+                          <span className="cover-panel__info-title">{formatMessage('card_settings.cover_image_waiting_title')}</span>
+                          <span className="cover-panel__info-text">
+                            {formatMessage('card_settings.cover_image_waiting_desc')}
+                          </span>
+                        </div>
+                      )}
+                    </section>
+                  ) : (
+                    <section className="cover-panel__section">
+                      <div className="cover-panel__section-header">
+                        <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_html_title')}</h3>
+                        <p className="cover-panel__section-desc">
+                          {formatMessage('card_settings.cover_html_desc')}
+                        </p>
+                      </div>
+
+                      <textarea
+                        value={htmlCode}
+                        className="cover-panel__html-input"
+                        spellCheck={false}
+                        onChange={(event) => setHtmlCode(event.target.value)}
+                        placeholder={formatMessage('cover_maker.html_placeholder')}
                       />
-                    </Tooltip>
-                  </div>
+                    </section>
+                  )}
                 </div>
-              ) : initialMode === 'image' ? (
-                <div className="cover-panel__info-card">
-                  <span className="cover-panel__info-title">{formatMessage('card_settings.cover_image_current_title')}</span>
-                  <span className="cover-panel__info-text">
-                    {formatMessage('card_settings.cover_image_current_desc')}
-                  </span>
-                </div>
-              ) : (
-                <div className="cover-panel__info-card">
-                  <span className="cover-panel__info-title">{formatMessage('card_settings.cover_image_waiting_title')}</span>
-                  <span className="cover-panel__info-text">
-                    {formatMessage('card_settings.cover_image_waiting_desc')}
-                  </span>
-                </div>
-              )}
-            </section>
-          ) : (
-            <section className="cover-panel__section">
-              <div className="cover-panel__section-header">
-                <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_html_title')}</h3>
-                <p className="cover-panel__section-desc">
-                  {formatMessage('card_settings.cover_html_desc')}
-                </p>
-              </div>
-
-              <textarea
-                value={htmlCode}
-                className="cover-panel__html-input"
-                spellCheck={false}
-                onChange={(event) => setHtmlCode(event.target.value)}
-                placeholder={formatMessage('cover_maker.html_placeholder')}
-              />
-            </section>
-          )}
-        </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
       {imageDraft ? (

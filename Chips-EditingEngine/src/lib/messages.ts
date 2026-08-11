@@ -50,6 +50,8 @@ const MESSAGES: Record<string, string> = {
     'card_settings.cover_ratio_phone': '9:19.5（手机比例）',
     'card_settings.cover_ratio_magazine': '1.58:1（杂志比例）',
     'card_settings.cover_orientation_label': '方向',
+    'card_settings.cover_tab_ratio': '选择比例',
+    'card_settings.cover_tab_content': '编辑封面内容',
     'card_settings.cover_orientation_portrait': '竖版',
     'card_settings.cover_orientation_landscape': '横版',
     'card_settings.cover_mode_label': '编辑模式',
