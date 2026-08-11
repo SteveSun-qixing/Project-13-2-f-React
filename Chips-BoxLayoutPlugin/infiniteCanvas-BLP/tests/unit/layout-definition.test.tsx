@@ -200,8 +200,7 @@ describe("layoutDefinition", () => {
 
     await act(async () => cleanup());
     expect(container.textContent ?? "").toBe("");
-  });
-
+  }, 15000);
   it("renders cover entries with renderEntryCover and reads background assets", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

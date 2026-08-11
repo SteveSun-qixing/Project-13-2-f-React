@@ -6,6 +6,7 @@ import {
   validateLayoutConfig,
   validateLayoutConfigInput,
 } from "../../src/schema/layout-config";
+import { layoutDefinition } from "../../src/index";
 
 describe("layout-config", () => {
   it("creates default timeline config", () => {
@@ -161,7 +162,6 @@ describe("layout-config", () => {
   });
 
   it("layoutDefinition validation rejects unsafe raw assetRefs", async () => {
-    const { layoutDefinition } = await import("../../src/index");
     const result = layoutDefinition.validateConfig({
       schemaVersion: "1.0.0",
       props: {
