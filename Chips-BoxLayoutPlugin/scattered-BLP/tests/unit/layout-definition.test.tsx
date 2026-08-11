@@ -408,6 +408,110 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-layout-top-region] iframe[data-chips-embedded-frame]')).toBeTruthy();
   });
 
+  it("renders the html top region with auto height and without fixed ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        topRegion: {
+          mode: "html",
+          html: "<section>Top</section>",
+        },
+      },
+    });
+
+    await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const frame = container.querySelector('[data-layout-top-region] iframe[data-chips-embedded-frame]');
+    expect(frame).toBeTruthy();
+    expect(frame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+
+    const region = container.querySelector("[data-layout-top-region]");
+    expect(region?.getAttribute("style") ?? "").not.toContain("aspect-ratio");
+    expect(region?.getAttribute("style") ?? "").not.toContain("min-height");
+
+    const styleText = container.querySelector("style")?.textContent ?? "";
+    const topRegionRule = styleText.match(/\[data-layout-top-region\]\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(topRegionRule).not.toContain("min-height");
+    expect(topRegionRule).not.toContain("aspect-ratio");
+    expect(topRegionRule).not.toContain("background");
+    expect(topRegionRule).toContain("overflow: hidden");
+    expect(styleText).toContain("[data-layout-top-region] .chips-embedded-document-frame");
+  });
+
+  it("uses natural image sizing for the top region and keeps cover for the background", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        background: {
+          mode: "image",
+          assetPath: "assets/layouts/chips.layout.scattered.blp/background.png",
+        },
+        topRegion: {
+          mode: "image",
+          assetPath: "assets/layouts/chips.layout.scattered.blp/top.png",
+        },
+      },
+    });
+
+    await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const topFrame = container.querySelector('[data-layout-top-region] iframe[data-chips-embedded-frame]');
+    const backgroundFrame = container.querySelector('[data-layout-background] iframe[data-chips-embedded-frame]');
+    expect(topFrame?.getAttribute("srcdoc")).toContain("width: 100%; height: auto;");
+    expect(topFrame?.getAttribute("srcdoc")).not.toContain("object-fit: cover");
+    expect(backgroundFrame?.getAttribute("srcdoc")).toContain("object-fit: cover");
+  });
+
+  it("renders the top region editor preview without a fixed aspect ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const initialConfig = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        topRegion: {
+          mode: "html",
+          html: "<section>Top</section>",
+        },
+      },
+    });
+
+    await renderEditor({
+      container,
+      initialConfig,
+      onChange: vi.fn(),
+    });
+
+    const topPreview = container.querySelector('[data-frame-region-editor="topRegion"] [data-frame-region-preview]');
+    expect(topPreview?.getAttribute("style") ?? "").not.toContain("aspect-ratio");
+    const backgroundPreview = container.querySelector('[data-frame-region-editor="background"] [data-frame-region-preview]');
+    expect(backgroundPreview?.getAttribute("style") ?? "").toContain("aspect-ratio: 16 / 9");
+
+    const topFrame = topPreview?.querySelector("iframe[data-chips-embedded-frame]");
+    expect(topFrame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+  });
+
   it("does not update the DOM after cleanup while runtime promises are pending", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

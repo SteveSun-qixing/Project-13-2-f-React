@@ -16,6 +16,7 @@ export interface FrameRegionEditorProps {
   region: FrameRegionConfig;
   title: string;
   preferredAssetPrefix: string;
+  previewAutoHeight?: boolean;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
   importBoxAsset?: (input: { file: File; preferredPath?: string }) => Promise<{ assetPath: string }>;
   deleteBoxAsset?: (assetPath: string) => Promise<void>;
@@ -64,6 +65,7 @@ export function FrameRegionEditor({
   region,
   title,
   preferredAssetPrefix,
+  previewAutoHeight,
   readBoxAsset,
   importBoxAsset,
   deleteBoxAsset,
@@ -321,6 +323,7 @@ export function FrameRegionEditor({
               hasImageAsset ? "chips-grid-layout-editor__drop-zone--filled" : "",
               dragging ? "chips-grid-layout-editor__drop-zone--dragging" : "",
               dropZoneDisabled ? "chips-grid-layout-editor__drop-zone--disabled" : "",
+              previewAutoHeight ? "chips-grid-layout-editor__drop-zone--auto-height" : "",
             ].filter(Boolean).join(" ")}
             data-drop-zone
             data-state={hasImageAsset ? "filled" : "empty"}

@@ -386,6 +386,149 @@ describe("layoutDefinition", () => {
     expect(container.textContent).toContain("Gamma");
   });
 
+  it("renders html top region with auto height and no fixed ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    await act(async () => {
+      layoutDefinition.renderView({
+        container,
+        sessionId: "session-top-html",
+        box: {
+          boxId: "box-top-html",
+          boxFile: "/tmp/top-html.box",
+          name: "Top Html Box",
+          activeLayoutType: "chips.layout.list",
+          availableLayouts: ["chips.layout.list"],
+        },
+        initialView: {
+          items: [],
+          total: 0,
+        },
+        config: layoutDefinition.normalizeConfig({
+          props: {
+            topRegion: {
+              mode: "html",
+              html: "<p>Banner</p>",
+            },
+          },
+        }),
+        runtime: {
+          listEntries: vi.fn(),
+          readEntryDetail: vi.fn().mockResolvedValue([]),
+          renderEntryCover: vi.fn(),
+          renderEntryDocument: vi.fn(),
+          releaseEntryDocument: vi.fn().mockResolvedValue(undefined),
+          resolveEntryResource: vi.fn(),
+          readBoxAsset: vi.fn(),
+          prefetchEntries: vi.fn().mockResolvedValue(undefined),
+          openEntry: vi.fn(),
+        },
+        locale: "zh-CN",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const topRegion = container.querySelector("[data-layout-top-region]");
+    expect(topRegion).toBeTruthy();
+    const frame = topRegion?.querySelector('[data-chips-embedded-frame="embedded-document-frame"]') as HTMLIFrameElement | null;
+    expect(frame).toBeTruthy();
+    expect(frame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+    const styleText = container.querySelector("style")?.textContent ?? "";
+    expect(styleText).not.toContain("min-height: clamp(132px, 24vw, 288px)");
+  });
+
+  it("renders image top region with natural sizing and transparent background", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    await act(async () => {
+      layoutDefinition.renderView({
+        container,
+        sessionId: "session-top-image",
+        box: {
+          boxId: "box-top-image",
+          boxFile: "/tmp/top-image.box",
+          name: "Top Image Box",
+          activeLayoutType: "chips.layout.list",
+          availableLayouts: ["chips.layout.list"],
+        },
+        initialView: {
+          items: [],
+          total: 0,
+        },
+        config: layoutDefinition.normalizeConfig({
+          props: {
+            topRegion: {
+              mode: "image",
+              assetPath: "assets/layouts/list/top-region/banner.webp",
+            },
+          },
+        }),
+        runtime: {
+          listEntries: vi.fn(),
+          readEntryDetail: vi.fn().mockResolvedValue([]),
+          renderEntryCover: vi.fn(),
+          renderEntryDocument: vi.fn(),
+          releaseEntryDocument: vi.fn().mockResolvedValue(undefined),
+          resolveEntryResource: vi.fn(),
+          readBoxAsset: vi.fn().mockResolvedValue({
+            resourceUrl: "chips-render://box-assets/banner.webp",
+            mimeType: "image/webp",
+          }),
+          prefetchEntries: vi.fn().mockResolvedValue(undefined),
+          openEntry: vi.fn(),
+        },
+        locale: "zh-CN",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const topRegion = container.querySelector("[data-layout-top-region]");
+    const frame = topRegion?.querySelector('[data-chips-embedded-frame="embedded-document-frame"]') as HTMLIFrameElement | null;
+    const srcdoc = frame?.getAttribute("srcdoc") ?? "";
+    expect(frame).toBeTruthy();
+    expect(srcdoc).toContain("img { display: block; width: 100%; height: auto; }");
+    expect(srcdoc).toContain("background: transparent");
+    expect(srcdoc).not.toContain("object-fit: cover");
+  });
+
+  it("renders top region editor preview with auto height and without fixed ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const onChange = vi.fn();
+
+    await act(async () => {
+      layoutDefinition.renderEditor?.({
+        container,
+        entries: [],
+        initialConfig: layoutDefinition.normalizeConfig({
+          props: {
+            topRegion: {
+              mode: "html",
+              html: "<p>Banner</p>",
+            },
+          },
+        }),
+        onChange,
+        locale: "zh-CN",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const topRegion = container.querySelector('[data-frame-region-editor="topRegion"]') as HTMLElement | null;
+    const previewBox = topRegion?.querySelector(".chips-list-layout-editor__frame-preview-box") as HTMLElement | null;
+    expect(previewBox?.getAttribute("style")).toBeNull();
+    const frame = previewBox?.querySelector('[data-chips-embedded-frame="embedded-document-frame"]') as HTMLIFrameElement | null;
+    expect(frame).toBeTruthy();
+    expect(frame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+    const background = container.querySelector('[data-frame-region-editor="background"]') as HTMLElement | null;
+    expect(background?.querySelector(".chips-list-layout-editor__frame-preview-box")?.getAttribute("style")).toContain("min-height");
+  });
+
   it("keeps the layout shell visible when the box has no entries", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

@@ -239,6 +239,14 @@ const EDITOR_STYLE_TEXT = `
   aspect-ratio: 16 / 5;
 }
 
+.chips-grid-layout-editor__drop-zone--auto-height {
+  aspect-ratio: auto;
+}
+
+.chips-grid-layout-editor__drop-zone--auto-height .chips-grid-layout-editor__drop-zone-image {
+  height: auto;
+}
+
 .chips-grid-layout-editor__drop-zone-image {
   display: block;
   width: 100%;
@@ -421,6 +429,7 @@ export function LayoutEditorPanel({
           region={config.props.topRegion}
           title={formatMessage("editor.top_region_title")}
           preferredAssetPrefix="assets/layouts/grid/top-region"
+          previewAutoHeight
           readBoxAsset={readBoxAsset}
           importBoxAsset={importBoxAsset}
           deleteBoxAsset={deleteBoxAsset}

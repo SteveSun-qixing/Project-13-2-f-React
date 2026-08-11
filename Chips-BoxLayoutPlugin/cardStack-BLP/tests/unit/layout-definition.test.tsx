@@ -149,6 +149,14 @@ async function uploadFile(input: HTMLInputElement, file: File): Promise<void> {
   });
 }
 
+function findCssRule(container: HTMLElement, selector: string): CSSStyleRule | undefined {
+  const styleElement = container.querySelector(
+    '[data-scope="chips-box-cardstack-layout"] style'
+  ) as HTMLStyleElement | null;
+  const rules = styleElement ? Array.from(styleElement.sheet?.cssRules ?? []) : [];
+  return rules.find((rule) => rule instanceof CSSStyleRule && rule.selectorText === selector) as CSSStyleRule | undefined;
+}
+
 function dispatchPointer(target: Element, type: string, clientX: number): void {
   const event = new MouseEvent(type, {
     bubbles: true,
@@ -451,6 +459,152 @@ describe("layoutDefinition", () => {
     expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/chips.layout.cardstack.blp/background/background.png");
     expect(container.querySelector("[data-layout-background] img")).toBeTruthy();
     expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame]')).toBeTruthy();
+  });
+
+  it("renders the top region html frame with auto height reporting and no fixed sizing", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        background: { mode: "none" },
+        topRegion: {
+          mode: "html",
+          html: "<section>Top Banner</section>",
+        },
+      },
+    });
+
+    const cleanup = await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const frame = container.querySelector(
+      '[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(frame).toBeTruthy();
+    expect(frame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+    expect(frame?.getAttribute("srcdoc")).toContain("<section>Top Banner</section>");
+
+    const topRegionRule = findCssRule(
+      container,
+      '[data-scope="chips-box-cardstack-layout"] [data-layout-top-region]'
+    );
+    expect(topRegionRule?.style.minBlockSize).toBe("");
+    expect(topRegionRule?.style.backgroundColor).toBe("");
+    expect(topRegionRule?.style.borderRadius).toBe("12px");
+    expect(topRegionRule?.style.overflow).toBe("hidden");
+
+    await act(async () => {
+      cleanup();
+    });
+  });
+
+  it("renders the top region image naturally while the background keeps cover fit", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        background: {
+          mode: "image",
+          assetPath: "assets/layouts/chips.layout.cardstack.blp/background/bg.png",
+        },
+        topRegion: {
+          mode: "image",
+          assetPath: "assets/layouts/chips.layout.cardstack.blp/top-region/banner.png",
+        },
+      },
+    });
+
+    await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const topImage = container.querySelector("[data-layout-top-region] [data-frame-region-image]");
+    expect(topImage).toBeTruthy();
+    expect(topImage?.getAttribute("style")).toBeNull();
+    expect(container.querySelector("[data-layout-background] [data-frame-region-image]")).toBeTruthy();
+
+    const topRegionImageRule = findCssRule(
+      container,
+      '[data-scope="chips-box-cardstack-layout"] [data-layout-top-region] [data-frame-region-image]'
+    );
+    expect(topRegionImageRule?.style.width).toBe("100%");
+    expect(topRegionImageRule?.style.height).toBe("auto");
+    expect(topRegionImageRule?.style.objectFit).toBe("contain");
+
+    const regionImageRule = findCssRule(
+      container,
+      '[data-scope="chips-box-cardstack-layout"] [data-frame-region-image]'
+    );
+    expect(regionImageRule?.style.height).toBe("100%");
+    expect(regionImageRule?.style.objectFit).toBe("cover");
+  });
+
+  it("edits the top region with an auto-height preview while the background preview keeps its ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const onChange = vi.fn();
+    const initialConfig = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        background: {
+          mode: "html",
+          html: "<section>Background</section>",
+        },
+        topRegion: {
+          mode: "html",
+          html: "<section>Top</section>",
+        },
+      },
+    });
+
+    const cleanup = await renderEditor({
+      container,
+      initialConfig,
+      onChange,
+    });
+
+    const topPreview = container.querySelector(
+      '[data-frame-region-editor="topRegion"] [data-frame-region-preview]'
+    );
+    expect(topPreview).toBeTruthy();
+    expect(topPreview?.getAttribute("style")).toBeNull();
+    const topFrame = topPreview?.querySelector(
+      '[data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(topFrame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+
+    const backgroundPreview = container.querySelector(
+      '[data-frame-region-editor="background"] [data-frame-region-preview]'
+    );
+    expect(backgroundPreview?.getAttribute("style")).toContain("aspect-ratio: 16 / 9");
+    const backgroundFrame = backgroundPreview?.querySelector(
+      '[data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(backgroundFrame?.getAttribute("srcdoc")).not.toContain("chips.embedded-frame:height");
+
+    await act(async () => {
+      cleanup();
+    });
   });
 
   it("does not update the DOM after cleanup while runtime promises are pending", async () => {

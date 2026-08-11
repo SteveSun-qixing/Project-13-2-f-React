@@ -620,7 +620,7 @@ export function LayoutEditorPanel({
           region={config.props.topRegion}
           title={formatMessage("editor.top_region_title")}
           description={formatMessage("editor.top_region_desc")}
-          previewRatio="16:5"
+          previewAutoHeight
           preferredAssetPrefix="assets/layouts/masonry/top-region"
           readBoxAsset={readBoxAsset}
           importBoxAsset={importBoxAsset}

@@ -49,10 +49,8 @@ export const GRID_LAYOUT_STYLE = `
 [data-scope="chips-box-grid-layout"] [data-layout-top-region] {
   width: 100%;
   min-width: 0;
-  min-height: clamp(132px, 24vw, 288px);
   border-radius: 12px;
   overflow: hidden;
-  background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 

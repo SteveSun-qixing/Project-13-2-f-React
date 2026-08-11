@@ -342,6 +342,130 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
   });
 
+  it("renders the top region html frame with auto height reporting", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        background: {
+          mode: "html",
+          html: "<section>Background</section>",
+        },
+        topRegion: {
+          mode: "html",
+          html: "<section>Top</section>",
+        },
+      },
+    });
+
+    await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const topFrame = container.querySelector(
+      '[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(topFrame).toBeTruthy();
+    expect(topFrame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+    expect(topFrame?.getAttribute("sandbox")).toBe("allow-scripts");
+
+    const backgroundFrame = container.querySelector(
+      '[data-layout-background] [data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(backgroundFrame).toBeTruthy();
+    expect(backgroundFrame?.getAttribute("srcdoc")).not.toContain("chips.embedded-frame:height");
+  });
+
+  it("drops the fixed ratio and min-height from the top region and renders images naturally", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        topRegion: {
+          mode: "image",
+          assetPath: "assets/layouts/masonry/top-region.png",
+        },
+      },
+    });
+
+    await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const image = container.querySelector(
+      '[data-layout-top-region] [data-frame-region-image]'
+    );
+    expect(image).toBeTruthy();
+    expect(image?.getAttribute("src")).toBe("chips-render://asset/background");
+    expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/masonry/top-region.png");
+
+    const layoutStyle = container.querySelector("style")?.textContent ?? "";
+    expect(layoutStyle).not.toContain("clamp(132px, 24vw, 288px)");
+    expect(layoutStyle).toMatch(
+      /\[data-layout-top-region\] \[data-frame-region-image\]\s*\{[^}]*height:\s*auto;[^}]*object-fit:\s*contain;/
+    );
+  });
+
+  it("renders the top region editor preview without a fixed aspect ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const readBoxAsset = vi.fn().mockResolvedValue({
+      resourceUrl: "chips-render://asset/top",
+      mimeType: "image/png",
+    });
+    const initialConfig = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        background: {
+          mode: "image",
+          assetPath: "assets/layouts/masonry/background.png",
+        },
+        topRegion: {
+          mode: "image",
+          assetPath: "assets/layouts/masonry/top-region.png",
+        },
+      },
+    });
+
+    await renderEditor({
+      container,
+      initialConfig,
+      readBoxAsset,
+      importBoxAsset: vi.fn(),
+      deleteBoxAsset: vi.fn(),
+    });
+
+    const topEditor = container.querySelector('[data-frame-region-editor="topRegion"]');
+    expect(topEditor).toBeTruthy();
+    const topDropZone = topEditor?.querySelector('[data-drop-zone]');
+    expect(topDropZone).toBeTruthy();
+    expect(topDropZone?.getAttribute("style")).toBeNull();
+
+    const backgroundDropZone = container
+      .querySelector('[data-frame-region-editor="background"] [data-drop-zone]');
+    expect(backgroundDropZone).toBeTruthy();
+    expect(backgroundDropZone?.getAttribute("style")).toBe("aspect-ratio: 16 / 9;");
+  });
+
   it("distributes varied aspect ratios across shortest masonry columns", () => {
     const config = layoutDefinition.normalizeConfig({
       props: {

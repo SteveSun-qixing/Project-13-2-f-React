@@ -73,11 +73,10 @@ const MAP_LAYOUT_STYLE = `
 
 [data-scope="chips-box-map-layout"] [data-layout-top-region] {
   min-width: 0;
-  min-block-size: clamp(120px, 20vw, 240px);
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
-  background: #ffffff;
+  background: transparent;
 }
 
 [data-scope="chips-box-map-layout"] [data-frame-region],
@@ -92,6 +91,13 @@ const MAP_LAYOUT_STYLE = `
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+[data-scope="chips-box-map-layout"] [data-layout-top-region] [data-frame-region-image] {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
 [data-scope="chips-box-map-layout"] [data-map-stage] {
@@ -393,11 +399,13 @@ function FrameRegionSurface({
   runtime,
   title,
   ratio,
+  autoHeight,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
   title: string;
-  ratio: string;
+  ratio?: string;
+  autoHeight?: boolean;
 }) {
   const [state, setState] = useState<ResourceState>({ status: "idle" });
 
@@ -429,7 +437,14 @@ function FrameRegionSurface({
   if (region.mode === "html") {
     return (
       <div data-frame-region>
-        <EmbeddedDocumentFrame title={title} srcDoc={region.html ?? ""} ratio={ratio} sandbox="allow-scripts" />
+        <EmbeddedDocumentFrame
+          title={title}
+          srcDoc={region.html ?? ""}
+          ratio={autoHeight ? undefined : ratio}
+          autoHeight={autoHeight}
+          maxHeightFactor={autoHeight ? 3 : undefined}
+          sandbox="allow-scripts"
+        />
       </div>
     );
   }
@@ -840,7 +855,7 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
               region={config.props.topRegion}
               runtime={runtime}
               title={formatMessage("layout.top_region_title")}
-              ratio="16:5"
+              autoHeight
             />
           </div>
         ) : null}

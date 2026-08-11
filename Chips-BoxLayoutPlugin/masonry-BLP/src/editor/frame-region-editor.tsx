@@ -16,7 +16,8 @@ export interface FrameRegionEditorProps {
   region: FrameRegionConfig;
   title: string;
   description?: string;
-  previewRatio: string;
+  previewRatio?: string;
+  previewAutoHeight?: boolean;
   preferredAssetPrefix: string;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
   importBoxAsset?: (input: { file: File; preferredPath?: string }) => Promise<{ assetPath: string }>;
@@ -67,6 +68,7 @@ export function FrameRegionEditor({
   title,
   description,
   previewRatio,
+  previewAutoHeight = false,
   preferredAssetPrefix,
   readBoxAsset,
   importBoxAsset,
@@ -325,7 +327,9 @@ export function FrameRegionEditor({
             aria-label={hasImageAsset
               ? formatMessage("editor.replace_hint")
               : formatMessage("editor.drop_zone_hint")}
-            style={hasImageAsset ? { aspectRatio: previewRatio.replace(":", " / ") } : undefined}
+            style={hasImageAsset && !previewAutoHeight && previewRatio
+              ? { aspectRatio: previewRatio.replace(":", " / ") }
+              : undefined}
             onClick={handleFilePick}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {

@@ -398,6 +398,134 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
   });
 
+  it("renders the top region html frame with auto height reporting", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        background: {
+          mode: "html",
+          html: "<section>Background</section>",
+        },
+        topRegion: {
+          mode: "html",
+          html: "<section>Top</section>",
+        },
+      },
+    });
+
+    await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const topFrame = container.querySelector(
+      '[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(topFrame).toBeTruthy();
+    expect(topFrame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+    expect(topFrame?.getAttribute("sandbox")).toBe("allow-scripts");
+
+    const backgroundFrame = container.querySelector(
+      '[data-layout-background] [data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(backgroundFrame).toBeTruthy();
+    expect(backgroundFrame?.getAttribute("srcdoc")).not.toContain("chips.embedded-frame:height");
+  });
+
+  it("drops the fixed ratio and min-height from the top region and renders images naturally", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        topRegion: {
+          mode: "image",
+          assetPath: "assets/layouts/chips.layout.coverflow.blp/top-region.png",
+        },
+      },
+    });
+
+    await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const image = container.querySelector(
+      '[data-layout-top-region] [data-frame-region-image]'
+    );
+    expect(image).toBeTruthy();
+    expect(image?.getAttribute("src")).toBe("chips-render://asset/background");
+    expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/chips.layout.coverflow.blp/top-region.png");
+
+    const layoutStyle = container.querySelector("style")?.textContent ?? "";
+    expect(layoutStyle).not.toContain("clamp(72px, min(24cqw, 28cqh), 288px)");
+    expect(layoutStyle).toMatch(
+      /\[data-layout-top-region\] \[data-frame-region-image\]\s*\{[^}]*height:\s*auto;[^}]*object-fit:\s*contain;/
+    );
+  });
+
+  it("renders the top region editor preview without a fixed aspect ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const readBoxAsset = vi.fn().mockResolvedValue({
+      resourceUrl: "chips-render://asset/top",
+      mimeType: "image/png",
+    });
+    const initialConfig = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        background: {
+          mode: "image",
+          assetPath: "assets/layouts/chips.layout.coverflow.blp/background.png",
+        },
+        topRegion: {
+          mode: "html",
+          html: "<p>Top</p>",
+        },
+      },
+    });
+
+    await renderEditor({
+      container,
+      initialConfig,
+      readBoxAsset,
+      importBoxAsset: vi.fn(),
+      deleteBoxAsset: vi.fn(),
+    });
+
+    const topPreview = container.querySelector(
+      '[data-frame-region-editor="topRegion"] [data-frame-region-preview]'
+    );
+    expect(topPreview).toBeTruthy();
+    expect(topPreview?.getAttribute("style")).toBeNull();
+    const topFrame = topPreview?.querySelector(
+      '[data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(topFrame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+
+    const backgroundPreview = container.querySelector(
+      '[data-frame-region-editor="background"] [data-frame-region-preview]'
+    );
+    expect(backgroundPreview?.getAttribute("style")).toBe("aspect-ratio: 16 / 9;");
+  });
+
   it("renders cover flow shaped empty skeleton when the box has no entries", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

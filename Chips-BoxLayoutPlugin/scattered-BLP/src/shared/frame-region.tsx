@@ -17,7 +17,28 @@ function escapeHtmlAttribute(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-export function buildImageFrameHtml(imageUrl: string): string {
+export function buildImageFrameHtml(
+  imageUrl: string,
+  fit: "cover" | "natural" = "cover",
+): string {
+  if (fit === "natural") {
+    return [
+      "<!doctype html>",
+      '<html lang="zh-CN">',
+      "<head>",
+      '  <meta charset="utf-8" />',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+      "  <style>",
+      "    html, body { margin: 0; width: 100%; background: transparent; }",
+      "    body { overflow: visible; }",
+      "    img { display: block; width: 100%; height: auto; }",
+      "  </style>",
+      "</head>",
+      `  <body><img src="${escapeHtmlAttribute(imageUrl)}" alt="" /></body>`,
+      "</html>",
+    ].join("\n");
+  }
+
   return [
     "<!doctype html>",
     '<html lang="zh-CN">',
@@ -38,6 +59,7 @@ export function buildImageFrameHtml(imageUrl: string): string {
 export async function resolveFrameRegionSource(
   region: FrameRegionConfig,
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>,
+  fit: "cover" | "natural" = "cover",
 ): Promise<FrameRegionSource | null> {
   if (region.mode === "html" && region.html) {
     return {
@@ -52,7 +74,7 @@ export async function resolveFrameRegionSource(
     }
 
     return {
-      srcDoc: buildImageFrameHtml(asset.resourceUrl),
+      srcDoc: buildImageFrameHtml(asset.resourceUrl, fit),
     };
   }
 
@@ -68,6 +90,7 @@ export interface FrameRegionSurfaceProps {
   region: FrameRegionConfig;
   title: string;
   ratio?: string;
+  autoHeight?: boolean;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
   onActivate?: () => void;
 }
@@ -76,6 +99,7 @@ export function FrameRegionSurface({
   region,
   title,
   ratio,
+  autoHeight,
   readBoxAsset,
   onActivate,
 }: FrameRegionSurfaceProps) {
@@ -84,7 +108,7 @@ export function FrameRegionSurface({
   React.useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
-    void resolveFrameRegionSource(region, readBoxAsset)
+    void resolveFrameRegionSource(region, readBoxAsset, autoHeight ? "natural" : "cover")
       .then((source) => {
         if (!cancelled) {
           setState(source ? { status: "ready", source } : { status: "error" });
@@ -99,7 +123,7 @@ export function FrameRegionSurface({
     return () => {
       cancelled = true;
     };
-  }, [readBoxAsset, region]);
+  }, [autoHeight, readBoxAsset, region]);
 
   if (state.status === "ready" && state.source) {
     return (
@@ -107,7 +131,9 @@ export function FrameRegionSurface({
         title={title}
         src={state.source.src}
         srcDoc={state.source.srcDoc}
-        ratio={ratio}
+        ratio={autoHeight ? undefined : ratio}
+        autoHeight={autoHeight}
+        maxHeightFactor={autoHeight ? 3 : undefined}
         sandbox="allow-scripts"
         onActivate={onActivate}
       />

@@ -546,7 +546,7 @@ export function LayoutEditorPanel({
             region={config.props.topRegion}
             title={formatMessage("editor.top_region_title")}
             description={formatMessage("editor.top_region_desc")}
-            previewRatio="16:5"
+            previewAutoHeight
             previewMinHeight="160px"
             preferredAssetPrefix="assets/layouts/list/top-region"
             readBoxAsset={readBoxAsset}

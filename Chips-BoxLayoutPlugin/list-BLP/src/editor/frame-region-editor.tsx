@@ -10,7 +10,8 @@ export interface FrameRegionEditorProps {
   region: FrameRegionConfig;
   title: string;
   description: string;
-  previewRatio: string;
+  previewRatio?: string;
+  previewAutoHeight?: boolean;
   previewMinHeight?: string;
   preferredAssetPrefix: string;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
@@ -62,6 +63,7 @@ export function FrameRegionEditor({
   title,
   description,
   previewRatio,
+  previewAutoHeight,
   previewMinHeight,
   preferredAssetPrefix,
   readBoxAsset,
@@ -246,12 +248,13 @@ export function FrameRegionEditor({
         </span>
         <div
           className="chips-list-layout-editor__frame-preview-box"
-          style={{ minHeight: previewMinHeight ?? "180px" }}
+          style={previewAutoHeight ? undefined : { minHeight: previewMinHeight ?? "180px" }}
         >
           <FrameRegionSurface
             region={region}
             title={title}
-            ratio={previewRatio}
+            ratio={previewAutoHeight ? undefined : previewRatio}
+            autoHeight={previewAutoHeight}
             readBoxAsset={readBoxAsset}
           />
           {!hasContent ? (

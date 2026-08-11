@@ -8,6 +8,8 @@ export interface FrameRegionSource {
   srcDoc?: string;
 }
 
+export type FrameImageFit = "cover" | "natural";
+
 function escapeHtmlAttribute(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -16,7 +18,15 @@ function escapeHtmlAttribute(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-export function buildImageFrameHtml(imageUrl: string): string {
+export function buildImageFrameHtml(imageUrl: string, fit: FrameImageFit = "cover"): string {
+  const rootStyle = fit === "natural"
+    ? "margin: 0; width: 100%; background: transparent;"
+    : "margin: 0; width: 100%; height: 100%; background: transparent;";
+  const bodyOverflow = fit === "natural" ? "visible" : "hidden";
+  const imageStyle = fit === "natural"
+    ? "display: block; width: 100%; height: auto;"
+    : "width: 100%; height: 100%; display: block; object-fit: cover;";
+
   return [
     "<!doctype html>",
     '<html lang="zh-CN">',
@@ -24,9 +34,9 @@ export function buildImageFrameHtml(imageUrl: string): string {
     '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     "  <style>",
-    "    html, body { margin: 0; width: 100%; height: 100%; background: transparent; }",
-    "    body { overflow: hidden; }",
-    "    img { width: 100%; height: 100%; display: block; object-fit: cover; }",
+    `    html, body { ${rootStyle} }`,
+    `    body { overflow: ${bodyOverflow}; }`,
+    `    img { ${imageStyle} }`,
     "  </style>",
     "</head>",
     `  <body><img src="${escapeHtmlAttribute(imageUrl)}" alt="" /></body>`,
@@ -37,6 +47,7 @@ export function buildImageFrameHtml(imageUrl: string): string {
 export async function resolveFrameRegionSource(
   region: FrameRegionConfig,
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>,
+  fit: FrameImageFit = "cover",
 ): Promise<FrameRegionSource | null> {
   if (region.mode === "html" && region.html) {
     return {
@@ -51,7 +62,7 @@ export async function resolveFrameRegionSource(
     }
 
     return {
-      srcDoc: buildImageFrameHtml(asset.resourceUrl),
+      srcDoc: buildImageFrameHtml(asset.resourceUrl, fit),
     };
   }
 
@@ -62,6 +73,7 @@ export interface FrameRegionSurfaceProps {
   region: FrameRegionConfig;
   title: string;
   ratio?: string;
+  autoHeight?: boolean;
   readBoxAsset?: (assetPath: string) => Promise<ResolvedRuntimeResource>;
   onActivate?: () => void;
 }
@@ -70,14 +82,16 @@ export function FrameRegionSurface({
   region,
   title,
   ratio,
+  autoHeight,
   readBoxAsset,
   onActivate,
 }: FrameRegionSurfaceProps) {
   const [source, setSource] = React.useState<FrameRegionSource | null>(null);
+  const fit: FrameImageFit = autoHeight ? "natural" : "cover";
 
   React.useEffect(() => {
     let cancelled = false;
-    void resolveFrameRegionSource(region, readBoxAsset).then((next) => {
+    void resolveFrameRegionSource(region, readBoxAsset, fit).then((next) => {
       if (!cancelled) {
         setSource(next);
       }
@@ -90,7 +104,7 @@ export function FrameRegionSurface({
     return () => {
       cancelled = true;
     };
-  }, [readBoxAsset, region]);
+  }, [fit, readBoxAsset, region]);
 
   if (!source) {
     return null;
@@ -101,7 +115,9 @@ export function FrameRegionSurface({
       title={title}
       src={source.src}
       srcDoc={source.srcDoc}
-      ratio={ratio}
+      ratio={autoHeight ? undefined : ratio}
+      autoHeight={autoHeight}
+      maxHeightFactor={autoHeight && region.mode === "html" ? 3 : undefined}
       sandbox="allow-scripts"
       onActivate={onActivate}
     />

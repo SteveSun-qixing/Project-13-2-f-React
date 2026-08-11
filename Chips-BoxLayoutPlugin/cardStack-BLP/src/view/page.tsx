@@ -91,10 +91,8 @@ const CARD_STACK_LAYOUT_STYLE = `
 [data-scope="chips-box-cardstack-layout"] [data-layout-top-region] {
   width: min(100%, 960px);
   min-width: 0;
-  min-block-size: clamp(132px, 24vw, 288px);
   border-radius: 12px;
   overflow: hidden;
-  background-color: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -110,6 +108,13 @@ const CARD_STACK_LAYOUT_STYLE = `
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+[data-scope="chips-box-cardstack-layout"] [data-layout-top-region] [data-frame-region-image] {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-frame-region-status],
@@ -405,12 +410,14 @@ function FrameRegionSurface({
   runtime,
   title,
   ratio,
+  autoHeight = false,
   decorative = false,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
   title: string;
-  ratio: string;
+  ratio?: string;
+  autoHeight?: boolean;
   decorative?: boolean;
 }) {
   const [state, setState] = useState<FrameRegionState>({ status: "idle" });
@@ -449,7 +456,9 @@ function FrameRegionSurface({
         <EmbeddedDocumentFrame
           title={title}
           srcDoc={region.html ?? ""}
-          ratio={ratio}
+          ratio={autoHeight ? undefined : ratio}
+          autoHeight={autoHeight}
+          maxHeightFactor={autoHeight ? 3 : undefined}
           sandbox="allow-scripts"
         />
       </div>
@@ -852,7 +861,7 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
               region={config.props.topRegion}
               runtime={runtime}
               title={formatMessage("layout.top_region_title")}
-              ratio="16:5"
+              autoHeight
             />
           </div>
         ) : null}

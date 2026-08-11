@@ -78,11 +78,9 @@ const SCATTERED_LAYOUT_STYLE = `
 [data-scope="chips-box-scattered-layout"] [data-layout-top-region] {
   width: 100%;
   min-width: 0;
-  min-height: clamp(116px, 20vw, 248px);
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
-  background: #ffffff;
 }
 
 [data-scope="chips-box-scattered-layout"] [data-frame-region-status] {
@@ -684,7 +682,7 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
             <FrameRegionSurface
               region={config.props.topRegion}
               title={formatMessage("layout.top_region_title")}
-              ratio="16:5"
+              autoHeight
               readBoxAsset={runtime.readBoxAsset}
             />
           </div>

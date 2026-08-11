@@ -631,4 +631,105 @@ describe("layoutDefinition", () => {
       assetRefs: expect.arrayContaining(["map.png"]),
     }));
   });
+
+  it("renders the html top region with auto height and no fixed ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+
+    await renderView({
+      container,
+      runtime,
+      config: layoutDefinition.normalizeConfig({
+        props: {
+          topRegion: {
+            mode: "html",
+            html: "<p>top banner</p>",
+          },
+        },
+      }),
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const iframe = container.querySelector(
+      '[data-layout-top-region] iframe[data-chips-embedded-frame="embedded-document-frame"]',
+    );
+    expect(iframe).toBeTruthy();
+    expect(iframe?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+    expect(iframe?.getAttribute("srcdoc")).toContain("<p>top banner</p>");
+    const surface = container.querySelector("[data-layout-top-region] .chips-embedded-document-frame");
+    expect(surface).toBeTruthy();
+    expect(surface?.getAttribute("style") ?? "").not.toContain("aspect-ratio");
+  });
+
+  it("keeps the top region container unconstrained and displays top region images naturally", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+
+    await renderView({
+      container,
+      runtime,
+      config: layoutDefinition.normalizeConfig({
+        props: {
+          topRegion: {
+            mode: "image",
+            assetPath: "assets/layouts/map/top-region/banner.png",
+          },
+        },
+      }),
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const topRegion = container.querySelector("[data-layout-top-region]");
+    expect(topRegion).toBeTruthy();
+    const img = container.querySelector("[data-layout-top-region] [data-frame-region-image]");
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute("style")).toBeNull();
+    expect(runtime.readBoxAsset).toHaveBeenCalledWith("assets/layouts/map/top-region/banner.png");
+
+    const styleText = container.querySelector("style")?.textContent ?? "";
+    const topRegionRule = styleText.match(
+      /\[data-scope="chips-box-map-layout"\] \[data-layout-top-region\] \{[^}]*\}/,
+    )?.[0];
+    expect(topRegionRule).toBeTruthy();
+    expect(topRegionRule).toContain("background: transparent");
+    expect(topRegionRule).not.toContain("min-block-size");
+    expect(topRegionRule).not.toContain("aspect-ratio");
+    expect(styleText).toContain(
+      '[data-scope="chips-box-map-layout"] [data-layout-top-region] [data-frame-region-image]',
+    );
+    expect(styleText).toContain("height: auto");
+    expect(styleText).toContain("object-fit: contain");
+  });
+
+  it("previews the top region without a fixed aspect ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    await renderEditor({
+      container,
+      initialConfig: layoutDefinition.normalizeConfig({
+        props: {
+          topRegion: {
+            mode: "html",
+            html: "<p>top preview</p>",
+          },
+        },
+      }),
+    });
+
+    const preview = container.querySelector("[data-frame-region-preview]");
+    expect(preview).toBeTruthy();
+    expect(preview?.getAttribute("style")).toBeNull();
+    const iframe = preview?.querySelector("iframe");
+    expect(iframe).toBeTruthy();
+    expect(iframe?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+  });
 });

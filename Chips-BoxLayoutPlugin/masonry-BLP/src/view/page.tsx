@@ -66,11 +66,16 @@ const MASONRY_LAYOUT_STYLE = `
 
 [data-scope="chips-box-masonry-layout"] [data-layout-top-region] {
   min-width: 0;
-  min-block-size: clamp(132px, 24vw, 288px);
   border-radius: 12px;
   overflow: hidden;
-  background-color: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-scope="chips-box-masonry-layout"] [data-layout-top-region] [data-frame-region-image] {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
 [data-scope="chips-box-masonry-layout"] [data-frame-region],
@@ -374,12 +379,14 @@ function FrameRegionSurface({
   title,
   ratio,
   decorative = false,
+  autoHeight = false,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
   title: string;
-  ratio: string;
+  ratio?: string;
   decorative?: boolean;
+  autoHeight?: boolean;
 }) {
   const [state, setState] = useState<FrameRegionState>({ status: "idle" });
 
@@ -415,7 +422,9 @@ function FrameRegionSurface({
         <EmbeddedDocumentFrame
           title={title}
           srcDoc={region.html ?? ""}
-          ratio={ratio}
+          ratio={autoHeight ? undefined : ratio}
+          autoHeight={autoHeight}
+          maxHeightFactor={autoHeight ? 3 : undefined}
           sandbox="allow-scripts"
         />
       </div>
@@ -769,7 +778,7 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
               region={config.props.topRegion}
               runtime={runtime}
               title={formatMessage("layout.top_region_title")}
-              ratio="16:5"
+              autoHeight
             />
           </div>
         ) : null}

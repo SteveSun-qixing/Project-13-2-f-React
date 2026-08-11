@@ -65,10 +65,8 @@ export const LIST_LAYOUT_STYLE = `
 
 [data-scope="chips-box-list-layout"] [data-layout-top-region] {
   width: 100%;
-  min-height: clamp(132px, 24vw, 288px);
   border-radius: 8px;
   overflow: hidden;
-  background: #f2f2f7;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(12px);

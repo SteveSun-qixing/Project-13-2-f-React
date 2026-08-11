@@ -150,7 +150,7 @@ export function LayoutViewPage({
             <FrameRegionSurface
               region={config.props.topRegion}
               title={formatMessage("editor.top_region_title")}
-              ratio="16:5"
+              autoHeight
               readBoxAsset={runtime.readBoxAsset}
             />
           </div>

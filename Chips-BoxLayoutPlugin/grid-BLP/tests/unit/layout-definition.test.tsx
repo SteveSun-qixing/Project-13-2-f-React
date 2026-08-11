@@ -483,6 +483,179 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-layout-empty-text]')?.textContent).toContain("在编辑器中添加卡片或箱子");
   });
 
+  it("renders html top region with auto height and no fixed ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    await act(async () => {
+      layoutDefinition.renderView({
+        container,
+        sessionId: "session-top-html",
+        box: {
+          boxId: "box-top-html",
+          boxFile: "/tmp/top-html.box",
+          name: "Top Html Box",
+          activeLayoutType: "chips.layout.grid",
+          availableLayouts: ["chips.layout.grid"],
+          capabilities: {
+            listEntries: true,
+            readEntryDetail: true,
+            renderEntryCover: true,
+            renderEntryDocument: true,
+            releaseEntryDocument: true,
+            resolveEntryResource: true,
+            readBoxAsset: true,
+            prefetchEntries: true,
+            openEntry: true,
+          },
+        },
+        initialView: {
+          items: [],
+          total: 0,
+        },
+        config: layoutDefinition.normalizeConfig({
+          props: {
+            topRegion: {
+              mode: "html",
+              html: "<p>Banner</p>",
+            },
+          },
+        }),
+        runtime: {
+          listEntries: vi.fn(),
+          readEntryDetail: vi.fn(),
+          renderEntryCover: vi.fn(),
+          renderEntryDocument: vi.fn(),
+          releaseEntryDocument: vi.fn(),
+          resolveEntryResource: vi.fn(),
+          readBoxAsset: vi.fn(),
+          prefetchEntries: vi.fn().mockResolvedValue(undefined),
+          openEntry: vi.fn(),
+        },
+        locale: "zh-CN",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const topRegion = container.querySelector("[data-layout-top-region]");
+    expect(topRegion).toBeTruthy();
+    const frame = topRegion?.querySelector('[data-chips-embedded-frame="embedded-document-frame"]') as HTMLIFrameElement | null;
+    expect(frame).toBeTruthy();
+    expect(frame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+    const styleText = container.querySelector("style")?.textContent ?? "";
+    expect(styleText).not.toContain("min-height: clamp(132px, 24vw, 288px)");
+  });
+
+  it("renders image top region with natural sizing and transparent background", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    await act(async () => {
+      layoutDefinition.renderView({
+        container,
+        sessionId: "session-top-image",
+        box: {
+          boxId: "box-top-image",
+          boxFile: "/tmp/top-image.box",
+          name: "Top Image Box",
+          activeLayoutType: "chips.layout.grid",
+          availableLayouts: ["chips.layout.grid"],
+          capabilities: {
+            listEntries: true,
+            readEntryDetail: true,
+            renderEntryCover: true,
+            renderEntryDocument: true,
+            releaseEntryDocument: true,
+            resolveEntryResource: true,
+            readBoxAsset: true,
+            prefetchEntries: true,
+            openEntry: true,
+          },
+        },
+        initialView: {
+          items: [],
+          total: 0,
+        },
+        config: layoutDefinition.normalizeConfig({
+          props: {
+            topRegion: {
+              mode: "image",
+              assetPath: "assets/layouts/grid/top-region/banner.webp",
+            },
+          },
+        }),
+        runtime: {
+          listEntries: vi.fn(),
+          readEntryDetail: vi.fn(),
+          renderEntryCover: vi.fn(),
+          renderEntryDocument: vi.fn(),
+          releaseEntryDocument: vi.fn(),
+          resolveEntryResource: vi.fn(),
+          readBoxAsset: vi.fn().mockResolvedValue({
+            resourceUrl: "chips-render://box-assets/banner.webp",
+            mimeType: "image/webp",
+          }),
+          prefetchEntries: vi.fn().mockResolvedValue(undefined),
+          openEntry: vi.fn(),
+        },
+        locale: "zh-CN",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const topRegion = container.querySelector("[data-layout-top-region]");
+    const frame = topRegion?.querySelector('[data-chips-embedded-frame="embedded-document-frame"]') as HTMLIFrameElement | null;
+    const srcdoc = frame?.getAttribute("srcdoc") ?? "";
+    expect(frame).toBeTruthy();
+    expect(srcdoc).toContain("img { display: block; width: 100%; height: auto; }");
+    expect(srcdoc).toContain("background: transparent");
+    expect(srcdoc).not.toContain("object-fit: cover");
+  });
+
+  it("renders top region editor preview without a fixed ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const onChange = vi.fn();
+
+    await act(async () => {
+      layoutDefinition.renderEditor?.({
+        container,
+        entries: [],
+        initialConfig: layoutDefinition.normalizeConfig({
+          props: {
+            background: {
+              mode: "image",
+              assetPath: "assets/layouts/grid/background/hero.webp",
+            },
+            topRegion: {
+              mode: "image",
+              assetPath: "assets/layouts/grid/top-region/banner.webp",
+            },
+          },
+        }),
+        onChange,
+        readBoxAsset: vi.fn().mockResolvedValue({
+          resourceUrl: "chips-render://box-assets/hero.webp",
+          mimeType: "image/webp",
+        }),
+        importBoxAsset: vi.fn(),
+        deleteBoxAsset: vi.fn(),
+        locale: "zh-CN",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const topRegion = container.querySelector('[data-frame-region-editor="topRegion"]') as HTMLElement | null;
+    const topDropZone = topRegion?.querySelector("[data-drop-zone]");
+    expect(topDropZone?.classList.contains("chips-grid-layout-editor__drop-zone--auto-height")).toBe(true);
+    const background = container.querySelector('[data-frame-region-editor="background"]') as HTMLElement | null;
+    const backgroundDropZone = background?.querySelector("[data-drop-zone]");
+    expect(backgroundDropZone?.classList.contains("chips-grid-layout-editor__drop-zone--auto-height")).toBe(false);
+  });
+
   it("loads additional entry pages and prefetches visible covers", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
