@@ -13,6 +13,7 @@ import {
   type CardCoverResource,
 } from '../../../utils/card-cover';
 import { CoverCropDialog } from './CoverCropDialog';
+import { resolveCoverPreviewFrameSize, type CoverPreviewFrameSize } from './cover-panel-layout';
 import './CoverPanel.css';
 
 type CoverEditorMode = 'image' | 'html';
@@ -142,6 +143,7 @@ export function CoverPanel({
 }: CoverPanelProps) {
   const imageDraftRef = useRef<ImageDraft | null>(null);
   const savedPreviewUrlRef = useRef<string | null>(null);
+  const previewShellRef = useRef<HTMLDivElement | null>(null);
 
   const initialHtml = currentCoverHtml?.trim() ? currentCoverHtml : createDefaultCoverHtml(cardName);
   const initialRatio = normalizeCoverRatio(currentRatio ?? DEFAULT_COVER_RATIO);
@@ -158,6 +160,7 @@ export function CoverPanel({
   const [imageDraft, setImageDraft] = useState<ImageDraft | null>(null);
   const [savedImagePreviewUrl, setSavedImagePreviewUrl] = useState<string | null>(null);
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
+  const [previewContainerSize, setPreviewContainerSize] = useState<CoverPreviewFrameSize>({ width: 0, height: 0 });
   const deferredHtmlCode = useDeferredValue(htmlCode);
 
   useEffect(() => {
@@ -262,6 +265,45 @@ export function CoverPanel({
     || Boolean(imageDraft)
   );
 
+  const previewFrameSize = resolveCoverPreviewFrameSize({
+    ratio: activeRatio,
+    containerWidth: previewContainerSize.width,
+    containerHeight: previewContainerSize.height,
+    preferredWidth: 240,
+    horizontalPadding: 32,
+    verticalPadding: 16,
+  });
+
+  useEffect(() => {
+    const previewShell = previewShellRef.current;
+    if (!previewShell) {
+      return undefined;
+    }
+
+    const updatePreviewContainerSize = () => {
+      const nextSize = {
+        width: previewShell.clientWidth,
+        height: previewShell.clientHeight,
+      };
+
+      setPreviewContainerSize((currentSize) => (
+        currentSize.width === nextSize.width && currentSize.height === nextSize.height
+          ? currentSize
+          : nextSize
+      ));
+    };
+
+    updatePreviewContainerSize();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const resizeObserver = new ResizeObserver(updatePreviewContainerSize);
+    resizeObserver.observe(previewShell);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   useEffect(() => {
     onDraftChange?.({
       html: draftHtml,
@@ -345,20 +387,26 @@ export function CoverPanel({
     <div className="cover-panel">
       <div className="cover-panel__preview-pane">
         <div className="cover-panel__preview-header">
-          <div>
-            <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_preview_title')}</h3>
-            <p className="cover-panel__section-desc">
-              {formatMessage('card_settings.cover_preview_desc')}
-            </p>
-          </div>
+          <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_preview_title')}</h3>
 
           <span className="cover-panel__preview-ratio">
             {formatMessage('card_settings.cover_preview_ratio', { ratio: activeRatio })}
           </span>
         </div>
 
-        <div className="cover-panel__preview-shell">
-          <div className="cover-panel__preview-frame" style={{ aspectRatio: activeRatio.replace(':', ' / ') }}>
+        <div ref={previewShellRef} className="cover-panel__preview-shell">
+          <div
+            className="cover-panel__preview-frame"
+            style={{
+              aspectRatio: activeRatio.replace(':', ' / '),
+              ...(previewFrameSize.width > 0 && previewFrameSize.height > 0
+                ? {
+                    width: `${previewFrameSize.width}px`,
+                    height: `${previewFrameSize.height}px`,
+                  }
+                : {}),
+            }}
+          >
             {previewHtml ? (
               <iframe
                 key={`${mode}-${activeRatio}-${Boolean(activeImagePreviewUrl)}`}
@@ -381,10 +429,6 @@ export function CoverPanel({
             )}
           </div>
 
-          <div className="cover-panel__preview-caption">
-            <span>{cardName}</span>
-            <span>{formatMessage('card_settings.cover_preview_runtime_note')}</span>
-          </div>
         </div>
       </div>
 
@@ -398,47 +442,46 @@ export function CoverPanel({
               key: 'ratio',
               label: formatMessage('card_settings.cover_tab_ratio'),
               children: (
-                <section className="cover-panel__section">
-                  <div className="cover-panel__section-header">
-                    <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_ratio_label')}</h3>
-                    <p className="cover-panel__section-desc">
-                      {formatMessage('card_settings.cover_ratio_desc')}
-                    </p>
-                  </div>
+                <div className="cover-panel__editor-scroll">
+                  <section className="cover-panel__section">
+                    <div className="cover-panel__section-header">
+                      <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_ratio_label')}</h3>
+                    </div>
 
-                  <div className="cover-panel__ratio-grid">
-                    {ratioOptions.map((item) => (
-                      <Tooltip key={item.id} title={item.label} placement="top">
-                        <button
-                          type="button"
-                          className={`cover-panel__ratio-card ${selectedPresetId === item.id ? 'cover-panel__ratio-card--active' : ''}`}
-                          onClick={() => setSelectedPresetId(item.id)}
-                          aria-label={item.label}
-                        >
-                          <span
-                            className="cover-panel__ratio-card-shape"
-                            style={{ aspectRatio: item.ratio.replace(':', ' / ') }}
-                          />
-                          <span className="cover-panel__ratio-card-label">{item.label}</span>
-                        </button>
-                      </Tooltip>
-                    ))}
-                  </div>
+                    <div className="cover-panel__ratio-grid">
+                      {ratioOptions.map((item) => (
+                        <Tooltip key={item.id} title={item.label} placement="top">
+                          <button
+                            type="button"
+                            className={`cover-panel__ratio-card ${selectedPresetId === item.id ? 'cover-panel__ratio-card--active' : ''}`}
+                            onClick={() => setSelectedPresetId(item.id)}
+                            aria-label={item.label}
+                          >
+                            <span
+                              className="cover-panel__ratio-card-shape"
+                              style={{ aspectRatio: item.ratio.replace(':', ' / ') }}
+                            />
+                            <span className="cover-panel__ratio-card-label">{item.label}</span>
+                          </button>
+                        </Tooltip>
+                      ))}
+                    </div>
 
-                  <div className="cover-panel__orientation-row">
-                    <span className="cover-panel__orientation-label">
-                      {formatMessage('card_settings.cover_orientation_label')}
-                    </span>
-                    <Segmented
-                      value={orientation}
-                      onChange={(value) => setOrientation(value as CoverOrientation)}
-                      options={[
-                        { value: 'portrait', label: formatMessage('card_settings.cover_orientation_portrait') },
-                        { value: 'landscape', label: formatMessage('card_settings.cover_orientation_landscape') },
-                      ]}
-                    />
-                  </div>
-                </section>
+                    <div className="cover-panel__orientation-row">
+                      <span className="cover-panel__orientation-label">
+                        {formatMessage('card_settings.cover_orientation_label')}
+                      </span>
+                      <Segmented
+                        value={orientation}
+                        onChange={(value) => setOrientation(value as CoverOrientation)}
+                        options={[
+                          { value: 'portrait', label: formatMessage('card_settings.cover_orientation_portrait') },
+                          { value: 'landscape', label: formatMessage('card_settings.cover_orientation_landscape') },
+                        ]}
+                      />
+                    </div>
+                  </section>
+                </div>
               ),
             },
             {
@@ -449,9 +492,6 @@ export function CoverPanel({
                   <section className="cover-panel__section">
                     <div className="cover-panel__section-header">
                       <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_mode_label')}</h3>
-                      <p className="cover-panel__section-desc">
-                        {formatMessage('card_settings.cover_mode_desc')}
-                      </p>
                     </div>
 
                     <Segmented
@@ -468,9 +508,6 @@ export function CoverPanel({
                     <section className="cover-panel__section">
                       <div className="cover-panel__section-header">
                         <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_image_title')}</h3>
-                        <p className="cover-panel__section-desc">
-                          {formatMessage('card_settings.cover_image_desc')}
-                        </p>
                       </div>
 
                       <label className="cover-panel__upload-card">
@@ -535,9 +572,6 @@ export function CoverPanel({
                     <section className="cover-panel__section">
                       <div className="cover-panel__section-header">
                         <h3 className="cover-panel__section-title">{formatMessage('card_settings.cover_html_title')}</h3>
-                        <p className="cover-panel__section-desc">
-                          {formatMessage('card_settings.cover_html_desc')}
-                        </p>
                       </div>
 
                       <textarea

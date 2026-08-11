@@ -128,6 +128,8 @@ describe('CoverPanel', () => {
     expect(previewPane?.querySelector('.cover-panel__preview-header')).not.toBeNull();
     expect(previewIframes).toHaveLength(1);
     expect(previewFrame?.style.aspectRatio).toBe('3 / 4');
+    expect(previewFrame?.style.width).toBe('240px');
+    expect(previewFrame?.style.height).toBe('320px');
   });
 
   it('uses a blob URL inside the preview iframe for generated image covers', async () => {

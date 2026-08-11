@@ -4,10 +4,32 @@
  * ============================================================ */
 .cover-panel {
   display: grid;
-  grid-template-columns: minmax(270px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
+  min-width: 0;
   background: #ffffff;
+}
+
+/* 窄窗口：预览与编辑上下堆叠（内容不拉伸） */
+@media (max-width: 820px) {
+  .cover-panel {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(170px, 36%) minmax(0, 1fr);
+  }
+
+  .cover-panel__preview-pane {
+    border-right: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .cover-panel__preview-header {
+    padding-block: 12px 8px;
+  }
+
+  .cover-panel__preview-shell {
+    padding-bottom: 12px;
+  }
 }
 
 .cover-panel__preview-pane,
@@ -63,9 +85,12 @@
 .cover-panel__preview-shell {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-height: 0;
+  min-width: 0;
   padding: 0 16px 16px;
+  overflow: hidden;
 }
 
 .cover-panel__preview-viewport {
@@ -82,8 +107,7 @@
 .cover-panel__preview-frame {
   position: relative;
   width: min(100%, 240px);
-  height: auto;
-  max-height: 100%;
+  flex: none;
   border-radius: 10px;
   background: #ffffff;
   box-shadow:
@@ -187,8 +211,10 @@
 }
 
 .cover-panel__editor-scroll {
-  height: 100%;
+  min-height: 100%;
   padding: 20px 24px;
+  max-width: 620px;
+  margin: 0 auto;
 }
 
 .cover-panel__section {
@@ -212,9 +238,10 @@
 /* ------------------------------------------------------------
  * 比例选择（苹果风格小卡片）
  * ------------------------------------------------------------ */
+/* 比例选择：列数随宽度自适应（不拉伸） */
 .cover-panel__ratio-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
   gap: 8px;
 }
 
@@ -429,4 +456,29 @@
 .cover-panel__html-input:focus {
   border-color: #0a84ff;
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+}
+
+@media (max-width: 520px) {
+  .cover-panel__editor-tabs .ant-tabs-nav {
+    padding-inline: 16px;
+  }
+
+  .cover-panel__editor-scroll {
+    padding: 16px;
+  }
+
+  .cover-panel__orientation-row,
+  .cover-panel__asset-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cover-panel__orientation-row .ant-segmented,
+  .cover-panel__asset-actions {
+    width: 100%;
+  }
+
+  .cover-panel__asset-actions .ant-btn {
+    flex: 1;
+  }
 }
