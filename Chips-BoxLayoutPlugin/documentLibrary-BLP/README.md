@@ -1,6 +1,6 @@
 # 文档库布局插件
 
-文档库布局插件把箱子展示成轻量文档库：左侧是层级目录树，右侧是当前条目的正式封面、标题、摘要、标签和打开入口。完整文档内容仍由 Host 通过 `runtime.openEntry(entryId)` 打开。
+文档库布局插件把箱子展示成轻量文档库：左侧是层级目录树，右侧按节点配置显示完整卡片内容或正式封面。内容态直接显示 Host 托管的卡片文档，不重复显示箱子摘要中的标题、类型、摘要、标签或独立打开入口。
 
 ## 工程定位
 
@@ -51,6 +51,7 @@
         id: "chapter-1",
         entryId: "entry-1",
         titleOverride: "第一章",
+        presentation: "content",
         collapsed: false,
         children: []
       }
@@ -74,15 +75,21 @@
 
 `.box/content.yaml` 的正式存储字段使用 snake_case，转换由 Host/SDK/编辑引擎正式链路负责。布局插件只消费 Host 注入的运行时对象，不直接写 YAML。
 
-`treeNodes` 只保存目录组织关系、可选 `titleOverride` 和默认 `collapsed` 状态，不改变 `structure.yaml` 中的条目引用集合。未放入目录树的条目会在查看态继续展示，并在编辑器中显示为“未归档条目”。
+`treeNodes` 只保存目录组织关系、可选 `titleOverride`、条目 `presentation` 和默认 `collapsed` 状态，不改变 `structure.yaml` 中的条目引用集合。`presentation` 为 `content | cover`；卡片默认显示内容，箱子条目固定显示封面。未放入目录树的条目会在查看态继续展示，并在编辑器中显示为“未归档条目”。
 
 ## 查看态运行时
 
 查看态从 Host 注入的 `initialView` 首屏摘要开始渲染。后续分页通过 `runtime.listEntries({ cursor, limit })` 拉取，不自行解析 `.box/structure.yaml`。
 
-条目封面显示优先调用 `runtime.renderEntryCover(entryId)`，并用 `@chips/ui` 的 `EmbeddedDocumentFrame` 承载 Host 返回的正式文档入口。点击目录标题、右侧封面或打开按钮只调用 `runtime.openEntry(entryId)`，打开窗口和外部跳转由 Host 决定。
+内容态调用 `runtime.renderEntryDocument(entryId, { mode: "view", interactionPolicy: "native" })`，右侧只挂载 Host 返回的 `documentUrl`，不再在 iframe 外重复渲染条目标题、类型、摘要、标签或“打开文档”按钮。子卡片 iframe 消费 `ready/resize/resource-open/node-error/fatal-error/interaction` 消息；切换目录、切换为封面或卸载布局时调用 `runtime.releaseEntryDocument(renderSessionId)`。远程卡片当前显示明确失败态。
+
+查看态工具栏提供目录显示/隐藏切换。隐藏目录时只移除左侧目录节点，当前选中的卡片文档继续保留，并将主网格切换为单列；该状态属于当前布局页面会话，不写入布局配置。主网格和右侧预览使用内容高度（`max-content` / `fit-content`），目录自身独立滚动，窗口尺寸变化不会再把右侧内容强制拉伸到目录高度。
+
+封面态继续调用 `runtime.renderEntryCover(entryId)`，并用 `@chips/ui` 的 `EmbeddedDocumentFrame` 承载 Host 返回的正式封面入口。点击目录标题只切换右侧内容，不再隐式新开窗口；点击封面或封面态的“打开文档”按钮才调用 `runtime.openEntry(entryId)`。引用箱子的条目始终使用封面态，不递归展开。
 
 布局自有背景和顶部区域资源通过 `runtime.readBoxAsset(assetPath)` 读取。`resourceUrl` 只用于当前会话预览或渲染，不写入布局配置。
+
+顶部内容区不设固定比例和最小高度。图片模式按图片自然宽高比显示并始终撑满区域宽度，区域背景透明；HTML 模式优先按 iframe 实际内容高度显示，拿不到高度时以容器宽度的 3 倍为上限（测量值同样受该上限钳制）。背景区域保持固定 16:9 比例、cover 铺满和白底等既有行为不变，编辑器预览与查看态保持一致。
 
 查看态还会对即将使用的条目调用 `runtime.prefetchEntries({ entryIds, targets: ["cover"] })`，并在分页、封面和箱子资源失败时显示本地化错误状态。配置中引用但当前摘要页缺失的条目会显示缺失状态，配置不会被查看态自动移除。
 
@@ -96,6 +103,7 @@
 
 - 排序方式：手动顺序、名称升序、名称降序；
 - 目录树基础配置：添加目录、加入未归档条目、上移、下移、缩进、取消缩进、移除、标题覆盖、默认折叠；
+- 条目展示方式：卡片内容、卡片封面；箱子条目固定为卡片封面；
 - 侧边栏宽度：紧凑、常规、宽；
 - 摘要显隐；
 - 背景区和顶部内容区：无、图片、HTML。

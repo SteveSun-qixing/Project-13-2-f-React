@@ -57,11 +57,13 @@ describe("layout-config", () => {
         id: "chapter-1",
         entryId: "entry-1",
         titleOverride: "Chapter 1",
+        presentation: "content",
         collapsed: true,
         children: [
           {
             id: "chapter-1-1",
             entryId: "entry-2",
+            presentation: "content",
             collapsed: false,
             children: [],
           },

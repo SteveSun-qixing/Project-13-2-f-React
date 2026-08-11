@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyHint, EmbeddedDocumentFrame, LayoutSkeleton, SkeletonBlock, SkeletonLine } from "@chips/ui";
+import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import {
   hasFrameRegionContent,
   type DocumentTreeNodeConfig,
@@ -8,6 +9,7 @@ import {
 } from "../schema/layout-config";
 import type {
   BoxEntryCoverView,
+  BoxEntryDocumentView,
   BoxEntryPage,
   BoxEntrySnapshot,
   BoxLayoutRuntime,
@@ -41,6 +43,7 @@ interface TreeDisplayNode {
   collapsed: boolean;
   configured: boolean;
   missing: boolean;
+  presentation?: "content" | "cover";
   entry?: BoxEntrySnapshot;
   children: TreeDisplayNode[];
 }
@@ -80,10 +83,8 @@ const DOCUMENT_LIBRARY_STYLE = `
 
 [data-scope="chips-document-library-layout"] [data-layout-top-region] {
   min-width: 0;
-  min-block-size: clamp(132px, 24vw, 288px);
   border-radius: 12px;
   overflow: hidden;
-  background-color: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -101,12 +102,51 @@ const DOCUMENT_LIBRARY_STYLE = `
   object-fit: cover;
 }
 
+[data-scope="chips-document-library-layout"] [data-layout-top-region] [data-frame-region-image] {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
 [data-scope="chips-document-library-layout"] [data-document-library-main] {
   display: grid;
   grid-template-columns: minmax(0, var(--document-library-sidebar-width, 280px)) minmax(0, 1fr);
+  grid-auto-rows: max-content;
   gap: 16px;
   align-items: start;
+  align-content: start;
+  align-self: start;
+  height: fit-content;
   min-width: 0;
+}
+
+[data-scope="chips-document-library-layout"] [data-document-library-main][data-sidebar-hidden="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-scope="chips-document-library-layout"] [data-document-library-toolbar] {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+[data-scope="chips-document-library-layout"] [data-document-sidebar-toggle] {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 36px;
+  block-size: 36px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1d1d1f;
+  cursor: pointer;
+}
+
+[data-scope="chips-document-library-layout"] [data-document-sidebar-toggle]:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-library-main][data-sidebar-width="compact"] {
@@ -199,8 +239,18 @@ const DOCUMENT_LIBRARY_STYLE = `
 [data-scope="chips-document-library-layout"] [data-document-preview] {
   display: grid;
   gap: 12px;
+  align-self: start;
+  height: fit-content;
   min-width: 0;
   padding: 16px;
+}
+
+[data-scope="chips-document-library-layout"] [data-document-preview][data-presentation="content"] {
+  gap: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
 }
 
 [data-scope="chips-document-library-layout"] [data-document-cover-shell] {
@@ -233,6 +283,51 @@ const DOCUMENT_LIBRARY_STYLE = `
   gap: 8px;
   padding: 16px;
   color: #6e6e73;
+  text-align: center;
+}
+
+[data-scope="chips-document-library-layout"] [data-entry-document-shell] {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 240px;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  background-color: #ffffff;
+}
+
+[data-scope="chips-document-library-layout"] [data-entry-document-frame] {
+  display: block;
+  width: 100%;
+  min-height: 240px;
+  border: none;
+  background-color: #ffffff;
+}
+
+[data-scope="chips-document-library-layout"] [data-entry-document-status] {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  padding: 16px;
+  color: #6e6e73;
+  background-color: rgba(255, 255, 255, 0.96);
+  text-align: center;
+  pointer-events: none;
+}
+
+[data-scope="chips-document-library-layout"] [data-entry-document-error] {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 240px;
+  padding: 16px;
+  color: #6e6e73;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background-color: #ffffff;
   text-align: center;
 }
 
@@ -422,6 +517,7 @@ function buildTreeNodes({
       collapsed: node.collapsed,
       configured: true,
       missing: Boolean(node.entryId && !entry),
+      presentation: entry?.snapshot.contentType === "chips/box" ? "cover" : node.presentation ?? "content",
       entry,
       children: node.children.map((child) => mapConfigNode(child, depth + 1)),
     };
@@ -438,6 +534,7 @@ function buildTreeNodes({
       collapsed: false,
       configured: false,
       missing: false,
+      presentation: entry.snapshot.contentType === "chips/box" ? "cover" : "content",
       entry,
       children: [],
     }));
@@ -462,12 +559,14 @@ function FrameRegionSurface({
   runtime,
   title,
   ratio,
+  autoHeight = false,
   decorative = false,
 }: {
   region: FrameRegionConfig;
   runtime: BoxLayoutRuntime;
   title: string;
-  ratio: string;
+  ratio?: string;
+  autoHeight?: boolean;
   decorative?: boolean;
 }) {
   const [state, setState] = useState<FrameRegionState>({ status: "idle" });
@@ -501,7 +600,9 @@ function FrameRegionSurface({
         <EmbeddedDocumentFrame
           title={title}
           srcDoc={region.html ?? ""}
-          ratio={ratio}
+          ratio={autoHeight ? undefined : ratio}
+          autoHeight={autoHeight}
+          maxHeightFactor={autoHeight ? 3 : undefined}
           sandbox="allow-scripts"
         />
       </div>
@@ -624,6 +725,177 @@ function CoverPreview({
   );
 }
 
+const FORWARDED_COMPOSITE_EVENTS = new Set([
+  "chips.composite:interaction",
+  "chips.composite:node-select",
+  "chips.composite:resource-open",
+  "chips.composite:node-error",
+  "chips.composite:fatal-error",
+]);
+
+function isAllowedDocumentMessageOrigin(documentUrl: string, origin: string): boolean {
+  try {
+    const expectedOrigin = new URL(documentUrl, window.location.href).origin;
+    return expectedOrigin === "null" ? origin === "null" : origin === expectedOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function InlineCardDocumentFrame({
+  view,
+  runtime,
+}: {
+  view: BoxEntryDocumentView;
+  runtime: BoxLayoutRuntime;
+}) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const runtimeRef = useRef(runtime);
+  const [height, setHeight] = useState(480);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  runtimeRef.current = runtime;
+
+  useEffect(() => {
+    return () => {
+      void runtimeRef.current.releaseEntryDocument(view.renderSessionId).catch(() => undefined);
+    };
+  }, [view.renderSessionId]);
+
+  useEffect(() => {
+    const listener = (event: MessageEvent): void => {
+      const frameWindow = frameRef.current?.contentWindow;
+      if (!frameWindow || event.source !== frameWindow) {
+        return;
+      }
+      if (!isAllowedDocumentMessageOrigin(view.documentUrl, event.origin)) {
+        return;
+      }
+      if (!event.data || typeof event.data !== "object") {
+        return;
+      }
+
+      const message = event.data as { type?: string; payload?: unknown };
+      if (message.type === "chips.composite:ready") {
+        setStatus("ready");
+        return;
+      }
+      if (message.type === "chips.composite:resize") {
+        const payload = message.payload as { height?: unknown } | undefined;
+        const nextHeight = typeof payload?.height === "number" && Number.isFinite(payload.height)
+          ? Math.min(100_000, Math.max(240, Math.ceil(payload.height)))
+          : undefined;
+        if (nextHeight !== undefined) {
+          setHeight(nextHeight);
+          setStatus("ready");
+        }
+        return;
+      }
+      if (!message.type || !FORWARDED_COMPOSITE_EVENTS.has(message.type)) {
+        return;
+      }
+      if (message.type === "chips.composite:fatal-error") {
+        setStatus("error");
+      }
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(event.data, "*");
+      }
+    };
+
+    window.addEventListener("message", listener);
+    return () => {
+      window.removeEventListener("message", listener);
+    };
+  }, [view.documentUrl]);
+
+  return (
+    <div data-entry-document-shell data-state={status}>
+      <iframe
+        ref={frameRef}
+        data-entry-document-frame
+        title={view.title}
+        src={view.documentUrl}
+        sandbox="allow-scripts allow-forms"
+        style={{ height }}
+        onLoad={() => {
+          setStatus((current) => current === "error" ? current : "ready");
+        }}
+        onError={() => {
+          setStatus("error");
+        }}
+      />
+      {status !== "ready" ? (
+        <div data-entry-document-status role="status">
+          {formatMessage(status === "error" ? "layout.document_error" : "layout.document_loading")}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function EntryDocumentPreview({
+  entry,
+  runtime,
+}: {
+  entry: BoxEntrySnapshot;
+  runtime: BoxLayoutRuntime;
+}) {
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<{
+    status: "loading" | "ready" | "error";
+    view?: BoxEntryDocumentView;
+  }>({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    void runtime.renderEntryDocument(entry.entryId, {
+      mode: "view",
+      interactionPolicy: "native",
+    }).then((view) => {
+      if (cancelled) {
+        void runtime.releaseEntryDocument(view.renderSessionId).catch(() => undefined);
+        return;
+      }
+      setState({ status: "ready", view });
+    }).catch(() => {
+      if (!cancelled) {
+        setState({ status: "error" });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt, entry.entryId, runtime]);
+
+  if (state.status === "ready" && state.view) {
+    return <InlineCardDocumentFrame view={state.view} runtime={runtime} />;
+  }
+
+  if (state.status === "error") {
+    return (
+      <div data-entry-document-error role="status">
+        <span>{formatMessage("layout.document_error")}</span>
+        <button
+          type="button"
+          data-layout-retry
+          onClick={() => {
+            setAttempt((current) => current + 1);
+          }}
+        >
+          {formatMessage("layout.retry")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div data-entry-document-error role="status">
+      {formatMessage("layout.document_loading")}
+    </div>
+  );
+}
+
 const DOCUMENT_SKELETON_INDENTS = [0, 0, 24, 24, 48, 48];
 
 function DocumentLibrarySkeleton(): React.ReactElement {
@@ -685,11 +957,20 @@ function DocumentPreview({
     );
   }
 
+  const displaysCover = node.presentation === "cover" || node.entry.snapshot.contentType === "chips/box";
+  if (!displaysCover) {
+    return (
+      <div data-document-preview data-presentation="content" data-entry-id={node.entry.entryId}>
+        <EntryDocumentPreview key={node.entry.entryId} entry={node.entry} runtime={runtime} />
+      </div>
+    );
+  }
+
   const tags = resolveTags(node.entry);
   const summary = node.entry.snapshot.summary?.trim();
 
   return (
-    <article data-document-preview data-entry-id={node.entry.entryId}>
+    <article data-document-preview data-presentation="cover" data-entry-id={node.entry.entryId}>
       <CoverPreview entry={node.entry} runtime={runtime} />
       <h1 data-document-title>{node.title}</h1>
       <p data-document-meta>{resolveEntryKindMessage(node.entry)}</p>
@@ -725,6 +1006,7 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
   const [pageError, setPageError] = useState(false);
   const [collapsedOverrides, setCollapsedOverrides] = useState<Record<string, boolean>>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -816,9 +1098,6 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
 
   const openNode = (node: TreeDisplayNode): void => {
     setSelectedNodeId(node.id);
-    if (node.entryId && node.entry) {
-      void runtime.openEntry(node.entryId);
-    }
   };
 
   const handleTreeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -867,55 +1146,78 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
               region={config.props.topRegion}
               runtime={runtime}
               title={formatMessage("layout.top_region_title")}
-              ratio="16:5"
+              autoHeight
             />
           </div>
         ) : null}
 
-        <div data-document-library-main data-sidebar-width={config.props.sidebarWidth}>
-          <nav
-            data-document-tree
-            aria-label={formatMessage("layout.tree_label")}
-            onKeyDown={handleTreeKeyDown}
+        <div data-document-library-toolbar>
+          <button
+            type="button"
+            data-document-sidebar-toggle
+            aria-expanded={isSidebarVisible}
+            aria-controls="chips-document-library-tree"
+            aria-label={formatMessage(isSidebarVisible ? "layout.hide_directory" : "layout.show_directory")}
+            title={formatMessage(isSidebarVisible ? "layout.hide_directory" : "layout.show_directory")}
+            onClick={() => {
+              setIsSidebarVisible((visible) => !visible);
+            }}
           >
-            <div data-document-tree-list role="tree">
-              {effectiveTreeNodes.map((node) => (
-                <div
-                  key={node.id}
-                  data-document-tree-row
-                  data-active={selectedNode?.id === node.id ? "true" : "false"}
-                  data-missing={node.missing ? "true" : undefined}
-                  data-unconfigured={!node.configured ? "true" : undefined}
-                  role="treeitem"
-                  aria-selected={selectedNode?.id === node.id ? "true" : "false"}
-                  aria-expanded={node.children.length > 0 ? !node.collapsed : undefined}
-                  style={{ paddingInlineStart: `calc(${node.depth} * 16px)` }}
-                >
-                  <button
-                    type="button"
-                    data-document-tree-toggle
-                    disabled={node.children.length === 0}
-                    aria-label={formatMessage(node.collapsed ? "layout.expand_node" : "layout.collapse_node")}
-                    onClick={() => {
-                      toggleNode(node.id);
-                    }}
+            {isSidebarVisible ? <MenuFoldOutlined aria-hidden="true" /> : <MenuUnfoldOutlined aria-hidden="true" />}
+          </button>
+        </div>
+
+        <div
+          data-document-library-main
+          data-sidebar-width={config.props.sidebarWidth}
+          data-sidebar-hidden={isSidebarVisible ? "false" : "true"}
+        >
+          {isSidebarVisible ? (
+            <nav
+              id="chips-document-library-tree"
+              data-document-tree
+              aria-label={formatMessage("layout.tree_label")}
+              onKeyDown={handleTreeKeyDown}
+            >
+              <div data-document-tree-list role="tree">
+                {effectiveTreeNodes.map((node) => (
+                  <div
+                    key={node.id}
+                    data-document-tree-row
+                    data-active={selectedNode?.id === node.id ? "true" : "false"}
+                    data-missing={node.missing ? "true" : undefined}
+                    data-unconfigured={!node.configured ? "true" : undefined}
+                    role="treeitem"
+                    aria-selected={selectedNode?.id === node.id ? "true" : "false"}
+                    aria-expanded={node.children.length > 0 ? !node.collapsed : undefined}
+                    style={{ paddingInlineStart: `calc(${node.depth} * 16px)` }}
                   >
-                    {node.children.length > 0 ? (node.collapsed ? "+" : "-") : ""}
-                  </button>
-                  <button
-                    type="button"
-                    data-document-tree-title
-                    title={node.title}
-                    onClick={() => {
-                      openNode(node);
-                    }}
-                  >
-                    {node.title}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </nav>
+                    <button
+                      type="button"
+                      data-document-tree-toggle
+                      disabled={node.children.length === 0}
+                      aria-label={formatMessage(node.collapsed ? "layout.expand_node" : "layout.collapse_node")}
+                      onClick={() => {
+                        toggleNode(node.id);
+                      }}
+                    >
+                      {node.children.length > 0 ? (node.collapsed ? "+" : "-") : ""}
+                    </button>
+                    <button
+                      type="button"
+                      data-document-tree-title
+                      title={node.title}
+                      onClick={() => {
+                        openNode(node);
+                      }}
+                    >
+                      {node.title}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </nav>
+          ) : null}
 
           <DocumentPreview
             node={selectedNode}

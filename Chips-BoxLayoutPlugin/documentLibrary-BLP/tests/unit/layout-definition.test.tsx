@@ -41,6 +41,14 @@ function createRuntime(overrides: Partial<BoxLayoutRuntime> = {}): BoxLayoutRunt
       mimeType: "text/html",
       ratio: "3:4",
     })),
+    renderEntryDocument: vi.fn((entryId: string) => Promise.resolve({
+      entryId,
+      documentType: "card" as const,
+      title: `Document ${entryId}`,
+      documentUrl: `chips-render://document/${entryId}`,
+      renderSessionId: `render-${entryId}`,
+    })),
+    releaseEntryDocument: vi.fn().mockResolvedValue(undefined),
     resolveEntryResource: vi.fn(),
     readBoxAsset: vi.fn().mockResolvedValue({
       resourceUrl: "chips-render://asset/background",
@@ -157,8 +165,16 @@ async function uploadFile(input: HTMLInputElement, file: File): Promise<void> {
   });
 }
 
+function findCssRule(container: HTMLElement, selector: string): CSSStyleRule | undefined {
+  const styleElement = container.querySelector(
+    '[data-scope="chips-document-library-layout"] style'
+  ) as HTMLStyleElement | null;
+  const rules = styleElement ? Array.from(styleElement.sheet?.cssRules ?? []) : [];
+  return rules.find((rule) => rule instanceof CSSStyleRule && rule.selectorText === selector) as CSSStyleRule | undefined;
+}
+
 describe("layoutDefinition", () => {
-  it("renders initial view, loads covers, prefetches and opens entries through runtime", async () => {
+  it("renders only the selected card document in the content pane by default", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const runtime = createRuntime();
@@ -176,15 +192,40 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-document-tree]')).toBeTruthy();
     expect(container.querySelector('[data-document-preview]')).toBeTruthy();
     expect(container.querySelector('[data-layout-skeleton]')).toBeNull();
-    expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
+    expect(container.querySelector('[data-entry-document-frame]')).toBeTruthy();
     expect(container.querySelector('[data-scope="card-cover-frame"]')).toBeNull();
-    expect(container.textContent).toContain("Summary");
+    expect(container.querySelector('[data-document-preview]')?.getAttribute("data-presentation")).toBe("content");
+    expect(container.querySelector('[data-document-title]')).toBeNull();
+    expect(container.querySelector('[data-document-meta]')).toBeNull();
+    expect(container.querySelector('[data-document-summary]')).toBeNull();
+    expect(container.querySelector('[data-document-tags]')).toBeNull();
+    expect(container.querySelector('[data-document-open-button]')).toBeNull();
     expect(runtime.listEntries).not.toHaveBeenCalled();
-    expect(runtime.renderEntryCover).toHaveBeenCalledWith("entry-1");
+    expect(runtime.renderEntryDocument).toHaveBeenCalledWith("entry-1", {
+      mode: "view",
+      interactionPolicy: "native",
+    });
+    expect(runtime.renderEntryCover).not.toHaveBeenCalled();
     expect(runtime.prefetchEntries).toHaveBeenCalledWith({
       entryIds: ["entry-1"],
       targets: ["cover"],
     });
+
+    const sidebarToggle = container.querySelector('[data-document-sidebar-toggle]') as HTMLButtonElement | null;
+    expect(sidebarToggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector('[data-document-tree]')).toBeTruthy();
+    await act(async () => {
+      sidebarToggle?.click();
+      await Promise.resolve();
+    });
+    expect(sidebarToggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector('[data-document-tree]')).toBeNull();
+    expect(container.querySelector('[data-document-library-main]')?.getAttribute("data-sidebar-hidden")).toBe("true");
+    await act(async () => {
+      sidebarToggle?.click();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-document-tree]')).toBeTruthy();
 
     await act(async () => {
       container
@@ -192,19 +233,13 @@ describe("layoutDefinition", () => {
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
-    expect(runtime.openEntry).toHaveBeenCalledWith("entry-1");
-
-    await act(async () => {
-      container
-        .querySelector('[data-document-open-button]')
-        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-    });
-    expect(runtime.openEntry).toHaveBeenCalledWith("entry-1");
+    expect(runtime.openEntry).not.toHaveBeenCalled();
 
     await act(async () => {
       cleanup?.();
+      await Promise.resolve();
     });
+    expect(runtime.releaseEntryDocument).toHaveBeenCalledWith("render-entry-1");
     expect(container.textContent ?? "").toBe("");
   });
 
@@ -234,6 +269,117 @@ describe("layoutDefinition", () => {
     ).map((node) => (node as HTMLElement).style.paddingInlineStart);
     expect(indents).toEqual(["0px", "0px", "24px", "24px", "48px", "48px"]);
     expect(runtime.prefetchEntries).not.toHaveBeenCalled();
+  });
+
+  it("uses configured cover presentation and releases the previous card session when selection changes", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    await renderView({
+      container,
+      runtime,
+      config: layoutDefinition.normalizeConfig({
+        schemaVersion: "1.0.0",
+        props: {
+          sortMode: "manual",
+          treeNodes: [
+            {
+              id: "entry-1-node",
+              entryId: "entry-1",
+              presentation: "content",
+              collapsed: false,
+              children: [],
+            },
+            {
+              id: "entry-2-node",
+              entryId: "entry-2",
+              presentation: "cover",
+              collapsed: false,
+              children: [],
+            },
+          ],
+          sidebarWidth: "regular",
+          showSummary: true,
+          background: { mode: "none" },
+          topRegion: { mode: "none" },
+        },
+      }),
+      initialView: {
+        items: [createEntry("entry-1", "Alpha"), createEntry("entry-2", "Beta")],
+        total: 2,
+      },
+    });
+
+    expect(container.querySelector('[data-entry-document-frame]')).toBeTruthy();
+    const beta = Array.from(container.querySelectorAll('[data-document-tree-title]'))
+      .find((candidate) => candidate.textContent === "Beta");
+    await act(async () => {
+      beta?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(runtime.releaseEntryDocument).toHaveBeenCalledWith("render-entry-1");
+    expect(runtime.renderEntryCover).toHaveBeenCalledWith("entry-2");
+    expect(container.querySelector('[data-document-cover-shell]')).toBeTruthy();
+    expect(container.querySelector('[data-document-preview]')?.getAttribute("data-presentation")).toBe("cover");
+    expect(container.querySelector('[data-document-open-button]')).toBeTruthy();
+  });
+
+  it("keeps the main grid and preview at content height instead of stretching to the directory", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await renderView({
+      container,
+      runtime: createRuntime(),
+      initialView: {
+        items: [createEntry("entry-1", "Alpha")],
+        total: 1,
+      },
+    });
+
+    const mainRule = findCssRule(
+      container,
+      '[data-scope="chips-document-library-layout"] [data-document-library-main]'
+    );
+    expect(mainRule?.style.gridAutoRows).toBe("max-content");
+    expect(mainRule?.style.alignContent).toBe("start");
+    expect(mainRule?.style.alignSelf).toBe("start");
+    expect(mainRule?.style.height).toBe("fit-content");
+    const previewRule = findCssRule(
+      container,
+      '[data-scope="chips-document-library-layout"] [data-document-preview]'
+    );
+    expect(previewRule?.style.alignSelf).toBe("start");
+    expect(previewRule?.style.height).toBe("fit-content");
+  });
+
+  it("applies composite resize messages to the inline card frame", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    await renderView({
+      container,
+      runtime,
+      initialView: {
+        items: [createEntry("entry-1", "Alpha")],
+        total: 1,
+      },
+    });
+
+    const frame = container.querySelector('[data-entry-document-frame]') as HTMLIFrameElement | null;
+    expect(frame?.contentWindow).toBeTruthy();
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        source: frame?.contentWindow,
+        origin: "null",
+        data: {
+          type: "chips.composite:resize",
+          payload: { height: 720 },
+        },
+      }));
+      await Promise.resolve();
+    });
+    expect(frame?.style.height).toBe("720px");
   });
 
   it("loads additional pages and keeps existing entries when pagination fails", async () => {
@@ -312,6 +458,7 @@ describe("layoutDefinition", () => {
 
     expect(container.textContent).toContain("封面加载失败");
     expect(container.textContent).toContain("箱子");
+    expect(runtime.renderEntryDocument).not.toHaveBeenCalled();
     expect(container.querySelector('[data-scope="card-cover-frame"]')).toBeNull();
   });
 
@@ -410,22 +557,181 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
   });
 
-  it("does not update the DOM after cleanup while runtime promises are pending", async () => {
+  it("renders the top region html frame with auto height reporting and no fixed sizing", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
-    let resolveCover: ((value: {
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        treeNodes: [],
+        sidebarWidth: "regular",
+        showSummary: true,
+        background: { mode: "none" },
+        topRegion: {
+          mode: "html",
+          html: "<section>Top Banner</section>",
+        },
+      },
+    });
+
+    const cleanup = await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const frame = container.querySelector(
+      '[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(frame).toBeTruthy();
+    expect(frame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+    expect(frame?.getAttribute("srcdoc")).toContain("<section>Top Banner</section>");
+
+    const topRegionRule = findCssRule(
+      container,
+      '[data-scope="chips-document-library-layout"] [data-layout-top-region]'
+    );
+    expect(topRegionRule?.style.minBlockSize).toBe("");
+    expect(topRegionRule?.style.backgroundColor).toBe("");
+    expect(topRegionRule?.style.borderRadius).toBe("12px");
+    expect(topRegionRule?.style.overflow).toBe("hidden");
+
+    await act(async () => {
+      cleanup();
+    });
+  });
+
+  it("renders the top region image naturally while the background keeps cover fit", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const config = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        treeNodes: [],
+        sidebarWidth: "regular",
+        showSummary: true,
+        background: {
+          mode: "image",
+          assetPath: "assets/layouts/chips.layout.documentlibrary.blp/background/bg.png",
+        },
+        topRegion: {
+          mode: "image",
+          assetPath: "assets/layouts/chips.layout.documentlibrary.blp/top-region/banner.png",
+        },
+      },
+    });
+
+    await renderView({
+      container,
+      runtime,
+      config,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const topImage = container.querySelector('[data-layout-top-region] [data-frame-region-image]');
+    expect(topImage).toBeTruthy();
+    expect(topImage?.getAttribute("style")).toBeNull();
+    expect(container.querySelector('[data-layout-background] [data-frame-region-image]')).toBeTruthy();
+
+    const topRegionImageRule = findCssRule(
+      container,
+      '[data-scope="chips-document-library-layout"] [data-layout-top-region] [data-frame-region-image]'
+    );
+    expect(topRegionImageRule?.style.width).toBe("100%");
+    expect(topRegionImageRule?.style.height).toBe("auto");
+    expect(topRegionImageRule?.style.objectFit).toBe("contain");
+
+    const regionImageRule = findCssRule(
+      container,
+      '[data-scope="chips-document-library-layout"] [data-frame-region-image]'
+    );
+    expect(regionImageRule?.style.height).toBe("100%");
+    expect(regionImageRule?.style.objectFit).toBe("cover");
+  });
+
+  it("edits the top region with an auto-height preview while the background preview keeps its ratio", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const onChange = vi.fn();
+    const initialConfig = layoutDefinition.normalizeConfig({
+      schemaVersion: "1.0.0",
+      props: {
+        sortMode: "manual",
+        treeNodes: [],
+        sidebarWidth: "regular",
+        showSummary: true,
+        background: {
+          mode: "html",
+          html: "<section>Background</section>",
+        },
+        topRegion: {
+          mode: "html",
+          html: "<section>Top</section>",
+        },
+      },
+    });
+
+    const cleanup = await renderEditor({
+      container,
+      initialConfig,
+      onChange,
+    });
+
+    const topPreview = container.querySelector(
+      '[data-frame-region-editor="topRegion"] [data-frame-region-preview]'
+    );
+    expect(topPreview).toBeTruthy();
+    expect(topPreview?.getAttribute("style")).toBeNull();
+    const topFrame = topPreview?.querySelector(
+      '[data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(topFrame?.getAttribute("srcdoc")).toContain("chips.embedded-frame:height");
+
+    const backgroundPreview = container.querySelector(
+      '[data-frame-region-editor="background"] [data-frame-region-preview]'
+    );
+    expect(backgroundPreview?.getAttribute("style")).toContain("aspect-ratio: 16 / 9");
+    const backgroundFrame = backgroundPreview?.querySelector(
+      '[data-chips-embedded-frame="embedded-document-frame"]'
+    );
+    expect(backgroundFrame?.getAttribute("srcdoc")).not.toContain("chips.embedded-frame:height");
+
+    await act(async () => {
+      cleanup();
+    });
+  });
+
+  it("releases late entry document sessions after cleanup without updating the DOM", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    let resolveDocument: ((value: {
+      entryId: string;
+      documentType: "card";
       title: string;
-      coverUrl: string;
-      mimeType: string;
+      documentUrl: string;
+      renderSessionId: string;
     }) => void) | undefined;
-    const renderEntryCover = vi.fn(() => new Promise<{
+    const renderEntryDocument = vi.fn(() => new Promise<{
+      entryId: string;
+      documentType: "card";
       title: string;
-      coverUrl: string;
-      mimeType: string;
+      documentUrl: string;
+      renderSessionId: string;
     }>((resolve) => {
-      resolveCover = resolve;
+      resolveDocument = resolve;
     }));
-    const runtime = createRuntime({ renderEntryCover });
+    const runtime = createRuntime({ renderEntryDocument });
 
     const cleanup = await renderView({
       container,
@@ -440,14 +746,17 @@ describe("layoutDefinition", () => {
       cleanup?.();
     });
     await act(async () => {
-      resolveCover?.({
-        title: "Late Cover",
-        coverUrl: "chips-render://late",
-        mimeType: "text/html",
+      resolveDocument?.({
+        entryId: "entry-1",
+        documentType: "card",
+        title: "Late Document",
+        documentUrl: "chips-render://late",
+        renderSessionId: "late-render-session",
       });
       await Promise.resolve();
     });
     expect(container.textContent ?? "").toBe("");
+    expect(runtime.releaseEntryDocument).toHaveBeenCalledWith("late-render-session");
   });
 
   it("renders editor and imports box assets into config snapshots", async () => {
@@ -504,6 +813,38 @@ describe("layoutDefinition", () => {
     await act(async () => {
       cleanup?.();
     });
+  });
+
+  it("edits per-entry content or cover presentation and locks box entries to covers", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const onChange = vi.fn();
+    await renderEditor({ container, onChange });
+
+    await act(async () => {
+      clickButtonByText(container, "加入：Alpha");
+      await Promise.resolve();
+    });
+    let lastConfig = onChange.mock.calls.at(-1)?.[0] as LayoutConfig;
+    expect(lastConfig.props.treeNodes[0]?.presentation).toBe("content");
+
+    const presentation = container.querySelector('[data-node-presentation="entry-entry-1"]');
+    const coverOption = Array.from(presentation?.querySelectorAll(".ant-segmented-item") ?? [])
+      .find((candidate) => candidate.textContent === "卡片封面");
+    await act(async () => {
+      coverOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    lastConfig = onChange.mock.calls.at(-1)?.[0] as LayoutConfig;
+    expect(lastConfig.props.treeNodes[0]?.presentation).toBe("cover");
+
+    await act(async () => {
+      clickButtonByText(container, "加入：Beta");
+      await Promise.resolve();
+    });
+    lastConfig = onChange.mock.calls.at(-1)?.[0] as LayoutConfig;
+    expect(lastConfig.props.treeNodes[1]?.presentation).toBe("cover");
+    expect(container.querySelector('[data-node-presentation="entry-entry-2"] .ant-segmented-disabled')).toBeTruthy();
   });
 
   it("deletes replaced and cleared box assets from the editor bridge", async () => {

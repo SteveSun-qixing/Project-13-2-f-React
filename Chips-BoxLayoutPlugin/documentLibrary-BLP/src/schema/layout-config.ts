@@ -1,5 +1,6 @@
 export type SortMode = "manual" | "name-asc" | "name-desc";
 export type SidebarWidth = "compact" | "regular" | "wide";
+export type DocumentPresentation = "content" | "cover";
 
 export interface FrameRegionConfig {
   mode: "none" | "image" | "html";
@@ -11,6 +12,7 @@ export interface DocumentTreeNodeConfig {
   id: string;
   entryId?: string;
   titleOverride?: string;
+  presentation?: DocumentPresentation;
   collapsed: boolean;
   children: DocumentTreeNodeConfig[];
 }
@@ -176,10 +178,12 @@ function normalizeTreeNodes(
     seenIds.add(id);
     counter.count += 1;
 
+    const entryId = normalizeOptionalText(raw.entryId);
     nodes.push({
       id,
-      entryId: normalizeOptionalText(raw.entryId),
+      entryId,
       titleOverride: normalizeOptionalText(raw.titleOverride),
+      presentation: entryId && raw.presentation === "cover" ? "cover" : entryId ? "content" : undefined,
       collapsed: raw.collapsed === true,
       children: normalizeTreeNodes(raw.children, depth + 1, id, counter),
     });
@@ -264,6 +268,12 @@ export function validateLayoutConfig(config: LayoutConfig): {
     }
     if (node.entryId !== undefined && node.entryId.trim().length === 0) {
       errors[`${path}.entryId`] = "tree node entryId cannot be empty.";
+    }
+    if (node.entryId && node.presentation !== "content" && node.presentation !== "cover") {
+      errors[`${path}.presentation`] = "entry tree node presentation must be content or cover.";
+    }
+    if (!node.entryId && node.presentation !== undefined) {
+      errors[`${path}.presentation`] = "group tree node cannot define presentation.";
     }
     if (typeof node.collapsed !== "boolean") {
       errors[`${path}.collapsed`] = "tree node collapsed must be boolean.";

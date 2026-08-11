@@ -279,6 +279,7 @@ function cloneNode(node: DocumentTreeNodeConfig): DocumentTreeNodeConfig {
     id: node.id,
     entryId: node.entryId,
     titleOverride: node.titleOverride,
+    presentation: node.presentation,
     collapsed: node.collapsed,
     children: node.children.map(cloneNode),
   };
@@ -360,6 +361,7 @@ function createEntryNode(entry: BoxEntrySnapshot): DocumentTreeNodeConfig {
   return {
     id: `entry-${entry.entryId}`,
     entryId: entry.entryId,
+    presentation: entry.snapshot.contentType === "chips/box" ? "cover" : "content",
     collapsed: false,
     children: [],
   };
@@ -614,6 +616,31 @@ export function LayoutEditorPanel({
                         ? formatMessage(entry ? "editor.node_entry" : "editor.node_missing_entry", { entryId: node.entryId })
                         : formatMessage("editor.node_group")}
                     </div>
+                    {node.entryId ? (
+                      <div data-node-presentation={node.id}>
+                        <Segmented
+                          block
+                          aria-label={formatMessage("editor.presentation_for", { title: inheritedTitle })}
+                          value={entry?.snapshot.contentType === "chips/box" ? "cover" : node.presentation ?? "content"}
+                          disabled={entry?.snapshot.contentType === "chips/box"}
+                          options={[
+                            { label: formatMessage("editor.presentation_content"), value: "content" },
+                            { label: formatMessage("editor.presentation_cover"), value: "cover" },
+                          ]}
+                          onChange={(value) => {
+                            commitTreeNodes(updateNodeAtPath(configRef.current.props.treeNodes, path, (current) => ({
+                              ...current,
+                              presentation: value === "cover" ? "cover" : "content",
+                            })));
+                          }}
+                        />
+                        {entry?.snapshot.contentType === "chips/box" ? (
+                          <span className="chips-box-layout-editor__field-hint">
+                            {formatMessage("editor.presentation_box_hint")}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <Checkbox
                       checked={node.collapsed}
                       onChange={(event) => {
@@ -700,7 +727,7 @@ export function LayoutEditorPanel({
             region={config.props.topRegion}
             title={formatMessage("editor.top_region_title")}
             description={formatMessage("editor.top_region_desc")}
-            previewRatio="16:5"
+            previewAutoHeight
             preferredAssetPrefix="assets/layouts/chips.layout.documentlibrary.blp/top-region"
             readBoxAsset={readBoxAsset}
             importBoxAsset={importBoxAsset}

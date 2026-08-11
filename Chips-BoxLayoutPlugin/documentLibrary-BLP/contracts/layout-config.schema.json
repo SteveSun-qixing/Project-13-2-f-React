@@ -71,6 +71,10 @@
           "type": "string",
           "maxLength": 160
         },
+        "presentation": {
+          "type": "string",
+          "enum": ["content", "cover"]
+        },
         "collapsed": {
           "type": "boolean"
         },
@@ -80,7 +84,14 @@
             "$ref": "#/$defs/treeNode"
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["entryId"] },
+          "then": { "required": ["presentation"] },
+          "else": { "not": { "required": ["presentation"] } }
+        }
+      ]
     },
     "frameRegion": {
       "type": "object",
