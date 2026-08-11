@@ -589,8 +589,8 @@ const createBoxLayoutEditorThemeCss = (theme: ThemeSnapshot, themeCssText?: stri
     themeCssText,
     createBoxLayoutThemeVariablesCss(theme),
     [
-      'html, body { margin: 0; padding: 0; width: 100%; height: 100%; min-height: 100%; background: transparent; }',
-      'body { min-width: 0; min-height: 0; color: var(--chips-sys-color-on-surface, #111111); overflow: hidden; }',
+      'html { margin: 0; padding: 0; width: 100%; height: 100%; min-height: 100%; background: transparent; }',
+      'body { margin: 0; padding: 0; width: 100%; height: 100%; min-height: 100%; min-width: 0; color: var(--chips-sys-color-on-surface, #111111); overflow: hidden; }',
       '#chips-box-layout-editor-root { width: 100%; height: 100%; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }',
     ].join('\n')
   );

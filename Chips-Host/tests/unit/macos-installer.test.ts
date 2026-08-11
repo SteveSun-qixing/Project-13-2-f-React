@@ -224,7 +224,7 @@ beforeEach(async () => {
   await write(path.join(workspaceRoot, 'Chips-PhotoViewer', 'assets', 'icons', 'app-icon.ico'), 'icon');
 
   await write(
-    path.join(workspaceRoot, 'ThemePack', 'Chips-default', 'manifest.yaml'),
+    path.join(workspaceRoot, '归档', 'ThemePack', 'Chips-default', 'manifest.yaml'),
     [
       'schemaVersion: "1.0.0"',
       'id: "theme.theme.chips-official-default-theme"',
@@ -250,10 +250,10 @@ beforeEach(async () => {
       '    minFunctionalSet: contracts/theme-min-functional-set.json'
     ].join('\n')
   );
-  await write(path.join(workspaceRoot, 'ThemePack', 'Chips-default', 'dist', 'tokens.json'), '{}');
-  await write(path.join(workspaceRoot, 'ThemePack', 'Chips-default', 'dist', 'theme.css'), ':root {}\n');
-  await write(path.join(workspaceRoot, 'ThemePack', 'Chips-default', 'contracts', 'theme-interface.contract.json'), '{}');
-  await write(path.join(workspaceRoot, 'ThemePack', 'Chips-default', 'contracts', 'theme-min-functional-set.json'), '{}');
+  await write(path.join(workspaceRoot, '归档', 'ThemePack', 'Chips-default', 'dist', 'tokens.json'), '{}');
+  await write(path.join(workspaceRoot, '归档', 'ThemePack', 'Chips-default', 'dist', 'theme.css'), ':root {}\n');
+  await write(path.join(workspaceRoot, '归档', 'ThemePack', 'Chips-default', 'contracts', 'theme-interface.contract.json'), '{}');
+  await write(path.join(workspaceRoot, '归档', 'ThemePack', 'Chips-default', 'contracts', 'theme-min-functional-set.json'), '{}');
 });
 
 afterEach(async () => {
@@ -403,7 +403,7 @@ describe('macOS installer builder', () => {
       builtInPluginBundles: [
         {
           id: 'theme.theme.chips-official-default-theme',
-          sourceDir: path.join(workspaceRoot, 'ThemePack', 'Chips-default'),
+          sourceDir: path.join(workspaceRoot, '归档', 'ThemePack', 'Chips-default'),
           includePaths: ['manifest.yaml', 'dist', 'contracts']
         },
         {

@@ -994,11 +994,33 @@ describe('PluginRuntime', () => {
   });
 
   it('normalizes theme plugin governance metadata during install', async () => {
-    const record = await runtime.install(path.resolve(process.cwd(), '../ThemePack/Chips-default/manifest.yaml'));
+    const themeDir = path.join(workspace, 'fixture-theme');
+    await fs.mkdir(path.join(themeDir, 'dist'), { recursive: true });
+    await fs.writeFile(
+      path.join(themeDir, 'manifest.yaml'),
+      [
+        'id: chips.fixture.theme',
+        'name: 测试主题',
+        'version: "1.0.0"',
+        'type: theme',
+        'entry:',
+        '  tokens: dist/tokens.json',
+        '  themeCss: dist/theme.css',
+        'themeId: chips-fixture.default-theme',
+        'displayName: 测试主题',
+        'isDefault: false',
+        'permissions: []'
+      ].join('\n') + '\n',
+      'utf-8'
+    );
+    await fs.writeFile(path.join(themeDir, 'dist/tokens.json'), '{}', 'utf-8');
+    await fs.writeFile(path.join(themeDir, 'dist/theme.css'), ':root {}\n', 'utf-8');
+
+    const record = await runtime.install(path.join(themeDir, 'manifest.yaml'));
     expect(record.manifest.theme).toMatchObject({
-      themeId: 'chips-official.default-theme',
-      displayName: '薯片官方 · 默认主题',
-      isDefault: true,
+      themeId: 'chips-fixture.default-theme',
+      displayName: '测试主题',
+      isDefault: false,
       tokensPath: 'dist/tokens.json',
       themeCssPath: 'dist/theme.css'
     });

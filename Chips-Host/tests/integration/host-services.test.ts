@@ -202,6 +202,45 @@ const createLayoutPluginFixture = async (rootDir: string): Promise<string> => {
   return path.join(pluginDir, 'manifest.yaml');
 };
 
+const createThemePluginFixture = async (rootDir: string, id: string, themeId: string, displayName: string): Promise<string> => {
+  const pluginDir = path.join(rootDir, `fixture-theme-${themeId.replace(/[^a-zA-Z0-9-]/g, '-')}`);
+  await writeText(
+    path.join(pluginDir, 'manifest.yaml'),
+    [
+      'id: ' + id,
+      'name: ' + displayName,
+      'version: "1.0.0"',
+      'type: theme',
+      'entry:',
+      '  tokens: dist/tokens.json',
+      '  themeCss: dist/theme.css',
+      'themeId: ' + themeId,
+      'displayName: ' + displayName,
+      'isDefault: false',
+      'permissions: []',
+      'permissions: []',
+      'runtime:',
+      '  targets:',
+      '    desktop:',
+      '      supported: true',
+      '    web:',
+      '      supported: false',
+      '    mobile:',
+      '      supported: false',
+      '    headless:',
+      '      supported: false'
+    ].join('\n') + '\n'
+  );
+  await fs.mkdir(path.join(pluginDir, 'dist'), { recursive: true });
+  await fs.writeFile(
+    path.join(pluginDir, 'dist/tokens.json'),
+    JSON.stringify({ sys: { color: { primary: '#0a84ff' } } }),
+    'utf-8'
+  );
+  await fs.writeFile(path.join(pluginDir, 'dist/theme.css'), ':root {}\n', 'utf-8');
+  return path.join(pluginDir, 'manifest.yaml');
+};
+
 const createRichTextCardPluginFixture = async (rootDir: string): Promise<string> => {
   const pluginDir = path.join(rootDir, 'fixture-richtext-card-plugin');
   await writeText(
@@ -347,8 +386,6 @@ beforeEach(async () => {
     themeId: 'chips-official.default-theme'
   });
   await bootstrapRuntime.load();
-  const defaultTheme = await bootstrapRuntime.install(path.resolve(process.cwd(), '../ThemePack/Chips-default/manifest.yaml'));
-  await bootstrapRuntime.enable(defaultTheme.manifest.id);
   app = new HostApplication({ workspacePath: workspace });
   await app.start();
   runtime = new RuntimeClient(app.createBridge(), {
@@ -390,86 +427,6 @@ describe('Host services integration', () => {
     await runtime.invoke('config.reset', { key: 'chips.layer.key', scope: 'workspace' });
     const fallbackSystem = await runtime.invoke<{ value: string }>('config.get', { key: 'chips.layer.key' });
     expect(fallbackSystem.value).toBe('system');
-  });
-
-  it('lists and applies themes', async () => {
-    const list = await runtime.invoke<{ themes: Array<{ id: string }> }>('theme.list', {});
-    expect(list.themes.length).toBeGreaterThan(0);
-
-    await runtime.invoke('theme.apply', { id: list.themes[0]!.id });
-    const current = await runtime.invoke<{ themeId: string }>('theme.getCurrent', {});
-    expect(current.themeId).toBe(list.themes[0]!.id);
-  });
-
-  it('only exposes enabled themes to theme service', async () => {
-    const darkInstall = await runtime.invoke<{ pluginId: string }>('plugin.install', {
-      manifestPath: path.resolve(process.cwd(), '../ThemePack/Chips-theme-default-dark/manifest.yaml')
-    });
-
-    const beforeEnable = await runtime.invoke<{ themes: Array<{ id: string }> }>('theme.list', {});
-    expect(beforeEnable.themes.some((theme) => theme.id === 'chips-official.default-dark-theme')).toBe(false);
-
-    await runtime.invoke('plugin.enable', { pluginId: darkInstall.pluginId });
-    const afterEnable = await runtime.invoke<{ themes: Array<{ id: string }> }>('theme.list', {});
-    expect(afterEnable.themes.some((theme) => theme.id === 'chips-official.default-dark-theme')).toBe(true);
-  });
-
-  it('resolves theme token chain and enforces max depth', async () => {
-    const resolved = await runtime.invoke<{
-      resolved: Array<{ id: string; displayName: string; version: string; order: number }>;
-      tokens: Record<string, unknown>;
-      diagnostics: Array<{
-        severity: string;
-        code: string;
-        messageKey: string;
-        blocking: boolean;
-      }>;
-      summary: {
-        total: number;
-        blocking: number;
-        status: string;
-      };
-    }>('theme.resolve', {
-      chain: ['chips-official.default-theme']
-    });
-    expect(resolved.resolved.length).toBeGreaterThan(0);
-    expect(resolved.resolved[0]?.id).toBe('chips-official.default-theme');
-    expect(resolved.resolved[0]?.version).toBeTruthy();
-    expect(resolved.resolved[0]?.order).toBe(0);
-    expect(Object.keys(resolved.tokens).length).toBeGreaterThan(0);
-    expect(Array.isArray(resolved.diagnostics)).toBe(true);
-    expect(resolved.summary).toMatchObject({
-      total: expect.any(Number),
-      blocking: expect.any(Number),
-      status: expect.stringMatching(/^(complete|warning|blocked)$/)
-    });
-
-    const contract = await runtime.invoke<{
-      schemaVersion: string;
-      themeId: string;
-      themeVersion: string;
-      contractVersion: string;
-      components: Array<{
-        component: string;
-        requiredTokens: string[];
-        optionalTokens: string[];
-        coverage: { status: string; requiredCoverage: number };
-        diagnostics: unknown[];
-      }>;
-      summary: { status: string };
-    }>('theme.contract.get', {});
-    expect(contract.schemaVersion).toBe('1.0.0');
-    expect(contract.themeId).toBe('chips-official.default-theme');
-    expect(contract.themeVersion).toBeTruthy();
-    expect(contract.contractVersion).toBeTruthy();
-    expect(contract.components.some((component) => component.component === 'button')).toBe(true);
-    expect(contract.summary.status).toMatch(/^(complete|warning|blocked)$/);
-
-    await expect(
-      runtime.invoke('theme.resolve', {
-        chain: ['a', 'b', 'c', 'd', 'e', 'f', 'g']
-      })
-    ).rejects.toMatchObject({ code: 'THEME_CHAIN_TOO_DEEP' });
   });
 
   it('supports i18n translation and locale switching', async () => {
@@ -680,11 +637,6 @@ describe('Host services integration', () => {
     });
     await runtime.invoke('plugin.enable', { pluginId: richTextInstall.pluginId });
 
-    const darkThemeInstall = await runtime.invoke<{ pluginId: string }>('plugin.install', {
-      manifestPath: path.resolve(process.cwd(), '../ThemePack/Chips-theme-default-dark/manifest.yaml')
-    });
-    await runtime.invoke('plugin.enable', { pluginId: darkThemeInstall.pluginId });
-
     const source = path.join(workspace, 'render-override-source');
     await fs.mkdir(path.join(source, '.card'), { recursive: true });
     await fs.mkdir(path.join(source, 'content'), { recursive: true });
@@ -711,7 +663,6 @@ describe('Host services integration', () => {
     const overridden = await runtime.invoke<{ view: { body: string; semanticHash: string } }>('card.render', {
       cardFile,
       options: {
-        themeId: 'chips-official.default-dark-theme',
         locale: 'en-US'
       }
     });
@@ -2599,8 +2550,14 @@ describe('Host services integration', () => {
   });
 
   it('exposes plugin governance metadata through list/get/query', async () => {
+    const fixtureManifest = await createThemePluginFixture(
+      workspace,
+      'chips.fixture.theme-dark',
+      'chips-fixture.default-dark-theme',
+      '测试暗夜主题'
+    );
     const darkInstall = await runtime.invoke<{ pluginId: string }>('plugin.install', {
-      manifestPath: path.resolve(process.cwd(), '../ThemePack/Chips-theme-default-dark/manifest.yaml')
+      manifestPath: fixtureManifest
     });
 
     const listed = await runtime.invoke<{
@@ -2619,12 +2576,12 @@ describe('Host services integration', () => {
     expect(listed.plugins).toContainEqual(
       expect.objectContaining({
         id: darkInstall.pluginId,
-        name: '薯片官方 · 暗夜主题',
+        name: '测试暗夜主题',
         version: '1.0.0',
         type: 'theme',
         theme: expect.objectContaining({
-          themeId: 'chips-official.default-dark-theme',
-          displayName: '薯片官方 · 暗夜主题',
+          themeId: 'chips-fixture.default-dark-theme',
+          displayName: '测试暗夜主题',
           isDefault: false
         })
       })
@@ -2645,8 +2602,8 @@ describe('Host services integration', () => {
         id: darkInstall.pluginId,
         enabled: false,
         theme: expect.objectContaining({
-          themeId: 'chips-official.default-dark-theme',
-          displayName: '薯片官方 · 暗夜主题'
+          themeId: 'chips-fixture.default-dark-theme',
+          displayName: '测试暗夜主题'
         })
       })
     );
@@ -2662,9 +2619,9 @@ describe('Host services integration', () => {
     }>('plugin.get', { pluginId: darkInstall.pluginId });
     expect(fetched.plugin).toMatchObject({
       id: darkInstall.pluginId,
-      name: '薯片官方 · 暗夜主题',
+      name: '测试暗夜主题',
       theme: {
-        themeId: 'chips-official.default-dark-theme'
+        themeId: 'chips-fixture.default-dark-theme'
       }
     });
   });

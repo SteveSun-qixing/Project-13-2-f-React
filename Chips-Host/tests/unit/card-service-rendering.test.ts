@@ -407,16 +407,12 @@ const createYamlStringifiedCardDirectory = async (): Promise<string> => {
 };
 
 const loadThemeRenderContext = async (
-  themeDir = '../ThemePack/Chips-default',
   themeId = 'chips-official.default-theme'
 ): Promise<{ theme: ReturnType<typeof toRenderThemeSnapshot>; themeCssText: string }> => {
-  const themeRoot = path.resolve(process.cwd(), themeDir);
-  const tokens = JSON.parse(await fs.readFile(path.join(themeRoot, 'dist', 'tokens.json'), 'utf-8')) as Record<string, unknown>;
-  const themeCssText = await fs.readFile(path.join(themeRoot, 'dist', 'theme.css'), 'utf-8');
-  const resolved = resolveThemeFromLayers(mergeThemeLayers([{ id: themeId, tokens }]));
+  const resolved = resolveThemeFromLayers(mergeThemeLayers([]));
   return {
     theme: toRenderThemeSnapshot(themeId, resolved),
-    themeCssText
+    themeCssText: ''
   };
 };
 
@@ -923,30 +919,6 @@ describe('CardService rendering', () => {
     expect(service.resolveManagedDocumentFilePath(imageUrl)?.endsWith(path.join('assets', 'hero.png'))).toBe(true);
     expect(coverView.coverUrl.startsWith('chips-render://card-root/')).toBe(true);
     expect(service.resolveManagedDocumentFilePath(coverView.coverUrl)?.endsWith(path.join('.card', 'cover.html'))).toBe(true);
-  }, CARD_RENDER_TEST_TIMEOUT_MS);
-
-  it('preserves dark theme color-scheme from theme package css', async () => {
-    const cardFile = await createCardArchive();
-    const themeContext = await loadThemeRenderContext(
-      '../ThemePack/Chips-theme-default-dark',
-      'chips-official.default-dark-theme'
-    );
-    const workspace = await createTempDir('chips-card-runtime-');
-    const runtime = new PluginRuntime(workspace, {
-      locale: 'zh-CN',
-      themeId: 'chips-official.default-dark-theme'
-    });
-    await runtime.load();
-    await installBaseCardPluginFixture(runtime, workspace, 'richtext');
-    const service = new CardService({ runtime, workspaceRoot: process.cwd() });
-
-    const view = await service.render(cardFile, {
-      target: 'card-iframe',
-      ...themeContext
-    });
-
-    expect(view.body).toContain('color-scheme: dark;');
-    expect(view.body).not.toContain('color-scheme: light;');
   }, CARD_RENDER_TEST_TIMEOUT_MS);
 
   it('does not escalate mixed node success and failure into a composite fatal error', async () => {

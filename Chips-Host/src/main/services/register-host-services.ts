@@ -876,7 +876,7 @@ const countPdfPages = (buffer: Buffer): number | undefined => {
 };
 
 const resolveThemeBackgroundColor = (state: RuntimeState): string => {
-  const context = resolveThemeContext(state, []);
+  const context = resolveRenderThemeContext(state, []);
   return (
     asString(context.resolvedTheme.variables['chips.sys.color.canvas']) ??
     asString(context.resolvedTheme.variables['chips.sys.color.surface']) ??
@@ -3298,6 +3298,38 @@ const resolveThemeContext = (state: RuntimeState, inputIds: string[]) => {
   };
 };
 
+/**
+ * 渲染链路的主题解析降级入口。
+ *
+ * 主题系统已随 task030 卸担计划废弃（ThemePack 归档，插件不再消费 themeCssText / renderTheme）。
+ * 卡片/布局渲染不应因默认主题缺失而失败：主题解析失败时返回空主题上下文，
+ * 由插件侧按自身固定视觉渲染。显式主题管理服务（theme.* 路由）仍保持严格校验。
+ */
+const resolveRenderThemeContext = (state: RuntimeState, inputIds: string[]) => {
+  try {
+    return resolveThemeContext(state, inputIds);
+  } catch (error) {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'THEME_NOT_FOUND') {
+      const resolvedTheme = resolveThemeFromLayers(mergeThemeLayers([]));
+      return {
+        records: [],
+        activeTheme: {
+          id: state.currentThemeId,
+          displayName: state.currentThemeId,
+          version: '0.0.0',
+          isDefault: false,
+          css: '',
+          tokens: {}
+        },
+        resolvedTheme,
+        renderTheme: toRenderThemeSnapshot(state.currentThemeId, resolvedTheme),
+        css: ''
+      };
+    }
+    throw error;
+  }
+};
+
 const buildThemeContractViewForContext = (
   context: ReturnType<typeof resolveThemeContext>,
   component?: string
@@ -3372,7 +3404,6 @@ const resolveThemedWindowChrome = (
   }
 
   try {
-    const context = resolveThemeContext(state, []);
     const backgroundColor = resolveThemeBackgroundColor(state);
 
     if (!backgroundColor) {
@@ -6662,7 +6693,7 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           false,
           0,
           withMetrics(state, 'card.render', async (input) => {
-            const themeContext = resolveThemeContext(state, input.options?.themeId ? [input.options.themeId] : []);
+            const themeContext = resolveRenderThemeContext(state, input.options?.themeId ? [input.options.themeId] : []);
             const locale = input.options?.locale ?? state.locale;
             if (!state.locales[locale]) {
               throw createError('I18N_LOCALE_NOT_FOUND', `Locale not found: ${locale}`, { locale });
@@ -6708,7 +6739,7 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           false,
           0,
           withMetrics(state, 'card.renderEditor', async (input) => {
-            const themeContext = resolveThemeContext(state, []);
+            const themeContext = resolveRenderThemeContext(state, []);
             const view = await ctx.getCardService().renderEditor({
               cardType: input.cardType,
               initialConfig: input.initialConfig,
@@ -6938,7 +6969,7 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           false,
           0,
           withMetrics(state, 'box.renderLayoutFrame', async (input) => {
-            const themeContext = resolveThemeContext(state, input.themeId ? [input.themeId] : []);
+            const themeContext = resolveRenderThemeContext(state, input.themeId ? [input.themeId] : []);
             const locale = input.locale ?? state.locale;
             if (!state.locales[locale]) {
               throw createError('I18N_LOCALE_NOT_FOUND', `Locale not found: ${locale}`, { locale });
@@ -6974,7 +7005,7 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           false,
           0,
           withMetrics(state, 'box.renderLayoutEditor', async (input) => {
-            const themeContext = resolveThemeContext(state, input.themeId ? [input.themeId] : []);
+            const themeContext = resolveRenderThemeContext(state, input.themeId ? [input.themeId] : []);
             const locale = input.locale ?? state.locale;
             if (!state.locales[locale]) {
               throw createError('I18N_LOCALE_NOT_FOUND', `Locale not found: ${locale}`, { locale });

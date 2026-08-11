@@ -228,10 +228,6 @@ describe('HostApplication managed render protocol', () => {
     const bootstrapRuntime = new RuntimeClient(bootstrapApp.createBridge());
 
     try {
-      const defaultTheme = await bootstrapRuntime.invoke<{ pluginId: string }>('plugin.install', {
-        manifestPath: path.resolve(process.cwd(), '../ThemePack/Chips-default/manifest.yaml'),
-      });
-      await bootstrapRuntime.invoke('plugin.enable', { pluginId: defaultTheme.pluginId });
       const richtextPlugin = await bootstrapRuntime.invoke<{ pluginId: string }>('plugin.install', {
         manifestPath: await createRichTextCardPluginFixture(),
       });
@@ -277,10 +273,6 @@ describe('HostApplication managed render protocol', () => {
     const bootstrapRuntime = new RuntimeClient(bootstrapApp.createBridge());
 
     try {
-      const defaultTheme = await bootstrapRuntime.invoke<{ pluginId: string }>('plugin.install', {
-        manifestPath: path.resolve(process.cwd(), '../ThemePack/Chips-default/manifest.yaml'),
-      });
-      await bootstrapRuntime.invoke('plugin.enable', { pluginId: defaultTheme.pluginId });
 
       const cardFile = await createRenderCardArchive();
       const coverView = await bootstrapRuntime.invoke<{
@@ -346,10 +338,6 @@ describe('HostApplication managed render protocol', () => {
     const bootstrapRuntime = new RuntimeClient(bootstrapApp.createBridge());
 
     try {
-      const defaultTheme = await bootstrapRuntime.invoke<{ pluginId: string }>('plugin.install', {
-        manifestPath: path.resolve(process.cwd(), '../ThemePack/Chips-default/manifest.yaml'),
-      });
-      await bootstrapRuntime.invoke('plugin.enable', { pluginId: defaultTheme.pluginId });
       const gridLayout = await bootstrapRuntime.invoke<{ pluginId: string }>('plugin.install', {
         manifestPath: await createLayoutPluginFixture(),
       });

@@ -152,11 +152,6 @@ const resolveElectronAppPath = (hostProjectDir: string): string => {
 const defaultBuiltInPluginBundles = (workspaceRoot: string): BuiltInPluginBundleSpec[] => {
   return [
     {
-      id: 'theme.theme.chips-official-default-theme',
-      sourceDir: path.join(workspaceRoot, 'ThemePack', 'Chips-default'),
-      includePaths: ['manifest.yaml', 'dist', 'contracts']
-    },
-    {
       id: 'com.chips.eco-settings-panel',
       sourceDir: path.join(workspaceRoot, 'Chips-EcoSettingsPanel'),
       includePaths: ['manifest.yaml', 'dist', 'assets']

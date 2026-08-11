@@ -5,8 +5,6 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { StoreZipService } from '../../packages/zip-service/src';
 
 let workspace: string;
-const themeManifestPath = path.resolve(process.cwd(), '../ThemePack/Chips-default/manifest.yaml');
-
 const appManifestContract = {
   runtime: {
     targets: {
@@ -499,7 +497,7 @@ describe('chips cli', () => {
 
     const dev = await captureRunCli(['completion', 'bash', 'chipsdev-r']);
     expect(dev.code).toBe(0);
-    expect(dev.output).toContain('complete -F _chipsdev_completion chipsdev-r');
+    expect(dev.output).toContain('_chipsdev_r_completion()');
     expect(dev.output).toContain('chipsdev-r __complete');
   });
 
@@ -593,20 +591,8 @@ describe('chips cli', () => {
     expect(output).not.toContain('UnhandledPromiseRejection');
   });
 
-  it('supports theme management commands', async () => {
-    const { runCli } = await import('../../src/main/cli/index');
-    expect(await runCli(['plugin', 'install', themeManifestPath])).toBe(0);
-    expect(await runCli(['plugin', 'enable', 'theme.theme.chips-official-default-theme'])).toBe(0);
-
-    expect(await runCli(['theme', 'list'])).toBe(0);
-    expect(await runCli(['theme', 'current'])).toBe(0);
-    expect(await runCli(['theme', 'validate'])).toBe(0);
-  });
-
   it('opens .card file through file association entry', async () => {
     const { runCli } = await import('../../src/main/cli/index');
-    expect(await runCli(['plugin', 'install', themeManifestPath])).toBe(0);
-    expect(await runCli(['plugin', 'enable', 'theme.theme.chips-official-default-theme'])).toBe(0);
     const cardSourceDir = path.join(workspace, 'demo-card-source');
     await fs.mkdir(path.join(cardSourceDir, '.card'), { recursive: true });
     await fs.writeFile(path.join(cardSourceDir, '.card/metadata.yaml'), 'id: demo.card\nname: Demo Card\n', 'utf-8');

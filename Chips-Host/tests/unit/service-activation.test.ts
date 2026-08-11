@@ -468,8 +468,6 @@ describe('Service activation and lazy heavy service creation', () => {
       themeId: 'chips-official.default-theme'
     });
     await runtime.load();
-    const defaultTheme = await runtime.install(path.resolve(process.cwd(), '../ThemePack/Chips-default/manifest.yaml'));
-    await runtime.enable(defaultTheme.manifest.id);
     registerHostSchemas();
 
     let cardCreated = 0;
@@ -620,8 +618,7 @@ describe('Service activation and lazy heavy service creation', () => {
     expect(boxLayoutFrameCalls).toHaveLength(1);
     expect(boxLayoutEditorCalls).toHaveLength(1);
     for (const call of [...boxLayoutFrameCalls, ...boxLayoutEditorCalls]) {
-      expect(call.themeCssText).toEqual(expect.stringContaining('@font-face'));
-      expect(call.themeCssText).toEqual(expect.stringContaining('Material Symbols Outlined'));
+      expect(call.themeCssText).toBe('');
       expect(call.theme).toMatchObject({
         id: 'chips-official.default-theme'
       });
