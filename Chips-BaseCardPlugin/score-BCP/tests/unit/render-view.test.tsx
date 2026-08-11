@@ -47,6 +47,47 @@ describe("mountBasecardView", () => {
     expect(container.childElementCount).toBe(0);
   });
 
+  it("injects Rate styles into the host iframe document", () => {
+    const frame = document.createElement("iframe");
+    document.body.appendChild(frame);
+
+    const frameDocument = frame.contentDocument;
+    const frameWindow = frame.contentWindow;
+    if (!frameDocument || !frameWindow) {
+      throw new Error("无法创建基础卡片 iframe 测试文档");
+    }
+
+    const container = frameDocument.createElement("div");
+    frameDocument.body.appendChild(container);
+
+    const dispose = mountBasecardView({
+      container,
+      config: createConfig({ score: 3 }),
+    });
+    const mountRoot = container.querySelector(
+      '[data-chips-basecard-view-root="true"]',
+    );
+    const firstStarLayer = container.querySelector(
+      ".ant-rate-star-first",
+    ) as HTMLElement | null;
+    const antdStyleText = Array.from(
+      frameDocument.head.querySelectorAll<HTMLStyleElement>("style[data-css-hash]"),
+      (style) => style.textContent ?? "",
+    ).join("\n");
+
+    if (!firstStarLayer) {
+      throw new Error("找不到 Rate 的半星图层");
+    }
+
+    expect(mountRoot?.ownerDocument).toBe(frameDocument);
+    expect(antdStyleText).toContain(".ant-rate-star-first");
+    expect(frameWindow.getComputedStyle(firstStarLayer).position).toBe("absolute");
+    expect(container.querySelectorAll(".ant-rate-star-full")).toHaveLength(3);
+
+    dispose();
+    frame.remove();
+  });
+
   it("renders hearts through Rate with the heart shape and the accessible label", () => {
     const container = document.createElement("div");
 

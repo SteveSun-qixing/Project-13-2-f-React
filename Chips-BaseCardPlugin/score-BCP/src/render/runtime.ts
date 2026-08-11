@@ -1,4 +1,5 @@
 import React from "react";
+import { createCache, StyleProvider } from "@ant-design/cssinjs";
 import { ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { appleTheme } from "@chips/ui";
@@ -12,17 +13,40 @@ type MountState = {
   root: Root;
 };
 
+type StyleCache = ReturnType<typeof createCache>;
+
+const documentStyleCaches = new WeakMap<Document, StyleCache>();
+
+function getDocumentStyleCache(ownerDocument: Document): StyleCache {
+  const cached = documentStyleCaches.get(ownerDocument);
+  if (cached) {
+    return cached;
+  }
+
+  const cache = createCache();
+  documentStyleCaches.set(ownerDocument, cache);
+  return cache;
+}
+
 export function mountBasecardView(ctx: BasecardRenderContext): () => void {
   const { container, config } = ctx;
+  const ownerDocument = container.ownerDocument;
 
   while (container.firstChild) {
     container.removeChild(container.firstChild);
   }
 
-  const mountNode = document.createElement("div");
+  const mountNode = ownerDocument.createElement("div");
   mountNode.setAttribute("data-chips-basecard-view-root", "true");
   mountNode.style.width = "100%";
   container.appendChild(mountNode);
+
+  const styleProviderProps = ownerDocument === document
+    ? { container: ownerDocument.head }
+    : {
+        cache: getDocumentStyleCache(ownerDocument),
+        container: ownerDocument.head,
+      };
 
   const state: MountState = {
     root: createRoot(mountNode),
@@ -31,15 +55,19 @@ export function mountBasecardView(ctx: BasecardRenderContext): () => void {
   flushSync(() => {
     state.root.render(
       React.createElement(
-        React.Fragment,
-        null,
-        React.createElement("style", null, VIEW_STYLE_TEXT),
+        StyleProvider,
+        styleProviderProps,
         React.createElement(
           ConfigProvider,
           { locale: zhCN, theme: appleTheme },
-          React.createElement(BasecardView, {
-            config: config as BasecardConfig,
-          }),
+          React.createElement(
+            React.Fragment,
+            null,
+            React.createElement("style", null, VIEW_STYLE_TEXT),
+            React.createElement(BasecardView, {
+              config: config as BasecardConfig,
+            }),
+          ),
         ),
       ),
     );
