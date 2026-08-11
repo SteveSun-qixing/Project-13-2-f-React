@@ -4,8 +4,9 @@
 - 对应设计源文件：`richtext-BCP.png/.ico/.icns/.svg`
 - Material Symbols 名称：`article`
 - 官方 SVG 缓存：`design-assets/material-symbols/svg/rounded/article.svg`
-- 生成脚本：`scripts/generate-plugin-material-icons.ts`
-- 同步时间：2026-05-29
+- SVG 生成脚本：`scripts/generate-plugin-material-icons.ts`
+- PNG/ICO/ICNS 渲染脚本：`scripts/sync-plugin-icons.mjs`（`chips iconmaker generate` 命令行链路）
+- 同步时间：2026-08-11
 
 ## 当前工程内纳入版本控制的文件
 
@@ -18,4 +19,4 @@
 
 - 基础卡片插件没有 `manifest.ui.launcher.icon`，这些文件不属于系统入口图标链路；
 - 运行时图标描述符以 `src/index.ts -> basecardDefinition.icon` 为准；
-- 编辑面板悬浮工具框与右键菜单图标统一使用 `@ant-design/icons`（task030 起废弃 `ChipsIcon + IconDescriptor` 组件库图标链路）。
+- 查看器、编辑器和治理页渲染图标时仍应使用 `ChipsIcon + IconDescriptor`。

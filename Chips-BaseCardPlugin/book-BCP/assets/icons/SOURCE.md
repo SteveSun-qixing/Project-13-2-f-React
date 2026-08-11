@@ -2,10 +2,11 @@
 
 - 正式设计源目录：`design-assets/Basecardicon/`
 - 对应设计源文件：`book-BCP.png/.ico/.icns/.svg`
-- Material Symbols 名称：`book_2`
-- 官方 SVG 缓存：`design-assets/material-symbols/svg/rounded/book_2.svg`
-- 生成脚本：`scripts/generate-plugin-material-icons.ts`
-- 同步时间：2026-05-29
+- Material Symbols 名称：`menu_book`
+- 官方 SVG 缓存：`design-assets/material-symbols/svg/rounded/menu_book.svg`
+- SVG 生成脚本：`scripts/generate-plugin-material-icons.ts`
+- PNG/ICO/ICNS 渲染脚本：`scripts/sync-plugin-icons.mjs`（`chips iconmaker generate` 命令行链路）
+- 同步时间：2026-08-11
 
 ## 当前工程内纳入版本控制的文件
 

@@ -1,8 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import sharp from "sharp";
-import { createIcnsFile } from "../Chip-iconMaker/src/icon-workbench/icns";
-import { createIcoFile } from "../Chip-iconMaker/src/icon-workbench/ico";
+import { ICON_TARGETS } from "./icon-targets.mjs";
 
 type IconKind = "app" | "basecard" | "layout" | "module" | "theme" | "template";
 
@@ -16,207 +14,11 @@ interface IconTarget {
 
 const ROOT = process.cwd();
 const SIZE = 512;
-const SYNC_DATE = "2026-05-29";
+const SYNC_DATE = "2026-08-11";
 const MATERIAL_SVG_DIR = path.join(ROOT, "design-assets/material-symbols/svg/rounded");
 const MATERIAL_SVG_BASE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web";
 
-const OUTPUT_SIZES = [16, 32, 64, 128, 256, 512] as const;
-const ICNS_TYPES_BY_SIZE = new Map<number, string>([
-  [16, "ic04"],
-  [32, "ic05"],
-  [64, "ic12"],
-  [128, "ic07"],
-  [256, "ic08"],
-  [512, "ic09"],
-]);
-
-const TARGETS: IconTarget[] = [
-  {
-    kind: "template",
-    sourceBaseName: "AppIcon",
-    materialName: "apps",
-    projectDir: "Chips-Scaffold/chips-scaffold-app/templates/app-standard",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "BookReader",
-    materialName: "menu_book",
-    projectDir: "Chips-BookReader",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "CardViewer",
-    materialName: "dashboard",
-    projectDir: "Chips-CardViewer",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "EcoSettingsPanel",
-    materialName: "settings",
-    projectDir: "Chips-EcoSettingsPanel",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "EditingEngine",
-    materialName: "edit_note",
-    projectDir: "Chips-EditingEngine",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "IconMaker",
-    materialName: "palette",
-    projectDir: "Chip-iconMaker",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "MusicPlayer",
-    materialName: "library_music",
-    projectDir: "Chips-MusicPlayer",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "PhotoViewer",
-    materialName: "image",
-    projectDir: "Chips-PhotoViewer",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "RichTextEditor",
-    materialName: "draw",
-    projectDir: "Chips-RichTextEditor",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "app",
-    sourceBaseName: "VideoPlayer",
-    materialName: "movie",
-    projectDir: "Chips-VideoPlayer",
-    projectIconBaseName: "app-icon",
-  },
-  {
-    kind: "basecard",
-    sourceBaseName: "book-BCP",
-    materialName: "book_2",
-    projectDir: "Chips-BaseCardPlugin/book-BCP",
-    projectIconBaseName: "basecard-icon",
-  },
-  {
-    kind: "basecard",
-    sourceBaseName: "hyperlink-BCP",
-    materialName: "link",
-    projectDir: "Chips-BaseCardPlugin/hyperlink-BCP",
-    projectIconBaseName: "basecard-icon",
-  },
-  {
-    kind: "basecard",
-    sourceBaseName: "image-BCP",
-    materialName: "image",
-    projectDir: "Chips-BaseCardPlugin/image-BCP",
-    projectIconBaseName: "basecard-icon",
-  },
-  {
-    kind: "basecard",
-    sourceBaseName: "music-BCP",
-    materialName: "music_note",
-    projectDir: "Chips-BaseCardPlugin/music-BCP",
-    projectIconBaseName: "basecard-icon",
-  },
-  {
-    kind: "basecard",
-    sourceBaseName: "richtext-BCP",
-    materialName: "article",
-    projectDir: "Chips-BaseCardPlugin/richtext-BCP",
-    projectIconBaseName: "basecard-icon",
-  },
-  {
-    kind: "basecard",
-    sourceBaseName: "score-BCP",
-    materialName: "star",
-    projectDir: "Chips-BaseCardPlugin/score-BCP",
-    projectIconBaseName: "basecard-icon",
-  },
-  {
-    kind: "basecard",
-    sourceBaseName: "video-BCP",
-    materialName: "smart_display",
-    projectDir: "Chips-BaseCardPlugin/video-BCP",
-    projectIconBaseName: "basecard-icon",
-  },
-  {
-    kind: "basecard",
-    sourceBaseName: "webpage-BCP",
-    materialName: "web",
-    projectDir: "Chips-BaseCardPlugin/webpage-BCP",
-    projectIconBaseName: "basecard-icon",
-  },
-  {
-    kind: "layout",
-    sourceBaseName: "grid-BLP",
-    materialName: "grid_view",
-    projectDir: "Chips-BoxLayoutPlugin/grid-BLP",
-    projectIconBaseName: "layout-icon",
-  },
-  {
-    kind: "layout",
-    sourceBaseName: "list-BLP",
-    materialName: "view_list",
-    projectDir: "Chips-BoxLayoutPlugin/list-BLP",
-    projectIconBaseName: "layout-icon",
-  },
-  {
-    kind: "module",
-    sourceBaseName: "CardtoHTML",
-    materialName: "html",
-    projectDir: "Chips-ModulePlugin/Chips-CardtoHTML-Plugin",
-    projectIconBaseName: "module-icon",
-  },
-  {
-    kind: "module",
-    sourceBaseName: "ColorPicker",
-    materialName: "palette",
-    projectDir: "Chips-ModulePlugin/Chips-ColorPicker",
-    projectIconBaseName: "module-icon",
-  },
-  {
-    kind: "module",
-    sourceBaseName: "FileConversion",
-    materialName: "sync_alt",
-    projectDir: "Chips-ModulePlugin/Chips-FileConversion-Plugin",
-    projectIconBaseName: "module-icon",
-  },
-  {
-    kind: "module",
-    sourceBaseName: "HtmltoImage",
-    materialName: "image_search",
-    projectDir: "Chips-ModulePlugin/Chips-HtmltoImage-Plugin",
-    projectIconBaseName: "module-icon",
-  },
-  {
-    kind: "module",
-    sourceBaseName: "HtmltoPDF",
-    materialName: "picture_as_pdf",
-    projectDir: "Chips-ModulePlugin/Chips-HtmltoPDF-Plugin",
-    projectIconBaseName: "module-icon",
-  },
-  {
-    kind: "theme",
-    sourceBaseName: "Chips-default",
-    materialName: "light_mode",
-  },
-  {
-    kind: "theme",
-    sourceBaseName: "Chips-theme-default-dark",
-    materialName: "dark_mode",
-  },
-];
+const TARGETS = ICON_TARGETS as unknown as IconTarget[];
 
 function materialSvgPath(materialName: string): string {
   return path.join(MATERIAL_SVG_DIR, `${materialName}.svg`);
@@ -263,43 +65,9 @@ ${paths}
 `;
 }
 
-async function pngFor(svg: string, size: number): Promise<Uint8Array> {
-  const buffer = await sharp(Buffer.from(svg)).resize(size, size).png().toBuffer();
-  return new Uint8Array(buffer);
-}
-
-async function renderFiles(target: IconTarget): Promise<Record<"svg" | "png" | "ico" | "icns", Uint8Array | string>> {
-  const materialSvg = await ensureMaterialSvg(target.materialName);
-  const svg = wrapMaterialSvg(target, materialSvg);
-  const entries = await Promise.all(
-    OUTPUT_SIZES.map(async (size) => ({
-      size,
-      pngBytes: await pngFor(svg, size),
-    })),
-  );
-  const png = entries.find((entry) => entry.size === SIZE)?.pngBytes;
-  if (!png) {
-    throw new Error("PNG_SIZE_MISSING");
-  }
-  return {
-    svg,
-    png,
-    ico: createIcoFile(entries),
-    icns: createIcnsFile(
-      entries.map((entry) => ({
-        type: ICNS_TYPES_BY_SIZE.get(entry.size) ?? "ic09",
-        pngBytes: entry.pngBytes,
-      })),
-    ),
-  };
-}
-
-async function writeIconSet(directory: string, baseName: string, files: Awaited<ReturnType<typeof renderFiles>>): Promise<void> {
+async function writeIconSvg(directory: string, baseName: string, svg: string): Promise<void> {
   await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, `${baseName}.svg`), files.svg, "utf-8");
-  await writeFile(path.join(directory, `${baseName}.png`), files.png);
-  await writeFile(path.join(directory, `${baseName}.ico`), files.ico);
-  await writeFile(path.join(directory, `${baseName}.icns`), files.icns);
+  await writeFile(path.join(directory, `${baseName}.svg`), svg, "utf-8");
 }
 
 function sourceDirectoryFor(kind: IconKind): string {
@@ -444,7 +212,7 @@ function designSourceTitle(kind: IconKind): string {
 
 function designUpdateRules(kind: IconKind): string[] {
   const common = [
-    "- 图标调整时，先更新本目录正式源文件，再通过 `scripts/generate-plugin-material-icons.ts` 同步所有输出；",
+    "- 图标调整时，先更新本目录正式 SVG 源文件，再通过 `scripts/generate-plugin-material-icons.ts` 同步 SVG 设计源，并通过 `scripts/sync-plugin-icons.mjs`（`chips iconmaker generate`）重新渲染 PNG/ICO/ICNS；",
     "- 不再使用字体码位、HTML 文本渲染或截图方式生成图标，避免出现乱码；",
   ];
   if (kind === "theme") {
@@ -483,10 +251,11 @@ async function writeDesignSourceDoc(kind: IconKind, targets: IconTarget[]): Prom
 
 - 适用目录：\`${sourceDir}/\`
 - 同步时间：${SYNC_DATE}
-- 生成脚本：\`scripts/generate-plugin-material-icons.ts\`
+- SVG 生成脚本：\`scripts/generate-plugin-material-icons.ts\`
+- PNG/ICO/ICNS 渲染脚本：\`scripts/sync-plugin-icons.mjs\`（\`chips iconmaker generate\` 命令行链路）
 - 上游 SVG 缓存：\`design-assets/material-symbols/svg/rounded/\`
 - 视觉基线：白色背景、黑色 Material Symbols Rounded 图标。
-- 转换链路：官方 Material Symbols Rounded SVG -> 512px 白底黑色 SVG/PNG -> iconMaker ICO/ICNS 编码器。
+- 转换链路：官方 Material Symbols Rounded SVG -> 512px 白底黑色 SVG（本脚本）-> Chip-iconMaker CLI 渲染 PNG/ICO/ICNS。
 
 ## 目录职责
 
@@ -523,7 +292,8 @@ async function writeProjectSourceDoc(target: IconTarget): Promise<void> {
 - 对应设计源文件：\`${sourceFile}\`
 - Material Symbols 名称：\`${target.materialName}\`
 - 官方 SVG 缓存：\`${materialSource}\`
-- 生成脚本：\`scripts/generate-plugin-material-icons.ts\`
+- SVG 生成脚本：\`scripts/generate-plugin-material-icons.ts\`
+- PNG/ICO/ICNS 渲染脚本：\`scripts/sync-plugin-icons.mjs\`（\`chips iconmaker generate\` 命令行链路）
 - 同步时间：${SYNC_DATE}
 
 ## 当前工程内纳入版本控制的文件
@@ -556,25 +326,27 @@ async function main(): Promise<void> {
   const generated: string[] = [];
 
   for (const target of TARGETS) {
-    const files = await renderFiles(target);
-    await writeIconSet(sourceDirectoryFor(target.kind), target.sourceBaseName, files);
+    const materialSvg = await ensureMaterialSvg(target.materialName);
+    const svg = wrapMaterialSvg(target, materialSvg);
+    await writeIconSvg(sourceDirectoryFor(target.kind), target.sourceBaseName, svg);
     generated.push(`${target.kind}:${target.sourceBaseName}:${target.materialName}`);
 
     if (target.projectDir && target.projectIconBaseName) {
-      await writeIconSet(
+      await writeIconSvg(
         path.join(ROOT, target.projectDir, "assets/icons"),
         target.projectIconBaseName,
-        files,
+        svg,
       );
     }
   }
 
   await writeSourceDocs();
 
-  console.log(`Generated ${generated.length} icon sets`);
+  console.log(`Generated ${generated.length} SVG design sources`);
   for (const item of generated) {
     console.log(`- ${item}`);
   }
+  console.log("PNG/ICO/ICNS 由 scripts/sync-plugin-icons.mjs（chips iconmaker generate）渲染。");
 }
 
 main().catch((error) => {

@@ -1,8 +1,7 @@
-<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <rect x="6" y="8" width="14" height="18" rx="3" fill="#4F46E5"/>
-  <rect x="25" y="8" width="14" height="18" rx="3" fill="#6366F1"/>
-  <rect x="44" y="8" width="14" height="18" rx="3" fill="#818CF8"/>
-  <rect x="6" y="32" width="14" height="24" rx="3" fill="#6366F1"/>
-  <rect x="25" y="32" width="14" height="24" rx="3" fill="#818CF8"/>
-  <rect x="44" y="32" width="14" height="24" rx="3" fill="#A5B4FC"/>
+<svg width="512" height="512" viewBox="0 0 960 960" xmlns="http://www.w3.org/2000/svg">
+  <title>boxlayout-standard - Material Symbols grid_view</title>
+  <rect x="0" y="0" width="960" height="960" fill="#ffffff"/>
+  <g transform="translate(0 960)">
+  <path d="M200-520q-33 0-56.5-23.5T120-600v-160q0-33 23.5-56.5T200-840h160q33 0 56.5 23.5T440-760v160q0 33-23.5 56.5T360-520H200Zm0 400q-33 0-56.5-23.5T120-200v-160q0-33 23.5-56.5T200-440h160q33 0 56.5 23.5T440-360v160q0 33-23.5 56.5T360-120H200Zm400-400q-33 0-56.5-23.5T520-600v-160q0-33 23.5-56.5T600-840h160q33 0 56.5 23.5T840-760v160q0 33-23.5 56.5T760-520H600Zm0 400q-33 0-56.5-23.5T520-200v-160q0-33 23.5-56.5T600-440h160q33 0 56.5 23.5T840-360v160q0 33-23.5 56.5T760-120H600ZM200-600h160v-160H200v160Zm400 0h160v-160H600v160Zm0 400h160v-160H600v160Zm-400 0h160v-160H200v160Zm400-400Zm0 240Zm-240 0Zm0-240Z" fill="#000000"/>
+  </g>
 </svg>

@@ -4,8 +4,9 @@
 - 对应设计源文件：`EditingEngine.png/.ico/.icns/.svg`
 - Material Symbols 名称：`edit_note`
 - 官方 SVG 缓存：`design-assets/material-symbols/svg/rounded/edit_note.svg`
-- 生成脚本：`scripts/generate-plugin-material-icons.ts`
-- 同步时间：2026-05-29
+- SVG 生成脚本：`scripts/generate-plugin-material-icons.ts`
+- PNG/ICO/ICNS 渲染脚本：`scripts/sync-plugin-icons.mjs`（`chips iconmaker generate` 命令行链路）
+- 同步时间：2026-08-11
 
 ## 当前工程内纳入版本控制的文件
 

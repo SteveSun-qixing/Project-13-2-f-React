@@ -4,8 +4,9 @@
 - 对应设计源文件：`CardViewer.png/.ico/.icns/.svg`
 - Material Symbols 名称：`dashboard`
 - 官方 SVG 缓存：`design-assets/material-symbols/svg/rounded/dashboard.svg`
-- 生成脚本：`scripts/generate-plugin-material-icons.ts`
-- 同步时间：2026-05-29
+- SVG 生成脚本：`scripts/generate-plugin-material-icons.ts`
+- PNG/ICO/ICNS 渲染脚本：`scripts/sync-plugin-icons.mjs`（`chips iconmaker generate` 命令行链路）
+- 同步时间：2026-08-11
 
 ## 当前工程内纳入版本控制的文件
 
@@ -18,4 +19,4 @@
 
 - `app-icon.ico` 是 `manifest.yaml -> ui.launcher.icon` 的正式声明文件；
 - Host 会按平台选择 `ico / icns / png` 作为系统入口图标；
-- 这些文件只属于系统入口与安装分发链路，不属于运行时图标模型；应用内命令与按钮图标统一使用 `@ant-design/icons`。
+- 这些文件只属于系统入口与安装分发链路，不属于运行时 `ChipsIcon` 图标模型。

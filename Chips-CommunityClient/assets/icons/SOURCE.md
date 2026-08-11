@@ -1,11 +1,12 @@
-# 应用启动图标说明
+# CommunityClient 应用插件图标来源说明
 
 - 正式设计源目录：`design-assets/Appicon/`
-- 对应设计源文件：`AppIcon.png/.ico/.icns/.svg`
-- Material Symbols 名称：`apps`
-- 官方 SVG 缓存：`design-assets/material-symbols/svg/rounded/apps.svg`
-- 生成脚本：`scripts/generate-plugin-material-icons.ts`
-- 同步时间：2026-05-29
+- 对应设计源文件：`CommunityClient.png/.ico/.icns/.svg`
+- Material Symbols 名称：`public`
+- 官方 SVG 缓存：`design-assets/material-symbols/svg/rounded/public.svg`
+- SVG 生成脚本：`scripts/generate-plugin-material-icons.ts`
+- PNG/ICO/ICNS 渲染脚本：`scripts/sync-plugin-icons.mjs`（`chips iconmaker generate` 命令行链路）
+- 同步时间：2026-08-11
 
 ## 当前工程内纳入版本控制的文件
 
