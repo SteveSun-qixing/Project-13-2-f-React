@@ -22,6 +22,7 @@ export function DocumentFileScene({ target }: DocumentFileSceneProps): React.Rea
     <AnimatePresence mode="wait">
       <motion.div
         key={runtime.viewerMode}
+        className="card-viewer-scene"
         variants={DOCUMENT_SCENE_TRANSITION_VARIANTS}
         initial="initial"
         animate="enter"
