@@ -274,6 +274,13 @@ export function BoxEditorPanel({
                     {session.entries.map((entry, index) => {
                       const title = entry.snapshot.title || entry.snapshot.documentId || entry.entryId;
 
+                      const handleRowPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+                        if (event.target instanceof Element && event.target.closest('button')) {
+                          return;
+                        }
+                        startDrag(entry.entryId, event);
+                      };
+
                       return (
                         <React.Fragment key={entry.entryId}>
                           <div
@@ -282,6 +289,7 @@ export function BoxEditorPanel({
                               'box-editor-panel__entry',
                               draggingItemId === entry.entryId ? 'box-editor-panel__entry--dragging' : '',
                             ].join(' ')}
+                            onPointerDown={handleRowPointerDown}
                           >
                             <div className="box-editor-panel__entry-body">
                               <strong className="box-editor-panel__entry-title">

@@ -108,4 +108,21 @@ describe('FileManager', () => {
     expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', '/workspace/demo.card');
     expect(dataTransfer.effectAllowed).toBe('copy');
   });
+
+  it('keeps the file tree as a direct flex child of the content area inside the context menu trigger', async () => {
+    await act(async () => {
+      root.render(<FileManager />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const content = container.querySelector('.file-manager__content') as HTMLElement | null;
+    expect(content).not.toBeNull();
+
+    const treeHost = content?.firstElementChild;
+    expect(treeHost).not.toBeNull();
+    expect(treeHost?.tagName.toLowerCase()).toBe('div');
+    expect(treeHost?.classList.contains('file-tree')).toBe(true);
+    expect(content?.children).toHaveLength(1);
+  });
 });

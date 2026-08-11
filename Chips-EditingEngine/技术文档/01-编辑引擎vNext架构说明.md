@@ -58,7 +58,7 @@ src/main.tsx
 关键实现：
 
 - `basecard-runtime/registry.ts` 加载内置 `base.richtext/base.image/base.webpage` 描述符，并通过 Host `plugin.query({ type: "card" })` 装载已安装启用卡片插件的 `basecardDefinition`。
-- `BasecardFrameHost` 为每个基础卡片创建透明 iframe，注入固定苹果风格帧样式（`theme-css.ts` 输出固定色值，不再读取 Host 主题）与 `resolveResourceUrl/releaseResourceUrl/openResource`。
+- `BasecardFrameHost` 为每个基础卡片创建透明 iframe，注入固定苹果风格帧样式（`theme-css.ts` 输出固定色值，不再读取 Host 主题）与 `resolveResourceUrl/releaseResourceUrl/openResource`；编辑引擎通过 `client.card.resolveResourceUrl(cardRootDir, resourcePath)` 注入持久化资源解析器，Electron 预览必须消费 Host 返回的 `chips-render://card-root/...`，不得创建本地 `file://` 基址。
 - `CompositeCardAssembler` 按 `CardService.structure.basicCards` 顺序装配单卡 iframe，并汇总高度、加载态、错误态和资源打开事件。
 - `EditorSessionStore` 管理 source/draft/validation/dirty/resourceOperations，资源导入或删除被正式配置引用时允许按节流窗口提交。
 - `EditorHost` 为编辑器提供资源解析、导入、ZIP 目录导入、删除登记和 TIFF 转 PNG。
@@ -95,7 +95,10 @@ src/main.tsx
 - 打开箱子时通过 `client.box.unpack(...)` 解包到会话工作目录。
 - 保存箱子时重写 `.box/metadata.yaml`、`.box/content.yaml`、`.box/structure.yaml`、`.box/cover.html`，再调用 `client.box.pack(...)`。
 - 条目新增、拖拽、移动、删除后统一重建 `layoutHints.sortKey`，保证 `.box/structure.yaml` 的排序键与编辑面板顺序一致。
+- 编辑面板「内容列表」的条目排序使用 `DragDrop/usePointerSortableList.ts` 实现指针拖拽：拖动手柄为条目行本身（按钮区除外，保留「调整」按钮作为显式手柄），拖动时显示插入指示线与浮层，松手后按可见条目中点计算插入位并调用 `moveEntryToIndex`。
+- `usePointerSortableList` 的全局 `pointermove/pointerup/pointercancel` 监听器在 `startDrag` 时挂载、拖拽会话结束时卸载；内部处理器只读取 ref 快照（`dragSessionRef/itemsRef/onSortRef`），保证处理器与监听器在渲染间身份稳定，避免拖动过程中因组件重渲染卸载监听器导致拖拽冻结。
 - 布局编辑器 iframe 的重挂载条件限定为布局类型、条目身份序列和语言等结构性输入，配置回写不会反复销毁编辑器。
+- 无限画布中的卡片封面与箱子封面采用相同的事件职责：正式封面 iframe 只负责展示并禁用指针命中，点击展开、选中和拖动统一由外层封面壳处理；箱子封面通过 `data-chips-embedded-frame='box-cover-frame'` 精确约束对应 iframe，不依赖组件已经移除的旧 `data-part` DOM 标记。
 
 ## 7. 视觉、文案、焦点和 A11y
 
@@ -122,7 +125,8 @@ npm run validate
 - `tests/unit/basecard-frame-host.test.tsx`：单卡 iframe、资源 URL、资源打开、指针屏蔽和预览稳定性。
 - `tests/unit/editor-session-store.test.ts`、`tests/unit/plugin-host.test.tsx`：编辑会话与资源操作。
 - `tests/unit/card-files.test.ts`：卡片保存、封面资源和导出资源清单。
-- `tests/unit/box-document-service.test.ts`、`tests/unit/box-editor-panel.test.tsx`：箱子保存、排序键和布局编辑器稳定性。
+- `tests/unit/box-document-service.test.ts`、`tests/unit/box-editor-panel.test.tsx`：箱子保存、排序键、条目拖拽排序回归（事件间真实时序 flush，覆盖手柄与整行拖拽、删除按钮不受干扰）和布局编辑器稳定性。
+- `tests/unit/box-window.test.tsx`：箱子窗口设置入口，以及封面 iframe 不拦截外层点击与拖动的样式契约。
 - `tests/unit/workbench-a11y.test.tsx`、`tests/unit/file-tree.test.tsx`、`tests/unit/base-window.test.tsx`：工作台、文件树和窗口可访问性。
 - `tests/unit/real-materials-regression.test.ts`：成品测试空间真实 `.card/.box` 素材结构回归。
 
@@ -132,32 +136,43 @@ npm run validate
 
 | 弹窗 | 尺寸规则 |
 |---|---|
-| 卡片设置（CardSettingsDialog） | 宽 90%（上限 1080px）/ 高 85dvh |
-| 箱子设置（BoxSettingsDialog） | 宽 90%（上限 1080px）/ 高 85dvh |
+| 卡片设置（CardSettingsDialog） | 目标宽 960px（视口不足时保留 16px/12px 单侧边距）/ 目标高 720px（视口不足时保留 24px/12px 单侧边距） |
+| 箱子设置（BoxSettingsDialog） | 与卡片设置共用同一尺寸规则 |
 | 引擎设置（EngineSettingsDialog） | 宽 88%（上限 920px）/ 高 80dvh |
 | 封面制作器（CoverMaker） | 宽 90%（上限 1120px）/ 高 85dvh |
 | 封面裁剪（CoverCropDialog） | 宽 78vw（上限 960px）/ 高 70vh |
 
 - 全部采用 antd Modal（mask closable、destroyOnHidden、居中）；
-- **尺寸跟随应用窗口响应式调整**（vw/dvh 视口单位），**不随标签页/内容变化**：宽度由 Modal `width="90%"` 决定，高度由 `.ant-modal-content { height: 85dvh }` 决定，内容区在固定尺寸内滚动（flex + `min-height: 0` + `overflow: hidden`）；`max-width` 仅作超大屏上限，`max-height: calc(100dvh - 48px)` 防止溢出屏幕。
-- 卡片/箱子设置弹窗采用**顶部标签页**（antd Tabs）切换分类，弹窗尺寸固定不跳动；板块设计参考苹果系统设置的清爽分区（标签页栏、浅色内容底、圆角卡片区），不刻板照搬其左侧导航形态。
+- **尺寸只跟随应用窗口调整，不跟随标签页或内容调整**：卡片/箱子 Modal 使用固定 `width={960}`，弹窗本体以 `max-width: calc(100vw - 32px)` 在较小应用窗口中收缩；内容高度使用 `min(720px, calc(100dvh - 48px))`，窄窗口收口为 `calc(100dvh - 24px)`。Ant Design 6 的 Modal/Tabs 必须通过语义 `classNames` 把固定高度和伸缩规则绑定到 `container/body/header/footer` 与 Tabs `header/body/content`，不得继续依赖旧版 `.ant-modal-content`、`.ant-tabs-content-holder` DOM。头部、标签栏、内容区和底部按钮形成完整的 `flex + min-height: 0 + overflow` 链路，只有当前内容面板内部滚动。
+- 卡片/箱子设置弹窗采用**顶部标签页**（antd Tabs）切换分类。外层标签页样式只作用于第一层 `document-settings-dialog__tabs`，不得影响封面编辑器内部标签页；基础信息与导出内容使用限宽居中容器，避免大窗口下表单被横向拉长。
+
+### 9.1.1 导出标签页（卡片 / 箱子）
+
+- 卡片设置与箱子设置均提供「导出」标签页，共用同一套导出面板视觉（`export-panel__*`）与路径工具（`export-utils.ts`）。
+- **卡片导出**（`ExportPanel`）：`.card` 打包格式始终可用；HTML / PDF / 图片格式通过 `module.listProviders` 动态检查 Host 中已安装并启用的转换模块能力（`converter.file.convert` + `converter.card.to-html` + `converter.html.to-pdf` / `converter.html.to-image`），只有能力齐备的格式才会显示按钮；能力检查完成前只展示 `.card` 格式。
+- **箱子导出**（`BoxExportPanel`）：当前正式链路为 `.box` 打包导出（`saveBox` 落盘后 `box.pack`），不提供 HTML / PDF / 图片转换（转换流水线 `FileSourceType` 只支持 `card` / `html` 源，箱子不注册转换能力，因此相关按钮不会出现）。
+- 导出流程统一为：保存对话框 → `onBeforeExport`（封面草稿回写）→ 文档状态保存 → 打包 → `file.stat` 校验产物存在性 → 成功/失败进度反馈；取消保存对话框时不产生任何副作用。
+- 转换模块未安装、被禁用或能力检查失败时，对应格式按钮一律隐藏而非置灰，避免出现不可用按钮。
 
 ### 9.2 封面编辑器（CoverPanel）交互优化
 
-- 布局：左预览（280px，白底、封面投影卡）+ 右编辑区；
+- 布局：常规宽度使用左预览（260~300px，白底、封面投影卡）+ 右编辑区；窄窗口切换为上下布局；
+- 预览框通过 `ResizeObserver + resolveCoverPreviewFrameSize` 同时约束可用宽高，横版、竖版与手机长比例始终等比缩放，不允许通过单边 `max-height` 生硬压缩；
 - 编辑区为**两个子标签页**：
   - 「选择比例」：9 个苹果风格小卡片（比例图形 + 文字，Tooltip 提示，选中蓝框高亮）+ 方向 Segmented（竖版/横版，预览比例与封面内容随方向同步）；
   - 「编辑封面内容」：模式 Segmented（图片/HTML）+ 上传卡或 HTML 编辑；
 - 上传：苹果风格虚线拖放卡（图标 + 主文案 + 提示），已选后显示文件名 + 「裁剪」「移除」操作（antd Button）；
 - HTML 编辑：等宽字体、聚焦蓝环；
+- 比例页与内容页共用一致的限宽滚动容器；方向、资源操作、基础信息元数据和导出格式在窄窗口下自动改为纵向布局；
 - 默认封面模板（`createDefaultCoverHtml`）：白底干净样式，横竖方向自适应排版；
 - 裁剪弹窗舞台区改为 flex 填充固定尺寸容器。
 
 ### 9.3 封面制作器（CoverMaker）
 
 - 自绘 overlay 改为 antd Modal，固定 920×660；
-- 模式选择改为顶部 `Segmented`（图片/HTML/ZIP/模板，图标 + 文案）；
-- 表单区与预览区固定双栏；上传卡、代码编辑、模板表单全部苹果化；保存按钮带 loading。
+- 模式选择改为顶部 `Segmented`（图片/HTML/ZIP，图标 + 文案）；
+- 表单区与预览区固定双栏；上传卡、代码编辑全部苹果化；保存按钮带 loading；
+- 已移除「模板」模式与 8 套封面模板（`templates/index.ts`、`TemplateGrid`、`TemplatePreview` 于 2026-08 归档），预览统一由 `CoverHtmlPreview`（自定义 HTML iframe 预览）承担。
 
 ### 9.4 引擎设置（EngineSettingsDialog）
 
@@ -170,8 +185,18 @@ npm run validate
 - `src/components/BoxWindow/BoxSettingsDialog.tsx`
 - `src/components/CardSettings/panels/CoverPanel.tsx` + `CoverPanel.css`
 - `src/components/CardSettings/panels/CoverCropDialog.css`
+- `src/components/CardSettings/panels/ExportPanel.tsx` + `ExportPanel.css`
+- `src/components/CardSettings/panels/export-utils.ts`（卡片/箱子导出共用的路径与文件名工具）
+- `src/components/BoxWindow/BoxExportPanel.tsx`
 - `src/components/CoverMaker/CoverMaker.tsx` + `CoverMaker.css`
+- `src/components/CoverMaker/CoverHtmlPreview.tsx` + `CoverHtmlPreview.css`（封面 HTML 预览 iframe）
 - `src/components/EngineSettings/EngineSettingsDialog.tsx` + `EngineSettingsDialog.css`
-- 文案：`src/lib/messages.ts`（新增 `card_settings.cover_orientation_label`）
+- 文案：`src/lib/messages.ts`（新增 `card_settings.cover_orientation_label` 与 `box_settings.export_*` 导出文案）
 
-测试：`tests/unit/card-settings-dialog.test.tsx` 的 `clickTab` 按 `[role="tab"]` 查找（顶部标签页）。
+测试：
+
+- `tests/unit/card-settings-dialog.test.tsx`：顶部标签切换、960px 固定目标宽度、Ant Design 6 语义容器绑定与固定响应式高度 CSS 链路；
+- `tests/unit/box-settings-dialog.test.tsx`：箱子复用同一弹窗壳层，并覆盖基础信息、封面与导出标签切换；
+- `tests/unit/export-panel.test.tsx`：卡片四种格式导出链路、取消/失败分支，以及转换模块未安装时隐藏对应格式按钮；
+- `tests/unit/box-export-panel.test.tsx`：箱子 `.box` 打包导出链路与取消/失败分支；
+- `tests/unit/cover-panel.test.tsx`、`cover-panel-layout.test.ts`：封面预览的等比尺寸计算与实际样式回归。

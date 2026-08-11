@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface PointerSortableItem {
   id: string;
@@ -42,15 +42,13 @@ export function usePointerSortableList({
   const draggingItemIdRef = useRef<string | null>(null);
   const previewIndexRef = useRef<number | null>(null);
 
-  const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
+  const onSortRef = useRef(onSort);
   useEffect(() => {
-    draggingItemIdRef.current = draggingItemId;
-  }, [draggingItemId]);
-
-  useEffect(() => {
-    previewIndexRef.current = previewIndex;
-  }, [previewIndex]);
+    onSortRef.current = onSort;
+  });
 
   const setItemRef = useCallback((itemId: string, node: HTMLElement | null) => {
     if (node) {
@@ -66,7 +64,7 @@ export function usePointerSortableList({
       return null;
     }
 
-    const visibleItems = items.filter((item) => item.id !== draggingId);
+    const visibleItems = itemsRef.current.filter((item) => item.id !== draggingId);
     if (visibleItems.length === 0) {
       return 0;
     }
@@ -90,12 +88,16 @@ export function usePointerSortableList({
     }
 
     return visibleItems.length;
-  }, [items]);
+  }, []);
 
   const updateOverlayPosition = useCallback((clientX: number, clientY: number) => {
     const session = dragSessionRef.current;
-    const item = session ? itemMap.get(session.itemId) : null;
-    if (!session || !item) {
+    if (!session) {
+      return;
+    }
+
+    const item = itemsRef.current.find((candidate) => candidate.id === session.itemId);
+    if (!item) {
       return;
     }
 
@@ -106,7 +108,7 @@ export function usePointerSortableList({
       x: clientX - session.offsetX,
       y: clientY - session.offsetY,
     });
-  }, [itemMap]);
+  }, []);
 
   const finishDrag = useCallback((clientY: number) => {
     const session = dragSessionRef.current;
@@ -119,16 +121,14 @@ export function usePointerSortableList({
     setPreviewIndex(null);
     setOverlay(null);
 
-    removeGlobalListeners();
-
     if (!session || !session.started || nextIndex === null) {
       return;
     }
 
     if (nextIndex !== session.originIndex) {
-      onSort(session.itemId, nextIndex);
+      onSortRef.current(session.itemId, nextIndex);
     }
-  }, [getPreviewIndexFromPointer, onSort]);
+  }, [getPreviewIndexFromPointer]);
 
   const handlePointerMove = useCallback((event: PointerEvent) => {
     const session = dragSessionRef.current;
@@ -175,7 +175,7 @@ export function usePointerSortableList({
     }
 
     const itemNode = itemRefs.current.get(itemId);
-    const originIndex = items.findIndex((item) => item.id === itemId);
+    const originIndex = itemsRef.current.findIndex((item) => item.id === itemId);
     if (!itemNode || originIndex === -1) {
       return;
     }
@@ -199,17 +199,17 @@ export function usePointerSortableList({
     window.addEventListener('pointermove', handlePointerMove, { passive: false });
     window.addEventListener('pointerup', handlePointerUp);
     window.addEventListener('pointercancel', handlePointerCancel);
-  }, [handlePointerCancel, handlePointerMove, handlePointerUp, items]);
+  }, [handlePointerCancel, handlePointerMove, handlePointerUp]);
 
-  function removeGlobalListeners(): void {
+  const removeGlobalListeners = useCallback(() => {
     window.removeEventListener('pointermove', handlePointerMove);
     window.removeEventListener('pointerup', handlePointerUp);
     window.removeEventListener('pointercancel', handlePointerCancel);
-  }
+  }, [handlePointerCancel, handlePointerMove, handlePointerUp]);
 
   useEffect(() => () => {
     removeGlobalListeners();
-  }, [handlePointerCancel, handlePointerMove, handlePointerUp]);
+  }, [removeGlobalListeners]);
 
   return {
     draggingItemId,

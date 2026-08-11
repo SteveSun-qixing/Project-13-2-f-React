@@ -53,7 +53,7 @@ interface FileTreeProps {
     onDragStart: (file: WorkspaceFile, event: React.DragEvent) => void;
 }
 
-export function FileTree({
+export const FileTree = React.forwardRef<HTMLDivElement, FileTreeProps>(function FileTree({
     files,
     rootPath,
     selectedPaths,
@@ -67,7 +67,7 @@ export function FileTree({
     onRename,
     onRenameCancel,
     onDragStart,
-}: FileTreeProps) {
+}, ref) {
     const [focusPath, setFocusPath] = useState<string | null>(selectedPaths[0] ?? null);
     const itemRefs = useRef(new Map<string, HTMLDivElement>());
     const rootDepth = useMemo(
@@ -237,6 +237,7 @@ export function FileTree({
 
     return (
         <div
+            ref={ref}
             className="file-tree"
             tabIndex={flattenedFiles.length > 0 ? undefined : 0}
             role="tree"
@@ -287,4 +288,4 @@ export function FileTree({
             )}
         </div>
     );
-}
+});

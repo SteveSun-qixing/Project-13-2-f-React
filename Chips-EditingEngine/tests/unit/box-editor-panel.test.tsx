@@ -290,7 +290,7 @@ describe('BoxEditorPanel', () => {
     expect(container.querySelector('.box-editor-panel__entry-location')).toBeNull();
   });
 
-  it('reorders entries by dragging the list handle', async () => {
+  it('reorders entries by dragging the list handle across real event timing', async () => {
     await renderPanel();
 
     const rows = Array.from(container.querySelectorAll('.box-editor-panel__entry')) as HTMLDivElement[];
@@ -324,40 +324,173 @@ describe('BoxEditorPanel', () => {
 
     const PointerCtor = window.PointerEvent ?? window.MouseEvent;
 
-    await act(async () => {
-      handles[0].dispatchEvent(new PointerCtor('pointerdown', {
-        bubbles: true,
-        cancelable: true,
-        clientX: 24,
-        clientY: 18,
-        button: 0,
-        pointerId: 1,
-        pointerType: 'mouse',
-      }));
+    const dispatchWithFlush = async (target: EventTarget, type: string, init: PointerEventInit) => {
+      await act(async () => {
+        target.dispatchEvent(new PointerCtor(type, init));
+        await Promise.resolve();
+      });
+    };
 
-      window.dispatchEvent(new PointerCtor('pointermove', {
-        bubbles: true,
-        cancelable: true,
-        clientX: 32,
-        clientY: 92,
-        button: 0,
-        pointerId: 1,
-        pointerType: 'mouse',
-      }));
+    await dispatchWithFlush(handles[0], 'pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 24,
+      clientY: 18,
+      button: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
 
-      window.dispatchEvent(new PointerCtor('pointerup', {
-        bubbles: true,
-        cancelable: true,
-        clientX: 32,
-        clientY: 92,
-        button: 0,
-        pointerId: 1,
-        pointerType: 'mouse',
-      }));
+    await dispatchWithFlush(window, 'pointermove', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 32,
+      clientY: 92,
+      button: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
 
-      await Promise.resolve();
+    await dispatchWithFlush(window, 'pointermove', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 40,
+      clientY: 96,
+      button: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+
+    await dispatchWithFlush(window, 'pointerup', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 40,
+      clientY: 96,
+      button: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
     });
 
     expect(serviceMocks.moveEntryToIndex).toHaveBeenCalledWith('box-1', 'entry-1', 1);
+  });
+
+  it('reorders entries by dragging the row body directly', async () => {
+    await renderPanel();
+
+    const rows = Array.from(container.querySelectorAll('.box-editor-panel__entry')) as HTMLDivElement[];
+    const bodies = Array.from(container.querySelectorAll('.box-editor-panel__entry-body')) as HTMLDivElement[];
+    if (rows.length < 2 || bodies.length < 2) {
+      throw new Error('未找到箱子内容列表整行拖拽测试所需条目');
+    }
+
+    rows[0].getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      width: 320,
+      height: 44,
+      top: 0,
+      left: 0,
+      right: 320,
+      bottom: 44,
+      toJSON: () => ({}),
+    });
+    rows[1].getBoundingClientRect = () => ({
+      x: 0,
+      y: 56,
+      width: 320,
+      height: 44,
+      top: 56,
+      left: 0,
+      right: 320,
+      bottom: 100,
+      toJSON: () => ({}),
+    });
+
+    const PointerCtor = window.PointerEvent ?? window.MouseEvent;
+
+    const dispatchWithFlush = async (target: EventTarget, type: string, init: PointerEventInit) => {
+      await act(async () => {
+        target.dispatchEvent(new PointerCtor(type, init));
+        await Promise.resolve();
+      });
+    };
+
+    await dispatchWithFlush(bodies[0], 'pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 24,
+      clientY: 18,
+      button: 0,
+      pointerId: 2,
+      pointerType: 'mouse',
+    });
+
+    await dispatchWithFlush(window, 'pointermove', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 32,
+      clientY: 92,
+      button: 0,
+      pointerId: 2,
+      pointerType: 'mouse',
+    });
+
+    await dispatchWithFlush(window, 'pointerup', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 32,
+      clientY: 92,
+      button: 0,
+      pointerId: 2,
+      pointerType: 'mouse',
+    });
+
+    expect(serviceMocks.moveEntryToIndex).toHaveBeenCalledWith('box-1', 'entry-1', 1);
+  });
+
+  it('keeps the delete button working when the row handles pointer down', async () => {
+    await renderPanel();
+
+    const rows = Array.from(container.querySelectorAll('.box-editor-panel__entry')) as HTMLDivElement[];
+    const deleteButtons = Array.from(container.querySelectorAll('.box-editor-panel__delete-button')) as HTMLButtonElement[];
+    if (rows.length < 1 || deleteButtons.length < 1) {
+      throw new Error('未找到箱子内容列表删除按钮测试所需条目');
+    }
+
+    const PointerCtor = window.PointerEvent ?? window.MouseEvent;
+
+    await act(async () => {
+      deleteButtons[0].dispatchEvent(new PointerCtor('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 200,
+        clientY: 18,
+        button: 0,
+        pointerId: 3,
+        pointerType: 'mouse',
+      }));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      deleteButtons[0].dispatchEvent(new PointerCtor('pointerup', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 200,
+        clientY: 18,
+        button: 0,
+        pointerId: 3,
+        pointerType: 'mouse',
+      }));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      deleteButtons[0].click();
+      await Promise.resolve();
+    });
+
+    expect(serviceMocks.removeEntry).toHaveBeenCalledWith('box-1', 'entry-1');
+    expect(serviceMocks.moveEntryToIndex).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -176,5 +178,20 @@ describe('BoxWindow', () => {
     expect(container.querySelector('[data-testid="box-settings-dialog"]')).not.toBeNull();
     expect(selectBox).toHaveBeenCalledWith('box-1');
     expect(onFocus).toHaveBeenCalled();
+  });
+
+  it('keeps the formal cover iframe non-interactive so the outer cover owns drag gestures', () => {
+    const boxWindowCss = readFileSync(
+      resolve(process.cwd(), 'src/components/BoxWindow/BoxWindow.css'),
+      'utf8',
+    );
+
+    expect(boxWindowCss).toContain(
+      ".box-cover__frame iframe[data-chips-embedded-frame='box-cover-frame']",
+    );
+    expect(boxWindowCss).toMatch(
+      /iframe\[data-chips-embedded-frame='box-cover-frame'\][^{]*\{[^}]*pointer-events:\s*none;/s,
+    );
+    expect(boxWindowCss).not.toContain("[data-part='iframe']");
   });
 });

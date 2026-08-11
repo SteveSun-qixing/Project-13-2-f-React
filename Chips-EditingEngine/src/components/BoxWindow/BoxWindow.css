@@ -94,22 +94,17 @@
 }
 
 .box-cover__frame,
-.box-cover__frame [data-part='root'],
-.box-cover__frame [data-part='frame-container'],
-.box-cover__frame [data-part='iframe'] {
+.box-cover__frame .chips-embedded-document-frame,
+.box-cover__frame iframe[data-chips-embedded-frame='box-cover-frame'] {
     width: 100%;
     height: 100%;
 }
 
-.box-cover__frame [data-part='iframe'] {
+.box-cover__frame iframe[data-chips-embedded-frame='box-cover-frame'] {
     display: block;
     border: none;
     background: transparent;
     pointer-events: none;
-}
-
-.box-cover__frame [data-part='status'] {
-    display: none;
 }
 
 .box-cover-surface__error {
