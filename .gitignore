@@ -34,3 +34,4 @@ Chips-Scaffold/chips-scaffold-basecard/tests/.tmp-e2e/
 .specstory/
 release-artifacts/
 .codex-runtime-logs/
+.omo/
