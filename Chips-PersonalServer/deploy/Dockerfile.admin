@@ -1,0 +1,24 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app/Chips-CommunityPlatformServer
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+COPY Chips-CommunityPlatformServer/package.json ./
+COPY Chips-CommunityPlatformServer/pnpm-lock.yaml ./
+COPY Chips-CommunityPlatformServer/pnpm-workspace.yaml ./
+COPY Chips-CommunityPlatformServer/tsconfig.base.json ./
+COPY Chips-CommunityPlatformServer/packages/admin/package.json ./packages/admin/
+
+RUN pnpm install --filter @ccps/admin --frozen-lockfile
+
+COPY Chips-CommunityPlatformServer/packages/admin ./packages/admin
+
+RUN pnpm --filter @ccps/admin build
+
+FROM nginx:1.27-alpine AS production
+
+COPY Chips-CommunityPlatformServer/deploy/nginx/admin.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/Chips-CommunityPlatformServer/packages/admin/dist /usr/share/nginx/html
+
+EXPOSE 80

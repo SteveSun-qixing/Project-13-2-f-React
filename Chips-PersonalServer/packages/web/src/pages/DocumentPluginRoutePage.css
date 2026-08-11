@@ -1,0 +1,49 @@
+.document-plugin-route {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: visible;
+  background: #ffffff;
+}
+
+.document-plugin-route--state {
+  display: grid;
+  place-items: center;
+  padding: 96px max(16px, env(safe-area-inset-left)) 96px;
+}
+
+.document-plugin-route__state-panel {
+  width: min(560px, 100%);
+  min-height: 180px;
+  padding: 28px;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  text-align: center;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.document-plugin-route__state-panel h1 {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 18px;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.document-plugin-route__download-hint {
+  width: 100%;
+  padding: 10px 16px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #6e6e73;
+  background: rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: center;
+}

@@ -1,0 +1,5 @@
+packages:
+  - 'packages/*'
+  - '../Chips-Host'
+  - '../Chips-SDK'
+  - '../Chips-Ui'

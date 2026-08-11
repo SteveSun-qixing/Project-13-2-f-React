@@ -1,0 +1,145 @@
+.detail-page {
+  display: grid;
+  gap: 24px;
+}
+
+.detail-transition-shell {
+  min-height: calc(100vh - 180px);
+  display: grid;
+  place-items: center;
+  padding: 40px 24px;
+}
+
+.detail-transition-spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 3px solid color-mix(in srgb, var(--ccps-sys-border-strong) 72%, transparent);
+  border-top-color: var(--ccps-sys-accent);
+  border-right-color: color-mix(in srgb, var(--ccps-sys-accent-strong) 68%, white 32%);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--ccps-sys-accent) 18%, transparent);
+  animation: detail-spin 0.82s linear infinite;
+}
+
+.detail-hero {
+  padding: clamp(24px, 5vw, 40px);
+}
+
+.detail-hero__content {
+  display: grid;
+  gap: 14px;
+}
+
+.detail-hero h1 {
+  font-size: clamp(32px, 6vw, 52px);
+  line-height: 0.98;
+}
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--ccps-sys-text-soft);
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.detail-sidebar,
+.detail-content {
+  padding: 24px;
+}
+
+.detail-section-heading {
+  margin-bottom: 18px;
+}
+
+.detail-list {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-list div {
+  display: grid;
+  gap: 6px;
+}
+
+.detail-list dt {
+  font-size: 13px;
+  color: var(--ccps-sys-text-soft);
+}
+
+.detail-list dd {
+  margin: 0;
+  color: var(--ccps-sys-text);
+}
+
+.reference-list {
+  display: grid;
+  gap: 14px;
+}
+
+.reference-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid var(--ccps-sys-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.reference-card__copy {
+  display: grid;
+  gap: 6px;
+}
+
+.reference-card__copy span {
+  color: var(--ccps-sys-text-soft);
+  word-break: break-word;
+}
+
+.reference-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: end;
+}
+
+.empty-state {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--ccps-sys-text-muted);
+}
+
+@keyframes detail-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 860px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reference-card {
+    flex-direction: column;
+  }
+
+  .reference-card__actions {
+    justify-content: start;
+  }
+}

@@ -1,0 +1,87 @@
+.workspace-page {
+  display: grid;
+  gap: 24px;
+}
+
+.workspace-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 20px;
+}
+
+.workspace-page__header h1 {
+  margin-top: 8px;
+  font-size: clamp(32px, 5vw, 48px);
+}
+
+.workspace-client-publish {
+  display: grid;
+  gap: 24px;
+  padding: clamp(28px, 6vw, 40px);
+  align-items: start;
+}
+
+.workspace-client-publish__icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #0a84ff;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.24), transparent 38%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.18), color-mix(in srgb, #0a84ff 18%, transparent));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.workspace-client-publish__copy {
+  display: grid;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.workspace-client-publish__copy h2 {
+  font-size: clamp(26px, 4vw, 38px);
+}
+
+.workspace-client-publish__copy p {
+  color: #6e6e73;
+  line-height: 1.7;
+}
+
+.workspace-client-publish__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.workspace-client-publish__steps article {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.workspace-client-publish__steps strong {
+  color: #1d1d1f;
+}
+
+.workspace-client-publish__steps span {
+  color: #6e6e73;
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .workspace-page__header {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .workspace-client-publish__steps {
+    grid-template-columns: 1fr;
+  }
+}

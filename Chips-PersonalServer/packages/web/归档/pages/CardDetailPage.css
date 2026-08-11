@@ -1,0 +1,36 @@
+.card-detail-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: visible;
+  background: #ffffff;
+}
+
+.card-detail-page--state {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+.card-detail-page__pending-panel,
+.card-detail-page__error-panel {
+  width: 100%;
+  min-height: min(360px, calc(100vh - 80px));
+}
+
+.card-detail-page__state-shell {
+  min-height: min(360px, calc(100vh - 80px));
+  display: grid;
+  place-items: center;
+  padding: 32px 24px;
+}
+
+.card-detail-page__state-copy {
+  display: grid;
+  gap: 14px;
+  place-items: center;
+  text-align: center;
+  color: var(--ccps-sys-text-soft);
+}

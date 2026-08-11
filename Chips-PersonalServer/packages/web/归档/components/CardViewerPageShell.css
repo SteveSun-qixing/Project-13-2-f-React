@@ -1,0 +1,202 @@
+.card-viewer-page {
+  --card-viewer-page-inline-padding: clamp(14px, 3vw, 28px);
+  --card-viewer-page-safe-bottom: clamp(56px, 10vh, 112px);
+  --card-viewer-page-safe-top: clamp(84px, 12vh, 108px);
+  --card-viewer-page-float-top: max(14px, env(safe-area-inset-top));
+  --card-viewer-page-float-inline: max(14px, env(safe-area-inset-left));
+
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #ffffff;
+  color: var(--ccps-sys-text, #101828);
+}
+
+.card-viewer-page__floating-layer {
+  position: fixed;
+  inset: var(--card-viewer-page-float-top) var(--card-viewer-page-float-inline) auto var(--card-viewer-page-float-inline);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.card-viewer-page__floating-button {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 50%;
+  background: color-mix(in srgb, #ffffff 92%, transparent);
+  color: #1f2937;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(18px);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    transform var(--ccps-motion-fast, 180ms ease),
+    border-color var(--ccps-motion-fast, 180ms ease),
+    box-shadow var(--ccps-motion-fast, 180ms ease);
+}
+
+.card-viewer-page__back-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ccps-sys-accent, #3b82f6) 32%, rgba(15, 23, 42, 0.12));
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+}
+
+.card-viewer-page__back-button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ccps-sys-accent, #3b82f6) 28%, transparent);
+  outline-offset: 3px;
+}
+
+.card-viewer-page__info-panel {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 0;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 128px));
+  min-height: 54px;
+  padding: 7px 22px;
+  display: grid;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 999px;
+  background: color-mix(in srgb, #ffffff 90%, transparent);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+}
+
+.card-viewer-page__info-panel h1 {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.card-viewer-page__meta {
+  min-width: 0;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ccps-sys-text-soft, #667085);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.card-viewer-page__actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.card-viewer-page__action-link {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 50%;
+  background: color-mix(in srgb, #ffffff 92%, transparent);
+  color: #1f2937;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(18px);
+  transition:
+    transform var(--ccps-motion-fast, 180ms ease),
+    border-color var(--ccps-motion-fast, 180ms ease),
+    box-shadow var(--ccps-motion-fast, 180ms ease);
+}
+
+.card-viewer-page__action-link:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ccps-sys-accent, #3b82f6) 32%, rgba(15, 23, 42, 0.12));
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+}
+
+.card-viewer-page__body {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.card-viewer-page__stage {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: var(--card-viewer-page-safe-top);
+  padding-bottom: var(--card-viewer-page-safe-bottom);
+  background: #ffffff;
+}
+
+.card-viewer-page__state {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 96px var(--card-viewer-page-inline-padding) var(--card-viewer-page-safe-bottom);
+  background: #ffffff;
+}
+
+.card-viewer-page__state-panel {
+  width: min(560px, 100%);
+  min-height: 180px;
+  padding: 28px;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  text-align: center;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08);
+}
+
+.card-viewer-page__state-copy {
+  display: grid;
+  gap: 8px;
+  color: var(--ccps-sys-text-soft, #667085);
+}
+
+.card-viewer-page__state-copy h2 {
+  margin: 0;
+  color: var(--ccps-sys-text, #101828);
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .card-viewer-page__floating-layer {
+    --card-viewer-page-float-inline: max(10px, env(safe-area-inset-left));
+  }
+
+  .card-viewer-page__info-panel {
+    max-width: calc(100vw - 120px);
+    min-height: 52px;
+    padding: 7px 16px;
+  }
+
+  .card-viewer-page__info-panel h1 {
+    font-size: 14px;
+  }
+
+  .card-viewer-page__meta {
+    font-size: 12px;
+  }
+}
