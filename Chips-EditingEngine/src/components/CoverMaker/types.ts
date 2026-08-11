@@ -3,34 +3,7 @@
  * @module components/cover-maker/types
  */
 
-export type CoverCreationMode = 'image' | 'html' | 'zip' | 'template';
-
-export type TemplateStyle =
-  | 'minimal-white'
-  | 'gradient-blue'
-  | 'dark-theme'
-  | 'geometric'
-  | 'bordered'
-  | 'magazine'
-  | 'news-banner'
-  | 'circle-soft';
-
-export interface CoverTemplate {
-  id: TemplateStyle;
-  name: string;
-  description: string;
-  previewStyle: string;
-  generateHtml: (config: TemplateConfig) => string;
-}
-
-export interface TemplateConfig {
-  title: string;
-  subtitle?: string;
-  author?: string;
-  date?: string;
-  primaryColor?: string;
-  backgroundColor?: string;
-}
+export type CoverCreationMode = 'image' | 'html' | 'zip';
 
 export interface CoverData {
   mode: CoverCreationMode;
@@ -43,10 +16,6 @@ export interface CoverData {
   zipData?: {
     data: Uint8Array;
     entryFile: string;
-  };
-  templateConfig?: {
-    templateId: TemplateStyle;
-    config: TemplateConfig;
   };
 }
 

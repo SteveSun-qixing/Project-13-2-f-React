@@ -1,23 +1,48 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { App, Button, Flex, Modal, Segmented, Spin } from 'antd';
+import { Button, Flex, Modal, Segmented } from 'antd';
 import {
   CodeOutlined,
   FileZipOutlined,
   PictureOutlined,
-  AppstoreOutlined,
 } from '@ant-design/icons';
 import { formatMessage } from '../../lib/messages';
 import type {
   CoverCreationMode,
-  TemplateStyle,
-  TemplateConfig,
   CoverData,
   CoverMakerProps,
 } from './types';
-import { TemplateGrid } from './TemplateGrid';
-import { TemplatePreview } from './TemplatePreview';
-import { generateImageCoverHtml } from './templates/index';
+import { CoverHtmlPreview } from './CoverHtmlPreview';
 import './CoverMaker.css';
+
+function generateImageCoverHtml(imagePath: string): string {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
+    body {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f5;
+    }
+    img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <img src="${imagePath}" alt="Cover" />
+</body>
+</html>`;
+}
 
 export function CoverMaker({
   cardId,
@@ -27,15 +52,13 @@ export function CoverMaker({
   onSave,
   onPreview,
 }: CoverMakerProps) {
-  const { message } = App.useApp();
-  const [currentMode, setCurrentMode] = useState<CoverCreationMode>('template');
+  const [currentMode, setCurrentMode] = useState<CoverCreationMode>('image');
 
   const modeOptions = useMemo(
     () => [
       { value: 'image' as CoverCreationMode, label: formatMessage('cover_maker.mode_image'), icon: <PictureOutlined /> },
       { value: 'html' as CoverCreationMode, label: formatMessage('cover_maker.mode_html'), icon: <CodeOutlined /> },
       { value: 'zip' as CoverCreationMode, label: formatMessage('cover_maker.mode_zip'), icon: <FileZipOutlined /> },
-      { value: 'template' as CoverCreationMode, label: formatMessage('cover_maker.mode_template'), icon: <AppstoreOutlined /> },
     ],
     [],
   );
@@ -51,16 +74,6 @@ export function CoverMaker({
   const [selectedZip, setSelectedZip] = useState<File | null>(null);
   const [zipFileName, setZipFileName] = useState<string | null>(null);
 
-  // Template mode state
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateStyle | null>('minimal-white');
-  const [templateConfig, setTemplateConfig] = useState<TemplateConfig>({
-    title: '',
-    subtitle: '',
-    author: '',
-    date: '',
-  });
-
-  const [generatedHtml, setGeneratedHtml] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
   const coverRatios = useMemo(
@@ -85,12 +98,10 @@ export function CoverMaker({
         return htmlCode.trim().length > 0;
       case 'zip':
         return selectedZip !== null;
-      case 'template':
-        return selectedTemplate !== null && templateConfig.title.trim().length > 0;
       default:
         return false;
     }
-  }, [currentMode, selectedImage, htmlCode, selectedZip, selectedTemplate, templateConfig.title]);
+  }, [currentMode, selectedImage, htmlCode, selectedZip]);
 
   const previewHtml = useMemo(() => {
     switch (currentMode) {
@@ -101,12 +112,10 @@ export function CoverMaker({
         return '';
       case 'html':
         return htmlCode;
-      case 'template':
-        return generatedHtml;
       default:
         return '';
     }
-  }, [currentMode, imagePreviewUrl, htmlCode, generatedHtml]);
+  }, [currentMode, imagePreviewUrl, htmlCode]);
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -138,10 +147,6 @@ export function CoverMaker({
   const clearZip = () => {
     setSelectedZip(null);
     setZipFileName(null);
-  };
-
-  const handleHtmlGenerated = (html: string) => {
-    setGeneratedHtml(html);
   };
 
   const handleSave = async () => {
@@ -191,17 +196,6 @@ export function CoverMaker({
         }
         break;
       }
-      case 'template':
-        if (!selectedTemplate) return;
-        coverData = {
-          mode: 'template',
-          htmlContent: generatedHtml,
-          templateConfig: {
-            templateId: selectedTemplate,
-            config: { ...templateConfig },
-          },
-        };
-        break;
       default:
         return;
     }
@@ -222,7 +216,7 @@ export function CoverMaker({
     }
 
     setHtmlCode('');
-    setCurrentMode('template');
+    setCurrentMode('image');
   }, [currentCoverHtml, visible]);
 
   useEffect(() => {
@@ -245,9 +239,6 @@ export function CoverMaker({
     if (currentMode === 'image') {
       return (
         <div className="cover-maker__section">
-          <p className="cover-maker__description">
-            {formatMessage('cover_maker.image_description')}
-          </p>
           <label className="cover-maker__upload-card">
             <input
               type="file"
@@ -285,9 +276,6 @@ export function CoverMaker({
     if (currentMode === 'html') {
       return (
         <div className="cover-maker__section">
-          <p className="cover-maker__description">
-            {formatMessage('cover_maker.html_description')}
-          </p>
           <div className="cover-maker__field">
             <label className="cover-maker__label">{formatMessage('cover_maker.html_label')}</label>
             <textarea
@@ -306,9 +294,6 @@ export function CoverMaker({
     if (currentMode === 'zip') {
       return (
         <div className="cover-maker__section">
-          <p className="cover-maker__description">
-            {formatMessage('cover_maker.zip_description')}
-          </p>
           <label className="cover-maker__upload-card">
             <input
               type="file"
@@ -344,58 +329,7 @@ export function CoverMaker({
       );
     }
 
-    return (
-      <div className="cover-maker__section">
-        <p className="cover-maker__description">
-          {formatMessage('cover_maker.template_description')}
-        </p>
-        <div className="cover-maker__field">
-          <label className="cover-maker__label">{formatMessage('cover_maker.template_style')}</label>
-          <TemplateGrid value={selectedTemplate} onChange={setSelectedTemplate} />
-        </div>
-        <div className="cover-maker__field">
-          <label className="cover-maker__label">
-            {formatMessage('cover_maker.title_label')}
-            <span className="cover-maker__required">*</span>
-          </label>
-          <input
-            value={templateConfig.title}
-            onChange={(e) => setTemplateConfig({ ...templateConfig, title: e.target.value })}
-            className="cover-maker__input"
-            placeholder={formatMessage('cover_maker.title_placeholder')}
-          />
-        </div>
-        <div className="cover-maker__field">
-          <label className="cover-maker__label">{formatMessage('cover_maker.subtitle')}</label>
-          <input
-            value={templateConfig.subtitle}
-            onChange={(e) => setTemplateConfig({ ...templateConfig, subtitle: e.target.value })}
-            className="cover-maker__input"
-            placeholder={formatMessage('cover_maker.subtitle_placeholder')}
-          />
-        </div>
-        <div className="cover-maker__field-row">
-          <div className="cover-maker__field">
-            <label className="cover-maker__label">{formatMessage('cover_maker.author')}</label>
-            <input
-              value={templateConfig.author}
-              onChange={(e) => setTemplateConfig({ ...templateConfig, author: e.target.value })}
-              className="cover-maker__input"
-              placeholder={formatMessage('cover_maker.author_placeholder')}
-            />
-          </div>
-          <div className="cover-maker__field">
-            <label className="cover-maker__label">{formatMessage('cover_maker.date')}</label>
-            <input
-              value={templateConfig.date}
-              onChange={(e) => setTemplateConfig({ ...templateConfig, date: e.target.value })}
-              className="cover-maker__input"
-              placeholder={formatMessage('cover_maker.date_placeholder')}
-            />
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   };
 
   return (
@@ -458,24 +392,13 @@ export function CoverMaker({
             </div>
 
             <div className="cover-maker__preview-viewport">
-              {currentMode === 'template' ? (
-                <TemplatePreview
-                  templateId={selectedTemplate}
-                  config={templateConfig}
-                  aspectRatio={selectedRatio}
-                  onHtmlGenerated={handleHtmlGenerated}
-                />
-              ) : currentMode === 'html' ? (
-                <TemplatePreview
-                  templateId={null}
-                  config={{ title: '' }}
+              {currentMode === 'html' ? (
+                <CoverHtmlPreview
                   customHtml={htmlCode}
                   aspectRatio={selectedRatio}
                 />
               ) : currentMode === 'image' && imagePreviewUrl ? (
-                <TemplatePreview
-                  templateId={null}
-                  config={{ title: '' }}
+                <CoverHtmlPreview
                   customHtml={previewHtml}
                   aspectRatio={selectedRatio}
                 />
