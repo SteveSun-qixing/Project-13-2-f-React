@@ -6788,6 +6788,23 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           })
         )
       },
+      resolveResourceUrl: {
+        descriptor: descriptor<
+          { cardRootDir: string; resourcePath: string },
+          { uri: string }
+        >(
+          'card.resolveResourceUrl',
+          ['card.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'card.resolveResourceUrl', async (input) => {
+            const normalizedRootDir = path.resolve(input.cardRootDir);
+            const uri = ctx.getCardService().resolveCardRootResourceUrl(normalizedRootDir, input.resourcePath);
+            return { uri };
+          })
+        )
+      },
       validate: {
         descriptor: descriptor<{ cardFile: string }, { valid: boolean; errors: string[] }>(
           'card.validate',

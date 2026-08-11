@@ -7,6 +7,7 @@ import {
 import { globalEventEmitter } from '../core/event-emitter';
 import { fileService } from '../services/file-service';
 import { platformService } from '../services/platform-service';
+import { getChipsClient } from '../services/bridge-client';
 import { resourceService } from '../services/resource-service';
 import { zipService } from '../services/zip-service';
 import type { BasecardPendingResourceImport, BasecardResourceOperations } from '../basecard-runtime/contracts';
@@ -20,14 +21,8 @@ function joinPath(...parts: string[]): string {
   return parts.filter(Boolean).join('/').replace(/\\/g, '/').replace(/\/+/g, '/');
 }
 
-function createFileUrl(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, '/');
-  if (/^[a-zA-Z]:\//.test(normalized)) {
-    return encodeURI(`file:///${normalized}`);
-  }
-
-  const absolutePath = normalized.startsWith('/') ? normalized : `/${normalized}`;
-  return encodeURI(`file://${absolutePath}`);
+async function resolveCardResourceUrl(cardRootDir: string, resourcePath: string): Promise<string> {
+  return getChipsClient().card.resolveResourceUrl(cardRootDir, resourcePath);
 }
 
 function normalizeResourcePath(resourcePath: string): string | null {
@@ -308,7 +303,7 @@ export function EditorHost({
     const resolver = (async () => {
       const nextUrl = pendingImport
         ? createObjectUrl(pendingImport)
-        : createFileUrl(joinPath(cardPath, normalizedResourcePath));
+        : await resolveCardResourceUrl(cardPath, normalizedResourcePath);
       releaseResolvedResourceUrl(normalizedResourcePath);
       resolvedResourceUrlsRef.current.set(normalizedResourcePath, {
         url: nextUrl,

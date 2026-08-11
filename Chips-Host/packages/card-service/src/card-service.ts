@@ -2037,8 +2037,16 @@ export class CardService {
     await fs.rm(session.rootDir, { recursive: true, force: true });
   }
 
-  public resolveDocumentFilePath(requestUrl: string): string | null {
-    let parsed: URL;
+  /**
+   * 把卡片根目录内的相对资源路径解析为可加载 URL。
+   * Electron 环境优先返回 chips-render://card-root/<token>/<path>（标准协议，支持相对资源解析与沙箱 iframe 内加载），
+   * 非 Electron 环境回退为 file: URL。
+   */
+  public resolveCardRootResourceUrl(cardRootDir: string, resourcePath: string): string {
+    return this.createCardRootFileUrl(cardRootDir, resourcePath);
+  }
+
+  public resolveDocumentFilePath(requestUrl: string): string | null {    let parsed: URL;
     try {
       parsed = new URL(requestUrl);
     } catch {

@@ -100,6 +100,16 @@ vi.mock('../../src/services/file-service', () => ({
   },
 }));
 
+vi.mock('../../src/services/bridge-client', () => ({
+  getChipsClient: () => ({
+    card: {
+      resolveResourceUrl: vi.fn(async (_cardRootDir: string, resourcePath: string) => {
+        return `file:///workspace/card-1.card/${encodeURI(resourcePath)}`;
+      }),
+    },
+  }),
+}));
+
 vi.mock('../../src/services/resource-service', () => ({
   resourceService: {
     convertTiffToPng: vi.fn(async ({

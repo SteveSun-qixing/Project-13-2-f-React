@@ -372,6 +372,7 @@ export interface CardApi {
   parse(cardFile: string): Promise<CardDocument>;
   validate(cardFile: string): Promise<ValidationResult>;
   resolveDocumentPath(documentUrl: string): Promise<string>;
+  resolveResourceUrl(cardRootDir: string, resourcePath: string): Promise<string>;
   open(cardFile: string): Promise<CardOpenResult>;
   render(cardFile: string, options?: CardRenderOptions): Promise<CardRenderResult>;
   releaseRenderSession(sessionId: string): Promise<void>;
@@ -475,6 +476,19 @@ export function createCardApi(client: CoreClient): CardApi {
         { documentUrl },
       );
       return result.path;
+    },
+    async resolveResourceUrl(cardRootDir, resourcePath) {
+      if (!cardRootDir || typeof cardRootDir !== "string") {
+        throw createError("INVALID_ARGUMENT", "card.resolveResourceUrl: cardRootDir is required.");
+      }
+      if (!resourcePath || typeof resourcePath !== "string") {
+        throw createError("INVALID_ARGUMENT", "card.resolveResourceUrl: resourcePath is required.");
+      }
+      const result = await client.invoke<{ cardRootDir: string; resourcePath: string }, { uri: string }>(
+        "card.resolveResourceUrl",
+        { cardRootDir, resourcePath },
+      );
+      return result.uri;
     },
     async open(cardFile) {
       if (!cardFile) {
