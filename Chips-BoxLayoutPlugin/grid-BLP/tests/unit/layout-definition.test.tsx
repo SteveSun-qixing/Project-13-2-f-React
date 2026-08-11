@@ -464,7 +464,11 @@ describe("layoutDefinition", () => {
 
     expect(container.querySelector('[data-scope="chips-box-grid-layout"]')).toBeTruthy();
     expect(container.querySelector('[data-layout-grid]')).toBeTruthy();
-    expect(container.textContent).toContain("暂无条目");
+    expect(container.querySelector('[data-layout-skeleton]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-skeleton-grid]')).toBeTruthy();
+    expect(container.querySelectorAll('[data-layout-skeleton-cell]')).toHaveLength(6);
+    expect(container.querySelector('[data-layout-empty-title]')?.textContent).toContain("这里还没有内容");
+    expect(container.querySelector('[data-layout-empty-text]')?.textContent).toContain("在编辑器中添加卡片或箱子");
   });
 
   it("loads additional entry pages and prefetches visible covers", async () => {

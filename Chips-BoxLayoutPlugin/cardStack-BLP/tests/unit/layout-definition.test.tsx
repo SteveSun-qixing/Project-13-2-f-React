@@ -178,6 +178,33 @@ describe("layoutDefinition", () => {
     });
   });
 
+  it("renders the card stack layout skeleton when the box is empty", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+    const cleanup = await renderView({
+      container,
+      runtime,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    expect(container.querySelector('[data-scope="chips-box-cardstack-layout"]')).toBeTruthy();
+    expect(container.querySelector("[data-layout-skeleton]")).toBeTruthy();
+    expect(container.querySelectorAll("[data-layout-skeleton-card]")).toHaveLength(3);
+    expect(container.querySelector("[data-layout-skeleton-card]")?.querySelector("[data-layout-empty-title]")).toBeNull();
+    expect(container.querySelector("[data-layout-empty-title]")?.textContent).toContain("这里还没有内容");
+    expect(container.querySelector("[data-layout-empty-text]")?.textContent).toContain("在编辑器中添加卡片或箱子");
+    expect(runtime.renderEntryCover).not.toHaveBeenCalled();
+
+    await act(async () => {
+      cleanup();
+    });
+    expect(container.textContent ?? "").toBe("");
+  });
+
   it("renders only the current real cover, prefetches the next two entries, and opens through runtime", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

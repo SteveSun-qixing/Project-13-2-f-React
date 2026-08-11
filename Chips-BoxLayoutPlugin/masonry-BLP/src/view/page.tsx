@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/ui";
+import {
+  EmbeddedDocumentFrame,
+  EmptyHint,
+  LayoutSkeleton,
+  SkeletonBlock,
+  SkeletonLine,
+} from "@chips/ui";
 import { hasFrameRegionContent, type FrameRegionConfig, type LayoutConfig } from "../schema/layout-config";
 import type {
   BoxEntryCoverView,
@@ -83,7 +89,6 @@ const MASONRY_LAYOUT_STYLE = `
 
 [data-scope="chips-box-masonry-layout"] [data-frame-region-status],
 [data-scope="chips-box-masonry-layout"] [data-masonry-cover-placeholder],
-[data-scope="chips-box-masonry-layout"] [data-layout-empty],
 [data-scope="chips-box-masonry-layout"] [data-layout-page-error] {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
@@ -98,10 +103,6 @@ const MASONRY_LAYOUT_STYLE = `
   align-items: start;
   min-width: 0;
   align-content: start;
-}
-
-[data-scope="chips-box-masonry-layout"] [data-layout-masonry][data-empty="true"] {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 [data-scope="chips-box-masonry-layout"] [data-masonry-column] {
@@ -233,7 +234,6 @@ const MASONRY_LAYOUT_STYLE = `
   opacity: 0.64;
 }
 
-[data-scope="chips-box-masonry-layout"] [data-layout-empty],
 [data-scope="chips-box-masonry-layout"] [data-layout-page-error],
 [data-scope="chips-box-masonry-layout"] [data-frame-region-status] {
   display: grid;
@@ -242,11 +242,6 @@ const MASONRY_LAYOUT_STYLE = `
   min-height: 160px;
   padding: 16px;
   text-align: center;
-}
-
-[data-scope="chips-box-masonry-layout"] [data-layout-empty-title] {
-  color: #1d1d1f;
-  font-weight: 700;
 }
 
 [data-scope="chips-box-masonry-layout"] [data-masonry-entry-title]:focus-visible,
@@ -610,6 +605,54 @@ function EntryCard({
   );
 }
 
+const MASONRY_SKELETON_COLUMNS = [
+  { height: 160, offset: 0 },
+  { height: 180, offset: 24 },
+  { height: 200, offset: 12 },
+] as const;
+
+function MasonryEmptySkeleton(): React.ReactElement {
+  return (
+    <LayoutSkeleton
+      minHeight={320}
+      hint={
+        <EmptyHint
+          title={formatMessage("layout.empty")}
+          description={formatMessage("layout.empty_hint")}
+        />
+      }
+    >
+      <div
+        data-layout-skeleton-masonry
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: 14,
+          alignItems: "start",
+          maxWidth: 720,
+          margin: "0 auto",
+        }}
+      >
+        {MASONRY_SKELETON_COLUMNS.map((column, columnIndex) => (
+          <div
+            key={columnIndex}
+            data-layout-skeleton-column
+            style={{
+              display: "grid",
+              gap: 8,
+              alignContent: "start",
+              marginTop: column.offset,
+            }}
+          >
+            <SkeletonBlock width="100%" height={column.height} radius={12} />
+            <SkeletonLine width="60%" />
+          </div>
+        ))}
+      </div>
+    </LayoutSkeleton>
+  );
+}
+
 export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const isMountedRef = useRef(true);
   const [items, setItems] = useState<BoxEntrySnapshot[]>(initialView.items);
@@ -731,16 +774,15 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
           </div>
         ) : null}
 
-        <div
-          data-layout-masonry
-          data-empty={enabledEntries.length === 0 ? "true" : undefined}
-          style={{
-            "--chips-masonry-column-count": String(masonryColumns.length || 1),
-            "--chips-masonry-gap": gapValue,
-          } as React.CSSProperties}
-        >
-          {enabledEntries.length > 0 ? (
-            masonryColumns.map((column, columnIndex) => (
+        {enabledEntries.length > 0 ? (
+          <div
+            data-layout-masonry
+            style={{
+              "--chips-masonry-column-count": String(masonryColumns.length || 1),
+              "--chips-masonry-gap": gapValue,
+            } as React.CSSProperties}
+          >
+            {masonryColumns.map((column, columnIndex) => (
               <div key={columnIndex} data-masonry-column>
                 {column.map((entry) => (
                   <EntryCard
@@ -751,14 +793,11 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
                   />
                 ))}
               </div>
-            ))
-          ) : (
-            <div data-layout-empty>
-              <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
-              <span>{formatMessage("layout.empty_hint")}</span>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <MasonryEmptySkeleton />
+        )}
 
         {nextCursor || pageError ? (
           <div data-layout-footer data-total={total}>

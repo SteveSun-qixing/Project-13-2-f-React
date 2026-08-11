@@ -200,6 +200,33 @@ describe("layoutDefinition", () => {
     expect(container.textContent ?? "").toBe("");
   });
 
+  it("renders a masonry-shaped layout skeleton when the box is empty", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+
+    await renderView({
+      container,
+      runtime,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    expect(container.querySelector('[data-layout-skeleton]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-hint]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-title]')?.textContent).toBe("这里还没有内容");
+    expect(container.querySelector('[data-layout-masonry]')).toBeNull();
+    expect(container.querySelectorAll('[data-layout-skeleton-column]')).toHaveLength(3);
+
+    const coverHeights = Array.from(
+      container.querySelectorAll('[data-layout-skeleton-column] > span:first-child')
+    ).map((node) => (node as HTMLElement).style.height);
+    expect(coverHeights).toEqual(["160px", "180px", "200px"]);
+    expect(runtime.prefetchEntries).not.toHaveBeenCalled();
+  });
+
   it("loads additional pages and keeps existing entries when pagination fails", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

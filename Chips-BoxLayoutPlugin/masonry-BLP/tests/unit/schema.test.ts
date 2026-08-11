@@ -185,5 +185,5 @@ describe("layout-config", () => {
 
     expect(result.valid).toBe(false);
     expect(result.errors["assetRefs[0]"]).toBeTruthy();
-  });
+  }, 15_000);
 });

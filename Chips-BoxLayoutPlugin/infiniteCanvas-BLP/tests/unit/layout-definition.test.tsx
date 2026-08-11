@@ -253,7 +253,12 @@ describe("layoutDefinition", () => {
     });
 
     expect(container.querySelector('[data-entry-id="entry-1"]')).toBeNull();
-    expect(container.textContent).toContain("暂无已放置条目");
+    expect(container.querySelector('[data-infinite-canvas-empty]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-skeleton]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-title]')?.textContent).toBe("这里还没有内容");
+    expect(container.querySelector('[data-layout-empty-text]')?.textContent).toBe(
+      "在编辑器中添加卡片或箱子，开始填充这个箱子",
+    );
   });
 
   it("places an unplaced entry from the editor and emits a full normalized config", async () => {

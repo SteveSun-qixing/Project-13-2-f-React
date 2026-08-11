@@ -17,7 +17,7 @@
 - 查看态通过 `initialView` 首屏渲染，并按需调用 `runtime.listEntries` 加载后续页；
 - 条目封面只通过 `runtime.renderEntryCover` 获取，点击或键盘 Enter 激活时只调用 `runtime.openEntry`；
 - 支持键盘上下导航、Home/End、Space 多选、批量选择和清除选择；
-- 空态、错误态、表单、选择、复选框、分段控件和分页按钮使用 Ant Design 组件。
+- 空态使用共享层 `@chips/ui` 的 `LayoutSkeleton` 列表形态骨架（`SkeletonDot`/`SkeletonBlock`/`SkeletonLine` 组合 + `EmptyHint` 提示），一眼可辨认列表布局；错误态、表单、选择、复选框、分段控件和分页按钮使用 Ant Design 组件。
 - 界面文案统一为简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）。
 
 ## 布局配置
@@ -47,7 +47,7 @@
 ## 技术栈
 
 - UI 组件：Ant Design（antd v6）+ `@ant-design/icons`
-- 共享前端层：`@chips/ui`（苹果风格主题、`EmbeddedDocumentFrame` 等）
+- 共享前端层：`@chips/ui`（苹果风格主题、`LayoutSkeleton` 空态骨架、`EmbeddedDocumentFrame` 等）
 - 界面文案：简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）
 
 ## 正式导出

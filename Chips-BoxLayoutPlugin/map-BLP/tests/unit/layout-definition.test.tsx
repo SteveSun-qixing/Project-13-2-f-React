@@ -227,6 +227,7 @@ describe("layoutDefinition", () => {
     });
 
     expect(container.querySelector('[data-scope="chips-box-map-layout"]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-skeleton]')).toBeNull();
     expect(container.querySelector('[data-map-marker][data-entry-id="entry-1"]')).toBeTruthy();
     expect(container.textContent).toContain("Tokyo Station");
     expect(container.textContent).toContain("未定位条目");
@@ -252,6 +253,31 @@ describe("layoutDefinition", () => {
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(runtime.openEntry).toHaveBeenCalledWith("entry-1");
+  });
+
+  it("shows a map-form skeleton with an empty hint when the box has no entries", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+
+    await renderView({
+      container,
+      runtime,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    expect(container.querySelector('[data-layout-skeleton]')).toBeTruthy();
+    expect(container.querySelector('[data-map-skeleton]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-hint]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-title]')?.textContent).toContain("这里还没有内容");
+    expect(container.querySelector('[data-map-marker]')).toBeNull();
+    expect(container.querySelector('[data-map-world]')).toBeNull();
+    expect(container.querySelector('[data-map-controls]')).toBeNull();
+    expect(runtime.readBoxAsset).not.toHaveBeenCalled();
+    expect(runtime.listEntries).not.toHaveBeenCalled();
   });
 
   it("uses built-in static map when no map image is configured", async () => {

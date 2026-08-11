@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/ui";
+import {
+  EmbeddedDocumentFrame,
+  EmptyHint,
+  LayoutSkeleton,
+  SkeletonBlock,
+  SkeletonLine,
+} from "@chips/ui";
 import { hasFrameRegionContent, type FrameRegionConfig, type LayoutConfig } from "../schema/layout-config";
 import type {
   BoxEntryCoverView,
@@ -114,7 +120,6 @@ body {
 }
 
 [data-scope="chips-box-coverflow-layout"] [data-frame-region-status],
-[data-scope="chips-box-coverflow-layout"] [data-layout-empty],
 [data-scope="chips-box-coverflow-layout"] [data-layout-page-error],
 [data-scope="chips-box-coverflow-layout"] [data-coverflow-cover-placeholder] {
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -213,11 +218,6 @@ body {
   text-align: center;
 }
 
-[data-scope="chips-box-coverflow-layout"] [data-layout-empty-title] {
-  color: #1d1d1f;
-  font-weight: 700;
-}
-
 [data-scope="chips-box-coverflow-layout"] [data-coverflow-placeholder-text],
 [data-scope="chips-box-coverflow-layout"] [data-coverflow-placeholder-kind] {
   font-size: 12px;
@@ -272,7 +272,6 @@ body {
   background-color: #f2f2f7;
 }
 
-[data-scope="chips-box-coverflow-layout"] [data-layout-empty],
 [data-scope="chips-box-coverflow-layout"] [data-layout-page-error],
 [data-scope="chips-box-coverflow-layout"] [data-frame-region-status] {
   display: grid;
@@ -283,9 +282,8 @@ body {
   text-align: center;
 }
 
-[data-scope="chips-box-coverflow-layout"] [data-layout-empty] {
+[data-scope="chips-box-coverflow-layout"] [data-layout-skeleton] {
   grid-row: 2;
-  min-height: 0;
 }
 
 @media (max-width: 720px) {
@@ -839,10 +837,58 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
             </div>
           </div>
         ) : (
-          <div data-layout-empty>
-            <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
-            <span>{formatMessage("layout.empty_hint")}</span>
-          </div>
+          <LayoutSkeleton
+            minHeight={320}
+            hint={
+              <EmptyHint
+                title={formatMessage("layout.empty")}
+                description={formatMessage("layout.empty_hint")}
+              />
+            }
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 24,
+              }}
+            >
+              <SkeletonBlock
+                width={150}
+                height={210}
+                radius={12}
+                style={{ opacity: 0.7, transform: "translateY(12px)" }}
+              />
+              <div
+                style={{
+                  position: "relative",
+                  width: 220,
+                  height: 300,
+                  flexShrink: 0,
+                }}
+              >
+                <SkeletonBlock width={220} height={300} radius={14} />
+                <SkeletonLine
+                  width="55%"
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    bottom: 20,
+                    transform: "translateX(-50%)",
+                  }}
+                />
+              </div>
+              <SkeletonBlock
+                width={150}
+                height={210}
+                radius={12}
+                style={{ opacity: 0.7, transform: "translateY(12px)" }}
+              />
+            </div>
+          </LayoutSkeleton>
         )}
 
         {nextCursor || pageError ? (

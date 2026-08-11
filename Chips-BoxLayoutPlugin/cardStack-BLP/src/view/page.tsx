@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/ui";
+import { EmptyHint, EmbeddedDocumentFrame, LayoutSkeleton, SkeletonBlock, SkeletonLine } from "@chips/ui";
 import { hasFrameRegionContent, type FrameRegionConfig, type LayoutConfig } from "../schema/layout-config";
 import type {
   BoxEntryCoverView,
@@ -113,7 +113,6 @@ const CARD_STACK_LAYOUT_STYLE = `
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-frame-region-status],
-[data-scope="chips-box-cardstack-layout"] [data-layout-empty],
 [data-scope="chips-box-cardstack-layout"] [data-layout-page-error] {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
@@ -282,7 +281,6 @@ const CARD_STACK_LAYOUT_STYLE = `
   background-color: #f2f2f7;
 }
 
-[data-scope="chips-box-cardstack-layout"] [data-layout-empty],
 [data-scope="chips-box-cardstack-layout"] [data-layout-page-error],
 [data-scope="chips-box-cardstack-layout"] [data-frame-region-status] {
   display: grid;
@@ -291,21 +289,6 @@ const CARD_STACK_LAYOUT_STYLE = `
   min-height: 160px;
   padding: 16px;
   text-align: center;
-}
-
-[data-scope="chips-box-cardstack-layout"] [data-layout-empty-illustration] {
-  width: min(52vw, 220px);
-  aspect-ratio: 4 / 3;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background:
-    linear-gradient(135deg, transparent 0 28%, rgba(0, 0, 0, 0.08) 29% 31%, transparent 32%),
-    #f2f2f7;
-}
-
-[data-scope="chips-box-cardstack-layout"] [data-layout-empty-title] {
-  color: #1d1d1f;
-  font-weight: 700;
 }
 
 [data-scope="chips-box-cardstack-layout"] [data-stack-current-card]:focus-visible,
@@ -954,11 +937,81 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
             ) : null}
           </div>
         ) : (
-          <div data-layout-empty>
-            <div data-layout-empty-illustration aria-hidden="true" />
-            <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
-            <span>{formatMessage("layout.empty_hint")}</span>
-          </div>
+          <LayoutSkeleton
+            minHeight={300}
+            hint={
+              <EmptyHint
+                title={formatMessage("layout.empty")}
+                description={formatMessage("layout.empty_hint")}
+              />
+            }
+          >
+            <div
+              data-layout-skeleton-stack
+              style={{
+                position: "relative",
+                width: 200,
+                aspectRatio: "3 / 4",
+                margin: "0 auto",
+              }}
+            >
+              <div
+                data-layout-skeleton-card
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  transform: "translate(-14px, 8px) rotate(-4deg)",
+                }}
+              >
+                <SkeletonBlock width="100%" height="100%" radius={12} />
+              </div>
+              <div
+                data-layout-skeleton-card
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  transform: "translate(14px, 8px) rotate(4deg)",
+                }}
+              >
+                <SkeletonBlock width="100%" height="100%" radius={12} />
+              </div>
+              <div
+                data-layout-skeleton-card
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 3,
+                }}
+              >
+                <SkeletonBlock
+                  dashed
+                  width="100%"
+                  height="100%"
+                  radius={12}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: "#ffffff",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 12,
+                    padding: 24,
+                  }}
+                >
+                  <SkeletonLine width="60%" />
+                  <SkeletonLine width="40%" height={8} radius={4} />
+                </div>
+              </div>
+            </div>
+          </LayoutSkeleton>
         )}
       </div>
     </section>

@@ -22,6 +22,7 @@
 
 - UI 组件：Ant Design（antd v6）+ `@ant-design/icons`
 - 共享前端层：`@chips/ui`（苹果风格主题、`EmbeddedDocumentFrame` 等）
+- 空状态：`LayoutSkeleton` + 网格形态骨架原子（`SkeletonBlock` / `SkeletonLine`）+ `EmptyHint`，空箱子时以 3×2 卡片轮廓占位
 - 界面文案：简体中文直写（`src/lib/messages.ts` 统一维护 key → 中文映射）
 
 ## 正式导出

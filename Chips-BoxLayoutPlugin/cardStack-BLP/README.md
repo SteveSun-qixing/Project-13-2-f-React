@@ -15,6 +15,8 @@
 
 扑克牌布局把箱子条目展示成一叠错位旋转的卡片。查看态只让当前顶层卡片加载真实封面、标题和摘要；下层卡片只渲染少量占位层，并且只对后续一两张条目调用 `runtime.prefetchEntries` 做温和预取。
 
+空箱子时使用共享层 `LayoutSkeleton` / `SkeletonBlock` / `SkeletonLine` / `EmptyHint` 渲染卡堆形态骨架（居中堆叠三张卡片轮廓 + 空态提示），一眼看出本布局的形态；上传卡片后布局结构不变。
+
 交互方式：
 
 - 点击当前卡片：调用 `runtime.openEntry(entryId)`；

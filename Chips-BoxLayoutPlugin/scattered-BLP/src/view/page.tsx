@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/ui";
+import { EmbeddedDocumentFrame, EmptyHint, LayoutSkeleton, SkeletonBlock, SkeletonLine } from "@chips/ui";
 import { hasFrameRegionContent, type LayoutConfig } from "../schema/layout-config";
 import { createScatterPlacements, orderScatteredEntries } from "../shared/scatter";
 import { FrameRegionSurface } from "../shared/frame-region";
@@ -252,7 +252,6 @@ const SCATTERED_LAYOUT_STYLE = `
   font-size: 12px;
 }
 
-[data-scope="chips-box-scattered-layout"] [data-layout-empty],
 [data-scope="chips-box-scattered-layout"] [data-layout-page-error] {
   position: relative;
   display: grid;
@@ -264,26 +263,9 @@ const SCATTERED_LAYOUT_STYLE = `
   text-align: center;
 }
 
-[data-scope="chips-box-scattered-layout"] [data-empty-fake] {
-  position: absolute;
-  width: clamp(120px, 26vw, 220px);
-  aspect-ratio: 3 / 4;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: var(--scatter-color);
-  opacity: 0.48;
-}
-
-[data-scope="chips-box-scattered-layout"] [data-layout-empty-title],
-[data-scope="chips-box-scattered-layout"] [data-layout-empty-hint],
 [data-scope="chips-box-scattered-layout"] [data-layout-page-error] > * {
   position: relative;
   z-index: 1;
-}
-
-[data-scope="chips-box-scattered-layout"] [data-layout-empty-title] {
-  color: #1d1d1f;
-  font-weight: 700;
 }
 
 [data-scope="chips-box-scattered-layout"] [data-scattered-title]:focus-visible,
@@ -461,6 +443,64 @@ function mod(value: number, length: number): number {
   return ((value % length) + length) % length;
 }
 
+interface ScatteredSkeletonCardSpec {
+  width: number;
+  height: number;
+  left: string;
+  top: number;
+  rotate: number;
+  dashed: boolean;
+  depth: number;
+}
+
+const SCATTERED_SKELETON_CARDS: ScatteredSkeletonCardSpec[] = [
+  { width: 150, height: 200, left: "22%", top: 0, rotate: -8, dashed: false, depth: 1 },
+  { width: 130, height: 180, left: "50%", top: 36, rotate: 6, dashed: true, depth: 3 },
+  { width: 140, height: 190, left: "30%", top: 96, rotate: -3, dashed: false, depth: 2 },
+];
+
+function ScatteredSkeleton(): React.ReactElement {
+  return (
+    <div
+      data-scattered-skeleton
+      aria-hidden="true"
+      style={{
+        position: "relative",
+        height: 320,
+        width: "100%",
+        maxWidth: 440,
+        margin: "0 auto",
+      }}
+    >
+      {SCATTERED_SKELETON_CARDS.map((card) => (
+        <div
+          key={`${card.left}-${card.top}`}
+          data-scattered-skeleton-card
+          style={{
+            position: "absolute",
+            left: card.left,
+            top: card.top,
+            width: card.width,
+            height: card.height,
+            transform: `rotate(${card.rotate}deg)`,
+            zIndex: card.depth,
+          }}
+        >
+          <SkeletonBlock width={card.width} height={card.height} radius={12} dashed={card.dashed} />
+          <SkeletonLine
+            width="55%"
+            style={{
+              position: "absolute",
+              left: 12,
+              bottom: 12,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const isMountedRef = useRef(true);
   const wheelTimeRef = useRef(0);
@@ -611,11 +651,6 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
     [activeEntry?.entryId, config.props.randomSeed, config.props.spread, config.props.visibleFakeCount, enabledEntries.length],
   );
 
-  const emptyPlacements = useMemo(
-    () => createScatterPlacements(5, `${config.props.randomSeed}:empty`, "loose"),
-    [config.props.randomSeed],
-  );
-
   const handleWheel = (event: React.WheelEvent<HTMLElement>) => {
     if (Math.abs(event.deltaY) < 18) {
       return;
@@ -705,26 +740,17 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
             </div>
           </>
         ) : (
-          <div data-layout-empty>
-            {emptyPlacements.map((placement, index) => (
-              <span
-                key={`empty-${index}`}
-                data-empty-fake
-                aria-hidden="true"
-                style={{
-                  "--scatter-x": `${placement.x}%`,
-                  "--scatter-y": `${placement.y}%`,
-                  "--scatter-rotate": `${placement.rotate}deg`,
-                  "--scatter-scale": placement.scale,
-                  "--scatter-depth": index + 1,
-                  "--scatter-color": FAKE_CARD_COLORS[placement.colorIndex % FAKE_CARD_COLORS.length],
-                  transform: `translate(${placement.x}%, ${placement.y}%) rotate(${placement.rotate}deg) scale(${placement.scale})`,
-                } as React.CSSProperties}
+          <LayoutSkeleton
+            minHeight={480}
+            hint={
+              <EmptyHint
+                title={formatMessage("layout.empty")}
+                description={formatMessage("layout.empty_hint")}
               />
-            ))}
-            <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
-            <span data-layout-empty-hint>{formatMessage("layout.empty_hint")}</span>
-          </div>
+            }
+          >
+            <ScatteredSkeleton />
+          </LayoutSkeleton>
         )}
 
         {pageError ? (

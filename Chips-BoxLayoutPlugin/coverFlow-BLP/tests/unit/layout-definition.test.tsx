@@ -396,6 +396,33 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-layout-top-region] [data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
   });
 
+  it("renders cover flow shaped empty skeleton when the box has no entries", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+
+    await renderView({
+      container,
+      runtime,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    expect(container.querySelector('[data-layout-skeleton]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-hint]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-title]')?.textContent).toBe("这里还没有内容");
+    expect(container.querySelector('[data-layout-empty-text]')?.textContent).toBe("在编辑器中添加卡片或箱子，开始填充这个箱子");
+    expect(container.querySelector('[role="listbox"]')).toBeNull();
+    expect(container.querySelectorAll('[data-coverflow-item]').length).toBe(0);
+
+    const skeletonParts = Array.from(
+      container.querySelectorAll('[data-layout-skeleton] span[aria-hidden="true"]')
+    ).map((node) => (node as HTMLElement).style.width);
+    expect(skeletonParts).toEqual(["150px", "220px", "55%", "150px"]);
+  });
+
   it("does not update the DOM after cleanup while runtime promises are pending", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

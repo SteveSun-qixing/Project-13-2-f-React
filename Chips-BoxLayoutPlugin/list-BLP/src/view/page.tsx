@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "antd";
+import { EmptyHint, LayoutSkeleton, SkeletonBlock, SkeletonDot, SkeletonLine } from "@chips/ui";
 import { hasFrameRegionContent, type LayoutConfig } from "../schema/layout-config";
 import { FrameRegionSurface } from "../shared/frame-region";
 import type { BoxEntryPage, BoxEntryQuery, BoxEntrySnapshot, BoxLayoutRuntime } from "../shared/types";
@@ -395,15 +396,44 @@ export function LayoutViewPage({
               </React.Fragment>
             ))
           ) : (
-            <div data-layout-empty>
-              <div data-layout-empty-ghosts aria-hidden="true">
-                <span data-layout-empty-ghost data-size="lg" />
-                <span data-layout-empty-ghost data-size="md" />
-                <span data-layout-empty-ghost data-size="sm" />
+            <LayoutSkeleton
+              hint={
+                <EmptyHint
+                  align="center"
+                  title={formatMessage("layout.empty")}
+                  description={formatMessage("layout.empty_hint")}
+                />
+              }
+            >
+              <div data-list-empty-skeleton aria-hidden="true">
+                {Array.from({ length: 8 }, (_, index) => (
+                  <div
+                    key={index}
+                    data-list-empty-skeleton-row
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                      padding: "10px 0",
+                      borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
+                    }}
+                  >
+                    <SkeletonDot
+                      size={16}
+                      style={{
+                        flexShrink: 0,
+                        borderRadius: 4,
+                        border: "1.5px dashed rgba(0, 0, 0, 0.10)",
+                        background: "transparent",
+                      }}
+                    />
+                    <SkeletonBlock width={48} height={36} radius={8} style={{ flexShrink: 0 }} />
+                    <SkeletonLine style={{ flex: 1, maxWidth: 240 }} />
+                    <SkeletonLine width={72} height={8} style={{ flexShrink: 0 }} />
+                  </div>
+                ))}
               </div>
-              <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
-              <span data-layout-empty-text>{formatMessage("layout.empty_hint")}</span>
-            </div>
+            </LayoutSkeleton>
           )}
         </div>
 

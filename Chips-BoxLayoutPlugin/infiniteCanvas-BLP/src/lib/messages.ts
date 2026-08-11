@@ -1,7 +1,7 @@
 const MESSAGES: Record<string, string> = {
   "layout.canvas_label": "无限画布",
-  "layout.empty": "暂无已放置条目",
-  "layout.empty_hint": "在布局编辑器中把条目放到画布后即可浏览",
+  "layout.empty": "这里还没有内容",
+  "layout.empty_hint": "在编辑器中添加卡片或箱子，开始填充这个箱子",
   "layout.cover_loading": "封面加载中…",
   "layout.cover_missing": "无封面",
   "layout.cover_error": "封面加载失败",

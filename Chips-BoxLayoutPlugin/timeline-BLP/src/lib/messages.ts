@@ -1,6 +1,4 @@
 const MESSAGES: Record<string, string> = {
-  "layout.empty": "暂无条目",
-  "layout.empty_hint": "当前箱子还没有可显示的条目",
   "layout.loading": "加载中...",
   "layout.cover_missing": "无封面",
   "layout.cover_error": "封面加载失败",

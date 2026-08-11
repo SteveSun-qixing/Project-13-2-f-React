@@ -300,65 +300,6 @@ export const LIST_LAYOUT_STYLE = `
   outline-offset: 2px;
 }
 
-[data-scope="chips-box-list-layout"] [data-layout-empty] {
-  position: relative;
-  display: grid;
-  place-items: center;
-  gap: 12px;
-  min-height: 100%;
-  padding: 36px 20px;
-  background: #ffffff;
-  color: #6e6e73;
-  font-size: 14px;
-  text-align: center;
-}
-
-[data-scope="chips-box-list-layout"] [data-layout-empty-title] {
-  position: relative;
-  z-index: 1;
-  font-size: 18px;
-  color: #1d1d1f;
-}
-
-[data-scope="chips-box-list-layout"] [data-layout-empty-text] {
-  position: relative;
-  z-index: 1;
-  max-width: 320px;
-  color: #6e6e73;
-  line-height: 1.7;
-}
-
-[data-scope="chips-box-list-layout"] [data-layout-empty-ghosts] {
-  position: absolute;
-  inset: 34px 24px;
-  pointer-events: none;
-  display: grid;
-  align-content: center;
-  gap: 14px;
-}
-
-[data-scope="chips-box-list-layout"] [data-layout-empty-ghost] {
-  display: block;
-  width: min(460px, 72vw);
-  height: 54px;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #f2f2f7 0%, #e5e5ea 100%);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
-}
-
-[data-scope="chips-box-list-layout"] [data-layout-empty-ghost][data-size="lg"] {
-  transform: translateX(-12px);
-}
-
-[data-scope="chips-box-list-layout"] [data-layout-empty-ghost][data-size="md"] {
-  transform: translateX(18px);
-}
-
-[data-scope="chips-box-list-layout"] [data-layout-empty-ghost][data-size="sm"] {
-  transform: translateX(4px);
-}
-
 [data-scope="chips-box-list-layout"] [data-layout-pagination] {
   display: flex;
   justify-content: center;
@@ -436,15 +377,6 @@ export const LIST_LAYOUT_STYLE = `
   [data-scope="chips-box-list-layout"] [data-list-entry-date],
   [data-scope="chips-box-list-layout"] [data-list-entry-summary] {
     font-size: 12px;
-  }
-
-  [data-scope="chips-box-list-layout"] [data-layout-empty] {
-    min-height: 100%;
-  }
-
-  [data-scope="chips-box-list-layout"] [data-layout-empty-ghosts] {
-    inset: 26px 16px;
-    gap: 12px;
   }
 }
 `;

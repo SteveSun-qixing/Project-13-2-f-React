@@ -8,6 +8,7 @@
 - 条目支持点模式、封面模式和 mixed 模式；封面通过 `runtime.renderEntryCover(entryId)` 获取。
 - 点击点位、封面或标题统一调用 `runtime.openEntry(entryId)`。
 - 可显示网格，可在编辑器中开启坐标吸附。
+- 空箱子时展示无限画布形态骨架空态（画布网格底 + 中央错位画布卡片占位 + 空态提示），上传卡片后自动切换为真实画布。
 - 背景图片作为箱子自有资源导入，路径固定保存在 `assets/layouts/infinitecanvas/background/`，并同步到 `assetRefs`。
 - 编辑器支持未放置条目列表、选择后点击画布放置、拖动节点、坐标输入、条目模式切换、显示名覆盖和背景上传/清空。
 

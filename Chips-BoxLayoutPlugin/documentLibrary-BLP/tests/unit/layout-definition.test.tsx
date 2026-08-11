@@ -175,6 +175,7 @@ describe("layoutDefinition", () => {
     expect(container.querySelector('[data-scope="chips-document-library-layout"]')).toBeTruthy();
     expect(container.querySelector('[data-document-tree]')).toBeTruthy();
     expect(container.querySelector('[data-document-preview]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-skeleton]')).toBeNull();
     expect(container.querySelector('[data-chips-embedded-frame="embedded-document-frame"]')).toBeTruthy();
     expect(container.querySelector('[data-scope="card-cover-frame"]')).toBeNull();
     expect(container.textContent).toContain("Summary");
@@ -205,6 +206,34 @@ describe("layoutDefinition", () => {
       cleanup?.();
     });
     expect(container.textContent ?? "").toBe("");
+  });
+
+  it("renders a document-library-shaped layout skeleton when the box is empty", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+
+    await renderView({
+      container,
+      runtime,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    expect(container.querySelector('[data-layout-skeleton]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-hint]')).toBeTruthy();
+    expect(container.querySelector('[data-layout-empty-title]')?.textContent).toBe("这里还没有内容");
+    expect(container.querySelector('[data-document-tree]')).toBeTruthy();
+    expect(container.querySelector('[data-document-preview]')).toBeTruthy();
+    expect(container.querySelectorAll('[data-document-library-skeleton-row]')).toHaveLength(6);
+
+    const indents = Array.from(
+      container.querySelectorAll('[data-document-library-skeleton-row]')
+    ).map((node) => (node as HTMLElement).style.paddingInlineStart);
+    expect(indents).toEqual(["0px", "0px", "24px", "24px", "48px", "48px"]);
+    expect(runtime.prefetchEntries).not.toHaveBeenCalled();
   });
 
   it("loads additional pages and keeps existing entries when pagination fails", async () => {

@@ -279,6 +279,27 @@ describe("layoutDefinition", () => {
     expect(container.textContent).toContain("后续条目加载失败");
   });
 
+  it("shows a timeline-shaped skeleton when the box is empty", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const runtime = createRuntime();
+
+    await renderView({
+      container,
+      runtime,
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const skeleton = container.querySelector("[data-layout-skeleton]");
+    expect(skeleton).toBeTruthy();
+    expect(skeleton?.querySelectorAll("[data-timeline-skeleton-node]")).toHaveLength(5);
+    expect(container.querySelector("[data-timeline-root]")).toBeNull();
+    expect(container.querySelector("[data-layout-empty-title]")?.textContent).toBe("这里还没有内容");
+  });
+
   it("reads box assets for configured frame regions", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

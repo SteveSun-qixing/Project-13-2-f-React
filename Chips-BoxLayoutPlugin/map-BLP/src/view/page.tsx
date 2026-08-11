@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/ui";
+import { EmbeddedDocumentFrame, EmptyHint, LayoutSkeleton, SkeletonBlock, SkeletonDot, SkeletonLine } from "@chips/ui";
 import {
   hasCustomMapImage,
   hasFrameRegionContent,
@@ -136,7 +136,6 @@ const MAP_LAYOUT_STYLE = `
 
 [data-scope="chips-box-map-layout"] [data-map-unavailable],
 [data-scope="chips-box-map-layout"] [data-map-asset-status],
-[data-scope="chips-box-map-layout"] [data-layout-empty],
 [data-scope="chips-box-map-layout"] [data-layout-page-error] {
   display: grid;
   place-items: center;
@@ -587,6 +586,117 @@ function SelectedEntryPreview({
   );
 }
 
+const SKELETON_PIN_SPOTS = [
+  { left: 24, top: 36 },
+  { left: 56, top: 64 },
+  { left: 78, top: 42 },
+] as const;
+
+function MapSkeletonPin({ left, top }: { left: number; top: number }): React.ReactElement {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        left: `${left}%`,
+        top: `${top}%`,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        transform: "translate(-50%, -100%)",
+      }}
+    >
+      <SkeletonBlock width={64} height={44} radius={10} />
+      <span
+        style={{
+          width: 2,
+          height: 20,
+          flex: "0 0 auto",
+          background: "rgba(0, 0, 0, 0.05)",
+          borderRadius: 1,
+        }}
+      />
+      <SkeletonDot size={12} />
+    </div>
+  );
+}
+
+function MapLayoutSkeleton(): React.ReactElement {
+  return (
+    <LayoutSkeleton
+      minHeight={320}
+      hint={
+        <EmptyHint
+          title={formatMessage("layout.empty")}
+          description={formatMessage("layout.empty_hint")}
+        />
+      }
+    >
+      <div
+        data-map-skeleton
+        aria-hidden="true"
+        style={{
+          position: "relative",
+          width: "100%",
+          height: 240,
+          overflow: "hidden",
+          borderRadius: 16,
+          background: "linear-gradient(180deg, #f7f7fa 0%, #f2f2f7 100%)",
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.04) 0 1px, transparent 1px 40px), repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.04) 0 1px, transparent 1px 40px)",
+          }}
+        />
+        <SkeletonLine
+          width="100%"
+          height={3}
+          radius={2}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: "16%",
+            transform: "rotate(-8deg)",
+            background: "rgba(0, 0, 0, 0.05)",
+          }}
+        />
+        <SkeletonLine
+          width="100%"
+          height={3}
+          radius={2}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: "34%",
+            transform: "rotate(12deg)",
+            background: "rgba(0, 0, 0, 0.05)",
+          }}
+        />
+        <SkeletonLine
+          width="100%"
+          height={3}
+          radius={2}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: "62%",
+            transform: "rotate(-12deg)",
+            background: "rgba(0, 0, 0, 0.05)",
+          }}
+        />
+        {SKELETON_PIN_SPOTS.map((spot) => (
+          <MapSkeletonPin key={`${spot.left}-${spot.top}`} left={spot.left} top={spot.top} />
+        ))}
+      </div>
+    </LayoutSkeleton>
+  );
+}
+
 export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps) {
   const isMountedRef = useRef(true);
   const [items, setItems] = useState<BoxEntrySnapshot[]>(initialView.items);
@@ -736,81 +846,80 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
         ) : null}
 
         <div data-map-stage>
-          {config.props.mapSource.mode === "host-map" ? (
-            <div data-map-unavailable role="status">
-              {formatMessage("layout.host_map_unavailable")}
-            </div>
-          ) : (
-            <div data-map-world style={{ transform: mapTransform }}>
-              <MapAssetLayer config={config} runtime={runtime} />
-              <div data-map-markers>
-                {positionedEntries.map((item) => {
-                  const selected = selectedEntryId === item.entry.entryId;
-                  return (
-                    <button
-                      key={item.entry.entryId}
-                      type="button"
-                      data-map-marker
-                      data-marker-style={config.props.markerStyle}
-                      data-selected={selected ? "true" : undefined}
-                      data-entry-id={item.entry.entryId}
-                      style={{
-                        "--marker-x": `${item.x}%`,
-                        "--marker-y": `${item.y}%`,
-                      } as React.CSSProperties}
-                      title={item.label}
-                      onClick={() => {
-                        if (selected) {
-                          void runtime.openEntry(item.entry.entryId);
-                          return;
-                        }
-                        setSelectedEntryId(item.entry.entryId);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          if (selected) {
-                            void runtime.openEntry(item.entry.entryId);
-                          } else {
-                            setSelectedEntryId(item.entry.entryId);
-                          }
-                        }
-                      }}
-                    >
-                      <span data-map-marker-dot aria-hidden="true" />
-                      <span data-map-marker-label>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div data-map-controls aria-label={formatMessage("layout.map_controls")}>
-            <button type="button" onClick={() => zoomView(0.25)} aria-label={formatMessage("layout.zoom_in")}>+</button>
-            <button type="button" onClick={() => zoomView(-0.25)} aria-label={formatMessage("layout.zoom_out")}>-</button>
-            <button type="button" onClick={() => panView(5, 0)} aria-label={formatMessage("layout.pan_north")}>↑</button>
-            <button type="button" onClick={() => panView(-5, 0)} aria-label={formatMessage("layout.pan_south")}>↓</button>
-            <button type="button" onClick={() => panView(0, -5)} aria-label={formatMessage("layout.pan_west")}>←</button>
-            <button type="button" onClick={() => panView(0, 5)} aria-label={formatMessage("layout.pan_east")}>→</button>
-            <button type="button" onClick={resetView}>{formatMessage("layout.reset_view")}</button>
-          </div>
-
           {enabledEntries.length === 0 ? (
-            <div data-layout-empty>
-              <strong>{formatMessage("layout.empty")}</strong>
-              <span>{formatMessage("layout.empty_hint")}</span>
-            </div>
-          ) : null}
+            <MapLayoutSkeleton />
+          ) : (
+            <>
+              {config.props.mapSource.mode === "host-map" ? (
+                <div data-map-unavailable role="status">
+                  {formatMessage("layout.host_map_unavailable")}
+                </div>
+              ) : (
+                <div data-map-world style={{ transform: mapTransform }}>
+                  <MapAssetLayer config={config} runtime={runtime} />
+                  <div data-map-markers>
+                    {positionedEntries.map((item) => {
+                      const selected = selectedEntryId === item.entry.entryId;
+                      return (
+                        <button
+                          key={item.entry.entryId}
+                          type="button"
+                          data-map-marker
+                          data-marker-style={config.props.markerStyle}
+                          data-selected={selected ? "true" : undefined}
+                          data-entry-id={item.entry.entryId}
+                          style={{
+                            "--marker-x": `${item.x}%`,
+                            "--marker-y": `${item.y}%`,
+                          } as React.CSSProperties}
+                          title={item.label}
+                          onClick={() => {
+                            if (selected) {
+                              void runtime.openEntry(item.entry.entryId);
+                              return;
+                            }
+                            setSelectedEntryId(item.entry.entryId);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              if (selected) {
+                                void runtime.openEntry(item.entry.entryId);
+                              } else {
+                                setSelectedEntryId(item.entry.entryId);
+                              }
+                            }
+                          }}
+                        >
+                          <span data-map-marker-dot aria-hidden="true" />
+                          <span data-map-marker-label>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-          {selectedEntry ? (
-            <SelectedEntryPreview
-              entry={selectedEntry}
-              runtime={runtime}
-              showCover={config.props.showCoverOnSelect}
-              onClose={() => setSelectedEntryId(undefined)}
-            />
-          ) : null}
+              <div data-map-controls aria-label={formatMessage("layout.map_controls")}>
+                <button type="button" onClick={() => zoomView(0.25)} aria-label={formatMessage("layout.zoom_in")}>+</button>
+                <button type="button" onClick={() => zoomView(-0.25)} aria-label={formatMessage("layout.zoom_out")}>-</button>
+                <button type="button" onClick={() => panView(5, 0)} aria-label={formatMessage("layout.pan_north")}>↑</button>
+                <button type="button" onClick={() => panView(-5, 0)} aria-label={formatMessage("layout.pan_south")}>↓</button>
+                <button type="button" onClick={() => panView(0, -5)} aria-label={formatMessage("layout.pan_west")}>←</button>
+                <button type="button" onClick={() => panView(0, 5)} aria-label={formatMessage("layout.pan_east")}>→</button>
+                <button type="button" onClick={resetView}>{formatMessage("layout.reset_view")}</button>
+              </div>
+
+              {selectedEntry ? (
+                <SelectedEntryPreview
+                  entry={selectedEntry}
+                  runtime={runtime}
+                  showCover={config.props.showCoverOnSelect}
+                  onClose={() => setSelectedEntryId(undefined)}
+                />
+              ) : null}
+            </>
+          )}
         </div>
 
         {unlocatedEntries.length > 0 ? (

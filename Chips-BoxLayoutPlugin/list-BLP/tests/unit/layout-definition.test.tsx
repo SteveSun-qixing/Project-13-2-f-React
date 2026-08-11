@@ -108,6 +108,7 @@ describe("layoutDefinition", () => {
     });
     expect(renderEntryCover).toHaveBeenCalledWith("entry-1");
     expect(container.textContent).toContain("已选择 0 个条目");
+    expect(container.querySelector('[data-layout-skeleton]')).toBeNull();
     tile?.querySelector('[data-list-entry-title]')?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(openEntry).toHaveBeenCalledWith("entry-1");
     await act(async () => {
@@ -415,6 +416,10 @@ describe("layoutDefinition", () => {
 
     expect(container.querySelector('[data-scope="chips-box-list-layout"]')).toBeTruthy();
     expect(container.querySelector('[data-layout-list]')).toBeTruthy();
-    expect(container.textContent).toContain("暂无条目");
+    expect(container.querySelector('[data-layout-skeleton]')).toBeTruthy();
+    expect(container.querySelectorAll('[data-list-empty-skeleton-row]')).toHaveLength(8);
+    expect(container.querySelector('[data-list-empty-skeleton-row]')?.querySelector('[data-layout-empty-title]')).toBeNull();
+    expect(container.querySelector('[data-layout-empty-title]')?.textContent).toContain("这里还没有内容");
+    expect(container.querySelector('[data-layout-empty-text]')?.textContent).toContain("在编辑器中添加卡片或箱子");
   });
 });

@@ -348,6 +348,31 @@ describe("layoutDefinition", () => {
     expect(container.textContent).toContain("Gamma");
   });
 
+  it("renders the scattered layout skeleton empty state when the box has no entries", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await renderView({
+      container,
+      runtime: createRuntime(),
+      config: layoutDefinition.normalizeConfig({
+        props: {
+          motion: "reduced",
+        },
+      }),
+      initialView: {
+        items: [],
+        total: 0,
+      },
+    });
+
+    const skeleton = container.querySelector("[data-layout-skeleton]");
+    expect(skeleton).toBeTruthy();
+    expect(skeleton?.querySelector("[data-layout-empty-title]")?.textContent).toBe("这里还没有内容");
+    expect(skeleton?.querySelector("[data-layout-empty-text]")?.textContent).toBe("在编辑器中添加卡片或箱子，开始填充这个箱子");
+    expect(skeleton?.querySelectorAll("[data-scattered-skeleton-card]")).toHaveLength(3);
+    expect(container.textContent).not.toContain("Alpha");
+  });
+
   it("reads box assets for configured frame regions", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

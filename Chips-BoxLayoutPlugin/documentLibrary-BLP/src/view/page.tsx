@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/ui";
+import { EmptyHint, EmbeddedDocumentFrame, LayoutSkeleton, SkeletonBlock, SkeletonLine } from "@chips/ui";
 import {
   hasFrameRegionContent,
   type DocumentTreeNodeConfig,
@@ -124,7 +124,6 @@ const DOCUMENT_LIBRARY_STYLE = `
 [data-scope="chips-document-library-layout"] [data-document-tree],
 [data-scope="chips-document-library-layout"] [data-document-preview],
 [data-scope="chips-document-library-layout"] [data-frame-region-status],
-[data-scope="chips-document-library-layout"] [data-layout-empty],
 [data-scope="chips-document-library-layout"] [data-layout-page-error] {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
@@ -284,7 +283,6 @@ const DOCUMENT_LIBRARY_STYLE = `
   min-width: 0;
 }
 
-[data-scope="chips-document-library-layout"] [data-layout-empty],
 [data-scope="chips-document-library-layout"] [data-layout-page-error],
 [data-scope="chips-document-library-layout"] [data-frame-region-status] {
   display: grid;
@@ -626,6 +624,41 @@ function CoverPreview({
   );
 }
 
+const DOCUMENT_SKELETON_INDENTS = [0, 0, 24, 24, 48, 48];
+
+function DocumentLibrarySkeleton(): React.ReactElement {
+  return (
+    <LayoutSkeleton
+      minHeight={300}
+      hint={
+        <EmptyHint
+          title={formatMessage("layout.empty")}
+          description={formatMessage("layout.empty_hint")}
+        />
+      }
+    >
+      {DOCUMENT_SKELETON_INDENTS.map((indent, index) => (
+        <div
+          key={`document-skeleton-row-${index}`}
+          data-document-library-skeleton-row
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "9px 0",
+            paddingInlineStart: indent,
+            borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
+          }}
+        >
+          <SkeletonBlock width={28} height={28} radius={8} />
+          <SkeletonLine style={{ flex: 1, maxWidth: 260 }} />
+          <SkeletonLine width={64} height={8} />
+        </div>
+      ))}
+    </LayoutSkeleton>
+  );
+}
+
 function DocumentPreview({
   node,
   runtime,
@@ -637,9 +670,8 @@ function DocumentPreview({
 }) {
   if (!node) {
     return (
-      <div data-layout-empty>
-        <strong>{formatMessage("layout.empty")}</strong>
-        <span>{formatMessage("layout.empty_hint")}</span>
+      <div data-document-preview>
+        <DocumentLibrarySkeleton />
       </div>
     );
   }

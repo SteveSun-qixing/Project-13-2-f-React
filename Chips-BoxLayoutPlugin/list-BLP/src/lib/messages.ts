@@ -1,6 +1,6 @@
 const MESSAGES: Record<string, string> = {
-  "layout.empty": "暂无条目",
-  "layout.empty_hint": "暂无存入卡片和箱子",
+  "layout.empty": "这里还没有内容",
+  "layout.empty_hint": "在编辑器中添加卡片或箱子，开始填充这个箱子",
   "layout.loading": "加载中…",
   "layout.cover_missing": "无封面",
   "layout.entry_type_card": "卡片",

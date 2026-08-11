@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/ui";
+import {
+  EmbeddedDocumentFrame,
+  EmptyHint,
+  LayoutSkeleton,
+  SkeletonBlock,
+  SkeletonLine,
+} from "@chips/ui";
 import {
   GRID_SIZE,
   type CanvasItemConfig,
@@ -211,19 +217,7 @@ const STYLE_TEXT = `
   display: grid;
   place-items: center;
   padding: 32px;
-  text-align: center;
   pointer-events: none;
-}
-
-[data-infinite-canvas-empty] > div {
-  display: grid;
-  gap: 8px;
-  max-width: 360px;
-  color: #6e6e73;
-}
-
-[data-infinite-canvas-empty] strong {
-  color: #1d1d1f;
 }
 
 [data-infinite-canvas-footer] {
@@ -749,10 +743,80 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
         </div>
         {placedEntries.length === 0 ? (
           <div data-infinite-canvas-empty>
-            <div>
-              <strong>{formatMessage("layout.empty")}</strong>
-              <span>{formatMessage("layout.empty_hint")}</span>
-            </div>
+            <LayoutSkeleton
+              hint={
+                <EmptyHint
+                  title={formatMessage("layout.empty")}
+                  description={formatMessage("layout.empty_hint")}
+                />
+              }
+            >
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  backgroundImage:
+                    "linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),"
+                    + " linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px)",
+                  backgroundSize: "24px 24px",
+                }}
+              />
+              <div
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  minWidth: 300,
+                  minHeight: 240,
+                }}
+              >
+                <div style={{ position: "relative", width: 170, height: 210 }}>
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      transform: "translate(110px, 30px) rotate(4deg)",
+                    }}
+                  >
+                    <SkeletonBlock
+                      width={150}
+                      height={190}
+                      radius={12}
+                      style={{ background: "#f2f2f7" }}
+                    />
+                    <SkeletonLine
+                      width="55%"
+                      style={{
+                        position: "absolute",
+                        insetInlineStart: 14,
+                        insetBlockEnd: 12,
+                        background: "#e4e4ea",
+                      }}
+                    />
+                  </div>
+                  <div aria-hidden="true" style={{ position: "absolute", inset: 0 }}>
+                    <SkeletonBlock
+                      width="100%"
+                      height="100%"
+                      radius={12}
+                      dashed
+                      style={{ background: "#ffffff" }}
+                    />
+                    <SkeletonLine
+                      width="55%"
+                      style={{
+                        position: "absolute",
+                        insetInlineStart: 14,
+                        insetBlockEnd: 12,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </LayoutSkeleton>
           </div>
         ) : null}
         {nextCursor || pageError ? (

@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmbeddedDocumentFrame } from "@chips/ui";
+import {
+  EmbeddedDocumentFrame,
+  EmptyHint,
+  LayoutSkeleton,
+  SkeletonBlock,
+  SkeletonDot,
+  SkeletonLine,
+} from "@chips/ui";
 import {
   hasFrameRegionContent,
   type FrameRegionConfig,
@@ -100,7 +107,6 @@ const TIMELINE_LAYOUT_STYLE = `
 }
 
 [data-scope="chips-box-timeline-layout"] [data-frame-region-status],
-[data-scope="chips-box-timeline-layout"] [data-layout-empty],
 [data-scope="chips-box-timeline-layout"] [data-layout-page-error],
 [data-scope="chips-box-timeline-layout"] [data-timeline-entry-cover-placeholder] {
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -327,7 +333,6 @@ const TIMELINE_LAYOUT_STYLE = `
   background-color: #f2f2f7;
 }
 
-[data-scope="chips-box-timeline-layout"] [data-layout-empty],
 [data-scope="chips-box-timeline-layout"] [data-layout-page-error],
 [data-scope="chips-box-timeline-layout"] [data-frame-region-status] {
   display: grid;
@@ -336,11 +341,6 @@ const TIMELINE_LAYOUT_STYLE = `
   min-height: 160px;
   padding: 16px;
   text-align: center;
-}
-
-[data-scope="chips-box-timeline-layout"] [data-layout-empty-title] {
-  color: #1d1d1f;
-  font-weight: 700;
 }
 
 [data-scope="chips-box-timeline-layout"] [data-timeline-point-button]:focus-visible,
@@ -886,10 +886,55 @@ export function LayoutViewPage({ initialView, config, runtime }: LayoutViewProps
         ) : null}
 
         {enabledEntries.length === 0 ? (
-          <div data-layout-empty>
-            <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
-            <span>{formatMessage("layout.empty_hint")}</span>
-          </div>
+          <LayoutSkeleton minHeight={320} hint={<EmptyHint align="start" />}>
+            {Array.from({ length: 5 }, (_, index) => (
+              <div
+                key={index}
+                data-timeline-skeleton-node
+                style={{ display: "flex", gap: 14, alignItems: "stretch" }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    width: 40,
+                    flexShrink: 0,
+                  }}
+                >
+                  <SkeletonDot size={12} />
+                  {index < 4 ? (
+                    <div
+                      style={{
+                        width: 2,
+                        flex: 1,
+                        minHeight: 8,
+                        marginTop: 6,
+                        background: "rgba(0, 0, 0, 0.06)",
+                      }}
+                    />
+                  ) : null}
+                </div>
+                <div style={{ position: "relative", width: "100%", maxWidth: 420, flexShrink: 0 }}>
+                  <SkeletonBlock width="100%" height={64} radius={10} dashed />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      padding: "12px 16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <SkeletonLine width="50%" />
+                    <SkeletonLine width="32%" height={8} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </LayoutSkeleton>
         ) : (
           <div
             ref={timelineRootRef}

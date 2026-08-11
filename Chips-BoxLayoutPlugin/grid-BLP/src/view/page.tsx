@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EmptyHint, LayoutSkeleton, SkeletonBlock, SkeletonLine } from "@chips/ui";
 import { hasFrameRegionContent, type LayoutConfig } from "../schema/layout-config";
 import { FrameRegionSurface } from "../shared/frame-region";
 import type { BoxEntryPage, BoxEntrySnapshot, BoxLayoutRuntime } from "../shared/types";
@@ -13,6 +14,8 @@ export interface LayoutViewProps {
 }
 
 const PAGE_LIMIT = 48;
+
+const SKELETON_CELL_KEYS = Array.from({ length: 6 }, (_, index) => index);
 
 function resolveEntryTitle(entry: BoxEntrySnapshot): string {
   return entry.snapshot.title ?? entry.snapshot.documentId ?? entry.entryId;
@@ -163,15 +166,24 @@ export function LayoutViewPage({
               />
             ))
           ) : (
-            <div data-layout-empty>
-              <div data-layout-empty-ghosts aria-hidden="true">
-                <span data-layout-empty-ghost data-size="lg" />
-                <span data-layout-empty-ghost data-size="md" />
-                <span data-layout-empty-ghost data-size="sm" />
+            <LayoutSkeleton
+              hint={
+                <EmptyHint
+                  title={formatMessage("layout.empty")}
+                  description={formatMessage("layout.empty_hint")}
+                />
+              }
+            >
+              <div data-layout-skeleton-grid>
+                {SKELETON_CELL_KEYS.map((key) => (
+                  <div data-layout-skeleton-cell key={key}>
+                    <SkeletonBlock width="100%" radius={12} style={{ aspectRatio: "3 / 4" }} />
+                    <SkeletonLine width="62%" />
+                    <SkeletonLine width="40%" height={8} radius={4} />
+                  </div>
+                ))}
               </div>
-              <strong data-layout-empty-title>{formatMessage("layout.empty")}</strong>
-              <span data-layout-empty-text>{formatMessage("layout.empty_hint")}</span>
-            </div>
+            </LayoutSkeleton>
           )}
         </div>
 
