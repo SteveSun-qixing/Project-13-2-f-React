@@ -125,8 +125,7 @@ describe('archive-import', () => {
     });
   });
 
-  it('imports a webpage archive bundle into the card root and flattens a single top-level folder', async () => {
-    const cardRootDir = await createTempDir('chips-card-root-');
+  it('imports a webpage archive bundle into the card root and flattens a single top-level folder', async () => {    const cardRootDir = await createTempDir('chips-card-root-');
     const zipPath = path.join(cardRootDir, 'website.zip');
     await fs.writeFile(zipPath, 'zip');
 
@@ -247,6 +246,62 @@ describe('archive-import', () => {
     await expect(
       fs.readdir(path.join(cardRootDir, '.card', '__archive_import__')),
     ).resolves.toEqual([]);
+  });
+
+  it('keeps html/css/js text files when include mimeTypes filter is provided', async () => {
+    const cardRootDir = await createTempDir('chips-card-root-include-');
+    const zipPath = path.join(cardRootDir, 'website.zip');
+    await fs.writeFile(zipPath, 'zip');
+
+    const services = createServices({
+      zipPath,
+      entries: [
+        zipEntry('index.html', { size: 10, compressedSize: 10, crc32: 1, offset: 0 }),
+        zipEntry('styles/main.css', { size: 12, compressedSize: 12, crc32: 2, offset: 10 }),
+        zipEntry('scripts/app.js', { size: 14, compressedSize: 14, crc32: 3, offset: 20 }),
+        zipEntry('assets/cover.png', { size: 16, compressedSize: 16, crc32: 4, offset: 30 }),
+      ],
+      async extractImpl(outputDir) {
+        await fs.mkdir(path.join(outputDir, 'styles'), { recursive: true });
+        await fs.mkdir(path.join(outputDir, 'scripts'), { recursive: true });
+        await fs.mkdir(path.join(outputDir, 'assets'), { recursive: true });
+        await fs.writeFile(path.join(outputDir, 'index.html'), '<html></html>', 'utf-8');
+        await fs.writeFile(path.join(outputDir, 'styles', 'main.css'), 'body { margin: 0; }', 'utf-8');
+        await fs.writeFile(path.join(outputDir, 'scripts', 'app.js'), 'console.log(1);', 'utf-8');
+        await fs.writeFile(
+          path.join(outputDir, 'assets', 'cover.png'),
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]),
+        );
+      },
+    });
+
+    const result = await importArchiveBundleIntoCardRoot({
+      cardRootDir: toPosixPath(cardRootDir),
+      request: {
+        file: { name: 'website.zip' } as File,
+        preferredRootDir: 'webpage-bundle',
+        entryFile: 'index.html',
+        include: {
+          mimeTypes: [
+            'text/html',
+            'text/css',
+            'text/javascript',
+            'application/javascript',
+            'image/png',
+          ],
+          extensions: ['.html', '.htm', '.css', '.js', '.mjs', '.cjs', '.png'],
+        },
+      },
+      services,
+    });
+
+    expect(result.entryFile).toBe('index.html');
+    expect(result.resourcePaths).toEqual([
+      `${result.rootDir}/assets/cover.png`,
+      `${result.rootDir}/index.html`,
+      `${result.rootDir}/scripts/app.js`,
+      `${result.rootDir}/styles/main.css`,
+    ]);
   });
 
   it('cleans up staged data when the imported archive does not contain index.html', async () => {

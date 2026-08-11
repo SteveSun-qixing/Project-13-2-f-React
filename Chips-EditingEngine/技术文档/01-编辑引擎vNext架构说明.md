@@ -15,7 +15,7 @@ src/main.tsx
   (antd ConfigProvider locale=zhCN theme=appleTheme + antd App
    + @chips/ui ChipsProvider + CommandProvider
    + AppRuntimeProvider + EditingEngineStateProviders)
--> src/app/AppShell.tsx（AppChrome：菜单、工具栏、命令面板）
+-> src/app/AppShell.tsx（AppChrome：命令面板、快捷键、内容容器）
 -> src/scenes/WorkspaceScene.tsx
 ```
 
@@ -32,9 +32,9 @@ src/main.tsx
 
 命令入口集中在 `src/commands/`：
 
-- `editing-engine-commands.tsx` 定义稳定 command id（`chips-official.editing-engine.*`）、菜单/工具栏 placement（`menuId`/`toolbarId`）、快捷键和运行态 enabled，命令文案为简体中文直写，图标使用 `@ant-design/icons`。
+- `editing-engine-commands.tsx` 定义稳定 command id（`chips-official.editing-engine.*`）、placement（`menuId`/`toolbarId`，顶层菜单栏已移除，仅 `toolbarId` 由内容区工具栏消费）、快捷键和运行态 enabled，命令文案为简体中文直写，图标使用 `@ant-design/icons`。
 - `EditingEngineCommandProvider.tsx` 通过 `@chips/ui` 的 `useCommandRegistry().register(...)` 注册命令，并向子组件提供 `commands` 与 `registerHandler`。
-- AppShell 的 `AppChrome` 负责渲染菜单与 `workspace` 工具栏；FileManager 通过 `Toolbar`（`toolbarId: 'file-manager'`）渲染本地文件命令。
+- AppShell 的 `AppChrome` 只承载命令面板（Mod+P）与快捷键分发，不再渲染顶层菜单栏/工具栏；内容区工具栏由应用自身组件渲染（FileManager 通过 `Toolbar`（`toolbarId: 'file-manager'`）渲染本地文件命令，Dock 窗口内工具按钮各自绑定 UI 回调）。
 - Dock 与 HistoryPanel 直接调用 UI 回调/内部命令管理器，不再消费旧 `invokeCommand` 适配器。
 - `src/lib/messages.ts` 集中保存应用中文文案（key -> 中文 + `formatMessage` 插值），调用点统一使用 `formatMessage` 或直接中文直写。
 
@@ -125,3 +125,50 @@ npm run validate
 - `tests/unit/box-document-service.test.ts`、`tests/unit/box-editor-panel.test.tsx`：箱子保存、排序键和布局编辑器稳定性。
 - `tests/unit/workbench-a11y.test.tsx`、`tests/unit/file-tree.test.tsx`、`tests/unit/base-window.test.tsx`：工作台、文件树和窗口可访问性。
 - `tests/unit/real-materials-regression.test.ts`：成品测试空间真实 `.card/.box` 素材结构回归。
+
+## 9. 设置弹窗与封面编辑器（2026-08 优化）
+
+### 9.1 弹窗尺寸约定（固定）
+
+| 弹窗 | 固定尺寸 | 说明 |
+|---|---|---|
+| 卡片设置（CardSettingsDialog） | 宽 860 / 高 680 | 左侧分类导航 + 右侧内容 |
+| 箱子设置（BoxSettingsDialog） | 宽 860 / 高 680 | 同卡片设置布局 |
+| 引擎设置（EngineSettingsDialog） | 宽 720 / 高 520 | 左侧分类 + 右侧内容 |
+| 封面制作器（CoverMaker） | 宽 920 / 高 660 | 顶部模式 Segmented + 左表单右预览 |
+| 封面裁剪（CoverCropDialog） | 宽 720 / 高 560 | 舞台区 flex 填充 |
+
+- 全部采用 antd Modal（mask closable、destroyOnHidden、居中），高度通过 `rootClassName` + CSS 固定（不使用 Modal styles.content，antd v6 无该键）。
+- 卡片/箱子设置弹窗从"顶部 Tabs + 720↔1180 宽度跳动"改为**苹果系统设置式左侧分类导航**（`.settings-sidebar`：196px 浅灰底、选中项深灰圆角高亮、图标着色），切分类不再跳动。
+
+### 9.2 封面编辑器（CoverPanel）交互优化
+
+- 布局：左预览（280px，棋盘格底、封面投影卡）+ 右编辑区滚动；
+- 比例选择：9 个苹果风格小卡片（比例图形 + 文字），Tooltip 提示，选中蓝框高亮；
+- 方向（竖版/横版）与编辑模式（图片/HTML）：antd `Segmented`；
+- 上传：苹果风格虚线拖放卡（图标 + 主文案 + 提示），已选后显示文件名 + 「裁剪」「移除」操作（antd Button）；
+- HTML 编辑：等宽字体、聚焦蓝环；
+- 裁剪弹窗舞台区改为 flex 填充固定尺寸容器。
+
+### 9.3 封面制作器（CoverMaker）
+
+- 自绘 overlay 改为 antd Modal，固定 920×660；
+- 模式选择改为顶部 `Segmented`（图片/HTML/ZIP/模板，图标 + 文案）；
+- 表单区与预览区固定双栏；上传卡、代码编辑、模板表单全部苹果化；保存按钮带 loading。
+
+### 9.4 引擎设置（EngineSettingsDialog）
+
+- 自绘 overlay 改为 antd Modal，固定 720×520；
+- 左侧分类列表苹果化（选中高亮、图标着色），内容区滚动；底部「重置」「完成」。
+
+### 9.5 关键文件
+
+- `src/components/CardSettings/CardSettingsDialog.tsx` + `SettingsSidebar.css`（共享侧栏）
+- `src/components/BoxWindow/BoxSettingsDialog.tsx`
+- `src/components/CardSettings/panels/CoverPanel.tsx` + `CoverPanel.css`
+- `src/components/CardSettings/panels/CoverCropDialog.css`
+- `src/components/CoverMaker/CoverMaker.tsx` + `CoverMaker.css`
+- `src/components/EngineSettings/EngineSettingsDialog.tsx` + `EngineSettingsDialog.css`
+- 文案：`src/lib/messages.ts`（新增 `card_settings.cover_orientation_label`）
+
+测试：`tests/unit/card-settings-dialog.test.tsx` 的 `clickTab` 改为点击 `.settings-sidebar__item`（适配新导航）。

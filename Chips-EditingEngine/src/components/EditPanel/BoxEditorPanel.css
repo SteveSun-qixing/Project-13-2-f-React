@@ -35,6 +35,11 @@
   height: 100%;
 }
 
+.box-editor-panel .ant-tabs-tabpane-active {
+  display: flex;
+  flex-direction: column;
+}
+
 .box-editor-panel__tab-content {
   display: flex;
   flex: 1;

@@ -1,19 +1,16 @@
 /* ============================================================
- * 对话框容器（antd Modal 内容区）
+ * 对话框容器（antd Modal 内容区）—— 固定尺寸
  * ============================================================ */
 .card-settings-dialog-root .ant-modal-content {
   display: flex;
   flex-direction: column;
-  height: min(720px, calc(100dvh - 48px));
+  height: 680px;
+  max-height: calc(100dvh - 48px);
   box-sizing: border-box;
   padding: 0;
   overflow: hidden;
   border-radius: 14px;
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-}
-
-.card-settings-dialog-root--cover .ant-modal-content {
-  height: min(820px, calc(100dvh - 48px));
 }
 
 /* ============================================================
@@ -27,62 +24,47 @@
 }
 
 .card-settings-dialog-root .ant-modal-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: #1d1d1f;
   line-height: 1.4;
 }
 
 /* ============================================================
- * 主体 - Tabs + 内容
+ * 主体 - 侧栏 + 内容
  * ============================================================ */
 .card-settings-dialog-root .ant-modal-body {
   flex: 1;
   min-height: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 }
 
-.card-settings-dialog-root .ant-tabs {
+.card-settings-dialog__layout {
   display: flex;
-  flex: 1;
+  height: 100%;
   min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
 }
 
-.card-settings-dialog-root .ant-tabs-nav {
-  flex-shrink: 0;
-  margin: 0;
-  padding: 12px 24px 0;
-}
-
-.card-settings-dialog-root .ant-tabs-content-holder {
+.card-settings-dialog__main {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
-}
-
-.card-settings-dialog-root .ant-tabs-content {
-  height: 100%;
-}
-
-.card-settings-dialog-root .ant-tabs-tabpane {
-  height: 100%;
-  overflow: hidden;
+  background: #ffffff;
 }
 
 /* 面板内容区内边距 */
 .card-settings-dialog__panel {
+  height: 100%;
   padding: 24px;
-  min-height: 0;
+  overflow-y: auto;
 }
 
 .card-settings-dialog__panel--cover {
   height: 100%;
   padding: 0;
+  overflow: hidden;
 }
 
 /* ============================================================
@@ -91,6 +73,6 @@
 .card-settings-dialog-root .ant-modal-footer {
   flex-shrink: 0;
   margin: 0;
-  padding: 16px 24px;
+  padding: 14px 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }

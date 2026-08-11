@@ -33,6 +33,50 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
     webp: 'image/webp',
 };
 
+const EXTENSION_MIME_TABLE: Record<string, string> = {
+    html: 'text/html',
+    htm: 'text/html',
+    css: 'text/css',
+    js: 'text/javascript',
+    mjs: 'text/javascript',
+    cjs: 'text/javascript',
+    json: 'application/json',
+    webmanifest: 'application/manifest+json',
+    txt: 'text/plain',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    avif: 'image/avif',
+    tif: 'image/tiff',
+    tiff: 'image/tiff',
+    svg: 'image/svg+xml',
+    ico: 'image/x-icon',
+    woff: 'font/woff',
+    woff2: 'font/woff2',
+    ttf: 'font/ttf',
+    otf: 'font/otf',
+    eot: 'application/vnd.ms-fontobject',
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    mp3: 'audio/mpeg',
+    ogg: 'audio/ogg',
+    wav: 'audio/wav',
+    wasm: 'application/wasm',
+    pdf: 'application/pdf',
+    map: 'application/json',
+};
+
+function isImageMimeType(mimeType: string | undefined): boolean {
+    return typeof mimeType === 'string' && mimeType.startsWith('image/');
+}
+
+function getExtensionMimeType(filePath: string): string | undefined {
+    return EXTENSION_MIME_TABLE[getExtension(filePath)];
+}
+
 function joinPath(...parts: string[]): string {
     return parts.filter(Boolean).join('/').replace(/\\/g, '/').replace(/\/+/g, '/');
 }
@@ -359,8 +403,9 @@ function detectImageMimeType(bytes: Uint8Array, fileName: string): string | unde
     return extensionMime;
 }
 
-function shouldReadBytesForFilter(filePath: string, filter: BasecardArchiveImportFilter | undefined): boolean {
-    return Boolean(filter?.mimeTypes?.length) || IMAGE_MIME_BY_EXTENSION[getExtension(filePath)] === 'image/svg+xml';
+function shouldReadBytesForFilter(filePath: string): boolean {
+    const extensionMime = getExtensionMimeType(filePath);
+    return isImageMimeType(extensionMime) || extensionMime === undefined;
 }
 
 async function resolveImportedMimeType(
@@ -369,12 +414,25 @@ async function resolveImportedMimeType(
     filter: BasecardArchiveImportFilter | undefined,
     services: Pick<ArchiveImportServices, 'readBinary'>,
 ): Promise<string | undefined> {
-    if (!shouldReadBytesForFilter(sourcePath, filter)) {
-        return IMAGE_MIME_BY_EXTENSION[getExtension(sourcePath)];
+    const extensionMime = getExtensionMimeType(sourcePath);
+
+    if (extensionMime === 'image/svg+xml') {
+        const bytes = await services.readBinary(sourceAbsolutePath);
+        if (bytes) {
+            const snippet = new TextDecoder().decode(bytes.slice(0, Math.min(bytes.length, 512))).toLowerCase();
+            if (snippet.includes('<svg')) {
+                return 'image/svg+xml';
+            }
+        }
+        return extensionMime;
+    }
+
+    if (!shouldReadBytesForFilter(sourcePath)) {
+        return extensionMime;
     }
 
     const bytes = await services.readBinary(sourceAbsolutePath);
-    return detectImageMimeType(bytes, sourcePath);
+    return detectImageMimeType(bytes, sourcePath) ?? extensionMime;
 }
 
 function matchesMimePattern(mimeType: string | undefined, patterns: readonly string[] | undefined): boolean {

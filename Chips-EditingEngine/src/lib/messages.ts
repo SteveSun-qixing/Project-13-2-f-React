@@ -49,6 +49,7 @@ const MESSAGES: Record<string, string> = {
     'card_settings.cover_ratio_banner': '2:1（横幅比例）',
     'card_settings.cover_ratio_phone': '9:19.5（手机比例）',
     'card_settings.cover_ratio_magazine': '1.58:1（杂志比例）',
+    'card_settings.cover_orientation_label': '方向',
     'card_settings.cover_orientation_portrait': '竖版',
     'card_settings.cover_orientation_landscape': '横版',
     'card_settings.cover_mode_label': '编辑模式',

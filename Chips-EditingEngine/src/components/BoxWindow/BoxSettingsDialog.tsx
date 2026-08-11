@@ -1,10 +1,12 @@
+import { InfoCircleOutlined, PictureOutlined } from '@ant-design/icons';
+import { Flex, Input, Modal } from 'antd';
 import { useEffect, useState } from 'react';
-import { Button, Flex, Input, Modal, Tabs } from 'antd';
 import type { BoxDocumentSessionSnapshot } from '../../services/box-document-service';
 import { boxDocumentService } from '../../services/box-document-service';
 import { workspaceService } from '../../services/workspace-service';
 import { BasicInfoPanel } from '../CardSettings/panels/BasicInfoPanel';
 import { CoverPanel, type CoverPanelDraft } from '../CardSettings/panels/CoverPanel';
+import '../CardSettings/SettingsSidebar.css';
 import '../CardSettings/CardSettingsDialog.css';
 import './BoxSettingsDialog.css';
 
@@ -16,6 +18,13 @@ interface BoxSettingsDialogProps {
   onSave: () => void;
 }
 
+type SettingsSectionId = 'basic' | 'cover';
+
+const SETTINGS_SECTIONS = [
+  { id: 'basic' as const, label: '基础信息', icon: <InfoCircleOutlined /> },
+  { id: 'cover' as const, label: '封面', icon: <PictureOutlined /> },
+];
+
 export function BoxSettingsDialog({
   boxId,
   visible,
@@ -23,7 +32,7 @@ export function BoxSettingsDialog({
   onClose,
   onSave,
 }: BoxSettingsDialogProps) {
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>('basic');
   const [coverDraft, setCoverDraft] = useState<CoverPanelDraft | null>(null);
   const [descriptionDraft, setDescriptionDraft] = useState('');
 
@@ -32,12 +41,12 @@ export function BoxSettingsDialog({
       return;
     }
 
-    setActiveTab('basic');
+    setActiveSection('basic');
     setCoverDraft(null);
     setDescriptionDraft(session?.metadata.description ?? '');
   }, [session?.metadata.description, visible]);
 
-  const isSaveDisabled = activeTab === 'cover' && Boolean(coverDraft?.dirty && !coverDraft.valid);
+  const isSaveDisabled = activeSection === 'cover' && Boolean(coverDraft?.dirty && !coverDraft.valid);
 
   const isOpen = visible && Boolean(session);
 
@@ -83,85 +92,93 @@ export function BoxSettingsDialog({
       open={isOpen}
       title="箱子设置"
       onCancel={onClose}
-      width={activeTab === 'cover' ? 1180 : 720}
+      width={860}
       centered
       destroyOnHidden
       mask={{ closable: true }}
-      rootClassName={activeTab === 'cover' ? 'card-settings-dialog-root card-settings-dialog-root--cover' : 'card-settings-dialog-root'}
+      rootClassName="card-settings-dialog-root"
       footer={
         <Flex justify="flex-end" gap={12}>
-          <Button onClick={onClose}>取消</Button>
-          <Button
-            type="primary"
+          <button type="button" className="settings-dialog__secondary-btn" onClick={onClose}>
+            取消
+          </button>
+          <button
+            type="button"
+            className="settings-dialog__primary-btn"
             onClick={() => { void handleSave(); }}
             disabled={isSaveDisabled}
           >
             保存
-          </Button>
+          </button>
         </Flex>
       }
     >
-      <Tabs
-        activeKey={activeTab}
-        onChange={(value: string) => setActiveTab(value)}
-        items={[
-          {
-            key: 'basic',
-            label: '基础信息',
-            children: (
-              <div className="card-settings-dialog__panel">
-                <BasicInfoPanel
-                  cardId={boxId}
-                  cardInfo={session ? { metadata: session.metadata } : undefined}
-                  onUpdateName={handleUpdateName}
-                  onUpdateTags={handleUpdateTags}
-                  documentIdLabel="箱子ID"
-                  nameLabel="箱子名称"
-                  namePlaceholder="输入箱子名称"
-                  tagsLabel="标签"
-                  tagPlaceholder="输入标签名称"
-                  addTagLabel="添加标签"
-                  metadataLabel="元数据"
-                  createdAtLabel="创建时间"
-                  modifiedAtLabel="修改时间"
-                />
+      <div className="card-settings-dialog__layout">
+        <nav className="settings-sidebar" aria-label="设置分类">
+          {SETTINGS_SECTIONS.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              className={`settings-sidebar__item ${activeSection === section.id ? 'settings-sidebar__item--active' : ''}`}
+              onClick={() => setActiveSection(section.id)}
+            >
+              <span className="settings-sidebar__icon">{section.icon}</span>
+              <span className="settings-sidebar__label">{section.label}</span>
+            </button>
+          ))}
+        </nav>
 
-                <div className="box-settings-dialog__field">
-                  <label className="box-settings-dialog__label">
-                    描述
-                  </label>
-                  <Input.TextArea
-                    className="box-settings-dialog__textarea"
-                    rows={4}
-                    value={descriptionDraft}
-                    placeholder="输入箱子描述"
-                    onChange={(event) => setDescriptionDraft(event.currentTarget.value)}
-                    onBlur={handleDescriptionBlur}
-                  />
-                </div>
-              </div>
-            ),
-          },
-          {
-            key: 'cover',
-            label: '封面',
-            children: (
-              <div className="card-settings-dialog__panel card-settings-dialog__panel--cover">
-                <CoverPanel
-                  cardId={session?.boxId ?? boxId}
-                  cardPath={session?.workspaceDir ?? ''}
-                  cardName={session?.metadata.name ?? ''}
-                  packageDirectoryName=".box"
-                  assetDirectoryName="boxcover"
-                  currentCoverHtml={session?.coverHtml}
-                  currentRatio={session?.metadata.coverRatio}
-                  onDraftChange={setCoverDraft}
+        <div className="card-settings-dialog__main">
+          {activeSection === 'basic' && (
+            <div className="card-settings-dialog__panel">
+              <BasicInfoPanel
+                cardId={boxId}
+                cardInfo={session ? { metadata: session.metadata } : undefined}
+                onUpdateName={handleUpdateName}
+                onUpdateTags={handleUpdateTags}
+                documentIdLabel="箱子ID"
+                nameLabel="箱子名称"
+                namePlaceholder="输入箱子名称"
+                tagsLabel="标签"
+                tagPlaceholder="输入标签名称"
+                addTagLabel="添加标签"
+                metadataLabel="元数据"
+                createdAtLabel="创建时间"
+                modifiedAtLabel="修改时间"
+              />
+
+              <div className="box-settings-dialog__field">
+                <label className="box-settings-dialog__label">
+                  描述
+                </label>
+                <Input.TextArea
+                  className="box-settings-dialog__textarea"
+                  rows={4}
+                  value={descriptionDraft}
+                  placeholder="输入箱子描述"
+                  onChange={(event) => setDescriptionDraft(event.currentTarget.value)}
+                  onBlur={handleDescriptionBlur}
                 />
               </div>
-            ),
-          },
-        ]}
-      />
+            </div>
+          )}
+
+          {activeSection === 'cover' && (
+            <div className="card-settings-dialog__panel card-settings-dialog__panel--cover">
+              <CoverPanel
+                cardId={session?.boxId ?? boxId}
+                cardPath={session?.workspaceDir ?? ''}
+                cardName={session?.metadata.name ?? ''}
+                packageDirectoryName=".box"
+                assetDirectoryName="boxcover"
+                currentCoverHtml={session?.coverHtml}
+                currentRatio={session?.metadata.coverRatio}
+                onDraftChange={setCoverDraft}
+              />
+            </div>
+          )}
+        </div>
+      </div>
     </Modal>
   );
 }

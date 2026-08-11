@@ -11,12 +11,14 @@
 }
 
 .cover-crop-dialog__panel {
-  width: min(880px, calc(100dvw - 48px));
+  width: 720px;
+  max-width: calc(100dvw - 48px);
+  height: 560px;
   max-height: calc(100dvh - 48px);
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 24px;
+  gap: 16px;
+  padding: 20px 24px;
   border-radius: 14px;
   background: #ffffff;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
@@ -55,8 +57,9 @@
 
 .cover-crop-dialog__stage {
   position: relative;
-  min-height: 440px;
-  border-radius: 18px;
+  flex: 1;
+  min-height: 0;
+  border-radius: 12px;
   overflow: hidden;
   touch-action: none;
   background:

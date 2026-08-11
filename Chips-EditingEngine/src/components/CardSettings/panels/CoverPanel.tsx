@@ -1,4 +1,6 @@
 import React, { startTransition, useDeferredValue, useEffect, useRef, useState } from 'react';
+import { Button, Segmented, Tooltip } from 'antd';
+import { DeleteOutlined, PictureOutlined } from '@ant-design/icons';
 import { fileService } from '../../../services/file-service';
 import { formatMessage } from '../../../lib/messages';
 import {
@@ -396,32 +398,35 @@ export function CoverPanel({
 
             <div className="cover-panel__ratio-grid">
               {ratioOptions.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`cover-panel__ratio-card ${selectedPresetId === item.id ? 'cover-panel__ratio-card--active' : ''}`}
-                  onClick={() => setSelectedPresetId(item.id)}
-                >
-                  <span className="cover-panel__ratio-card-label">{item.label}</span>
-                </button>
+                <Tooltip key={item.id} title={item.label} placement="top">
+                  <button
+                    type="button"
+                    className={`cover-panel__ratio-card ${selectedPresetId === item.id ? 'cover-panel__ratio-card--active' : ''}`}
+                    onClick={() => setSelectedPresetId(item.id)}
+                    aria-label={item.label}
+                  >
+                    <span
+                      className="cover-panel__ratio-card-shape"
+                      style={{ aspectRatio: item.ratio.replace(':', ' / ') }}
+                    />
+                    <span className="cover-panel__ratio-card-label">{item.label}</span>
+                  </button>
+                </Tooltip>
               ))}
             </div>
 
-            <div className="cover-panel__segmented">
-              <button
-                type="button"
-                className={`cover-panel__segmented-button ${orientation === 'portrait' ? 'cover-panel__segmented-button--active' : ''}`}
-                onClick={() => setOrientation('portrait')}
-              >
-                {formatMessage('card_settings.cover_orientation_portrait')}
-              </button>
-              <button
-                type="button"
-                className={`cover-panel__segmented-button ${orientation === 'landscape' ? 'cover-panel__segmented-button--active' : ''}`}
-                onClick={() => setOrientation('landscape')}
-              >
-                {formatMessage('card_settings.cover_orientation_landscape')}
-              </button>
+            <div className="cover-panel__orientation-row">
+              <span className="cover-panel__orientation-label">
+                {formatMessage('card_settings.cover_orientation_label')}
+              </span>
+              <Segmented
+                value={orientation}
+                onChange={(value) => setOrientation(value as CoverOrientation)}
+                options={[
+                  { value: 'portrait', label: formatMessage('card_settings.cover_orientation_portrait') },
+                  { value: 'landscape', label: formatMessage('card_settings.cover_orientation_landscape') },
+                ]}
+              />
             </div>
           </section>
 
@@ -433,22 +438,14 @@ export function CoverPanel({
               </p>
             </div>
 
-            <div className="cover-panel__segmented">
-              <button
-                type="button"
-                className={`cover-panel__segmented-button ${mode === 'image' ? 'cover-panel__segmented-button--active' : ''}`}
-                onClick={() => setMode('image')}
-              >
-                {formatMessage('cover_maker.mode_image')}
-              </button>
-              <button
-                type="button"
-                className={`cover-panel__segmented-button ${mode === 'html' ? 'cover-panel__segmented-button--active' : ''}`}
-                onClick={() => setMode('html')}
-              >
-                {formatMessage('cover_maker.mode_html')}
-              </button>
-            </div>
+            <Segmented
+              value={mode}
+              onChange={(value) => setMode(value as CoverEditorMode)}
+              options={[
+                { value: 'image', label: formatMessage('cover_maker.mode_image') },
+                { value: 'html', label: formatMessage('cover_maker.mode_html') },
+              ]}
+            />
           </section>
 
           {mode === 'image' ? (
@@ -469,7 +466,9 @@ export function CoverPanel({
                     void handleUploadImage(event);
                   }}
                 />
-
+                <span className="cover-panel__upload-icon">
+                  <PictureOutlined />
+                </span>
                 <span className="cover-panel__upload-title">{formatMessage('cover_maker.image_upload_text')}</span>
                 <span className="cover-panel__upload-hint">{formatMessage('cover_maker.image_upload_hint')}</span>
               </label>
@@ -484,20 +483,20 @@ export function CoverPanel({
                   </div>
 
                   <div className="cover-panel__asset-actions">
-                    <button
-                      type="button"
-                      className="cover-panel__action-button cover-panel__action-button--primary"
+                    <Button
+                      type="primary"
+                      size="small"
                       onClick={() => setIsCropDialogOpen(true)}
                     >
                       {formatMessage('card_settings.cover_crop_action')}
-                    </button>
-                    <button
-                      type="button"
-                      className="cover-panel__action-button"
-                      onClick={handleRemoveUploadedImage}
-                    >
-                      {formatMessage('cover_maker.remove')}
-                    </button>
+                    </Button>
+                    <Tooltip title={formatMessage('cover_maker.remove')}>
+                      <Button
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={handleRemoveUploadedImage}
+                      />
+                    </Tooltip>
                   </div>
                 </div>
               ) : initialMode === 'image' ? (

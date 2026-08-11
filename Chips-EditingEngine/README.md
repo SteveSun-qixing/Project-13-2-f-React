@@ -54,7 +54,7 @@ npm run dev
 - 箱子查看、布局渲染与布局编辑统一经 `Host box-service -> chips-sdk -> 编辑引擎壳层` 正式链路完成。
 - 工作区、文件、资源与设置统一经 `src/services/`、`src/context/` 与 Host 事件链路。
 - 基础卡片查看态 `openResource(...)` 由复合卡片窗口统一转成 `client.resource.open(...)`，基础卡片 iframe 不直接启动其他应用。
-- 菜单、工具栏、命令面板、快捷键和文件右键菜单共享同一组 `CommandItem` 命令定义，不各自绑定业务函数。
+- 内容区工具栏（FileManager 等）、命令面板、快捷键和文件右键菜单共享同一组 `CommandItem` 命令定义，不各自绑定业务函数；应用窗口顶部不再渲染菜单栏/工具栏。
 - 应用壳层 `index.html` 的 CSP 必须允许网页基础卡片正式使用的远程 `http/https` iframe；若目标站点自身拒绝 iframe 嵌入，再由网页基础卡片按正式错误态处理。
 
 ## 5. 目录概览
@@ -110,7 +110,7 @@ Chips-EditingEngine/
 - 运行时 UI 图标入口：`src/icons/descriptors.ts`
 - 统一运行时组件：`src/icons/RuntimeIcon.tsx`
 - 应用品牌图标组件：`src/icons/AppBrandIcon.tsx`
-- 基础卡片、布局、工具窗口与菜单图标均使用 `IconDescriptor`
+- 基础卡片、布局、工具窗口与命令图标均使用 `IconDescriptor`
 
 正式规则：
 

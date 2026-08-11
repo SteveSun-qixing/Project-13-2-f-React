@@ -1,253 +1,194 @@
-.cover-maker-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-}
-
-.cover-maker {
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  width: 90%;
-  max-width: 900px;
-  max-height: 85vh;
+/* ============================================================
+ * 封面制作器 —— 苹果设置风格（antd Modal 内，固定尺寸）
+ * ============================================================ */
+.cover-maker-root .ant-modal-content {
   display: flex;
   flex-direction: column;
+  height: 660px;
+  max-height: calc(100dvh - 48px);
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+}
+
+.cover-maker-root .ant-modal-header {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.cover-maker-root .ant-modal-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+  line-height: 1.4;
+}
+
+.cover-maker-root .ant-modal-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
   overflow: hidden;
 }
 
-.cover-maker__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.cover-maker__title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1d1d1f;
+.cover-maker-root .ant-modal-footer {
+  flex-shrink: 0;
   margin: 0;
+  padding: 14px 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.cover-maker__close {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  color: #6e6e73;
+.cover-maker {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.15s;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
-.cover-maker__close:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
-
+/* ------------------------------------------------------------
+ * 模式选择
+ * ------------------------------------------------------------ */
 .cover-maker__modes {
-  display: flex;
-  gap: 8px;
-  padding: 12px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background: #f5f5f7;
-}
-
-.cover-maker__mode-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid rgba(0, 0, 0, 0.10);
-  background: #ffffff;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #1d1d1f;
-  transition: all 0.15s;
-}
-
-.cover-maker__mode-btn:hover {
-  border-color: rgba(10, 132, 255, 0.5);
-}
-
-.cover-maker__mode-btn--active {
-  border-color: #0a84ff;
-  background: rgba(10, 132, 255, 0.1);
-  color: #0a84ff;
-}
-
-.cover-maker__mode-icon {
-  font-size: 16px;
-}
-
-.cover-maker__mode-name {
-  font-weight: 500;
+  flex-shrink: 0;
+  align-self: center;
+  margin: 16px 24px 0;
 }
 
 .cover-maker__content {
   flex: 1;
-  display: flex;
-  gap: 24px;
-  padding: 20px;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  min-height: 0;
+  gap: 0;
+  margin-top: 16px;
 }
 
+/* ------------------------------------------------------------
+ * 表单区
+ * ------------------------------------------------------------ */
 .cover-maker__form {
-  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 24px 16px;
   overflow-y: auto;
-  padding-right: 8px;
-}
-
-.cover-maker__preview-panel {
-  width: 320px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.cover-maker__preview-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .cover-maker__section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .cover-maker__description {
-  font-size: 14px;
-  color: #6e6e73;
   margin: 0;
+  font-size: 12px;
+  color: #6e6e73;
   line-height: 1.5;
 }
 
 .cover-maker__field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .cover-maker__field-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.cover-maker__field-row .cover-maker__field {
-  flex: 1;
-}
-
 .cover-maker__label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   color: #1d1d1f;
 }
 
 .cover-maker__required {
-  color: #ff3b30;
   margin-left: 2px;
+  color: #ff3b30;
 }
 
-.cover-maker__input,
-.cover-maker__select {
+.cover-maker__input {
   width: 100%;
-}
-
-.cover-maker__input.chips-input__inner,
-.cover-maker__select.chips-select__selector {
-  padding: 10px 12px;
-  border: none;
-  border-radius: 10px;
-  font-size: 14px;
-  color: #1d1d1f;
-  background: #f2f2f7;
-  transition: background-color 0.15s, box-shadow 0.15s;
-}
-
-.cover-maker__input.chips-input__inner:focus,
-.cover-maker__select.chips-select__selector:focus-within {
-  outline: none;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
+  color: #1d1d1f;
+  font-size: 13px;
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.cover-maker__input:focus {
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
 }
 
 .cover-maker__code-input {
   width: 100%;
-}
-
-.cover-maker__code-input.chips-textarea__inner {
+  min-height: 260px;
   padding: 12px;
-  border: none;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 10px;
-  font-size: 13px;
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  background: #fafafa;
   color: #1d1d1f;
-  background: #f2f2f7;
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.6;
   resize: vertical;
-  line-height: 1.5;
-}
-
-.cover-maker__code-input.chips-textarea__inner:focus {
   outline: none;
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
-.cover-maker__upload-area {
-  position: relative;
-  border: 2px dashed rgba(0, 0, 0, 0.12);
-  border-radius: 12px;
-  padding: 32px 24px;
-  text-align: center;
-  transition: border-color 0.15s, background-color 0.15s;
+.cover-maker__code-input:focus {
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
 }
 
-.cover-maker__upload-area:hover {
-  border-color: rgba(10, 132, 255, 0.5);
-  background: rgba(10, 132, 255, 0.02);
-}
-
-.cover-maker__file-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.cover-maker__upload-placeholder {
+/* ------------------------------------------------------------
+ * 上传卡
+ * ------------------------------------------------------------ */
+.cover-maker__upload-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  pointer-events: none;
+  justify-content: center;
+  gap: 6px;
+  min-height: 120px;
+  padding: 16px;
+  border: 1.5px dashed rgba(0, 0, 0, 0.18);
+  border-radius: 12px;
+  background: #fafafa;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.cover-maker__upload-card:hover {
+  border-color: #0a84ff;
+  background: rgba(10, 132, 255, 0.04);
 }
 
 .cover-maker__upload-icon {
-  font-size: 32px;
+  font-size: 24px;
+  color: #0a84ff;
 }
 
 .cover-maker__upload-text {
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
   color: #1d1d1f;
 }
 
@@ -256,132 +197,144 @@
   color: #86868b;
 }
 
+.cover-maker__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
 .cover-maker__upload-selected {
   display: flex;
   align-items: center;
-  gap: 16px;
-  pointer-events: none;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .cover-maker__image-thumb {
-  width: 80px;
-  height: 80px;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
   object-fit: cover;
-  border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .cover-maker__zip-icon {
-  font-size: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: rgba(10, 132, 255, 0.1);
+  color: #0a84ff;
+  font-size: 20px;
+  flex-shrink: 0;
 }
 
 .cover-maker__file-info {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  text-align: left;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
 }
 
 .cover-maker__file-name {
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
   color: #1d1d1f;
-  word-break: break-all;
-}
-
-.cover-maker__file-remove {
-  padding: 4px 8px;
-  border: none;
-  background: rgba(255, 59, 48, 0.1);
-  color: #ff3b30;
-  border-radius: 8px;
-  font-size: 12px;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: background-color 0.15s;
-}
-
-.cover-maker__file-remove:hover {
-  background: rgba(255, 59, 48, 0.15);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cover-maker__notice {
   display: flex;
-  align-items: flex-start;
   gap: 8px;
-  padding: 12px;
-  background: rgba(10, 132, 255, 0.05);
-  border-radius: 8px;
-}
-
-.cover-maker__notice-icon {
-  flex-shrink: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(10, 132, 255, 0.08);
 }
 
 .cover-maker__notice-text {
-  font-size: 13px;
-  color: #6e6e73;
-  line-height: 1.4;
+  font-size: 12px;
+  color: #1d1d1f;
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------
+ * 预览区
+ * ------------------------------------------------------------ */
+.cover-maker__preview-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 24px 16px 0;
+}
+
+.cover-maker__preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.cover-maker__preview-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.cover-maker__select {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1d1d1f;
+  font-size: 12px;
+  outline: none;
+}
+
+.cover-maker__preview-viewport {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  border-radius: 12px;
+  background:
+    linear-gradient(45deg, #ebebf0 25%, transparent 25%, transparent 75%, #ebebf0 75%),
+    linear-gradient(45deg, #ebebf0 25%, transparent 25%, transparent 75%, #ebebf0 75%);
+  background-color: #f2f2f7;
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+  overflow: hidden;
 }
 
 .cover-maker__preview-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  height: 300px;
-  border: 1px dashed rgba(0, 0, 0, 0.12);
-  border-radius: 12px;
-  background: #f5f5f7;
-}
-
-.cover-maker__preview-placeholder-icon {
-  font-size: 32px;
-  opacity: 0.5;
-}
-
-.cover-maker__preview-placeholder-text {
-  font-size: 14px;
+  gap: 8px;
   color: #86868b;
 }
 
-.cover-maker__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 20px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+.cover-maker__preview-placeholder-icon {
+  font-size: 28px;
+  color: #a1a1a8;
 }
 
-.cover-maker__btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: background-color 0.15s, opacity 0.15s;
-}
-
-.cover-maker__btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.cover-maker__btn--secondary {
-  background: #f2f2f7;
-  color: #1d1d1f;
-}
-
-.cover-maker__btn--secondary:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.cover-maker__btn--primary {
-  background: #0a84ff;
-  color: #ffffff;
-}
-
-.cover-maker__btn--primary:hover:not(:disabled) {
-  background: #3395ff;
+.cover-maker__preview-placeholder-text {
+  font-size: 12px;
 }

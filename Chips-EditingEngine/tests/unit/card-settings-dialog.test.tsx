@@ -136,8 +136,8 @@ describe('CardSettingsDialog', () => {
   });
 
   async function clickTab(label: string) {
-    const tab = Array.from(document.body.querySelectorAll('[role="tab"]'))
-      .find((node) => node.textContent === label);
+    const tab = Array.from(document.body.querySelectorAll('.settings-sidebar__item'))
+      .find((node) => (node.textContent ?? '').includes(label));
     (tab as HTMLElement | undefined)?.click();
     await Promise.resolve();
   }
