@@ -15,12 +15,18 @@ export {
 } from "./runtime/commands";
 
 export {
+  resolveHostSceneId,
+  resolveLaunchParams,
+  resolveSurfaceKind,
+} from "./runtime/surface";
+
+export {
   AppChrome,
   type AppChromeImmersiveProps,
   type AppChromeProps,
-  type AppChromeToolbarItem,
 } from "./components/AppChrome";
 export { CommandPalette, type CommandPaletteProps } from "./components/CommandPalette";
+export { BoxEmptyState, type BoxEmptyStateProps } from "./components/BoxEmptyState";
 export {
   EmbeddedDocumentFrame,
   type EmbeddedDocumentFrameProps,
@@ -38,3 +44,15 @@ export { SettingsGroup, type SettingsGroupProps } from "./components/SettingsGro
 export { SettingsLayout, type SettingsLayoutProps } from "./components/SettingsLayout";
 export { SettingsRow, type SettingsRowProps } from "./components/SettingsRow";
 export { StateBoundary, type StateBoundaryProps } from "./components/StateBoundary";
+export {
+  EmptyHint,
+  LayoutSkeleton,
+  SkeletonBlock,
+  SkeletonDot,
+  SkeletonLine,
+  type EmptyHintProps,
+  type LayoutSkeletonProps,
+  type SkeletonBlockProps,
+  type SkeletonDotProps,
+  type SkeletonLineProps,
+} from "./components/Skeleton";
