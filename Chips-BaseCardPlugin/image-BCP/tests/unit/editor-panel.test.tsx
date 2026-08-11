@@ -461,56 +461,6 @@ describe("createBasecardEditorRoot", () => {
     expect(lastConfig.images[0]?.url).toBe("https://example.com/1.png");
   });
 
-  it("drives undo and redo through the visible history bar buttons", async () => {
-    let lastConfig = createConfig();
-    const root = createBasecardEditorRoot({
-      initialConfig: createConfig(),
-      onChange: (next) => {
-        lastConfig = next;
-      },
-    }) as DisposableRoot;
-    mountedRoots.push(root);
-    document.body.appendChild(root);
-
-    const undoButton = root.querySelector(
-      ".chips-image-editor__history-bar button[aria-label='撤销']",
-    ) as HTMLButtonElement | null;
-    const redoButton = root.querySelector(
-      ".chips-image-editor__history-bar button[aria-label='重做']",
-    ) as HTMLButtonElement | null;
-    if (!undoButton || !redoButton) {
-      throw new Error("未找到撤销/重做按钮");
-    }
-    expect(undoButton.disabled).toBe(true);
-    expect(redoButton.disabled).toBe(true);
-
-    const urlInput = root.querySelector(
-      ".chips-image-editor__embedded-uploader .chips-image-editor__url-field",
-    ) as HTMLInputElement | null;
-    const addButton = Array.from(root.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("通过链接添加"),
-    ) as HTMLButtonElement | undefined;
-    if (!urlInput || !addButton) {
-      throw new Error("未找到撤销按钮测试所需控件");
-    }
-
-    setTextInputValue(urlInput, "https://example.com/1.png");
-    addButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flushAsyncWork();
-    expect(lastConfig.images).toHaveLength(1);
-    expect(undoButton.disabled).toBe(false);
-
-    undoButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flushAsyncWork();
-    expect(lastConfig.images).toHaveLength(0);
-    expect(redoButton.disabled).toBe(false);
-
-    redoButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flushAsyncWork();
-    expect(lastConfig.images).toHaveLength(1);
-    expect(lastConfig.images[0]?.url).toBe("https://example.com/1.png");
-  });
-
   it("collapses a text editing session into a single history step", async () => {
     let lastConfig = createConfig({
       images: [
@@ -741,7 +691,6 @@ describe("createBasecardEditorRoot", () => {
     expect(root.textContent).toContain("图片标题");
     expect(root.textContent).toContain("替代文本");
     expect(root.textContent).toContain("零间距");
-    expect(root.querySelector(".chips-image-editor__history-bar")).not.toBeNull();
 
     const [titleInput, altInput] = Array.from(
       root.querySelectorAll(".chips-image-editor__details-form input[type='text']"),

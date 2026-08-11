@@ -1,6 +1,4 @@
 const MESSAGES: Record<string, string> = {
-  "toolbar.undo": "撤销",
-  "toolbar.redo": "重做",
   "editor.upload_hint": "点击上传图片，或将图片拖拽到此处",
   "editor.upload_sub_hint": "支持 JPG、PNG、GIF、WebP、SVG、TIFF；TIFF 会通过宿主资源桥转换为 PNG，导入资源统一写入卡片根目录",
   "editor.url_placeholder": "输入图片 URL，例如 https://example.com/photo.jpg",

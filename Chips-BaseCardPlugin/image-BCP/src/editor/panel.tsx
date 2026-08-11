@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Button, ConfigProvider, Input, Select, Slider, Tooltip } from "antd";
-import { DeleteOutlined, RedoOutlined, UndoOutlined } from "@ant-design/icons";
+import { Button, ConfigProvider, Input, Select, Slider } from "antd";
+import { DeleteOutlined } from "@ant-design/icons";
 import zhCN from "antd/locale/zh_CN";
 import { appleTheme } from "@chips/ui";
 import { createPortal, flushSync } from "react-dom";
@@ -262,23 +262,6 @@ html, body {
 .chips-image-editor__body::-webkit-scrollbar-thumb {
   background: rgba(110, 110, 115, 0.48);
   border-radius: 999px;
-}
-
-.chips-image-editor__history-bar {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
 }
 
 .chips-image-editor__stack {
@@ -1273,7 +1256,6 @@ function ImageCardEditor(props: BasecardEditorProps) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [messages, setMessages] = useState<string[]>([]);
-  const [historyCounts, setHistoryCounts] = useState({ redo: 0, undo: 0 });
   const configRef = useRef(config);
   const previewUrlsRef = useRef(previewUrls);
   const previewOriginsRef = useRef(new Map<string, PreviewOrigin>());
@@ -1432,10 +1414,6 @@ function ImageCardEditor(props: BasecardEditorProps) {
       historyRef.current.undo.shift();
     }
     historyRef.current.redo = [];
-    setHistoryCounts({
-      redo: historyRef.current.redo.length,
-      undo: historyRef.current.undo.length,
-    });
   }
 
   function beginHistorySession(): void {
@@ -1747,10 +1725,6 @@ function ImageCardEditor(props: BasecardEditorProps) {
     setConfig(configRef.current);
     setShowUploader(configRef.current.images.length === 0);
     setSelectedImageId(configRef.current.images[0]?.id ?? null);
-    setHistoryCounts({
-      redo: historyRef.current.redo.length,
-      undo: historyRef.current.undo.length,
-    });
     props.onChange(cloneConfig(configRef.current));
     void syncResourceChain(currentConfig, configRef.current);
   }
@@ -1767,10 +1741,6 @@ function ImageCardEditor(props: BasecardEditorProps) {
     setConfig(configRef.current);
     setShowUploader(configRef.current.images.length === 0);
     setSelectedImageId(configRef.current.images[0]?.id ?? null);
-    setHistoryCounts({
-      redo: historyRef.current.redo.length,
-      undo: historyRef.current.undo.length,
-    });
     props.onChange(cloneConfig(configRef.current));
     void syncResourceChain(currentConfig, configRef.current);
   }
@@ -2253,8 +2223,6 @@ function ImageCardEditor(props: BasecardEditorProps) {
     ...config.layout_options,
   };
   const hasMultipleImages = config.images.length > 1;
-  const canUndo = historyCounts.undo > 0;
-  const canRedo = historyCounts.redo > 0;
   const spacing = getSpacingMetrics(layoutOptions);
   const layoutCards: LayoutCardDefinition[] = [
     {
@@ -2827,31 +2795,6 @@ function ImageCardEditor(props: BasecardEditorProps) {
             ) : null}
           </section>
         </div>
-      </div>
-
-      <div className="chips-image-editor__history-bar">
-        <Tooltip title={formatMessage("toolbar.undo")}>
-          <button
-            type="button"
-            className="chips-image-editor__icon-button"
-            aria-label={formatMessage("toolbar.undo")}
-            disabled={!canUndo}
-            onClick={handleUndo}
-          >
-            <UndoOutlined aria-hidden={true} />
-          </button>
-        </Tooltip>
-        <Tooltip title={formatMessage("toolbar.redo")}>
-          <button
-            type="button"
-            className="chips-image-editor__icon-button"
-            aria-label={formatMessage("toolbar.redo")}
-            disabled={!canRedo}
-            onClick={handleRedo}
-          >
-            <RedoOutlined aria-hidden={true} />
-          </button>
-        </Tooltip>
       </div>
 
       <div
