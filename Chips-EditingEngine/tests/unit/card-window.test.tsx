@@ -13,6 +13,8 @@ const panByInput = vi.fn();
 const zoomByFactorAtPoint = vi.fn();
 const markInteractionSequence = vi.fn();
 const coverFrameRender = vi.fn();
+const resolveCardResourceUrl = vi.fn();
+const openResource = vi.fn();
 const { mockOpenCards } = vi.hoisted(() => ({
   mockOpenCards: new Map<string, any>(),
 }));
@@ -146,9 +148,13 @@ vi.mock('../../src/services/workspace-service', () => ({
 vi.mock('../../src/services/bridge-client', () => ({
   getChipsClient: () => ({
     card: {
+      resolveResourceUrl: resolveCardResourceUrl,
       coverFrame: {
         render: coverFrameRender,
       },
+    },
+    resource: {
+      open: openResource,
     },
   }),
 }));
@@ -171,6 +177,12 @@ describe('CardWindow', () => {
     zoomByFactorAtPoint.mockClear();
     markInteractionSequence.mockClear();
     coverFrameRender.mockReset();
+    resolveCardResourceUrl.mockReset();
+    resolveCardResourceUrl.mockImplementation(async (_cardRootDir: string, resourcePath: string) => (
+      `chips-render://card-root/card-token/${resourcePath}`
+    ));
+    openResource.mockReset();
+    openResource.mockResolvedValue({ mode: 'system' });
     coverFrameRender.mockResolvedValue({
       frame: document.createElement('iframe'),
       origin: 'null',
@@ -288,6 +300,24 @@ describe('CardWindow', () => {
     });
 
     expect(latestAssemblerProps?.interactionPolicy).toBe('native');
+  });
+
+  it('resolves preview resources through the SDK card resource route', async () => {
+    await renderCardWindow();
+
+    const resolveResourceUrl = latestAssemblerProps?.resolveResourceUrl as
+      | ((resourcePath: string) => Promise<string>)
+      | undefined;
+    const resourceUrl = await resolveResourceUrl?.('webpage-bundle/index.html');
+
+    expect(resolveCardResourceUrl).toHaveBeenCalledWith(
+      '/workspace/demo.card',
+      'webpage-bundle/index.html',
+    );
+    expect(resourceUrl).toBe(
+      'chips-render://card-root/card-token/webpage-bundle/index.html',
+    );
+    expect(latestAssemblerProps).not.toHaveProperty('resourceBaseUrl');
   });
 
   it('marks populated preview surfaces as insert targets only while editing', async () => {

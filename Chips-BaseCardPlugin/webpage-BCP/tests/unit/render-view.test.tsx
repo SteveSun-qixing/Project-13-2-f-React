@@ -163,13 +163,13 @@ describe("mountBasecardView", () => {
         entry_file: "index.html",
         resource_paths: ["web-bundle/index.html"],
       }),
-      resolveResourceUrl: async () => "file:///workspace/card/web-bundle/index.html",
+      resolveResourceUrl: async () => "chips-render://card-root/card-token/web-bundle/index.html",
     });
 
     await flushAsyncWork();
 
     const frame = container.querySelector("iframe");
-    expect(frame?.getAttribute("src")).toBe("file:///workspace/card/web-bundle/index.html");
+    expect(frame?.getAttribute("src")).toBe("chips-render://card-root/card-token/web-bundle/index.html");
     expect(frame?.getAttribute("srcdoc")).toBeNull();
     cleanup();
   });
@@ -186,13 +186,13 @@ describe("mountBasecardView", () => {
         entry_file: "index.html",
         resource_paths: ["web-bundle/index.html", "web-bundle/assets/app.js"],
       }),
-      resolveResourceUrl: async () => "file:///workspace/card/web-bundle/index.html",
+      resolveResourceUrl: async () => "chips-render://card-root/card-token/web-bundle/index.html",
     });
 
     await flushAsyncWork();
 
     const frame = container.querySelector("iframe");
-    expect(frame?.getAttribute("src")).toBe("file:///workspace/card/web-bundle/index.html");
+    expect(frame?.getAttribute("src")).toBe("chips-render://card-root/card-token/web-bundle/index.html");
     expect(container.querySelector('[data-webpage-open-source="true"]')).toBeNull();
     cleanup();
   });
@@ -219,7 +219,7 @@ describe("mountBasecardView", () => {
       }),
       resolveResourceUrl: async (resourcePath) => {
         if (resourcePath === "昙花/index.html") {
-          return `file://${indexPath}`;
+          return "chips-render://card-root/card-token/昙花/index.html";
         }
         throw new Error(`测试未期望解析资源：${resourcePath}`);
       },
@@ -231,7 +231,7 @@ describe("mountBasecardView", () => {
     expect(webpageDir).toContain("ProductFinishedProductTestingSpace");
     expect(scriptPath).toContain("script.js");
     expect(stylesPath).toContain("styles.css");
-    expect(frame?.getAttribute("src")).toBe(`file://${indexPath}`);
+    expect(frame?.getAttribute("src")).toBe("chips-render://card-root/card-token/昙花/index.html");
     expect(frame?.getAttribute("srcdoc")).toBeNull();
     cleanup();
   });

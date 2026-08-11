@@ -20,20 +20,6 @@ const CardSettingsDialog = lazy(() => import('../CardSettings/CardSettingsDialog
 const COVER_MAX_WIDTH = 208;
 const COVER_MAX_HEIGHT = 280;
 
-function toCardRootFileUrl(cardPath?: string): string | undefined {
-    if (!cardPath) {
-        return undefined;
-    }
-
-    const normalized = cardPath.replace(/\\/g, '/');
-    if (/^[a-zA-Z]:\//.test(normalized)) {
-        return encodeURI(`file:///${normalized.endsWith('/') ? normalized : `${normalized}/`}`);
-    }
-
-    const absolutePath = normalized.startsWith('/') ? normalized : `/${normalized}`;
-    return encodeURI(`file://${absolutePath.endsWith('/') ? absolutePath : `${absolutePath}/`}`);
-}
-
 function toErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -71,7 +57,6 @@ export const CardWindow = React.memo(function CardWindow({
         () => cardInfo?.structure.basicCards ?? [],
         [cardInfo],
     );
-    const previewResourceBaseUrl = toCardRootFileUrl(cardInfo?.path);
 
     const [isCoverDragging, setIsCoverDragging] = useState(false);
     const [isCoverLoading, setIsCoverLoading] = useState(false);
@@ -265,6 +250,15 @@ export const CardWindow = React.memo(function CardWindow({
             });
     }, []);
 
+    const resolvePreviewResourceUrl = useCallback(async (resourcePath: string) => {
+        const cardRootDir = cardInfo?.path;
+        if (!cardRootDir) {
+            throw new Error('卡片根目录尚未就绪，无法解析预览资源。');
+        }
+
+        return clientRef.current.card.resolveResourceUrl(cardRootDir, resourcePath);
+    }, [cardInfo?.path]);
+
     const selectBaseCard = useCallback((baseCardId: string) => {
         setActiveCard(config.cardId);
         setSelectedBaseCard(baseCardId);
@@ -443,7 +437,7 @@ export const CardWindow = React.memo(function CardWindow({
                                     <CompositeCardAssembler
                                         cardId={config.cardId}
                                         baseCards={visibleBaseCards}
-                                        resourceBaseUrl={previewResourceBaseUrl}
+                                        resolveResourceUrl={resolvePreviewResourceUrl}
                                         layout={cardInfo?.structure.layout}
                                         mode={isEditing ? 'preview' : 'view'}
                                         interactionPolicy={interactionPolicy}

@@ -19,7 +19,7 @@ export interface BasecardFrameHostProps {
   baseCardId: string;
   cardType: string;
   config: Record<string, unknown>;
-  resourceBaseUrl?: string;
+  resolveResourceUrl?: (resourcePath: string) => Promise<string>;
   pendingResourceImports?: Map<string, BasecardPendingResourceImport>;
   selectable?: boolean;
   themeCacheKey?: string;
@@ -89,23 +89,7 @@ function normalizeOptionalRecord(value: unknown): Record<string, unknown> | unde
     : undefined;
 }
 
-function normalizeOpenResourceId(resourceId: string, resourceBaseUrl?: string): string {
-  const trimmed = resourceId.trim();
-  if (!trimmed || !resourceBaseUrl || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(trimmed)) {
-    return trimmed;
-  }
-
-  try {
-    return new URL(trimmed.replace(/\\/g, '/'), resourceBaseUrl).toString();
-  } catch {
-    return trimmed;
-  }
-}
-
-function normalizeOpenResourceInput(
-  input: BasecardOpenResourceInput,
-  resourceBaseUrl?: string,
-): BasecardOpenResourceInput | null {
+function normalizeOpenResourceInput(input: BasecardOpenResourceInput): BasecardOpenResourceInput | null {
   if (!input || typeof input !== 'object') {
     return null;
   }
@@ -115,14 +99,9 @@ function normalizeOpenResourceInput(
     return null;
   }
 
-  const resourceId = normalizeOpenResourceId(rawResourceId, resourceBaseUrl);
-  if (!resourceId) {
-    return null;
-  }
-
   const payload = normalizeOptionalRecord(input.payload);
   return {
-    resourceId,
+    resourceId: rawResourceId,
     ...(normalizeOptionalString(input.mimeType) ? { mimeType: normalizeOptionalString(input.mimeType) } : undefined),
     ...(normalizeOptionalString(input.title) ? { title: normalizeOptionalString(input.title) } : undefined),
     ...(normalizeOptionalString(input.fileName) ? { fileName: normalizeOptionalString(input.fileName) } : undefined),
@@ -130,14 +109,13 @@ function normalizeOpenResourceInput(
   };
 }
 
-function createFrameDocumentHtml(resourceBaseUrl?: string): string {
+function createFrameDocumentHtml(): string {
   return [
     '<!doctype html>',
     '<html>',
     '<head>',
     '<meta charset="utf-8" />',
     '<meta name="viewport" content="width=device-width, initial-scale=1" />',
-    ...(resourceBaseUrl ? [`<base href="${resourceBaseUrl}" />`] : []),
     '<style>',
     'html, body {',
     '  margin: 0;',
@@ -193,7 +171,7 @@ export function BasecardFrameHost({
   baseCardId,
   cardType,
   config,
-  resourceBaseUrl,
+  resolveResourceUrl: resolvePersistedResourceUrl,
   pendingResourceImports,
   selectable = false,
   themeCacheKey,
@@ -211,7 +189,11 @@ export function BasecardFrameHost({
   const onResourceOpenRef = useRef(onResourceOpen);
   const interactionPolicyRef = useRef(interactionPolicy);
   const pendingResourceImportsRef = useRef(pendingResourceImports);
-  const resolvedResourceUrlsRef = useRef(new Map<string, { url: string; cacheKey: string }>());
+  const resolvedResourceUrlsRef = useRef(new Map<string, {
+    url: string;
+    cacheKey: string;
+    kind: 'pending' | 'persisted';
+  }>());
   const [status, setStatus] = useState<BasecardFrameStatus>(DEFAULT_STATUS);
   const [registryVersion, setRegistryVersion] = useState(() => getBasecardRegistryVersion());
 
@@ -263,8 +245,10 @@ export function BasecardFrameHost({
 
   useEffect(() => {
     return () => {
-      resolvedResourceUrlsRef.current.forEach((url) => {
-        URL.revokeObjectURL(url.url);
+      resolvedResourceUrlsRef.current.forEach((resource) => {
+        if (resource.kind === 'pending') {
+          URL.revokeObjectURL(resource.url);
+        }
       });
       resolvedResourceUrlsRef.current.clear();
     };
@@ -304,25 +288,43 @@ export function BasecardFrameHost({
       if (pendingImport) {
         const cacheKey = getPendingResourceCacheKey(pendingImport);
         const cachedUrl = resolvedResourceUrlsRef.current.get(normalizedResourcePath);
-        if (cachedUrl?.cacheKey === cacheKey) {
+        if (cachedUrl?.kind === 'pending' && cachedUrl.cacheKey === cacheKey) {
           return cachedUrl.url;
         }
 
-        if (cachedUrl) {
+        if (cachedUrl?.kind === 'pending') {
           URL.revokeObjectURL(cachedUrl.url);
         }
 
         const nextUrl = createObjectUrl(pendingImport);
-        resolvedResourceUrlsRef.current.set(normalizedResourcePath, { url: nextUrl, cacheKey });
+        resolvedResourceUrlsRef.current.set(normalizedResourcePath, {
+          url: nextUrl,
+          cacheKey,
+          kind: 'pending',
+        });
         return nextUrl;
       }
 
-      releaseResourceUrl(normalizedResourcePath);
-      if (resourceBaseUrl) {
-        return new URL(normalizedResourcePath, resourceBaseUrl).toString();
+      const cachedUrl = resolvedResourceUrlsRef.current.get(normalizedResourcePath);
+      if (cachedUrl?.kind === 'persisted') {
+        return cachedUrl.url;
       }
 
-      return normalizedResourcePath;
+      if (!resolvePersistedResourceUrl) {
+        throw new Error(`基础卡片资源解析器未配置: ${normalizedResourcePath}`);
+      }
+
+      if (cachedUrl?.kind === 'pending') {
+        URL.revokeObjectURL(cachedUrl.url);
+      }
+
+      const nextUrl = await resolvePersistedResourceUrl(normalizedResourcePath);
+      resolvedResourceUrlsRef.current.set(normalizedResourcePath, {
+        url: nextUrl,
+        cacheKey: normalizedResourcePath,
+        kind: 'persisted',
+      });
+      return nextUrl;
     };
     const releaseResourceUrl = (resourcePath: string): void => {
       const normalizedResourcePath = normalizeResourcePath(resourcePath);
@@ -335,16 +337,43 @@ export function BasecardFrameHost({
         return;
       }
 
-      URL.revokeObjectURL(currentUrl.url);
+      if (currentUrl.kind === 'pending') {
+        URL.revokeObjectURL(currentUrl.url);
+      }
       resolvedResourceUrlsRef.current.delete(normalizedResourcePath);
     };
     const openResource = (input: BasecardOpenResourceInput): void => {
-      const normalizedInput = normalizeOpenResourceInput(input, resourceBaseUrl);
+      const normalizedInput = normalizeOpenResourceInput(input);
       if (!normalizedInput) {
         return;
       }
 
-      onResourceOpenRef.current?.(normalizedInput);
+      if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(normalizedInput.resourceId)) {
+        onResourceOpenRef.current?.(normalizedInput);
+        return;
+      }
+
+      void resolveResourceUrl(normalizedInput.resourceId)
+        .then((resourceId) => {
+          onResourceOpenRef.current?.({
+            ...normalizedInput,
+            resourceId,
+          });
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('[BasecardFrameHost] Failed to resolve resource open intent.', {
+            baseCardId,
+            cardType,
+            resourceId: normalizedInput.resourceId,
+            error,
+          });
+          setStatus((current) => ({
+            state: 'error',
+            height: current.height > 0 ? current.height : DEFAULT_STATUS.height,
+            errorMessage: `资源解析失败: ${message}`,
+          }));
+        });
     };
     setStatus((current) => {
       if (current.state === 'ready') {
@@ -496,13 +525,15 @@ export function BasecardFrameHost({
       frame.removeEventListener('load', handleFrameLoad);
     });
 
-    frame.srcdoc = createFrameDocumentHtml(resourceBaseUrl);
+    frame.srcdoc = createFrameDocumentHtml();
 
     return () => {
       disposed = true;
       cleanupTasks.forEach((cleanup) => cleanup());
-      resolvedResourceUrlsRef.current.forEach((url) => {
-        URL.revokeObjectURL(url.url);
+      resolvedResourceUrlsRef.current.forEach((resource) => {
+        if (resource.kind === 'pending') {
+          URL.revokeObjectURL(resource.url);
+        }
       });
       resolvedResourceUrlsRef.current.clear();
       if (typeof renderCleanup === 'function') {
@@ -515,7 +546,7 @@ export function BasecardFrameHost({
     configSignature,
     descriptor,
     normalizedConfig,
-    resourceBaseUrl,
+    resolvePersistedResourceUrl,
     themeCacheKey,
   ]);
 

@@ -62,7 +62,7 @@ describe("webpage basecard integration flow", () => {
     viewCleanup = mountBasecardView({
       container: viewContainer,
       config: currentConfig,
-      resolveResourceUrl: async () => "file:///workspace/card/web-bundle/index.html",
+      resolveResourceUrl: async () => "chips-render://card-root/card-token/web-bundle/index.html",
     });
 
     editorRoot = createBasecardEditorRoot({
@@ -73,7 +73,7 @@ describe("webpage basecard integration flow", () => {
         viewCleanup = mountBasecardView({
           container: viewContainer,
           config: currentConfig,
-          resolveResourceUrl: async () => "file:///workspace/card/webpage-bundle-abc123/index.html",
+          resolveResourceUrl: async () => "chips-render://card-root/card-token/webpage-bundle-abc123/index.html",
         });
       },
       importArchiveBundle: async () => ({
@@ -113,7 +113,7 @@ describe("webpage basecard integration flow", () => {
 
     expect(currentConfig.bundle_root).toBe("webpage-bundle-abc123");
     expect(viewContainer.querySelector("iframe")?.getAttribute("src")).toBe(
-      "file:///workspace/card/webpage-bundle-abc123/index.html",
+      "chips-render://card-root/card-token/webpage-bundle-abc123/index.html",
     );
   });
 });

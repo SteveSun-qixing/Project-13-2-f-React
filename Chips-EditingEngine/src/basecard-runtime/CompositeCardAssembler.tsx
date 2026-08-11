@@ -15,7 +15,7 @@ export interface BasecardResourceOpenEvent {
 export interface CompositeCardAssemblerProps {
   cardId: string;
   baseCards: BasicCardData[];
-  resourceBaseUrl?: string;
+  resolveResourceUrl?: (resourcePath: string) => Promise<string>;
   layout?: CardStructure['layout'];
   mode: 'view' | 'preview';
   interactionPolicy: 'delegate' | 'native';
@@ -45,7 +45,7 @@ function measureCompositeLayoutHeight(container: HTMLDivElement): number {
 export function CompositeCardAssembler({
   cardId,
   baseCards,
-  resourceBaseUrl,
+  resolveResourceUrl,
   layout,
   mode,
   interactionPolicy,
@@ -156,7 +156,7 @@ export function CompositeCardAssembler({
             baseCardId={baseCard.id}
             cardType={baseCard.type}
             config={baseCard.data}
-            resourceBaseUrl={resourceBaseUrl}
+            resolveResourceUrl={resolveResourceUrl}
             pendingResourceImports={baseCard.pendingResourceImports}
             selectable={mode === 'preview'}
             themeCacheKey={themeCacheKey}

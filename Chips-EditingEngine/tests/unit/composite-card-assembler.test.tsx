@@ -56,6 +56,9 @@ describe('CompositeCardAssembler', () => {
 
   it('measures unscaled layout height instead of transformed visual height', async () => {
     const onHeightChange = vi.fn();
+    const resolveResourceUrl = vi.fn(async (resourcePath: string) => (
+      `chips-render://card-root/card-token/${resourcePath}`
+    ));
 
     await act(async () => {
       root.render(
@@ -70,7 +73,7 @@ describe('CompositeCardAssembler', () => {
               modifiedAt: '2026-03-14T00:00:00.000Z',
             },
           ]}
-          resourceBaseUrl="file:///workspace/demo.card/"
+          resolveResourceUrl={resolveResourceUrl}
           layout={{ gap: 12, padding: 16 }}
           mode="preview"
           interactionPolicy="delegate"
@@ -85,7 +88,7 @@ describe('CompositeCardAssembler', () => {
     expect(assembler).not.toBeNull();
     expect(resizeObserverCallback).not.toBeNull();
     expect(basecardFrameHostMock).toHaveBeenCalledWith(expect.objectContaining({
-      resourceBaseUrl: 'file:///workspace/demo.card/',
+      resolveResourceUrl,
     }));
     if (!(assembler instanceof HTMLDivElement)) {
       throw new Error('Expected composite card assembler container.');
@@ -143,7 +146,6 @@ describe('CompositeCardAssembler', () => {
               modifiedAt: '2026-03-14T00:00:00.000Z',
             },
           ]}
-          resourceBaseUrl="file:///workspace/demo.card/"
           mode="view"
           interactionPolicy="native"
           onResourceOpen={onResourceOpen}

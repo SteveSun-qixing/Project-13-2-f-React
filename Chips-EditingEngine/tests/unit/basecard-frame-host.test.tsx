@@ -48,7 +48,6 @@ function ParentHarness() {
         baseCardId="base-1"
         cardType="base.mock"
         config={stableConfig}
-        resourceBaseUrl="file:///workspace/demo.card/"
         selectable
         interactionPolicy="delegate"
         themeCacheKey="theme-1"
@@ -88,7 +87,6 @@ function RefreshHarness() {
         baseCardId="base-1"
         cardType="base.mock"
         config={config}
-        resourceBaseUrl="file:///workspace/demo.card/"
         interactionPolicy="delegate"
         onInteraction={() => undefined}
       />
@@ -175,7 +173,7 @@ describe('BasecardFrameHost', () => {
 
     const frame = container.querySelector('iframe') as HTMLIFrameElement | null;
     expect(frame).not.toBeNull();
-    expect(frame?.srcdoc).toContain('<base href="file:///workspace/demo.card/" />');
+    expect(frame?.srcdoc).not.toContain('<base href=');
     expect(frame?.srcdoc).toContain('background: transparent !important;');
     expect(frame?.getAttribute('allowtransparency')).toBe('true');
     expect(frame?.style.backgroundColor).toBe('transparent');
@@ -217,6 +215,46 @@ describe('BasecardFrameHost', () => {
     expect(cssText).not.toContain('Material Symbols');
   });
 
+  it('resolves persisted resources through the injected Host URL resolver', async () => {
+    const resolveResourceUrl = vi.fn(async (resourcePath: string) => (
+      `chips-render://card-root/card-token/${resourcePath}`
+    ));
+    let resolvedUrl: string | undefined;
+    mockRenderView.mockReset();
+    mockRenderView.mockImplementation(({ resolveResourceUrl: resolve }: {
+      resolveResourceUrl?: (resourcePath: string) => Promise<string>;
+    }) => {
+      void resolve?.('index.html').then((url) => {
+        resolvedUrl = url;
+      });
+      return () => undefined;
+    });
+
+    await act(async () => {
+      root.render(
+        <BasecardFrameHost
+          baseCardId="base-1"
+          cardType="base.mock"
+          config={{ id: 'base-1' }}
+          resolveResourceUrl={resolveResourceUrl}
+          interactionPolicy="native"
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const frame = container.querySelector('iframe') as HTMLIFrameElement | null;
+    await act(async () => {
+      frame?.dispatchEvent(new Event('load'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(resolveResourceUrl).toHaveBeenCalledWith('index.html');
+    expect(resolvedUrl).toBe('chips-render://card-root/card-token/index.html');
+    expect(frame?.srcdoc).not.toContain('file://');
+  });
+
   it('resolves pending imported resources for preview rendering before they are persisted', async () => {
     mockRenderView.mockReset();
     mockRenderView.mockImplementation(({ container: mountContainer, resolveResourceUrl }: {
@@ -243,7 +281,6 @@ describe('BasecardFrameHost', () => {
           baseCardId="base-1"
           cardType="base.mock"
           config={{ id: 'base-1' }}
-          resourceBaseUrl="file:///workspace/demo.card/"
           pendingResourceImports={new Map([
             ['cover.png', { path: 'cover.png', data: new Uint8Array([1, 2, 3]), mimeType: 'image/png' }],
           ])}
@@ -297,7 +334,6 @@ describe('BasecardFrameHost', () => {
           baseCardId="base-1"
           cardType="base.mock"
           config={{ id: 'base-1' }}
-          resourceBaseUrl="file:///workspace/demo.card/"
           pendingResourceImports={new Map([
             ['cover.png', { path: 'cover.png', data: new Uint8Array([1, 2, 3]), mimeType: 'image/png', token: 'v1' }],
           ])}
@@ -335,7 +371,6 @@ describe('BasecardFrameHost', () => {
           baseCardId="base-1"
           cardType="base.mock"
           config={{ id: 'base-1' }}
-          resourceBaseUrl="file:///workspace/demo.card/"
           pendingResourceImports={new Map([
             ['cover.png', { path: 'cover.png', data: new Uint8Array([4, 5, 6]), mimeType: 'image/png', token: 'v2' }],
           ])}
@@ -367,7 +402,6 @@ describe('BasecardFrameHost', () => {
           baseCardId="base-1"
           cardType="base.mock"
           config={{ id: 'base-1' }}
-          resourceBaseUrl="file:///workspace/demo.card/"
           selectable
           interactionPolicy="native"
           onSelect={onSelect}
@@ -408,7 +442,6 @@ describe('BasecardFrameHost', () => {
           baseCardId="base-1"
           cardType="base.mock"
           config={{ id: 'base-1' }}
-          resourceBaseUrl="file:///workspace/demo.card/"
           pendingResourceImports={new Map([
             ['docs/article.md', { path: 'docs/article.md', data: new TextEncoder().encode('# Pending Preview') }],
           ])}
@@ -473,8 +506,10 @@ describe('BasecardFrameHost', () => {
           baseCardId="base-1"
           cardType="base.mock"
           config={{ id: 'base-1' }}
-          resourceBaseUrl="file:///workspace/demo.card/"
           interactionPolicy="native"
+          resolveResourceUrl={async (resourcePath) => (
+            `chips-render://card-root/card-token/${resourcePath}`
+          )}
           onResourceOpen={onResourceOpen}
         />,
       );
@@ -499,7 +534,7 @@ describe('BasecardFrameHost', () => {
     });
 
     expect(onResourceOpen).toHaveBeenCalledWith({
-      resourceId: 'file:///workspace/demo.card/images/cover.png',
+      resourceId: 'chips-render://card-root/card-token/images/cover.png',
       mimeType: 'image/png',
       title: 'Cover',
       fileName: 'cover.png',
