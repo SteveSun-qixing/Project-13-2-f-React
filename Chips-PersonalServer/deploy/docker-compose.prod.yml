@@ -1,0 +1,88 @@
+# 生产部署 compose：个人服务器（对象存储使用七牛云，不含 MinIO/Redis）
+# 用法：docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+name: cps
+
+services:
+  # ─── PostgreSQL（1 核 1G 小内存调优） ──────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: cps_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cps_db
+      POSTGRES_USER: cps_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=50
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - effective_cache_size=384MB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cps_user -d cps_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cps_net
+
+  # ─── API 服务器 ────────────────────────────────────────────────
+  server:
+    build:
+      context: ../..
+      dockerfile: Chips-PersonalServer/deploy/Dockerfile.server
+    container_name: cps_server
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://cps_user:${POSTGRES_PASSWORD}@postgres:5432/cps_db
+      S3_ENDPOINT: ${S3_ENDPOINT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cps_net
+
+  # ─── Web 前端（生产构建）──────────────────────────────────────
+  web:
+    build:
+      context: ../..
+      dockerfile: Chips-PersonalServer/deploy/Dockerfile.web
+    container_name: cps_web
+    restart: unless-stopped
+    networks:
+      - cps_net
+
+  # ─── Nginx（反向代理 + HTTPS） ─────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: cps_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs/chipscard.space_ca.crt:/etc/nginx/certs/chipscard.space_ca.crt:ro
+      - ./certs/chipscard.space.key:/etc/nginx/certs/chipscard.space.key:ro
+    depends_on:
+      - server
+      - web
+    networks:
+      - cps_net
+
+volumes:
+  postgres_data:
+
+networks:
+  cps_net:
+    driver: bridge

@@ -1,47 +1,44 @@
+# 固定项目名，避免与社区服务器（同样位于 deploy/ 目录）的 compose 项目冲突
+name: cps
+
 services:
-  # ─── PostgreSQL ────────────────────────────────────────────────
+  # ─── PostgreSQL（1 核 1G 小内存调优） ──────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: ccps_postgres
+    container_name: cps_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ccps_db
-      POSTGRES_USER: ccps_user
-      POSTGRES_PASSWORD: ccps_password
+      POSTGRES_DB: cps_db
+      POSTGRES_USER: cps_user
+      POSTGRES_PASSWORD: cps_password
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=50
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - effective_cache_size=384MB
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ccps_user -d ccps_db"]
+      test: ["CMD-SHELL", "pg_isready -U cps_user -d cps_db"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - ccps_net
-
-  # ─── Redis ─────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: ccps_redis
-    restart: unless-stopped
-    command: redis-server --save 60 1 --loglevel warning
-    volumes:
-      - redis_data:/data
-    ports:
-      - "${REDIS_HOST_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ccps_net
+      - cps_net
 
   # ─── MinIO ─────────────────────────────────────────────────────
   minio:
     image: minio/minio:latest
-    container_name: ccps_minio
+    container_name: cps_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -58,78 +55,40 @@ services:
       timeout: 20s
       retries: 3
     networks:
-      - ccps_net
+      - cps_net
 
   # ─── API 服务器 ────────────────────────────────────────────────
   server:
     build:
       context: ../..
-      dockerfile: Chips-CommunityPlatformServer/deploy/Dockerfile.server
-    container_name: ccps_server
+      dockerfile: Chips-PersonalServer/deploy/Dockerfile.server
+    container_name: cps_server
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://ccps_user:ccps_password@postgres:5432/ccps_db
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://cps_user:cps_password@postgres:5432/cps_db
       S3_ENDPOINT: ${S3_RUNTIME_ENDPOINT:-http://minio:9000}
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     networks:
-      - ccps_net
-
-  # ─── 卡片渲染缓存 Worker ───────────────────────────────────────
-  worker:
-    build:
-      context: ../..
-      dockerfile: Chips-CommunityPlatformServer/deploy/Dockerfile.server
-    container_name: ccps_worker
-    restart: unless-stopped
-    command: ["node", "dist/worker.js"]
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql://ccps_user:ccps_password@postgres:5432/ccps_db
-      REDIS_URL: redis://redis:6379
-      S3_ENDPOINT: ${S3_RUNTIME_ENDPOINT:-http://minio:9000}
-      CARD_RENDER_WORKER_CONCURRENCY: ${CARD_RENDER_WORKER_CONCURRENCY:-1}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      server:
-        condition: service_started
-    networks:
-      - ccps_net
+      - cps_net
 
   # ─── Web 前端（生产构建）──────────────────────────────────────
   web:
     build:
       context: ../..
-      dockerfile: Chips-CommunityPlatformServer/deploy/Dockerfile.web
-    container_name: ccps_web
+      dockerfile: Chips-PersonalServer/deploy/Dockerfile.web
+    container_name: cps_web
     restart: unless-stopped
     networks:
-      - ccps_net
-
-  # ─── Admin 后台（生产构建）───────────────────────────────────
-  admin:
-    build:
-      context: ../..
-      dockerfile: Chips-CommunityPlatformServer/deploy/Dockerfile.admin
-    container_name: ccps_admin
-    restart: unless-stopped
-    networks:
-      - ccps_net
+      - cps_net
 
   # ─── Nginx（反向代理） ─────────────────────────────────────────
   nginx:
     image: nginx:alpine
-    container_name: ccps_nginx
+    container_name: cps_nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -141,15 +100,13 @@ services:
     depends_on:
       - server
       - web
-      - admin
     networks:
-      - ccps_net
+      - cps_net
 
 volumes:
   postgres_data:
-  redis_data:
   minio_data:
 
 networks:
-  ccps_net:
+  cps_net:
     driver: bridge

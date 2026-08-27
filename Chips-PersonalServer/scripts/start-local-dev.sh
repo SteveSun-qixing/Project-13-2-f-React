@@ -32,21 +32,19 @@ read_env_value() {
 
 API_PORT="$(read_env_value PORT 3000)"
 POSTGRES_PORT="$(read_env_value POSTGRES_HOST_PORT 5432)"
-REDIS_PORT="$(read_env_value REDIS_HOST_PORT 6380)"
 MINIO_PORT="$(read_env_value MINIO_HOST_PORT 9000)"
 WEB_PORT="${WEB_PORT:-5173}"
-ADMIN_PORT="${ADMIN_PORT:-5174}"
+
 
 API_HEALTH_URL="http://127.0.0.1:${API_PORT}/api/v1/health"
 WEB_URL="http://127.0.0.1:${WEB_PORT}/"
-ADMIN_URL="http://127.0.0.1:${ADMIN_PORT}/admin/"
 
 log() {
-  printf '[ccps] %s\n' "$*"
+  printf '[cps] %s\n' "$*"
 }
 
 die() {
-  printf '[ccps] ERROR: %s\n' "$*" >&2
+  printf '[cps] ERROR: %s\n' "$*" >&2
   exit 1
 }
 
@@ -56,19 +54,19 @@ Usage:
   bash scripts/start-local-dev.sh [start|restart|stop|stop:all|status|logs|help] [component]
 
 Commands:
-  start      Start Docker infra, API, worker, web, and admin. This is the default.
+  start      Start Docker infra, API, and web. This is the default.
   restart    Same as start.
   stop       Stop local Node/Vite community dev processes. Docker infra is kept running.
   stop:all   Stop local Node/Vite processes and Docker infra services.
   status     Print process, HTTP, and Docker infra status.
-  logs       Follow logs. Optional component: server, worker, web, admin.
+  logs       Follow logs. Optional component: server, web.
   help       Show this help.
 
 Examples:
-  pnpm --dir Chips-CommunityPlatformServer start:local
-  pnpm --dir Chips-CommunityPlatformServer stop:local
-  pnpm --dir Chips-CommunityPlatformServer status:local
-  pnpm --dir Chips-CommunityPlatformServer logs:local worker
+  pnpm --dir Chips-PersonalServer start:local
+  pnpm --dir Chips-PersonalServer stop:local
+  pnpm --dir Chips-PersonalServer status:local
+  pnpm --dir Chips-PersonalServer logs:local server
 EOF
 }
 
@@ -83,9 +81,7 @@ compose() {
 component_log_file() {
   case "$1" in
     api|server) printf '%s/server-dev.log\n' "${LOG_DIR}" ;;
-    worker) printf '%s/worker-dev.log\n' "${LOG_DIR}" ;;
     web) printf '%s/web-dev.log\n' "${LOG_DIR}" ;;
-    admin) printf '%s/admin-dev.log\n' "${LOG_DIR}" ;;
     *) die "Unknown log component: $1" ;;
   esac
 }
@@ -93,9 +89,7 @@ component_log_file() {
 component_pid_file() {
   case "$1" in
     api|server) printf '%s/server-dev.pid\n' "${PID_DIR}" ;;
-    worker) printf '%s/worker-dev.pid\n' "${PID_DIR}" ;;
     web) printf '%s/web-dev.pid\n' "${PID_DIR}" ;;
-    admin) printf '%s/admin-dev.pid\n' "${PID_DIR}" ;;
     *) die "Unknown pid component: $1" ;;
   esac
 }
@@ -149,7 +143,7 @@ project_runtime_ancestor() {
 
     local command_line
     command_line="$(ps -p "${parent}" -o command= 2>/dev/null || true)"
-    if [[ "${command_line}" == *"${PROJECT_DIR}"* ]] || [[ "${command_line}" == *"Chips-CommunityPlatformServer"* ]]; then
+    if [[ "${command_line}" == *"${PROJECT_DIR}"* ]] || [[ "${command_line}" == *"Chips-PersonalServer"* ]]; then
       candidate="${parent}"
       continue
     fi
@@ -176,15 +170,10 @@ stop_pid_files() {
 stop_project_patterns() {
   local patterns=(
     "${PROJECT_DIR}.*src/server.ts"
-    "${PROJECT_DIR}.*src/worker.ts"
     "pnpm --dir ${PROJECT_DIR} dev"
-    "pnpm --dir ${PROJECT_DIR} --filter @ccps/server worker:dev"
     "pnpm --dir ${PROJECT_DIR}/packages/web exec vite"
-    "pnpm --dir ${PROJECT_DIR}/packages/admin exec vite"
-    "pnpm --dir Chips-CommunityPlatformServer dev"
-    "pnpm --dir Chips-CommunityPlatformServer --filter @ccps/server worker:dev"
-    "pnpm --dir Chips-CommunityPlatformServer/packages/web exec vite"
-    "pnpm --dir Chips-CommunityPlatformServer/packages/admin exec vite"
+    "pnpm --dir Chips-PersonalServer dev"
+    "pnpm --dir Chips-PersonalServer/packages/web exec vite"
   )
 
   local pattern
@@ -203,7 +192,7 @@ stop_project_patterns() {
 
 stop_port_project_processes() {
   local port
-  for port in "${API_PORT}" "${WEB_PORT}" "${ADMIN_PORT}"; do
+  for port in "${API_PORT}" "${WEB_PORT}"; do
     local pids
     pids="$(lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true)"
     local pid
@@ -212,7 +201,7 @@ stop_port_project_processes() {
       root_pid="$(project_runtime_ancestor "${pid}")"
       local root_command_line
       root_command_line="$(ps -p "${root_pid}" -o command= 2>/dev/null || true)"
-      if [[ "${root_command_line}" == *"${PROJECT_DIR}"* ]] || [[ "${root_command_line}" == *"Chips-CommunityPlatformServer"* ]]; then
+      if [[ "${root_command_line}" == *"${PROJECT_DIR}"* ]] || [[ "${root_command_line}" == *"Chips-PersonalServer"* ]]; then
         log "Stopping project process on port ${port}: ${root_pid}"
         kill_tree "${root_pid}"
       fi
@@ -274,26 +263,6 @@ wait_http() {
   die "${label} did not become ready within ${timeout_seconds}s: ${url}"
 }
 
-wait_worker() {
-  local log_file
-  log_file="$(component_log_file worker)"
-  local elapsed=0
-  while [ "${elapsed}" -lt 240 ]; do
-    if grep -Eq 'CardRenderWorker.*Starting|Starting [0-9]+ worker loop' "${log_file}" 2>/dev/null; then
-      log "Worker is ready."
-      return
-    fi
-    if grep -Eq 'ECONNREFUSED|THEME_CONTRACT_INVALID|Unhandled|Error:|Failed to|failed to' "${log_file}" 2>/dev/null; then
-      tail -160 "${log_file}" >&2 || true
-      die "Worker failed during startup."
-    fi
-    sleep 2
-    elapsed=$((elapsed + 2))
-  done
-  tail -160 "${log_file}" >&2 || true
-  die "Worker did not become ready within 240s."
-}
-
 start_background() {
   local component="$1"
   shift
@@ -332,10 +301,9 @@ ensure_prerequisites() {
 }
 
 start_infra() {
-  log "Starting Docker infra: postgres, redis, minio"
-  compose up -d postgres redis minio
+  log "Starting Docker infra: postgres, minio"
+  compose up -d postgres minio
   wait_port "${POSTGRES_PORT}" "PostgreSQL" 90
-  wait_port "${REDIS_PORT}" "Redis" 90
   wait_port "${MINIO_PORT}" "MinIO" 90
 }
 
@@ -343,35 +311,29 @@ start_all() {
   ensure_prerequisites
   start_infra
 
-  log "Cleaning existing local community dev processes."
+  log "Cleaning existing local personal server dev processes."
   stop_local_processes
   assert_port_available "${API_PORT}" "API"
   assert_port_available "${WEB_PORT}" "Web"
-  assert_port_available "${ADMIN_PORT}" "Admin"
 
   start_background server pnpm --dir "${PROJECT_DIR}" dev
   wait_http "${API_HEALTH_URL}" "API" 240 "$(component_log_file server)"
 
-  start_background worker pnpm --dir "${PROJECT_DIR}" --filter @ccps/server worker:dev
-  wait_worker
-
   start_background web pnpm --dir "${PROJECT_DIR}/packages/web" exec vite --host 0.0.0.0 --port "${WEB_PORT}" --strictPort
-  start_background admin pnpm --dir "${PROJECT_DIR}/packages/admin" exec vite --host 0.0.0.0 --port "${ADMIN_PORT}" --strictPort
-  wait_http "${WEB_URL}" "Community web" 90 "$(component_log_file web)"
-  wait_http "${ADMIN_URL}" "Admin web" 90 "$(component_log_file admin)"
+  wait_http "${WEB_URL}" "Personal server web" 90 "$(component_log_file web)"
 
   print_summary
 }
 
 stop_all_local() {
-  log "Stopping local community dev processes."
+  log "Stopping local personal server dev processes."
   stop_local_processes
 }
 
 stop_all_with_docker() {
   stop_all_local
   log "Stopping Docker infra services."
-  compose stop postgres redis minio
+  compose stop postgres minio
 }
 
 http_code() {
@@ -398,14 +360,11 @@ print_status() {
   printf 'Local HTTP:\n'
   printf '  API     %s %s\n' "$(http_code "${API_HEALTH_URL}")" "${API_HEALTH_URL}"
   printf '  Web     %s %s\n' "$(http_code "${WEB_URL}")" "${WEB_URL}"
-  printf '  Admin   %s %s\n' "$(http_code "${ADMIN_URL}")" "${ADMIN_URL}"
   printf '\nRecorded processes:\n'
   print_pid_status server
-  print_pid_status worker
   print_pid_status web
-  print_pid_status admin
   printf '\nDocker infra:\n'
-  compose ps postgres redis minio
+  compose ps postgres minio
 }
 
 follow_logs() {
@@ -419,21 +378,18 @@ follow_logs() {
 print_summary() {
   cat <<EOF
 
-[ccps] Local community server is ready.
+[cps] Local personal server is ready.
 
-  Community web: ${WEB_URL}
-  Admin web:     ${ADMIN_URL}
-  API health:    ${API_HEALTH_URL}
-  MinIO console: http://127.0.0.1:$(read_env_value MINIO_CONSOLE_HOST_PORT 9001)/
+  Web:     ${WEB_URL}
+  API:     ${API_HEALTH_URL}
+  MinIO:   http://127.0.0.1:$(read_env_value MINIO_CONSOLE_HOST_PORT 9001)/
 
   Logs:
     server: $(component_log_file server)
-    worker: $(component_log_file worker)
     web:    $(component_log_file web)
-    admin:  $(component_log_file admin)
 
   Stop:
-    pnpm --dir Chips-CommunityPlatformServer stop:local
+    pnpm --dir Chips-PersonalServer stop:local
 
 EOF
 }

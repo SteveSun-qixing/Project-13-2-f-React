@@ -18,6 +18,11 @@
 - 当前登录用户为 `root`；
 - 当前连接方式已验证为 SSH 公钥认证。
 
+- 薯片个人服务器已配置本机 Host 别名 `chipscard-personal-server`；
+- 该别名指向生产服务器 `103.185.248.114` 的 SSH 端口 `22`；
+- 当前登录用户为 `root`；
+- 当前连接方式已验证为 SSH 公钥认证（私钥 `~/.ssh/chipscard_personal_ed25519`）。
+
 ## 2. 基本连接方式
 
 后续连接薯片社区服务器时，直接使用：
@@ -44,6 +49,14 @@ ssh chipscard-server 'cd /opt/chips-runtime/Chips-CommunityPlatformServer/deploy
 ssh chipscard-server
 cd /opt/chips-runtime/Chips-CommunityPlatformServer/deploy
 ```
+
+个人服务器（`chipscard-personal-server`，生产目录 `/opt/chips-runtime/Chips-PersonalServer`）：
+
+```bash
+ssh chipscard-personal-server 'cd /opt/chips-runtime/Chips-PersonalServer/deploy && docker compose -f docker-compose.prod.yml --env-file .env ps'
+```
+
+个人服务器使用 1Panel 面板管理（`1pctl` 命令可查看面板状态），部署目录为 `/opt/chips-runtime/Chips-PersonalServer`，生产 compose 为 `docker-compose.prod.yml`（对象存储使用七牛云，固定项目名 `cps`）。
 
 ## 3. 本机 SSH 配置
 

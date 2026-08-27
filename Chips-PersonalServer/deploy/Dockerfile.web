@@ -1,24 +1,36 @@
 FROM node:20-alpine AS builder
 
-WORKDIR /app/Chips-CommunityPlatformServer
+WORKDIR /app/Chips-PersonalServer
+
+ENV npm_config_registry=https://registry.npmmirror.com
+# 1G 内存服务器构建限制：node 堆上限 + pnpm 低并发
+ENV NODE_OPTIONS="--max-old-space-size=512"
+ENV PNPM_CHILD_CONCURRENCY=2
 
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
-COPY Chips-CommunityPlatformServer/package.json ./
-COPY Chips-CommunityPlatformServer/pnpm-lock.yaml ./
-COPY Chips-CommunityPlatformServer/pnpm-workspace.yaml ./
-COPY Chips-CommunityPlatformServer/tsconfig.base.json ./
-COPY Chips-CommunityPlatformServer/packages/web/package.json ./packages/web/
+COPY Chips-PersonalServer/package.json ./
+COPY Chips-PersonalServer/pnpm-lock.yaml ./
+COPY Chips-PersonalServer/pnpm-workspace.yaml ./
+COPY Chips-PersonalServer/tsconfig.base.json ./
+COPY Chips-PersonalServer/packages/web/package.json ./packages/web/
+COPY Chips-Ui /app/Chips-Ui
+COPY Chips-SDK /app/Chips-SDK
 
-RUN pnpm install --filter @ccps/web --frozen-lockfile
+# 让 Chips-Ui/Chips-SDK 源码（types 指向 src）能向上解析提升后的依赖
+# shamefully-hoist：peer 依赖（react/antd 等）提升到 workspace 根 node_modules
+RUN pnpm config set shamefully-hoist true
+RUN ln -s /app/Chips-PersonalServer/node_modules /app/node_modules
 
-COPY Chips-CommunityPlatformServer/packages/web ./packages/web
+RUN pnpm install --network-concurrency=6 --child-concurrency=2 --filter @cps/web --frozen-lockfile
 
-RUN pnpm --filter @ccps/web build
+COPY Chips-PersonalServer/packages/web ./packages/web
+
+RUN pnpm --filter @cps/web build
 
 FROM nginx:1.27-alpine AS production
 
-COPY Chips-CommunityPlatformServer/deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/Chips-CommunityPlatformServer/packages/web/dist /usr/share/nginx/html
+COPY Chips-PersonalServer/deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/Chips-PersonalServer/packages/web/dist /usr/share/nginx/html
 
 EXPOSE 80
