@@ -1,0 +1,49 @@
+# 会话记录：curious-falcon
+
+- 会话 ID：ses_010d4ba0affeAc5L5xI5nogC5g
+- 目录：/Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f-React
+- 会话创建：2026-08-11 12:53:38
+
+---
+
+## 2026-08-11 12:53:38
+
+为 /Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f-React/Chips-BoxLayoutPlugin/cardStack-BLP 实现"布局形态骨架"空状态：空箱子时展示卡片堆叠布局的空白占位符（居中堆叠卡片轮廓），上传卡片后布局不变。不做 Git 提交。
+
+## 背景
+用户需求：每种布局的空状态要用**自身形态的空白占位符**（卡片堆叠=居中堆叠的卡片轮廓），一眼看出布局样子；上传卡片后效果与初始页面一致，只是初始全是占位符。
+
+## 共享层骨架原子 API（已建好，/Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f-React/Chips-Ui）
+```tsx
+import { LayoutSkeleton, SkeletonBlock, SkeletonLine, EmptyHint } from "@chips/ui";
+// LayoutSkeleton: { children, hint, minHeight? }
+// SkeletonBlock: { width?, height?, radius?, dashed?, style? } 浅灰圆角块
+// SkeletonLine: { width?, height?, radius?, style? } 浅灰线条
+// EmptyHint: { title?, description?, align?, style? } 小字提示
+```
+
+## 本仓库要做
+1. `src/view/page.tsx`：把当前空状态（BoxEmptyState compact）替换为**卡片堆叠形态骨架**：
+   - `LayoutSkeleton` 包裹（minHeight 300），hint 用 `<EmptyHint />`
+   - 骨架主体：居中堆叠 3 张卡片（width 200px，aspect-ratio 3/4，居中）：
+     - 后层两张：`SkeletonBlock`（#f2f2f7）错位——translate(-14px, 8px) rotate(-4deg)、translate(14px, 8px) rotate(4deg)
+     - 前景卡：`SkeletonBlock` 白底虚线边框（dashed）居中，内部 `SkeletonLine` 标题线（width 60%）+ `SkeletonLine` 副线（width 40%，height 8）
+   - 模拟"一叠卡片"形态
+2. 清理旧空状态 CSS（组件已内联样式；保留 stack placeholder/cover placeholder 等其他样式）
+3. tests：空状态断言更新（data-layout-skeleton / data-layout-empty-title）
+
+## 红线
+- 卡片堆叠布局算法（当前卡、翻页、封面）完全不变——只改空状态分支
+- 禁止 any；禁止 TODO；只改本仓库；禁止删除文件（移动归档）
+
+## 验证（在仓库目录执行）
+1. npx tsc --noEmit → 0 错误
+2. npm test → 全绿
+3. npm run build → 成功
+4. npm run validate → ok
+
+## 汇报（最终消息必须包含）
+- 改动文件清单
+- 骨架结构说明
+- 验证输出摘要
+- 遗留疑问（若有）
