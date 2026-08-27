@@ -4,41 +4,11 @@ import { UpdateBoxSchema, PaginationSchema } from '../schemas/content.schemas';
 import type { BoxMetadata, BoxStructure, EnrichedBoxEntryRef } from '../types/box';
 import type { Box } from '../db/schema/boxes';
 import type { PublicBucketName } from '../storage/buckets';
-import { UserService } from '../services/user.service';
 import { AppError } from '../errors/AppError';
 import { ErrorCode } from '../errors/codes';
 import { buildObjectUrl, createPresignedGetUrl } from '../storage/s3';
 
 const BOX_DOWNLOAD_URL_TTL_SECONDS = 900;
-
-function renderBoxCoverPreparingHtml(title: string): string {
-  const safeTitle = escapeHtml(title);
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<title>${safeTitle}</title>
-<style>
-  html, body { margin: 0; width: 100%; height: 100%; background: #101014; color: #fff; }
-  body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
-  .wrap { text-align: center; }
-  h1 { font-size: 22px; font-weight: 600; margin: 0 0 10px; }
-  p { font-size: 14px; opacity: 0.72; margin: 0; }
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>${safeTitle}</h1>
-    <p>封面生成中，请稍后刷新…</p>
-  </div>
-</body>
-</html>`;
-}
-
-function sanitizeBoxFileName(value: string): string {
-  const sanitized = value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim();
-  return (sanitized || 'box').endsWith('.box') ? sanitized : `${sanitized || 'box'}.box`;
-}
 
 function escapeHtml(value: string): string {
   return value
@@ -47,6 +17,12 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function sanitizeBoxFileName(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  const sanitized = value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim();
+  return (sanitized || 'box').endsWith('.box') ? sanitized : `${sanitized || 'box'}.box`;
 }
 
 function renderBoxDocumentHtml(box: Box, entries: EnrichedBoxEntryRef[]): string {
@@ -84,26 +60,25 @@ ${entryItems ? `<ul>\n${entryItems}\n</ul>` : '<p>暂无条目</p>'}
 }
 
 const boxRoutes: FastifyPluginAsync = async (fastify) => {
+  const requireApiToken = fastify.requireApiToken();
+
   // ─── GET /api/v1/boxes/:boxId ─────────────────────────────────────
 
   fastify.get(
     '/api/v1/boxes/:boxId',
-    { preHandler: [fastify.optionalAuthenticate] },
     async (request) => {
       const { boxId } = request.params as { boxId: string };
-      const box = await BoxService.getAccessible(boxId, request.user?.userId ?? null);
+      const box = await BoxService.getAccessible(boxId);
 
-      // 补充条目引用的社区匹配信息
+      // 补充条目引用的服务器内卡片匹配信息
       const enrichedCards = await BoxService.enrichCardRefs(
         (box.structure as BoxStructure) ?? { entries: [] },
       );
-      const owner = await UserService.findById(box.userId);
 
       return {
         data: {
           ...BoxService.toDTO(box),
           cards: enrichedCards,
-          user: owner ? UserService.toPublicProfile(owner) : null,
         },
       };
     },
@@ -113,10 +88,9 @@ const boxRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get(
     '/api/v1/boxes/:boxId/view',
-    { preHandler: [fastify.optionalAuthenticate] },
     async (request, reply) => {
       const { boxId } = request.params as { boxId: string };
-      const box = await BoxService.getAccessible(boxId, request.user?.userId ?? null);
+      const box = await BoxService.getAccessible(boxId);
       const structure = (box.structure ?? { entries: [] }) as BoxStructure;
       const entries = await BoxService.enrichCardRefs(structure);
       return reply.type('text/html; charset=utf-8').send(renderBoxDocumentHtml(box, entries));
@@ -127,10 +101,9 @@ const boxRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get(
     '/api/v1/boxes/:boxId/cover',
-    { preHandler: [fastify.optionalAuthenticate] },
     async (request, reply) => {
       const { boxId } = request.params as { boxId: string };
-      const box = await BoxService.getAccessible(boxId, request.user?.userId ?? null);
+      const box = await BoxService.getAccessible(boxId);
 
       if (box.coverBucket && box.coverKey) {
         return reply.redirect(buildObjectUrl(box.coverBucket as PublicBucketName, box.coverKey), 302);
@@ -138,9 +111,8 @@ const boxRoutes: FastifyPluginAsync = async (fastify) => {
 
       const title = box.title || '箱子';
       return reply
-        .status(202)
+        .status(200)
         .header('content-type', 'text/html; charset=utf-8')
-        .header('retry-after', '3')
         .send(renderBoxCoverPreparingHtml(title));
     },
   );
@@ -149,10 +121,9 @@ const boxRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get(
     '/api/v1/boxes/:boxId/download',
-    { preHandler: [fastify.optionalAuthenticate] },
     async (request) => {
       const { boxId } = request.params as { boxId: string };
-      const box = await BoxService.getAccessible(boxId, request.user?.userId ?? null);
+      const box = await BoxService.getAccessible(boxId);
 
       if (!box.sourceBoxBucket || !box.sourceBoxKey) {
         throw AppError.notFound(ErrorCode.BOX_NOT_FOUND, 'Box source file is not available');
@@ -186,11 +157,11 @@ const boxRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch(
     '/api/v1/boxes/:boxId',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [requireApiToken] },
     async (request) => {
       const { boxId } = request.params as { boxId: string };
       const body = UpdateBoxSchema.parse(request.body);
-      const box = await BoxService.update(boxId, request.user!.userId, body);
+      const box = await BoxService.update(boxId, body);
       return { data: BoxService.toDTO(box) };
     },
   );
@@ -199,53 +170,47 @@ const boxRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete(
     '/api/v1/boxes/:boxId',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [requireApiToken] },
     async (request, reply) => {
       const { boxId } = request.params as { boxId: string };
-      await BoxService.delete(boxId, request.user!.userId);
+      await BoxService.delete(boxId);
       return reply.status(204).send();
     },
   );
 
-  // ─── GET /api/v1/users/me/boxes ───────────────────────────────────
+  // ─── GET /api/v1/boxes ────────────────────────────────────────────
 
   fastify.get(
-    '/api/v1/users/me/boxes',
-    { preHandler: [fastify.authenticate] },
+    '/api/v1/boxes',
     async (request) => {
       const qs = PaginationSchema.parse(request.query);
-      const result = await BoxService.listByUser(
-        request.user!.userId,
-        request.user!.userId,
-        qs,
-      );
+      const result = await BoxService.listSummaries(qs, { visibility: 'public' });
       return { data: result.items.map(BoxService.toSummaryDTO), pagination: result.pagination };
     },
   );
-
-  // ─── GET /api/v1/users/:username/boxes ───────────────────────────
-
-  fastify.get(
-    '/api/v1/users/:username/boxes',
-    { preHandler: [fastify.optionalAuthenticate] },
-    async (request) => {
-      const { username } = request.params as { username: string };
-      const qs = PaginationSchema.parse(request.query);
-
-      const owner = await UserService.findByUsername(username);
-      if (!owner || !owner.isActive) {
-        throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
-      }
-
-      const result = await BoxService.listByUser(owner.id, request.user?.userId ?? null, qs, {
-        visibility: 'public',
-      });
-      return {
-        data: result.items.map(BoxService.toSummaryDTO),
-        pagination: result.pagination,
-      };
-    },
-  );
 };
+
+function renderBoxCoverPreparingHtml(title: string): string {
+  const safeTitle = escapeHtml(title);
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>${safeTitle}</title>
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; background: #101014; color: #fff; }
+  body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+  .wrap { text-align: center; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 10px; }
+  p { font-size: 14px; opacity: 0.72; margin: 0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>${safeTitle}</h1>
+  </div>
+</body>
+</html>`;
+}
 
 export default boxRoutes;

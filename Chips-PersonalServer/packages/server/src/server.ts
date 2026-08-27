@@ -1,25 +1,17 @@
 import { buildApp } from './app';
 import { env } from './config/env';
 import { runMigrations } from './db/migrate';
-import { connectRedis, closeRedis } from './cache/redis';
 import { initStorageBuckets } from './storage/init';
 import { closeDb } from './db/client';
-import { initAdminAccount } from './db/init-admin';
 
 async function start(): Promise<void> {
   // 1. 运行数据库迁移
   await runMigrations();
 
-  // 2. 连接 Redis
-  await connectRedis();
-
-  // 3. 初始化对象存储 bucket
+  // 2. 初始化对象存储 bucket
   await initStorageBuckets();
 
-  // 4. 初始化管理员账号（若配置了且尚未存在）
-  await initAdminAccount();
-
-  // 5. 构建并启动 Fastify
+  // 3. 构建并启动 Fastify
   const app = await buildApp();
 
   try {
@@ -38,7 +30,6 @@ async function start(): Promise<void> {
 
   async function shutdown(server: Awaited<ReturnType<typeof buildApp>>): Promise<void> {
     await server.close();
-    await closeRedis();
     await closeDb();
   }
 
@@ -55,7 +46,7 @@ async function start(): Promise<void> {
     process.exit(1);
   });
   process.on('unhandledRejection', (reason) => {
-    app.log.error({ reason }, 'Unhandled promise rejection');
+    app.log.error({ reason }, 'Unhandled rejection');
     process.exit(1);
   });
 }

@@ -53,7 +53,7 @@ export interface BoxStructure {
   entries: BoxEntryRef[];
 }
 
-/** 社区端匹配社区卡片后的条目引用 */
+/** 服务器端匹配服务器内卡片后的条目引用 */
 export interface EnrichedBoxEntryRef {
   entry_id: string;
   url: string;
@@ -65,7 +65,6 @@ export interface EnrichedBoxEntryRef {
   embedded: boolean;
   communityCardId?: string;
   communityViewUrl?: string;
-  communityRenderStatusUrl?: string;
 }
 
 /** 箱子解包结果 */

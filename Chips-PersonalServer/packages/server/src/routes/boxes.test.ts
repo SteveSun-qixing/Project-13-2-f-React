@@ -28,31 +28,23 @@ const boxServiceMock = {
   toSummaryDTO: vi.fn(),
 };
 
-const userServiceMock = {
-  findById: vi.fn(),
-  toPublicProfile: vi.fn(),
-  findByUsername: vi.fn(),
-};
-
 vi.mock('../services/box.service', () => ({
   BoxService: boxServiceMock,
 }));
 
-vi.mock('../services/user.service', () => ({
-  UserService: userServiceMock,
+vi.mock('../config/env', () => ({
+  env: {
+    API_TOKEN: 'personal-server-test-token-1234',
+  },
 }));
 
 async function buildBoxesApp() {
   const { default: boxRoutes } = await import('./boxes');
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.plugin');
+  const { apiTokenPlugin } = await import('../plugins/api-token.plugin');
   const app = Fastify();
   await errorHandlerPlugin(app, {});
-  app.decorate('authenticate', async (request: { user?: unknown }) => {
-    request.user = { userId: 'user-1', role: 'user', jti: 'jwt-1' };
-  });
-  app.decorate('optionalAuthenticate', async (request: { user?: unknown }) => {
-    request.user = null;
-  });
+  await apiTokenPlugin(app, {});
   await app.register(boxRoutes);
   return app;
 }
@@ -144,7 +136,7 @@ describe('box routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/html');
-    expect(boxServiceMock.getAccessible).toHaveBeenCalledWith(BOX_ID, null);
+    expect(boxServiceMock.getAccessible).toHaveBeenCalledWith(BOX_ID);
     expect(boxServiceMock.enrichCardRefs).toHaveBeenCalledWith(
       expect.objectContaining({ entries: expect.any(Array) }),
     );
@@ -216,8 +208,6 @@ describe('box routes', () => {
     boxServiceMock.toDTO.mockReturnValue({
       id: BOX_ID,
       boxFileId: 'b1C2d3E4f5',
-      userId: 'user-1',
-      roomId: null,
       title: '旅行箱',
       coverUrl: null,
       documentUrl: `/api/v1/boxes/${BOX_ID}/view`,
@@ -229,9 +219,6 @@ describe('box routes', () => {
       createdAt: '2026-08-01T00:00:00.000Z',
       updatedAt: '2026-08-01T00:00:00.000Z',
     });
-    userServiceMock.findById.mockResolvedValue({ id: 'user-1', username: 'alice' });
-    userServiceMock.toPublicProfile.mockReturnValue({ username: 'alice' });
-
     const response = await app.inject({
       method: 'GET',
       url: `/api/v1/boxes/${BOX_ID}`,
@@ -247,7 +234,6 @@ describe('box routes', () => {
           communityCardId: 'card-uuid-1',
         }),
       ]),
-      user: { username: 'alice' },
     });
 
     await app.close();
@@ -329,7 +315,7 @@ describe('box routes', () => {
       url: `/api/v1/boxes/${BOX_ID}/cover`,
     });
 
-    expect(response.statusCode).toBe(202);
+    expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/html');
     expect(response.body).toContain('旅行箱');
 

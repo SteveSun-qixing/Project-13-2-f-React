@@ -56,17 +56,6 @@ const errorHandlerPlugin: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    // JWT 错误
-    if (error.code === 'FST_JWT_AUTHORIZATION_TOKEN_INVALID' ||
-        error.code === 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED') {
-      return reply.status(401).send({
-        error: {
-          code: ErrorCode.AUTH_TOKEN_INVALID,
-          message: 'Invalid or expired authentication token',
-        },
-      });
-    }
-
     // 未知错误 - 记录并返回 500
     fastify.log.error({ err: error }, 'Unhandled error');
     return reply.status(500).send({

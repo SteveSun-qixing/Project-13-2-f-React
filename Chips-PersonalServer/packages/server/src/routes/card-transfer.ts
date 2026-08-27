@@ -1,17 +1,15 @@
 import * as path from 'path';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import { db } from '../db/client';
 import { cards } from '../db/schema/cards';
 import { uploadSessions } from '../db/schema/upload-sessions';
 import { AppError } from '../errors/AppError';
 import { ErrorCode } from '../errors/codes';
-import { RoomService } from '../services/room.service';
-import { CardService } from '../services/card.service';
+import { CardService, type CardRenderArtifacts } from '../services/card.service';
 import { BoxService } from '../services/box.service';
-import { CardRenderCacheService } from '../services/card-render-cache.service';
 import { UploadSessionService } from '../services/upload-session.service';
-import { Bucket } from '../storage/buckets';
+import { Bucket, type PublicBucketName } from '../storage/buckets';
 import { buildObjectUrl, createPresignedGetUrl, createPresignedPutUrl, headObject } from '../storage/s3';
 import { env } from '../config/env';
 import {
@@ -26,6 +24,8 @@ const TRANSFER_SCHEMA_VERSION = '1.0.0';
 const NETWORK_CARD_MIME_TYPE = 'application/vnd.chips.card+zip';
 const BOX_FILE_MIME_TYPE = 'application/vnd.chips.box+zip';
 const DOWNLOAD_URL_TTL_SECONDS = 900;
+const DEFAULT_LOCALE = 'zh-CN';
+const DEFAULT_THEME_ID = 'chips-official.default-theme';
 
 interface TransferSessionMetadata {
   transferKind?: 'network-resource-card' | 'box-source';
@@ -35,6 +35,17 @@ interface TransferSessionMetadata {
   resourcePrefix?: string;
   boxId?: string;
   boxFileObjectKey?: string;
+  /** 渲染产物 cacheVersion（= 会话 ID），产物对象 key 前缀 `{cardId}/{cacheVersion}` */
+  renderCacheVersion?: string;
+  /** 已预签名的渲染产物对象（render-file / cover-file），complete 时校验上传 */
+  renderObjects?: Array<{
+    role: 'render-file' | 'cover-file';
+    relativePath: string;
+    bucket: string;
+    objectKey: string;
+    sizeBytes: number;
+    mimeType: string;
+  }>;
 }
 
 interface CardTransferSessionMetadata {
@@ -43,6 +54,8 @@ interface CardTransferSessionMetadata {
   versionId: string;
   networkCardObjectKey: string;
   resourcePrefix: string;
+  renderCacheVersion: string;
+  renderObjects: NonNullable<TransferSessionMetadata['renderObjects']>;
 }
 
 interface BoxTransferSessionMetadata {
@@ -212,7 +225,37 @@ function buildDownloadObject(bucket: string, objectKey: string, publicUrl?: stri
   };
 }
 
+/** 根据卡片可见性选择渲染产物 bucket */
+function resolveRenderBucket(visibility: string, role: 'render-file' | 'cover-file'): string {
+  const isPrivate = visibility === 'private';
+  if (role === 'cover-file') {
+    return isPrivate ? Bucket.CARD_COVER_CACHE_PRIVATE : Bucket.CARD_COVER_CACHE;
+  }
+  return isPrivate ? Bucket.CARD_RENDER_CACHE_PRIVATE : Bucket.CARD_RENDER_CACHE;
+}
+
+function isPublicRenderBucket(bucket: string): boolean {
+  return bucket === Bucket.CARD_RENDER_CACHE || bucket === Bucket.CARD_COVER_CACHE;
+}
+
+/** 构造渲染产物入口 URL（公开走对象存储，私有走受控代理路由） */
+function buildRenderEntryUrl(params: {
+  cardId: string;
+  cacheVersion: string;
+  bucket: string;
+  entryObjectKey: string;
+  entryRelativePath: string;
+  role: 'render-file' | 'cover-file';
+}): string {
+  if (isPublicRenderBucket(params.bucket)) {
+    return buildObjectUrl(params.bucket as PublicBucketName, params.entryObjectKey);
+  }
+  const route = params.role === 'cover-file' ? 'cover-cache' : 'render-cache';
+  return `/api/v1/cards/${params.cardId}/${route}/${params.cacheVersion}/${params.entryRelativePath}`;
+}
+
 const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
+  const requireApiToken = fastify.requireApiToken();
   const requireJsonBody = async (request: { headers: { 'content-type'?: string } }) => {
     const contentType = request.headers['content-type'];
     if (!contentType || !contentType.toLowerCase().startsWith('application/json')) {
@@ -222,26 +265,20 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     '/api/v1/card-transfer/upload-sessions',
-    { preHandler: [requireJsonBody, fastify.authenticate] },
+    { preHandler: [requireJsonBody, requireApiToken] },
     async (request, reply) => {
       const body = CreateCardTransferUploadSessionSchema.parse(request.body);
-      if (body.roomId) {
-        await RoomService.assertOwnedByUser(body.roomId, request.user!.userId);
-      }
 
       if (body.contentType === 'box') {
-        const session = await UploadSessionService.create(request.user!.userId, {
+        const session = await UploadSessionService.create({
           contentType: 'box',
           fileName: body.fileName,
-          roomId: body.roomId ?? null,
           visibility: 'public',
           idempotencyKey: body.idempotencyKey,
           client: body.client,
         });
         const box = await BoxService.createPlaceholder({
-          userId: request.user!.userId,
           title: toBoxTitle(body.fileName),
-          roomId: body.roomId ?? undefined,
           visibility: 'public',
           publishedByClient: body.client?.name ?? 'chips-box-transfer',
         });
@@ -274,6 +311,7 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
             versionId: session.id,
             expiresAt: session.expiresAt,
             resourcePrefix,
+            includeRenderArtifacts: session.includeRenderArtifacts,
             boxFile: {
               bucket: Bucket.BOX_FILES,
               objectKey: boxFileObjectKey,
@@ -283,17 +321,15 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const session = await UploadSessionService.create(request.user!.userId, {
+      const session = await UploadSessionService.create({
         contentType: 'card',
         fileName: body.fileName,
-        roomId: body.roomId ?? null,
         visibility: 'public',
         idempotencyKey: body.idempotencyKey,
+        includeRenderArtifacts: body.includeRenderArtifacts,
         client: body.client,
       });
       const card = await CardService.create({
-        userId: request.user!.userId,
-        roomId: body.roomId ?? undefined,
         visibility: 'public',
         fileSizeBytes: 0,
         title: toCardTitle(body.fileName),
@@ -317,6 +353,8 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
             versionId: session.id,
             resourcePrefix,
             networkCardObjectKey,
+            renderCacheVersion: session.id,
+            renderObjects: [],
           },
           updatedAt: new Date(),
         })
@@ -329,6 +367,7 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
           versionId: session.id,
           expiresAt: session.expiresAt,
           resourcePrefix,
+          includeRenderArtifacts: session.includeRenderArtifacts,
           networkCard: {
             bucket: Bucket.CARD_RESOURCES,
             objectKey: networkCardObjectKey,
@@ -341,11 +380,11 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     '/api/v1/card-transfer/upload-sessions/:uploadId/objects:presign',
-    { preHandler: [requireJsonBody, fastify.authenticate] },
+    { preHandler: [requireJsonBody, requireApiToken] },
     async (request) => {
       const { uploadId } = request.params as { uploadId: string };
       const body = PresignCardTransferObjectsSchema.parse(request.body);
-      const session = await UploadSessionService.getOwned(uploadId, request.user!.userId);
+      const session = await UploadSessionService.getById(uploadId);
       const metadata = assertTransferSessionMetadata(getTransferMetadata(session.clientMetadata));
       const expiresInSeconds = Math.min(env.UPLOAD_SESSION_TTL_MINUTES * 60, 3600);
 
@@ -428,39 +467,111 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
         );
       }
 
+      const renderObjects: NonNullable<TransferSessionMetadata['renderObjects']> = [];
       const objects = body.objects.map((object) => {
-        const objectKey =
-          object.role === 'network-card'
-            ? metadata.networkCardObjectKey
-            : `${metadata.resourcePrefix}/${normalizeRelativePath(object.relativePath ?? '')}`;
-        const contentType = object.role === 'network-card' ? NETWORK_CARD_MIME_TYPE : object.mimeType;
-        const presigned = createPresignedPutUrl({
-          bucket: Bucket.CARD_RESOURCES,
-          key: objectKey,
-          contentType,
-          expiresInSeconds,
-          headers: {
-            'x-amz-meta-chips-card-id': metadata.cardId,
-            'x-amz-meta-chips-card-version-id': metadata.versionId,
-            'x-amz-meta-chips-transfer-role': object.role,
-          },
-        });
+        if (object.role === 'network-card') {
+          const presigned = createPresignedPutUrl({
+            bucket: Bucket.CARD_RESOURCES,
+            key: metadata.networkCardObjectKey,
+            contentType: NETWORK_CARD_MIME_TYPE,
+            expiresInSeconds,
+            headers: {
+              'x-amz-meta-chips-card-id': metadata.cardId,
+              'x-amz-meta-chips-card-version-id': metadata.versionId,
+              'x-amz-meta-chips-transfer-role': object.role,
+            },
+          });
+          return {
+            role: 'network-card' as const,
+            relativePath: null,
+            bucket: Bucket.CARD_RESOURCES,
+            objectKey: metadata.networkCardObjectKey,
+            publicUrl: buildObjectUrl(Bucket.CARD_RESOURCES, metadata.networkCardObjectKey),
+            uploadUrl: presigned.url,
+            method: presigned.method,
+            headers: presigned.headers,
+          };
+        }
 
-        return {
-          role: object.role,
-          relativePath: object.role === 'resource' ? normalizeRelativePath(object.relativePath ?? '') : null,
-          bucket: Bucket.CARD_RESOURCES,
-          objectKey,
-          publicUrl: buildObjectUrl(Bucket.CARD_RESOURCES, objectKey),
-          uploadUrl: presigned.url,
-          method: presigned.method,
-          headers: presigned.headers,
-        };
+        if (object.role === 'resource') {
+          const relativePath = normalizeRelativePath(object.relativePath ?? '');
+          const objectKey = `${metadata.resourcePrefix}/${relativePath}`;
+          const presigned = createPresignedPutUrl({
+            bucket: Bucket.CARD_RESOURCES,
+            key: objectKey,
+            contentType: object.mimeType,
+            expiresInSeconds,
+            headers: {
+              'x-amz-meta-chips-card-id': metadata.cardId,
+              'x-amz-meta-chips-card-version-id': metadata.versionId,
+              'x-amz-meta-chips-transfer-role': object.role,
+            },
+          });
+          return {
+            role: 'resource' as const,
+            relativePath,
+            bucket: Bucket.CARD_RESOURCES,
+            objectKey,
+            publicUrl: buildObjectUrl(Bucket.CARD_RESOURCES, objectKey),
+            uploadUrl: presigned.url,
+            method: presigned.method,
+            headers: presigned.headers,
+          };
+        }
+
+        if (object.role === 'render-file' || object.role === 'cover-file') {
+          const relativePath = normalizeRelativePath(object.relativePath ?? '');
+          const bucket = resolveRenderBucket(session.visibility, object.role);
+          const objectKey = `${metadata.cardId}/${metadata.renderCacheVersion}/${relativePath}`;
+          const presigned = createPresignedPutUrl({
+            bucket,
+            key: objectKey,
+            contentType: object.mimeType,
+            expiresInSeconds,
+            headers: {
+              'x-amz-meta-chips-card-id': metadata.cardId,
+              'x-amz-meta-chips-card-version-id': metadata.versionId,
+              'x-amz-meta-chips-transfer-role': object.role,
+            },
+          });
+          renderObjects.push({
+            role: object.role,
+            relativePath,
+            bucket,
+            objectKey,
+            sizeBytes: object.sizeBytes,
+            mimeType: object.mimeType,
+          });
+          return {
+            role: object.role,
+            relativePath,
+            bucket,
+            objectKey,
+            publicUrl: isPublicRenderBucket(bucket)
+              ? buildObjectUrl(bucket as PublicBucketName, objectKey)
+              : '',
+            uploadUrl: presigned.url,
+            method: presigned.method,
+            headers: presigned.headers,
+          };
+        }
+
+        throw AppError.badRequest(
+          ErrorCode.VALIDATION_ERROR,
+          `Unsupported object role: ${String(object.role)}`,
+        );
       });
 
       await db
         .update(uploadSessions)
-        .set({ status: 'uploading_resources', updatedAt: new Date() })
+        .set({
+          status: 'uploading_resources',
+          clientMetadata: {
+            ...metadata,
+            renderObjects: [...metadata.renderObjects, ...renderObjects],
+          },
+          updatedAt: new Date(),
+        })
         .where(eq(uploadSessions.id, session.id));
 
       return { data: { objects } };
@@ -469,10 +580,10 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     '/api/v1/card-transfer/upload-sessions/:uploadId/complete',
-    { preHandler: [requireJsonBody, fastify.authenticate] },
+    { preHandler: [requireJsonBody, requireApiToken] },
     async (request, reply) => {
       const { uploadId } = request.params as { uploadId: string };
-      const session = await UploadSessionService.getOwned(uploadId, request.user!.userId);
+      const session = await UploadSessionService.getById(uploadId);
       const metadata = assertTransferSessionMetadata(getTransferMetadata(session.clientMetadata));
 
       if (metadata.transferKind === 'box-source') {
@@ -492,8 +603,6 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         const box = await BoxService.create({
-          userId: request.user!.userId,
-          roomId: session.roomId ?? undefined,
           visibility: session.visibility,
           fileSizeBytes: body.boxFile.sizeBytes,
           sourceBoxBucket: body.boxFile.bucket,
@@ -593,6 +702,94 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
         ),
       );
 
+      // 校验并接收客户端渲染产物
+      let renderArtifacts: CardRenderArtifacts | null = null;
+      if (body.renderArtifacts) {
+        const renderObjects = metadata.renderObjects;
+        const viewFiles = renderObjects.filter((object) => object.role === 'render-file');
+        const coverFiles = renderObjects.filter((object) => object.role === 'cover-file');
+
+        if (viewFiles.length === 0) {
+          throw AppError.badRequest(
+            ErrorCode.VALIDATION_ERROR,
+            'renderArtifacts submitted but no render-file objects were presigned for this session',
+          );
+        }
+
+        await Promise.all(
+          renderObjects.map((object) =>
+            assertUploadedObject({
+              bucket: object.bucket,
+              objectKey: object.objectKey,
+              expectedSizeBytes: object.sizeBytes,
+              label: `${object.role}:${object.relativePath}`,
+            }),
+          ),
+        );
+
+        const viewEntryRelativePath = normalizeRelativePath(body.renderArtifacts.view.entryRelativePath);
+        const viewEntryKey = `${metadata.cardId}/${metadata.renderCacheVersion}/${viewEntryRelativePath}`;
+        const viewBucket = resolveRenderBucket(session.visibility, 'render-file');
+        if (!viewFiles.some((object) => object.objectKey === viewEntryKey && object.bucket === viewBucket)) {
+          throw AppError.badRequest(
+            ErrorCode.VALIDATION_ERROR,
+            `View entry object was not presigned: ${viewEntryRelativePath}`,
+          );
+        }
+
+        let coverArtifact: CardRenderArtifacts['cover'] | undefined;
+        if (body.renderArtifacts.cover) {
+          const coverEntryRelativePath = normalizeRelativePath(body.renderArtifacts.cover.entryRelativePath);
+          const coverEntryKey = `${metadata.cardId}/${metadata.renderCacheVersion}/${coverEntryRelativePath}`;
+          const coverBucket = resolveRenderBucket(session.visibility, 'cover-file');
+          if (!coverFiles.some((object) => object.objectKey === coverEntryKey && object.bucket === coverBucket)) {
+            throw AppError.badRequest(
+              ErrorCode.VALIDATION_ERROR,
+              `Cover entry object was not presigned: ${coverEntryRelativePath}`,
+            );
+          }
+          coverArtifact = {
+            cacheVersion: metadata.renderCacheVersion,
+            bucket: coverBucket,
+            keyPrefix: `${metadata.cardId}/${metadata.renderCacheVersion}`,
+            entryObjectKey: coverEntryKey,
+            entryUrl: buildRenderEntryUrl({
+              cardId: metadata.cardId,
+              cacheVersion: metadata.renderCacheVersion,
+              bucket: coverBucket,
+              entryObjectKey: coverEntryKey,
+              entryRelativePath: coverEntryRelativePath,
+              role: 'cover-file',
+            }),
+            fileCount: body.renderArtifacts.cover.fileCount,
+            sizeBytes: body.renderArtifacts.cover.sizeBytes,
+          };
+        }
+
+        renderArtifacts = {
+          rendererVersion: body.renderArtifacts.rendererVersion,
+          themeId: body.renderArtifacts.themeId ?? DEFAULT_THEME_ID,
+          locale: body.renderArtifacts.locale ?? DEFAULT_LOCALE,
+          view: {
+            cacheVersion: metadata.renderCacheVersion,
+            bucket: viewBucket,
+            keyPrefix: `${metadata.cardId}/${metadata.renderCacheVersion}`,
+            entryObjectKey: viewEntryKey,
+            entryUrl: buildRenderEntryUrl({
+              cardId: metadata.cardId,
+              cacheVersion: metadata.renderCacheVersion,
+              bucket: viewBucket,
+              entryObjectKey: viewEntryKey,
+              entryRelativePath: viewEntryRelativePath,
+              role: 'render-file',
+            }),
+            fileCount: body.renderArtifacts.view.fileCount,
+            sizeBytes: body.renderArtifacts.view.sizeBytes,
+          },
+          ...(coverArtifact ? { cover: coverArtifact } : {}),
+        };
+      }
+
       const [updated] = await db
         .update(cards)
         .set({
@@ -611,14 +808,19 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
           publishedByClient: session.clientName ?? 'chips-card-transfer',
           publishedClientVersion: session.clientVersion,
           publishedAt: new Date(),
-          status: 'ready',
+          status: renderArtifacts ? 'ready' : 'pending',
+          errorMessage: null,
           updatedAt: new Date(),
         })
-        .where(and(eq(cards.id, metadata.cardId), eq(cards.userId, request.user!.userId)))
+        .where(eq(cards.id, metadata.cardId))
         .returning();
 
       if (!updated) {
         throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
+      }
+
+      if (renderArtifacts) {
+        await CardService.recordRenderArtifacts(updated.id, renderArtifacts);
       }
 
       await db
@@ -632,26 +834,11 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
         })
         .where(eq(uploadSessions.id, session.id));
 
-      await CardRenderCacheService.enqueueForCard({
-        cardId: updated.id,
-        createdBy: 'upload',
-        renderProfile: CardRenderCacheService.viewRenderProfile,
-        priority: 50,
-      });
-      await CardRenderCacheService.enqueueForCard({
-        cardId: updated.id,
-        createdBy: 'upload',
-        renderProfile: CardRenderCacheService.coverRenderProfile,
-        priority: 40,
-      });
-
-      return reply.status(202).send({
+      return reply.status(200).send({
         data: {
           cardId: updated.id,
           versionId: metadata.versionId,
-          status: updated.status,
-          renderStatus: 'queued',
-          renderStatusUrl: `/api/v1/cards/${updated.id}/render-status`,
+          status: renderArtifacts ? 'ready' : 'pending',
           communityUrl: `${env.BASE_URL}/cards/${updated.id}`,
         },
       });
@@ -660,10 +847,10 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     '/api/v1/card-transfer/upload-sessions/:uploadId/abort',
-    { preHandler: [requireJsonBody, fastify.authenticate] },
+    { preHandler: [requireJsonBody, requireApiToken] },
     async (request) => {
       const { uploadId } = request.params as { uploadId: string };
-      const session = await UploadSessionService.getOwned(uploadId, request.user!.userId);
+      const session = await UploadSessionService.getById(uploadId);
       await db
         .update(uploadSessions)
         .set({ status: 'cancelled', updatedAt: new Date() })
@@ -674,10 +861,10 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     '/api/v1/card-transfer/download-sessions',
-    { preHandler: [requireJsonBody, fastify.authenticate] },
+    { preHandler: [requireJsonBody, requireApiToken] },
     async (request, reply) => {
       const body = CreateCardTransferDownloadSessionSchema.parse(request.body);
-      const card = await CardService.getAccessible(body.cardId, request.user!.userId);
+      const card = await CardService.getAccessible(body.cardId);
       return reply.status(201).send({
         data: {
           downloadId: card.id,
@@ -691,10 +878,10 @@ const cardTransferRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get(
     '/api/v1/card-transfer/download-sessions/:downloadId/plan',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [requireApiToken] },
     async (request) => {
       const { downloadId } = request.params as { downloadId: string };
-      const card = await CardService.getAccessible(downloadId, request.user!.userId);
+      const card = await CardService.getAccessible(downloadId);
       const manifest = getNetworkCardManifest(card.resourceManifest);
       const suggestedFileName = `${card.title || card.id}.card`;
       const networkCard = manifest.networkCard!;

@@ -1,4 +1,4 @@
-import { eq, and, isNull, desc, count, type SQL } from 'drizzle-orm';
+import { eq, and, desc, count, type SQL } from 'drizzle-orm';
 import { db } from '../db/client';
 import { cards, type Card, type NewCard } from '../db/schema/cards';
 import { deleteObject, deleteObjectsByPrefix, parseObjectUrl } from '../storage/s3';
@@ -6,7 +6,6 @@ import { Bucket } from '../storage/buckets';
 import { AppError } from '../errors/AppError';
 import { ErrorCode } from '../errors/codes';
 import type { PaginationInput, UpdateCardInput } from '../schemas/content.schemas';
-import { CardRenderCacheService } from './card-render-cache.service';
 
 export interface PagedResult<T> {
   items: T[];
@@ -20,7 +19,6 @@ export interface PagedResult<T> {
 
 export interface CardOpenViewRecord {
   id: string;
-  userId: string;
   title: string;
   coverUrl: string | null;
   coverRatio: string | null;
@@ -28,6 +26,11 @@ export interface CardOpenViewRecord {
   visibility: Card['visibility'];
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** 打开视图记录 + 渲染产物字段（open-view 读取用） */
+export interface CardOpenViewWithArtifacts extends CardOpenViewRecord {
+  renderArtifacts: CardRenderArtifacts | null;
 }
 
 export interface CardSummaryRecord {
@@ -39,6 +42,28 @@ export interface CardSummaryRecord {
   status: Card['status'];
   visibility: Card['visibility'];
   createdAt: Date;
+}
+
+/** 客户端渲染产物（查看/封面）的单份记录 */
+export interface RenderArtifactRecord {
+  /** 产物目录版本标识（服务器生成，用于对象存储路径与私有代理路由） */
+  cacheVersion: string;
+  bucket: string;
+  keyPrefix: string;
+  entryObjectKey: string;
+  /** 公开产物为对象存储 URL，私有产物为受控代理路由 */
+  entryUrl: string;
+  fileCount: number;
+  sizeBytes: number;
+}
+
+/** 一张卡片完整的客户端渲染产物清单（写入 cards.render_artifacts） */
+export interface CardRenderArtifacts {
+  rendererVersion: string;
+  themeId?: string;
+  locale?: string;
+  view: RenderArtifactRecord;
+  cover?: RenderArtifactRecord;
 }
 
 function getCoverRatioFromMetadata(metadata: unknown): string | null {
@@ -129,8 +154,6 @@ async function paginateCardSummaries(
 
 export const CardService = {
   async create(params: {
-    userId: string;
-    roomId?: string;
     visibility: 'public' | 'private';
     fileSizeBytes: number;
     title?: string;
@@ -149,8 +172,6 @@ export const CardService = {
     const [card] = await db
       .insert(cards)
       .values({
-        userId: params.userId,
-        roomId: params.roomId ?? null,
         cardFileId: params.cardFileId ?? null,
         title: params.title ?? '处理中…',
         coverRatio: params.coverRatio ?? null,
@@ -177,26 +198,22 @@ export const CardService = {
     return db.query.cards.findFirst({ where: eq(cards.id, cardId) });
   },
 
-  async getAccessible(cardId: string, requesterId: string | null): Promise<Card> {
+  async getAccessible(cardId: string): Promise<Card> {
     const card = await this.findById(cardId);
     if (!card) {
       throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
     }
-    if (card.visibility === 'private' && card.userId !== requesterId) {
+    if (card.visibility === 'private') {
       throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
     }
     return card;
   },
 
-  async getOpenViewAccessible(
-    cardId: string,
-    requesterId: string | null,
-  ): Promise<CardOpenViewRecord> {
+  async getOpenViewAccessible(cardId: string): Promise<CardOpenViewRecord> {
     const card = await db.query.cards.findFirst({
       where: eq(cards.id, cardId),
       columns: {
         id: true,
-        userId: true,
         title: true,
         coverUrl: true,
         coverRatio: true,
@@ -209,13 +226,12 @@ export const CardService = {
     if (!card) {
       throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
     }
-    if (card.visibility === 'private' && card.userId !== requesterId) {
+    if (card.visibility === 'private') {
       throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
     }
 
     return {
       id: card.id,
-      userId: card.userId,
       title: card.title,
       coverUrl: card.coverUrl,
       coverRatio: card.coverRatio,
@@ -226,21 +242,54 @@ export const CardService = {
     };
   },
 
-  async update(cardId: string, userId: string, patch: UpdateCardInput): Promise<Card> {
-    const card = await this.findById(cardId);
-    if (!card || card.userId !== userId) {
+  /**
+   * open-view 读取专用：附带渲染产物信息。
+   * 返回 null 表示不可公开访问。
+   */
+  async getOpenViewWithArtifacts(cardId: string): Promise<CardOpenViewWithArtifacts> {
+    const card = await db.query.cards.findFirst({
+      where: eq(cards.id, cardId),
+      columns: {
+        id: true,
+        title: true,
+        coverUrl: true,
+        coverRatio: true,
+        status: true,
+        visibility: true,
+        createdAt: true,
+        updatedAt: true,
+        renderArtifacts: true,
+      },
+    });
+    if (!card) {
+      throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
+    }
+    if (card.visibility === 'private') {
       throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
     }
 
-    if (patch.roomId) {
-      const { RoomService } = await import('./room.service.js');
-      await RoomService.assertOwnedByUser(patch.roomId, userId);
+    return {
+      id: card.id,
+      title: card.title,
+      coverUrl: card.coverUrl,
+      coverRatio: card.coverRatio,
+      status: card.status,
+      visibility: card.visibility,
+      createdAt: card.createdAt,
+      updatedAt: card.updatedAt,
+      renderArtifacts: card.renderArtifacts as CardRenderArtifacts | null,
+    };
+  },
+
+  async update(cardId: string, patch: UpdateCardInput): Promise<Card> {
+    const card = await this.findById(cardId);
+    if (!card) {
+      throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
     }
 
     const [updated] = await db
       .update(cards)
       .set({
-        ...(patch.roomId !== undefined ? { roomId: patch.roomId } : {}),
         ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
         ...(patch.visibility !== undefined && patch.visibility !== card.visibility
           ? { htmlUrl: null, coverUrl: null }
@@ -251,101 +300,58 @@ export const CardService = {
       .returning();
 
     if (patch.visibility !== undefined && patch.visibility !== card.visibility) {
-      await CardRenderCacheService.deleteCachesForCard(cardId);
-      await CardRenderCacheService.enqueueForCard({
-        cardId,
-        createdBy: 'manual',
-        renderProfile: CardRenderCacheService.viewRenderProfile,
-        priority: 50,
-      });
-      await CardRenderCacheService.enqueueForCard({
-        cardId,
-        createdBy: 'manual',
-        renderProfile: CardRenderCacheService.coverRenderProfile,
-        priority: 40,
-      });
+      await this.deleteRenderArtifacts(cardId);
     }
 
     return updated;
   },
 
-  async delete(cardId: string, userId: string): Promise<void> {
+  async delete(cardId: string): Promise<void> {
     const card = await this.findById(cardId);
-    if (!card || card.userId !== userId) {
+    if (!card) {
       throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
     }
-    // 删除 CDN 资源
-    await deleteObjectsByPrefix(Bucket.CARD_RESOURCES, `${userId}/${cardId}/`);
+    // 删除对象存储资源
     await deletePublishedResources(card.resourceManifest);
-    await deleteObjectsByPrefix(Bucket.CARD_FILES, `${userId}/${cardId}/`);
-    await deleteObjectsByPrefix(Bucket.CARD_RENDER_CACHE, `${cardId}/`);
-    await deleteObjectsByPrefix(Bucket.CARD_RENDER_CACHE_PRIVATE, `${cardId}/`);
-    await deleteObjectsByPrefix(Bucket.CARD_COVER_CACHE, `${cardId}/`);
-    await deleteObjectsByPrefix(Bucket.CARD_COVER_CACHE_PRIVATE, `${cardId}/`);
-    await deleteObjectsByPrefix(Bucket.COVERS, `cards/${userId}/${cardId}/`);
+    await this.deleteRenderArtifacts(cardId);
     // 删除数据库记录
     await db.delete(cards).where(eq(cards.id, cardId));
   },
 
-  async markRenderError(cardId: string, errorMessage: string): Promise<Card> {
+  /**
+   * 记录客户端渲染上传的产物（查看/封面），并更新卡片的查看与封面入口。
+   * 仅当产物对象都已上传（presign 时写入 upload_session_resources）后调用。
+   */
+  async recordRenderArtifacts(cardId: string, artifacts: CardRenderArtifacts): Promise<Card> {
+    const now = new Date();
     const [updated] = await db
       .update(cards)
       .set({
-        status: 'error',
-        errorMessage,
-        updatedAt: new Date(),
+        htmlUrl: artifacts.view.entryUrl,
+        coverUrl: artifacts.cover ? artifacts.cover.entryUrl : null,
+        renderArtifacts: artifacts,
+        renderedAt: now,
+        status: 'ready',
+        errorMessage: null,
+        updatedAt: now,
       })
       .where(eq(cards.id, cardId))
       .returning();
+
+    if (!updated) {
+      throw AppError.notFound(ErrorCode.CARD_NOT_FOUND, 'Card not found');
+    }
     return updated;
   },
 
-  async listByUser(
-    userId: string,
-    requesterId: string | null,
+  async list(
     pagination: PaginationInput,
-    filters?: { roomId?: string; status?: string; visibility?: string },
+    filters?: { visibility?: string; status?: string },
   ): Promise<PagedResult<CardSummaryRecord>> {
-    const isOwner = userId === requesterId;
     return paginateCardSummaries(
       and(
-        eq(cards.userId, userId),
-        filters?.visibility ? eq(cards.visibility, filters.visibility as Card['visibility']) : isOwner ? undefined : eq(cards.visibility, 'public'),
+        filters?.visibility ? eq(cards.visibility, filters.visibility as Card['visibility']) : eq(cards.visibility, 'public'),
         filters?.status ? eq(cards.status, filters.status as Card['status']) : undefined,
-      ),
-      pagination,
-    );
-  },
-
-  async listByRoom(
-    roomId: string,
-    requesterId: string | null,
-    ownerUserId: string,
-    pagination: PaginationInput,
-  ): Promise<PagedResult<CardSummaryRecord>> {
-    const isOwner = requesterId === ownerUserId;
-    return paginateCardSummaries(
-      and(
-        eq(cards.roomId, roomId),
-        isOwner ? undefined : eq(cards.visibility, 'public'),
-        eq(cards.status, 'ready'),
-      ),
-      pagination,
-    );
-  },
-
-  async listRootByUser(
-    userId: string,
-    requesterId: string | null,
-    pagination: PaginationInput,
-  ): Promise<PagedResult<CardSummaryRecord>> {
-    const isOwner = userId === requesterId;
-    return paginateCardSummaries(
-      and(
-        eq(cards.userId, userId),
-        isNull(cards.roomId),
-        isOwner ? undefined : eq(cards.visibility, 'public'),
-        eq(cards.status, 'ready'),
       ),
       pagination,
     );
@@ -355,15 +361,12 @@ export const CardService = {
     return {
       id: card.id,
       cardFileId: card.cardFileId,
-      userId: card.userId,
-      roomId: card.roomId,
       title: card.title,
       coverUrl: card.coverUrl,
       coverRatio: card.coverRatio ?? getCoverRatioFromMetadata(card.cardMetadata),
       htmlUrl: card.htmlUrl,
       sourceCardSha256: card.sourceCardSha256,
       viewUrl: `/api/v1/cards/${card.id}/view`,
-      renderStatusUrl: `/api/v1/cards/${card.id}/render-status`,
       status: card.status,
       visibility: card.visibility,
       fileSizeBytes: card.fileSizeBytes,
@@ -394,11 +397,38 @@ export const CardService = {
       coverUrl: card.coverUrl,
       coverRatio: card.coverRatio,
       viewUrl: `/api/v1/cards/${card.id}/view`,
-      renderStatusUrl: `/api/v1/cards/${card.id}/render-status`,
       status: card.status,
       visibility: card.visibility,
       createdAt: card.createdAt,
       updatedAt: card.updatedAt,
     };
+  },
+
+  /** 删除卡片渲染产物（对象存储 + 数据库字段） */
+  async deleteRenderArtifacts(cardId: string): Promise<void> {
+    const card = await this.findById(cardId);
+    if (!card) {
+      return;
+    }
+
+    const artifact = card.renderArtifacts as CardRenderArtifacts | null;
+    if (artifact?.view) {
+      await deleteObjectsByPrefix(artifact.view.bucket, `${artifact.view.keyPrefix}/`);
+    }
+    if (artifact?.cover) {
+      await deleteObjectsByPrefix(artifact.cover.bucket, `${artifact.cover.keyPrefix}/`);
+    }
+
+    await db
+      .update(cards)
+      .set({
+        htmlUrl: null,
+        coverUrl: null,
+        renderArtifacts: null,
+        renderedAt: null,
+        status: 'pending',
+        updatedAt: new Date(),
+      })
+      .where(eq(cards.id, cardId));
   },
 };

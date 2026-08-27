@@ -8,10 +8,9 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  boolean,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { users } from './users';
-import { rooms } from './rooms';
 import { cardVisibilityEnum } from './cards';
 
 export const uploadSessionContentTypeEnum = pgEnum('upload_session_content_type', ['card', 'box']);
@@ -41,15 +40,17 @@ export const uploadSessions = pgTable(
       .primaryKey()
       .default(sql`gen_random_uuid()`),
 
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-
     contentType: uploadSessionContentTypeEnum('content_type').notNull(),
     status: uploadSessionStatusEnum('status').default('created').notNull(),
 
-    roomId: uuid('room_id').references(() => rooms.id, { onDelete: 'set null' }),
     visibility: cardVisibilityEnum('visibility').default('public').notNull(),
+
+    /**
+     * 客户端是否在本会话中上传渲染产物（查看 HTML 与封面 HTML）。
+     * - true：个人服务器模式，客户端渲染后随源文件一起上传；
+     * - false：仅上传源文件（网络资源卡片），服务器等待后续产物或保持未渲染状态。
+     */
+    includeRenderArtifacts: boolean('include_render_artifacts').default(false).notNull(),
 
     fileName: text('file_name'),
     resourcePrefix: text('resource_prefix').notNull(),
@@ -82,15 +83,13 @@ export const uploadSessions = pgTable(
       .notNull(),
   },
   (table) => ({
-    userStatusCreatedAtIdx: index('upload_sessions_user_status_created_at_idx').on(
-      table.userId,
+    statusCreatedAtIdx: index('upload_sessions_status_created_at_idx').on(
       table.status,
       table.createdAt,
     ),
     expiresAtIdx: index('upload_sessions_expires_at_idx').on(table.expiresAt),
     resourcePrefixIdx: index('upload_sessions_resource_prefix_idx').on(table.resourcePrefix),
-    userIdempotencyUniqueIdx: uniqueIndex('upload_sessions_user_idempotency_unique_idx').on(
-      table.userId,
+    idempotencyUniqueIdx: uniqueIndex('upload_sessions_idempotency_unique_idx').on(
       table.idempotencyKey,
     ),
   }),

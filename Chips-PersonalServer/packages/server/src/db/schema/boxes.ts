@@ -10,8 +10,6 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { users } from './users';
-import { rooms } from './rooms';
 
 export const boxVisibilityEnum = pgEnum('box_visibility', ['public', 'private']);
 
@@ -27,17 +25,10 @@ export const boxes = pgTable(
      */
     boxFileId: varchar('box_file_id', { length: 10 }),
 
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-
-    /** 所属房间（null = 挂在用户根目录） */
-    roomId: uuid('room_id').references(() => rooms.id, { onDelete: 'set null' }),
-
     /** 箱子名称 */
     title: text('title').notNull(),
 
-    /** 封面入口 URL（相对路由 `/api/v1/boxes/{boxId}/cover`，与卡片封面同构） */
+    /** 封面入口 URL（相对路由 `/api/v1/boxes/{boxId}/cover`） */
     coverUrl: text('cover_url'),
 
     /** 封面 HTML 对象存储位置（bucket） */
@@ -85,12 +76,6 @@ export const boxes = pgTable(
       .notNull(),
   },
   (table) => ({
-    userVisibilityCreatedAtIdx: index('boxes_user_visibility_created_at_idx')
-      .on(table.userId, table.visibility, table.createdAt)
-      .desc(),
-    roomVisibilityCreatedAtIdx: index('boxes_room_visibility_created_at_idx')
-      .on(table.roomId, table.visibility, table.createdAt)
-      .desc(),
     visibilityCreatedAtIdx: index('boxes_visibility_created_at_idx')
       .on(table.visibility, table.createdAt)
       .desc(),

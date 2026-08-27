@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { pipeline } from 'stream/promises';
 import { env } from '../config/env';
-import { PRIVATE_BUCKETS, PUBLIC_BUCKETS, type BucketName, type PublicBucketName } from './buckets';
+import { PUBLIC_BUCKETS, type BucketName, type PublicBucketName } from './buckets';
 
 let s3Instance: S3Client | null = null;
 
@@ -21,10 +21,13 @@ function trimTrailingSlash(value: string): string {
 }
 
 function toStorageTarget(bucket: string, key: string): { bucket: string; key: string } {
-  if (!env.S3_BUCKET_NAME || (PRIVATE_BUCKETS as readonly string[]).includes(bucket)) {
+  if (!env.S3_BUCKET_NAME) {
     return { bucket, key };
   }
 
+  // 单物理桶模式：全部逻辑桶（含私有桶）都写入同一个物理桶，
+  // 以逻辑桶名作为 key 前缀（对象存储端点必须使用通用端点而非 bucket 专属端点，
+  // 否则物理桶名会被写入对象 key，导致公开访问路径与实际 key 不一致）。
   return {
     bucket: env.S3_BUCKET_NAME,
     key: `${bucket}/${key}`,

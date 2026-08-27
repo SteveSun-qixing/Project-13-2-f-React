@@ -6,8 +6,6 @@ const updateSetMock = vi.fn();
 const deletePrefixMock = vi.fn();
 const deleteObjectMock = vi.fn();
 const parseObjectUrlMock = vi.fn();
-const deleteCachesForCardMock = vi.fn();
-const enqueueForCardMock = vi.fn();
 
 vi.mock('../db/client', () => ({
   db: {
@@ -32,7 +30,6 @@ vi.mock('../db/schema/cards', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((left, right) => ({ left, right, op: 'eq' })),
   and: vi.fn((...conditions) => ({ conditions, op: 'and' })),
-  isNull: vi.fn((column) => ({ column, op: 'isNull' })),
   desc: vi.fn((column) => ({ column, op: 'desc' })),
   count: vi.fn(() => ({ op: 'count' })),
 }));
@@ -46,21 +43,6 @@ vi.mock('../storage/s3', () => ({
 vi.mock('../storage/buckets', () => ({
   Bucket: {
     CARD_RESOURCES: 'chips-card-resources',
-    COVERS: 'chips-covers',
-    CARD_FILES: 'chips-card-files',
-    CARD_RENDER_CACHE: 'chips-card-render-cache',
-    CARD_RENDER_CACHE_PRIVATE: 'chips-card-render-cache-private',
-    CARD_COVER_CACHE: 'chips-card-cover-cache',
-    CARD_COVER_CACHE_PRIVATE: 'chips-card-cover-cache-private',
-  },
-}));
-
-vi.mock('./card-render-cache.service', () => ({
-  CardRenderCacheService: {
-    viewRenderProfile: 'community-web',
-    coverRenderProfile: 'community-cover',
-    deleteCachesForCard: deleteCachesForCardMock,
-    enqueueForCard: enqueueForCardMock,
   },
 }));
 
@@ -77,21 +59,64 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('CardService cache and resource cleanup', () => {
-  it('invalidates render caches when card visibility changes', async () => {
+describe('CardService render artifacts and resource cleanup', () => {
+  it('records client-rendered artifacts and marks the card ready', async () => {
+    const { CardService } = await import('./card.service');
+    mockUpdateReturning({
+      id: 'card-1',
+      status: 'ready',
+      htmlUrl: 'https://cdn.example/chips-card-render-cache/card-1/ver-1/index.html',
+    });
+
+    const card = await CardService.recordRenderArtifacts('card-1', {
+      rendererVersion: 'client-renderer-1',
+      themeId: 'chips-official.default-theme',
+      view: {
+        cacheVersion: 'ver-1',
+        bucket: 'chips-card-render-cache',
+        keyPrefix: 'card-1/ver-1',
+        entryObjectKey: 'card-1/ver-1/index.html',
+        entryUrl: 'https://cdn.example/chips-card-render-cache/card-1/ver-1/index.html',
+        fileCount: 3,
+        sizeBytes: 1000,
+      },
+    });
+
+    expect(card.status).toBe('ready');
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'ready',
+        htmlUrl: 'https://cdn.example/chips-card-render-cache/card-1/ver-1/index.html',
+        renderArtifacts: expect.objectContaining({
+          rendererVersion: 'client-renderer-1',
+        }),
+        renderedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it('invalidates render artifacts when card visibility changes', async () => {
     const { CardService } = await import('./card.service');
     queryCardResult = {
       id: 'card-1',
-      userId: 'user-1',
       visibility: 'public',
+      renderArtifacts: {
+        view: {
+          bucket: 'chips-card-render-cache',
+          keyPrefix: 'card-1/ver-1',
+        },
+        cover: {
+          bucket: 'chips-card-cover-cache',
+          keyPrefix: 'card-1/ver-1',
+        },
+      },
     };
     mockUpdateReturning({
       id: 'card-1',
-      userId: 'user-1',
       visibility: 'private',
     });
 
-    await CardService.update('card-1', 'user-1', { visibility: 'private' });
+    await CardService.update('card-1', { visibility: 'private' });
 
     expect(updateSetMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -100,60 +125,53 @@ describe('CardService cache and resource cleanup', () => {
         coverUrl: null,
       }),
     );
-    expect(deleteCachesForCardMock).toHaveBeenCalledWith('card-1');
-    expect(enqueueForCardMock).toHaveBeenCalledWith({
-      cardId: 'card-1',
-      createdBy: 'manual',
-      renderProfile: 'community-web',
-      priority: 50,
-    });
-    expect(enqueueForCardMock).toHaveBeenCalledWith({
-      cardId: 'card-1',
-      createdBy: 'manual',
-      renderProfile: 'community-cover',
-      priority: 40,
-    });
+    expect(deletePrefixMock).toHaveBeenCalledWith('chips-card-render-cache', 'card-1/ver-1/');
+    expect(deletePrefixMock).toHaveBeenCalledWith('chips-card-cover-cache', 'card-1/ver-1/');
   });
 
-  it('deletes upload-session resources recorded in resource manifest when card is removed', async () => {
+  it('deletes upload-session resources and render artifacts when card is removed', async () => {
     const { CardService } = await import('./card.service');
     queryCardResult = {
       id: 'card-1',
-      userId: 'user-1',
       visibility: 'public',
       resourceManifest: {
         verifiedResources: [
           {
-            publicUrl: 'https://file.example/chips-card-resources/users/user-1/uploads/upload-1/resources/photo.png',
+            publicUrl: 'https://file.example/chips-card-resources/cards/card-1/versions/v1/resources/photo.png',
           },
           {
-            publicUrl: 'https://file.example/chips-card-render-cache/card-1/cache/index.html',
+            publicUrl: 'https://file.example/chips-card-render-cache/card-1/ver-1/index.html',
           },
         ],
+      },
+      renderArtifacts: {
+        view: {
+          bucket: 'chips-card-render-cache',
+          keyPrefix: 'card-1/ver-1',
+        },
       },
     };
     parseObjectUrlMock.mockImplementation((url: string) => {
       if (url.includes('chips-card-resources')) {
         return {
           bucket: 'chips-card-resources',
-          key: 'users/user-1/uploads/upload-1/resources/photo.png',
+          key: 'cards/card-1/versions/v1/resources/photo.png',
         };
       }
       return {
         bucket: 'chips-card-render-cache',
-        key: 'card-1/cache/index.html',
+        key: 'card-1/ver-1/index.html',
       };
     });
+    mockUpdateReturning({ id: 'card-1' });
 
-    await CardService.delete('card-1', 'user-1');
+    await CardService.delete('card-1');
 
     expect(deleteObjectMock).toHaveBeenCalledTimes(1);
     expect(deleteObjectMock).toHaveBeenCalledWith(
       'chips-card-resources',
-      'users/user-1/uploads/upload-1/resources/photo.png',
+      'cards/card-1/versions/v1/resources/photo.png',
     );
-    expect(deletePrefixMock).toHaveBeenCalledWith('chips-card-files', 'user-1/card-1/');
-    expect(deletePrefixMock).toHaveBeenCalledWith('chips-card-render-cache', 'card-1/');
-    expect(deletePrefixMock).toHaveBeenCalledWith('chips-card-cover-cache', 'card-1/');
+    expect(deletePrefixMock).toHaveBeenCalledWith('chips-card-render-cache', 'card-1/ver-1/');
   });
 });

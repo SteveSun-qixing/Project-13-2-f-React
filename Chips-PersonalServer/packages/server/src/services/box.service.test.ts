@@ -18,8 +18,6 @@ const cardsTable = {
 
 let findFirstResult: Record<string, unknown> | null = null;
 let cardsFindManyResult: Record<string, unknown>[] = [];
-let insertedBoxResult: Record<string, unknown> | null = null;
-let updatedBoxResult: Record<string, unknown> | null = null;
 const insertValuesMock = vi.fn();
 const updateSetMock = vi.fn();
 const deleteWhereMock = vi.fn();
@@ -203,15 +201,11 @@ function createValidBoxZip(): Buffer {
 beforeEach(() => {
   findFirstResult = null;
   cardsFindManyResult = [];
-  insertedBoxResult = null;
-  updatedBoxResult = null;
 });
 
 afterEach(() => {
   findFirstResult = null;
   cardsFindManyResult = [];
-  insertedBoxResult = null;
-  updatedBoxResult = null;
   vi.clearAllMocks();
 });
 
@@ -390,9 +384,7 @@ describe('BoxService create', () => {
     mockInsertReturning({ id: 'box-1', title: '旅行箱' });
 
     const box = await BoxService.createPlaceholder({
-      userId: 'user-1',
       title: '旅行箱',
-      roomId: 'room-1',
       visibility: 'private',
       publishedByClient: 'chips-box-transfer',
     });
@@ -400,8 +392,6 @@ describe('BoxService create', () => {
     expect(box.id).toBe('box-1');
     expect(insertValuesMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: 'user-1',
-        roomId: 'room-1',
         title: '旅行箱',
         visibility: 'private',
         fileSizeBytes: 0,
@@ -448,7 +438,6 @@ describe('BoxService enrichCardRefs', () => {
         embedded: false,
         communityCardId: 'card-uuid-1',
         communityViewUrl: '/api/v1/cards/card-uuid-1/view',
-        communityRenderStatusUrl: '/api/v1/cards/card-uuid-1/render-status',
       }),
       expect.objectContaining({
         entry_id: 'e2',

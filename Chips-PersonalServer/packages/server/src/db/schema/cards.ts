@@ -10,12 +10,9 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { users } from './users';
-import { rooms } from './rooms';
 
 export const cardStatusEnum = pgEnum('card_status', [
   'pending',
-  'processing',
   'ready',
   'error',
 ]);
@@ -35,24 +32,23 @@ export const cards = pgTable(
      */
     cardFileId: varchar('card_file_id', { length: 10 }),
 
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-
-    /** 所属房间（null = 挂在用户根目录） */
-    roomId: uuid('room_id').references(() => rooms.id, { onDelete: 'set null' }),
-
     /** 卡片标题（来自 metadata.yaml 的 name 字段） */
     title: text('title').notNull(),
 
-    /** 卡片封面入口 URL（来自独立保存的封面 HTML 产物） */
+    /** 卡片封面入口 URL（指向客户端渲染上传的封面产物） */
     coverUrl: text('cover_url'),
 
     /** 封面展示比例，来自 metadata.yaml 的 cover_ratio */
     coverRatio: text('cover_ratio'),
 
-    /** 渲染后 HTML 的 CDN 访问 URL */
+    /** 查看入口 URL（指向客户端渲染上传的查看产物） */
     htmlUrl: text('html_url'),
+
+    /** 客户端渲染产物清单（渲染器版本、主题、查看/封面产物对象位置与统计） */
+    renderArtifacts: jsonb('render_artifacts'),
+
+    /** 客户端渲染产物接收完成时间 */
+    renderedAt: timestamp('rendered_at', { withTimezone: true }),
 
     /** 永久 .card 源文件所在 bucket */
     sourceCardBucket: text('source_card_bucket'),
@@ -87,10 +83,15 @@ export const cards = pgTable(
     /** 完整 structure.yaml 内容（结构化 JSON） */
     cardStructure: jsonb('card_structure'),
 
-    /** 流水线处理状态 */
+    /**
+     * 作品状态：
+     * - pending：源文件已就绪，等待客户端渲染产物上传；
+     * - ready：查看与封面产物已接收，可直接查看；
+     * - error：上传或产物接收失败。
+     */
     status: cardStatusEnum('status').default('pending').notNull(),
 
-    /** 流水线错误信息 */
+    /** 处理错误信息 */
     errorMessage: text('error_message'),
 
     visibility: cardVisibilityEnum('visibility').default('public').notNull(),
@@ -107,12 +108,6 @@ export const cards = pgTable(
       .notNull(),
   },
   (table) => ({
-    userVisibilityStatusCreatedAtIdx: index('cards_user_visibility_status_created_at_idx')
-      .on(table.userId, table.visibility, table.status, table.createdAt)
-      .desc(),
-    roomVisibilityStatusCreatedAtIdx: index('cards_room_visibility_status_created_at_idx')
-      .on(table.roomId, table.visibility, table.status, table.createdAt)
-      .desc(),
     visibilityStatusCreatedAtIdx: index('cards_visibility_status_created_at_idx')
       .on(table.visibility, table.status, table.createdAt)
       .desc(),

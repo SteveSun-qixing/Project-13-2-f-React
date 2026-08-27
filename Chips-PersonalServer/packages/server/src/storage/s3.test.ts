@@ -9,13 +9,12 @@ const REQUIRED_ENV = {
   HOST: '0.0.0.0',
   BASE_URL: 'https://www.chipscard.space',
   DATABASE_URL: 'postgresql://user:password@localhost:5432/db',
-  REDIS_URL: 'redis://localhost:6379',
   S3_ENDPOINT: 'https://s3.ap-southeast-1.qiniucs.com',
   S3_ACCESS_KEY: 'access-key',
   S3_SECRET_KEY: 'secret-key',
   S3_REGION: 'ap-southeast-1',
   S3_FORCE_PATH_STYLE: 'true',
-  JWT_SECRET: '12345678901234567890123456789012',
+  API_TOKEN: 'personal-server-test-token-1234567890',
 };
 
 async function loadStorage(
@@ -272,27 +271,27 @@ describe('storage url and bucket mapping', () => {
     });
   });
 
-  it('keeps source card files in their private physical bucket', async () => {
+  it('keeps source box files in the single physical bucket with the logical bucket as key prefix', async () => {
     const { storage, sentCommands } = await loadStorage({
       S3_PUBLIC_URL: 'https://file.chipscard.space',
       S3_BUCKET_NAME: 'chipscardspace',
     });
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccps-s3-test-'));
-    const cardPath = path.join(tempDir, 'source.card');
+    const cardPath = path.join(tempDir, 'source.box');
 
     try {
-      fs.writeFileSync(cardPath, 'card-package-bytes');
+      fs.writeFileSync(cardPath, 'box-package-bytes');
 
       const url = await storage.uploadFile({
-        bucket: 'chips-card-files',
-        key: 'user-1/card-1/source.card',
+        bucket: 'chips-box-files',
+        key: 'boxes/box-1/box.box',
         filePath: cardPath,
       });
 
       expect(url).toBe('');
       expect(sentCommands[0]?.input).toMatchObject({
-        Bucket: 'chips-card-files',
-        Key: 'user-1/card-1/source.card',
+        Bucket: 'chipscardspace',
+        Key: 'chips-box-files/boxes/box-1/box.box',
       });
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });

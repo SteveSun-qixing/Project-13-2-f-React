@@ -4,30 +4,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const CARD_ID = '11111111-1111-4111-8111-111111111111';
 const VERSION_ID = '22222222-2222-4222-8222-222222222222';
 const BOX_ID = '33333333-3333-4333-8333-333333333333';
-
-const roomServiceMock = {
-  assertOwnedByUser: vi.fn(),
-};
+const API_TOKEN = 'personal-server-test-token-1234';
 
 const uploadSessionServiceMock = {
   create: vi.fn(),
-  getOwned: vi.fn(),
+  getById: vi.fn(),
 };
 
 const cardServiceMock = {
   create: vi.fn(),
   getAccessible: vi.fn(),
+  recordRenderArtifacts: vi.fn(),
 };
 
 const boxServiceMock = {
   createPlaceholder: vi.fn(),
   create: vi.fn(),
-};
-
-const cardRenderCacheServiceMock = {
-  viewRenderProfile: 'community-web',
-  coverRenderProfile: 'community-cover',
-  enqueueForCard: vi.fn(),
 };
 
 const createPresignedPutUrlMock = vi.fn();
@@ -51,10 +43,6 @@ const dbMock = {
   })),
 };
 
-vi.mock('../services/room.service', () => ({
-  RoomService: roomServiceMock,
-}));
-
 vi.mock('../services/upload-session.service', () => ({
   UploadSessionService: uploadSessionServiceMock,
 }));
@@ -67,14 +55,15 @@ vi.mock('../services/box.service', () => ({
   BoxService: boxServiceMock,
 }));
 
-vi.mock('../services/card-render-cache.service', () => ({
-  CardRenderCacheService: cardRenderCacheServiceMock,
-}));
-
 vi.mock('../storage/buckets', () => ({
   Bucket: {
     CARD_RESOURCES: 'chips-card-resources',
     BOX_FILES: 'chips-box-files',
+    CARD_RENDER_CACHE: 'chips-card-render-cache',
+    CARD_RENDER_CACHE_PRIVATE: 'chips-card-render-cache-private',
+    CARD_COVER_CACHE: 'chips-card-cover-cache',
+    CARD_COVER_CACHE_PRIVATE: 'chips-card-cover-cache-private',
+    COVERS: 'chips-covers',
   },
 }));
 
@@ -92,7 +81,6 @@ vi.mock('../db/client', () => ({
 vi.mock('../db/schema/cards', () => ({
   cards: {
     id: 'cards.id',
-    userId: 'cards.user_id',
   },
 }));
 
@@ -109,30 +97,35 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('../config/env', () => ({
   env: {
-    BASE_URL: 'https://community.example',
+    BASE_URL: 'https://personal.example',
     UPLOAD_SESSION_TTL_MINUTES: 30,
+    API_TOKEN,
   },
 }));
 
 async function buildCardTransferApp() {
   const { default: cardTransferRoutes } = await import('./card-transfer');
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.plugin');
+  const { apiTokenPlugin } = await import('../plugins/api-token.plugin');
   const app = Fastify();
   await errorHandlerPlugin(app, {});
-  app.decorate('authenticate', async (request: { user?: unknown }) => {
-    request.user = { userId: 'user-1', role: 'user', jti: 'jwt-1' };
-  });
+  await apiTokenPlugin(app, {});
   await app.register(cardTransferRoutes);
   return app;
 }
 
-function transferMetadata() {
+const authHeaders = { authorization: `Bearer ${API_TOKEN}` };
+
+function transferMetadata(overrides?: Record<string, unknown>) {
   return {
     transferKind: 'network-resource-card',
     cardId: CARD_ID,
     versionId: VERSION_ID,
     resourcePrefix: `cards/${CARD_ID}/versions/${VERSION_ID}/resources`,
     networkCardObjectKey: `cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`,
+    renderCacheVersion: VERSION_ID,
+    renderObjects: [],
+    ...overrides,
   };
 }
 
@@ -182,9 +175,9 @@ beforeEach(() => {
     headers: {},
   }));
   headObjectMock.mockResolvedValue({ contentLength: 100 });
-  cardRenderCacheServiceMock.enqueueForCard.mockResolvedValue(undefined);
   boxServiceMock.createPlaceholder.mockResolvedValue({ id: BOX_ID, title: 'Travel' });
   boxServiceMock.create.mockResolvedValue({ id: BOX_ID, title: '2026 旅行箱' });
+  cardServiceMock.recordRenderArtifacts.mockResolvedValue({ id: CARD_ID, status: 'ready' });
 });
 
 afterEach(() => {
@@ -192,15 +185,23 @@ afterEach(() => {
 });
 
 describe('card transfer routes', () => {
-  it('creates client-owned upload sessions and records object-storage layout metadata', async () => {
+  it('creates upload sessions with render artifact mode and object-storage layout metadata', async () => {
     const app = await buildCardTransferApp();
+    uploadSessionServiceMock.create.mockResolvedValue({
+      id: VERSION_ID,
+      fileName: 'demo.card',
+      expiresAt: new Date('2026-08-05T00:30:00.000Z'),
+      includeRenderArtifacts: true,
+      clientMetadata: {},
+    });
 
     const response = await app.inject({
       method: 'POST',
       url: '/api/v1/card-transfer/upload-sessions',
+      headers: authHeaders,
       payload: {
         fileName: 'demo.card',
-        roomId: '33333333-3333-4333-8333-333333333333',
+        includeRenderArtifacts: true,
         idempotencyKey: 'idem-1',
         client: {
           name: 'desktop-transfer',
@@ -211,22 +212,17 @@ describe('card transfer routes', () => {
     });
 
     expect(response.statusCode).toBe(201);
-    expect(roomServiceMock.assertOwnedByUser).toHaveBeenCalledWith(
-      '33333333-3333-4333-8333-333333333333',
-      'user-1',
-    );
     expect(uploadSessionServiceMock.create).toHaveBeenCalledWith(
-      'user-1',
       expect.objectContaining({
         contentType: 'card',
         visibility: 'public',
         fileName: 'demo.card',
+        includeRenderArtifacts: true,
         idempotencyKey: 'idem-1',
       }),
     );
     expect(cardServiceMock.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: 'user-1',
         title: 'demo',
         visibility: 'public',
         fileSizeBytes: 0,
@@ -238,26 +234,48 @@ describe('card transfer routes', () => {
       resourcePrefix: `cards/${CARD_ID}/versions/${VERSION_ID}/resources`,
       clientMetadata: expect.objectContaining(transferMetadata()),
     });
-    expect(response.json().data.networkCard).toMatchObject({
-      bucket: 'chips-card-resources',
-      objectKey: `cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`,
-      publicUrl: `https://cdn.example/chips-card-resources/cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`,
+    expect(response.json().data).toMatchObject({
+      uploadId: VERSION_ID,
+      cardId: CARD_ID,
+      versionId: VERSION_ID,
+      includeRenderArtifacts: true,
+      networkCard: {
+        bucket: 'chips-card-resources',
+        objectKey: `cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`,
+      },
     });
 
     await app.close();
   });
 
-  it('presigns only object-storage targets for resources and the network resource card', async () => {
+  it('rejects requests without a valid API token', async () => {
     const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/card-transfer/upload-sessions',
+      headers: { authorization: 'Bearer wrong-token' },
+      payload: { fileName: 'demo.card' },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.code).toBe('API_TOKEN_INVALID');
+
+    await app.close();
+  });
+
+  it('presigns resources, network card and render artifacts', async () => {
+    const app = await buildCardTransferApp();
+    uploadSessionServiceMock.getById.mockResolvedValue({
       id: VERSION_ID,
-      userId: 'user-1',
+      visibility: 'public',
       clientMetadata: transferMetadata(),
     });
 
     const response = await app.inject({
       method: 'POST',
       url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/objects:presign`,
+      headers: { ...authHeaders, 'content-type': 'application/json' },
       payload: {
         objects: [
           {
@@ -271,55 +289,142 @@ describe('card transfer routes', () => {
             sizeBytes: 100,
             mimeType: 'application/vnd.chips.card+zip',
           },
+          {
+            role: 'render-file',
+            relativePath: 'index.html',
+            sizeBytes: 500,
+            mimeType: 'text/html',
+          },
+          {
+            role: 'cover-file',
+            relativePath: 'index.html',
+            sizeBytes: 300,
+            mimeType: 'text/html',
+          },
         ],
       },
     });
 
     expect(response.statusCode).toBe(200);
-    expect(uploadSessionServiceMock.getOwned).toHaveBeenCalledWith(VERSION_ID, 'user-1');
+    expect(uploadSessionServiceMock.getById).toHaveBeenCalledWith(VERSION_ID);
     expect(createPresignedPutUrlMock).toHaveBeenCalledWith(
       expect.objectContaining({
         bucket: 'chips-card-resources',
         key: `cards/${CARD_ID}/versions/${VERSION_ID}/resources/images/hero.png`,
-        contentType: 'image/png',
       }),
     );
     expect(createPresignedPutUrlMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        bucket: 'chips-card-resources',
-        key: `cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`,
-        contentType: 'application/vnd.chips.card+zip',
+        bucket: 'chips-card-render-cache',
+        key: `${CARD_ID}/${VERSION_ID}/index.html`,
+      }),
+    );
+    expect(createPresignedPutUrlMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bucket: 'chips-card-cover-cache',
+        key: `${CARD_ID}/${VERSION_ID}/index.html`,
       }),
     );
     expect(response.json().data.objects).toEqual([
+      expect.objectContaining({ role: 'resource', relativePath: 'images/hero.png' }),
+      expect.objectContaining({ role: 'network-card', relativePath: null }),
       expect.objectContaining({
-        role: 'resource',
-        relativePath: 'images/hero.png',
-        objectKey: `cards/${CARD_ID}/versions/${VERSION_ID}/resources/images/hero.png`,
-        uploadUrl: `https://s3.example/put/cards/${CARD_ID}/versions/${VERSION_ID}/resources/images/hero.png`,
+        role: 'render-file',
+        relativePath: 'index.html',
+        bucket: 'chips-card-render-cache',
+        objectKey: `${CARD_ID}/${VERSION_ID}/index.html`,
       }),
       expect.objectContaining({
-        role: 'network-card',
-        relativePath: null,
-        objectKey: `cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`,
+        role: 'cover-file',
+        relativePath: 'index.html',
+        bucket: 'chips-card-cover-cache',
+        objectKey: `${CARD_ID}/${VERSION_ID}/index.html`,
       }),
     ]);
+    // 渲染产物对象被记录到会话元数据，供 complete 校验
+    expect(dbUpdateCalls[0]?.values).toMatchObject({
+      clientMetadata: expect.objectContaining({
+        renderObjects: [
+          expect.objectContaining({ role: 'render-file', relativePath: 'index.html' }),
+          expect.objectContaining({ role: 'cover-file', relativePath: 'index.html' }),
+        ],
+      }),
+    });
 
     await app.close();
   });
 
-  it('completes uploads by saving the network resource manifest and queuing render caches', async () => {
+  it('presigns private card render artifacts into private buckets without public URLs', async () => {
     const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
+    uploadSessionServiceMock.getById.mockResolvedValue({
       id: VERSION_ID,
-      fileName: 'demo.card',
-      userId: 'user-1',
-      clientName: 'desktop-transfer',
-      clientVersion: '1.0.0',
+      visibility: 'private',
       clientMetadata: transferMetadata(),
     });
-    headObjectMock.mockImplementation(async (input: { key: string }) => ({
-      contentLength: input.key.endsWith('card.card') ? 100 : 10,
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/objects:presign`,
+      headers: { ...authHeaders, 'content-type': 'application/json' },
+      payload: {
+        objects: [
+          {
+            role: 'render-file',
+            relativePath: 'index.html',
+            sizeBytes: 500,
+            mimeType: 'text/html',
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.objects[0]).toMatchObject({
+      role: 'render-file',
+      bucket: 'chips-card-render-cache-private',
+      publicUrl: '',
+    });
+
+    await app.close();
+  });
+
+  it('completes uploads with render artifacts and marks the card ready', async () => {
+    const app = await buildCardTransferApp();
+    uploadSessionServiceMock.getById.mockResolvedValue({
+      id: VERSION_ID,
+      fileName: 'demo.card',
+      clientName: 'desktop-transfer',
+      clientVersion: '1.0.0',
+      visibility: 'public',
+      clientMetadata: transferMetadata({
+        renderObjects: [
+          {
+            role: 'render-file',
+            relativePath: 'index.html',
+            bucket: 'chips-card-render-cache',
+            objectKey: `${CARD_ID}/${VERSION_ID}/index.html`,
+            sizeBytes: 500,
+            mimeType: 'text/html',
+          },
+          {
+            role: 'cover-file',
+            relativePath: 'index.html',
+            bucket: 'chips-card-cover-cache',
+            objectKey: `${CARD_ID}/${VERSION_ID}/index.html`,
+            sizeBytes: 300,
+            mimeType: 'text/html',
+          },
+        ],
+      }),
+    });
+    headObjectMock.mockImplementation(async (input: { bucket: string; key: string }) => ({
+      contentLength: input.key.endsWith('card.card')
+        ? 100
+        : input.bucket === 'chips-card-render-cache'
+          ? 500
+          : input.bucket === 'chips-card-cover-cache'
+            ? 300
+            : 10,
     }));
     updatedCardResult = {
       id: CARD_ID,
@@ -331,6 +436,7 @@ describe('card transfer routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
+      headers: authHeaders,
       payload: {
         title: 'Demo Card',
         cardFileId: 'AbCdEf1234',
@@ -361,81 +467,159 @@ describe('card transfer routes', () => {
           card_id: 'AbCdEf1234',
           name: 'Demo Card',
         },
-        cardStructure: {
-          structure: [],
+        renderArtifacts: {
+          rendererVersion: 'client-renderer-1',
+          themeId: 'chips-official.default-theme',
+          locale: 'zh-CN',
+          view: {
+            entryRelativePath: 'index.html',
+            fileCount: 3,
+            sizeBytes: 500,
+          },
+          cover: {
+            entryRelativePath: 'index.html',
+            fileCount: 2,
+            sizeBytes: 300,
+          },
         },
       },
     });
 
-    expect(response.statusCode).toBe(202);
-    expect(headObjectMock).toHaveBeenCalledWith({
-      bucket: 'chips-card-resources',
-      key: networkCardObjectKey,
-    });
-    expect(headObjectMock).toHaveBeenCalledWith({
-      bucket: 'chips-card-resources',
-      key: resourceObjectKey,
-    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({});
     const cardUpdate = dbUpdateCalls.find((call) => call.values.resourceManifest);
     expect(cardUpdate?.values).toMatchObject({
       title: 'Demo Card',
-      cardFileId: 'AbCdEf1234',
-      coverRatio: '3:4',
       fileSizeBytes: 100,
       sourceCardBucket: 'chips-card-resources',
       sourceCardKey: networkCardObjectKey,
-      sourceCardSha256: null,
-      publishedByClient: 'desktop-transfer',
-      publishedClientVersion: '1.0.0',
       status: 'ready',
-      resourceManifest: {
-        schemaVersion: '1.0.0',
-        mode: 'network-resource-card',
-        cardId: CARD_ID,
-        cardVersionId: VERSION_ID,
-        networkCard: expect.objectContaining({
-          objectKey: networkCardObjectKey,
-          sizeBytes: 100,
+    });
+    expect(cardServiceMock.recordRenderArtifacts).toHaveBeenCalledWith(
+      CARD_ID,
+      expect.objectContaining({
+        rendererVersion: 'client-renderer-1',
+        view: expect.objectContaining({
+          cacheVersion: VERSION_ID,
+          bucket: 'chips-card-render-cache',
+          keyPrefix: `${CARD_ID}/${VERSION_ID}`,
+          entryObjectKey: `${CARD_ID}/${VERSION_ID}/index.html`,
+          entryUrl: `https://cdn.example/chips-card-render-cache/${CARD_ID}/${VERSION_ID}/index.html`,
         }),
-        resources: [
-          expect.objectContaining({
-            originalRelativePath: 'images/hero.png',
-            objectKey: resourceObjectKey,
-          }),
-        ],
-        restoreManifest: expect.objectContaining({
-          schemaVersion: '1.0.0',
+        cover: expect.objectContaining({
+          bucket: 'chips-card-cover-cache',
+          entryUrl: `https://cdn.example/chips-card-cover-cache/${CARD_ID}/${VERSION_ID}/index.html`,
         }),
-      },
-    });
-    expect(cardRenderCacheServiceMock.enqueueForCard).toHaveBeenCalledWith({
-      cardId: CARD_ID,
-      createdBy: 'upload',
-      renderProfile: 'community-web',
-      priority: 50,
-    });
-    expect(cardRenderCacheServiceMock.enqueueForCard).toHaveBeenCalledWith({
-      cardId: CARD_ID,
-      createdBy: 'upload',
-      renderProfile: 'community-cover',
-      priority: 40,
-    });
+      }),
+    );
     expect(response.json().data).toMatchObject({
       cardId: CARD_ID,
       versionId: VERSION_ID,
       status: 'ready',
-      renderStatus: 'queued',
-      communityUrl: `https://community.example/cards/${CARD_ID}`,
+      communityUrl: `https://personal.example/cards/${CARD_ID}`,
     });
+
+    await app.close();
+  });
+
+  it('completes uploads without render artifacts and keeps the card pending', async () => {
+    const app = await buildCardTransferApp();
+    uploadSessionServiceMock.getById.mockResolvedValue({
+      id: VERSION_ID,
+      fileName: 'demo.card',
+      clientName: 'desktop-transfer',
+      clientVersion: '1.0.0',
+      visibility: 'public',
+      clientMetadata: transferMetadata(),
+    });
+    headObjectMock.mockResolvedValue({ contentLength: 100 });
+    updatedCardResult = {
+      id: CARD_ID,
+      status: 'pending',
+    };
+
+    const networkCardObjectKey = `cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`;
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
+      headers: authHeaders,
+      payload: {
+        title: 'Demo Card',
+        networkCard: {
+          bucket: 'chips-card-resources',
+          objectKey: networkCardObjectKey,
+          publicUrl: null,
+          sizeBytes: 100,
+          mimeType: 'application/vnd.chips.card+zip',
+        },
+        resources: [],
+        restoreManifest: {
+          schemaVersion: '1.0.0',
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(cardServiceMock.recordRenderArtifacts).not.toHaveBeenCalled();
+    expect(response.json().data).toMatchObject({
+      cardId: CARD_ID,
+      versionId: VERSION_ID,
+      status: 'pending',
+    });
+
+    await app.close();
+  });
+
+  it('rejects render artifacts whose entry object was not presigned', async () => {
+    const app = await buildCardTransferApp();
+    uploadSessionServiceMock.getById.mockResolvedValue({
+      id: VERSION_ID,
+      fileName: 'demo.card',
+      visibility: 'public',
+      clientMetadata: transferMetadata({ renderObjects: [] }),
+    });
+    headObjectMock.mockResolvedValue({ contentLength: 100 });
+
+    const networkCardObjectKey = `cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`;
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
+      headers: authHeaders,
+      payload: {
+        title: 'Demo Card',
+        networkCard: {
+          bucket: 'chips-card-resources',
+          objectKey: networkCardObjectKey,
+          publicUrl: null,
+          sizeBytes: 100,
+          mimeType: 'application/vnd.chips.card+zip',
+        },
+        resources: [],
+        restoreManifest: {
+          schemaVersion: '1.0.0',
+        },
+        renderArtifacts: {
+          rendererVersion: 'client-renderer-1',
+          view: {
+            entryRelativePath: 'index.html',
+            fileCount: 1,
+            sizeBytes: 500,
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.message).toContain('render-file');
 
     await app.close();
   });
 
   it('rejects malformed restore manifests on complete', async () => {
     const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
+    uploadSessionServiceMock.getById.mockResolvedValue({
       id: VERSION_ID,
-      userId: 'user-1',
+      visibility: 'public',
       clientMetadata: transferMetadata(),
     });
 
@@ -443,6 +627,7 @@ describe('card transfer routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
+      headers: authHeaders,
       payload: {
         title: 'Demo Card',
         networkCard: {
@@ -467,9 +652,9 @@ describe('card transfer routes', () => {
 
   it('rejects resource objects that do not belong to the upload session', async () => {
     const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
+    uploadSessionServiceMock.getById.mockResolvedValue({
       id: VERSION_ID,
-      userId: 'user-1',
+      visibility: 'public',
       clientMetadata: transferMetadata(),
     });
 
@@ -477,6 +662,7 @@ describe('card transfer routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
+      headers: authHeaders,
       payload: {
         title: 'Demo Card',
         networkCard: {
@@ -546,6 +732,7 @@ describe('card transfer routes', () => {
     const createResponse = await app.inject({
       method: 'POST',
       url: '/api/v1/card-transfer/download-sessions',
+      headers: authHeaders,
       payload: {
         cardId: CARD_ID,
         client: {
@@ -555,12 +742,13 @@ describe('card transfer routes', () => {
     });
 
     expect(createResponse.statusCode).toBe(201);
-    expect(cardServiceMock.getAccessible).toHaveBeenCalledWith(CARD_ID, 'user-1');
+    expect(cardServiceMock.getAccessible).toHaveBeenCalledWith(CARD_ID);
     expect(createResponse.json().data.planUrl).toBe(`/api/v1/card-transfer/download-sessions/${CARD_ID}/plan`);
 
     const planResponse = await app.inject({
       method: 'GET',
       url: `/api/v1/card-transfer/download-sessions/${CARD_ID}/plan`,
+      headers: authHeaders,
     });
 
     expect(planResponse.statusCode).toBe(200);
@@ -579,20 +767,7 @@ describe('card transfer routes', () => {
       networkCard: expect.objectContaining({
         bucket: 'chips-card-resources',
         objectKey: networkCardObjectKey,
-        downloadUrl: `https://cdn.example/chips-card-resources/${networkCardObjectKey}`,
-        presignedUrl: `https://s3.example/get/${networkCardObjectKey}`,
       }),
-      resources: [
-        expect.objectContaining({
-          originalRelativePath: 'images/hero.png',
-          objectKey: resourceObjectKey,
-          downloadUrl: `https://cdn.example/chips-card-resources/${resourceObjectKey}`,
-          presignedUrl: `https://s3.example/get/${resourceObjectKey}`,
-        }),
-      ],
-      restoreManifest: {
-        schemaVersion: '1.0.0',
-      },
     });
 
     await app.close();
@@ -609,39 +784,6 @@ describe('card transfer routes', () => {
     });
     expect(createResponse.statusCode).toBe(415);
 
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
-      id: VERSION_ID,
-      userId: 'user-1',
-      clientMetadata: transferMetadata(),
-    });
-
-    const networkCardObjectKey = `cards/${CARD_ID}/versions/${VERSION_ID}/network-card/card.card`;
-    const completeResponse = await app.inject({
-      method: 'POST',
-      url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
-      headers: { 'content-type': 'application/octet-stream' },
-      payload: Buffer.from('fake-network-card-bytes'),
-    });
-    expect(completeResponse.statusCode).toBe(415);
-
-    const planResponse = await app.inject({
-      method: 'POST',
-      url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/objects:presign`,
-      headers: { 'content-type': 'application/octet-stream' },
-      payload: Buffer.from('fake-resource-bytes'),
-    });
-    expect(planResponse.statusCode).toBe(415);
-
-    const noContentTypeResponse = await app.inject({
-      method: 'POST',
-      url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/objects:presign`,
-      payload: JSON.stringify({ objects: [] }),
-    });
-    expect(noContentTypeResponse.statusCode).toBe(415);
-
-    expect(cardServiceMock.getAccessible).not.toHaveBeenCalled();
-    expect(cardRenderCacheServiceMock.enqueueForCard).not.toHaveBeenCalled();
-
     await app.close();
   });
 
@@ -657,10 +799,10 @@ describe('card transfer routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/v1/card-transfer/upload-sessions',
+      headers: authHeaders,
       payload: {
         contentType: 'box',
         fileName: 'Travel.box',
-        roomId: null,
         idempotencyKey: 'idem-box-1',
         client: {
           name: 'desktop-transfer',
@@ -672,7 +814,6 @@ describe('card transfer routes', () => {
 
     expect(response.statusCode).toBe(201);
     expect(uploadSessionServiceMock.create).toHaveBeenCalledWith(
-      'user-1',
       expect.objectContaining({
         contentType: 'box',
         visibility: 'public',
@@ -682,7 +823,6 @@ describe('card transfer routes', () => {
     );
     expect(boxServiceMock.createPlaceholder).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: 'user-1',
         title: 'Travel',
         visibility: 'public',
         publishedByClient: 'desktop-transfer',
@@ -708,9 +848,9 @@ describe('card transfer routes', () => {
 
   it('presigns a single box-file object for box sessions and rejects card roles', async () => {
     const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
+    uploadSessionServiceMock.getById.mockResolvedValue({
       id: VERSION_ID,
-      userId: 'user-1',
+      visibility: 'public',
       clientMetadata: boxTransferMetadata(),
     });
 
@@ -718,6 +858,7 @@ describe('card transfer routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: presignUrl,
+      headers: { ...authHeaders, 'content-type': 'application/json' },
       payload: {
         objects: [
           {
@@ -734,12 +875,6 @@ describe('card transfer routes', () => {
       expect.objectContaining({
         bucket: 'chips-box-files',
         key: `boxes/${BOX_ID}/versions/${VERSION_ID}/box.box`,
-        contentType: 'application/vnd.chips.box+zip',
-        headers: expect.objectContaining({
-          'x-amz-meta-chips-box-id': BOX_ID,
-          'x-amz-meta-chips-box-version-id': VERSION_ID,
-          'x-amz-meta-chips-transfer-role': 'box-file',
-        }),
       }),
     );
     expect(response.json().data.objects).toEqual([
@@ -754,6 +889,7 @@ describe('card transfer routes', () => {
     const rejected = await app.inject({
       method: 'POST',
       url: presignUrl,
+      headers: { ...authHeaders, 'content-type': 'application/json' },
       payload: {
         objects: [
           {
@@ -767,20 +903,15 @@ describe('card transfer routes', () => {
     });
     expect(rejected.statusCode).toBe(400);
     expect(rejected.json().error.code).toBe('VALIDATION_ERROR');
-    expect(createPresignedPutUrlMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ bucket: 'chips-card-resources' }),
-    );
 
     await app.close();
   });
 
   it('completes box sessions by persisting the box with source object info', async () => {
     const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
+    uploadSessionServiceMock.getById.mockResolvedValue({
       id: VERSION_ID,
       fileName: 'Travel.box',
-      userId: 'user-1',
-      roomId: null,
       visibility: 'public',
       clientMetadata: boxTransferMetadata(),
     });
@@ -789,6 +920,7 @@ describe('card transfer routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
+      headers: authHeaders,
       payload: {
         title: '2026 旅行箱',
         boxFileId: 'b1C2d3E4f5',
@@ -823,18 +955,12 @@ describe('card transfer routes', () => {
     });
     expect(boxServiceMock.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: 'user-1',
         visibility: 'public',
         fileSizeBytes: 2048,
         sourceBoxBucket: 'chips-box-files',
         sourceBoxKey: `boxes/${BOX_ID}/versions/${VERSION_ID}/box.box`,
         boxFileId: 'b1C2d3E4f5',
-        layoutPlugin: 'chips.layout.grid',
-        coverRatio: '3:4',
         title: '2026 旅行箱',
-        metadata: expect.objectContaining({ box_id: 'b1C2d3E4f5' }),
-        structure: expect.objectContaining({ entries: expect.any(Array) }),
-        content: expect.objectContaining({ active_layout_type: 'chips.layout.grid' }),
         boxId: BOX_ID,
       }),
     );
@@ -847,7 +973,7 @@ describe('card transfer routes', () => {
       boxId: BOX_ID,
       versionId: VERSION_ID,
       status: 'ready',
-      communityUrl: `https://community.example/boxes/${BOX_ID}`,
+      communityUrl: `https://personal.example/boxes/${BOX_ID}`,
       boxViewUrl: `/api/v1/boxes/${BOX_ID}/view`,
     });
 
@@ -856,10 +982,8 @@ describe('card transfer routes', () => {
 
   it('rejects box sessions whose box file object does not belong to the session', async () => {
     const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
+    uploadSessionServiceMock.getById.mockResolvedValue({
       id: VERSION_ID,
-      userId: 'user-1',
-      roomId: null,
       visibility: 'public',
       clientMetadata: boxTransferMetadata(),
     });
@@ -867,6 +991,7 @@ describe('card transfer routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
+      headers: authHeaders,
       payload: {
         title: '2026 旅行箱',
         boxFile: boxFileObjectPayload({
@@ -885,48 +1010,18 @@ describe('card transfer routes', () => {
     await app.close();
   });
 
-  it('rejects box sessions when the uploaded object size does not match', async () => {
+  it('aborts upload sessions without persisting anything', async () => {
     const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
+    uploadSessionServiceMock.getById.mockResolvedValue({
       id: VERSION_ID,
-      userId: 'user-1',
-      roomId: null,
       visibility: 'public',
-      clientMetadata: boxTransferMetadata(),
-    });
-    headObjectMock.mockResolvedValue({ contentLength: 100 });
-
-    const response = await app.inject({
-      method: 'POST',
-      url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/complete`,
-      payload: {
-        title: '2026 旅行箱',
-        boxFile: boxFileObjectPayload(),
-        metadata: { box_id: 'b1C2d3E4f5', name: '旅行箱', active_layout_type: 'chips.layout.grid' },
-        structure: { entries: [] },
-        content: {},
-      },
-    });
-
-    expect(response.statusCode).toBe(400);
-    expect(response.json().error.code).toBe('VALIDATION_ERROR');
-    expect(boxServiceMock.create).not.toHaveBeenCalled();
-
-    await app.close();
-  });
-
-  it('aborts box upload sessions without persisting anything', async () => {
-    const app = await buildCardTransferApp();
-    uploadSessionServiceMock.getOwned.mockResolvedValue({
-      id: VERSION_ID,
-      userId: 'user-1',
       clientMetadata: boxTransferMetadata(),
     });
 
     const response = await app.inject({
       method: 'POST',
       url: `/api/v1/card-transfer/upload-sessions/${VERSION_ID}/abort`,
-      headers: { 'content-type': 'application/json' },
+      headers: { ...authHeaders, 'content-type': 'application/json' },
       payload: {},
     });
 

@@ -4,7 +4,7 @@ import {
   PutBucketPolicyCommand,
 } from '@aws-sdk/client-s3';
 import { getS3Client } from './s3';
-import { PRIVATE_BUCKETS, PUBLIC_BUCKETS, STORAGE_BUCKETS, type BucketName } from './buckets';
+import { PUBLIC_BUCKETS, STORAGE_BUCKETS, type BucketName } from './buckets';
 import { env } from '../config/env';
 
 /**
@@ -65,7 +65,9 @@ async function ensurePublicReadPolicy(bucketName: BucketName | string): Promise<
  */
 export async function initStorageBuckets(): Promise<void> {
   console.info('Initializing storage buckets...');
-  const bucketNames = env.S3_BUCKET_NAME ? [env.S3_BUCKET_NAME, ...PRIVATE_BUCKETS] : STORAGE_BUCKETS;
+  // 单物理桶模式：只确保 S3_BUCKET_NAME 一个物理桶存在（逻辑桶以 key 前缀映射），
+  // 不在七牛上额外创建独立 bucket。
+  const bucketNames = env.S3_BUCKET_NAME ? [env.S3_BUCKET_NAME] : STORAGE_BUCKETS;
   await Promise.all(bucketNames.map(ensureBucket));
   const publicBucketNames = env.S3_BUCKET_NAME ? [env.S3_BUCKET_NAME] : PUBLIC_BUCKETS;
   await Promise.all(publicBucketNames.map(ensurePublicReadPolicy));
