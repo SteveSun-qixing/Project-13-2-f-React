@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CreateImageHtmlInput",
+  "type": "object",
+  "required": [
+    "imageSrc"
+  ],
+  "properties": {
+    "imageSrc": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

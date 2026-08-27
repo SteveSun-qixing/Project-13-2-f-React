@@ -1,0 +1,58 @@
+id: chips.module.chips.cover
+name: Chips Cover
+version: 0.1.0
+type: module
+entry: dist/index.mjs
+description: 封面能力共享模块：默认封面 HTML 生成、图片封面 HTML、比例规范化与校验、封面引用收集。
+author:
+  name: Chips Ecosystem
+  email: support@chips-ecosystem.com
+permissions: []
+runtime:
+  targets:
+    desktop:
+      supported: true
+    web:
+      supported: false
+    mobile:
+      supported: false
+    headless:
+      supported: true
+engines:
+  chips: "^0.1.0"
+os:
+  - darwin
+  - win32
+  - linux
+module:
+  apiVersion: 1
+  runtime: worker
+  activation: onDemand
+  provides:
+    - capability: cover.html.generate
+      version: "1.0.0"
+      methods:
+        - name: createDefaultHtml
+          mode: sync
+          inputSchema: contracts/create-default-html.input.schema.json
+          outputSchema: contracts/create-default-html.output.schema.json
+        - name: createImageHtml
+          mode: sync
+          inputSchema: contracts/create-image-html.input.schema.json
+          outputSchema: contracts/create-image-html.output.schema.json
+        - name: collectReferences
+          mode: sync
+          inputSchema: contracts/collect-references.input.schema.json
+          outputSchema: contracts/collect-references.output.schema.json
+    - capability: cover.ratio
+      version: "1.0.0"
+      methods:
+        - name: normalize
+          mode: sync
+          inputSchema: contracts/ratio-normalize.input.schema.json
+          outputSchema: contracts/ratio-normalize.output.schema.json
+        - name: validate
+          mode: sync
+          inputSchema: contracts/ratio-validate.input.schema.json
+          outputSchema: contracts/ratio-validate.output.schema.json
+  consumes: []
