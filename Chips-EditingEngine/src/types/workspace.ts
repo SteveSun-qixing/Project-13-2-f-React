@@ -9,6 +9,12 @@ export interface WorkspaceFile {
     expanded?: boolean;
 }
 
+export interface BasicCardConfig {
+    id: string;
+    type: string;
+    config: Record<string, unknown>;
+}
+
 export interface WorkspaceState {
     initialized: boolean;
     rootPath: string;

@@ -11,7 +11,6 @@ import { getChipsClient } from '../services/bridge-client';
 import { resourceService } from '../services/resource-service';
 import { zipService } from '../services/zip-service';
 import type { BasecardPendingResourceImport, BasecardResourceOperations } from '../basecard-runtime/contracts';
-import { importArchiveBundleIntoCardRoot } from './archive-import';
 import type { EditorSessionSnapshot } from './contracts';
 import { useEditorRuntime } from './context';
 import { ENGINE_ICONS } from '../icons/descriptors';
@@ -527,38 +526,21 @@ export function EditorHost({
     stripSingleRootDir?: boolean;
     excludeSystemArtifacts?: boolean;
   }) => {
-    const result = await importArchiveBundleIntoCardRoot({
-      cardRootDir: cardPath,
-      request: input,
-      services: {
-        getPathForFile(file) {
-          return platformService.getPathForFile(file);
-        },
-        async listZipEntries(zipPath) {
-          return zipService.list(zipPath);
-        },
-        async extractZip(zipPath, outputDir) {
-          return zipService.extract(zipPath, outputDir);
-        },
-        async listFiles(dir, options) {
-          return fileService.list(dir, options);
-        },
-        async readBinary(path) {
-          return fileService.readBinary(path);
-        },
-        async writeBinary(path, content) {
-          await fileService.writeBinary(path, content);
-        },
-        async move(sourcePath, destPath) {
-          await fileService.move(sourcePath, destPath);
-        },
-        async delete(path, options) {
-          await fileService.delete(path, options);
-        },
-        async exists(path) {
-          return fileService.exists(path);
-        },
-      },
+    // task034 M4：ZIP 目录导入由 Host resource.importArchive 统一执行
+    // （根探测/过滤/魔数嗅探/系统垃圾清理/暂存回滚），编辑引擎不再本地实现。
+    const zipPath = platformService.getPathForFile(input.file);
+    if (!zipPath) {
+      throw new Error('当前宿主无法读取所选压缩包文件。');
+    }
+
+    const result = await getChipsClient().resource.importArchive({
+      zipFile: zipPath,
+      targetRoot: cardPath,
+      preferredRootDir: input.preferredRootDir,
+      entryFile: input.entryFile,
+      include: input.include,
+      stripSingleRootDir: input.stripSingleRootDir,
+      excludeSystemArtifacts: input.excludeSystemArtifacts,
     });
 
     result.resourcePaths.forEach((resourcePath) => {

@@ -34,11 +34,46 @@ const { mockFileService, mockClient } = vi.hoisted(() => ({
         },
       })),
     },
+    workspace: {
+      scan: vi.fn(),
+    },
+    card: {
+      session: {
+        init: vi.fn(),
+      },
+    },
     box: {
       readMetadata: vi.fn(),
       readLayoutDescriptor: vi.fn(),
       normalizeLayoutConfig: vi.fn(),
       pack: vi.fn(),
+      session: {
+        create: vi.fn(),
+        rename: vi.fn(),
+        open: vi.fn(),
+        get: vi.fn(),
+        addEntry: vi.fn(),
+        addEmbeddedCard: vi.fn(),
+        updateEntry: vi.fn(),
+        moveEntry: vi.fn(),
+        removeEntry: vi.fn(),
+        updateMetadata: vi.fn(),
+        updateLayoutConfig: vi.fn(),
+        importAsset: vi.fn(),
+        deleteAsset: vi.fn(),
+        updateCover: vi.fn(),
+        persist: vi.fn(),
+        undo: vi.fn(),
+        redo: vi.fn(),
+        history: vi.fn(),
+        close: vi.fn(async () => {}),
+        onOpened: vi.fn(() => () => {}),
+        onPersisted: vi.fn(() => () => {}),
+        onPersistError: vi.fn(() => () => {}),
+        onClosed: vi.fn(() => () => {}),
+        onUndo: vi.fn(() => () => {}),
+        onRedo: vi.fn(() => () => {}),
+      },
     },
   },
 }));
@@ -202,6 +237,110 @@ describe('WorkspaceService', () => {
       }));
     });
 
+    mockClient.card.session.init.mockImplementation(async (parentPath: string, name: string, _initial?: unknown, cardId?: string) => {
+      const cardDir = `${parentPath}/${(cardId ?? name).replace(/\.card$/i, '')}.card`;
+      const resolvedCardId = cardDir.split('/').pop()?.replace(/\.card$/i, '') ?? 'card';
+      setFile(`${cardDir}/.card/metadata.yaml`, [
+        'chip_standards_version: "1.0.0"',
+        `card_id: ${cardId}`,
+        `name: ${name}`,
+        'created_at: "2026-05-20T00:00:00.000Z"',
+        'modified_at: "2026-05-21T00:00:00.000Z"',
+        '',
+      ].join('\n'));
+      setFile(`${cardDir}/.card/structure.yaml`, 'structure: []\n');
+      setFile(`${cardDir}/.card/cover.html`, '<!doctype html>');
+      directories.add(`${cardDir}/content`);
+      return {
+        cardDir,
+        cardId: resolvedCardId,
+        sessionId: 's1',
+        snapshot: {
+          cardId: resolvedCardId,
+          path: cardDir,
+          metadata: { name, createdAt: '2026-05-20T00:00:00.000Z', modifiedAt: '2026-05-21T00:00:00.000Z' },
+          cover: { html: '<!doctype html>', ratio: '3:4', resources: [] },
+          structure: { layout: {}, basicCards: [] },
+          isDirty: false,
+          isPersisting: false,
+          persistedRevision: 0,
+        },
+      };
+    });
+
+    mockClient.workspace.scan.mockImplementation(async (rootPath: string) => {
+      const EXCLUDED = new Set(['plugins', 'plugins.json', 'plugin-runtime.json', 'plugin-shortcuts.json', 'route-manifest.json', 'route-descriptor-manifest.json', 'credentials.enc.json', 'config.json', 'config.workspace.json', 'config.system.json', 'host-state.json', 'electron-user-data']);
+      const build = (dir: string): Array<{ id: string; name: string; path: string; type: string; createdAt: string; modifiedAt: string; children?: unknown[] }> => {
+        const views: Array<{ id: string; name: string; path: string; type: string; createdAt: string; modifiedAt: string; children?: unknown[] }> = [];
+        const isRoot = dir === '/workspace';
+        for (const directory of directories) {
+          if (directory === dir || !directory.startsWith(`${dir}/`)) {
+            continue;
+          }
+          const rest = directory.slice(dir.length + 1).split('/');
+          if (rest.length !== 1) {
+            continue;
+          }
+          const name = rest[0]!;
+          if (isRoot && EXCLUDED.has(name)) {
+            continue;
+          }
+          const path = directory;
+          const isCardDir = files.has(`${path}/.card/metadata.yaml`);
+          if (isCardDir) {
+            const meta = files.get(`${path}/.card/metadata.yaml`) ?? '';
+            const cardId = meta.match(/card_id: (\S+)/)?.[1] ?? name;
+            const cardName = meta.match(/name: (.+)/)?.[1] ?? name;
+            views.push({
+              id: cardId,
+              name: `${cardName}.card`,
+              path,
+              type: 'card',
+              createdAt: '2026-05-20T00:00:00.000Z',
+              modifiedAt: '2026-05-21T00:00:00.000Z',
+            });
+          } else {
+            views.push({
+              id: path,
+              name,
+              path,
+              type: 'folder',
+              createdAt: '2026-05-20T00:00:00.000Z',
+              modifiedAt: '2026-05-21T00:00:00.000Z',
+              children: build(path),
+            });
+          }
+        }
+        for (const filePath of files.keys()) {
+          if (!filePath.startsWith(`${dir}/`) || filePath.includes('/.card/') || filePath.includes('/content/')) {
+            continue;
+          }
+          const rest = filePath.slice(dir.length + 1).split('/');
+          if (rest.length !== 1) {
+            continue;
+          }
+          const name = rest[0]!;
+          if (isRoot && EXCLUDED.has(name)) {
+            continue;
+          }
+          if (name.endsWith('.card') || name.endsWith('.box')) {
+            const stem = name.replace(/\.(card|box)$/i, '');
+            const boxId = stem === '旅行箱' || stem === '列表滞后箱子' ? 'box1234567' : `${stem}BoxId`;
+            views.push({
+              id: name.endsWith('.box') ? boxId : filePath,
+              name,
+              path: filePath,
+              type: name.endsWith('.card') ? 'card' : 'box',
+              createdAt: '2026-05-20T00:00:00.000Z',
+              modifiedAt: '2026-05-21T00:00:00.000Z',
+            });
+          }
+        }
+        return views;
+      };
+      return build(rootPath);
+    });
+
     mockClient.box.readMetadata.mockImplementation(async (boxPath: string) => {
       if (!files.has(boxPath)) {
         throw new Error(`Missing box file: ${boxPath}`);
@@ -213,6 +352,21 @@ describe('WorkspaceService', () => {
         name: stem,
         createdAt: '2026-05-22T00:00:00.000Z',
         modifiedAt: '2026-05-23T00:00:00.000Z',
+      };
+    });
+    mockClient.box.session.create.mockImplementation(async (_name: string, _layoutType: string, parentPath: string) => {
+      const outputPath = `${parentPath}/列表滞后箱子.box`;
+      setFile(outputPath, 'box');
+      return {
+        boxFile: outputPath,
+        metadata: {
+          chipStandardsVersion: '1.0.0',
+          boxId: 'box-created-1',
+          name: '列表滞后箱子',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          modifiedAt: '2026-01-01T00:00:00.000Z',
+          activeLayoutType: 'chips.layout.grid',
+        },
       };
     });
     mockClient.box.readLayoutDescriptor.mockResolvedValue({
@@ -272,7 +426,6 @@ describe('WorkspaceService', () => {
       type: 'card',
     });
     expect(service.getFile('Abc123XyZ9')).toBe(created);
-    expect(mockFileService.stat).toHaveBeenCalledWith('/workspace/Abc123XyZ9.card');
   });
 
   it('registers a created card from its written path when refresh does not list it yet', async () => {

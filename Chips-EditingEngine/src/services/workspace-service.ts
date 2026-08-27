@@ -1,12 +1,23 @@
 import { fileService } from './file-service';
 import { getChipsClient } from './bridge-client';
 import { createEventEmitter, type EventEmitter } from '../core/event-emitter';
-import { createCardInitializer, type BasicCardConfig } from '../core/card-initializer';
 import { generateId62 } from '../utils/id';
 import type { WorkspaceState, WorkspaceFile } from '../types/workspace';
 import { boxDocumentService, DEFAULT_BOX_LAYOUT_TYPE } from './box-document-service';
 import yaml from 'yaml';
 import type { FileStat } from 'chips-sdk';
+
+function toWorkspaceFile(view: import('chips-sdk').WorkspaceFileView): WorkspaceFile {
+    return {
+        id: view.id,
+        name: view.name,
+        path: view.path,
+        type: view.type,
+        createdAt: view.createdAt,
+        modifiedAt: view.modifiedAt,
+        ...(view.children ? { children: view.children.map(toWorkspaceFile) } : {}),
+    };
+}
 
 export interface WorkspaceOpenOptions {
     windowPosition?: { x: number; y: number };
@@ -186,58 +197,9 @@ export class WorkspaceService {
     }
 
     async buildTree(basePath: string): Promise<WorkspaceFile[]> {
-        const entries = await fileService.list(basePath);
-        const result: WorkspaceFile[] = [];
-        const isWorkspaceRoot = pathsEqual(basePath, this.state.rootPath);
-
-        for (const entry of entries) {
-            const entryPath = resolveListedEntryPath(basePath, entry.path);
-            const fileName = entryPath.split('/').pop() || '';
-            if (fileName.startsWith('.')) continue;
-            if (isWorkspaceRoot && HOST_RUNTIME_ROOT_ENTRIES.has(fileName)) continue;
-
-            try {
-                const stat = await fileService.stat(entryPath);
-
-                if (stat.isDirectory) {
-                    const cardMetaPath = joinPath(entryPath, '.card/metadata.yaml');
-
-                    if (await fileService.exists(cardMetaPath)) {
-                        result.push(await this.createWorkspaceCardFile(entryPath, stat));
-                        continue;
-                    }
-
-                    const children = await this.buildTree(entryPath);
-                    result.push({
-                        id: entryPath,
-                        name: fileName,
-                        path: entryPath,
-                        type: 'folder',
-                        createdAt: new Date(stat.mtimeMs).toISOString(),
-                        modifiedAt: new Date(stat.mtimeMs).toISOString(),
-                        children,
-                    });
-                    continue;
-                }
-
-                const lower = fileName.toLowerCase();
-                if (lower.endsWith('.card')) {
-                    result.push({
-                        id: entryPath,
-                        name: fileName,
-                        path: entryPath,
-                        type: 'card',
-                        createdAt: new Date(stat.mtimeMs).toISOString(),
-                        modifiedAt: new Date(stat.mtimeMs).toISOString(),
-                    });
-                } else if (lower.endsWith('.box')) {
-                    result.push(await this.createWorkspaceBoxFile(entryPath, stat));
-                }
-            } catch (e) {
-                console.warn(`[WorkspaceService] Failed to process ${entryPath}`, e);
-            }
-        }
-        return result;
+        // task034 M6：文件树扫描/识别由 Host workspace.scan 统一执行
+        const views = await getChipsClient().workspace.scan(basePath);
+        return views.map(toWorkspaceFile);
     }
 
     async refresh(): Promise<void> {
@@ -354,7 +316,7 @@ export class WorkspaceService {
 
     async createCard(
         name: string,
-        initialContent?: BasicCardConfig,
+        initialContent?: { type: string; data?: Record<string, unknown> },
         cardId?: string,
         parentPath?: string,
         openOptions?: WorkspaceOpenOptions
@@ -365,17 +327,13 @@ export class WorkspaceService {
             throw new Error('当前工作区未绑定，无法创建卡片。');
         }
 
-        const initializer = createCardInitializer({ workspaceRoot: parent });
-
-        const result = await initializer.createCard(id, name, initialContent);
-        if (!result.success) {
-            throw new Error(result.error || 'Create card failed');
-        }
+        // task034 M6：卡片骨架由 Host card.init（会话服务）创建
+        const result = await getChipsClient().card.session.init(parent, name, initialContent, id);
 
         await this.refresh();
-        let file = this.getFile(id) || this.findFileByPath(this.state.files, result.cardPath);
+        let file = this.getFile(id) || this.findFileByPath(this.state.files, result.cardDir);
         if (!file) {
-            file = await this.createWorkspaceCardFile(result.cardPath);
+            file = await this.createWorkspaceCardFile(result.cardDir);
             this.registerCreatedWorkspaceFile(parent, file);
         }
         if (file) {

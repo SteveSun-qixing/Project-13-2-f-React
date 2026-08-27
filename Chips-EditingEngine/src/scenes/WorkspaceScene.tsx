@@ -14,7 +14,7 @@ import { useCard } from '../context/CardContext';
 import { useEditorSelection } from '../context/EditorSelectionContext';
 import { workspaceService, type WorkspaceOpenOptions } from '../services/workspace-service';
 import { boxDocumentService, DEFAULT_BOX_LAYOUT_TYPE } from '../services/box-document-service';
-import type { BasicCardConfig } from '../core/card-initializer';
+import type { BasicCardConfig } from '../types/workspace';
 import type { DragData } from '../components/CardBoxLibrary/types';
 import type { BoxWindowConfig } from '../types/window';
 import { generateId62 } from '../utils/id';
@@ -307,7 +307,7 @@ export function WorkspaceScene(): React.ReactElement {
       }
 
       setActiveCard(target.cardId);
-      const nextBasicCard = addBasicCard(
+      const nextBasicCard = await addBasicCard(
         target.cardId,
         data.typeId,
         createInitialBasicCardPayload(data.typeId),

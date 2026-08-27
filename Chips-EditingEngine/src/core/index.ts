@@ -8,4 +8,3 @@ export * from './window-manager';
 export * from './card-service';
 export * from './drag-drop-manager';
 export * from './command-manager';
-export { createCardInitializer, type BasicCardConfig } from './card-initializer';
