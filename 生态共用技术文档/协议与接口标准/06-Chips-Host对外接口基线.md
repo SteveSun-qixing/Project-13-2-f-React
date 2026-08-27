@@ -236,6 +236,32 @@
 - `box.openEntry` 正式返回 `document-window | external`，并通过 `documentType` 区分打开的是卡片还是箱子；
 - 通过 SDK `client.box.documentWindow.render` 或 `client.document.window.render` 创建的箱子查看文档，在销毁时必须释放 render session，并同步关闭对应 `box.openView` 查看会话。
 
+### 6.9 卡片/箱子编辑会话与工作区（task034 新增）
+
+正式动作：
+
+- `card.init`：创建解包态卡片骨架（支持指定 `cardId`）
+- `card.session.*`：open / get / updateBasicCard / addBasicCard / removeBasicCard / moveBasicCard / updateMetadata / updateCover / persist / undo / redo / history / close
+- `box.create` / `box.rename`：箱子新建与重命名
+- `box.session.*`：open / get / addEntry / addEmbeddedCard / updateEntry / moveEntry / removeEntry / updateMetadata / updateLayoutConfig / importAsset / deleteAsset / updateCover / persist / undo / redo / history / close
+- `resource.importArchive`：ZIP 目录导入（payload 根探测/过滤/系统垃圾清理/暂存回滚）
+- `workspace.scan`：工作区文件树扫描（卡片目录/`.card`/`.box`/文件夹识别 + Host 运行时目录排除）
+- `file.detectType`：文件类型结构化识别（documentType/mimeType/category）
+
+关键语义：
+
+- 卡片/箱子编辑会话与自动保存由 Host 主进程管理，应用只订阅事件；
+- 会话历史（undo/redo）为会话公共语义：入栈范围 = 文档变更动作，合并窗口 500ms（同一 mergeKey），历史上限 100 步；
+- `box.session.addEmbeddedCard` 接口开放（默认链接引用，第三方可按需内嵌）；
+- 会话工作目录由 Host 分配回收（系统临时区）；
+- `resource.importArchive` 与 `zip.extract` 语义区分：extract 是原语（解到指定目录），importArchive 是业务语义（根探测/过滤/清理/回滚）；
+- `workspace.scan` 识别规则：卡片目录 = 含 `.card/metadata.yaml`；排除清单见 `Chips-Host/packages/workspace-service/src/workspace-service.ts` 的 `HOST_RUNTIME_ROOT_ENTRIES`。
+
+### 6.10 封面共享模块（task034 新增）
+
+- 模块插件 `chips.module.cover`：capability `cover.html.generate`（createDefaultHtml/createImageHtml/collectReferences）+ `cover.ratio`（normalize/validate）；
+- 消费方式：`client.module.invoke`；模块未安装时消费方回退内置实现（鲁棒优先）。
+
 ## 7. 事件基线
 
 当前重要对外事件：
@@ -252,6 +278,9 @@
 - `window.opened`
 - `module.runtime.started`
 - `module.runtime.stopped`
+- `card.session.opened` / `dirty` / `persisted` / `persist-error` / `closed` / `undo` / `redo`
+- `box.session.opened` / `dirty` / `persisted` / `persist-error` / `closed` / `undo` / `redo`
+- `box.view.closed`（箱子查看会话关闭）
 
 ## 8. 当前宿主基线
 

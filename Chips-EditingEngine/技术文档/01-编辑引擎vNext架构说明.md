@@ -75,6 +75,19 @@ src/main.tsx
 
 基础卡片 iframe 只表达资源打开意图，不直接启动阅读器、图片查看器、音乐播放器或系统浏览器。
 
+## 4.1 服务面（task034 能力上移后）
+
+文档领域能力已上移 Host（生态共用技术文档/协议与接口标准/06-Chips-Host对外接口基线.md §6.9）：
+
+- 卡片：`card.init` + `card.session.*`（读/改/持久化/资源生命周期/自动保存/undo-redo 历史），本仓 `core/card-service.ts` 为纯会话消费层，`core/command-manager.ts` 为会话历史适配层；
+- 箱子：`box.create/rename` + `box.session.*`，本仓 `services/box-document-service.ts` 为纯会话消费层；
+- ZIP 目录导入：`resource.importArchive`（本仓 archive-import 本地实现已归档）；
+- 封面能力：`chips.module.cover` 共享模块（本仓 `services/cover-service.ts` 模块优先 + fallback，UI 保留）；
+- 工作区：`workspace.scan`（本仓 workspace-service 扫描/建卡走 Host 动作）；
+- 文件类型识别：`file.detectType`（拖放识别扩展名兜底走 SDK guessMimeType）。
+
+自动保存与 undo/redo 由 Host 会话管理，本仓只订阅事件（card.session.persisted/persist-error 等）与代理历史视图。
+
 ## 5. 卡片保存与资源生命周期
 
 `CardService` 是 `.card` 解包态的唯一真实数据源。
