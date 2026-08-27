@@ -4,7 +4,6 @@ import { DeleteOutlined, PictureOutlined } from '@ant-design/icons';
 import { fileService } from '../../../services/file-service';
 import { formatMessage } from '../../../lib/messages';
 import {
-  createDefaultCoverHtml,
   createImageCoverHtml,
   DEFAULT_COVER_RATIO,
   extractGeneratedImageSource,
@@ -12,6 +11,7 @@ import {
   swapCoverRatio,
   type CardCoverResource,
 } from '../../../utils/card-cover';
+import { fetchDefaultCoverHtml } from '../../../services/cover-service';
 import { CoverCropDialog } from './CoverCropDialog';
 import { resolveCoverPreviewFrameSize, type CoverPreviewFrameSize } from './cover-panel-layout';
 import './CoverPanel.css';
@@ -145,7 +145,7 @@ export function CoverPanel({
   const savedPreviewUrlRef = useRef<string | null>(null);
   const previewShellRef = useRef<HTMLDivElement | null>(null);
 
-  const initialHtml = currentCoverHtml?.trim() ? currentCoverHtml : createDefaultCoverHtml(cardName);
+  const initialHtml = currentCoverHtml?.trim() ? currentCoverHtml : '';
   const initialRatio = normalizeCoverRatio(currentRatio ?? DEFAULT_COVER_RATIO);
   const initialMode = resolveInitialMode(initialHtml);
   const initialPresetId = resolveRatioPresetId(initialRatio);
@@ -178,6 +178,24 @@ export function CoverPanel({
     setImageDraft(null);
     setSavedImagePreviewUrl(null);
   }, [initialHtml, initialMode, initialOrientation, initialPresetId]);
+
+  // task034 M5：无既有封面时，默认封面 HTML 由 chips.module.cover 模块生成
+  useEffect(() => {
+    if (currentCoverHtml?.trim()) {
+      return;
+    }
+    let cancelled = false;
+    void fetchDefaultCoverHtml(cardName).then(({ html }) => {
+      if (cancelled) {
+        return;
+      }
+      setHtmlCode(html);
+      setMode(resolveInitialMode(html));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cardName, currentCoverHtml]);
 
   useEffect(() => {
     return () => {
