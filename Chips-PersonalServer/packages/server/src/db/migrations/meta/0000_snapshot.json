@@ -1,186 +1,37 @@
 {
-  "id": "ff876019-772e-40e2-b911-d4c075ddc9b4",
-  "prevId": "00000000-0000-0000-0000-000000000000",
-  "version": "5",
-  "dialect": "pg",
-  "tables": {
-    "users": {
-      "name": "users",
+  "0000_personal_server_initial": {
+    "breaks": true
+  },
+  "public": {
+    "card_status": {
+      "name": "card_status",
       "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "username": {
-          "name": "username",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "username_lower": {
-          "name": "username_lower",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "display_name": {
-          "name": "display_name",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "password_hash": {
-          "name": "password_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bio": {
-          "name": "bio",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "avatar_url": {
-          "name": "avatar_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "role": {
-          "name": "role",
-          "type": "user_role",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'user'"
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "NOW()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "NOW()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "users_username_unique": {
-          "name": "users_username_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
-        },
-        "users_username_lower_unique": {
-          "name": "users_username_lower_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "username_lower"
-          ]
-        }
-      }
+      "values": ["pending", "ready", "error"]
     },
-    "rooms": {
-      "name": "rooms",
+    "card_visibility": {
+      "name": "card_visibility",
       "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "slug": {
-          "name": "slug",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cover_url": {
-          "name": "cover_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "visibility",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'public'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "NOW()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "NOW()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "rooms_user_id_users_id_fk": {
-          "name": "rooms_user_id_users_id_fk",
-          "tableFrom": "rooms",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "values": ["public", "private"]
+    },
+    "box_visibility": {
+      "name": "box_visibility",
+      "schema": "",
+      "values": ["public", "private"]
+    },
+    "upload_session_content_type": {
+      "name": "upload_session_content_type",
+      "schema": "",
+      "values": ["card", "box"]
+    },
+    "upload_session_status": {
+      "name": "upload_session_status",
+      "schema": "",
+      "values": ["created", "uploading_resources", "submitting_document", "validating", "source_ready", "error", "cancelled", "expired"]
+    },
+    "upload_session_resource_status": {
+      "name": "upload_session_resource_status",
+      "schema": "",
+      "values": ["presigned", "uploaded", "verified", "error"]
     },
     "cards": {
       "name": "cards",
@@ -193,124 +44,54 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "card_file_id": {
-          "name": "card_file_id",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": false
+        "card_file_id": { "name": "card_file_id", "type": "varchar(10)" },
+        "title": { "name": "title", "type": "text", "notNull": true },
+        "cover_url": { "name": "cover_url", "type": "text" },
+        "cover_ratio": { "name": "cover_ratio", "type": "text" },
+        "html_url": { "name": "html_url", "type": "text" },
+        "render_artifacts": { "name": "render_artifacts", "type": "jsonb" },
+        "rendered_at": { "name": "rendered_at", "type": "timestamp with time zone" },
+        "source_card_bucket": { "name": "source_card_bucket", "type": "text" },
+        "source_card_key": { "name": "source_card_key", "type": "text" },
+        "source_card_url": { "name": "source_card_url", "type": "text" },
+        "source_card_sha256": { "name": "source_card_sha256", "type": "text" },
+        "source_card_stored_at": { "name": "source_card_stored_at", "type": "timestamp with time zone" },
+        "resource_manifest": { "name": "resource_manifest", "type": "jsonb" },
+        "published_by_client": { "name": "published_by_client", "type": "text" },
+        "published_client_version": { "name": "published_client_version", "type": "text" },
+        "published_at": { "name": "published_at", "type": "timestamp with time zone" },
+        "card_metadata": { "name": "card_metadata", "type": "jsonb" },
+        "card_structure": { "name": "card_structure", "type": "jsonb" },
+        "status": { "name": "status", "type": "card_status", "notNull": true, "default": "'pending'" },
+        "error_message": { "name": "error_message", "type": "text" },
+        "visibility": { "name": "visibility", "type": "card_visibility", "notNull": true, "default": "'public'" },
+        "file_size_bytes": { "name": "file_size_bytes", "type": "bigint" },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "notNull": true, "default": "NOW()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "notNull": true, "default": "NOW()" }
+      },
+      "indexes": {
+        "cards_visibility_status_created_at_idx": {
+          "name": "cards_visibility_status_created_at_idx",
+          "columns": ["visibility", "status", "created_at"],
+          "isUnique": false
         },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
+        "cards_card_file_id_idx": {
+          "name": "cards_card_file_id_idx",
+          "columns": ["card_file_id"],
+          "isUnique": false
         },
-        "room_id": {
-          "name": "room_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+        "cards_source_card_sha256_idx": {
+          "name": "cards_source_card_sha256_idx",
+          "columns": ["source_card_sha256"],
+          "isUnique": false
         },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cover_url": {
-          "name": "cover_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "html_url": {
-          "name": "html_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "card_metadata": {
-          "name": "card_metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "card_structure": {
-          "name": "card_structure",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "card_status",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "card_visibility",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'public'"
-        },
-        "file_size_bytes": {
-          "name": "file_size_bytes",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "NOW()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "NOW()"
+        "cards_source_card_object_idx": {
+          "name": "cards_source_card_object_idx",
+          "columns": ["source_card_bucket", "source_card_key"],
+          "isUnique": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "cards_user_id_users_id_fk": {
-          "name": "cards_user_id_users_id_fk",
-          "tableFrom": "cards",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "cards_room_id_rooms_id_fk": {
-          "name": "cards_room_id_rooms_id_fk",
-          "tableFrom": "cards",
-          "tableTo": "rooms",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
@@ -325,164 +106,157 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "box_file_id": {
-          "name": "box_file_id",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": false
+        "box_file_id": { "name": "box_file_id", "type": "varchar(10)" },
+        "title": { "name": "title", "type": "text", "notNull": true },
+        "cover_url": { "name": "cover_url", "type": "text" },
+        "cover_bucket": { "name": "cover_bucket", "type": "text" },
+        "cover_key": { "name": "cover_key", "type": "text" },
+        "cover_ratio": { "name": "cover_ratio", "type": "text" },
+        "document_url": { "name": "document_url", "type": "text" },
+        "metadata": { "name": "metadata", "type": "jsonb" },
+        "structure": { "name": "structure", "type": "jsonb" },
+        "content": { "name": "content", "type": "jsonb" },
+        "layout_plugin": { "name": "layout_plugin", "type": "text" },
+        "source_box_bucket": { "name": "source_box_bucket", "type": "text" },
+        "source_box_key": { "name": "source_box_key", "type": "text" },
+        "source_box_url": { "name": "source_box_url", "type": "text" },
+        "source_box_sha256": { "name": "source_box_sha256", "type": "text" },
+        "source_box_stored_at": { "name": "source_box_stored_at", "type": "timestamp with time zone" },
+        "visibility": { "name": "visibility", "type": "box_visibility", "notNull": true, "default": "'public'" },
+        "file_size_bytes": { "name": "file_size_bytes", "type": "bigint" },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "notNull": true, "default": "NOW()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "notNull": true, "default": "NOW()" }
+      },
+      "indexes": {
+        "boxes_visibility_created_at_idx": {
+          "name": "boxes_visibility_created_at_idx",
+          "columns": ["visibility", "created_at"],
+          "isUnique": false
         },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
+        "boxes_source_box_object_idx": {
+          "name": "boxes_source_box_object_idx",
+          "columns": ["source_box_bucket", "source_box_key"],
+          "isUnique": false
         },
-        "room_id": {
-          "name": "room_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cover_url": {
-          "name": "cover_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "document_url": {
-          "name": "document_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "structure": {
-          "name": "structure",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "layout_plugin": {
-          "name": "layout_plugin",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "box_visibility",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'public'"
-        },
-        "file_size_bytes": {
-          "name": "file_size_bytes",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "NOW()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "NOW()"
+        "boxes_source_box_sha256_idx": {
+          "name": "boxes_source_box_sha256_idx",
+          "columns": ["source_box_sha256"],
+          "isUnique": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "boxes_user_id_users_id_fk": {
-          "name": "boxes_user_id_users_id_fk",
-          "tableFrom": "boxes",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "upload_sessions": {
+      "name": "upload_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
-        "boxes_room_id_rooms_id_fk": {
-          "name": "boxes_room_id_rooms_id_fk",
-          "tableFrom": "boxes",
-          "tableTo": "rooms",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
+        "content_type": { "name": "content_type", "type": "upload_session_content_type", "notNull": true },
+        "status": { "name": "status", "type": "upload_session_status", "notNull": true, "default": "'created'" },
+        "visibility": { "name": "visibility", "type": "card_visibility", "notNull": true, "default": "'public'" },
+        "include_render_artifacts": { "name": "include_render_artifacts", "type": "boolean", "notNull": true, "default": false },
+        "file_name": { "name": "file_name", "type": "text" },
+        "resource_prefix": { "name": "resource_prefix", "type": "text", "notNull": true },
+        "source_card_bucket": { "name": "source_card_bucket", "type": "text" },
+        "source_card_key": { "name": "source_card_key", "type": "text" },
+        "source_card_sha256": { "name": "source_card_sha256", "type": "text" },
+        "source_box_bucket": { "name": "source_box_bucket", "type": "text" },
+        "source_box_key": { "name": "source_box_key", "type": "text" },
+        "source_box_sha256": { "name": "source_box_sha256", "type": "text" },
+        "idempotency_key": { "name": "idempotency_key", "type": "text" },
+        "error_code": { "name": "error_code", "type": "text" },
+        "error_message": { "name": "error_message", "type": "text" },
+        "client_name": { "name": "client_name", "type": "text" },
+        "client_version": { "name": "client_version", "type": "text" },
+        "client_platform": { "name": "client_platform", "type": "text" },
+        "client_metadata": { "name": "client_metadata", "type": "jsonb" },
+        "expires_at": { "name": "expires_at", "type": "timestamp with time zone", "notNull": true },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "notNull": true, "default": "NOW()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "notNull": true, "default": "NOW()" }
+      },
+      "indexes": {
+        "upload_sessions_status_created_at_idx": {
+          "name": "upload_sessions_status_created_at_idx",
+          "columns": ["status", "created_at"],
+          "isUnique": false
+        },
+        "upload_sessions_expires_at_idx": {
+          "name": "upload_sessions_expires_at_idx",
+          "columns": ["expires_at"],
+          "isUnique": false
+        },
+        "upload_sessions_resource_prefix_idx": {
+          "name": "upload_sessions_resource_prefix_idx",
+          "columns": ["resource_prefix"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "upload_sessions_idempotency_unique_idx": {
+          "name": "upload_sessions_idempotency_unique_idx",
+          "columns": ["idempotency_key"],
+          "nullsNotDistinct": false
+        }
+      }
+    },
+    "upload_session_resources": {
+      "name": "upload_session_resources",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "upload_session_id": { "name": "upload_session_id", "type": "uuid", "notNull": true },
+        "relative_path": { "name": "relative_path", "type": "text", "notNull": true },
+        "bucket": { "name": "bucket", "type": "text", "notNull": true },
+        "object_key": { "name": "object_key", "type": "text", "notNull": true },
+        "public_url": { "name": "public_url", "type": "text", "notNull": true },
+        "size_bytes": { "name": "size_bytes", "type": "bigint", "notNull": true },
+        "sha256": { "name": "sha256", "type": "text", "notNull": true },
+        "mime_type": { "name": "mime_type", "type": "text", "notNull": true },
+        "status": { "name": "status", "type": "upload_session_resource_status", "notNull": true, "default": "'presigned'" },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "notNull": true, "default": "NOW()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "notNull": true, "default": "NOW()" }
+      },
+      "indexes": {
+        "upload_session_resources_session_relative_path_idx": {
+          "name": "upload_session_resources_session_relative_path_idx",
+          "columns": ["upload_session_id", "relative_path"],
+          "isUnique": true
+        },
+        "upload_session_resources_object_idx": {
+          "name": "upload_session_resources_object_idx",
+          "columns": ["bucket", "object_key"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "upload_session_resources_upload_session_id_upload_sessions_id_fk": {
+          "name": "upload_session_resources_upload_session_id_upload_sessions_id_fk",
+          "tableFrom": "upload_session_resources",
+          "tableTo": "upload_sessions",
+          "columnsFrom": ["upload_session_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     }
-  },
-  "enums": {
-    "user_role": {
-      "name": "user_role",
-      "values": {
-        "user": "user",
-        "admin": "admin"
-      }
-    },
-    "visibility": {
-      "name": "visibility",
-      "values": {
-        "public": "public",
-        "private": "private"
-      }
-    },
-    "card_status": {
-      "name": "card_status",
-      "values": {
-        "pending": "pending",
-        "processing": "processing",
-        "ready": "ready",
-        "error": "error"
-      }
-    },
-    "card_visibility": {
-      "name": "card_visibility",
-      "values": {
-        "public": "public",
-        "private": "private"
-      }
-    },
-    "box_visibility": {
-      "name": "box_visibility",
-      "values": {
-        "public": "public",
-        "private": "private"
-      }
-    }
-  },
-  "schemas": {},
-  "_meta": {
-    "columns": {},
-    "schemas": {},
-    "tables": {}
   }
 }
