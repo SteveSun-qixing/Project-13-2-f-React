@@ -543,7 +543,27 @@ Authorization: Bearer <access_token>
 5. 客户端把配置中的相对路径改写为对象存储/CDN URL，生成网络资源卡片；
 6. 客户端把网络资源卡片直传对象存储；
 7. 客户端提交资源清单、网络资源卡片对象位置和可逆恢复清单；
-8. 服务器校验对象归属后保存版本状态，并调度 Worker 生成网页查看缓存。
+8. 服务器校验对象归属后保存版本状态，并按部署形态调度渲染：
+   - 社区服务器模式：调度 Worker 生成网页查看缓存；
+   - 个人服务器模式（会话开启 `includeRenderArtifacts`）：直接接收客户端渲染产物并发布，不调度渲染任务。
+
+#### 渲染产物角色扩展
+
+`objects:presign` 的对象角色新增 `render-file` 与 `cover-file`：
+
+- `render-file`：客户端渲染的卡片查看产物文件（HTML 目录内的 `index.html` 与资源）；
+- `cover-file`：卡片封面产物文件（`.card/cover.html` 与 `cardcover/*` 资源），或箱子的封面目录文件。
+
+产物对象键规则（服务器按卡片可见性选择公开或私有渲染产物 bucket）：
+
+```
+{cardId}/{cacheVersion}/{relativePath}
+```
+
+- `cacheVersion` 由服务器在创建会话时确定（当前为会话 ID）；
+- 公开卡片的产物写入公开 bucket（`chips-card-render-cache` / `chips-card-cover-cache`），入口以对象存储 URL 直接访问；
+- 私有卡片的产物写入私有 bucket（`chips-card-render-cache-private` / `chips-card-cover-cache-private`），入口为服务器受控代理路由；
+- complete 时服务器对已预签名的产物对象逐一校验对象归属与大小，然后写入卡片渲染产物记录。
 
 `POST /api/v1/card-transfer/upload-sessions`
 
@@ -554,6 +574,7 @@ Authorization: Bearer <access_token>
   "fileName": "demo.card",
   "roomId": null,
   "idempotencyKey": "client-generated-key",
+  "includeRenderArtifacts": false,
   "client": {
     "name": "Chips Community Transfer Plugin",
     "version": "0.1.0",
@@ -561,6 +582,12 @@ Authorization: Bearer <access_token>
   }
 }
 ```
+
+请求体字段：
+
+- `includeRenderArtifacts`（可选，默认 `false`）：客户端是否随本会话上传渲染产物。
+  - `false`：仅上传源文件，渲染由服务器负责（社区服务器模式）；
+  - `true`：客户端调用 Host 文件转换模块渲染查看产物并直传，服务器直接发布（个人服务器模式）。
 
 响应：
 
@@ -598,6 +625,18 @@ Authorization: Bearer <access_token>
       "role": "network-card",
       "sizeBytes": 2048,
       "mimeType": "application/vnd.chips.card+zip"
+    },
+    {
+      "role": "render-file",
+      "relativePath": "index.html",
+      "sizeBytes": 512,
+      "mimeType": "text/html"
+    },
+    {
+      "role": "cover-file",
+      "relativePath": "index.html",
+      "sizeBytes": 256,
+      "mimeType": "text/html"
     }
   ]
 }
@@ -688,7 +727,36 @@ Authorization: Bearer <access_token>
 1. 校验网络资源卡片对象归属与大小（通过对象存储 Head）；
 2. 校验每个资源对象归属、路径和大小；
 3. 保存网络资源卡片对象位置、资源清单和可逆恢复清单；
-4. 入队生成 view 缓存和 cover 缓存。
+4. 按部署形态处理渲染：
+   - 会话未开启渲染产物模式（社区服务器模式）：入队生成 view 缓存和 cover 缓存，响应含 `renderStatus: 'queued'`；
+   - 会话开启渲染产物模式（个人服务器模式）：校验已预签名的 `render-file` / `cover-file` 产物对象，写入渲染产物记录并发布，响应不含 `renderStatus`，`status` 为 `ready`（成功接收产物）或 `pending`（未提交产物）。
+
+`renderArtifacts` 提交格式（complete 请求体，可选）：
+
+```json
+{
+  "renderArtifacts": {
+    "rendererVersion": "chips-client-renderer-1",
+    "themeId": "chips-official.default-theme",
+    "locale": "zh-CN",
+    "view": {
+      "entryRelativePath": "index.html",
+      "fileCount": 3,
+      "sizeBytes": 1024
+    },
+    "cover": {
+      "entryRelativePath": "index.html",
+      "fileCount": 2,
+      "sizeBytes": 512
+    }
+  }
+}
+```
+
+- `rendererVersion`：客户端渲染器版本标识（必填）；
+- `themeId` / `locale`：渲染所用主题与语言（可选，缺省由服务器记录默认值）；
+- `view.entryRelativePath`：查看产物目录入口文件（通常为 `index.html`），必须已通过 `render-file` 角色预签名并上传；
+- `cover.entryRelativePath`：封面产物目录入口文件，必须已通过 `cover-file` 角色预签名并上传。
 
 `POST /api/v1/card-transfer/upload-sessions/:uploadId/abort`：取消上传会话，状态置为 `cancelled`。
 
