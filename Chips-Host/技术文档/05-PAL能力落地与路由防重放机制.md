@@ -52,6 +52,7 @@
   - `plugin.getShortcut().iconPath`
   - `manifest.ui.launcher.icon`
   都属于操作系统壳层图标文件路径，不属于运行时 `ChipsIcon` / `IconDescriptor` 链路。
+- 图标格式分工：`plugin.getShortcut()/plugin.createShortcut` 返回的 `iconPath` 供治理页以正式文件 URL 展示，Host 按 Web 可渲染格式解析（优先 `png`/`svg`，其次 `ico`，`icns` 兜底，Chromium 无法渲染 `icns`）；launcher 创建系统快捷方式时内部仍使用平台原生图标（macOS 取 `icns` 保真），二者经 `resolvePluginDisplayIconPath` / `resolvePluginIconPath` 分开解析。
 
 ### 2.5 File Watch / IPC
 

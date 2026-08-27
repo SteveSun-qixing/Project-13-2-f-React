@@ -1354,6 +1354,8 @@ const getPreferredLauncherIconExtensions = (platform: string): string[] => {
   return ['.png', '.svg', '.ico', '.icns'];
 };
 
+const getPreferredDisplayIconExtensions = (): string[] => ['.png', '.svg', '.ico', '.icns'];
+
 const resolveExistingIconCandidate = async (candidates: string[]): Promise<string | undefined> => {
   for (const candidate of candidates) {
     try {
@@ -1391,6 +1393,33 @@ const resolvePluginIconPath = async (
   const candidates = [
     ...['app-icon', 'icon'].flatMap((name) => {
       return getPreferredLauncherIconExtensions(platform).map((extension) => `assets/icons/${name}${extension}`);
+    })
+  ].map((relativePath) => path.join(record.installPath, relativePath));
+
+  return resolveExistingIconCandidate(candidates);
+};
+
+const resolvePluginDisplayIconPath = async (
+  record: ReturnType<PluginRuntime['get']>
+): Promise<string | undefined> => {
+  const declaredIconPath = record.manifest.ui?.launcher?.icon;
+  if (typeof declaredIconPath === 'string' && declaredIconPath.trim().length > 0) {
+    const resolvedDeclaredPath = path.resolve(record.installPath, declaredIconPath);
+    const preferredDeclaredVariants = [
+      ...getPreferredDisplayIconExtensions().map((extension) => {
+        return `${resolvedDeclaredPath.slice(0, resolvedDeclaredPath.length - path.extname(resolvedDeclaredPath).length)}${extension}`;
+      }),
+      resolvedDeclaredPath
+    ];
+    const resolvedDeclaredCandidate = await resolveExistingIconCandidate([...new Set(preferredDeclaredVariants)]);
+    if (resolvedDeclaredCandidate) {
+      return resolvedDeclaredCandidate;
+    }
+  }
+
+  const candidates = [
+    ...['app-icon', 'icon'].flatMap((name) => {
+      return getPreferredDisplayIconExtensions().map((extension) => `assets/icons/${name}${extension}`);
     })
   ].map((relativePath) => path.join(record.installPath, relativePath));
 
@@ -2681,7 +2710,7 @@ const readPluginShortcut = async (
         pluginId,
         name: shortcutName
       });
-  const iconPath = await resolvePluginIconPath(plugin, (await ctx.pal.environment.getInfo()).platform);
+  const iconPath = await resolvePluginDisplayIconPath(plugin);
   const existing = await fs
     .stat(target.launcherPath)
     .then((stats) => stats.isFile() || stats.isDirectory())
@@ -2718,7 +2747,8 @@ const createPluginShortcut = async (
   }
 
   const launchTarget = resolveLaunchExecutable();
-  const iconPath = await resolvePluginIconPath(plugin, (await ctx.pal.environment.getInfo()).platform);
+  const launcherIconPath = await resolvePluginIconPath(plugin, (await ctx.pal.environment.getInfo()).platform);
+  const displayIconPath = await resolvePluginDisplayIconPath(plugin);
   const created = await ctx.pal.launcher
     .create({
       pluginId,
@@ -2726,7 +2756,7 @@ const createPluginShortcut = async (
       launcherPath: existingPath,
       executablePath: launchTarget.executablePath,
       args: buildPluginShortcutArgs(ctx.workspacePath, pluginId),
-      iconPath
+      iconPath: launcherIconPath
     })
     .catch((error: unknown) => {
       throw toPluginShortcutCreateError(pluginId, current, error);
@@ -2744,7 +2774,7 @@ const createPluginShortcut = async (
     ...created,
     executablePath: launchTarget.executablePath,
     args: buildPluginShortcutArgs(ctx.workspacePath, pluginId),
-    iconPath,
+    iconPath: displayIconPath,
     exists: true
   };
 };
