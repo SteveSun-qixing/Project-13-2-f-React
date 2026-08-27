@@ -4,9 +4,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Kernel } from '../../packages/kernel/src';
 import type { PALAdapter } from '../../packages/pal/src';
-import { BoxService } from '../../packages/box-service/src';
+import { BoxService, BoxSessionService } from '../../packages/box-service/src';
+import { WorkspaceService } from '../../packages/workspace-service/src';
 import { CardInfoService } from '../../packages/card-info-service/src';
-import { CardService } from '../../packages/card-service/src';
+import { CardService, CardSessionService } from '../../packages/card-service/src';
 import { StoreZipService } from '../../packages/zip-service/src';
 import { PluginRuntime } from '../../src/runtime';
 import { StructuredLogger } from '../../src/shared/logger';
@@ -687,6 +688,53 @@ const createCardInfoService = (): CardInfoService => {
   });
 };
 
+const createBoxSessionService = (): BoxSessionService => {
+  return new BoxSessionService(
+    {
+      pack: async () => {},
+      unpack: async () => {},
+      inspect: async () => ({
+        metadata: {
+          chipStandardsVersion: '1.0.0',
+          boxId: 'box-1',
+          name: 'test',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          modifiedAt: '2026-01-01T00:00:00.000Z',
+          activeLayoutType: 'chips.layout.grid',
+        },
+        content: { activeLayoutType: 'chips.layout.grid', layoutConfigs: {} },
+        entries: [],
+        assets: [],
+      }),
+      layout: {
+        readDescriptor: async () => ({ defaultConfig: {} }),
+        normalizeConfig: async (_layoutType, config) => config,
+      },
+      documentInfo: {
+        readCardInfo: async () => ({ ready: true }),
+        readBoxMetadata: async () => ({ boxId: 'box-1', name: 'test' }),
+      },
+      createDefaultCoverHtml: (name) => `<!doctype html><html><body>${name}</body></html>`,
+    },
+    { emit: () => undefined },
+  );
+};
+
+const createCardSessionService = (): CardSessionService => {
+  return new CardSessionService(
+    {
+      basecard: {
+        normalizeConfig: (_cardType, baseCardId, config) => ({ ...config, id: baseCardId }),
+        collectResourcePaths: () => [],
+        createInitialConfig: (_cardType, baseCardId) => ({ id: baseCardId }),
+      },
+      collectCoverReferences: () => new Set<string>(),
+      createDefaultCoverHtml: (name) => `<!doctype html><html><body>${name}</body></html>`,
+    },
+    { emit: () => undefined },
+  );
+};
+
 describe('Host services PAL routing', () => {
   let workspace: string;
 
@@ -717,7 +765,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -795,7 +846,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -833,7 +887,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -931,7 +988,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -983,7 +1043,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -1071,7 +1134,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -1105,7 +1171,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -1198,7 +1267,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -1395,7 +1467,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -1512,7 +1587,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -1586,6 +1664,123 @@ describe('Host services PAL routing', () => {
     });
   });
 
+  it('returns a web-renderable icon path from getShortcut while launcher creation keeps the native platform icon', async () => {
+    const state = createPalState();
+    const kernel = new Kernel();
+    const runtime = new PluginRuntime(workspace, { locale: 'zh-CN', themeId: 'chips-official.default-theme' });
+    await runtime.load();
+    registerHostSchemas();
+    const launcherIconCalls: Array<string | undefined> = [];
+    const pal = createPal(state);
+    pal.environment.getInfo = async () => ({
+      hostKind: 'desktop' as const,
+      platform: 'darwin' as const,
+      arch: 'arm64',
+      release: 'test'
+    });
+    pal.launcher.create = async (options) => {
+      launcherIconCalls.push(options.iconPath);
+      return {
+        pluginId: options.pluginId,
+        name: options.name,
+        location: 'launchpad' as const,
+        launcherPath: options.launcherPath ?? path.join(workspace, 'launcher', `${options.name}.app`),
+        executablePath: options.executablePath,
+        args: [...options.args],
+        iconPath: options.iconPath
+      };
+    };
+    pal.launcher.getRecord = async (options) => ({
+      pluginId: options.pluginId,
+      name: options.name,
+      location: 'launchpad' as const,
+      launcherPath: options.launcherPath ?? path.join(workspace, 'launcher', `${options.name}.app`),
+      executablePath: '',
+      args: []
+    });
+    await registerHostServices({
+      kernel,
+      pal,
+      workspacePath: workspace,
+      logger: new StructuredLogger(),
+      getCardService: () => new CardService(),
+      getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
+      getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
+      getZipService: () => new StoreZipService(),
+      runtime
+    });
+
+    const manifestPath = path.join(workspace, 'icon-app.plugin.json');
+    await fs.writeFile(
+      manifestPath,
+      JSON.stringify(
+        {
+          id: 'chips.icon.app',
+          version: '1.0.0',
+          type: 'app',
+          name: 'Icon App',
+          permissions: ['plugin.read'],
+          entry: 'dist/index.html',
+          runtime: {
+            targets: {
+              desktop: { supported: true },
+              web: { supported: false },
+              mobile: { supported: false },
+              headless: { supported: false }
+            }
+          },
+          ui: {
+            launcher: {
+              displayName: 'Icon App',
+              icon: 'assets/icons/app-icon.ico'
+            },
+            surface: {
+              defaultKind: 'window',
+              preferredKinds: {
+                desktop: 'window',
+                web: 'route',
+                mobile: 'fullscreen',
+                headless: 'window'
+              }
+            }
+          }
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    );
+    await fs.mkdir(path.join(workspace, 'assets/icons'), { recursive: true });
+    await fs.writeFile(path.join(workspace, 'assets/icons/app-icon.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'binary');
+    await fs.writeFile(path.join(workspace, 'assets/icons/app-icon.icns'), Buffer.from([0x69, 0x63, 0x6e, 0x73]), 'binary');
+    await fs.writeFile(path.join(workspace, 'assets/icons/app-icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>', 'utf-8');
+    await fs.mkdir(path.join(workspace, 'dist'), { recursive: true });
+    await fs.writeFile(path.join(workspace, 'dist/index.html'), '<!doctype html><title>icon</title>', 'utf-8');
+    await runtime.install(manifestPath);
+    const iconDir = path.join(workspace, 'plugins', 'chips.icon.app', 'assets', 'icons');
+    await fs.mkdir(iconDir, { recursive: true });
+    await fs.writeFile(path.join(iconDir, 'app-icon.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'binary');
+    await fs.writeFile(path.join(iconDir, 'app-icon.icns'), Buffer.from([0x69, 0x63, 0x6e, 0x73]), 'binary');
+    await fs.writeFile(path.join(iconDir, 'app-icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>', 'utf-8');
+
+    const context = createContextFactory();
+    const readShortcut = await kernel.invoke<
+      { pluginId: string },
+      { shortcut: { iconPath?: string } }
+    >('plugin.getShortcut', { pluginId: 'chips.icon.app' }, context(['plugin.read']));
+    expect(readShortcut.shortcut.iconPath).toBe(path.join(workspace, 'plugins', 'chips.icon.app', 'assets', 'icons', 'app-icon.png'));
+
+    const createdShortcut = await kernel.invoke<
+      { pluginId: string },
+      { shortcut: { iconPath?: string } }
+    >('plugin.createShortcut', { pluginId: 'chips.icon.app' }, context(['plugin.manage']));
+    expect(createdShortcut.shortcut.iconPath).toBe(path.join(workspace, 'plugins', 'chips.icon.app', 'assets', 'icons', 'app-icon.png'));
+    expect(launcherIconCalls).toEqual([path.join(workspace, 'plugins', 'chips.icon.app', 'assets', 'icons', 'app-icon.icns')]);
+  });
+
   it('registers, lists, invokes, updates, and unregisters commands through the Host registry', async () => {
     const state = createPalState();
     const kernel = new Kernel();
@@ -1599,7 +1794,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -1813,7 +2011,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });
@@ -1915,7 +2116,10 @@ describe('Host services PAL routing', () => {
       logger: new StructuredLogger(),
       getCardService: () => new CardService(),
       getCardInfoService: () => createCardInfoService(),
+      getCardSessionService: () => createCardSessionService(),
       getBoxService: () => new BoxService(),
+      getBoxSessionService: () => createBoxSessionService(),
+      getWorkspaceService: () => new WorkspaceService(),
       getZipService: () => new StoreZipService(),
       runtime
     });

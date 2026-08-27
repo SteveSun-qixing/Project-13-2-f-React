@@ -3,9 +3,10 @@ import os from 'node:os';
 import fs from 'node:fs/promises';
 import { Kernel } from '../../../packages/kernel/src';
 import type { PALAdapter } from '../../../packages/pal/src';
-import { CardService } from '../../../packages/card-service/src';
+import { CardService, CardSessionService, createBasecardAdapter, createDefaultCoverHtml, collectCoverResourceReferences } from '../../../packages/card-service/src';
 import { CardInfoService } from '../../../packages/card-info-service/src';
-import { BoxService } from '../../../packages/box-service/src';
+import { BoxService, BoxSessionService } from '../../../packages/box-service/src';
+import { WorkspaceService } from '../../../packages/workspace-service/src';
 import { StoreZipService } from '../../../packages/zip-service/src';
 import { StructuredLogger } from '../../shared/logger';
 import { createBridgeForKernel, HOST_INTERNAL_PERMISSIONS } from '../../preload/create-bridge';
@@ -19,7 +20,6 @@ import {
 } from '../electron/render-document-protocol';
 import type { LogEntry } from '../../shared/types';
 import {
-  DEFAULT_BUILT_IN_PLUGINS,
   ensureBuiltInPlugins,
   ensureBuiltInPluginShortcuts,
   resolveDefaultBuiltInPluginRoots,
@@ -40,10 +40,13 @@ export class HostCore {
   public readonly workspacePath: string;
   public readonly runtime: PluginRuntime;
   private readonly builtInPluginRoots: string[];
-  private readonly builtInPlugins: BuiltInPluginDefinition[];
+  private readonly builtInPlugins?: BuiltInPluginDefinition[];
   private cardService?: CardService;
   private cardInfoService?: CardInfoService;
+  private cardSessionService?: CardSessionService;
   private boxService?: BoxService;
+  private boxSessionService?: BoxSessionService;
+  private workspaceService?: WorkspaceService;
   private zipService?: StoreZipService;
   private startupLaunchPluginId?: string;
   private started = false;
@@ -54,7 +57,7 @@ export class HostCore {
     this.logger = new StructuredLogger();
     this.workspacePath = options.workspacePath ?? path.join(os.homedir(), '.chips-host');
     this.builtInPluginRoots = options.builtInPluginRoots ?? resolveDefaultBuiltInPluginRoots();
-    this.builtInPlugins = options.builtInPlugins ?? DEFAULT_BUILT_IN_PLUGINS;
+    this.builtInPlugins = options.builtInPlugins;
     this.runtime = new PluginRuntime(this.workspacePath, {
       locale: 'zh-CN',
       themeId: 'chips-official.default-theme'
@@ -83,7 +86,10 @@ export class HostCore {
       logger: this.logger,
       getCardService: () => this.getCardService(),
       getCardInfoService: () => this.getCardInfoService(),
+      getCardSessionService: () => this.getCardSessionService(),
       getBoxService: () => this.getBoxService(),
+      getBoxSessionService: () => this.getBoxSessionService(),
+      getWorkspaceService: () => this.getWorkspaceService(),
       getZipService: () => {
         this.zipService ??= new StoreZipService();
         return this.zipService;
@@ -254,6 +260,26 @@ export class HostCore {
     return this.cardInfoService;
   }
 
+  private getCardSessionService(): CardSessionService {
+    if (!this.cardSessionService) {
+      const cardService = this.getCardService();
+      this.cardSessionService = new CardSessionService(
+        {
+          basecard: createBasecardAdapter(cardService),
+          collectCoverReferences: (html) => collectCoverResourceReferences(html),
+          createDefaultCoverHtml
+        },
+        {
+          emit: (event, payload) => {
+            void this.kernel.events.emit(event, 'card-session-service', payload).catch(() => undefined);
+          }
+        }
+      );
+    }
+
+    return this.cardSessionService;
+  }
+
   private getBoxService(): BoxService {
     if (!this.boxService) {
       this.boxService = new BoxService(undefined, {
@@ -264,5 +290,70 @@ export class HostCore {
     }
 
     return this.boxService;
+  }
+
+  private getBoxSessionService(): BoxSessionService {
+    if (!this.boxSessionService) {
+      const boxService = this.getBoxService();
+      this.boxSessionService = new BoxSessionService(
+        {
+          pack: async (boxDir, outputPath) => {
+            await boxService.pack(boxDir, outputPath);
+          },
+          unpack: async (boxFile, outputDir) => {
+            await boxService.unpack(boxFile, outputDir);
+          },
+          inspect: (boxFile) => boxService.inspect(boxFile),
+          layout: {
+            readDescriptor: (layoutType) => boxService.readLayoutDescriptor(layoutType),
+            normalizeConfig: (layoutType, config) => boxService.normalizeLayoutConfig(layoutType, config),
+          },
+          documentInfo: {
+            readCardInfo: async (cardFile) => {
+              const result = await this.getCardInfoService().readInfo(cardFile, ['status', 'metadata']);
+              return {
+                name: result.info.metadata?.name,
+                cardId: result.info.metadata?.cardId,
+                tags: result.info.metadata?.tags,
+                ready: result.info.status?.state === 'ready',
+              };
+            },
+            readBoxMetadata: async (boxFile) => {
+              const metadata = await boxService.readMetadata(boxFile);
+              return { boxId: metadata.boxId, name: metadata.name, tags: metadata.tags };
+            },
+          },
+          createDefaultCoverHtml,
+        },
+        {
+          emit: (event, payload) => {
+            void this.kernel.events.emit(event, 'box-session-service', payload).catch(() => undefined);
+          },
+        }
+      );
+    }
+
+    return this.boxSessionService;
+  }
+
+  private getWorkspaceService(): WorkspaceService {
+    if (!this.workspaceService) {
+      this.workspaceService = new WorkspaceService({
+        readBoxMetadata: async (boxFile) => {
+          try {
+            const metadata = await this.getBoxService().readMetadata(boxFile);
+            return {
+              boxId: metadata.boxId,
+              name: metadata.name,
+              createdAt: metadata.createdAt,
+              modifiedAt: metadata.modifiedAt,
+            };
+          } catch {
+            return null;
+          }
+        },
+      });
+    }
+    return this.workspaceService;
   }
 }

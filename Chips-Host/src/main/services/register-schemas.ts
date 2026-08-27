@@ -771,6 +771,9 @@ export const registerHostSchemas = (): void => {
   registerPair('file.delete', ['path']);
   registerPair('file.move', ['sourcePath', 'destPath']);
   registerPair('file.copy', ['sourcePath', 'destPath']);
+  registerPair('file.detectType', ['path']);
+  registerPair('resource.importArchive', ['zipFile', 'targetRoot']);
+  registerPair('workspace.scan', ['rootPath'], ['files']);
 
   registerPair('resource.resolve', ['resourceId']);
   schemaRegistry.register('schemas/resource.open.request.json', validateResourceOpenRequest);
@@ -946,6 +949,20 @@ export const registerHostSchemas = (): void => {
   registerPair('card.resolveResourceUrl', ['cardRootDir', 'resourcePath'], ['uri']);
   registerPair('card.validate', ['cardFile']);
   registerPair('card.open', ['cardFile'], ['result']);
+  registerPair('card.init', ['parentPath', 'name'], ['cardDir', 'cardId', 'sessionId', 'snapshot']);
+  registerPair('card.session.open', ['cardDir'], ['sessionId', 'snapshot']);
+  registerPair('card.session.get', ['sessionId'], ['snapshot']);
+  registerPair('card.session.updateBasicCard', ['sessionId', 'basicCardId', 'data'], ['snapshot']);
+  registerPair('card.session.addBasicCard', ['sessionId', 'type'], ['snapshot']);
+  registerPair('card.session.removeBasicCard', ['sessionId', 'basicCardId'], ['snapshot']);
+  registerPair('card.session.moveBasicCard', ['sessionId', 'basicCardId', 'newPosition'], ['snapshot']);
+  registerPair('card.session.updateMetadata', ['sessionId', 'patch'], ['snapshot']);
+  registerPair('card.session.updateCover', ['sessionId', 'html'], ['snapshot']);
+  registerPair('card.session.persist', ['sessionId'], ['snapshot']);
+  registerPair('card.session.undo', ['sessionId'], ['snapshot']);
+  registerPair('card.session.redo', ['sessionId'], ['snapshot']);
+  registerPair('card.session.history', ['sessionId'], ['history']);
+  registerPair('card.session.close', ['sessionId'], ['ack']);
 
   registerPair('box.pack', ['boxDir', 'outputPath'], ['boxFile']);
   registerPair('box.unpack', ['boxFile', 'outputDir'], ['outputDir']);

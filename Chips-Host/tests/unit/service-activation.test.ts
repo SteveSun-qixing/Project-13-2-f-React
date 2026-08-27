@@ -532,6 +532,15 @@ describe('Service activation and lazy heavy service creation', () => {
         return cardService;
       },
       getCardInfoService: () => createCardInfoService((cardService ?? fakeCardService) as CardService),
+      getCardSessionService: () => {
+        throw new Error('card session service should not be created during activation test');
+      },
+      getBoxSessionService: () => {
+        throw new Error('box session service should not be created during activation test');
+      },
+      getWorkspaceService: () => {
+        throw new Error('workspace service should not be created during activation test');
+      },
       getBoxService: () => {
         if (!boxService) {
           boxService = fakeBoxService;

@@ -5,6 +5,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createError, toStandardError } from '../../shared/errors';
 import { schemaRegistry } from '../../shared/schema';
 import { createId, deepClone } from '../../shared/utils';
+import { detectTypeByPath } from '../../shared/detect-type';
+import { importArchiveBundle } from '../../../packages/zip-service/src';
+import { WorkspaceService } from '../../../packages/workspace-service/src';
 import type { LogEntry, RouteDescriptor, RouteInvocationContext, ServiceRegistration, StandardError } from '../../shared/types';
 import { loadElectronModule } from '../electron/electron-loader';
 import { rewriteThemeCssAssetUrls } from '../theme-runtime/css-assets';
@@ -20,12 +23,12 @@ import { PluginRuntime } from '../../runtime';
 import type { CliCommandManifestMeta, CliCommandTargetManifestMeta, PluginRecord } from '../../runtime';
 import type { Kernel } from '../../../packages/kernel/src';
 import type { HostKind, PALAdapter, SurfaceContext, SurfaceKind, SurfacePresentation, SurfaceState, WindowChromeOptions } from '../../../packages/pal/src';
-import { CardService } from '../../../packages/card-service/src';
+import { CardService, CardSessionService } from '../../../packages/card-service/src';
 import { CardInfoService } from '../../../packages/card-info-service/src';
 import { CardOpenService } from '../../../packages/card-open-service/src';
 import { ResourceOpenService } from '../../../packages/resource-open-service/src';
 import { ResourceImageService } from '../../../packages/resource-image-service/src';
-import { BoxService } from '../../../packages/box-service/src';
+import { BoxService, BoxSessionService } from '../../../packages/box-service/src';
 import { StoreZipService } from '../../../packages/zip-service/src';
 import {
   buildModuleProviderRecords,
@@ -49,7 +52,10 @@ interface HostServiceContext {
   logger: StructuredLogger;
   getCardService: () => CardService;
   getCardInfoService: () => CardInfoService;
+  getCardSessionService: () => CardSessionService;
   getBoxService: () => BoxService;
+  getBoxSessionService: () => BoxSessionService;
+  getWorkspaceService: () => WorkspaceService;
   getZipService: () => StoreZipService;
   runtime: PluginRuntime;
 }
@@ -817,6 +823,49 @@ const normalizeFileWriteContent = (value: FileWriteContent): string | Buffer => 
     return Buffer.from(value.data);
   }
   throw createError('FILE_CONTENT_INVALID', 'file.write content must be string or binary bytes');
+};
+
+const normalizeSessionResourceBytes = (value: unknown): Uint8Array => {
+  const buffer = normalizeFileWriteContent(value as FileWriteContent);
+  if (typeof buffer === 'string') {
+    throw createError('FILE_CONTENT_INVALID', 'card session resource import expects binary bytes');
+  }
+  return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+};
+
+const normalizeSessionResourceOperations = (
+  input: {
+    imports?: Array<{ path: string; data: unknown; mimeType?: string }>;
+    deletions?: string[];
+  } | undefined,
+): { imports?: Array<{ path: string; data: Uint8Array; mimeType?: string }>; deletions?: string[] } | undefined => {
+  if (!input) {
+    return undefined;
+  }
+  return {
+    ...(input.imports
+      ? {
+          imports: input.imports.map((resource) => ({
+            path: resource.path,
+            data: normalizeSessionResourceBytes(resource.data),
+            ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+          })),
+        }
+      : {}),
+    ...(input.deletions ? { deletions: input.deletions } : {}),
+  };
+};
+
+const normalizeCoverResourceBytes = (
+  resources: Array<{ path: string; data: unknown }> | undefined,
+): Array<{ path: string; data: Uint8Array }> | undefined => {
+  if (!resources) {
+    return undefined;
+  }
+  return resources.map((resource) => ({
+    path: resource.path,
+    data: normalizeSessionResourceBytes(resource.data),
+  }));
 };
 
 const asPositiveFiniteNumber = (value: unknown): number | undefined => {
@@ -4089,6 +4138,25 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
             return { ack: true };
           })
         )
+      },
+      detectType: {
+        descriptor: descriptor<
+          { path: string },
+          {
+            documentType: 'card' | 'box' | null;
+            mimeType: string;
+            category: 'document' | 'image' | 'video' | 'audio' | 'text' | 'html' | 'archive' | 'unknown';
+          }
+        >(
+          'file.detectType',
+          ['file.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'file.detectType', async (input) => {
+            return detectTypeByPath(input.path);
+          })
+        )
       }
     }
   };
@@ -4222,6 +4290,47 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           0,
           withMetrics(state, 'resource.extractVideoFrame', async (input) => {
             return createResourceImageService(ctx).extractVideoFrame(input);
+          })
+        )
+      },
+      importArchive: {
+        descriptor: descriptor<
+          {
+            zipFile: string;
+            targetRoot: string;
+            preferredRootDir?: string;
+            entryFile?: string;
+            include?: { mimeTypes?: string[]; extensions?: string[] };
+            stripSingleRootDir?: boolean;
+            excludeSystemArtifacts?: boolean;
+          },
+          {
+            rootDir: string;
+            entryFile?: string;
+            resourcePaths: string[];
+            entries: unknown[];
+            discardedEntries: unknown[];
+          }
+        >(
+          'resource.importArchive',
+          ['file.read', 'file.write', 'resource.read'],
+          60_000,
+          false,
+          0,
+          withMetrics(state, 'resource.importArchive', async (input) => {
+            const result = await importArchiveBundle(
+              {
+                zipFile: input.zipFile,
+                targetRoot: input.targetRoot,
+                preferredRootDir: input.preferredRootDir,
+                entryFile: input.entryFile,
+                include: input.include,
+                stripSingleRootDir: input.stripSingleRootDir,
+                excludeSystemArtifacts: input.excludeSystemArtifacts,
+              },
+              ctx.getZipService(),
+            );
+            return result;
           })
         )
       }
@@ -6830,6 +6939,244 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
             return { result };
           })
         )
+      },
+      init: {
+        descriptor: descriptor<
+          {
+            parentPath: string;
+            name: string;
+            initialBasicCard?: { type: string; data?: Record<string, unknown> };
+            cardId?: string;
+          },
+          { cardDir: string; cardId: string; sessionId: string; snapshot: unknown }
+        >(
+          'card.init',
+          ['card.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'card.init', async (input) => {
+            const result = await ctx.getCardSessionService().initCard(
+              input.parentPath,
+              input.name,
+              input.initialBasicCard,
+              input.cardId,
+            );
+            return result;
+          })
+        )
+      },
+      'session.open': {
+        descriptor: descriptor<{ cardDir: string }, { sessionId: string; snapshot: unknown }>(
+          'card.session.open',
+          ['card.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.open', async (input) => {
+            const result = await ctx.getCardSessionService().open(input.cardDir);
+            return result;
+          })
+        )
+      },
+      'session.get': {
+        descriptor: descriptor<{ sessionId: string }, { snapshot: unknown }>(
+          'card.session.get',
+          ['card.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'card.session.get', async (input) => {
+            const snapshot = ctx.getCardSessionService().get(input.sessionId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.updateBasicCard': {
+        descriptor: descriptor<
+          {
+            sessionId: string;
+            basicCardId: string;
+            data: Record<string, unknown>;
+            resourceOperations?: {
+              imports?: Array<{ path: string; data: unknown; mimeType?: string }>;
+              deletions?: string[];
+            };
+          },
+          { snapshot: unknown }
+        >(
+          'card.session.updateBasicCard',
+          ['card.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.updateBasicCard', async (input) => {
+            const snapshot = await ctx.getCardSessionService().updateBasicCard(
+              input.sessionId,
+              input.basicCardId,
+              input.data,
+              normalizeSessionResourceOperations(input.resourceOperations)
+            );
+            return { snapshot };
+          })
+        )
+      },
+      'session.addBasicCard': {
+        descriptor: descriptor<
+          { sessionId: string; type: string; data?: Record<string, unknown>; position?: number },
+          { snapshot: unknown }
+        >(
+          'card.session.addBasicCard',
+          ['card.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.addBasicCard', async (input) => {
+            const snapshot = await ctx.getCardSessionService().addBasicCard(input.sessionId, input.type, input.data, input.position);
+            return { snapshot };
+          })
+        )
+      },
+      'session.removeBasicCard': {
+        descriptor: descriptor<{ sessionId: string; basicCardId: string }, { snapshot: unknown }>(
+          'card.session.removeBasicCard',
+          ['card.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.removeBasicCard', async (input) => {
+            const snapshot = await ctx.getCardSessionService().removeBasicCard(input.sessionId, input.basicCardId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.moveBasicCard': {
+        descriptor: descriptor<{ sessionId: string; basicCardId: string; newPosition: number }, { snapshot: unknown }>(
+          'card.session.moveBasicCard',
+          ['card.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.moveBasicCard', async (input) => {
+            const snapshot = await ctx.getCardSessionService().moveBasicCard(input.sessionId, input.basicCardId, input.newPosition);
+            return { snapshot };
+          })
+        )
+      },
+      'session.updateMetadata': {
+        descriptor: descriptor<
+          {
+            sessionId: string;
+            patch: {
+              name?: string;
+              description?: string;
+              themeId?: string;
+              coverRatio?: string;
+              tags?: string[];
+            };
+          },
+          { snapshot: unknown }
+        >(
+          'card.session.updateMetadata',
+          ['card.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.updateMetadata', async (input) => {
+            const snapshot = await ctx.getCardSessionService().updateMetadata(input.sessionId, input.patch);
+            return { snapshot };
+          })
+        )
+      },
+      'session.updateCover': {
+        descriptor: descriptor<
+          {
+            sessionId: string;
+            html: string;
+            ratio?: string;
+            resources?: Array<{ path: string; data: unknown }>;
+          },
+          { snapshot: unknown }
+        >(
+          'card.session.updateCover',
+          ['card.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.updateCover', async (input) => {
+            const snapshot = await ctx.getCardSessionService().updateCover(input.sessionId, {
+              html: input.html,
+              ratio: input.ratio,
+              resources: normalizeCoverResourceBytes(input.resources)
+            });
+            return { snapshot };
+          })
+        )
+      },
+      'session.persist': {
+        descriptor: descriptor<{ sessionId: string }, { snapshot: unknown }>(
+          'card.session.persist',
+          ['card.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.persist', async (input) => {
+            const snapshot = await ctx.getCardSessionService().persist(input.sessionId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.undo': {
+        descriptor: descriptor<{ sessionId: string }, { snapshot: unknown }>(
+          'card.session.undo',
+          ['card.write'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.undo', async (input) => {
+            const snapshot = ctx.getCardSessionService().undo(input.sessionId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.redo': {
+        descriptor: descriptor<{ sessionId: string }, { snapshot: unknown }>(
+          'card.session.redo',
+          ['card.write'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.redo', async (input) => {
+            const snapshot = ctx.getCardSessionService().redo(input.sessionId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.history': {
+        descriptor: descriptor<{ sessionId: string }, { history: unknown }>(
+          'card.session.history',
+          ['card.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'card.session.history', async (input) => {
+            const history = ctx.getCardSessionService().history(input.sessionId);
+            return { history };
+          })
+        )
+      },
+      'session.close': {
+        descriptor: descriptor<{ sessionId: string }, { ack: true }>(
+          'card.session.close',
+          ['card.write'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'card.session.close', async (input) => {
+            ctx.getCardSessionService().close(input.sessionId);
+            return { ack: true };
+          })
+        )
       }
     }
   };
@@ -7310,10 +7657,317 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
                 releaseCardRenderSession: (renderSessionId) => ctx.getCardService().releaseRenderSession(renderSessionId)
               }
             );
-            await ctx.kernel.events.emit('box.session.closed', 'box-service', {
+            await ctx.kernel.events.emit('box.view.closed', 'box-service', {
               sessionId: input.sessionId
             });
             return result;
+          })
+        )
+      },
+      create: {
+        descriptor: descriptor<{ name: string; layoutType: string; parentPath: string }, { boxFile: string; metadata: unknown }>(
+          'box.create',
+          ['box.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'box.create', async (input) => {
+            const result = await ctx.getBoxSessionService().createBoxFile(
+              input.name,
+              input.layoutType,
+              input.parentPath,
+            );
+            return result;
+          })
+        )
+      },
+      rename: {
+        descriptor: descriptor<{ boxFile: string; newName: string }, { boxFile: string; metadata: unknown }>(
+          'box.rename',
+          ['box.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'box.rename', async (input) => {
+            const result = await ctx.getBoxSessionService().renameBoxFile(input.boxFile, input.newName);
+            return result;
+          })
+        )
+      },
+      'session.open': {
+        descriptor: descriptor<{ boxFile: string }, { sessionId: string; snapshot: unknown }>(
+          'box.session.open',
+          ['box.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.open', async (input) => {
+            const result = await ctx.getBoxSessionService().openBox(input.boxFile);
+            return result;
+          })
+        )
+      },
+      'session.get': {
+        descriptor: descriptor<{ sessionId: string }, { snapshot: unknown }>(
+          'box.session.get',
+          ['box.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'box.session.get', async (input) => {
+            const snapshot = ctx.getBoxSessionService().get(input.sessionId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.addEntry': {
+        descriptor: descriptor<{ sessionId: string; url?: string; filePath?: string }, { snapshot: unknown }>(
+          'box.session.addEntry',
+          ['box.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.addEntry', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().addEntry(input.sessionId, {
+              url: input.url,
+              filePath: input.filePath,
+            });
+            return { snapshot };
+          })
+        )
+      },
+      'session.addEmbeddedCard': {
+        descriptor: descriptor<{ sessionId: string; cardFile: string; preferredName?: string }, { snapshot: unknown }>(
+          'box.session.addEmbeddedCard',
+          ['box.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.addEmbeddedCard', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().addEmbeddedCard(
+              input.sessionId,
+              input.cardFile,
+              input.preferredName,
+            );
+            return { snapshot };
+          })
+        )
+      },
+      'session.updateEntry': {
+        descriptor: descriptor<{ sessionId: string; entryId: string; patch: unknown }, { snapshot: unknown }>(
+          'box.session.updateEntry',
+          ['box.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.updateEntry', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().updateEntry(
+              input.sessionId,
+              input.entryId,
+              input.patch as Partial<import('../../../packages/box-service/src').BoxEntrySnapshot>,
+            );
+            return { snapshot };
+          })
+        )
+      },
+      'session.moveEntry': {
+        descriptor: descriptor<{ sessionId: string; entryId: string; targetIndex: number }, { snapshot: unknown }>(
+          'box.session.moveEntry',
+          ['box.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.moveEntry', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().moveEntry(input.sessionId, input.entryId, input.targetIndex);
+            return { snapshot };
+          })
+        )
+      },
+      'session.removeEntry': {
+        descriptor: descriptor<{ sessionId: string; entryId: string }, { snapshot: unknown }>(
+          'box.session.removeEntry',
+          ['box.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.removeEntry', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().removeEntry(input.sessionId, input.entryId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.updateMetadata': {
+        descriptor: descriptor<
+          {
+            sessionId: string;
+            patch: {
+              name?: string;
+              description?: string;
+              coverRatio?: string;
+              tags?: Array<string | string[]>;
+              coverAsset?: string;
+            };
+          },
+          { snapshot: unknown }
+        >(
+          'box.session.updateMetadata',
+          ['box.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.updateMetadata', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().updateMetadata(input.sessionId, input.patch);
+            return { snapshot };
+          })
+        )
+      },
+      'session.updateLayoutConfig': {
+        descriptor: descriptor<{ sessionId: string; layoutType: string; config: Record<string, unknown> }, { snapshot: unknown }>(
+          'box.session.updateLayoutConfig',
+          ['box.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.updateLayoutConfig', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().updateLayoutConfig(
+              input.sessionId,
+              input.layoutType,
+              input.config,
+            );
+            return { snapshot };
+          })
+        )
+      },
+      'session.importAsset': {
+        descriptor: descriptor<{ sessionId: string; data: unknown; preferredPath?: string }, { assetPath: string }>(
+          'box.session.importAsset',
+          ['box.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.importAsset', async (input) => {
+            const result = await ctx.getBoxSessionService().importBoxAsset(input.sessionId, {
+              data: normalizeSessionResourceBytes(input.data),
+              preferredPath: input.preferredPath,
+            });
+            return result;
+          })
+        )
+      },
+      'session.deleteAsset': {
+        descriptor: descriptor<{ sessionId: string; assetPath: string }, { ack: true }>(
+          'box.session.deleteAsset',
+          ['box.write'],
+          10_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.deleteAsset', async (input) => {
+            await ctx.getBoxSessionService().deleteBoxAsset(input.sessionId, input.assetPath);
+            return { ack: true };
+          })
+        )
+      },
+      'session.updateCover': {
+        descriptor: descriptor<
+          { sessionId: string; html: string; ratio?: string; resources?: Array<{ path: string; data: unknown }> },
+          { snapshot: unknown }
+        >(
+          'box.session.updateCover',
+          ['box.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.updateCover', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().updateCover(input.sessionId, {
+              html: input.html,
+              ratio: input.ratio,
+              resources: normalizeCoverResourceBytes(input.resources),
+            });
+            return { snapshot };
+          })
+        )
+      },
+      'session.persist': {
+        descriptor: descriptor<{ sessionId: string }, { snapshot: unknown }>(
+          'box.session.persist',
+          ['box.write'],
+          15_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.persist', async (input) => {
+            const snapshot = await ctx.getBoxSessionService().persist(input.sessionId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.undo': {
+        descriptor: descriptor<{ sessionId: string }, { snapshot: unknown }>(
+          'box.session.undo',
+          ['box.write'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.undo', async (input) => {
+            const snapshot = ctx.getBoxSessionService().undo(input.sessionId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.redo': {
+        descriptor: descriptor<{ sessionId: string }, { snapshot: unknown }>(
+          'box.session.redo',
+          ['box.write'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.redo', async (input) => {
+            const snapshot = ctx.getBoxSessionService().redo(input.sessionId);
+            return { snapshot };
+          })
+        )
+      },
+      'session.history': {
+        descriptor: descriptor<{ sessionId: string }, { history: unknown }>(
+          'box.session.history',
+          ['box.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'box.session.history', async (input) => {
+            const history = ctx.getBoxSessionService().history(input.sessionId);
+            return { history };
+          })
+        )
+      },
+      'session.close': {
+        descriptor: descriptor<{ sessionId: string }, { ack: true }>(
+          'box.session.close',
+          ['box.write'],
+          5_000,
+          false,
+          0,
+          withMetrics(state, 'box.session.close', async (input) => {
+            ctx.getBoxSessionService().close(input.sessionId);
+            return { ack: true };
+          })
+        )
+      }
+    }
+  };
+
+  const workspaceService: ServiceRegistration = {
+    name: 'workspace',
+    actions: {
+      scan: {
+        descriptor: descriptor<{ rootPath: string }, { files: unknown[] }>(
+          'workspace.scan',
+          ['file.read'],
+          15_000,
+          true,
+          0,
+          withMetrics(state, 'workspace.scan', async (input) => {
+            const files = await ctx.getWorkspaceService().scan({ rootPath: input.rootPath });
+            return { files };
           })
         )
       }
@@ -7525,6 +8179,7 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
     cardService,
     boxService,
     zipService,
+    workspaceService,
     serializerService,
     controlPlaneService
   ];

@@ -11,7 +11,7 @@ import {
   createThemeCssVariableDeclarations,
   normalizeThemeCssForBrowser
 } from '../../../src/shared/theme-css-units';
-import { createId } from '../../../src/shared/utils';
+import { createId, normalizeRelativeResourcePath } from '../../../src/shared';
 import { CardPacker } from '../../card-packer/src';
 import { evaluateRenderQualityGate } from '../../unified-rendering/src';
 import type {
@@ -156,6 +156,12 @@ interface RenderSessionEntry {
 }
 
 interface BaseCardPluginModule {
+  basecardDefinition?: {
+    normalizeConfig?(baseCardId: string, config: Record<string, unknown>): Record<string, unknown>;
+    validateConfig?(config: Record<string, unknown>): { valid: boolean; errors: Record<string, string> };
+    collectResourcePaths?(config: Record<string, unknown>): string[];
+    createInitialConfig?(baseCardId: string): Record<string, unknown>;
+  };
   renderBasecardView?: (ctx: {
     container: unknown;
     config: unknown;
@@ -290,28 +296,6 @@ const normalizeManagedDocumentScheme = (value: unknown): string | undefined => {
 };
 
 type CompositeInteractionPolicy = 'native' | 'delegate';
-
-const normalizeRelativeResourcePath = (resourcePath: unknown): string | null => {
-  if (typeof resourcePath !== 'string') {
-    return null;
-  }
-
-  const normalized = resourcePath.replace(/\\/g, '/').trim();
-  if (!normalized) {
-    return null;
-  }
-
-  const segments = normalized
-    .replace(/^\.?\//, '')
-    .split('/')
-    .filter((segment) => segment.length > 0 && segment !== '.');
-
-  if (segments.length === 0 || segments.some((segment) => segment === '..')) {
-    return null;
-  }
-
-  return segments.join('/');
-};
 
 const createChildInteractionBridgeScript = (
   cardType: string,
@@ -2205,7 +2189,7 @@ export class CardService {
     }
   }
 
-  private resolveCardPlugin(cardType: string): RenderablePluginRecord | undefined {
+  public resolveCardPlugin(cardType: string): RenderablePluginRecord | undefined {
     const plugins = this.runtime?.query({ type: 'card' }) ?? [];
     const candidates = this.buildCardTypeCandidates(cardType);
 
@@ -2220,7 +2204,7 @@ export class CardService {
       });
   }
 
-  private buildCardTypeCandidates(cardType: string): string[] {
+  public buildCardTypeCandidates(cardType: string): string[] {
     const trimmed = cardType.trim();
     const compact = trimmed.replace(/\s+/g, '');
     const stripped = compact.replace(/Card$/i, '');
@@ -2292,7 +2276,7 @@ export class CardService {
     return rawConfig;
   }
 
-  private async loadPluginModule(plugin: RenderablePluginRecord): Promise<BaseCardPluginModule> {
+  public async loadPluginModule(plugin: RenderablePluginRecord): Promise<BaseCardPluginModule> {
     const entryPath = await this.resolvePluginEntryPath(plugin);
     const cacheKey = `${plugin.manifest.id}:${entryPath}`;
     const cached = this.moduleCache.get(cacheKey);
