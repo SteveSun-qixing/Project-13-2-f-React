@@ -22,6 +22,21 @@ const URL_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 const BOX_MIME_TYPE = 'application/vnd.chips.box+zip';
 const CARD_MIME_TYPE = 'application/vnd.chips.card+zip';
 
+/**
+ * srcdoc 内嵌 iframe 高度上报脚本的 CSP hash。
+ *
+ * 背景：布局文档 CSP 为 script-src 'nonce-...'，而 @chips/ui EmbeddedDocumentFrame
+ * 向 srcdoc 注入的 inline 高度上报脚本（postMessage 'chips.embedded-frame:height'）无 nonce，
+ * 会被 CSP 阻止导致 autoHeight 失效（顶部照片无法按原图比例显示）。
+ * 由于 CSP 中 nonce 存在时 'unsafe-inline' 被忽略，必须使用脚本内容 hash 精确放行。
+ *
+ * 来源：Chips-Ui/src/components/EmbeddedDocumentFrame.tsx buildHeightReporterScript()
+ * （hash 为 script 元素文本内容的 sha256 + base64，由浏览器 CSP 报错给出）。
+ * 变更提示：@chips/ui 该脚本内容一旦变化，本常量必须同步更新，
+ * 一致性由 tests/unit/box-layout-csp.test.ts 跨仓校验保证。
+ */
+const SRCDOC_HEIGHT_REPORT_SCRIPT_SHA256 = 'sha256-p6qnAKKz6lQAhoLtV8hXdLgzG6dHjyK+iL44pLbQ0SM=';
+
 const isEmbeddedEntryUrl = (value: string): boolean => {
   return !URL_SCHEME_PATTERN.test(value);
 };
@@ -681,7 +696,7 @@ const createBoxLayoutViewDocument = (options: {
     '<head>',
     '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    `  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; connect-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}'; font-src data: file:${managedSource ? ` ${managedSource}` : ''}; media-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; child-src about: file: http: https: blob:${managedSource ? ` ${managedSource}` : ''}; frame-src about: file: http: https: blob:${managedSource ? ` ${managedSource}` : ''}; object-src 'none';" />`,
+    `  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; connect-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}' ${SRCDOC_HEIGHT_REPORT_SCRIPT_SHA256}; font-src data: file:${managedSource ? ` ${managedSource}` : ''}; media-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; child-src about: file: http: https: blob:${managedSource ? ` ${managedSource}` : ''}; frame-src about: file: http: https: blob:${managedSource ? ` ${managedSource}` : ''}; object-src 'none';" />`,
     `  <title>${escapeHtml(title)}</title>`,
     `  <style>${themeCssText}</style>`,
     '</head>',
@@ -883,7 +898,7 @@ const createBoxLayoutEditorDocument = (options: {
     '<head>',
     '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    `  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; connect-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}'; font-src data: file:${managedSource ? ` ${managedSource}` : ''}; media-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; child-src about: file: http: https: blob:${managedSource ? ` ${managedSource}` : ''}; frame-src about: file: http: https: blob:${managedSource ? ` ${managedSource}` : ''}; object-src 'none';" />`,
+    `  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; connect-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}' ${SRCDOC_HEIGHT_REPORT_SCRIPT_SHA256}; font-src data: file:${managedSource ? ` ${managedSource}` : ''}; media-src file: http: https: data: blob:${managedSource ? ` ${managedSource}` : ''}; child-src about: file: http: https: blob:${managedSource ? ` ${managedSource}` : ''}; frame-src about: file: http: https: blob:${managedSource ? ` ${managedSource}` : ''}; object-src 'none';" />`,
     `  <title>${escapeHtml(title)}</title>`,
     `  <style>${themeCssText}</style>`,
     '</head>',
