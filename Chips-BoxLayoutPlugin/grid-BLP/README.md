@@ -39,6 +39,13 @@
 - `layoutDefinition.icon` 是运行时正式图标描述符；
 - `assets/icons/layout-icon.svg/.png/.ico/.icns` 是插件静态身份图标四件套，来源与渲染链路说明见 `assets/icons/SOURCE.md`。
 
+## 顶部区域与背景区域行为
+
+- **顶部内容区（topRegion）**：无固定比例与高度限制；图片模式按图片自然宽高比显示、宽度始终撑满容器、背景透明；HTML 模式按内容实际高度显示（autoHeight），上限为容器宽度的 3 倍（maxHeightFactor=3）；
+- **背景区域（background）**：固定比例 16:9、cover 覆盖显示，保持不变；
+- 两类区域资源均通过 `runtime.readBoxAsset(assetPath)` 读取（箱子自有资源，路径以 `assets/` 相对路径表示）；
+- 约束：顶部区域 srcdoc 内嵌脚本受布局文档 CSP 限制，见 `生态共用技术文档/插件开发/04-布局插件开发.md`「布局文档 CSP 与 srcdoc 内嵌脚本」一节。
+
 ## 常用命令
 
 ```bash

@@ -147,7 +147,7 @@ async function removeDirIfExists(dir) {
             (0, vitest_1.expect)(readme).not.toMatch(/@chips\/component-library/);
             (0, vitest_1.expect)(readme).not.toMatch(/chips-scaffold-basecard/);
             (0, vitest_1.expect)(readme).not.toMatch(/\bchips dev\b/);
-            (0, vitest_1.expect)(chipsConfig).toMatch(/chipsdev/);
+            (0, vitest_1.expect)(chipsConfig).toMatch(/chipsdev-r/);
             (0, vitest_1.expect)(chipsConfig).not.toMatch(/\bchips dev\b|最小可用结构/);
             (0, vitest_1.expect)(vitestConfig).toMatch(/react\/jsx-runtime/);
             (0, vitest_1.expect)(vitestConfig).toMatch(/react-dom\/client/);

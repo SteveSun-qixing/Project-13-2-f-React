@@ -9,7 +9,8 @@
     "build": "chipsdev-r build",
     "test": "chipsdev-r test",
     "lint": "chipsdev-r lint",
-    "validate": "chipsdev-r validate"
+    "validate": "chipsdev-r validate",
+    "package": "chipsdev-r package"
   },
   "dependencies": {
     "@ant-design/icons": "6.3.2",
