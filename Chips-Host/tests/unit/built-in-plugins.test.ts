@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PluginRuntime } from '../../src/runtime';
 import {
+  discoverBuiltInPluginDefinitions,
   ensureBuiltInPluginShortcuts,
   ensureBuiltInPlugins,
   type BuiltInPluginDefinition
@@ -198,5 +199,43 @@ describe('built-in plugin bootstrap', () => {
     ]);
     expect(summary.shortcutPluginIds).toEqual(['com.chips.eco-settings-panel']);
     expect(runtime.query().some((record) => record.manifest.id === 'com.chips.photo-viewer')).toBe(false);
+  });
+
+  it('discovers built-in plugin definitions from plugin roots', async () => {
+    const discovered = await discoverBuiltInPluginDefinitions([builtInRoot]);
+
+    expect(discovered).toEqual([
+      expect.objectContaining({
+        id: 'com.chips.eco-settings-panel',
+        manifestRelativePath: 'com.chips.eco-settings-panel/manifest.yaml',
+        autoEnable: true,
+        createShortcut: true,
+        launchOnFirstInstall: true
+      }),
+      expect.objectContaining({
+        id: 'theme.theme.chips-official-default-theme',
+        manifestRelativePath: 'theme.theme.chips-official-default-theme/manifest.yaml',
+        autoEnable: true
+      })
+    ]);
+  });
+
+  it('installs and enables every discovered built-in plugin', async () => {
+    const summary = await ensureBuiltInPlugins({
+      runtime,
+      pluginRoots: [builtInRoot]
+    });
+
+    expect(summary.installedPluginIds).toEqual([
+      'com.chips.eco-settings-panel',
+      'theme.theme.chips-official-default-theme'
+    ]);
+    expect(summary.enabledPluginIds).toEqual([
+      'com.chips.eco-settings-panel',
+      'theme.theme.chips-official-default-theme'
+    ]);
+    expect(summary.shortcutPluginIds).toEqual(['com.chips.eco-settings-panel']);
+    expect(summary.launchPluginId).toBe('com.chips.eco-settings-panel');
+    expect(runtime.query()).toHaveLength(2);
   });
 });

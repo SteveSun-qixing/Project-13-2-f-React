@@ -61,7 +61,6 @@ export const registerChipsRenderDocumentProtocol = (
           },
         });
       }
-
       return net.fetch(pathToFileURL(filePath).href);
     });
     handledProtocols.add(protocolRef);

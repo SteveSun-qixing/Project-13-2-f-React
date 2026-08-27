@@ -331,12 +331,16 @@ describe('macOS installer builder', () => {
       fs.access(
         path.join(
           result.builtInPluginRoot,
-          'theme.theme.chips-official-default-theme',
-          'contracts',
-          'theme-interface.contract.json'
+          'com.chips.photo-viewer',
+          'assets',
+          'icons',
+          'app-icon.ico'
         )
       )
     ).resolves.toBeUndefined();
+    await expect(
+      fs.access(path.join(result.builtInPluginRoot, 'theme.theme.chips-official-default-theme'))
+    ).rejects.toThrow();
     await expect(
       fs.access(path.join(result.appBundlePath, 'Contents', 'Resources', 'app', 'node_modules', 'jsdom', 'lib', 'api.js'))
     ).resolves.toBeUndefined();

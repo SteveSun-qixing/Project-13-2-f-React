@@ -60,11 +60,26 @@ const APP_PACKAGE_NAME = 'chips-host';
 const APP_BUNDLE_IDENTIFIER = 'local.chips.host';
 const COMPONENT_PACKAGE_IDENTIFIER = 'local.chips.host.component';
 const SETTINGS_PANEL_PLUGIN_ID = 'com.chips.eco-settings-panel';
-const PHOTO_VIEWER_PLUGIN_ID = 'com.chips.photo-viewer';
 const SETTINGS_PANEL_DISPLAY_NAME = '生态设置面板';
 const SETTINGS_PANEL_EXECUTABLE_NAME = 'chips-eco-settings-panel';
 const CARD_FILE_EXTENSION = 'card';
 const CARD_FILE_MIME_TYPE = 'application/x-card';
+
+const OFFICIAL_PLUGIN_TYPE_NAMES = ['app', 'card', 'layout', 'module'];
+
+/** 官方插件工程的一级聚合目录，其子目录各自是独立插件工程。 */
+const OFFICIAL_PLUGIN_COLLECTION_DIRS = ['Chips-BaseCardPlugin', 'Chips-BoxLayoutPlugin', 'Chips-ModulePlugin'] as const;
+
+/** 工作区中拥有 manifest.yaml 但不是插件工程的目录。 */
+const NON_PLUGIN_PROJECT_DIRS = new Set([
+  'Chips-Host',
+  'Chips-SDK',
+  'Chips-Scaffold',
+  'Chips-Ui',
+  'Chips-CommunityPlatformServer',
+  'Chips-PersonalServer',
+  'Chip-iconMaker'
+]);
 
 const FILE_HANDLER_MIME_TYPES: Record<string, string> = {
   '.avif': 'image/avif',
@@ -149,20 +164,93 @@ const resolveElectronAppPath = (hostProjectDir: string): string => {
   return path.join(resolveRuntimePackageDir(hostProjectDir, 'electron'), 'dist', 'Electron.app');
 };
 
-const defaultBuiltInPluginBundles = (workspaceRoot: string): BuiltInPluginBundleSpec[] => {
-  return [
-    {
-      id: 'com.chips.eco-settings-panel',
-      sourceDir: path.join(workspaceRoot, 'Chips-EcoSettingsPanel'),
-      includePaths: ['manifest.yaml', 'dist', 'assets']
-    },
-    {
-      id: PHOTO_VIEWER_PLUGIN_ID,
-      sourceDir: path.join(workspaceRoot, 'Chips-PhotoViewer'),
-      includePaths: ['manifest.yaml', 'dist', 'assets'],
-      required: false
+const resolveOfficialPluginIncludePaths = async (projectDir: string): Promise<string[]> => {
+  const includePaths = ['manifest.yaml', 'dist'];
+  for (const candidate of ['assets', 'contracts']) {
+    if (await pathExists(path.join(projectDir, candidate))) {
+      includePaths.push(candidate);
     }
-  ];
+  }
+  return includePaths;
+};
+
+const discoverOfficialPluginProjects = async (workspaceRoot: string): Promise<string[]> => {
+  const discovered: string[] = [];
+
+  const topLevelEntries = await fs.readdir(workspaceRoot, { withFileTypes: true });
+  for (const entry of topLevelEntries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    if (NON_PLUGIN_PROJECT_DIRS.has(entry.name)) {
+      continue;
+    }
+    if ((OFFICIAL_PLUGIN_COLLECTION_DIRS as readonly string[]).includes(entry.name)) {
+      continue;
+    }
+    if (!(await pathExists(path.join(workspaceRoot, entry.name, 'manifest.yaml')))) {
+      continue;
+    }
+    discovered.push(path.join(workspaceRoot, entry.name));
+  }
+
+  for (const collectionDir of OFFICIAL_PLUGIN_COLLECTION_DIRS) {
+    const collectionPath = path.join(workspaceRoot, collectionDir);
+    if (!(await pathExists(collectionPath))) {
+      continue;
+    }
+    const entries = await fs.readdir(collectionPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === 'tests' || entry.name === '归档' || entry.name === 'node_modules') {
+        continue;
+      }
+      if (!(await pathExists(path.join(collectionPath, entry.name, 'manifest.yaml')))) {
+        continue;
+      }
+      discovered.push(path.join(collectionPath, entry.name));
+    }
+  }
+
+  return discovered.sort();
+};
+
+const readPluginManifestSummary = async (
+  projectDir: string
+): Promise<{ id: string; type: string; name: string }> => {
+  const manifestPath = path.join(projectDir, 'manifest.yaml');
+  await ensureFile(manifestPath, 'Built-in plugin manifest is unavailable.');
+  const raw = await fs.readFile(manifestPath, 'utf-8');
+  const parsed = parseYamlLite(raw);
+  const id = typeof parsed.id === 'string' && parsed.id.trim().length > 0 ? parsed.id.trim() : path.basename(projectDir);
+  const type = typeof parsed.type === 'string' ? parsed.type : '';
+  const name = typeof parsed.name === 'string' && parsed.name.trim().length > 0 ? parsed.name.trim() : id;
+  return { id, type, name };
+};
+
+export const discoverDefaultBuiltInPluginBundles = async (
+  workspaceRoot: string
+): Promise<BuiltInPluginBundleSpec[]> => {
+  const projects = await discoverOfficialPluginProjects(workspaceRoot);
+  const bundles: BuiltInPluginBundleSpec[] = [];
+
+  for (const projectDir of projects) {
+    const summary = await readPluginManifestSummary(projectDir);
+    if (!OFFICIAL_PLUGIN_TYPE_NAMES.includes(summary.type)) {
+      continue;
+    }
+
+    bundles.push({
+      id: summary.id,
+      sourceDir: projectDir,
+      includePaths: await resolveOfficialPluginIncludePaths(projectDir)
+    });
+  }
+
+  return bundles;
+};
+
+const defaultBuiltInPluginBundles = async (workspaceRoot: string): Promise<BuiltInPluginBundleSpec[]> => {
+  return discoverDefaultBuiltInPluginBundles(workspaceRoot);
 };
 
 const unique = (items: string[]): string[] => {
@@ -719,7 +807,7 @@ export const prepareMacHostAppBundle = async (
     ...(options.yamlPackageDir ? { yaml: path.resolve(options.yamlPackageDir) } : {})
   };
   const builtInPluginBundles = await resolveAvailableBuiltInPluginBundles(
-    options.builtInPluginBundles ?? defaultBuiltInPluginBundles(workspaceRoot)
+    options.builtInPluginBundles ?? await defaultBuiltInPluginBundles(workspaceRoot)
   );
   const hostManifest = await readHostPackageManifest(hostProjectDir);
   const version = hostManifest.version;
@@ -976,7 +1064,7 @@ export const buildMacHostInstaller = async (
   const workspaceRoot = path.resolve(options.workspaceRoot);
   const outputDir = path.resolve(options.outputDir);
   const builtInPluginBundles = await resolveAvailableBuiltInPluginBundles(
-    options.builtInPluginBundles ?? defaultBuiltInPluginBundles(workspaceRoot)
+    options.builtInPluginBundles ?? await defaultBuiltInPluginBundles(workspaceRoot)
   );
 
   if (options.buildPrerequisites !== false) {

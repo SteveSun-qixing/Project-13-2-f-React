@@ -33,5 +33,6 @@ Chips-Scaffold/chips-scaffold-basecard/tests/.tmp-e2e/
 .vscode/
 .specstory/
 release-artifacts/
+打包/
 .codex-runtime-logs/
 .omo/

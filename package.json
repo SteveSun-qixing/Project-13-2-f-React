@@ -21,7 +21,9 @@
   ],
   "scripts": {
     "materials:inventory": "node ./scripts/collect-finished-product-materials.mjs",
-    "verify:workspace": "node ./scripts/verify-ecosystem-workspace.mjs"
+    "verify:workspace": "node ./scripts/verify-ecosystem-workspace.mjs",
+    "package:pre-release": "node ./scripts/package-ecosystem-release.mjs --output=打包/V0.01",
+    "package:list": "node ./scripts/package-ecosystem-release.mjs --list-plugins"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",

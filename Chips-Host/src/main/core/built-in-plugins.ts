@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import type { PluginRuntime } from '../../runtime';
 import { createError } from '../../shared/errors';
+import { parseYamlLite } from '../../shared/yaml-lite';
 
 export interface BuiltInPluginDefinition {
   id: string;
@@ -30,30 +31,9 @@ interface RuntimeInvokerLike {
   invoke<T>(action: string, payload?: unknown): Promise<T>;
 }
 
-const SETTINGS_PANEL_PLUGIN_ID = 'com.chips.eco-settings-panel';
-const DEFAULT_THEME_PLUGIN_ID = 'theme.theme.chips-official-default-theme';
-const PHOTO_VIEWER_PLUGIN_ID = 'com.chips.photo-viewer';
+export const SETTINGS_PANEL_PLUGIN_ID = 'com.chips.eco-settings-panel';
 
-export const DEFAULT_BUILT_IN_PLUGINS: BuiltInPluginDefinition[] = [
-  {
-    id: DEFAULT_THEME_PLUGIN_ID,
-    manifestRelativePath: `${DEFAULT_THEME_PLUGIN_ID}/manifest.yaml`,
-    autoEnable: true
-  },
-  {
-    id: SETTINGS_PANEL_PLUGIN_ID,
-    manifestRelativePath: `${SETTINGS_PANEL_PLUGIN_ID}/manifest.yaml`,
-    autoEnable: true,
-    createShortcut: true,
-    launchOnFirstInstall: true
-  },
-  {
-    id: PHOTO_VIEWER_PLUGIN_ID,
-    manifestRelativePath: `${PHOTO_VIEWER_PLUGIN_ID}/manifest.yaml`,
-    autoEnable: true,
-    required: false
-  }
-];
+const PLUGIN_MANIFEST_NAMES = ['manifest.yaml', 'manifest.yml', 'manifest.json'] as const;
 
 const pathExists = async (targetPath: string): Promise<boolean> => {
   try {
@@ -80,6 +60,61 @@ export const resolveDefaultBuiltInPluginRoots = (): string[] => {
     : '';
 
   return unique([...envRoots, packagedRoot]);
+};
+
+const resolvePluginManifestName = async (pluginDir: string): Promise<string | null> => {
+  for (const manifestName of PLUGIN_MANIFEST_NAMES) {
+    if (await pathExists(path.join(pluginDir, manifestName))) {
+      return manifestName;
+    }
+  }
+  return null;
+};
+
+export const discoverBuiltInPluginDefinitions = async (roots: string[]): Promise<BuiltInPluginDefinition[]> => {
+  const discovered: BuiltInPluginDefinition[] = [];
+  const seenPluginIds = new Set<string>();
+
+  for (const root of roots) {
+    const entries = await fs.readdir(root, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const pluginDir = path.join(root, entry.name);
+      const manifestName = await resolvePluginManifestName(pluginDir);
+      if (!manifestName) {
+        continue;
+      }
+
+      let pluginId = entry.name;
+      try {
+        const raw = await fs.readFile(path.join(pluginDir, manifestName), 'utf-8');
+        const parsed = parseYamlLite(raw);
+        if (typeof parsed.id === 'string' && parsed.id.trim().length > 0) {
+          pluginId = parsed.id.trim();
+        }
+      } catch {
+        // Keep the directory name as the plugin id when the manifest is unreadable.
+      }
+
+      if (seenPluginIds.has(pluginId)) {
+        continue;
+      }
+      seenPluginIds.add(pluginId);
+
+      discovered.push({
+        id: pluginId,
+        manifestRelativePath: `${entry.name}/${manifestName}`,
+        autoEnable: true,
+        ...(pluginId === SETTINGS_PANEL_PLUGIN_ID
+          ? { createShortcut: true, launchOnFirstInstall: true }
+          : {})
+      });
+    }
+  }
+
+  return discovered.sort((left, right) => left.id.localeCompare(right.id));
 };
 
 const resolveBuiltInManifestPath = async (
@@ -109,8 +144,8 @@ const filterExistingRoots = async (roots: string[]): Promise<string[]> => {
 export const ensureBuiltInPlugins = async (
   options: EnsureBuiltInPluginsOptions
 ): Promise<BuiltInPluginBootstrapResult> => {
-  const plugins = options.plugins ?? DEFAULT_BUILT_IN_PLUGINS;
   const roots = await filterExistingRoots(options.pluginRoots ?? resolveDefaultBuiltInPluginRoots());
+  const plugins = options.plugins ?? (roots.length > 0 ? await discoverBuiltInPluginDefinitions(roots) : []);
 
   if (roots.length === 0 || plugins.length === 0) {
     return {
