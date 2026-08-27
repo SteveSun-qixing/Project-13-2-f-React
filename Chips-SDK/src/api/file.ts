@@ -43,6 +43,23 @@ export interface FileWatchEvent {
   timestamp: number;
 }
 
+export type FileDocumentType = "card" | "box";
+export type FileCategory =
+  | "document"
+  | "image"
+  | "video"
+  | "audio"
+  | "text"
+  | "html"
+  | "archive"
+  | "unknown";
+
+export interface FileDetectTypeResult {
+  documentType: FileDocumentType | null;
+  mimeType: string;
+  category: FileCategory;
+}
+
 export interface FileApi {
   read(path: string, options?: FileReadOptions): Promise<FileContent>;
   write(path: string, content: FileContent, options?: { encoding?: "utf-8" | "binary" }): Promise<void>;
@@ -53,6 +70,7 @@ export interface FileApi {
   delete(path: string, options?: FileDeleteOptions): Promise<void>;
   move(sourcePath: string, destPath: string): Promise<void>;
   copy(sourcePath: string, destPath: string): Promise<void>;
+  detectType(path: string): Promise<FileDetectTypeResult>;
 }
 
 function unwrapFileReadContent(value: unknown): unknown {
@@ -235,6 +253,16 @@ export function createFileApi(client: CoreClient): FileApi {
         throw createError("INVALID_ARGUMENT", "file.copy: sourcePath and destPath are required.");
       }
       await client.invoke("file.copy", { sourcePath, destPath });
+    },
+    async detectType(path) {
+      if (!path) {
+        throw createError("INVALID_ARGUMENT", "file.detectType: path is required.");
+      }
+      const result = await client.invoke<
+        { path: string },
+        { documentType: FileDocumentType | null; mimeType: string; category: FileCategory }
+      >("file.detectType", { path });
+      return result;
     },
   };
 }

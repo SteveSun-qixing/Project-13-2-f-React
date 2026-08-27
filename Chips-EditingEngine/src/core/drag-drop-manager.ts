@@ -4,6 +4,7 @@
  * @description 统一管理编辑器中的所有拖放操作
  */
 
+import { guessMimeType } from 'chips-sdk';
 import { globalEventEmitter } from './event-emitter';
 
 export type DragSourceType = 'file' | 'card-library' | 'layout-library' | 'base-card' | 'card';
@@ -99,10 +100,13 @@ export function detectFileType(file: File): FileDropType {
     if (AUDIO_MIMES.includes(type)) return 'audio';
     if (DOCUMENT_MIMES.includes(type)) return 'document';
 
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) return 'image';
-    if (['mp4', 'webm', 'ogg', 'mov'].includes(ext || '')) return 'video';
-    if (['mp3', 'wav', 'ogg', 'aac', 'm4a'].includes(ext || '')) return 'audio';
-    if (['pdf', 'doc', 'docx', 'txt', 'md'].includes(ext || '')) return 'document';
+    const mimeFromExtension = guessMimeType(name);
+    if (mimeFromExtension.startsWith('image/')) return 'image';
+    if (mimeFromExtension.startsWith('video/')) return 'video';
+    if (mimeFromExtension.startsWith('audio/')) return 'audio';
+    if (mimeFromExtension === 'application/pdf' || mimeFromExtension === 'text/plain' || mimeFromExtension === 'text/markdown') {
+        return 'document';
+    }
 
     return 'unknown';
 }
