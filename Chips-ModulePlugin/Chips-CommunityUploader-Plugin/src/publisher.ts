@@ -50,7 +50,7 @@ interface ResourceCollection {
 }
 
 interface PresignedObject {
-  role: "network-card" | "resource" | "box-file";
+  role: "network-card" | "resource" | "box-file" | "cover-file" | "render-file";
   relativePath: string | null;
   bucket: string;
   objectKey: string;
@@ -137,6 +137,10 @@ const DEFAULT_CLIENT_NAME = "Chips Community Transfer Plugin";
 const DEFAULT_CLIENT_VERSION = "0.1.0";
 const CARD_MIME_TYPE = "application/vnd.chips.card+zip";
 const BOX_MIME_TYPE = "application/vnd.chips.box+zip";
+const CLIENT_RENDERER_VERSION = "chips-client-renderer-1";
+const RENDER_HTML_CONVERT_CAPABILITY = "converter.file.convert";
+const RENDER_HTML_CONVERT_METHOD = "convert";
+const MODULE_JOB_POLL_MS = 200;
 const WINDOWS_ABSOLUTE_PATTERN = /^[A-Za-z]:\//;
 const SCHEME_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 const FILE_URL_PATTERN = /^file:\/\//i;
@@ -254,6 +258,7 @@ const normalizeUploadRequest = (input: CommunityCardTransferUploadRequest): Norm
     publish: {
       roomId: input.publish?.roomId ?? null,
       ...(asString(input.publish?.idempotencyKey) ? { idempotencyKey: input.publish?.idempotencyKey } : undefined),
+      includeRenderArtifacts: input.publish?.includeRenderArtifacts ?? false,
     },
     client: {
       name: input.client?.name ?? DEFAULT_CLIENT_NAME,
@@ -288,6 +293,7 @@ const normalizeBoxUploadRequest = (input: CommunityCardTransferBoxUploadRequest)
     publish: {
       roomId: input.publish?.roomId ?? null,
       ...(asString(input.publish?.idempotencyKey) ? { idempotencyKey: input.publish?.idempotencyKey } : undefined),
+      includeRenderArtifacts: input.publish?.includeRenderArtifacts ?? false,
     },
     client: {
       name: input.client?.name ?? DEFAULT_CLIENT_NAME,
@@ -663,6 +669,7 @@ const createUploadSession = async (
       body: JSON.stringify({
         fileName,
         roomId: request.publish.roomId ?? null,
+        includeRenderArtifacts: request.publish.includeRenderArtifacts,
         idempotencyKey: request.publish.idempotencyKey,
         client: request.client,
       }),
@@ -692,7 +699,7 @@ const presignObjects = async (
   request: { server: { baseUrl: string; accessToken: string } },
   uploadId: string,
   objects: Array<{
-    role: "network-card" | "resource" | "box-file" | "cover-file";
+    role: "network-card" | "resource" | "box-file" | "cover-file" | "render-file";
     relativePath?: string;
     sizeBytes: number;
     mimeType: string;
@@ -726,7 +733,9 @@ const presignObjects = async (
         ? "box-file"
         : object.role === "cover-file"
           ? "cover-file"
-          : "resource",
+          : object.role === "render-file"
+            ? "render-file"
+            : "resource",
     relativePath: object.relativePath === null || typeof object.relativePath === "undefined" ? null : String(object.relativePath),
     bucket: String(object.bucket ?? ""),
     objectKey: String(object.objectKey ?? ""),
@@ -1055,6 +1064,298 @@ const extractEntryPlan = (restoreManifest: unknown): Array<{ path: string; modif
   return entries;
 };
 
+/**
+ * 调用 Host 的转换模块（converter.file.convert）把 .card 渲染为 HTML 产物目录。
+ * 渲染任务以 job 模式执行，这里负责创建并轮询到完成。
+ */
+const renderCardViewHtml = async (
+  ctx: CommunityCardPublishContext,
+  params: {
+    cardFile: string;
+    outputDir: string;
+  },
+): Promise<void> => {
+  if (!ctx.module?.invoke || !ctx.module.job?.get) {
+    throw createCommunityUploaderError(
+      "COMMUNITY_TRANSFER_RENDER_UNAVAILABLE",
+      "Render artifacts mode requires the file conversion module (converter.file.convert); it is not available in this Host.",
+      { capability: RENDER_HTML_CONVERT_CAPABILITY },
+      true,
+    );
+  }
+
+  const started = await ctx.module.invoke({
+    capability: RENDER_HTML_CONVERT_CAPABILITY,
+    method: RENDER_HTML_CONVERT_METHOD,
+    input: {
+      source: {
+        type: "card",
+        path: params.cardFile,
+      },
+      target: {
+        type: "html",
+      },
+      output: {
+        path: params.outputDir,
+        overwrite: true,
+      },
+      options: {
+        html: {
+          packageMode: "directory",
+          includeAssets: true,
+          includeManifest: false,
+        },
+      },
+    },
+  });
+
+  if (started.mode === "sync") {
+    return;
+  }
+
+  const { jobId } = started;
+  for (;;) {
+    assertNotCancelled(ctx);
+    await sleep(MODULE_JOB_POLL_MS);
+    const snapshot = await ctx.module.job.get(jobId);
+    if (!isRecord(snapshot)) {
+      throw createCommunityUploaderError(
+        "COMMUNITY_TRANSFER_RENDER_FAILED",
+        `Card HTML render returned an invalid job snapshot.`,
+        { jobId },
+        true,
+      );
+    }
+    const status = snapshot.status;
+    if (status === "completed") {
+      return;
+    }
+    if (status === "failed" || status === "cancelled") {
+      const errorMessage = isRecord(snapshot.error)
+        ? String(snapshot.error.message ?? "unknown error")
+        : "unknown error";
+      throw createCommunityUploaderError(
+        "COMMUNITY_TRANSFER_RENDER_FAILED",
+        `Card HTML render ${String(status)}: ${errorMessage}`,
+        { jobId, status, error: snapshot.error },
+        true,
+      );
+    }
+  }
+};
+
+/** 枚举渲染产物目录内所有文件（相对路径、大小、MIME） */
+const collectRenderDirectoryFiles = async (
+  ctx: CommunityCardPublishContext,
+  rootDir: string,
+): Promise<LocalResource[]> => {
+  const entries = await listFiles(ctx, rootDir);
+  const normalizedRoot = toNormalizedPath(rootDir);
+  const files: LocalResource[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isFile) {
+      continue;
+    }
+    const absolutePath = toNormalizedPath(entry.path);
+    const relativePath = normalizeCardPath(path.posix.relative(normalizedRoot, absolutePath));
+    if (!relativePath) {
+      continue;
+    }
+    const stat = await getFileStat(ctx, toNativePath(absolutePath, rootDir));
+    const sizeBytes = typeof stat.size === "number" && stat.size > 0
+      ? stat.size
+      : (await readBinaryFile(ctx, toNativePath(absolutePath, rootDir))).byteLength;
+    files.push({
+      absolutePath,
+      relativePath,
+      sizeBytes,
+      mimeType: detectMimeType(relativePath),
+    });
+  }
+
+  files.sort((left, right) => left.relativePath.localeCompare(right.relativePath, "en"));
+  return files;
+};
+
+/** 生成简单的默认封面 HTML（卡片没有正式封面时兜底） */
+const createClientDefaultCoverHtml = (title: string): string => {
+  const safeTitle = title
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${safeTitle}</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 100%; min-height: 100%; }
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: end stretch;
+        padding: clamp(18px, 5vw, 32px);
+        background: linear-gradient(155deg, #f8fbff 0%, #dfeeff 44%, #b7d7ff 100%);
+        color: #101828;
+        font-family: "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+      }
+      h1 { margin: 0; font-size: clamp(28px, 7vw, 54px); line-height: 1; }
+    </style>
+  </head>
+  <body>
+    <h1>${safeTitle}</h1>
+  </body>
+</html>`;
+};
+
+const isBlankHtml = (html: string): boolean => html.replace(/\s+/g, " ").trim().length === 0;
+
+/**
+ * 从卡片解包目录组装封面产物目录：
+ * - `.card/cover.html` → `index.html`；
+ * - `.card/cardcover/*` → `cardcover/*`（相对引用保持不变）。
+ * cover.html 缺失或空白时生成默认封面。
+ * 返回产物目录文件清单；目录本身由调用方清理。
+ */
+const buildCoverArtifactDir = async (
+  ctx: CommunityCardPublishContext,
+  params: {
+    unpackedDir: string;
+    coverDir: string;
+    cardTitle: string;
+  },
+): Promise<void> => {
+  await ctx.host.invoke("file.mkdir", {
+    path: toNativePath(params.coverDir, params.unpackedDir),
+    options: { recursive: true },
+  });
+
+  const coverHtmlSource = joinNormalized(params.unpackedDir, ".card", "cover.html");
+  const coverHtml = await readTextFile(ctx, toNativePath(coverHtmlSource, params.unpackedDir))
+    .catch(() => null);
+  const indexHtml = coverHtml && !isBlankHtml(coverHtml)
+    ? coverHtml
+    : createClientDefaultCoverHtml(params.cardTitle);
+
+  await ctx.host.invoke("file.write", {
+    path: toNativePath(joinNormalized(params.coverDir, "index.html"), params.unpackedDir),
+    content: indexHtml,
+  });
+
+  const coverAssetDir = joinNormalized(params.unpackedDir, ".card", "cardcover");
+  const coverAssetEntries = await listFiles(ctx, coverAssetDir).catch(() => []);
+  for (const entry of coverAssetEntries) {
+    if (!entry.isFile) {
+      continue;
+    }
+    const sourcePath = toNormalizedPath(entry.path);
+    const relativePath = normalizeCardPath(path.posix.relative(toNormalizedPath(coverAssetDir), sourcePath));
+    if (!relativePath) {
+      continue;
+    }
+    const bytes = await readBinaryFile(ctx, toNativePath(sourcePath, params.unpackedDir));
+    const targetDir = joinNormalized(params.coverDir, "cardcover");
+    await ctx.host.invoke("file.mkdir", {
+      path: toNativePath(targetDir, params.unpackedDir),
+      options: { recursive: true },
+    });
+    await writeBinaryFile(ctx, toNativePath(joinNormalized(targetDir, relativePath), params.unpackedDir), bytes);
+  }
+};
+
+/**
+ * 上传渲染产物（view + cover）到对象存储，并汇总产物摘要供 complete 提交。
+ */
+const uploadRenderArtifacts = async (
+  ctx: CommunityCardPublishContext,
+  request: NormalizedCommunityCardTransferUploadRequest,
+  session: { uploadId: string },
+  artifacts: Array<{
+    role: "render-file" | "cover-file";
+    rootDir: string;
+  }>,
+  signal?: AbortSignal,
+): Promise<{
+  view: { entryRelativePath: string; fileCount: number; sizeBytes: number };
+  cover?: { entryRelativePath: string; fileCount: number; sizeBytes: number };
+} | null> => {
+  if (artifacts.length === 0) {
+    return null;
+  }
+
+  const collected = await Promise.all(
+    artifacts.map(async (artifact) => ({
+      role: artifact.role,
+      rootDir: artifact.rootDir,
+      files: await collectRenderDirectoryFiles(ctx, artifact.rootDir),
+    })),
+  );
+  const totalFiles = collected.reduce((total, item) => total + item.files.length, 0);
+  if (totalFiles === 0) {
+    return null;
+  }
+
+  const presignedObjects = collected.flatMap((item) =>
+    item.files.map((file) => ({
+      role: item.role as "render-file" | "cover-file",
+      relativePath: file.relativePath,
+      sizeBytes: file.sizeBytes,
+      mimeType: file.mimeType,
+    })),
+  );
+  const presigned = await presignObjects(request, session.uploadId, presignedObjects, signal);
+  const presignedByPath = new Map(
+    presigned
+      .filter((item) => item.role === "render-file" || item.role === "cover-file")
+      .map((item) => [`${item.role}:${normalizeCardPath(item.relativePath ?? "")}`, item]),
+  );
+
+  const result: {
+    view: { entryRelativePath: string; fileCount: number; sizeBytes: number };
+    cover?: { entryRelativePath: string; fileCount: number; sizeBytes: number };
+  } = {
+    view: { entryRelativePath: "", fileCount: 0, sizeBytes: 0 },
+  };
+
+  for (const item of collected) {
+    let sizeBytes = 0;
+    for (const file of item.files) {
+      const target = presignedByPath.get(`${item.role}:${file.relativePath}`);
+      if (!target) {
+        throw createCommunityUploaderError(
+          "COMMUNITY_TRANSFER_RESPONSE_INVALID",
+          `Presign response is missing ${item.role} object for ${file.relativePath}.`,
+        );
+      }
+      const bytes = await readBinaryFile(ctx, toNativePath(file.absolutePath, item.rootDir));
+      await uploadBytesToStorage(`${item.role}:${file.relativePath}`, bytes, target, signal);
+      sizeBytes += bytes.byteLength;
+    }
+
+    const entry = item.files.find((file) => file.relativePath === "index.html")
+      ?? item.files[0];
+    if (!entry) {
+      continue;
+    }
+    const summary = {
+      entryRelativePath: entry.relativePath,
+      fileCount: item.files.length,
+      sizeBytes,
+    };
+    if (item.role === "cover-file") {
+      result.cover = summary;
+    } else {
+      result.view = summary;
+    }
+  }
+
+  return result;
+};
+
 const completeUpload = async (
   request: NormalizedCommunityCardTransferUploadRequest,
   uploadId: string,
@@ -1086,7 +1387,7 @@ const completeUpload = async (
     cardId,
     versionId: String(payload.data.versionId ?? ""),
     status: String(payload.data.status ?? "ready"),
-    renderStatus: String(payload.data.renderStatus ?? "queued"),
+    renderStatus: String(payload.data.renderStatus ?? payload.data.status ?? "queued"),
     renderStatusUrl: String(payload.data.renderStatusUrl ?? `/api/v1/cards/${cardId}/render-status`),
     communityUrl: String(payload.data.communityUrl ?? `${request.server.baseUrl}/cards/${cardId}`),
     uploadedResources: [],
@@ -1463,7 +1764,8 @@ export const uploadCommunityCard = async (
   const cardInfo = isRecord(cardInfoResponse?.info)
     ? (isRecord(cardInfoResponse.info.info) ? cardInfoResponse.info : cardInfoResponse)
     : cardInfoResponse;
-  const cardMetadata = isRecord(cardInfo?.info?.metadata) ? cardInfo.info.metadata : {};
+  const cardInfoInfo = isRecord(cardInfo?.info) ? cardInfo.info : {};
+  const cardMetadata = isRecord(cardInfoInfo.metadata) ? cardInfoInfo.metadata : {};
   const cardName = asString(cardMetadata.name) ?? asString(cardMetadata.title) ?? path.basename(request.cardFile);
 
   const workspace = await createWorkspaceRoot(ctx, request.cardFile, request.workspace.tempDir);
@@ -1531,6 +1833,38 @@ export const uploadCommunityCard = async (
     const richTextContentFileMap = await collectRichTextContentFileMap(ctx, unpackedDir);
     await writeRewrittenCard(ctx, unpackedDir, resources, resourceUrlMap, textResourceMap);
 
+    // ─── 渲染产物（includeRenderArtifacts 模式） ────────────────────
+    const renderArtifactsWorkspace = joinNormalized(workspace.rootDir, "render-artifacts");
+    let renderArtifactsSummary: NonNullable<Awaited<ReturnType<typeof uploadRenderArtifacts>>> | null = null;
+    if (request.publish.includeRenderArtifacts) {
+      assertNotCancelled(ctx);
+      await reportProgress(ctx, "render", 62, "Rendering card view HTML");
+      const viewRenderDir = joinNormalized(renderArtifactsWorkspace, "view");
+      await renderCardViewHtml(ctx, {
+        cardFile: request.cardFile,
+        outputDir: viewRenderDir,
+      });
+
+      assertNotCancelled(ctx);
+      await reportProgress(ctx, "render-cover", 66, "Preparing card cover");
+      const coverRenderDir = joinNormalized(renderArtifactsWorkspace, "cover");
+      await buildCoverArtifactDir(ctx, {
+        unpackedDir,
+        coverDir: coverRenderDir,
+        cardTitle: cardName,
+      });
+
+      assertNotCancelled(ctx);
+      await reportProgress(ctx, "upload-render", 70, "Uploading render artifacts");
+      renderArtifactsSummary = await uploadRenderArtifacts(ctx, request, uploadSession, [
+        { role: "render-file", rootDir: viewRenderDir },
+        { role: "cover-file", rootDir: coverRenderDir },
+      ], jobSignal(ctx));
+      if (!renderArtifactsSummary) {
+        pushWarning(warnings, "COMMUNITY_TRANSFER_RENDER_ARTIFACTS_EMPTY", "Render artifacts were requested but no files were produced; the card stays pending render.");
+      }
+    }
+
     assertNotCancelled(ctx);
     await reportProgress(ctx, "pack", 72, "Packing network resource card");
     await ctx.host.invoke("card.pack", {
@@ -1574,6 +1908,15 @@ export const uploadCommunityCard = async (
       resources: uploadedResources,
       restoreManifest,
       cardMetadata,
+      ...(renderArtifactsSummary
+        ? {
+            renderArtifacts: {
+              rendererVersion: CLIENT_RENDERER_VERSION,
+              view: renderArtifactsSummary.view,
+              ...(renderArtifactsSummary.cover ? { cover: renderArtifactsSummary.cover } : {}),
+            },
+          }
+        : {}),
     }, jobSignal(ctx));
 
     await reportProgress(ctx, "completed", 100, "Community card transfer upload completed");
@@ -1601,6 +1944,13 @@ export const uploadCommunityCard = async (
       true,
     );
   } finally {
+    if (request.publish.includeRenderArtifacts) {
+      await ctx.host.invoke("file.delete", {
+        path: toNativePath(joinNormalized(workspace.rootDir, "render-artifacts"), request.cardFile),
+        options: { recursive: true },
+      }).catch(() => undefined);
+    }
+
     if (!request.workspace.keepNetworkCard && !request.workspace.networkCardPath) {
       await ctx.host.invoke("file.delete", {
         path: toNativePath(networkCardPath, request.cardFile),
@@ -1678,7 +2028,11 @@ export const uploadCommunityBox = async (
         const cardResult = await uploadCommunityCard(withScaledJobProgress(ctx, windowStart, windowEnd), {
           cardFile: reference.localPath,
           server: request.server,
-          publish: request.publish,
+          publish: {
+            ...(request.publish.roomId ? { roomId: request.publish.roomId } : {}),
+            ...(request.publish.idempotencyKey ? { idempotencyKey: request.publish.idempotencyKey } : {}),
+            includeRenderArtifacts: request.publish.includeRenderArtifacts,
+          },
           client: request.client,
           workspace: {
             tempDir: joinNormalized(scatteredCardsRoot, String(index)),

@@ -17,6 +17,12 @@ export interface CommunityCardTransferUploadRequest {
   publish?: {
     roomId?: string | null;
     idempotencyKey?: string;
+    /**
+     * 是否随本地上传一并上传客户端渲染产物（查看 HTML 与封面 HTML）。
+     * - true：个人服务器模式，客户端渲染后直传产物，服务器直接发布；
+     * - false（默认）：仅上传源文件，由服务器自行处理渲染。
+     */
+    includeRenderArtifacts?: boolean;
   };
   client?: CommunityCardTransferClientInfo;
   workspace?: {
@@ -32,6 +38,7 @@ export interface NormalizedCommunityCardTransferUploadRequest {
   publish: {
     roomId?: string | null;
     idempotencyKey?: string;
+    includeRenderArtifacts: boolean;
   };
   client: Required<Pick<CommunityCardTransferClientInfo, "name" | "version">> & {
     platform?: string;
@@ -53,6 +60,23 @@ export interface CommunityCardTransferUploadedResource {
   mimeType: string;
 }
 
+/** 客户端渲染产物摘要（随 complete 提交给服务器） */
+export interface CommunityCardTransferRenderArtifacts {
+  rendererVersion: string;
+  themeId?: string;
+  locale?: string;
+  view: {
+    entryRelativePath: string;
+    fileCount: number;
+    sizeBytes: number;
+  };
+  cover?: {
+    entryRelativePath: string;
+    fileCount: number;
+    sizeBytes: number;
+  };
+}
+
 export interface CommunityCardTransferUploadResult {
   cardId: string;
   versionId: string;
@@ -71,6 +95,8 @@ export interface CommunityCardTransferBoxUploadRequest {
   publish?: {
     roomId?: string | null;
     idempotencyKey?: string;
+    /** 透传给箱子内散落卡片上传（见 CommunityCardTransferUploadRequest.publish.includeRenderArtifacts） */
+    includeRenderArtifacts?: boolean;
   };
   client?: CommunityCardTransferClientInfo;
   workspace?: {
@@ -84,6 +110,7 @@ export interface NormalizedCommunityCardTransferBoxUploadRequest {
   publish: {
     roomId?: string | null;
     idempotencyKey?: string;
+    includeRenderArtifacts: boolean;
   };
   client: Required<Pick<CommunityCardTransferClientInfo, "name" | "version">> & {
     platform?: string;
@@ -219,6 +246,23 @@ export interface CommunityCardPublishContext {
   };
   host: {
     invoke<TOutput = unknown>(action: string, payload?: Record<string, unknown>): Promise<TOutput>;
+  };
+  /**
+   * 模块间调用代理：允许本模块调用其他已安装模块的能力
+   * （如 converter.file.convert 渲染卡片 HTML）。
+   */
+  module?: {
+    invoke(request: {
+      capability: string;
+      method: string;
+      input: Record<string, unknown>;
+      pluginId?: string;
+      timeoutMs?: number;
+    }): Promise<{ mode: 'sync'; output: unknown } | { mode: 'job'; jobId: string }>;
+    job?: {
+      get(jobId: string): Promise<unknown>;
+      cancel?(jobId: string): Promise<void>;
+    };
   };
   job?: {
     id: string;

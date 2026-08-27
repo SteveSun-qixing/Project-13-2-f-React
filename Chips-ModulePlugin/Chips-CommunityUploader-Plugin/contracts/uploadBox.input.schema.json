@@ -26,6 +26,10 @@
         },
         "idempotencyKey": {
           "type": "string"
+        },
+        "includeRenderArtifacts": {
+          "type": "boolean",
+          "description": "透传给箱子内散落卡片上传（见 upload 的 includeRenderArtifacts）。"
         }
       },
       "additionalProperties": false

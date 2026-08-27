@@ -26,6 +26,10 @@
         },
         "idempotencyKey": {
           "type": "string"
+        },
+        "includeRenderArtifacts": {
+          "type": "boolean",
+          "description": "是否随本地上传一并上传客户端渲染产物（查看 HTML 与封面 HTML）。true 为个人服务器模式，false（默认）仅上传源文件。"
         }
       },
       "additionalProperties": false
