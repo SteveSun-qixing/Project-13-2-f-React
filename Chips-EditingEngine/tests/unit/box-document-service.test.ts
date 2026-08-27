@@ -1,675 +1,225 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import yaml from 'yaml';
-import { BoxDocumentService, DEFAULT_BOX_LAYOUT_TYPE } from '../../src/services/box-document-service';
+import { BoxDocumentService } from '../../src/services/box-document-service';
+import type { BoxSessionSnapshot } from 'chips-sdk';
 
-const { mockFileService, mockClient } = vi.hoisted(() => ({
-  mockFileService: {
-    exists: vi.fn<[string], Promise<boolean>>(),
-    mkdir: vi.fn<[string], Promise<void>>(),
-    readText: vi.fn<[string], Promise<string>>(),
-    writeText: vi.fn<[string, string], Promise<void>>(),
-    writeBinary: vi.fn<[string, Uint8Array], Promise<void>>(),
-    delete: vi.fn<[string], Promise<void>>(),
-    copy: vi.fn<[string, string], Promise<void>>(),
-  },
-  mockClient: {
-    box: {
-      pack: vi.fn<[string, { outputPath?: string }?], Promise<string>>(),
-      inspect: vi.fn<[string], Promise<any>>(),
-      unpack: vi.fn<[string, string], Promise<string>>(),
-      readMetadata: vi.fn<[string], Promise<any>>(),
-      readLayoutDescriptor: vi.fn<[string], Promise<any>>(),
-      normalizeLayoutConfig: vi.fn<[string, Record<string, unknown>], Promise<Record<string, unknown>>>(),
-    },
-    card: {
-      readInfo: vi.fn<[string, string[]?], Promise<any>>(),
-    },
-    plugin: {
-      query: vi.fn(async () => []),
-    },
-  },
-}));
-
-vi.mock('../../src/services/file-service', () => ({
-  fileService: mockFileService,
-}));
-
-vi.mock('../../src/services/bridge-client', () => ({
-  getChipsClient: () => mockClient,
-}));
-
-describe('BoxDocumentService', () => {
-  const files = new Map<string, string>();
-  const directories = new Set<string>();
-  let lastPackedSnapshot: {
-    metadata?: Record<string, unknown>;
-    content?: Record<string, unknown>;
-    structure?: Record<string, unknown>;
-  } = {};
-
-  const createEmptyInspection = () => ({
+const SNAPSHOT: BoxSessionSnapshot = {
+    boxId: 'box-1',
+    boxFile: '/workspace/测试箱子.box',
+    workspaceDir: '/tmp/chips-box-session-abc',
     metadata: {
-      chipStandardsVersion: '1.0.0',
-      boxId: 'box1234567',
-      name: 'Demo Box',
-      createdAt: '2026-03-23T00:00:00.000Z',
-      modifiedAt: '2026-03-23T00:00:00.000Z',
-      activeLayoutType: DEFAULT_BOX_LAYOUT_TYPE,
+        chipStandardsVersion: '1.0.0',
+        boxId: 'box-1',
+        name: '测试箱子',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        modifiedAt: '2026-01-01T00:00:00.000Z',
+        activeLayoutType: 'chips.layout.grid',
     },
-    content: {
-      activeLayoutType: DEFAULT_BOX_LAYOUT_TYPE,
-      layoutConfigs: {
-        [DEFAULT_BOX_LAYOUT_TYPE]: {
-          schemaVersion: '1.0.0',
-          props: {},
-          assetRefs: [],
-        },
-      },
-    },
+    coverHtml: '<html><body>测试箱子</body></html>',
+    content: { activeLayoutType: 'chips.layout.grid', layoutConfigs: {} },
     entries: [],
     assets: [],
-  });
+    isDirty: false,
+    isSaving: false,
+};
 
-  const toInspection = (packed: typeof lastPackedSnapshot) => ({
-    metadata: {
-      chipStandardsVersion: packed.metadata?.chip_standards_version,
-      boxId: packed.metadata?.box_id,
-      name: packed.metadata?.name,
-      createdAt: packed.metadata?.created_at,
-      modifiedAt: packed.metadata?.modified_at,
-      activeLayoutType: packed.metadata?.active_layout_type,
-      coverRatio: packed.metadata?.cover_ratio,
-      description: packed.metadata?.description,
-      tags: packed.metadata?.tags,
-      coverAsset: packed.metadata?.cover_asset,
-    },
-    content: {
-      activeLayoutType: packed.content?.active_layout_type,
-      layoutConfigs: Object.fromEntries(
-        Object.entries((packed.content?.layout_configs as Record<string, Record<string, unknown>> | undefined) ?? {}).map(([layoutType, config]) => [
-          layoutType,
-          {
-            schemaVersion: config.schema_version,
-            props: config.props,
-            assetRefs: config.asset_refs,
-          },
-        ])
-      ),
-    },
-    entries: ((packed.structure?.entries as Array<Record<string, any>> | undefined) ?? []).map((entry) => ({
-      entryId: entry.entry_id,
-      url: entry.url,
-      enabled: entry.enabled,
-      snapshot: {
-        documentId: entry.snapshot?.document_id,
-        title: entry.snapshot?.title,
-        summary: entry.snapshot?.summary,
-        tags: entry.snapshot?.tags,
-        cover: entry.snapshot?.cover
-          ? {
-              mode: entry.snapshot.cover.mode,
-              assetPath: entry.snapshot.cover.asset_path,
-              mimeType: entry.snapshot.cover.mime_type,
-              width: entry.snapshot.cover.width,
-              height: entry.snapshot.cover.height,
-            }
-          : undefined,
-        lastKnownModifiedAt: entry.snapshot?.last_known_modified_at,
-        contentType: entry.snapshot?.content_type,
-      },
-      layoutHints: entry.layout_hints
-        ? {
-            sortKey: entry.layout_hints.sort_key,
-            aspectRatio: entry.layout_hints.aspect_ratio,
-            group: entry.layout_hints.group,
-            priority: entry.layout_hints.priority,
-          }
-        : {},
-    })),
-    assets: [],
-  });
-
-  const setupOpenedBox = async (service: BoxDocumentService, initialInspection?: any) => {
-    mockClient.box.inspect.mockResolvedValue(initialInspection ?? createEmptyInspection());
-    mockClient.box.unpack.mockImplementation(async (_boxFile, outputDir) => {
-      directories.add(outputDir);
-      directories.add(`${outputDir}/.box`);
-      return outputDir;
-    });
-    return service.openBox('/workspace/demo.box', '/workspace', 'box1234567');
-  };
-
-  const setFile = (filePath: string, content: string) => {
-    files.set(filePath, content);
-    const parent = filePath.split('/').slice(0, -1).join('/');
-    if (parent) {
-      directories.add(parent);
-    }
-  };
-
-  const deletePath = (targetPath: string) => {
-    files.delete(targetPath);
-    directories.delete(targetPath);
-    for (const filePath of Array.from(files.keys())) {
-      if (filePath.startsWith(`${targetPath}/`)) {
-        files.delete(filePath);
-      }
-    }
-    for (const dirPath of Array.from(directories)) {
-      if (dirPath.startsWith(`${targetPath}/`)) {
-        directories.delete(dirPath);
-      }
-    }
-  };
-
-  beforeEach(() => {
-    files.clear();
-    directories.clear();
-    directories.add('/');
-    directories.add('/workspace');
-    vi.clearAllMocks();
-    lastPackedSnapshot = {};
-
-    mockFileService.exists.mockImplementation(async (targetPath) => files.has(targetPath) || directories.has(targetPath));
-    mockFileService.mkdir.mockImplementation(async (targetPath) => {
-      directories.add(targetPath);
-    });
-    mockFileService.writeText.mockImplementation(async (targetPath, content) => {
-      setFile(targetPath, content);
-    });
-    mockFileService.readText.mockImplementation(async (targetPath) => {
-      return files.get(targetPath) ?? '';
-    });
-    mockFileService.writeBinary.mockImplementation(async (targetPath, content) => {
-      setFile(targetPath, Buffer.from(content).toString('base64'));
-    });
-    mockFileService.delete.mockImplementation(async (targetPath) => {
-      deletePath(targetPath);
-    });
-    mockFileService.copy.mockImplementation(async (sourcePath, destPath) => {
-      const content = files.get(sourcePath);
-      if (typeof content === 'undefined') {
-        throw new Error(`Missing source file: ${sourcePath}`);
-      }
-      setFile(destPath, content);
-    });
-
-    mockClient.box.pack.mockImplementation(async (boxDir, options) => {
-      lastPackedSnapshot = {
-        metadata: yaml.parse(files.get(`${boxDir}/.box/metadata.yaml`) ?? ''),
-        content: yaml.parse(files.get(`${boxDir}/.box/content.yaml`) ?? ''),
-        structure: yaml.parse(files.get(`${boxDir}/.box/structure.yaml`) ?? ''),
-      };
-      return options?.outputPath ?? `${boxDir}.box`;
-    });
-    mockClient.box.readLayoutDescriptor.mockResolvedValue({
-      layoutType: DEFAULT_BOX_LAYOUT_TYPE,
-      displayName: '网格布局',
-      pluginId: 'chips.layout.grid',
-      defaultConfig: {
-        schemaVersion: '1.0.0',
-        props: {
-          columnCount: 4,
-          gap: 16,
-        },
-        assetRefs: [],
-      },
-    });
-    mockClient.box.normalizeLayoutConfig.mockImplementation(async (_layoutType, input) => ({
-      schemaVersion: typeof input.schemaVersion === 'string' ? input.schemaVersion : '1.0.0',
-      props: {
-        columnCount: Number((input.props as Record<string, unknown> | undefined)?.columnCount ?? 4),
-        gap: Number((input.props as Record<string, unknown> | undefined)?.gap ?? 16),
-      },
-      assetRefs: Array.isArray(input.assetRefs) ? input.assetRefs : [],
-    }));
-  });
-
-  it('creates a single-file .box working package from the new document model', async () => {
-    const service = new BoxDocumentService();
-
-    const created = await service.createBoxFile('旅行箱', DEFAULT_BOX_LAYOUT_TYPE, '/workspace', '/workspace');
-
-    expect(created.boxFile).toBe('/workspace/旅行箱.box');
-    expect(mockClient.box.pack).toHaveBeenCalledTimes(1);
-    expect(lastPackedSnapshot.metadata).toMatchObject({
-      name: '旅行箱',
-      active_layout_type: DEFAULT_BOX_LAYOUT_TYPE,
-    });
-    expect(lastPackedSnapshot.content).toMatchObject({
-      active_layout_type: DEFAULT_BOX_LAYOUT_TYPE,
-    });
-    expect(lastPackedSnapshot.structure).toEqual({
-      entries: [],
-    });
-  });
-
-  it('opens, edits and saves a box session back through box.pack', async () => {
-    const initialInspection = {
-      metadata: {
-        chipStandardsVersion: '1.0.0',
-        boxId: 'box1234567',
-        name: 'Demo Box',
-        createdAt: '2026-03-23T00:00:00.000Z',
-        modifiedAt: '2026-03-23T00:00:00.000Z',
-        activeLayoutType: DEFAULT_BOX_LAYOUT_TYPE,
-      },
-      content: {
-        activeLayoutType: DEFAULT_BOX_LAYOUT_TYPE,
-        layoutConfigs: {
-          [DEFAULT_BOX_LAYOUT_TYPE]: {
-            schemaVersion: '1.0.0',
-            props: {
-              columnCount: 4,
-              gap: 16,
-            },
-            assetRefs: [],
-          },
-        },
-      },
-      entries: [
-        {
-          entryId: 'entry000001',
-          url: 'file:///workspace/cards/demo.card',
-          enabled: true,
-          snapshot: {
-            title: 'Demo Card',
-            summary: 'Demo summary',
-            cover: {
-              mode: 'none',
-            },
-          },
-          layoutHints: {},
-        },
-      ],
-      assets: [],
+const { mockClient } = vi.hoisted(() => {
+    const sessionApi = {
+        create: vi.fn(),
+        rename: vi.fn(),
+        open: vi.fn(),
+        get: vi.fn(),
+        addEntry: vi.fn(),
+        addEmbeddedCard: vi.fn(),
+        updateEntry: vi.fn(),
+        moveEntry: vi.fn(),
+        removeEntry: vi.fn(),
+        updateMetadata: vi.fn(),
+        updateLayoutConfig: vi.fn(),
+        importAsset: vi.fn(),
+        deleteAsset: vi.fn(),
+        updateCover: vi.fn(),
+        persist: vi.fn(),
+        undo: vi.fn(),
+        redo: vi.fn(),
+        history: vi.fn(),
+        close: vi.fn(async () => {}),
+        onOpened: vi.fn(() => () => {}),
+        onPersisted: vi.fn(() => () => {}),
+        onPersistError: vi.fn(() => () => {}),
+        onClosed: vi.fn(() => () => {}),
+        onUndo: vi.fn(() => () => {}),
+        onRedo: vi.fn(() => () => {}),
     };
-
-    mockClient.box.inspect.mockResolvedValue(initialInspection);
-    mockClient.box.unpack.mockImplementation(async (_boxFile, outputDir) => {
-      directories.add(outputDir);
-      directories.add(`${outputDir}/.box`);
-      setFile(`${outputDir}/.box/metadata.yaml`, yaml.stringify({
-        chip_standards_version: '1.0.0',
-        box_id: 'box1234567',
-        name: 'Demo Box',
-        created_at: '2026-03-23T00:00:00.000Z',
-        modified_at: '2026-03-23T00:00:00.000Z',
-        active_layout_type: DEFAULT_BOX_LAYOUT_TYPE,
-      }));
-      setFile(`${outputDir}/.box/content.yaml`, yaml.stringify({
-        active_layout_type: DEFAULT_BOX_LAYOUT_TYPE,
-        layout_configs: {
-          [DEFAULT_BOX_LAYOUT_TYPE]: {
-            schema_version: '1.0.0',
-            props: {
-              columnCount: 4,
-              gap: 16,
-            },
-            asset_refs: [],
-          },
+    return {
+        mockClient: {
+            box: { session: sessionApi },
         },
-      }));
-      setFile(`${outputDir}/.box/structure.yaml`, yaml.stringify({
-        entries: [
-          {
-            entry_id: 'entry000001',
-            url: 'file:///workspace/cards/demo.card',
-            enabled: true,
-            snapshot: {
-              title: 'Demo Card',
-              summary: 'Demo summary',
-              cover: {
-                mode: 'none',
-              },
-            },
-          },
-        ],
-      }));
-      return outputDir;
-    });
-
-    const service = new BoxDocumentService();
-    const opened = await service.openBox('/workspace/demo.box', '/workspace', 'box1234567');
-    expect(opened.entries).toHaveLength(1);
-
-    service.addEntry('box1234567', 'https://example.com/demo');
-    service.updateLayoutConfig('box1234567', DEFAULT_BOX_LAYOUT_TYPE, {
-      schemaVersion: '1.0.0',
-      props: {
-        columnCount: 6,
-        gap: 20,
-      },
-      assetRefs: [],
-    });
-
-    const saved = await service.saveBox('box1234567');
-
-    expect(mockClient.box.pack).toHaveBeenCalledTimes(1);
-    expect(lastPackedSnapshot.content).toMatchObject({
-      layout_configs: {
-        [DEFAULT_BOX_LAYOUT_TYPE]: {
-          props: {
-            columnCount: 6,
-            gap: 20,
-          },
-        },
-      },
-    });
-    expect((lastPackedSnapshot.structure?.entries as Array<unknown>) ?? []).toHaveLength(2);
-    expect(saved.isDirty).toBe(false);
-  });
-
-  it('keeps persisted manual sort keys aligned with the content list order', async () => {
-    const initialInspection = {
-      metadata: {
-        chipStandardsVersion: '1.0.0',
-        boxId: 'box1234567',
-        name: 'Demo Box',
-        createdAt: '2026-03-23T00:00:00.000Z',
-        modifiedAt: '2026-03-23T00:00:00.000Z',
-        activeLayoutType: DEFAULT_BOX_LAYOUT_TYPE,
-      },
-      content: {
-        activeLayoutType: DEFAULT_BOX_LAYOUT_TYPE,
-        layoutConfigs: {
-          [DEFAULT_BOX_LAYOUT_TYPE]: {
-            schemaVersion: '1.0.0',
-            props: {},
-            assetRefs: [],
-          },
-        },
-      },
-      entries: [
-        {
-          entryId: 'entry000001',
-          url: 'file:///workspace/cards/first.card',
-          enabled: true,
-          snapshot: { title: 'First', cover: { mode: 'none' } },
-          layoutHints: { sortKey: 42 },
-        },
-        {
-          entryId: 'entry000002',
-          url: 'file:///workspace/cards/second.card',
-          enabled: true,
-          snapshot: { title: 'Second', cover: { mode: 'none' } },
-          layoutHints: { sortKey: 88 },
-        },
-        {
-          entryId: 'entry000003',
-          url: 'file:///workspace/cards/third.card',
-          enabled: true,
-          snapshot: { title: 'Third', cover: { mode: 'none' } },
-          layoutHints: { sortKey: 99 },
-        },
-      ],
-      assets: [],
     };
+});
 
-    mockClient.box.inspect.mockResolvedValue(initialInspection);
-    mockClient.box.unpack.mockImplementation(async (_boxFile, outputDir) => {
-      directories.add(outputDir);
-      directories.add(`${outputDir}/.box`);
-      return outputDir;
+vi.mock('../../src/services/bridge-client', () => ({
+    getChipsClient: () => mockClient,
+}));
+
+describe('BoxDocumentService 会话消费层', () => {
+    let service: BoxDocumentService;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        service = new BoxDocumentService();
     });
 
-    const service = new BoxDocumentService();
-    await service.openBox('/workspace/demo.box', '/workspace', 'box1234567');
-
-    service.moveEntryToIndex('box1234567', 'entry000003', 0);
-    service.removeEntry('box1234567', 'entry000002');
-    await service.saveBox('box1234567');
-
-    const entries = lastPackedSnapshot.structure?.entries as Array<{
-      entry_id: string;
-      layout_hints?: { sort_key?: number };
-    }>;
-
-    expect(entries.map((entry) => entry.entry_id)).toEqual(['entry000003', 'entry000001']);
-    expect(entries.map((entry) => entry.layout_hints?.sort_key)).toEqual([0, 1]);
-  });
-
-  it('deduplicates concurrent box open requests for the same file and box id', async () => {
-    const initialInspection = {
-      metadata: {
-        chipStandardsVersion: '1.0.0',
-        boxId: 'box1234567',
-        name: 'Demo Box',
-        createdAt: '2026-03-23T00:00:00.000Z',
-        modifiedAt: '2026-03-23T00:00:00.000Z',
-        activeLayoutType: DEFAULT_BOX_LAYOUT_TYPE,
-      },
-      content: {
-        activeLayoutType: DEFAULT_BOX_LAYOUT_TYPE,
-        layoutConfigs: {
-          [DEFAULT_BOX_LAYOUT_TYPE]: {
-            schemaVersion: '1.0.0',
-            props: {
-              columnCount: 4,
-              gap: 16,
-            },
-            assetRefs: [],
-          },
-        },
-      },
-      entries: [],
-      assets: [],
-    };
-
-    mockClient.box.inspect.mockResolvedValue(initialInspection);
-
-    let releaseUnpack: (() => void) | null = null;
-    const unpackStarted = new Promise<void>((resolve) => {
-      mockClient.box.unpack.mockImplementationOnce(async (_boxFile, outputDir) => {
-        directories.add(outputDir);
-        directories.add(`${outputDir}/.box`);
-        setFile(`${outputDir}/.box/metadata.yaml`, yaml.stringify({
-          chip_standards_version: '1.0.0',
-          box_id: 'box1234567',
-          name: 'Demo Box',
-          created_at: '2026-03-23T00:00:00.000Z',
-          modified_at: '2026-03-23T00:00:00.000Z',
-          active_layout_type: DEFAULT_BOX_LAYOUT_TYPE,
-        }));
-        setFile(`${outputDir}/.box/content.yaml`, yaml.stringify({
-          active_layout_type: DEFAULT_BOX_LAYOUT_TYPE,
-          layout_configs: {
-            [DEFAULT_BOX_LAYOUT_TYPE]: {
-              schema_version: '1.0.0',
-              props: {
-                columnCount: 4,
-                gap: 16,
-              },
-              asset_refs: [],
-            },
-          },
-        }));
-        setFile(`${outputDir}/.box/structure.yaml`, yaml.stringify({
-          entries: [],
-        }));
-        resolve();
-        await new Promise<void>((next) => {
-          releaseUnpack = next;
+    describe('createBoxFile', () => {
+        it('调用 box.session.create', async () => {
+            mockClient.box.session.create.mockResolvedValue({
+                boxFile: '/workspace/新建.box',
+                metadata: SNAPSHOT.metadata,
+            });
+            const result = await service.createBoxFile('新建', 'chips.layout.grid', '/workspace', '/workspace');
+            expect(mockClient.box.session.create).toHaveBeenCalledWith('新建', 'chips.layout.grid', '/workspace');
+            expect(result.boxFile).toBe('/workspace/新建.box');
         });
-        return outputDir;
-      });
+
+        it('未绑定工作区时抛错', async () => {
+            await expect(service.createBoxFile('新建', 'chips.layout.grid', '/workspace', '')).rejects.toThrow();
+        });
     });
 
-    const service = new BoxDocumentService();
-    const firstOpen = service.openBox('/workspace/demo.box', '/workspace', 'box1234567');
-    await unpackStarted;
-    const secondOpen = service.openBox('/workspace/demo.box', '/workspace', 'box1234567');
-    releaseUnpack!();
+    describe('openBox / closeBox', () => {
+        it('打开会话并缓存快照，close 关闭会话', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
 
-    const [firstSession, secondSession] = await Promise.all([firstOpen, secondOpen]);
+            const snapshot = await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            expect(mockClient.box.session.open).toHaveBeenCalledWith('/workspace/测试箱子.box');
+            expect(snapshot.boxId).toBe('box-1');
+            expect(service.getSession('box-1')?.metadata.name).toBe('测试箱子');
 
-    expect(mockClient.box.inspect).toHaveBeenCalledTimes(1);
-    expect(mockClient.box.unpack).toHaveBeenCalledTimes(1);
-    expect(firstSession.workspaceDir).toBe(secondSession.workspaceDir);
-    expect(firstSession.boxId).toBe('box1234567');
-    expect(secondSession.boxId).toBe('box1234567');
-  });
+            await service.closeBox('box-1');
+            expect(mockClient.box.session.close).toHaveBeenCalledWith('s1');
+            expect(service.getSession('box-1')).toBeNull();
+        });
 
-  it('adds an embedded card entry and copies the card file into the session workspace root', async () => {
-    mockClient.card.readInfo.mockResolvedValue({
-      cardFile: '/workspace/day-01.card',
-      info: {
-        status: { state: 'ready', exists: true, valid: true },
-        metadata: {
-          raw: {},
-          cardId: 'card000001',
-          name: '第一天',
-          tags: ['旅行'],
-        },
-      },
-    });
-    setFile('/workspace/day-01.card', 'card content');
-
-    const service = new BoxDocumentService();
-    const opened = await setupOpenedBox(service);
-    const snapshot = await service.addEmbeddedCard('box1234567', '/workspace/day-01.card', 'day-01');
-
-    expect(snapshot.entries).toHaveLength(1);
-    expect(snapshot.entries[0]).toMatchObject({
-      entryId: expect.stringMatching(/^[0-9a-zA-Z]{10}$/),
-      url: 'day-01.card',
-      enabled: true,
-      snapshot: {
-        documentId: 'card000001',
-        title: '第一天',
-        summary: '第一天',
-        tags: ['旅行'],
-        cover: { mode: 'runtime' },
-        contentType: 'chips/card',
-      },
-    });
-    expect(snapshot.isDirty).toBe(true);
-    expect(mockFileService.copy).toHaveBeenCalledWith(
-      '/workspace/day-01.card',
-      `${opened.workspaceDir}/day-01.card`,
-    );
-    expect(mockClient.card.readInfo).toHaveBeenCalledWith('/workspace/day-01.card', ['status', 'metadata']);
-  });
-
-  it('persists embedded entries through saveBox so box.inspect reads them back with the relative url untouched', async () => {
-    const initialInspection = createEmptyInspection();
-    let lastInspection: any = initialInspection;
-    mockClient.box.inspect.mockImplementation(async () => lastInspection);
-    mockClient.box.unpack.mockImplementation(async (_boxFile, outputDir) => {
-      directories.add(outputDir);
-      directories.add(`${outputDir}/.box`);
-      return outputDir;
-    });
-    mockClient.box.pack.mockImplementation(async (boxDir, options) => {
-      lastPackedSnapshot = {
-        metadata: yaml.parse(files.get(`${boxDir}/.box/metadata.yaml`) ?? ''),
-        content: yaml.parse(files.get(`${boxDir}/.box/content.yaml`) ?? ''),
-        structure: yaml.parse(files.get(`${boxDir}/.box/structure.yaml`) ?? ''),
-      };
-      lastInspection = toInspection(lastPackedSnapshot);
-      return options?.outputPath ?? `${boxDir}.box`;
-    });
-    mockClient.card.readInfo.mockResolvedValue({
-      cardFile: '/workspace/day-01.card',
-      info: {
-        status: { state: 'ready', exists: true, valid: true },
-        metadata: {
-          raw: {},
-          cardId: 'card000001',
-          name: '第一天',
-        },
-      },
-    });
-    setFile('/workspace/day-01.card', 'card content');
-
-    const service = new BoxDocumentService();
-    await service.openBox('/workspace/demo.box', '/workspace', 'box1234567');
-    await service.addEmbeddedCard('box1234567', '/workspace/day-01.card', 'day-01');
-    const saved = await service.saveBox('box1234567');
-
-    const packedEntries = (lastPackedSnapshot.structure?.entries as Array<Record<string, unknown>> | undefined) ?? [];
-    expect(packedEntries).toHaveLength(1);
-    expect(packedEntries[0]?.url).toBe('day-01.card');
-    expect((packedEntries[0]?.snapshot as Record<string, unknown> | undefined)?.content_type).toBe('chips/card');
-    expect(saved.entries).toHaveLength(1);
-    expect(saved.entries[0]?.url).toBe('day-01.card');
-    expect(saved.entries[0]?.snapshot?.documentId).toBe('card000001');
-    expect(saved.isDirty).toBe(false);
-  });
-
-  it('auto renames the embedded card file when the preferred name is already taken', async () => {
-    mockClient.card.readInfo.mockResolvedValue({
-      cardFile: '/workspace/day-01.card',
-      info: {
-        status: { state: 'ready', exists: true, valid: true },
-        metadata: {
-          raw: {},
-          cardId: 'card000001',
-          name: '第一天',
-        },
-      },
-    });
-    setFile('/workspace/day-01.card', 'card content');
-
-    const service = new BoxDocumentService();
-    const opened = await setupOpenedBox(service);
-    setFile(`${opened.workspaceDir}/day-01.card`, 'existing content');
-
-    const snapshot = await service.addEmbeddedCard('box1234567', '/workspace/day-01.card', 'day-01');
-
-    expect(snapshot.entries).toHaveLength(1);
-    expect(snapshot.entries[0]?.url).toBe('day-01-2.card');
-    expect(mockFileService.copy).toHaveBeenCalledWith(
-      '/workspace/day-01.card',
-      `${opened.workspaceDir}/day-01-2.card`,
-    );
-  });
-
-  it('uses the card metadata name when no preferred name is given', async () => {
-    mockClient.card.readInfo.mockResolvedValue({
-      cardFile: '/workspace/day-01.card',
-      info: {
-        status: { state: 'ready', exists: true, valid: true },
-        metadata: {
-          raw: {},
-          cardId: 'card000001',
-          name: '第一天',
-        },
-      },
-    });
-    setFile('/workspace/day-01.card', 'card content');
-
-    const service = new BoxDocumentService();
-    const opened = await setupOpenedBox(service);
-    const snapshot = await service.addEmbeddedCard('box1234567', '/workspace/day-01.card');
-
-    expect(snapshot.entries[0]?.url).toBe('第一天.card');
-    expect(snapshot.entries[0]?.snapshot?.title).toBe('第一天');
-    expect(mockFileService.copy).toHaveBeenCalledWith(
-      '/workspace/day-01.card',
-      `${opened.workspaceDir}/第一天.card`,
-    );
-  });
-
-  it('rejects missing files, non-card files and invalid cards without copying anything', async () => {
-    setFile('/workspace/valid-content-holder', 'unused');
-    mockClient.card.readInfo.mockResolvedValue({
-      cardFile: '/workspace/broken.card',
-      info: {
-        status: { state: 'invalid', exists: true, valid: false, errors: ['structure missing'] },
-      },
+        it('重复打开同一文件返回同一会话', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            const again = await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            expect(mockClient.box.session.open).toHaveBeenCalledTimes(1);
+            expect(again.boxId).toBe('box-1');
+        });
     });
 
-    const service = new BoxDocumentService();
-    await setupOpenedBox(service);
+    describe('条目操作', () => {
+        it('addEntry 转发到会话', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.box.session.addEntry.mockResolvedValue({
+                ...SNAPSHOT,
+                entries: [{ entryId: 'e1', url: 'file:///tmp/a.card', enabled: true, snapshot: {}, layoutHints: { sortKey: 0 } }],
+                isDirty: true,
+            });
 
-    await expect(service.addEmbeddedCard('box1234567', '/workspace/missing.card', 'x')).rejects.toThrow('卡片文件不存在');
-    await expect(service.addEmbeddedCard('box1234567', '/workspace/other.box', 'x')).rejects.toThrow('仅支持内嵌 .card 卡片文件');
-    await expect(service.addEmbeddedCard('box1234567', '/workspace/notes.txt', 'x')).rejects.toThrow('仅支持内嵌 .card 卡片文件');
-    setFile('/workspace/broken.card', 'card content');
-    await expect(service.addEmbeddedCard('box1234567', '/workspace/broken.card', 'x')).rejects.toThrow('卡片文件无效');
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            const after = await service.addEntry('box-1', 'file:///tmp/a.card');
+            expect(mockClient.box.session.addEntry).toHaveBeenCalledWith('s1', { url: 'file:///tmp/a.card' });
+            expect(after.entries).toHaveLength(1);
+            expect(service.getSession('box-1')?.isDirty).toBe(true);
+        });
 
-    expect(mockFileService.copy).not.toHaveBeenCalled();
-    expect(service.getSession('box1234567')?.entries).toHaveLength(0);
-  });
+        it('moveEntryToIndex 转发到会话', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.box.session.moveEntry.mockResolvedValue(SNAPSHOT);
+
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            await service.moveEntryToIndex('box-1', 'e1', 2);
+            expect(mockClient.box.session.moveEntry).toHaveBeenCalledWith('s1', 'e1', 2);
+        });
+
+        it('removeEntry 转发到会话', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.box.session.removeEntry.mockResolvedValue(SNAPSHOT);
+
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            await service.removeEntry('box-1', 'e1');
+            expect(mockClient.box.session.removeEntry).toHaveBeenCalledWith('s1', 'e1');
+        });
+    });
+
+    describe('saveBox 与 undo/redo', () => {
+        it('saveBox 调用 session.persist', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.box.session.persist.mockResolvedValue(SNAPSHOT);
+
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            await service.saveBox('box-1');
+            expect(mockClient.box.session.persist).toHaveBeenCalledWith('s1');
+        });
+
+        it('undo/redo 代理到会话', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.box.session.undo.mockResolvedValue(SNAPSHOT);
+            mockClient.box.session.redo.mockResolvedValue(SNAPSHOT);
+            mockClient.box.session.history.mockResolvedValue({
+                undoAvailable: true,
+                redoAvailable: false,
+                undoStack: [{ label: '添加条目', recordedAt: 1000 }],
+                redoStack: [],
+            });
+
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            expect(await service.undo('box-1')).toBe(true);
+            expect(await service.redo('box-1')).toBe(true);
+            const history = await service.getHistory('box-1');
+            expect(history.undoStack[0]?.label).toBe('添加条目');
+        });
+    });
+
+    describe('updateCover 与资源', () => {
+        it('updateCover 转发到会话', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.box.session.updateCover.mockResolvedValue({
+                ...SNAPSHOT,
+                coverHtml: '<html>custom</html>',
+                isDirty: true,
+            });
+
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            const after = await service.updateCover('box-1', {
+                html: '<html>custom</html>',
+                ratio: '16:9',
+                resources: [{ path: 'boxcover/a.png', data: new Uint8Array([1]) }],
+            });
+            expect(mockClient.box.session.updateCover).toHaveBeenCalledWith('s1', {
+                html: '<html>custom</html>',
+                ratio: '16:9',
+                resources: [{ path: 'boxcover/a.png', data: new Uint8Array([1]) }],
+            });
+            expect(after.coverHtml).toBe('<html>custom</html>');
+        });
+
+        it('updateMetadata 转发到会话', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.box.session.updateMetadata.mockResolvedValue({
+                ...SNAPSHOT,
+                metadata: { ...SNAPSHOT.metadata, name: '改名' },
+                isDirty: true,
+            });
+
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            const after = await service.updateMetadata('box-1', { name: '改名' });
+            expect(mockClient.box.session.updateMetadata).toHaveBeenCalledWith('s1', expect.objectContaining({ name: '改名' }));
+            expect(after.metadata.name).toBe('改名');
+        });
+    });
+
+    describe('会话事件', () => {
+        it('快照变化发出 session:changed 事件', async () => {
+            mockClient.box.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            const received: string[] = [];
+            service.on('session:changed', (snapshot) => {
+                received.push(snapshot.boxId);
+            });
+
+            await service.openBox('/workspace/测试箱子.box', '/workspace', 'box-1');
+            expect(received).toContain('box-1');
+        });
+    });
 });
