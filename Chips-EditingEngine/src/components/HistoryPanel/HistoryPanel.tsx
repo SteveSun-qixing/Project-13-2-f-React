@@ -99,8 +99,20 @@ export function HistoryPanel({
   };
 
   const updateHistory = useCallback(() => {
-    setUndoHistory(commandManager.getHistory(maxItems));
-    setRedoHistory(commandManager.getRedoHistory());
+    void commandManager.getHistory(maxItems).then((entries) => {
+      setUndoHistory(entries.map((entry) => ({
+        id: entry.id,
+        description: entry.label,
+        timestamp: entry.recordedAt,
+      })));
+    });
+    void commandManager.getRedoHistory().then((entries) => {
+      setRedoHistory(entries.map((entry) => ({
+        id: entry.id,
+        description: entry.label,
+        timestamp: entry.recordedAt,
+      })));
+    });
   }, [commandManager, maxItems]);
 
   const handleUndoCommand = useCallback(async () => {

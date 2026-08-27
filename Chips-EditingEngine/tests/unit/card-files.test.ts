@@ -1,485 +1,250 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import yaml from 'yaml';
-import { createCardInitializer } from '../../src/core/card-initializer';
-import { createCardService } from '../../src/core/card-service';
+import { createCardService, resetCardService } from '../../src/core/card-service';
+import type { CardSessionSnapshot } from 'chips-sdk';
 
-type MockEntry = {
-  path: string;
-  isDirectory: boolean;
+const SNAPSHOT: CardSessionSnapshot = {
+    cardId: 'demo-card',
+    path: '/workspace/demo.card',
+    metadata: {
+        name: '生态介绍',
+        createdAt: '2026-03-13T00:00:00.000Z',
+        modifiedAt: '2026-03-13T00:00:00.000Z',
+        coverRatio: '3:4',
+        description: '测试卡片',
+        tags: ['chips'],
+    },
+    cover: {
+        html: '<!doctype html><html><body>生态介绍</body></html>',
+        ratio: '3:4',
+        resources: [],
+    },
+    structure: {
+        layout: { padding: 16, gap: 12 },
+        basicCards: [
+            {
+                id: 'intro',
+                type: 'base.richtext',
+                data: { id: 'intro', content_text: 'hello' },
+                createdAt: '2026-03-13T00:00:00.000Z',
+                modifiedAt: '2026-03-13T00:00:00.000Z',
+            },
+        ],
+    },
+    isDirty: false,
+    isPersisting: false,
+    persistedRevision: 0,
 };
 
-const { mockFileService } = vi.hoisted(() => ({
-  mockFileService: {
-    readText: vi.fn<[string], Promise<string>>(),
-    writeText: vi.fn<[string, string], Promise<void>>(),
-    writeBinary: vi.fn<[string, Uint8Array], Promise<void>>(),
-    stat: vi.fn<[string], Promise<{ path: string; size: number; isFile: boolean; isDirectory: boolean; mtimeMs: number }>>(),
-    exists: vi.fn<[string], Promise<boolean>>(),
-    ensureDir: vi.fn<[string], Promise<void>>(),
-    list: vi.fn<[string], Promise<MockEntry[]>>(),
-    delete: vi.fn<[string], Promise<void>>(),
-  },
+const { mockClient } = vi.hoisted(() => {
+    const sessionApi = {
+        init: vi.fn(),
+        open: vi.fn(),
+        get: vi.fn(),
+        updateBasicCard: vi.fn(),
+        addBasicCard: vi.fn(),
+        removeBasicCard: vi.fn(),
+        moveBasicCard: vi.fn(),
+        updateMetadata: vi.fn(),
+        updateCover: vi.fn(),
+        persist: vi.fn(),
+        undo: vi.fn(),
+        redo: vi.fn(),
+        history: vi.fn(),
+        close: vi.fn(async () => {}),
+        onOpened: vi.fn(() => () => {}),
+        onPersisted: vi.fn((_handler: (payload: { sessionId?: string; cardId: string; snapshot: CardSessionSnapshot }) => void) => () => {}),
+        onPersistError: vi.fn(() => () => {}),
+        onClosed: vi.fn(() => () => {}),
+        onUndo: vi.fn(() => () => {}),
+        onRedo: vi.fn(() => () => {}),
+    };
+    return {
+        mockClient: {
+            card: { session: sessionApi },
+        },
+    };
+});
+
+vi.mock('../../src/services/bridge-client', () => ({
+    getChipsClient: () => mockClient,
 }));
 
-vi.mock('../../src/services/file-service', () => ({
-  fileService: mockFileService,
+vi.mock('../../src/services/workspace-service', () => ({
+    workspaceService: {
+        getState: () => ({ rootPath: '/workspace' }),
+    },
 }));
 
-describe('unpacked .card files', () => {
-  const files = new Map<string, string>();
-  const directories = new Set<string>();
-
-  const setFile = (filePath: string, content: string) => {
-    files.set(filePath, content);
-    const parent = filePath.split('/').slice(0, -1).join('/');
-    if (parent) {
-      directories.add(parent);
-    }
-  };
-
-  const seedCardDirectory = () => {
-    directories.add('/workspace/demo.card');
-    directories.add('/workspace/demo.card/.card');
-    directories.add('/workspace/demo.card/content');
-
-    setFile('/workspace/demo.card/.card/metadata.yaml', yaml.stringify({
-      chip_standards_version: '1.0.0',
-      card_id: 'demo-card',
-      name: '生态介绍',
-      created_at: '2026-03-13T00:00:00.000Z',
-      modified_at: '2026-03-13T00:00:00.000Z',
-      theme: 'chips-official.default-theme',
-      cover_ratio: '3:4',
-      description: '测试卡片',
-      tags: ['chips'],
-    }));
-
-    setFile('/workspace/demo.card/.card/structure.yaml', yaml.stringify({
-      structure: [
-        {
-          id: 'intro',
-          type: 'RichTextCard',
-          created_at: '2026-03-13T00:00:00.000Z',
-          modified_at: '2026-03-13T00:00:00.000Z',
-        },
-        {
-          id: 'details',
-          type: 'RichTextCard',
-          created_at: '2026-03-13T00:00:00.000Z',
-          modified_at: '2026-03-13T00:00:00.000Z',
-        },
-      ],
-      manifest: {
-        card_count: 2,
-        resource_count: 0,
-        resources: [],
-      },
-    }));
-
-    setFile('/workspace/demo.card/content/intro.yaml', yaml.stringify({
-      card_type: 'RichTextCard',
-      content_format: 'markdown',
-      content_source: 'inline',
-      content_text: '# Intro\n\nHello Chips.',
-    }));
-
-    setFile('/workspace/demo.card/content/details.yaml', yaml.stringify({
-      id: 'details',
-      card_type: 'RichTextCard',
-      content_format: 'markdown',
-      content_source: 'inline',
-      content_text: 'Second node body.',
-      locale: 'zh-CN',
-    }));
-
-    setFile('/workspace/demo.card/content/legacy-unused.yaml', yaml.stringify({
-      id: 'legacy-unused',
-      card_type: 'RichTextCard',
-      content_format: 'markdown',
-      content_source: 'inline',
-      content_text: 'Unused',
-    }));
-  };
-
-  beforeEach(() => {
-    files.clear();
-    directories.clear();
-    vi.clearAllMocks();
-
-    mockFileService.readText.mockImplementation(async (filePath) => {
-      const content = files.get(filePath);
-      if (content === undefined) {
-        throw new Error(`Missing file: ${filePath}`);
-      }
-      return content;
+describe('卡片服务会话消费层', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        resetCardService();
     });
 
-    mockFileService.writeText.mockImplementation(async (filePath, content) => {
-      setFile(filePath, content);
-    });
+    describe('createCard', () => {
+        it('调用 card.session.init 并映射本地视图', async () => {
+            mockClient.card.session.init.mockResolvedValue({
+                cardDir: '/workspace/demo-card.card',
+                cardId: 'demo-card',
+                sessionId: 's1',
+                snapshot: SNAPSHOT,
+            });
 
-    mockFileService.writeBinary.mockImplementation(async (filePath, content) => {
-      setFile(filePath, Buffer.from(content).toString('base64'));
-    });
+            const service = createCardService();
+            const card = await service.createCard('生态介绍');
 
-    mockFileService.stat.mockImplementation(async (targetPath) => {
-      const fileContent = files.get(targetPath);
-      if (fileContent !== undefined) {
-        const isTextFile = /\.(ya?ml|html|md|json|txt)$/i.test(targetPath);
-        return {
-          path: targetPath,
-          size: isTextFile
-            ? Buffer.byteLength(fileContent, 'utf-8')
-            : Buffer.from(fileContent, 'base64').byteLength,
-          isFile: true,
-          isDirectory: false,
-          mtimeMs: Date.now(),
-        };
-      }
-
-      if (directories.has(targetPath)) {
-        return {
-          path: targetPath,
-          size: 0,
-          isFile: false,
-          isDirectory: true,
-          mtimeMs: Date.now(),
-        };
-      }
-
-      throw new Error(`Missing path: ${targetPath}`);
-    });
-
-    mockFileService.exists.mockImplementation(async (targetPath) => {
-      return files.has(targetPath) || directories.has(targetPath);
-    });
-
-    mockFileService.ensureDir.mockImplementation(async (targetPath) => {
-      directories.add(targetPath);
-    });
-
-    mockFileService.list.mockImplementation(async (dirPath, options?: { recursive?: boolean }) => {
-      const prefix = `${dirPath}/`;
-      return Array.from(files.keys())
-        .filter((filePath) => {
-          if (!filePath.startsWith(prefix)) {
-            return false;
-          }
-          return options?.recursive || !filePath.slice(prefix.length).includes('/');
-        })
-        .map((filePath) => ({
-          path: filePath,
-          isDirectory: false,
-        }));
-    });
-
-    mockFileService.delete.mockImplementation(async (targetPath) => {
-      files.delete(targetPath);
-    });
-  });
-
-  it('creates complete unpacked .card folders for new cards', async () => {
-    const initializer = createCardInitializer({
-      workspaceRoot: '/workspace',
-    });
-
-    const result = await initializer.createCard('new-card', '新卡片', {
-      id: 'intro',
-      type: 'RichTextCard',
-      config: {
-        id: 'intro',
-        card_type: 'RichTextCard',
-        content_format: 'markdown',
-        content_source: 'inline',
-        content_text: '你好',
-        locale: 'zh-CN',
-      },
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.cardPath).toBe('/workspace/new-card.card');
-    expect(directories.has('/workspace/new-card.card/.card')).toBe(true);
-    expect(directories.has('/workspace/new-card.card/content')).toBe(true);
-
-    const metadata = yaml.parse(files.get('/workspace/new-card.card/.card/metadata.yaml') ?? '');
-    const structure = yaml.parse(files.get('/workspace/new-card.card/.card/structure.yaml') ?? '');
-    const content = yaml.parse(files.get('/workspace/new-card.card/content/intro.yaml') ?? '');
-
-    expect(metadata.name).toBe('新卡片');
-    expect(metadata.cover_ratio).toBe('3:4');
-    expect(structure.structure).toHaveLength(1);
-    expect(content).toMatchObject({
-      card_type: 'RichTextCard',
-      content_format: 'markdown',
-      content_source: 'inline',
-      content_text: '你好',
-      locale: 'zh-CN',
-    });
-    expect(files.get('/workspace/new-card.card/.card/cover.html')).toContain('新卡片');
-  });
-
-  it('opens unpacked .card directories and persists normalized base card updates', async () => {
-    seedCardDirectory();
-    const service = createCardService();
-
-    const card = await service.openCard('demo-card', '/workspace/demo.card');
-
-    expect(card.metadata.name).toBe('生态介绍');
-    expect(card.metadata.coverRatio).toBe('3:4');
-    expect(card.structure.basicCards).toHaveLength(2);
-    expect(card.structure.basicCards[0]).toMatchObject({
-      id: 'intro',
-      type: 'base.richtext',
-      data: {
-        card_type: 'base.richtext',
-        content_format: 'markdown',
-        content_source: 'inline',
-        content_text: '# Intro\n\nHello Chips.',
-        locale: 'zh-CN',
-        theme: '',
-        markdown_capabilities: {
-          commonmark: true,
-          gfm: true,
-          math: true,
-          highlight: true,
-          underline: true,
-          superscript: true,
-          subscript: true,
-        },
-      },
-    });
-
-    service.removeBasicCard('demo-card', 'details');
-    service.updateBasicCard('demo-card', 'intro', {
-      content_text: '已更新',
-    });
-    await service.saveCard('demo-card');
-
-    const persistedStructure = yaml.parse(files.get('/workspace/demo.card/.card/structure.yaml') ?? '');
-    const persistedIntro = yaml.parse(files.get('/workspace/demo.card/content/intro.yaml') ?? '');
-
-    expect(persistedStructure.structure).toHaveLength(1);
-    expect(persistedStructure.structure[0]?.type).toBe('base.richtext');
-    expect(persistedIntro).toMatchObject({
-      card_type: 'base.richtext',
-      content_format: 'markdown',
-      content_source: 'inline',
-      content_text: '已更新',
-      locale: 'zh-CN',
-      theme: '',
-    });
-    expect(files.has('/workspace/demo.card/content/details.yaml')).toBe(false);
-    expect(files.has('/workspace/demo.card/content/legacy-unused.yaml')).toBe(false);
-    expect(files.get('/workspace/demo.card/.card/cover.html')).toContain('生态介绍');
-  });
-
-  it('persists cover html, cover ratio and uploaded cover resources into the unpacked .card structure', async () => {
-    seedCardDirectory();
-    const service = createCardService();
-    await service.openCard('demo-card', '/workspace/demo.card');
-
-    service.updateCardCover('demo-card', {
-      html: '<!doctype html><html><body><img src="./cardcover/cover-image.png" alt="" /></body></html>',
-      ratio: '16:9',
-      resources: [
-        {
-          path: 'cardcover/cover-image.png',
-          data: new Uint8Array([137, 80, 78, 71]),
-        },
-      ],
-    });
-    await service.saveCard('demo-card');
-
-    const metadata = yaml.parse(files.get('/workspace/demo.card/.card/metadata.yaml') ?? '');
-    expect(metadata.cover_ratio).toBe('16:9');
-    expect(files.get('/workspace/demo.card/.card/cover.html')).toContain('./cardcover/cover-image.png');
-    expect(files.get('/workspace/demo.card/.card/cardcover/cover-image.png')).toBe(Buffer.from([137, 80, 78, 71]).toString('base64'));
-  });
-
-  it('removes stale card cover resources when cover.html no longer references them', async () => {
-    seedCardDirectory();
-    directories.add('/workspace/demo.card/.card/cardcover');
-    setFile('/workspace/demo.card/.card/cardcover/old-cover.png', Buffer.from([1, 2, 3]).toString('base64'));
-    setFile('/workspace/demo.card/.card/cardcover/nested/old-bg.png', Buffer.from([4, 5, 6]).toString('base64'));
-
-    const service = createCardService();
-    await service.openCard('demo-card', '/workspace/demo.card');
-
-    service.updateCardCover('demo-card', {
-      html: '<!doctype html><html><body><h1>纯 HTML 封面</h1></body></html>',
-      ratio: '3:4',
-      resources: [],
-    });
-    await service.saveCard('demo-card');
-
-    expect(files.has('/workspace/demo.card/.card/cardcover/old-cover.png')).toBe(false);
-    expect(files.has('/workspace/demo.card/.card/cardcover/nested/old-bg.png')).toBe(false);
-  });
-
-  it('keeps existing card cover resources that are still referenced by cover.html', async () => {
-    seedCardDirectory();
-    directories.add('/workspace/demo.card/.card/cardcover');
-    setFile('/workspace/demo.card/.card/cardcover/existing-cover.png', Buffer.from([1, 2, 3]).toString('base64'));
-    setFile('/workspace/demo.card/.card/cardcover/stale-cover.png', Buffer.from([4, 5, 6]).toString('base64'));
-
-    const service = createCardService();
-    await service.openCard('demo-card', '/workspace/demo.card');
-
-    service.updateCardCover('demo-card', {
-      html: [
-        '<!doctype html>',
-        '<html><head><style>',
-        'body { background-image: url("./cardcover/existing-cover.png"); }',
-        '</style></head>',
-        '<body data-chips-cover-image-source="./cardcover/existing-cover.png"></body></html>',
-      ].join(''),
-      ratio: '16:9',
-      resources: [],
-    });
-    await service.saveCard('demo-card');
-
-    expect(files.has('/workspace/demo.card/.card/cardcover/existing-cover.png')).toBe(true);
-    expect(files.has('/workspace/demo.card/.card/cardcover/stale-cover.png')).toBe(false);
-  });
-
-  it('writes imported base card resources into the card root and finalizes deletions on save', async () => {
-    seedCardDirectory();
-    setFile('/workspace/demo.card/legacy-photo.png', Buffer.from([1, 2, 3]).toString('base64'));
-
-    const service = createCardService();
-    await service.openCard('demo-card', '/workspace/demo.card');
-
-    service.updateBasicCard(
-      'demo-card',
-      'intro',
-      {
-        id: 'intro',
-        locale: 'zh-CN',
-        images: [
-          {
-            id: 'img-1',
-            source: 'file',
-            file_path: 'hero-photo.png',
-          },
-        ],
-      },
-      {
-        imports: [
-          {
-            path: 'hero-photo.png',
-            data: new Uint8Array([137, 80, 78, 71]),
-            mimeType: 'image/png',
-          },
-        ],
-        deletions: ['legacy-photo.png'],
-      },
-    );
-
-    await service.saveCard('demo-card');
-
-    const structure = yaml.parse(files.get('/workspace/demo.card/.card/structure.yaml') ?? '');
-
-    expect(files.get('/workspace/demo.card/hero-photo.png')).toBe(Buffer.from([137, 80, 78, 71]).toString('base64'));
-    expect(files.has('/workspace/demo.card/legacy-photo.png')).toBe(false);
-    expect(structure.manifest.resource_count).toBe(1);
-    expect(structure.manifest.resources).toEqual([
-      {
-        path: 'hero-photo.png',
-        size: 4,
-        type: 'image/png',
-      },
-    ]);
-  });
-
-  it('serializes rapid base card updates and persists the latest snapshot before preview refresh signals advance', async () => {
-    seedCardDirectory();
-
-    let releaseFirstIntroWrite: (() => void) | null = null;
-    let firstIntroWriteBlocked = false;
-
-    mockFileService.writeText.mockImplementation(async (filePath, content) => {
-      if (filePath === '/workspace/demo.card/content/intro.yaml' && !firstIntroWriteBlocked) {
-        firstIntroWriteBlocked = true;
-        await new Promise<void>((resolve) => {
-          releaseFirstIntroWrite = resolve;
+            expect(mockClient.card.session.init).toHaveBeenCalledWith(
+                '/workspace',
+                '生态介绍',
+                undefined,
+            );
+            expect(card.id).toBe('demo-card');
+            expect(card.path).toBe('/workspace/demo.card');
+            expect(card.structure.basicCards).toHaveLength(1);
+            expect(service.getSelectedCardId()).toBe('demo-card');
         });
-      }
-      setFile(filePath, content);
     });
 
-    const service = createCardService();
-    await service.openCard('demo-card', '/workspace/demo.card');
+    describe('openCard', () => {
+        it('调用 card.session.open 并映射视图', async () => {
+            mockClient.card.session.open.mockResolvedValue({
+                sessionId: 's1',
+                snapshot: SNAPSHOT,
+            });
 
-    service.updateBasicCard('demo-card', 'intro', {
-      content_text: 'first',
-    });
-    service.updateBasicCard('demo-card', 'intro', {
-      content_text: 'second',
-    });
+            const service = createCardService();
+            const card = await service.openCard('demo-card', '/workspace/demo.card');
 
-    const pendingCard = service.getCard('demo-card');
-    expect(pendingCard?.isPersisting).toBe(true);
-    expect(pendingCard?.persistedRevision ?? 0).toBe(0);
-    expect(pendingCard?.pendingPersistRevision).toBe(2);
-
-	    for (let attempt = 0; attempt < 20 && !releaseFirstIntroWrite; attempt += 1) {
-	      await Promise.resolve();
-	    }
-	    expect(releaseFirstIntroWrite).toBeTypeOf('function');
-	    if (!releaseFirstIntroWrite) {
-	      throw new Error('Expected pending intro write gate to be installed.');
-	    }
-	    (releaseFirstIntroWrite as () => void)();
-	    await service.saveCard('demo-card');
-
-    const latestCard = service.getCard('demo-card');
-    const persistedIntro = yaml.parse(files.get('/workspace/demo.card/content/intro.yaml') ?? '');
-
-    expect(latestCard?.persistedRevision).toBe(2);
-    expect(latestCard?.isPersisting).toBe(false);
-    expect(persistedIntro).toMatchObject({
-      card_type: 'base.richtext',
-      content_format: 'markdown',
-      content_source: 'inline',
-      content_text: 'second',
-      locale: 'zh-CN',
-      theme: '',
-    });
-  });
-
-  it('keeps basic card edits in memory until the caller explicitly saves', async () => {
-    seedCardDirectory();
-    const service = createCardService();
-    await service.openCard('demo-card', '/workspace/demo.card');
-
-    service.updateBasicCard(
-      'demo-card',
-      'intro',
-      {
-        content_text: '只更新内存中的草稿',
-      },
-      undefined,
-      { persist: false },
-    );
-
-    const inMemoryCard = service.getCard('demo-card');
-    const beforeSaveIntro = yaml.parse(files.get('/workspace/demo.card/content/intro.yaml') ?? '');
-
-    expect(inMemoryCard?.isDirty).toBe(true);
-    expect(beforeSaveIntro).toMatchObject({
-      content_text: '# Intro\n\nHello Chips.',
+            expect(mockClient.card.session.open).toHaveBeenCalledWith('/workspace/demo.card');
+            expect(card.metadata.name).toBe('生态介绍');
+            expect(card.isDirty).toBe(false);
+        });
     });
 
-    await service.saveCard('demo-card');
+    describe('updateBasicCard', () => {
+        it('转发配置与资源操作到会话', async () => {
+            mockClient.card.session.open.mockResolvedValue({
+                sessionId: 's1',
+                snapshot: SNAPSHOT,
+            });
+            mockClient.card.session.updateBasicCard.mockResolvedValue({
+                ...SNAPSHOT,
+                structure: {
+                    ...SNAPSHOT.structure,
+                    basicCards: [
+                        {
+                            ...SNAPSHOT.structure.basicCards[0]!,
+                            data: { id: 'intro', content_text: 'world' },
+                        },
+                    ],
+                },
+                isDirty: true,
+                isPersisting: true,
+            });
 
-    const persistedIntro = yaml.parse(files.get('/workspace/demo.card/content/intro.yaml') ?? '');
-    expect(persistedIntro).toMatchObject({
-      card_type: 'base.richtext',
-      content_format: 'markdown',
-      content_source: 'inline',
-      content_text: '只更新内存中的草稿',
-      locale: 'zh-CN',
-      theme: '',
+            const service = createCardService();
+            await service.openCard('demo-card', '/workspace/demo.card');
+            await service.updateBasicCard('demo-card', 'intro', { content_text: 'world' }, {
+                imports: [{ path: 'a.png', data: new Uint8Array([1]) }],
+                deletions: [],
+            });
+
+            expect(mockClient.card.session.updateBasicCard).toHaveBeenCalledWith(
+                's1',
+                'intro',
+                { content_text: 'world' },
+                {
+                    imports: [{ path: 'a.png', data: new Uint8Array([1]) }],
+                    deletions: [],
+                },
+            );
+
+            const card = service.getCard('demo-card');
+            expect(card?.structure.basicCards[0]?.data.content_text).toBe('world');
+            expect(card?.isDirty).toBe(true);
+            // 待导入资源保留本地预览字节
+            expect(card?.structure.basicCards[0]?.pendingResourceImports?.get('a.png')).toBeTruthy();
+        });
     });
-  });
+
+    describe('saveCard 与 undo/redo', () => {
+        it('saveCard 调用 session.persist', async () => {
+            mockClient.card.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.card.session.persist.mockResolvedValue(SNAPSHOT);
+
+            const service = createCardService();
+            await service.openCard('demo-card', '/workspace/demo.card');
+            await service.saveCard('demo-card');
+
+            expect(mockClient.card.session.persist).toHaveBeenCalledWith('s1');
+        });
+
+        it('undo/redo/history 代理到会话', async () => {
+            mockClient.card.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.card.session.undo.mockResolvedValue(SNAPSHOT);
+            mockClient.card.session.redo.mockResolvedValue(SNAPSHOT);
+            mockClient.card.session.history.mockResolvedValue({
+                undoAvailable: true,
+                redoAvailable: false,
+                undoStack: [{ label: '更新基础卡片', recordedAt: 1000 }],
+                redoStack: [],
+            });
+
+            const service = createCardService();
+            await service.openCard('demo-card', '/workspace/demo.card');
+            expect(await service.undo()).toBe(true);
+            expect(await service.redo()).toBe(true);
+            const history = await service.getHistory();
+            expect(history.undoStack[0]?.label).toBe('更新基础卡片');
+        });
+    });
+
+    describe('closeCard', () => {
+        it('关闭会话并从视图移除', async () => {
+            mockClient.card.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+
+            const service = createCardService();
+            await service.openCard('demo-card', '/workspace/demo.card');
+            service.closeCard('demo-card');
+
+            expect(mockClient.card.session.close).toHaveBeenCalledWith('s1');
+            expect(service.getCard('demo-card')).toBeUndefined();
+        });
+    });
+
+    describe('onPersisted 事件同步', () => {
+        it('订阅会话事件并在持久化后清理待导入资源', async () => {
+            mockClient.card.session.open.mockResolvedValue({ sessionId: 's1', snapshot: SNAPSHOT });
+            mockClient.card.session.updateBasicCard.mockResolvedValue({
+                ...SNAPSHOT,
+                structure: {
+                    ...SNAPSHOT.structure,
+                    basicCards: [
+                        {
+                            ...SNAPSHOT.structure.basicCards[0]!,
+                            data: { id: 'intro', content_text: 'world' },
+                        },
+                    ],
+                },
+                isDirty: true,
+                isPersisting: true,
+            });
+
+            const service = createCardService();
+            await service.openCard('demo-card', '/workspace/demo.card');
+            await service.updateBasicCard('demo-card', 'intro', { content_text: 'world' }, {
+                imports: [{ path: 'a.png', data: new Uint8Array([1]) }],
+                deletions: [],
+            });
+
+            const persistedHandler = mockClient.card.session.onPersisted.mock.calls[0]?.[0] as unknown as
+                (payload: { sessionId: string; cardId: string; snapshot: CardSessionSnapshot }) => void;
+            expect(persistedHandler).toBeTypeOf('function');
+            persistedHandler({ sessionId: 's1', cardId: 'demo-card', snapshot: SNAPSHOT });
+
+            const card = service.getCard('demo-card');
+            expect(card?.structure.basicCards[0]?.pendingResourceImports?.size ?? 0).toBe(0);
+            expect(card?.isDirty).toBe(false);
+        });
+    });
 });

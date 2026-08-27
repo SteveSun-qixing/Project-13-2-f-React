@@ -54,8 +54,10 @@ export const CardWindow = React.memo(function CardWindow({
     const coverFrameHostRef = useRef<HTMLDivElement | null>(null);
     const coverFrameRef = useRef<HTMLIFrameElement | null>(null);
     const visibleBaseCards = useMemo(
+        // 依赖 basicCards 数组引用：M2 后会话快照更新会整体替换数组，
+        // 仅依赖 cardInfo 对象引用无法感知变化，会导致预览不刷新。
         () => cardInfo?.structure.basicCards ?? [],
-        [cardInfo],
+        [cardInfo?.structure.basicCards],
     );
 
     const [isCoverDragging, setIsCoverDragging] = useState(false);

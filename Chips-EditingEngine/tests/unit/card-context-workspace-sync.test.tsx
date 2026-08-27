@@ -7,11 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CardProvider, useCard, type CardContextType } from '../../src/context/CardContext';
 import { resetCardService } from '../../src/core/card-service';
 
-const { workspaceServiceMock } = vi.hoisted(() => {
+const { workspaceServiceMock, mockClient } = vi.hoisted(() => {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
 
   return {
     workspaceServiceMock: {
+      getState: vi.fn(() => ({ rootPath: '/workspace' })),
       on: vi.fn((event: string, handler: (payload: unknown) => void) => {
         if (!listeners.has(event)) {
           listeners.set(event, new Set());
@@ -28,8 +29,38 @@ const { workspaceServiceMock } = vi.hoisted(() => {
         listeners.clear();
       },
     },
+    mockClient: {
+      card: {
+        session: {
+          init: vi.fn(),
+          open: vi.fn(),
+          get: vi.fn(),
+          updateBasicCard: vi.fn(),
+          addBasicCard: vi.fn(),
+          removeBasicCard: vi.fn(),
+          moveBasicCard: vi.fn(),
+          updateMetadata: vi.fn(),
+          updateCover: vi.fn(),
+          persist: vi.fn(),
+          undo: vi.fn(),
+          redo: vi.fn(),
+          history: vi.fn(),
+          close: vi.fn(async () => {}),
+          onOpened: vi.fn(() => () => {}),
+          onPersisted: vi.fn(() => () => {}),
+          onPersistError: vi.fn(() => () => {}),
+          onClosed: vi.fn(() => () => {}),
+          onUndo: vi.fn(() => () => {}),
+          onRedo: vi.fn(() => () => {}),
+        },
+      },
+    },
   };
 });
+
+vi.mock('../../src/services/bridge-client', () => ({
+  getChipsClient: () => mockClient,
+}));
 
 vi.mock('../../src/services/workspace-service', () => ({
   workspaceService: workspaceServiceMock,
@@ -89,6 +120,21 @@ describe('CardProvider workspace rename sync', () => {
 
     let cardId = '';
     await act(async () => {
+      mockClient.card.session.init.mockResolvedValue({
+        cardDir: '/workspace/demo-card.card',
+        cardId: 'demo-card',
+        sessionId: 's1',
+        snapshot: {
+          cardId: 'demo-card',
+          path: '/workspace/demo-card.card',
+          metadata: { name: '原始名称', createdAt: '2026-03-13T00:00:00.000Z', modifiedAt: '2026-03-13T00:00:00.000Z', coverRatio: '3:4' },
+          cover: { html: '<html></html>', ratio: '3:4', resources: [] },
+          structure: { layout: {}, basicCards: [] },
+          isDirty: false,
+          isPersisting: false,
+          persistedRevision: 0,
+        },
+      });
       const card = await latestCardContext!.createCard('原始名称');
       cardId = card.id;
     });

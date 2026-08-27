@@ -21,21 +21,21 @@ export interface CardContextType extends CardState {
     closeCard: (cardId: string) => void;
     setActiveCard: (cardId: string | null) => void;
     setSelectedBaseCard: (baseCardId: string | null) => void;
-    updateCard: (cardId: string, updates: Partial<CompositeCard>) => void;
+    updateCard: (cardId: string, updates: Partial<CompositeCard>) => Promise<void>;
     updateCardMetadata: (cardId: string, metadata: Partial<CompositeCard['metadata']>) => void;
     updateCardCover: (cardId: string, cover: { html: string; ratio?: string; resources?: CardCoverResource[] }) => void;
     createCard: (name: string, initialBasicCard?: { type: string; data?: Record<string, unknown> }) => Promise<CompositeCard>;
     saveCard: (id: string) => Promise<void>;
-    addBasicCard: (cardId: string, type: string, data?: Record<string, unknown>, position?: number) => CompositeCard['structure']['basicCards'][number] | null;
-    removeBasicCard: (cardId: string, basicCardId: string) => void;
-    moveBasicCard: (cardId: string, basicCardId: string, newPosition: number) => void;
+    addBasicCard: (cardId: string, type: string, data?: Record<string, unknown>, position?: number) => Promise<CompositeCard['structure']['basicCards'][number] | null>;
+    removeBasicCard: (cardId: string, basicCardId: string) => Promise<void>;
+    moveBasicCard: (cardId: string, basicCardId: string, newPosition: number) => Promise<void>;
     updateBasicCard: (
         cardId: string,
         basicCardId: string,
         data: Record<string, unknown>,
         resourceOperations?: BasecardResourceOperations,
         options?: UpdateBasicCardOptions,
-    ) => void;
+    ) => Promise<void>;
     toggleEditMode: (id: string) => void;
     getCard: (id: string) => CompositeCard | undefined;
 }
@@ -130,10 +130,16 @@ export function CardProvider({ children }: { children: ReactNode }) {
         cardService.closeCard(cardId);
     }, [cardService]);
 
-    const updateCard = useCallback((cardId: string, updates: Partial<CompositeCard>) => {
+    const updateCard = useCallback(async (cardId: string, updates: Partial<CompositeCard>) => {
         const card = cardService.getCard(cardId);
-        if (card) {
-            Object.assign(card, updates);
+        if (!card) {
+            return;
+        }
+        if (updates.metadata) {
+            await cardService.updateCardMetadata(cardId, updates.metadata);
+        }
+        if (updates.cover) {
+            await cardService.updateCardCover(cardId, updates.cover);
         }
     }, [cardService]);
 
@@ -141,38 +147,38 @@ export function CardProvider({ children }: { children: ReactNode }) {
         return cardService.createCard(name, initialBasicCard);
     }, [cardService]);
 
-    const updateCardMetadata = useCallback((cardId: string, metadata: Partial<CompositeCard['metadata']>) => {
-        cardService.updateCardMetadata(cardId, metadata);
+    const updateCardMetadata = useCallback(async (cardId: string, metadata: Partial<CompositeCard['metadata']>) => {
+        await cardService.updateCardMetadata(cardId, metadata);
     }, [cardService]);
 
-    const updateCardCover = useCallback((cardId: string, cover: { html: string; ratio?: string; resources?: CardCoverResource[] }) => {
-        cardService.updateCardCover(cardId, cover);
+    const updateCardCover = useCallback(async (cardId: string, cover: { html: string; ratio?: string; resources?: CardCoverResource[] }) => {
+        await cardService.updateCardCover(cardId, cover);
     }, [cardService]);
 
     const saveCard = useCallback(async (id: string) => {
         return cardService.saveCard(id);
     }, [cardService]);
 
-    const addBasicCard = useCallback((cardId: string, type: string, data?: Record<string, unknown>, position?: number) => {
+    const addBasicCard = useCallback(async (cardId: string, type: string, data?: Record<string, unknown>, position?: number) => {
         return cardService.addBasicCard(cardId, type, data, position);
     }, [cardService]);
 
-    const removeBasicCard = useCallback((cardId: string, basicCardId: string) => {
-        cardService.removeBasicCard(cardId, basicCardId);
+    const removeBasicCard = useCallback(async (cardId: string, basicCardId: string) => {
+        await cardService.removeBasicCard(cardId, basicCardId);
     }, [cardService]);
 
-    const moveBasicCard = useCallback((cardId: string, basicCardId: string, newPosition: number) => {
-        cardService.moveBasicCard(cardId, basicCardId, newPosition);
+    const moveBasicCard = useCallback(async (cardId: string, basicCardId: string, newPosition: number) => {
+        await cardService.moveBasicCard(cardId, basicCardId, newPosition);
     }, [cardService]);
 
-    const updateBasicCard = useCallback((
+    const updateBasicCard = useCallback(async (
         cardId: string,
         basicCardId: string,
         data: Record<string, unknown>,
         resourceOperations?: BasecardResourceOperations,
         options?: UpdateBasicCardOptions,
     ) => {
-        cardService.updateBasicCard(cardId, basicCardId, data, resourceOperations, options);
+        await cardService.updateBasicCard(cardId, basicCardId, data, resourceOperations, options);
     }, [cardService]);
 
     const toggleEditMode = useCallback((id: string) => {
@@ -214,6 +220,8 @@ export function CardProvider({ children }: { children: ReactNode }) {
 
     return <CardContext.Provider value={value}>{children}</CardContext.Provider>;
 }
+
+export type { UpdateBasicCardOptions };
 
 export function useCard() {
     const context = useContext(CardContext);
