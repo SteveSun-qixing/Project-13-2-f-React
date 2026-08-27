@@ -402,3 +402,66 @@ button {
     scroll-behavior: auto !important;
   }
 }
+
+/* ─── 文档查看器（卡片/箱子内容页） ─────────────────────────────── */
+
+.document-viewer {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #ffffff;
+}
+
+.document-viewer__back {
+  position: fixed !important;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  box-shadow: 0 4px 18px rgba(16, 24, 40, 0.14);
+}
+
+.document-viewer__info {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 20;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px) saturate(120%);
+  box-shadow: 0 4px 18px rgba(16, 24, 40, 0.12);
+  color: #101828;
+  font-size: 13px;
+}
+
+.document-viewer__info strong {
+  font-weight: 600;
+  max-width: 46vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-viewer__info span {
+  color: #667085;
+}
+
+.document-viewer__frame {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  border: 0;
+  background: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .document-viewer__info {
+    top: 68px;
+    max-width: calc(100% - 32px);
+  }
+}

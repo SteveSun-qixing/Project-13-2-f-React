@@ -15,7 +15,7 @@ function appendResourceHint(rel: 'preconnect' | 'dns-prefetch', href: string): v
 }
 
 export function installResourceHints(): void {
-  const rawOrigin = import.meta.env.VITE_CCPS_RESOURCE_ORIGIN || DEFAULT_RESOURCE_ORIGIN;
+  const rawOrigin = import.meta.env.VITE_CPS_RESOURCE_ORIGIN || DEFAULT_RESOURCE_ORIGIN;
 
   try {
     const origin = new URL(rawOrigin, window.location.origin).origin;

@@ -92,28 +92,3 @@ export function getWorkCoverStyle(coverRatio?: string | null): CSSProperties {
     '--work-height-factor': heightFactor.toFixed(6),
   } as CSSProperties;
 }
-
-export function getAdminHref(): string {
-  return import.meta.env.DEV ? 'http://localhost:5174/admin/' : '/admin/';
-}
-
-export function getPostAuthPath(
-  user: { username: string; role?: string },
-  fromPath?: string,
-): string {
-  if (user.role === 'admin') {
-    return '/admin';
-  }
-
-  if (
-    fromPath &&
-    fromPath.startsWith('/') &&
-    fromPath !== '/' &&
-    fromPath !== '/login' &&
-    fromPath !== '/register'
-  ) {
-    return fromPath;
-  }
-
-  return `/@${user.username}`;
-}

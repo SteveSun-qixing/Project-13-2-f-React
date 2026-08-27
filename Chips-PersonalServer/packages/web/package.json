@@ -1,11 +1,11 @@
 {
-  "name": "@ccps/web",
+  "name": "@cps/web",
   "version": "1.0.0",
   "private": true,
-  "description": "薯片社区平台 - Web 前端",
+  "description": "薯片个人服务器 - Web 前端",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5173",
+    "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview"
   },

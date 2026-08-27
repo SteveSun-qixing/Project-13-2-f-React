@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Button, Result } from 'antd';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { BoxDetail } from '../api/content';
-import { DocumentPluginRoutePage, type DocumentRouteSource } from './DocumentPluginRoutePage';
 import { prefetchBoxDetail, readPrefetchedBoxDetail } from '../lib/box-detail-prefetch';
 import { getErrorMessage } from '../lib/ui';
 
 export default function BoxDetailPage() {
   const { boxId } = useParams<{ boxId: string }>();
+  const navigate = useNavigate();
   const [box, setBox] = useState<BoxDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -42,30 +44,66 @@ export default function BoxDetailPage() {
     };
   }, [boxId]);
 
-  const source: DocumentRouteSource | null =
-    boxId && box?.documentUrl
-      ? {
-          kind: 'community-box',
-          boxId,
-          title: box.title,
-          createdAt: box.createdAt,
-          documentUrl: box.documentUrl,
-          canonicalUrl: `/boxes/${boxId}`,
-          ...(box.coverUrl ? { coverUrl: box.coverUrl } : undefined),
-          ...(box.coverFragmentUrl ? { coverFragmentUrl: box.coverFragmentUrl } : undefined),
-          ...(box.coverRenderMode ? { coverRenderMode: box.coverRenderMode } : undefined),
-          ...(box.coverRatio ? { coverRatio: box.coverRatio } : undefined),
-        }
-      : null;
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="document-viewer">
+        <div className="page-loader">加载中…</div>
+      </div>
+    );
+  }
+
+  if (!box || error) {
+    return (
+      <div className="document-viewer">
+        <Result
+          status="404"
+          title="404"
+          subTitle={error || '没有找到目标内容。'}
+          extra={<Button onClick={handleBack}>返回</Button>}
+        />
+      </div>
+    );
+  }
+
+  if (!box.documentUrl) {
+    return (
+      <div className="document-viewer">
+        <Button className="document-viewer__back" icon={<ArrowLeftOutlined />} onClick={handleBack}>
+          返回
+        </Button>
+        <Result
+          status="info"
+          title="箱子文档尚未发布"
+          subTitle="这个箱子还没有可查看的文档页面。"
+          extra={<Button onClick={handleBack}>返回</Button>}
+        />
+      </div>
+    );
+  }
 
   return (
-    <DocumentPluginRoutePage
-      source={source}
-      loading={loading}
-      pending={Boolean(box && !box.documentUrl && !error)}
-      error={error}
-      pendingLabel="箱子查看文档正在准备中，请稍后刷新。"
-      trigger="community-box-route"
-    />
+    <div className="document-viewer">
+      <Button className="document-viewer__back" icon={<ArrowLeftOutlined />} onClick={handleBack}>
+        返回
+      </Button>
+      <div className="document-viewer__info">
+        <strong>{box.title}</strong>
+        <span>{new Date(box.createdAt).toLocaleDateString('zh-CN')}</span>
+      </div>
+      <iframe
+        className="document-viewer__frame"
+        src={box.documentUrl}
+        title={box.title}
+        allow="fullscreen"
+      />
+    </div>
   );
 }

@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const devPort = Number.parseInt(env.CCPS_WEB_PORT ?? '5173', 10);
-  const apiProxyTarget = env.CCPS_API_PROXY_TARGET || 'http://localhost:3000';
-  const cdnProxyTarget = env.CCPS_CDN_PROXY_TARGET || 'http://localhost:9000';
+  const devPort = Number.parseInt(env.CPS_WEB_PORT ?? '5173', 10);
+  const apiProxyTarget = env.CPS_API_PROXY_TARGET || 'http://localhost:3000';
+  const cdnProxyTarget = env.CPS_CDN_PROXY_TARGET || 'http://localhost:9000';
 
   return {
     plugins: [react()],

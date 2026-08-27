@@ -1,26 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { cardsApi, type CardOpenView } from '../api/content';
-import { DocumentPluginRoutePage, type DocumentRouteSource } from './DocumentPluginRoutePage';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Button, Result } from 'antd';
+import { ArrowLeftOutlined } from '@ant-design/icons';
+import type { CardOpenView } from '../api/content';
 import { prefetchCardOpenView, readPrefetchedCardOpenView } from '../lib/card-open-view-prefetch';
 import { getErrorMessage } from '../lib/ui';
 
-const CARD_STATUS_POLL_MS = 2000;
-
-function resolveCardDocumentUrl(card: CardOpenView): string | null {
-  return card.viewState === 'cache_ready' ? card.viewUrl ?? null : null;
-}
-
-function isCardViewReady(card: CardOpenView): boolean {
-  return card.viewState === 'cache_ready' && Boolean(resolveCardDocumentUrl(card));
-}
-
-function isCardViewPending(card: CardOpenView): boolean {
-  return !isCardViewReady(card) && card.status !== 'error' && card.viewState !== 'render_error';
-}
-
 export default function CardDetailPage() {
   const { cardId } = useParams<{ cardId: string }>();
+  const navigate = useNavigate();
   const [card, setCard] = useState<CardOpenView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -56,94 +44,69 @@ export default function CardDetailPage() {
     };
   }, [cardId]);
 
-  useEffect(() => {
-    if (!cardId || !card || isCardViewReady(card) || card.status === 'error') {
-      return;
+  const isReady = card?.viewState === 'ready' && Boolean(card.viewUrl);
+  const isPending = Boolean(card && !isReady && card.status !== 'error');
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
     }
+  };
 
-    let cancelled = false;
+  if (loading) {
+    return (
+      <div className="document-viewer">
+        <div className="page-loader">加载中…</div>
+      </div>
+    );
+  }
 
-    const poll = async () => {
-      try {
-        const status = await cardsApi.getCardRenderStatus(cardId);
-        if (cancelled) {
-          return;
-        }
+  if (!card || error) {
+    return (
+      <div className="document-viewer">
+        <Result
+          status="404"
+          title="404"
+          subTitle={error || '没有找到目标内容。'}
+          extra={<Button onClick={handleBack}>返回</Button>}
+        />
+      </div>
+    );
+  }
 
-        if (status.viewState === 'cache_ready') {
-          const openView = await cardsApi.getCardOpenView(cardId);
-          if (!cancelled) {
-            setCard(openView);
-          }
-          return;
-        }
-
-        setCard((current) =>
-          current
-            ? {
-                ...current,
-                viewState: status.viewState,
-                viewUrl: status.viewUrl,
-                renderStatusUrl: `/api/v1/cards/${cardId}/render-status`,
-                renderCache: {
-                  status: status.status,
-                  generatedAt: null,
-                  lastAccessedAt: null,
-                  expiresAt: null,
-                  errorMessage: status.error?.message ?? null,
-                },
-                updatedAt: status.updatedAt,
-              }
-            : current,
-        );
-      } catch (nextError) {
-        if (!cancelled) {
-          setError(getErrorMessage(nextError, '出现了一点问题'));
-        }
-      }
-    };
-
-    const intervalId = window.setInterval(() => {
-      void poll();
-    }, CARD_STATUS_POLL_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [card, cardId]);
-
-  const documentUrl = card ? resolveCardDocumentUrl(card) : null;
-  const source: DocumentRouteSource | null =
-    cardId && card && isCardViewReady(card) && documentUrl
-      ? {
-          kind: 'community-card',
-          cardId,
-          title: card.title,
-          createdAt: card.createdAt,
-          documentUrl,
-          viewUrl: documentUrl,
-          canonicalUrl: `/cards/${cardId}`,
-          ...(card.coverUrl ? { coverUrl: card.coverUrl } : undefined),
-          ...(card.coverFragmentUrl ? { coverFragmentUrl: card.coverFragmentUrl } : undefined),
-          ...(card.coverRenderMode ? { coverRenderMode: card.coverRenderMode } : undefined),
-          ...(card.coverRatio ? { coverRatio: card.coverRatio } : undefined),
-        }
-      : null;
+  if (isPending) {
+    return (
+      <div className="document-viewer">
+        <Button className="document-viewer__back" icon={<ArrowLeftOutlined />} onClick={handleBack}>
+          返回
+        </Button>
+        <Result
+          status="info"
+          title="卡片尚未渲染"
+          subTitle="这张卡片还没有上传查看产物。请使用薯片客户端重新发布并上传渲染结果。"
+          extra={<Button onClick={handleBack}>返回</Button>}
+        />
+      </div>
+    );
+  }
 
   return (
-    <DocumentPluginRoutePage
-      source={source}
-      loading={loading}
-      pending={Boolean(card && isCardViewPending(card))}
-      error={
-        error ||
-        (card?.status === 'error' || card?.viewState === 'render_error'
-          ? card.renderCache?.errorMessage || '卡片处理失败，请稍后回到工作区查看状态。'
-          : '')
-      }
-      pendingLabel="卡片仍在处理链路中，请稍后刷新。"
-      trigger="community-card-route"
-    />
+    <div className="document-viewer">
+      <Button className="document-viewer__back" icon={<ArrowLeftOutlined />} onClick={handleBack}>
+        返回
+      </Button>
+      <div className="document-viewer__info">
+        <strong>{card.title}</strong>
+        <span>{new Date(card.createdAt).toLocaleDateString('zh-CN')}</span>
+      </div>
+      <iframe
+        className="document-viewer__frame"
+        src={card.viewUrl}
+        title={card.title}
+        allow="fullscreen"
+      />
+    </div>
   );
 }
