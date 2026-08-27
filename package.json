@@ -11,13 +11,24 @@
   },
   "workspaces": [
     "Chip-iconMaker",
-    "Chips-*",
+    "Chips-BookReader",
+    "Chips-CardViewer",
+    "Chips-CommunityClient",
+    "Chips-CommunityPlatformServer",
     "Chips-CommunityPlatformServer/packages/*",
+    "Chips-EcoSettingsPanel",
+    "Chips-EditingEngine",
+    "Chips-Host",
+    "Chips-MusicPlayer",
+    "Chips-PhotoViewer",
+    "Chips-RichTextEditor",
+    "Chips-SDK",
+    "Chips-Ui",
+    "Chips-VideoPlayer",
     "Chips-BaseCardPlugin/*",
     "Chips-BoxLayoutPlugin/*",
     "Chips-ModulePlugin/*",
-    "Chips-Scaffold/*",
-    "Chips-Ui"
+    "Chips-Scaffold/*"
   ],
   "scripts": {
     "materials:inventory": "node ./scripts/collect-finished-product-materials.mjs",
