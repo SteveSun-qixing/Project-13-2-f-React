@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
 import { createError } from '../../../src/shared/errors';
+import { guessMimeType, normalizeRelativeResourcePath } from '../../../src/shared';
 import { StoreZipService, type ZipEntryPlan } from '../../zip-service/src';
 
 export interface CardPackResourceEntry {
@@ -37,46 +38,6 @@ const parseYamlRecord = (raw: string, filePath: string): Record<string, unknown>
       error: error instanceof Error ? error.message : String(error)
     });
   }
-};
-
-const normalizeResourcePath = (resourcePath: string): string | null => {
-  const normalized = resourcePath.replace(/\\/g, '/').trim();
-  if (!normalized) {
-    return null;
-  }
-
-  const segments = normalized
-    .replace(/^\.?\//, '')
-    .split('/')
-    .filter((segment) => segment.length > 0 && segment !== '.');
-  if (segments.length === 0 || segments.some((segment) => segment === '..')) {
-    return null;
-  }
-
-  return segments.join('/');
-};
-
-const guessMimeType = (resourcePath: string): string => {
-  const normalized = resourcePath.toLowerCase();
-  if (normalized.endsWith('.png')) return 'image/png';
-  if (normalized.endsWith('.jpg') || normalized.endsWith('.jpeg')) return 'image/jpeg';
-  if (normalized.endsWith('.gif')) return 'image/gif';
-  if (normalized.endsWith('.webp')) return 'image/webp';
-  if (normalized.endsWith('.svg')) return 'image/svg+xml';
-  if (normalized.endsWith('.bmp')) return 'image/bmp';
-  if (normalized.endsWith('.avif')) return 'image/avif';
-  if (normalized.endsWith('.html')) return 'text/html';
-  if (normalized.endsWith('.css')) return 'text/css';
-  if (normalized.endsWith('.js')) return 'text/javascript';
-  if (normalized.endsWith('.json')) return 'application/json';
-  if (normalized.endsWith('.yaml') || normalized.endsWith('.yml')) return 'application/yaml';
-  if (normalized.endsWith('.pdf')) return 'application/pdf';
-  if (normalized.endsWith('.mp4')) return 'video/mp4';
-  if (normalized.endsWith('.webm')) return 'video/webm';
-  if (normalized.endsWith('.mp3')) return 'audio/mpeg';
-  if (normalized.endsWith('.wav')) return 'audio/wav';
-  if (normalized.endsWith('.txt')) return 'text/plain';
-  return 'application/octet-stream';
 };
 
 const isReservedCardFile = (relativePath: string): boolean => {
@@ -241,7 +202,7 @@ export class CardPacker {
       if (isReservedCardFile(relativePath)) {
         continue;
       }
-      const resourcePath = normalizeResourcePath(relativePath);
+      const resourcePath = normalizeRelativeResourcePath(relativePath);
       if (!resourcePath) {
         continue;
       }
