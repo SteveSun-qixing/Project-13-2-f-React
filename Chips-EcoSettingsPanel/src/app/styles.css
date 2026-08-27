@@ -479,12 +479,6 @@
   object-fit: cover;
 }
 
-.settings-record-meta__shortcut {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 /* ---------- 详情页 ---------- */
 
 .settings-detail-page__toolbar {

@@ -217,20 +217,12 @@ export function ManagedPluginPage({ type, translationBaseKey }: ManagedPluginPag
           >
             {plugins.map((plugin) => {
               const busy = activeActionId === plugin.pluginId;
-              const pluginTypeLabel = resolvePluginTypeLabel(plugin);
 
               return (
                 <SettingsRecordItem
                   key={plugin.pluginId}
                   id={plugin.pluginId}
                   title={plugin.displayName ?? plugin.name}
-                  status={<ManagedPluginStatus plugin={plugin} translationBaseKey={translationBaseKey} />}
-                  meta={
-                    <>
-                      <span>{t(`${translationBaseKey}.fields.version`)}: {plugin.version}</span>
-                      <span>{t(`${translationBaseKey}.fields.identity`)}: {pluginTypeLabel}</span>
-                    </>
-                  }
                   actions={
                     <>
                       <Button disabled={busy} onClick={() => void togglePluginEnabled(plugin)}>

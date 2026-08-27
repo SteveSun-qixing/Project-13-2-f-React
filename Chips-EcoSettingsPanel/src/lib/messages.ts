@@ -64,6 +64,7 @@ const MESSAGES: Record<string, string> = {
   "settingsPanel.appPlugins.fields.installedAt": "安装时间",
   "settingsPanel.appPlugins.fields.pluginId": "插件 ID",
   "settingsPanel.appPlugins.fields.shortcut": "快捷方式",
+  "settingsPanel.appPlugins.fields.shortcutState": "快捷方式状态",
   "settingsPanel.appPlugins.fields.version": "版本",
   "settingsPanel.appPlugins.listAriaLabel": "应用插件治理列表",
   "settingsPanel.appPlugins.loading": "正在加载应用插件列表…",

@@ -244,6 +244,10 @@ export function AppPluginsPage(): React.ReactElement {
                   label: t("settingsPanel.appPlugins.fields.shortcut"),
                   value: shortcut.exists ? shortcut.launcherPath : t("settingsPanel.common.notAvailable"),
                 },
+                {
+                  label: t("settingsPanel.appPlugins.fields.shortcutState"),
+                  value: <AppShortcutStatus plugin={selectedPlugin} />,
+                },
               ],
             },
           ]}
@@ -291,7 +295,6 @@ export function AppPluginsPage(): React.ReactElement {
           >
             {plugins.map((plugin) => {
               const busy = activeActionId === plugin.pluginId;
-              const installedAtLabel = formatInstalledAt(locale, plugin.installedAt);
 
               return (
                 <SettingsRecordItem
@@ -299,14 +302,6 @@ export function AppPluginsPage(): React.ReactElement {
                   id={plugin.pluginId}
                   icon={<AppPluginIcon plugin={plugin} />}
                   title={plugin.name}
-                  status={<AppPluginStatus plugin={plugin} />}
-                  meta={
-                    <>
-                      <span>{t("settingsPanel.appPlugins.fields.version")}: {plugin.version}</span>
-                      <span>{t("settingsPanel.appPlugins.fields.installedAt")}: {installedAtLabel}</span>
-                      <span className="settings-record-meta__shortcut"><AppShortcutStatus plugin={plugin} /></span>
-                    </>
-                  }
                   actions={
                     <>
                       <Button disabled={busy || !plugin.enabled} onClick={() => void launchPlugin(plugin)}>

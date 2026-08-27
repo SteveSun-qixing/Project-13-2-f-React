@@ -60,17 +60,20 @@ describe("AppPluginsPage", () => {
     vi.resetModules();
   });
 
-  it("renders self-managed plugin safeguards", async () => {
+  it("renders a compact list row with icon, title and frequent actions only", async () => {
     const { AppPluginsPage } = await import("../../src/features/app-plugins/AppPluginsPage");
     const markup = renderToStaticMarkup(<AppPluginsPage />);
 
     expect(markup).toContain("settings-record-list");
-    expect(markup).toContain("settingsPanel.appPlugins.badges.currentApp");
-    expect(markup).toContain("settingsPanel.appPlugins.badges.currentApp");
-    expect(markup).toContain("disabled");
+    expect(markup).toContain("Eco Settings Panel");
     expect(markup).toContain("settingsPanel.appPlugins.actions.launch");
-    expect(markup).toContain("settingsPanel.common.details");
     expect(markup).toContain("settingsPanel.appPlugins.actions.disable");
+    expect(markup).toContain("disabled");
+    expect(markup).toContain("settingsPanel.common.details");
+    expect(markup).not.toContain("settingsPanel.appPlugins.badges.currentApp");
+    expect(markup).not.toContain("settingsPanel.appPlugins.fields.version");
+    expect(markup).not.toContain("settingsPanel.appPlugins.fields.installedAt");
+    expect(markup).not.toContain("settingsPanel.appPlugins.badges.shortcutReady");
     expect(markup).not.toContain("settings-drop-zone");
     expect(markup).not.toContain("settingsPanel.appPlugins.actions.uninstall");
     expect(markup).not.toContain("settingsPanel.appPlugins.actions.removeShortcut");
