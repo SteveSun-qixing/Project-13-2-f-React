@@ -1910,6 +1910,404 @@
       "timeoutMs": 5000,
       "idempotent": true,
       "retries": 0
+    },
+    "file.detectType": {
+      "action": "file.detectType",
+      "schemaIn": "schemas/file.detectType.request.json",
+      "schemaOut": "schemas/file.detectType.response.json",
+      "permission": [
+        "file.read"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "card.init": {
+      "action": "card.init",
+      "schemaIn": "schemas/card.init.request.json",
+      "schemaOut": "schemas/card.init.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.open": {
+      "action": "card.session.open",
+      "schemaIn": "schemas/card.session.open.request.json",
+      "schemaOut": "schemas/card.session.open.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.get": {
+      "action": "card.session.get",
+      "schemaIn": "schemas/card.session.get.request.json",
+      "schemaOut": "schemas/card.session.get.response.json",
+      "permission": [
+        "card.read"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "card.session.updateBasicCard": {
+      "action": "card.session.updateBasicCard",
+      "schemaIn": "schemas/card.session.updateBasicCard.request.json",
+      "schemaOut": "schemas/card.session.updateBasicCard.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.addBasicCard": {
+      "action": "card.session.addBasicCard",
+      "schemaIn": "schemas/card.session.addBasicCard.request.json",
+      "schemaOut": "schemas/card.session.addBasicCard.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.removeBasicCard": {
+      "action": "card.session.removeBasicCard",
+      "schemaIn": "schemas/card.session.removeBasicCard.request.json",
+      "schemaOut": "schemas/card.session.removeBasicCard.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.moveBasicCard": {
+      "action": "card.session.moveBasicCard",
+      "schemaIn": "schemas/card.session.moveBasicCard.request.json",
+      "schemaOut": "schemas/card.session.moveBasicCard.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.updateMetadata": {
+      "action": "card.session.updateMetadata",
+      "schemaIn": "schemas/card.session.updateMetadata.request.json",
+      "schemaOut": "schemas/card.session.updateMetadata.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.updateCover": {
+      "action": "card.session.updateCover",
+      "schemaIn": "schemas/card.session.updateCover.request.json",
+      "schemaOut": "schemas/card.session.updateCover.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.persist": {
+      "action": "card.session.persist",
+      "schemaIn": "schemas/card.session.persist.request.json",
+      "schemaOut": "schemas/card.session.persist.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.undo": {
+      "action": "card.session.undo",
+      "schemaIn": "schemas/card.session.undo.request.json",
+      "schemaOut": "schemas/card.session.undo.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.redo": {
+      "action": "card.session.redo",
+      "schemaIn": "schemas/card.session.redo.request.json",
+      "schemaOut": "schemas/card.session.redo.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "card.session.history": {
+      "action": "card.session.history",
+      "schemaIn": "schemas/card.session.history.request.json",
+      "schemaOut": "schemas/card.session.history.response.json",
+      "permission": [
+        "card.read"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "card.session.close": {
+      "action": "card.session.close",
+      "schemaIn": "schemas/card.session.close.request.json",
+      "schemaOut": "schemas/card.session.close.response.json",
+      "permission": [
+        "card.write"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.create": {
+      "action": "box.create",
+      "schemaIn": "schemas/box.create.request.json",
+      "schemaOut": "schemas/box.create.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.rename": {
+      "action": "box.rename",
+      "schemaIn": "schemas/box.rename.request.json",
+      "schemaOut": "schemas/box.rename.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.open": {
+      "action": "box.session.open",
+      "schemaIn": "schemas/box.session.open.request.json",
+      "schemaOut": "schemas/box.session.open.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.get": {
+      "action": "box.session.get",
+      "schemaIn": "schemas/box.session.get.request.json",
+      "schemaOut": "schemas/box.session.get.response.json",
+      "permission": [
+        "box.read"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "box.session.addEntry": {
+      "action": "box.session.addEntry",
+      "schemaIn": "schemas/box.session.addEntry.request.json",
+      "schemaOut": "schemas/box.session.addEntry.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.addEmbeddedCard": {
+      "action": "box.session.addEmbeddedCard",
+      "schemaIn": "schemas/box.session.addEmbeddedCard.request.json",
+      "schemaOut": "schemas/box.session.addEmbeddedCard.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.updateEntry": {
+      "action": "box.session.updateEntry",
+      "schemaIn": "schemas/box.session.updateEntry.request.json",
+      "schemaOut": "schemas/box.session.updateEntry.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.moveEntry": {
+      "action": "box.session.moveEntry",
+      "schemaIn": "schemas/box.session.moveEntry.request.json",
+      "schemaOut": "schemas/box.session.moveEntry.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.removeEntry": {
+      "action": "box.session.removeEntry",
+      "schemaIn": "schemas/box.session.removeEntry.request.json",
+      "schemaOut": "schemas/box.session.removeEntry.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.updateLayoutConfig": {
+      "action": "box.session.updateLayoutConfig",
+      "schemaIn": "schemas/box.session.updateLayoutConfig.request.json",
+      "schemaOut": "schemas/box.session.updateLayoutConfig.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.importAsset": {
+      "action": "box.session.importAsset",
+      "schemaIn": "schemas/box.session.importAsset.request.json",
+      "schemaOut": "schemas/box.session.importAsset.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.deleteAsset": {
+      "action": "box.session.deleteAsset",
+      "schemaIn": "schemas/box.session.deleteAsset.request.json",
+      "schemaOut": "schemas/box.session.deleteAsset.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.updateCover": {
+      "action": "box.session.updateCover",
+      "schemaIn": "schemas/box.session.updateCover.request.json",
+      "schemaOut": "schemas/box.session.updateCover.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.persist": {
+      "action": "box.session.persist",
+      "schemaIn": "schemas/box.session.persist.request.json",
+      "schemaOut": "schemas/box.session.persist.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.undo": {
+      "action": "box.session.undo",
+      "schemaIn": "schemas/box.session.undo.request.json",
+      "schemaOut": "schemas/box.session.undo.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.redo": {
+      "action": "box.session.redo",
+      "schemaIn": "schemas/box.session.redo.request.json",
+      "schemaOut": "schemas/box.session.redo.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.history": {
+      "action": "box.session.history",
+      "schemaIn": "schemas/box.session.history.request.json",
+      "schemaOut": "schemas/box.session.history.response.json",
+      "permission": [
+        "box.read"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "box.session.close": {
+      "action": "box.session.close",
+      "schemaIn": "schemas/box.session.close.request.json",
+      "schemaOut": "schemas/box.session.close.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "box.session.updateMetadata": {
+      "action": "box.session.updateMetadata",
+      "schemaIn": "schemas/box.session.updateMetadata.request.json",
+      "schemaOut": "schemas/box.session.updateMetadata.response.json",
+      "permission": [
+        "box.write"
+      ],
+      "timeoutMs": 10000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "resource.importArchive": {
+      "action": "resource.importArchive",
+      "schemaIn": "schemas/resource.importArchive.request.json",
+      "schemaOut": "schemas/resource.importArchive.response.json",
+      "permission": [
+        "file.read",
+        "file.write",
+        "resource.read"
+      ],
+      "timeoutMs": 60000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "workspace.scan": {
+      "action": "workspace.scan",
+      "schemaIn": "schemas/workspace.scan.request.json",
+      "schemaOut": "schemas/workspace.scan.response.json",
+      "permission": [
+        "file.read"
+      ],
+      "timeoutMs": 15000,
+      "idempotent": true,
+      "retries": 0
     }
   }
 }

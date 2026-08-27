@@ -208,6 +208,50 @@ export interface ResourceExtractVideoFrameResult {
   durationSeconds?: number;
 }
 
+export interface ResourceArchiveImportFilter {
+  mimeTypes?: string[];
+  extensions?: string[];
+}
+
+export interface ResourceArchiveImportedEntry {
+  sourcePath: string;
+  resourcePath: string;
+  fileName: string;
+  mimeType?: string;
+  size: number;
+  compressedSize: number;
+  crc32: number;
+  offset: number;
+  isDirectory: boolean;
+  compressionMethod: number;
+  modifiedTime?: number;
+}
+
+export interface ResourceArchiveDiscardedEntry {
+  sourcePath: string;
+  reason: "directory" | "system-artifact" | "filter-mismatch" | "unsafe-path";
+  fileName?: string;
+  mimeType?: string;
+}
+
+export interface ResourceArchiveImportRequest {
+  zipFile: string;
+  targetRoot: string;
+  preferredRootDir?: string;
+  entryFile?: string;
+  include?: ResourceArchiveImportFilter;
+  stripSingleRootDir?: boolean;
+  excludeSystemArtifacts?: boolean;
+}
+
+export interface ResourceArchiveImportResult {
+  rootDir: string;
+  entryFile?: string;
+  resourcePaths: string[];
+  entries: ResourceArchiveImportedEntry[];
+  discardedEntries: ResourceArchiveDiscardedEntry[];
+}
+
 export interface ResourceApi {
   resolve(resourceId: string): Promise<ResourceUri>;
   open(request: ResourceOpenRequest): Promise<ResourceOpenResult>;
@@ -215,6 +259,7 @@ export interface ResourceApi {
   readBinary(resourceId: string): Promise<ArrayBuffer>;
   convertTiffToPng(request: ResourceConvertTiffToPngRequest): Promise<ResourceConvertTiffToPngResult>;
   extractVideoFrame(request: ResourceExtractVideoFrameRequest): Promise<ResourceExtractVideoFrameResult>;
+  importArchive(request: ResourceArchiveImportRequest): Promise<ResourceArchiveImportResult>;
 }
 
 function normalizeOptionalString(value: unknown): string | undefined {
@@ -405,6 +450,23 @@ export function createResourceApi(client: CoreClient): ResourceApi {
         ...(options ? { options } : undefined),
       };
       return client.invoke("resource.extractVideoFrame", payload);
+    },
+    async importArchive(request) {
+      if (!request.zipFile || !request.targetRoot) {
+        throw createError("INVALID_ARGUMENT", "resource.importArchive: zipFile and targetRoot are required.");
+      }
+      return client.invoke<ResourceArchiveImportRequest, ResourceArchiveImportResult>(
+        "resource.importArchive",
+        {
+          zipFile: request.zipFile,
+          targetRoot: request.targetRoot,
+          preferredRootDir: request.preferredRootDir,
+          entryFile: request.entryFile,
+          include: request.include,
+          stripSingleRootDir: request.stripSingleRootDir,
+          excludeSystemArtifacts: request.excludeSystemArtifacts,
+        },
+      );
     },
   };
 }

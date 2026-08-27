@@ -27,6 +27,7 @@ import { createTransferApi } from "../api/transfer";
 import { createAssociationApi } from "../api/association";
 import { createPlatformApi } from "../api/platform";
 import { createBoxApi } from "../api/box";
+import { createWorkspaceApi } from "../api/workspace";
 import { createResourceApi } from "../api/resource";
 import { createZipApi } from "../api/zip";
 import { createLogApi } from "../api/log";
@@ -237,6 +238,7 @@ export function createClient(config: ClientConfig = {}): Client {
     association: createAssociationApi(core),
     platform: createPlatformApi(core),
     box: createBoxApi(core),
+    workspace: createWorkspaceApi(core),
     resource: createResourceApi(core),
     zip: createZipApi(core),
     log: createLogApi(core),

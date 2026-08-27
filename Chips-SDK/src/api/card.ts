@@ -1,6 +1,11 @@
 import type { CoreClient } from "../types/client";
 import { createError } from "../types/errors";
 import type { ResourceOpenPayload } from "./resource";
+import {
+  createFileUrl,
+  joinResourcePath,
+  normalizeRelativeResourcePath,
+} from "../utils/path";
 
 export interface CardDocument {
   // 这里使用宽松类型，具体结构由 Host 侧 schema 控制
@@ -356,6 +361,102 @@ export interface CardEditorChangePayload {
   config: Record<string, unknown>;
 }
 
+export interface CardSessionBasicCard {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export interface CardSessionMetadata {
+  name: string;
+  description?: string;
+  themeId?: string;
+  coverRatio?: string;
+  createdAt: string;
+  modifiedAt: string;
+  tags?: string[];
+}
+
+export interface CardSessionCover {
+  html: string;
+  ratio: string;
+  resources: Array<{ path: string; data: Uint8Array }>;
+}
+
+export interface CardSessionSnapshot {
+  cardId: string;
+  path: string;
+  metadata: CardSessionMetadata;
+  cover: CardSessionCover;
+  structure: {
+    layout: { padding?: number; gap?: number };
+    basicCards: CardSessionBasicCard[];
+  };
+  isDirty: boolean;
+  isPersisting: boolean;
+  persistedRevision: number;
+  pendingPersistRevision?: number;
+  lastPersistedAt?: string;
+}
+
+export interface CardSessionResourceOperations {
+  imports?: Array<{ path: string; data: Uint8Array; mimeType?: string }>;
+  deletions?: string[];
+}
+
+export interface CardSessionHistoryEntry {
+  label: string;
+  recordedAt: number;
+}
+
+export interface CardSessionHistoryView {
+  undoAvailable: boolean;
+  redoAvailable: boolean;
+  undoStack: CardSessionHistoryEntry[];
+  redoStack: CardSessionHistoryEntry[];
+}
+
+export interface CardSessionApi {
+  init(
+    parentPath: string,
+    name: string,
+    initialBasicCard?: { type: string; data?: Record<string, unknown> },
+    cardId?: string,
+  ): Promise<{ cardDir: string; cardId: string; sessionId: string; snapshot: CardSessionSnapshot }>;
+  open(cardDir: string): Promise<{ sessionId: string; snapshot: CardSessionSnapshot }>;
+  get(sessionId: string): Promise<CardSessionSnapshot>;
+  updateBasicCard(
+    sessionId: string,
+    basicCardId: string,
+    data: Record<string, unknown>,
+    resourceOperations?: CardSessionResourceOperations,
+  ): Promise<CardSessionSnapshot>;
+  addBasicCard(sessionId: string, type: string, data?: Record<string, unknown>, position?: number): Promise<CardSessionSnapshot>;
+  removeBasicCard(sessionId: string, basicCardId: string): Promise<CardSessionSnapshot>;
+  moveBasicCard(sessionId: string, basicCardId: string, newPosition: number): Promise<CardSessionSnapshot>;
+  updateMetadata(
+    sessionId: string,
+    patch: { name?: string; description?: string; themeId?: string; coverRatio?: string; tags?: string[] },
+  ): Promise<CardSessionSnapshot>;
+  updateCover(
+    sessionId: string,
+    input: { html: string; ratio?: string; resources?: Array<{ path: string; data: Uint8Array }> },
+  ): Promise<CardSessionSnapshot>;
+  persist(sessionId: string): Promise<CardSessionSnapshot>;
+  undo(sessionId: string): Promise<CardSessionSnapshot>;
+  redo(sessionId: string): Promise<CardSessionSnapshot>;
+  history(sessionId: string): Promise<CardSessionHistoryView>;
+  close(sessionId: string): Promise<void>;
+  onOpened(handler: (payload: { sessionId: string; cardId: string; snapshot: CardSessionSnapshot }) => void): () => void;
+  onPersisted(handler: (payload: { sessionId?: string; cardId: string; snapshot: CardSessionSnapshot }) => void): () => void;
+  onPersistError(handler: (payload: { sessionId?: string; cardId: string; error: unknown }) => void): () => void;
+  onClosed(handler: (payload: { sessionId: string; cardId: string }) => void): () => void;
+  onUndo(handler: (payload: { sessionId: string; cardId: string; snapshot: CardSessionSnapshot }) => void): () => void;
+  onRedo(handler: (payload: { sessionId: string; cardId: string; snapshot: CardSessionSnapshot }) => void): () => void;
+}
+
 export interface CardEditorErrorPayload {
   baseCardId?: string;
   cardType: string;
@@ -373,6 +474,7 @@ export interface CardApi {
   validate(cardFile: string): Promise<ValidationResult>;
   resolveDocumentPath(documentUrl: string): Promise<string>;
   resolveResourceUrl(cardRootDir: string, resourcePath: string): Promise<string>;
+  session: CardSessionApi;
   open(cardFile: string): Promise<CardOpenResult>;
   render(cardFile: string, options?: CardRenderOptions): Promise<CardRenderResult>;
   releaseRenderSession(sessionId: string): Promise<void>;
@@ -418,6 +520,7 @@ export interface CardApi {
 
 export function createCardApi(client: CoreClient): CardApi {
   return {
+    session: createCardSessionApi(client),
     async pack(cardDir, outputPath) {
       if (!cardDir || !outputPath) {
         throw createError("INVALID_ARGUMENT", "card.pack: cardDir and outputPath are both required.");
@@ -844,7 +947,7 @@ async function handleCardEditorResourceRequest(
       }
       if (resources.rootPath) {
         return {
-          url: createFileUrl(joinPath(resources.rootPath, resourcePath)),
+          url: createFileUrl(joinResourcePath(resources.rootPath, resourcePath)),
         }.url;
       }
       throw createError(
@@ -949,8 +1052,8 @@ async function handleCardEditorResourceRequest(
         { resourceId: string; outputFile: string; overwrite?: boolean },
         { outputFile: string; mimeType: "image/png"; sourceMimeType: "image/tiff"; width?: number; height?: number }
       >("resource.convertTiffToPng", {
-        resourceId: joinPath(resources.rootPath, resourcePath),
-        outputFile: joinPath(resources.rootPath, outputPath),
+        resourceId: joinResourcePath(resources.rootPath, resourcePath),
+        outputFile: joinResourcePath(resources.rootPath, outputPath),
         ...(typeof payload.overwrite === "boolean" ? { overwrite: payload.overwrite } : undefined),
       });
 
@@ -1022,8 +1125,8 @@ async function handleCardEditorResourceRequest(
           durationSeconds?: number;
         }
       >("resource.extractVideoFrame", {
-        resourceId: joinPath(resources.rootPath, resourcePath),
-        outputFile: joinPath(resources.rootPath, outputPath),
+        resourceId: joinResourcePath(resources.rootPath, resourcePath),
+        outputFile: joinResourcePath(resources.rootPath, outputPath),
         ...(typeof payload.overwrite === "boolean" ? { overwrite: payload.overwrite } : undefined),
         ...(options ? { options } : undefined),
       });
@@ -1145,41 +1248,6 @@ function normalizeVideoThumbnailOptions(
   }
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;
-}
-
-function normalizeRelativeResourcePath(resourcePath: unknown): string | null {
-  if (typeof resourcePath !== "string") {
-    return null;
-  }
-
-  const normalized = resourcePath.replace(/\\/g, "/").trim();
-  if (!normalized) {
-    return null;
-  }
-
-  const segments = normalized
-    .replace(/^\.?\//, "")
-    .split("/")
-    .filter((segment) => segment.length > 0 && segment !== ".");
-  if (segments.length === 0 || segments.some((segment) => segment === "..")) {
-    return null;
-  }
-
-  return segments.join("/");
-}
-
-function joinPath(...parts: string[]): string {
-  return parts.filter(Boolean).join("/").replace(/\\/g, "/").replace(/\/+/g, "/");
-}
-
-function createFileUrl(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/");
-  if (/^[a-zA-Z]:\//.test(normalized)) {
-    return encodeURI(`file:///${normalized}`);
-  }
-
-  const absolutePath = normalized.startsWith("/") ? normalized : `/${normalized}`;
-  return encodeURI(`file://${absolutePath}`);
 }
 
 function createFrameFromUrl(
@@ -1380,5 +1448,221 @@ function normalizeCompositeError(payload: unknown): import("../types/errors").St
     message,
     details: payload,
     retryable: false,
+  };
+}
+
+function createCardSessionApi(client: CoreClient): CardSessionApi {
+  const toBytes = (data: Uint8Array): Uint8Array => {
+    return new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+  };
+
+  const subscribe = <T>(event: string, handler: (payload: T) => void): (() => void) => {
+    return client.events.on(event, (payload) => {
+      handler(payload as T);
+    });
+  };
+
+  return {
+    async init(parentPath, name, initialBasicCard, cardId) {
+      if (!parentPath) {
+        throw createError("INVALID_ARGUMENT", "card.session.init: parentPath is required.");
+      }
+      if (!name) {
+        throw createError("INVALID_ARGUMENT", "card.session.init: name is required.");
+      }
+      return client.invoke<
+        {
+          parentPath: string;
+          name: string;
+          initialBasicCard?: { type: string; data?: Record<string, unknown> };
+          cardId?: string;
+        },
+        { cardDir: string; cardId: string; sessionId: string; snapshot: CardSessionSnapshot }
+      >("card.init", { parentPath, name, initialBasicCard, cardId });
+    },
+    async open(cardDir) {
+      if (!cardDir) {
+        throw createError("INVALID_ARGUMENT", "card.session.open: cardDir is required.");
+      }
+      return client.invoke<{ cardDir: string }, { sessionId: string; snapshot: CardSessionSnapshot }>(
+        "card.session.open",
+        { cardDir },
+      );
+    },
+    async get(sessionId) {
+      if (!sessionId) {
+        throw createError("INVALID_ARGUMENT", "card.session.get: sessionId is required.");
+      }
+      const result = await client.invoke<{ sessionId: string }, { snapshot: CardSessionSnapshot }>(
+        "card.session.get",
+        { sessionId },
+      );
+      return result.snapshot;
+    },
+    async updateBasicCard(sessionId, basicCardId, data, resourceOperations) {
+      if (!sessionId || !basicCardId) {
+        throw createError("INVALID_ARGUMENT", "card.session.updateBasicCard: sessionId and basicCardId are required.");
+      }
+      const result = await client.invoke<
+        {
+          sessionId: string;
+          basicCardId: string;
+          data: Record<string, unknown>;
+          resourceOperations?: {
+            imports?: Array<{ path: string; data: Uint8Array; mimeType?: string }>;
+            deletions?: string[];
+          };
+        },
+        { snapshot: CardSessionSnapshot }
+      >("card.session.updateBasicCard", {
+        sessionId,
+        basicCardId,
+        data,
+        resourceOperations: resourceOperations
+          ? {
+              ...(resourceOperations.imports
+                ? {
+                    imports: resourceOperations.imports.map((resource) => ({
+                      path: resource.path,
+                      data: toBytes(resource.data),
+                      ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+                    })),
+                  }
+                : {}),
+              ...(resourceOperations.deletions ? { deletions: resourceOperations.deletions } : {}),
+            }
+          : undefined,
+      });
+      return result.snapshot;
+    },
+    async addBasicCard(sessionId, type, data, position) {
+      if (!sessionId || !type) {
+        throw createError("INVALID_ARGUMENT", "card.session.addBasicCard: sessionId and type are required.");
+      }
+      const result = await client.invoke<
+        { sessionId: string; type: string; data?: Record<string, unknown>; position?: number },
+        { snapshot: CardSessionSnapshot }
+      >("card.session.addBasicCard", { sessionId, type, data, position });
+      return result.snapshot;
+    },
+    async removeBasicCard(sessionId, basicCardId) {
+      if (!sessionId || !basicCardId) {
+        throw createError("INVALID_ARGUMENT", "card.session.removeBasicCard: sessionId and basicCardId are required.");
+      }
+      const result = await client.invoke<
+        { sessionId: string; basicCardId: string },
+        { snapshot: CardSessionSnapshot }
+      >("card.session.removeBasicCard", { sessionId, basicCardId });
+      return result.snapshot;
+    },
+    async moveBasicCard(sessionId, basicCardId, newPosition) {
+      if (!sessionId || !basicCardId) {
+        throw createError("INVALID_ARGUMENT", "card.session.moveBasicCard: sessionId and basicCardId are required.");
+      }
+      const result = await client.invoke<
+        { sessionId: string; basicCardId: string; newPosition: number },
+        { snapshot: CardSessionSnapshot }
+      >("card.session.moveBasicCard", { sessionId, basicCardId, newPosition });
+      return result.snapshot;
+    },
+    async updateMetadata(sessionId, patch) {
+      if (!sessionId) {
+        throw createError("INVALID_ARGUMENT", "card.session.updateMetadata: sessionId is required.");
+      }
+      const result = await client.invoke<
+        {
+          sessionId: string;
+          patch: { name?: string; description?: string; themeId?: string; coverRatio?: string; tags?: string[] };
+        },
+        { snapshot: CardSessionSnapshot }
+      >("card.session.updateMetadata", { sessionId, patch });
+      return result.snapshot;
+    },
+    async updateCover(sessionId, input) {
+      if (!sessionId || !input.html) {
+        throw createError("INVALID_ARGUMENT", "card.session.updateCover: sessionId and html are required.");
+      }
+      const result = await client.invoke<
+        {
+          sessionId: string;
+          html: string;
+          ratio?: string;
+          resources?: Array<{ path: string; data: Uint8Array }>;
+        },
+        { snapshot: CardSessionSnapshot }
+      >("card.session.updateCover", {
+        sessionId,
+        html: input.html,
+        ratio: input.ratio,
+        resources: input.resources
+          ? input.resources.map((resource) => ({ path: resource.path, data: toBytes(resource.data) }))
+          : undefined,
+      });
+      return result.snapshot;
+    },
+    async persist(sessionId) {
+      if (!sessionId) {
+        throw createError("INVALID_ARGUMENT", "card.session.persist: sessionId is required.");
+      }
+      const result = await client.invoke<{ sessionId: string }, { snapshot: CardSessionSnapshot }>(
+        "card.session.persist",
+        { sessionId },
+      );
+      return result.snapshot;
+    },
+    async undo(sessionId) {
+      if (!sessionId) {
+        throw createError("INVALID_ARGUMENT", "card.session.undo: sessionId is required.");
+      }
+      const result = await client.invoke<{ sessionId: string }, { snapshot: CardSessionSnapshot }>(
+        "card.session.undo",
+        { sessionId },
+      );
+      return result.snapshot;
+    },
+    async redo(sessionId) {
+      if (!sessionId) {
+        throw createError("INVALID_ARGUMENT", "card.session.redo: sessionId is required.");
+      }
+      const result = await client.invoke<{ sessionId: string }, { snapshot: CardSessionSnapshot }>(
+        "card.session.redo",
+        { sessionId },
+      );
+      return result.snapshot;
+    },
+    async history(sessionId) {
+      if (!sessionId) {
+        throw createError("INVALID_ARGUMENT", "card.session.history: sessionId is required.");
+      }
+      const result = await client.invoke<{ sessionId: string }, { history: CardSessionHistoryView }>(
+        "card.session.history",
+        { sessionId },
+      );
+      return result.history;
+    },
+    async close(sessionId) {
+      if (!sessionId) {
+        throw createError("INVALID_ARGUMENT", "card.session.close: sessionId is required.");
+      }
+      await client.invoke("card.session.close", { sessionId });
+    },
+    onOpened(handler) {
+      return subscribe("card.session.opened", handler);
+    },
+    onPersisted(handler) {
+      return subscribe("card.session.persisted", handler);
+    },
+    onPersistError(handler) {
+      return subscribe("card.session.persist-error", handler);
+    },
+    onClosed(handler) {
+      return subscribe("card.session.closed", handler);
+    },
+    onUndo(handler) {
+      return subscribe("card.session.undo", handler);
+    },
+    onRedo(handler) {
+      return subscribe("card.session.redo", handler);
+    },
   };
 }

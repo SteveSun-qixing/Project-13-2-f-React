@@ -46,6 +46,14 @@ export type {
   CardInfoPayload,
   CardInfoStatus,
   CardEditorChangePayload,
+  CardSessionApi,
+  CardSessionBasicCard,
+  CardSessionCover,
+  CardSessionHistoryEntry,
+  CardSessionHistoryView,
+  CardSessionMetadata,
+  CardSessionResourceOperations,
+  CardSessionSnapshot,
   CardEditorArchiveDiscardedEntry,
   CardEditorArchiveImportedEntry,
   CardEditorArchiveImportFilter,
@@ -78,8 +86,11 @@ export type {
 } from "./api/card";
 export type {
   FileApi,
+  FileCategory,
   FileContent,
   FileDeleteOptions,
+  FileDetectTypeResult,
+  FileDocumentType,
   FileEntry,
   FileListOptions,
   FileReadOptions,
@@ -298,13 +309,21 @@ export type {
   BoxMetadata,
   BoxOpenViewResult,
   BoxPrefetchTarget,
+  BoxSessionApi,
+  BoxSessionHistoryView,
   BoxSessionInfo,
+  BoxSessionSnapshot,
   BoxTag,
   BoxValidationResult,
   ResolvedRuntimeResource,
 } from "./api/box";
 export type {
   ResourceApi,
+  ResourceArchiveDiscardedEntry,
+  ResourceArchiveImportedEntry,
+  ResourceArchiveImportFilter,
+  ResourceArchiveImportRequest,
+  ResourceArchiveImportResult,
   ResourceOpenPayload,
   ResourceUri,
   ResourceMeta,
@@ -325,6 +344,7 @@ export type {
   ResourceOpenResult,
 } from "./api/resource";
 export type { ZipApi, ZipEntryMeta } from "./api/zip";
+export type { WorkspaceApi, WorkspaceFileView } from "./api/workspace";
 export type {
   LogApi,
   LogEntry,
@@ -343,3 +363,9 @@ export type {
   ControlPlaneMetrics,
 } from "./api/control-plane";
 export type { PermissionDiagnostic, StandardError } from "./types/errors";
+export {
+  createFileUrl,
+  guessMimeType,
+  joinResourcePath,
+  normalizeRelativeResourcePath,
+} from "./utils";

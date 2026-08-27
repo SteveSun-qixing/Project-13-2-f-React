@@ -85,6 +85,7 @@ export interface Client extends CoreClient {
   association: import("../api/association").AssociationApi;
   platform: import("../api/platform").PlatformApi;
   box: import("../api/box").BoxApi;
+  workspace: import("../api/workspace").WorkspaceApi;
   resource: import("../api/resource").ResourceApi;
   zip: import("../api/zip").ZipApi;
   log: import("../api/log").LogApi;

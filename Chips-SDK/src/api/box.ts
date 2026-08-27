@@ -1,3 +1,9 @@
+import {
+  createFileUrl,
+  guessMimeType,
+  joinResourcePath,
+  normalizeRelativeResourcePath,
+} from "../utils";
 import type { CoreClient } from "../types/client";
 import { createError } from "../types/errors";
 
@@ -241,7 +247,63 @@ export interface BoxLayoutRenderErrorPayload {
   message: string;
 }
 
+export interface BoxSessionSnapshot {
+  boxId: string;
+  boxFile: string;
+  workspaceDir: string;
+  metadata: BoxMetadata;
+  coverHtml: string;
+  content: BoxContent;
+  entries: BoxEntrySnapshot[];
+  assets: string[];
+  isDirty: boolean;
+  isSaving: boolean;
+  lastSavedAt?: string;
+}
+
+export interface BoxSessionHistoryView {
+  undoAvailable: boolean;
+  redoAvailable: boolean;
+  undoStack: Array<{ label: string; recordedAt: number }>;
+  redoStack: Array<{ label: string; recordedAt: number }>;
+}
+
+export interface BoxSessionApi {
+  create(name: string, layoutType: string, parentPath: string): Promise<{ boxFile: string; metadata: BoxMetadata }>;
+  rename(boxFile: string, newName: string): Promise<{ boxFile: string; metadata: BoxMetadata }>;
+  open(boxFile: string): Promise<{ sessionId: string; snapshot: BoxSessionSnapshot }>;
+  get(sessionId: string): Promise<BoxSessionSnapshot>;
+  addEntry(sessionId: string, input: { url?: string; filePath?: string }): Promise<BoxSessionSnapshot>;
+  addEmbeddedCard(sessionId: string, cardFile: string, preferredName?: string): Promise<BoxSessionSnapshot>;
+  updateEntry(sessionId: string, entryId: string, patch: Partial<BoxEntrySnapshot>): Promise<BoxSessionSnapshot>;
+  moveEntry(sessionId: string, entryId: string, targetIndex: number): Promise<BoxSessionSnapshot>;
+  removeEntry(sessionId: string, entryId: string): Promise<BoxSessionSnapshot>;
+  updateMetadata(
+    sessionId: string,
+    patch: { name?: string; description?: string; coverRatio?: string; tags?: Array<string | string[]>; coverAsset?: string },
+  ): Promise<BoxSessionSnapshot>;
+  updateLayoutConfig(sessionId: string, layoutType: string, config: Record<string, unknown>): Promise<BoxSessionSnapshot>;
+  importAsset(sessionId: string, input: { data: Uint8Array; preferredPath?: string }): Promise<{ assetPath: string }>;
+  deleteAsset(sessionId: string, assetPath: string): Promise<void>;
+  updateCover(
+    sessionId: string,
+    input: { html: string; ratio?: string; resources?: Array<{ path: string; data: Uint8Array }> },
+  ): Promise<BoxSessionSnapshot>;
+  persist(sessionId: string): Promise<BoxSessionSnapshot>;
+  undo(sessionId: string): Promise<BoxSessionSnapshot>;
+  redo(sessionId: string): Promise<BoxSessionSnapshot>;
+  history(sessionId: string): Promise<BoxSessionHistoryView>;
+  close(sessionId: string): Promise<void>;
+  onOpened(handler: (payload: { sessionId: string; boxId: string; snapshot: BoxSessionSnapshot }) => void): () => void;
+  onPersisted(handler: (payload: { sessionId?: string; boxId: string; snapshot: BoxSessionSnapshot }) => void): () => void;
+  onPersistError(handler: (payload: { sessionId?: string; boxId: string; error: unknown }) => void): () => void;
+  onClosed(handler: (payload: { sessionId: string; boxId: string }) => void): () => void;
+  onUndo(handler: (payload: { sessionId: string; boxId: string; snapshot: BoxSessionSnapshot }) => void): () => void;
+  onRedo(handler: (payload: { sessionId: string; boxId: string; snapshot: BoxSessionSnapshot }) => void): () => void;
+}
+
 export interface BoxApi {
+  session: BoxSessionApi;
   pack(boxDir: string, options?: { outputPath?: string }): Promise<string>;
   unpack(boxFile: string, outputDir: string): Promise<string>;
   inspect(boxFile: string): Promise<BoxInspectionResult>;
@@ -367,6 +429,7 @@ const BOX_LAYOUT_EDITOR_ASSET_RESPONSE_EVENT = "chips.box-layout-editor:asset-re
 
 export function createBoxApi(client: CoreClient): BoxApi {
   return {
+    session: createBoxSessionApi(client),
     async pack(boxDir, options) {
       if (!boxDir) {
         throw createError("INVALID_ARGUMENT", "box.pack: boxDir is required.");
@@ -1147,8 +1210,8 @@ async function handleBoxLayoutEditorAssetRequest(
       }
       if (resources.rootPath) {
         return {
-          resourceUrl: createFileUrl(joinPath(resources.rootPath, assetPath)),
-          mimeType: inferMimeType(assetPath),
+          resourceUrl: createFileUrl(joinResourcePath(resources.rootPath, assetPath)),
+          mimeType: guessMimeType(assetPath),
         } satisfies ResolvedRuntimeResource;
       }
       throw createError(
@@ -1380,29 +1443,225 @@ function normalizeString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function joinPath(...parts: string[]): string {
-  return parts.filter(Boolean).join("/").replace(/\\/g, "/").replace(/\/+/g, "/");
-}
 
-function createFileUrl(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/");
-  if (/^[a-zA-Z]:\//.test(normalized)) {
-    return encodeURI(`file:///${normalized}`);
-  }
+function createBoxSessionApi(client: CoreClient): BoxSessionApi {
+  const subscribe = <T>(event: string, handler: (payload: T) => void): (() => void) => {
+    return client.events.on(event, (payload) => {
+      handler(payload as T);
+    });
+  };
 
-  const absolutePath = normalized.startsWith("/") ? normalized : `/${normalized}`;
-  return encodeURI(`file://${absolutePath}`);
-}
+  const require = (sessionId: string): void => {
+    if (!sessionId) {
+      throw createError("INVALID_ARGUMENT", "box.session: sessionId is required.");
+    }
+  };
 
-function inferMimeType(filePath: string): string {
-  const lower = filePath.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".gif")) return "image/gif";
-  if (lower.endsWith(".svg")) return "image/svg+xml";
-  if (lower.endsWith(".json")) return "application/json";
-  if (lower.endsWith(".txt")) return "text/plain";
-  if (lower.endsWith(".html")) return "text/html";
-  return "application/octet-stream";
+  return {
+    async create(name, layoutType, parentPath) {
+      if (!name || !layoutType || !parentPath) {
+        throw createError("INVALID_ARGUMENT", "box.session.create: name, layoutType and parentPath are required.");
+      }
+      return client.invoke<{ name: string; layoutType: string; parentPath: string }, { boxFile: string; metadata: BoxMetadata }>(
+        "box.create",
+        { name, layoutType, parentPath },
+      );
+    },
+    async rename(boxFile, newName) {
+      if (!boxFile || !newName) {
+        throw createError("INVALID_ARGUMENT", "box.session.rename: boxFile and newName are required.");
+      }
+      return client.invoke<{ boxFile: string; newName: string }, { boxFile: string; metadata: BoxMetadata }>(
+        "box.rename",
+        { boxFile, newName },
+      );
+    },
+    async open(boxFile) {
+      if (!boxFile) {
+        throw createError("INVALID_ARGUMENT", "box.session.open: boxFile is required.");
+      }
+      return client.invoke<{ boxFile: string }, { sessionId: string; snapshot: BoxSessionSnapshot }>(
+        "box.session.open",
+        { boxFile },
+      );
+    },
+    async get(sessionId) {
+      require(sessionId);
+      const result = await client.invoke<{ sessionId: string }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.get",
+        { sessionId },
+      );
+      return result.snapshot;
+    },
+    async addEntry(sessionId, input) {
+      require(sessionId);
+      const result = await client.invoke<{ sessionId: string; url?: string; filePath?: string }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.addEntry",
+        { sessionId, url: input.url, filePath: input.filePath },
+      );
+      return result.snapshot;
+    },
+    async addEmbeddedCard(sessionId, cardFile, preferredName) {
+      require(sessionId);
+      if (!cardFile) {
+        throw createError("INVALID_ARGUMENT", "box.session.addEmbeddedCard: cardFile is required.");
+      }
+      const result = await client.invoke<{ sessionId: string; cardFile: string; preferredName?: string }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.addEmbeddedCard",
+        { sessionId, cardFile, preferredName },
+      );
+      return result.snapshot;
+    },
+    async updateEntry(sessionId, entryId, patch) {
+      require(sessionId);
+      if (!entryId) {
+        throw createError("INVALID_ARGUMENT", "box.session.updateEntry: entryId is required.");
+      }
+      const result = await client.invoke<{ sessionId: string; entryId: string; patch: Partial<BoxEntrySnapshot> }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.updateEntry",
+        { sessionId, entryId, patch },
+      );
+      return result.snapshot;
+    },
+    async moveEntry(sessionId, entryId, targetIndex) {
+      require(sessionId);
+      if (!entryId) {
+        throw createError("INVALID_ARGUMENT", "box.session.moveEntry: entryId is required.");
+      }
+      const result = await client.invoke<{ sessionId: string; entryId: string; targetIndex: number }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.moveEntry",
+        { sessionId, entryId, targetIndex },
+      );
+      return result.snapshot;
+    },
+    async removeEntry(sessionId, entryId) {
+      require(sessionId);
+      if (!entryId) {
+        throw createError("INVALID_ARGUMENT", "box.session.removeEntry: entryId is required.");
+      }
+      const result = await client.invoke<{ sessionId: string; entryId: string }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.removeEntry",
+        { sessionId, entryId },
+      );
+      return result.snapshot;
+    },
+    async updateMetadata(sessionId, patch) {
+      require(sessionId);
+      const result = await client.invoke<
+        {
+          sessionId: string;
+          patch: { name?: string; description?: string; coverRatio?: string; tags?: Array<string | string[]>; coverAsset?: string };
+        },
+        { snapshot: BoxSessionSnapshot }
+      >("box.session.updateMetadata", { sessionId, patch });
+      return result.snapshot;
+    },
+    async updateLayoutConfig(sessionId, layoutType, config) {
+      require(sessionId);
+      if (!layoutType) {
+        throw createError("INVALID_ARGUMENT", "box.session.updateLayoutConfig: layoutType is required.");
+      }
+      const result = await client.invoke<{ sessionId: string; layoutType: string; config: Record<string, unknown> }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.updateLayoutConfig",
+        { sessionId, layoutType, config },
+      );
+      return result.snapshot;
+    },
+    async importAsset(sessionId, input) {
+      require(sessionId);
+      if (!input.data) {
+        throw createError("INVALID_ARGUMENT", "box.session.importAsset: data is required.");
+      }
+      return client.invoke<{ sessionId: string; data: Uint8Array; preferredPath?: string }, { assetPath: string }>(
+        "box.session.importAsset",
+        {
+          sessionId,
+          data: new Uint8Array(input.data.buffer.slice(input.data.byteOffset, input.data.byteOffset + input.data.byteLength)),
+          preferredPath: input.preferredPath,
+        },
+      );
+    },
+    async deleteAsset(sessionId, assetPath) {
+      require(sessionId);
+      if (!assetPath) {
+        throw createError("INVALID_ARGUMENT", "box.session.deleteAsset: assetPath is required.");
+      }
+      await client.invoke("box.session.deleteAsset", { sessionId, assetPath });
+    },
+    async updateCover(sessionId, input) {
+      require(sessionId);
+      if (!input.html) {
+        throw createError("INVALID_ARGUMENT", "box.session.updateCover: html is required.");
+      }
+      const result = await client.invoke<
+        { sessionId: string; html: string; ratio?: string; resources?: Array<{ path: string; data: Uint8Array }> },
+        { snapshot: BoxSessionSnapshot }
+      >("box.session.updateCover", {
+        sessionId,
+        html: input.html,
+        ratio: input.ratio,
+        resources: input.resources
+          ? input.resources.map((resource) => ({
+              path: resource.path,
+              data: new Uint8Array(resource.data.buffer.slice(resource.data.byteOffset, resource.data.byteOffset + resource.data.byteLength)),
+            }))
+          : undefined,
+      });
+      return result.snapshot;
+    },
+    async persist(sessionId) {
+      require(sessionId);
+      const result = await client.invoke<{ sessionId: string }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.persist",
+        { sessionId },
+      );
+      return result.snapshot;
+    },
+    async undo(sessionId) {
+      require(sessionId);
+      const result = await client.invoke<{ sessionId: string }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.undo",
+        { sessionId },
+      );
+      return result.snapshot;
+    },
+    async redo(sessionId) {
+      require(sessionId);
+      const result = await client.invoke<{ sessionId: string }, { snapshot: BoxSessionSnapshot }>(
+        "box.session.redo",
+        { sessionId },
+      );
+      return result.snapshot;
+    },
+    async history(sessionId) {
+      require(sessionId);
+      const result = await client.invoke<{ sessionId: string }, { history: BoxSessionHistoryView }>(
+        "box.session.history",
+        { sessionId },
+      );
+      return result.history;
+    },
+    async close(sessionId) {
+      require(sessionId);
+      await client.invoke("box.session.close", { sessionId });
+    },
+    onOpened(handler) {
+      return subscribe("box.session.opened", handler);
+    },
+    onPersisted(handler) {
+      return subscribe("box.session.persisted", handler);
+    },
+    onPersistError(handler) {
+      return subscribe("box.session.persist-error", handler);
+    },
+    onClosed(handler) {
+      return subscribe("box.session.closed", handler);
+    },
+    onUndo(handler) {
+      return subscribe("box.session.undo", handler);
+    },
+    onRedo(handler) {
+      return subscribe("box.session.redo", handler);
+    },
+  };
 }
