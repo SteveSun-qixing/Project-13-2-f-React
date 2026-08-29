@@ -1,0 +1,29 @@
+id: chips.basecard.file
+name: 文件基础卡片插件
+version: 0.1.0
+type: card
+entry: dist/index.mjs
+description: 文件基础卡片插件，支持任意文件导入、文件名与后缀自动识别、类型默认封面回退，以及统一资源打开链路。
+author:
+  name: sevenstars
+  email: dev@chips.local
+capabilities:
+  cardTypes:
+    - base.file
+permissions: []
+runtime:
+  targets:
+    desktop:
+      supported: true
+    web:
+      supported: false
+    mobile:
+      supported: false
+    headless:
+      supported: true
+engines:
+  chips: "^0.1.0"
+os:
+  - darwin
+  - win32
+  - linux

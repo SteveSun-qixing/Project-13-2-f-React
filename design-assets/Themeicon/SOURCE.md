@@ -1,7 +1,7 @@
 # 主题包身份图标源目录说明
 
 - 适用目录：`design-assets/Themeicon/`
-- 同步时间：2026-08-11
+- 同步时间：2026-08-29
 - SVG 生成脚本：`scripts/generate-plugin-material-icons.ts`
 - PNG/ICO/ICNS 渲染脚本：`scripts/sync-plugin-icons.mjs`（`chips iconmaker generate` 命令行链路）
 - 上游 SVG 缓存：`design-assets/material-symbols/svg/rounded/`

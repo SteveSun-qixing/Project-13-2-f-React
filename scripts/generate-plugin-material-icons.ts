@@ -14,7 +14,7 @@ interface IconTarget {
 
 const ROOT = process.cwd();
 const SIZE = 512;
-const SYNC_DATE = "2026-08-11";
+const SYNC_DATE = "2026-08-29";
 const MATERIAL_SVG_DIR = path.join(ROOT, "design-assets/material-symbols/svg/rounded");
 const MATERIAL_SVG_BASE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web";
 

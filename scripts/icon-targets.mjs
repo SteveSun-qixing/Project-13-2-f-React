@@ -11,6 +11,7 @@ export const ICON_TARGETS = [
   { kind: "app", sourceBaseName: "RichTextEditor", materialName: "draw", projectDir: "Chips-RichTextEditor", projectIconBaseName: "app-icon" },
   { kind: "app", sourceBaseName: "VideoPlayer", materialName: "movie", projectDir: "Chips-VideoPlayer", projectIconBaseName: "app-icon" },
   { kind: "basecard", sourceBaseName: "book-BCP", materialName: "menu_book", projectDir: "Chips-BaseCardPlugin/book-BCP", projectIconBaseName: "basecard-icon" },
+  { kind: "basecard", sourceBaseName: "file-BCP", materialName: "draft", projectDir: "Chips-BaseCardPlugin/file-BCP", projectIconBaseName: "basecard-icon" },
   { kind: "basecard", sourceBaseName: "hyperlink-BCP", materialName: "link", projectDir: "Chips-BaseCardPlugin/hyperlink-BCP", projectIconBaseName: "basecard-icon" },
   { kind: "basecard", sourceBaseName: "image-BCP", materialName: "image", projectDir: "Chips-BaseCardPlugin/image-BCP", projectIconBaseName: "basecard-icon" },
   { kind: "basecard", sourceBaseName: "music-BCP", materialName: "music_note", projectDir: "Chips-BaseCardPlugin/music-BCP", projectIconBaseName: "basecard-icon" },
