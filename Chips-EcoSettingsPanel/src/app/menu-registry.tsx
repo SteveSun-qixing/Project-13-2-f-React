@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { AppPluginsPage } from "../features/app-plugins/AppPluginsPage";
 import { ComponentGalleryPage } from "../features/component-gallery/ComponentGalleryPage";
+import { FileOpenPage } from "../features/file-open/FileOpenPage";
 import { PreviewQualityPage } from "../features/preview-quality/PreviewQualityPage";
 import { CardPluginsPage } from "../features/runtime-plugins/CardPluginsPage";
 import { LayoutPluginsPage } from "../features/runtime-plugins/LayoutPluginsPage";
@@ -11,6 +12,7 @@ export type MenuId =
   | "card-plugins"
   | "layout-plugins"
   | "module-plugins"
+  | "file-open"
   | "preview-quality"
   | "component-gallery";
 
@@ -57,6 +59,14 @@ const MENU_ENTRIES: MenuRegistration[] = [
     category: "插件",
     order: 70,
     render: () => <ModulePluginsPage />,
+  },
+  {
+    id: "file-open",
+    title: "文件打开方式",
+    summary: "管理各文件类型的默认查看器与可选应用",
+    category: "插件",
+    order: 80,
+    render: () => <FileOpenPage />,
   },
   {
     id: "preview-quality",

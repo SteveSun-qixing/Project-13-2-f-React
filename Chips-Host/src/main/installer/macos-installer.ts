@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { parseHandlerCapability } from '../../../packages/resource-open-service/src';
 import { createError } from '../../shared/errors';
 import { parseYamlLite } from '../../shared/yaml-lite';
 
@@ -258,10 +259,11 @@ const unique = (items: string[]): string[] => {
 };
 
 const normalizeFileHandlerExtension = (capability: string): string | null => {
-  if (!capability.startsWith('file-handler:.')) {
+  const parsed = parseHandlerCapability(capability);
+  if (!parsed || parsed.kind !== 'file-handler') {
     return null;
   }
-  const extension = capability.slice('file-handler:'.length).trim().toLowerCase();
+  const extension = parsed.extension ?? '';
   if (!/^\.[a-z0-9]+$/.test(extension)) {
     return null;
   }

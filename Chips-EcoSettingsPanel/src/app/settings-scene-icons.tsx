@@ -4,6 +4,7 @@ import {
   AppstoreOutlined,
   BlockOutlined,
   DashboardOutlined,
+  FolderOpenOutlined,
   LayoutOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
@@ -20,6 +21,7 @@ export const SETTINGS_SCENE_ICONS: Record<SettingsSceneId, SettingsSceneIcon> = 
   "card-plugins": { name: "dashboard_customize", tone: "green", icon: <DashboardOutlined /> },
   "layout-plugins": { name: "view_quilt", tone: "purple", icon: <LayoutOutlined /> },
   "module-plugins": { name: "extension", tone: "orange", icon: <BlockOutlined /> },
+  "file-open": { name: "file_open", tone: "indigo", icon: <FolderOpenOutlined /> },
   "preview-quality": { name: "speed", tone: "indigo", icon: <ThunderboltOutlined /> },
   "component-gallery": { name: "component_gallery", tone: "teal", icon: <AppstoreAddOutlined /> },
 };

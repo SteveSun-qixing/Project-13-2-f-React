@@ -905,6 +905,7 @@ export const registerHostSchemas = (): void => {
   registerPair('plugin.createShortcut', ['pluginId']);
   registerPair('plugin.removeShortcut', ['pluginId']);
   registerPair('plugin.query', []);
+  registerPair('plugin.listHandlers', [], ['handlers']);
   registerPair('plugin.init', ['pluginId']);
   registerPair('plugin.handshake.complete', ['sessionId', 'nonce']);
 

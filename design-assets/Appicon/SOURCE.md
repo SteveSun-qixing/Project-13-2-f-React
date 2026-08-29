@@ -29,6 +29,7 @@
 | `MusicPlayer` | `library_music` | `Chips-MusicPlayer` | `Chips-MusicPlayer/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `PhotoViewer` | `image` | `Chips-PhotoViewer` | `Chips-PhotoViewer/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `RichTextEditor` | `draw` | `Chips-RichTextEditor` | `Chips-RichTextEditor/assets/icons/app-icon.png/.ico/.icns/.svg` |
+| `UniversalFileViewer` | `folder_open` | `Chips-UniversalFileViewer` | `Chips-UniversalFileViewer/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `VideoPlayer` | `movie` | `Chips-VideoPlayer` | `Chips-VideoPlayer/assets/icons/app-icon.png/.ico/.icns/.svg` |
 
 ## 更新规则

@@ -193,6 +193,23 @@ capabilityFallbacks:
 2. key 必须是非空 capability 名称
 3. 每个 fallback 都必须声明 `whenUnsupported`
 
+### 6.1 资源处理器能力声明（`capabilities` 中的 handler 能力串）
+
+应用插件要在资源打开路由（`resource.open` / 文件关联）中成为处理器，需在 `capabilities` 中声明：
+
+```yaml
+capabilities:
+  - resource-handler:view:image/*        # 资源 MIME 处理（专用层级）
+  - file-handler:.png                    # 扩展名关联（专用层级）
+  - resource-handler:view:image/*@fallback   # 兜底层级：通用文件查看器使用
+  - file-handler:.pdf@fallback
+```
+
+1. 正式格式为 `resource-handler:<intent>:<mime>[@tier]` 与 `file-handler:<ext>[@tier]`；
+2. 省略 `@tier` 表示 `primary`（专用处理器）；`@fallback` 表示通用兜底处理器，Host 保证专用处理器优先于兜底处理器，其余匹配顺序以《资源打开契约》第 3 节为准；
+3. 除 `@fallback` 外的 `@` 后缀均视为非法能力串；
+4. 用户默认处理器偏好由 Host `fileOpen.defaults` 配置承载，处理器槽位视图通过 `plugin.listHandlers` 查询（见《资源打开契约》第 4.5 节）。
+
 ## 7. 命令行扩展声明：`cli.commands`
 
 `type: app` 与 `type: module` 插件可以通过 `cli.commands` 声明可被 Host 动态发现的命令行入口。Host 在 `plugin.install` 时解析并校验这些声明，并通过 `cli.command.list / cli.command.get / cli.command.resolve` 暴露只读命令索引。

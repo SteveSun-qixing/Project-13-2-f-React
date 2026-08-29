@@ -12,6 +12,8 @@ const expectedPermissions = [
   "theme.write",
   "i18n.write",
   "plugin.read",
+  "config.read",
+  "config.write",
   "plugin.manage",
   "platform.read",
   "platform.external",
@@ -23,6 +25,7 @@ const expectedPermissions = [
 const settingsPanelActions = [
   "platform.getInfo",
   "plugin.query",
+  "plugin.listHandlers",
   "plugin.get",
   "plugin.install",
   "plugin.enable",

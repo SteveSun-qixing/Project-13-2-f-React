@@ -190,6 +190,10 @@ export type {
   PluginShortcutRecord,
   ThemePluginInfo,
   LayoutPluginInfo,
+  FileHandlerKind,
+  FileHandlerTier,
+  FileHandlerSlot,
+  FileHandlerSlotPlugin,
 } from "./api/plugin";
 export type {
   ModuleApi,

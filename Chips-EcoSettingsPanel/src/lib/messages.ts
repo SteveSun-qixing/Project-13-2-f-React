@@ -617,6 +617,25 @@ const MESSAGES: Record<string, string> = {
   "settingsPanel.themes.searchPlaceholder": "搜索主题名称、主题 ID 或发布者",
   "settingsPanel.themes.subtitle": "读取已安装主题、当前可切换主题与当前生效主题，形成正式治理列表。",
   "settingsPanel.themes.title": "主题管理",
+
+  "settingsPanel.fileOpen.title": "文件打开方式",
+  "settingsPanel.fileOpen.description": "管理各文件类型的默认查看器。专用查看器优先；未安装专用查看器时由兜底查看器（如万能文件查看器）接管。",
+  "settingsPanel.fileOpen.loading": "正在加载文件打开处理器…",
+  "settingsPanel.fileOpen.extensionSection": "按扩展名关联",
+  "settingsPanel.fileOpen.mimeSection": "按资源 MIME 类型",
+  "settingsPanel.fileOpen.preferredTag": "默认",
+  "settingsPanel.fileOpen.clearPreference": "恢复自动匹配",
+  "settingsPanel.fileOpen.resetAll": "全部恢复默认",
+  "settingsPanel.fileOpen.updateTitle": "默认查看器",
+  "settingsPanel.fileOpen.updateSuccess": "已更新 {capability} 的默认查看器。",
+  "settingsPanel.fileOpen.resetTitle": "恢复默认",
+  "settingsPanel.fileOpen.resetSuccess": "已恢复全部文件类型的自动匹配。",
+  "settingsPanel.fileOpen.errorTitle": "文件打开方式设置出错",
+  "settingsPanel.fileOpen.emptyTitle": "暂无可治理的文件类型",
+  "settingsPanel.fileOpen.emptyDescription": "当前没有应用插件声明文件处理能力，安装查看器类应用插件后将在这里显示。",
+  "settingsPanel.fileOpen.errors.list": "无法加载文件打开处理器列表，请稍后重试。",
+  "settingsPanel.fileOpen.errors.update": "无法更新默认查看器，请稍后重试。",
+  "settingsPanel.fileOpen.errors.reset": "无法恢复默认查看器，请稍后重试。",
 };
 
 export function formatMessage(key: string, params?: Record<string, string | number>): string {

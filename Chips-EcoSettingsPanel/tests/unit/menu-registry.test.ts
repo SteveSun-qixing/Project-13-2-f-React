@@ -11,6 +11,7 @@ describe("menu registry", () => {
       "card-plugins",
       "layout-plugins",
       "module-plugins",
+      "file-open",
       "preview-quality",
       "component-gallery",
     ]);

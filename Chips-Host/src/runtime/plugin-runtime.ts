@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { StoreZipService } from '../../packages/zip-service/src';
+import { parseHandlerCapability } from '../../packages/resource-open-service/src';
 import { createError } from '../shared/errors';
 import type { PluginRuntimeTargetId, PluginUiConfig } from '../shared/window-chrome';
 import { parsePluginUiConfig } from '../shared/window-chrome';
@@ -647,7 +648,14 @@ export class PluginRuntime {
       list = list.filter((record) => record.manifest.type === filter.type);
     }
     if (filter?.capability) {
-      list = list.filter((record) => (record.manifest.capabilities ?? []).includes(filter.capability!));
+      const parsedFilter = parseHandlerCapability(filter.capability);
+      const normalizedFilter = parsedFilter?.capability ?? filter.capability;
+      list = list.filter((record) =>
+        (record.manifest.capabilities ?? []).some((capability) => {
+          const parsed = parseHandlerCapability(capability);
+          return (parsed?.capability ?? capability) === normalizedFilter;
+        })
+      );
     }
     return list;
   }

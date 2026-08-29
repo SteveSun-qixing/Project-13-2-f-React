@@ -2,6 +2,8 @@ export const SETTINGS_PANEL_PERMISSIONS = [
   "theme.write",
   "i18n.write",
   "plugin.read",
+  "config.read",
+  "config.write",
   "plugin.manage",
   "platform.read",
   "platform.external",

@@ -2,10 +2,61 @@ import { createMockChipsClient, type MockChipsClient } from "chips-sdk";
 import { SETTINGS_PANEL_PERMISSIONS } from "../../src/app/settings-permissions";
 
 export function createSettingsMockClient(): MockChipsClient {
+  const configStore = new Map<string, unknown>([
+    ["ui.language", "zh-CN"],
+  ]);
   return createMockChipsClient({
     installBridge: false,
     permissions: [...SETTINGS_PANEL_PERMISSIONS],
     actions: {
+      "plugin.listHandlers": () => ({
+        handlers: [
+          {
+            capability: "file-handler:.png",
+            kind: "file-handler",
+            extension: ".png",
+            preferenceKey: "ext:.png",
+            preferencePluginId: null,
+            defaultPluginId: "com.chips.photo-viewer",
+            plugins: [
+              { pluginId: "com.chips.photo-viewer", name: "图片查看器", tier: "primary", isPreferred: false },
+              { pluginId: "com.chips.universal-file-viewer", name: "万能文件查看器", tier: "fallback", isPreferred: false },
+            ],
+          },
+          {
+            capability: "resource-handler:view:image/*",
+            kind: "resource-handler",
+            intent: "view",
+            mimeType: "image/*",
+            preferenceKey: "mime:image/*",
+            preferencePluginId: null,
+            defaultPluginId: "com.chips.photo-viewer",
+            plugins: [
+              { pluginId: "com.chips.photo-viewer", name: "图片查看器", tier: "primary", isPreferred: false },
+              { pluginId: "com.chips.universal-file-viewer", name: "万能文件查看器", tier: "fallback", isPreferred: false },
+            ],
+          },
+        ],
+      }),
+      "config.get": (payload: unknown) => ({
+        value: configStore.has((payload as { key: string }).key)
+          ? configStore.get((payload as { key: string }).key)
+          : null,
+      }),
+      "config.set": (payload: unknown) => {
+        const record = payload as { key: string; value: unknown };
+        configStore.set(record.key, record.value);
+        return { ack: true };
+      },
+      "config.reset": (payload: unknown) => {
+        const key = (payload as { key?: string }).key;
+        if (key) {
+          configStore.delete(key);
+        } else {
+          configStore.clear();
+        }
+        return { ack: true };
+      },
       "plugin.query": (payload: unknown) => {
         const type = (payload as { type?: string }).type;
         if (type === "theme") {

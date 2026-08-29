@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createError } from '../../../src/shared/errors';
+import { resolveHandlerFromRecords, sanitizeHandlerPreferences } from './handler-resolver';
 
 type ResourceHandlerPluginType = 'app' | 'card' | 'layout' | 'module' | 'theme';
 
@@ -40,6 +41,11 @@ export interface ResourceOpenResult {
 
 export interface ResourceOpenServiceOptions {
   queryHandlerPlugins(): Promise<QueryPluginRecord[]>;
+  /**
+   * 读取用户默认查看器偏好（`fileOpen.defaults` 配置键，user 作用域）。
+   * 返回 undefined 表示未设置任何偏好。
+   */
+  readHandlerPreferences(): Promise<Record<string, string> | undefined>;
   launchPlugin(pluginId: string, launchParams: Record<string, unknown>): Promise<{ windowId: string }>;
   resolveResourceFilePath(resourceId: string): string | null;
   openPath(filePath: string): Promise<void>;
@@ -87,20 +93,6 @@ const inferMimeType = (extension: string | undefined): string | undefined => {
     return undefined;
   }
   return MIME_BY_EXTENSION[extension.toLowerCase()];
-};
-
-const buildResourceHandlerCapabilities = (intent: string, mimeType: string | undefined): string[] => {
-  if (!mimeType) {
-    return [];
-  }
-
-  const capabilities = [`resource-handler:${intent}:${mimeType}`];
-  const slashIndex = mimeType.indexOf('/');
-  if (slashIndex > 0) {
-    capabilities.push(`resource-handler:${intent}:${mimeType.slice(0, slashIndex)}/*`);
-  }
-
-  return capabilities;
 };
 
 const resolveExtension = (filePath: string | undefined, resourceId: string): string | undefined => {
@@ -221,21 +213,15 @@ export class ResourceOpenService {
         capabilities: [...new Set(plugin.capabilities ?? [])],
       }));
 
-    const candidates = [
-      ...buildResourceHandlerCapabilities(intent, mimeType),
-      ...(extension ? [`file-handler:${extension}`] : []),
-    ];
+    const preferences = sanitizeHandlerPreferences(await this.options.readHandlerPreferences());
+    const resolution = resolveHandlerFromRecords({
+      plugins,
+      intent,
+      mimeType,
+      extension,
+      preferences,
+    });
 
-    for (const capability of candidates) {
-      const matched = plugins.find((plugin) => plugin.capabilities.includes(capability));
-      if (matched) {
-        return {
-          pluginId: matched.pluginId,
-          capability,
-        };
-      }
-    }
-
-    return null;
+    return resolution ? { pluginId: resolution.pluginId, capability: resolution.capability } : null;
   }
 }

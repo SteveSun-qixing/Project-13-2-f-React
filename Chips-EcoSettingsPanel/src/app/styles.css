@@ -832,3 +832,25 @@
   font-size: 20px;
   color: #1d1d1f;
 }
+
+.file-open-slot-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.file-open-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 32px 16px;
+  color: #1d1d1f;
+}
+
+.file-open-empty__description {
+  color: #86868b;
+  font-size: 13px;
+}

@@ -1489,6 +1489,17 @@
       "idempotent": true,
       "retries": 0
     },
+    "plugin.listHandlers": {
+      "action": "plugin.listHandlers",
+      "schemaIn": "schemas/plugin.listHandlers.request.json",
+      "schemaOut": "schemas/plugin.listHandlers.response.json",
+      "permission": [
+        "plugin.read"
+      ],
+      "timeoutMs": 3000,
+      "idempotent": true,
+      "retries": 0
+    },
     "plugin.query": {
       "action": "plugin.query",
       "schemaIn": "schemas/plugin.query.request.json",

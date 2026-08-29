@@ -9,6 +9,7 @@ export const ICON_TARGETS = [
   { kind: "app", sourceBaseName: "MusicPlayer", materialName: "library_music", projectDir: "Chips-MusicPlayer", projectIconBaseName: "app-icon" },
   { kind: "app", sourceBaseName: "PhotoViewer", materialName: "image", projectDir: "Chips-PhotoViewer", projectIconBaseName: "app-icon" },
   { kind: "app", sourceBaseName: "RichTextEditor", materialName: "draw", projectDir: "Chips-RichTextEditor", projectIconBaseName: "app-icon" },
+  { kind: "app", sourceBaseName: "UniversalFileViewer", materialName: "folder_open", projectDir: "Chips-UniversalFileViewer", projectIconBaseName: "app-icon" },
   { kind: "app", sourceBaseName: "VideoPlayer", materialName: "movie", projectDir: "Chips-VideoPlayer", projectIconBaseName: "app-icon" },
   { kind: "basecard", sourceBaseName: "book-BCP", materialName: "menu_book", projectDir: "Chips-BaseCardPlugin/book-BCP", projectIconBaseName: "basecard-icon" },
   { kind: "basecard", sourceBaseName: "file-BCP", materialName: "draft", projectDir: "Chips-BaseCardPlugin/file-BCP", projectIconBaseName: "basecard-icon" },

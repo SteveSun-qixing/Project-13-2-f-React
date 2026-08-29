@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN" data-chips-app="com.chips.universal-file-viewer">
+  <head>
+    <meta charset="UTF-8" />
+    <title>万能文件查看器</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self' file: blob: data:;
+        script-src 'self' blob:;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' file: data: blob: http: https:;
+        font-src 'self' file: data: blob: http: https:;
+        connect-src 'self' file: blob: data: http: https:;
+        frame-src 'self' file: blob: about:;
+        media-src 'self' file: data: blob: http: https:;
+        worker-src 'self' blob:;
+        object-src 'none';
+        base-uri 'self';
+      "
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

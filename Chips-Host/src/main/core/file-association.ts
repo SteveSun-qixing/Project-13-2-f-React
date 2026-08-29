@@ -1,5 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {
+  FILE_OPEN_DEFAULTS_CONFIG_KEY,
+  resolveHandlerFromRecords,
+  sanitizeHandlerPreferences,
+} from '../../../packages/resource-open-service/src';
 import { createError } from '../../shared/errors';
 import type { RuntimeClient } from '../../renderer/runtime-client';
 
@@ -20,6 +25,11 @@ export interface FileAssociationOpenResult {
   pluginId?: string;
 }
 
+const readHandlerPreferences = async (runtime: RuntimeClient): Promise<Record<string, string> | undefined> => {
+  const result = await runtime.invoke<{ value: unknown }>('config.get', { key: FILE_OPEN_DEFAULTS_CONFIG_KEY });
+  return sanitizeHandlerPreferences(result?.value);
+};
+
 const findEnabledHandlerPlugin = async (
   runtime: RuntimeClient,
   extension: string
@@ -29,12 +39,20 @@ const findEnabledHandlerPlugin = async (
     type: 'app',
     capability
   });
-  const candidate = queried.plugins.find((plugin) => plugin.enabled && plugin.type === 'app');
-  if (!candidate) {
+  const preferences = await readHandlerPreferences(runtime);
+  const resolution = resolveHandlerFromRecords({
+    plugins: queried.plugins
+      .filter((plugin) => plugin.enabled && plugin.type === 'app')
+      .map((plugin) => ({ pluginId: plugin.id, capabilities: plugin.capabilities })),
+    intent: 'view',
+    extension,
+    preferences
+  });
+  if (!resolution) {
     return undefined;
   }
   return {
-    id: candidate.id
+    id: resolution.pluginId
   };
 };
 

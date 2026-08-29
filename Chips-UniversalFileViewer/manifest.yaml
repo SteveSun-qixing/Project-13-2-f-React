@@ -1,0 +1,401 @@
+id: com.chips.universal-file-viewer
+name: 万能文件查看器
+version: 0.1.0
+type: app
+entry: dist/index.html
+
+description: 万能文件查看器是薯片生态的通用文件预览应用插件，作为专用查看器之外的兜底查看入口，覆盖图片、音视频、文本代码、PDF、Office、电子书、压缩包、邮件、CAD、3D 模型、GIS、设计资产等常见格式。
+
+author:
+  name: sevenstars
+  email: universal-file-viewer@chips.local
+
+keywords:
+  - chips
+  - app
+  - viewer
+  - file-preview
+
+permissions:
+  - resource.read
+  - file.read
+  - file.write
+  - platform.read
+  - command.read
+  - command.write
+  - command.invoke
+
+runtime:
+  targets:
+    desktop:
+      supported: true
+    web:
+      supported: false
+    mobile:
+      supported: false
+    headless:
+      supported: false
+
+capabilities:
+  # —— 兜底层级（@fallback）：专用查看器优先，未安装对应专用查看器时由本插件接管 ——
+  # 图片
+  - resource-handler:view:image/*@fallback
+  # 视频 / 音频
+  - resource-handler:view:video/*@fallback
+  - resource-handler:view:audio/*@fallback
+  # 文本 / 代码 / 数据
+  - resource-handler:view:text/*@fallback
+  - resource-handler:view:application/json@fallback
+  - resource-handler:view:application/xml@fallback
+  - resource-handler:view:application/yaml@fallback
+  - resource-handler:view:text/yaml@fallback
+  - resource-handler:view:text/csv@fallback
+  - resource-handler:view:text/markdown@fallback
+  - resource-handler:view:text/html@fallback
+  # PDF / 电子书 / 版式文档
+  - resource-handler:view:application/pdf@fallback
+  - resource-handler:view:application/epub+zip@fallback
+  - resource-handler:view:application/vnd.ms-xpsdocument@fallback
+  - resource-handler:view:application/oxps@fallback
+  - resource-handler:view:application/ofd@fallback
+  # Office 文档
+  - resource-handler:view:application/rtf@fallback
+  - resource-handler:view:application/msword@fallback
+  - resource-handler:view:application/vnd.openxmlformats-officedocument.wordprocessingml.document@fallback
+  - resource-handler:view:application/vnd.ms-excel@fallback
+  - resource-handler:view:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet@fallback
+  - resource-handler:view:application/vnd.ms-powerpoint@fallback
+  - resource-handler:view:application/vnd.openxmlformats-officedocument.presentationml.presentation@fallback
+  - resource-handler:view:application/vnd.oasis.opendocument.text@fallback
+  - resource-handler:view:application/vnd.oasis.opendocument.spreadsheet@fallback
+  - resource-handler:view:application/vnd.oasis.opendocument.presentation@fallback
+  # 压缩包
+  - resource-handler:view:application/zip@fallback
+  - resource-handler:view:application/vnd.rar@fallback
+  - resource-handler:view:application/x-7z-compressed@fallback
+  - resource-handler:view:application/x-tar@fallback
+  - resource-handler:view:application/gzip@fallback
+  - resource-handler:view:application/x-bzip2@fallback
+  - resource-handler:view:application/x-xz@fallback
+  # 邮件
+  - resource-handler:view:message/rfc822@fallback
+  - resource-handler:view:application/vnd.ms-outlook@fallback
+  - resource-handler:view:application/mbox@fallback
+  # 绘图 / 思维导图
+  - resource-handler:view:application/vnd.jgraph.mxfile@fallback
+  - resource-handler:view:application/vnd.excalidraw+json@fallback
+  - resource-handler:view:application/vnd.xmind.workbook@fallback
+  # CAD（DXF 文本格式；DWG 二进制格式不声明，回退系统处理）
+  - resource-handler:view:image/vnd.dxf@fallback
+  # 3D 模型
+  - resource-handler:view:model/gltf+json@fallback
+  - resource-handler:view:model/gltf-binary@fallback
+  - resource-handler:view:model/stl@fallback
+  - resource-handler:view:model/obj@fallback
+  # GIS
+  - resource-handler:view:application/geo+json@fallback
+  - resource-handler:view:application/topo+json@fallback
+  - resource-handler:view:application/vnd.google-earth.kml+xml@fallback
+  - resource-handler:view:application/gpx+xml@fallback
+  # 设计资产 / 数据 / 字体
+  - resource-handler:view:image/vnd.adobe.photoshop@fallback
+  - resource-handler:view:application/vnd.sqlite3@fallback
+  - resource-handler:view:application/vnd.apache.parquet@fallback
+  - resource-handler:view:font/ttf@fallback
+  - resource-handler:view:font/otf@fallback
+  - resource-handler:view:font/woff@fallback
+  - resource-handler:view:font/woff2@fallback
+  # —— 扩展名兜底声明（file-handler）——
+  # 图片
+  - file-handler:.png@fallback
+  - file-handler:.jpg@fallback
+  - file-handler:.jpeg@fallback
+  - file-handler:.jfif@fallback
+  - file-handler:.gif@fallback
+  - file-handler:.webp@fallback
+  - file-handler:.avif@fallback
+  - file-handler:.svg@fallback
+  - file-handler:.bmp@fallback
+  - file-handler:.ico@fallback
+  - file-handler:.apng@fallback
+  - file-handler:.tif@fallback
+  - file-handler:.tiff@fallback
+  - file-handler:.heic@fallback
+  - file-handler:.heif@fallback
+  # 视频
+  - file-handler:.mp4@fallback
+  - file-handler:.webm@fallback
+  - file-handler:.mov@fallback
+  - file-handler:.m4v@fallback
+  - file-handler:.avi@fallback
+  - file-handler:.mkv@fallback
+  - file-handler:.wmv@fallback
+  - file-handler:.flv@fallback
+  - file-handler:.mpg@fallback
+  - file-handler:.mpeg@fallback
+  - file-handler:.ogv@fallback
+  - file-handler:.m2ts@fallback
+  - file-handler:.m3u8@fallback
+  - file-handler:.3gp@fallback
+  - file-handler:.3g2@fallback
+  # 音频
+  - file-handler:.mp3@fallback
+  - file-handler:.wav@fallback
+  - file-handler:.ogg@fallback
+  - file-handler:.oga@fallback
+  - file-handler:.aac@fallback
+  - file-handler:.m4a@fallback
+  - file-handler:.flac@fallback
+  - file-handler:.opus@fallback
+  - file-handler:.weba@fallback
+  - file-handler:.wma@fallback
+  - file-handler:.mid@fallback
+  - file-handler:.midi@fallback
+  - file-handler:.aif@fallback
+  - file-handler:.aiff@fallback
+  - file-handler:.aifc@fallback
+  - file-handler:.amr@fallback
+  - file-handler:.caf@fallback
+  - file-handler:.au@fallback
+  - file-handler:.snd@fallback
+  # 文本 / 代码 / 配置
+  - file-handler:.txt@fallback
+  - file-handler:.log@fallback
+  - file-handler:.lrc@fallback
+  - file-handler:.md@fallback
+  - file-handler:.markdown@fallback
+  - file-handler:.json@fallback
+  - file-handler:.jsonc@fallback
+  - file-handler:.json5@fallback
+  - file-handler:.jsonl@fallback
+  - file-handler:.ndjson@fallback
+  - file-handler:.xml@fallback
+  - file-handler:.yaml@fallback
+  - file-handler:.yml@fallback
+  - file-handler:.csv@fallback
+  - file-handler:.tsv@fallback
+  - file-handler:.ini@fallback
+  - file-handler:.conf@fallback
+  - file-handler:.config@fallback
+  - file-handler:.properties@fallback
+  - file-handler:.toml@fallback
+  - file-handler:.env@fallback
+  - file-handler:.html@fallback
+  - file-handler:.htm@fallback
+  - file-handler:.css@fallback
+  - file-handler:.scss@fallback
+  - file-handler:.less@fallback
+  - file-handler:.js@fallback
+  - file-handler:.mjs@fallback
+  - file-handler:.cjs@fallback
+  - file-handler:.ts@fallback
+  - file-handler:.tsx@fallback
+  - file-handler:.jsx@fallback
+  - file-handler:.vue@fallback
+  - file-handler:.py@fallback
+  - file-handler:.java@fallback
+  - file-handler:.go@fallback
+  - file-handler:.rs@fallback
+  - file-handler:.rb@fallback
+  - file-handler:.swift@fallback
+  - file-handler:.kt@fallback
+  - file-handler:.kts@fallback
+  - file-handler:.scala@fallback
+  - file-handler:.lua@fallback
+  - file-handler:.dart@fallback
+  - file-handler:.ex@fallback
+  - file-handler:.exs@fallback
+  - file-handler:.clj@fallback
+  - file-handler:.cljs@fallback
+  - file-handler:.erl@fallback
+  - file-handler:.hrl@fallback
+  - file-handler:.fs@fallback
+  - file-handler:.fsx@fallback
+  - file-handler:.hs@fallback
+  - file-handler:.lhs@fallback
+  - file-handler:.php@fallback
+  - file-handler:.c@fallback
+  - file-handler:.cpp@fallback
+  - file-handler:.h@fallback
+  - file-handler:.hpp@fallback
+  - file-handler:.cs@fallback
+  - file-handler:.sql@fallback
+  - file-handler:.sh@fallback
+  - file-handler:.bash@fallback
+  - file-handler:.zsh@fallback
+  - file-handler:.fish@fallback
+  - file-handler:.ps1@fallback
+  - file-handler:.bat@fallback
+  - file-handler:.cmd@fallback
+  - file-handler:.proto@fallback
+  - file-handler:.tf@fallback
+  - file-handler:.tfvars@fallback
+  - file-handler:.hcl@fallback
+  - file-handler:.tex@fallback
+  - file-handler:.latex@fallback
+  - file-handler:.bib@fallback
+  - file-handler:.gv@fallback
+  - file-handler:.http@fallback
+  - file-handler:.pem@fallback
+  - file-handler:.crt@fallback
+  - file-handler:.cer@fallback
+  - file-handler:.ics@fallback
+  - file-handler:.vcf@fallback
+  - file-handler:.diff@fallback
+  - file-handler:.patch@fallback
+  # PDF / 电子书 / 版式文档
+  - file-handler:.pdf@fallback
+  - file-handler:.epub@fallback
+  - file-handler:.epub3@fallback
+  - file-handler:.xps@fallback
+  - file-handler:.oxps@fallback
+  - file-handler:.ofd@fallback
+  # Office 文档
+  - file-handler:.doc@fallback
+  - file-handler:.docx@fallback
+  - file-handler:.docm@fallback
+  - file-handler:.dot@fallback
+  - file-handler:.dotx@fallback
+  - file-handler:.dotm@fallback
+  - file-handler:.rtf@fallback
+  - file-handler:.odt@fallback
+  - file-handler:.fodt@fallback
+  - file-handler:.wps@fallback
+  - file-handler:.xls@fallback
+  - file-handler:.xlsx@fallback
+  - file-handler:.xlsm@fallback
+  - file-handler:.xlsb@fallback
+  - file-handler:.xlt@fallback
+  - file-handler:.xltx@fallback
+  - file-handler:.xltm@fallback
+  - file-handler:.ods@fallback
+  - file-handler:.fods@fallback
+  - file-handler:.et@fallback
+  - file-handler:.ppt@fallback
+  - file-handler:.pptx@fallback
+  - file-handler:.pptm@fallback
+  - file-handler:.pps@fallback
+  - file-handler:.ppsx@fallback
+  - file-handler:.ppsm@fallback
+  - file-handler:.potx@fallback
+  - file-handler:.potm@fallback
+  - file-handler:.odp@fallback
+  - file-handler:.fodp@fallback
+  - file-handler:.dps@fallback
+  # 压缩包
+  - file-handler:.zip@fallback
+  - file-handler:.rar@fallback
+  - file-handler:.7z@fallback
+  - file-handler:.tar@fallback
+  - file-handler:.gz@fallback
+  - file-handler:.tgz@fallback
+  - file-handler:.bz2@fallback
+  - file-handler:.xz@fallback
+  # 邮件
+  - file-handler:.eml@fallback
+  - file-handler:.msg@fallback
+  - file-handler:.mbox@fallback
+  # 绘图 / 思维导图
+  - file-handler:.drawio@fallback
+  - file-handler:.dio@fallback
+  - file-handler:.excalidraw@fallback
+  - file-handler:.tldraw@fallback
+  - file-handler:.xmind@fallback
+  # CAD（DXF；DWG 不声明，回退系统处理）
+  - file-handler:.dxf@fallback
+  - file-handler:.dwf@fallback
+  - file-handler:.step@fallback
+  - file-handler:.stp@fallback
+  - file-handler:.iges@fallback
+  - file-handler:.igs@fallback
+  - file-handler:.ifc@fallback
+  # 3D 模型
+  - file-handler:.gltf@fallback
+  - file-handler:.glb@fallback
+  - file-handler:.obj@fallback
+  - file-handler:.stl@fallback
+  - file-handler:.fbx@fallback
+  - file-handler:.dae@fallback
+  - file-handler:.ply@fallback
+  - file-handler:.3mf@fallback
+  - file-handler:.usdz@fallback
+  - file-handler:.usd@fallback
+  # GIS
+  - file-handler:.geojson@fallback
+  - file-handler:.topojson@fallback
+  - file-handler:.kml@fallback
+  - file-handler:.kmz@fallback
+  - file-handler:.gpx@fallback
+  - file-handler:.shp@fallback
+  # 设计资产 / 数据 / 字体
+  - file-handler:.psd@fallback
+  - file-handler:.psb@fallback
+  - file-handler:.ai@fallback
+  - file-handler:.eps@fallback
+  - file-handler:.ps@fallback
+  - file-handler:.sqlite@fallback
+  - file-handler:.sqlite3@fallback
+  - file-handler:.db@fallback
+  - file-handler:.parquet@fallback
+  - file-handler:.avro@fallback
+  - file-handler:.wasm@fallback
+  - file-handler:.webarchive@fallback
+  - file-handler:.ttf@fallback
+  - file-handler:.otf@fallback
+  - file-handler:.woff@fallback
+  - file-handler:.woff2@fallback
+
+capabilityFallbacks:
+  open-file:
+    whenUnsupported: reject
+  save-file:
+    whenUnsupported: download
+
+cli:
+  commands:
+    - commandPath: universal-file-viewer open
+      target:
+        type: app
+        pluginId: com.chips.universal-file-viewer
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+      titleKey: universal-viewer.cli.open.title
+      descriptionKey: universal-viewer.cli.open.description
+      arguments:
+        - name: path
+          position: 0
+          type: path
+          required: true
+          mapsTo: targetPath
+      output:
+        mode: json
+
+engines:
+  chips: "^1.0.0"
+
+os:
+  - darwin
+  - win32
+  - linux
+
+ui:
+  layout:
+    owner: page
+    unit: cpx
+    baseWidth: 1024
+  launcher:
+    displayName: 万能文件查看器
+    icon: assets/icons/app-icon.ico
+  surface:
+    defaultKind: window
+    preferredKinds:
+      desktop: window
+      web: route
+      mobile: fullscreen
+      headless: window
+  window:
+    chrome:
+      frame: true
+      titleBarStyle: default

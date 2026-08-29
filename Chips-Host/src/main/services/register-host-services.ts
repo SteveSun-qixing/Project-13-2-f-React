@@ -26,7 +26,13 @@ import type { HostKind, PALAdapter, SurfaceContext, SurfaceKind, SurfacePresenta
 import { CardService, CardSessionService } from '../../../packages/card-service/src';
 import { CardInfoService } from '../../../packages/card-info-service/src';
 import { CardOpenService } from '../../../packages/card-open-service/src';
-import { ResourceOpenService } from '../../../packages/resource-open-service/src';
+import {
+  FILE_OPEN_DEFAULTS_CONFIG_KEY,
+  ResourceOpenService,
+  buildHandlerSlots,
+  resolveHandlerFromRecords,
+  sanitizeHandlerPreferences,
+} from '../../../packages/resource-open-service/src';
 import { ResourceImageService } from '../../../packages/resource-image-service/src';
 import { BoxService, BoxSessionService } from '../../../packages/box-service/src';
 import { StoreZipService } from '../../../packages/zip-service/src';
@@ -2550,6 +2556,9 @@ const createResourceOpenService = (ctx: HostServiceContext, state: RuntimeState)
         capabilities: [...(record.manifest.capabilities ?? [])],
       }));
     },
+    readHandlerPreferences: async () => {
+      return sanitizeHandlerPreferences(resolveConfigValue(state, FILE_OPEN_DEFAULTS_CONFIG_KEY)) ?? undefined;
+    },
     launchPlugin: async (pluginId, launchParams) => {
       const launched = await openPluginWindow(ctx, state, pluginId, launchParams);
       return {
@@ -2653,9 +2662,22 @@ const openAssociatedPathInternal = async (
   }
 
   const capability = `file-handler:${extension}`;
-  const plugin = ctx.runtime
+  const handlerRecords = ctx.runtime
     .query({ type: 'app', capability })
-    .find((record) => record.enabled && record.manifest.type === 'app');
+    .filter((record) => record.enabled && record.manifest.type === 'app');
+  const preferences = sanitizeHandlerPreferences(resolveConfigValue(state, FILE_OPEN_DEFAULTS_CONFIG_KEY)) ?? undefined;
+  const resolution = resolveHandlerFromRecords({
+    plugins: handlerRecords.map((record) => ({
+      pluginId: record.manifest.id,
+      capabilities: [...(record.manifest.capabilities ?? [])],
+    })),
+    intent: 'view',
+    extension,
+    preferences,
+  });
+  const plugin = resolution
+    ? handlerRecords.find((record) => record.manifest.id === resolution.pluginId)
+    : undefined;
 
   if (plugin) {
     const launchParams: Record<string, unknown> = {
@@ -5550,6 +5572,30 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
             return {
               plugins: records.map((record) => toPluginRecordView(record))
             };
+          })
+        )
+      },
+      listHandlers: {
+        descriptor: descriptor<Record<string, never>, { handlers: ReturnType<typeof buildHandlerSlots> }>(
+          'plugin.listHandlers',
+          ['plugin.read'],
+          3_000,
+          true,
+          0,
+          withMetrics(state, 'plugin.listHandlers', async () => {
+            const preferences = sanitizeHandlerPreferences(resolveConfigValue(state, FILE_OPEN_DEFAULTS_CONFIG_KEY)) ?? undefined;
+            const handlers = buildHandlerSlots(
+              ctx.runtime
+                .query({ type: 'app' })
+                .filter((record) => record.enabled && record.manifest.type === 'app')
+                .map((record) => ({
+                  pluginId: record.manifest.id,
+                  name: record.manifest.name,
+                  capabilities: [...(record.manifest.capabilities ?? [])]
+                })),
+              preferences
+            );
+            return { handlers };
           })
         )
       },

@@ -25,6 +25,28 @@ export interface AppPluginGovernanceRecord {
 
 export type GovernedPluginType = Exclude<PluginType, "app" | "theme">;
 
+export interface FileOpenHandlerOption {
+  pluginId: string;
+  name?: string;
+  tier: "primary" | "fallback";
+  isPreferred: boolean;
+}
+
+export interface FileOpenHandlerSlot {
+  capability: string;
+  kind: "resource-handler" | "file-handler";
+  intent?: string;
+  mimeType?: string;
+  extension?: string;
+  preferenceKey: string;
+  preferencePluginId: string | null;
+  defaultPluginId: string | null;
+  plugins: FileOpenHandlerOption[];
+}
+
+/** Host `fileOpen.defaults` 配置键：文件类型 → 默认处理器插件 ID。 */
+export const FILE_OPEN_DEFAULTS_CONFIG_KEY = "fileOpen.defaults";
+
 export interface PluginGovernanceRecord {
   pluginId: string;
   type: GovernedPluginType;
@@ -105,6 +127,63 @@ export class SettingsRuntimeService {
       await this.client.plugin.uninstall(pluginId);
     } catch (error) {
       throw toSettingsError(error, "Failed to uninstall plugin.");
+    }
+  }
+
+  public async listFileOpenHandlers(): Promise<FileOpenHandlerSlot[]> {
+    try {
+      const handlers = await this.client.plugin.listHandlers();
+      return [...handlers].sort((left, right) => {
+        if (left.kind !== right.kind) {
+          return left.kind === "file-handler" ? -1 : 1;
+        }
+        return left.capability.localeCompare(right.capability);
+      });
+    } catch (error) {
+      throw toSettingsError(error, "Failed to list file open handlers.");
+    }
+  }
+
+  public async getFileOpenDefaults(): Promise<Record<string, string>> {
+    try {
+      const value = await this.client.config.get<Record<string, string>>(FILE_OPEN_DEFAULTS_CONFIG_KEY);
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return {};
+      }
+      const defaults: Record<string, string> = {};
+      for (const [key, pluginId] of Object.entries(value)) {
+        if (typeof key === "string" && key.length > 0 && typeof pluginId === "string" && pluginId.length > 0) {
+          defaults[key] = pluginId;
+        }
+      }
+      return defaults;
+    } catch (error) {
+      throw toSettingsError(error, "Failed to load file open defaults.");
+    }
+  }
+
+  public async setFileOpenDefaultPreference(preferenceKey: string, pluginId: string | null): Promise<void> {
+    if (!preferenceKey) {
+      throw toSettingsError(null, "Failed to update file open default: preference key is required.");
+    }
+    try {
+      const current = await this.getFileOpenDefaults();
+      if (pluginId) {
+        current[preferenceKey] = pluginId;
+      } else {
+        delete current[preferenceKey];
+      }
+      await this.client.config.set(FILE_OPEN_DEFAULTS_CONFIG_KEY, current);
+    } catch (error) {
+      throw toSettingsError(error, "Failed to update file open default.");
+    }
+  }
+
+  public async resetFileOpenDefaults(): Promise<void> {
+    try {
+      await this.client.config.reset(FILE_OPEN_DEFAULTS_CONFIG_KEY);
+    } catch (error) {
+      throw toSettingsError(error, "Failed to reset file open defaults.");
     }
   }
 
