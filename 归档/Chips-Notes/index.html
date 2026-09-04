@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN" data-chips-app="chips-notes">
+  <head>
+    <meta charset="UTF-8" />
+    <title>薯片笔记</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self' file: blob: chips-render:;
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' file: data: blob: https: chips-render:;
+        font-src 'self' file: data: chips-render:;
+        connect-src 'self' chips-render:;
+        frame-src 'self' file: blob: chips-render:;
+        worker-src 'self' blob:;
+        object-src 'none';
+        base-uri 'self';
+      "
+    />
+    <link rel="manifest" href="./manifest.json" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
