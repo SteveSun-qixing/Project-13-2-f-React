@@ -1,0 +1,133 @@
+.theme-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.theme-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.theme-panel__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
+}
+
+.theme-panel__upload-btn {
+  padding: 8px 16px;
+  border: 1px dashed rgba(0, 0, 0, 0.10);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 14px;
+  color: #1d1d1f;
+  cursor: pointer;
+  transition: border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.theme-panel__upload-btn:hover {
+  border-color: #0a84ff;
+  background: color-mix(in srgb, #0a84ff 5%, transparent);
+}
+
+/* 加载状态 */
+.theme-panel__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+}
+
+.theme-panel__loading-text {
+  font-size: 14px;
+  color: #6e6e73;
+}
+
+/* 主题网格 */
+.theme-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.theme-panel__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.10);
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.theme-panel__item:hover {
+  border-color: color-mix(in srgb, #0a84ff 50%, transparent);
+}
+
+.theme-panel__item--selected {
+  border-color: #0a84ff;
+  background: color-mix(in srgb, #0a84ff 5%, transparent);
+}
+
+.theme-panel__item-preview {
+  width: 64px;
+  height: 44px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #1d1d1f 8%, transparent),
+    color-mix(in srgb, #1d1d1f 4%, transparent)
+  );
+  border-radius: 4px;
+}
+
+.theme-panel__item-name {
+  font-size: 13px;
+  color: #1d1d1f;
+  text-align: center;
+}
+
+.theme-panel__item-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0a84ff;
+  color: #ffffff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.theme-panel__hint {
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: color-mix(in srgb, #ff9f0a 8%, transparent);
+  border-radius: 8px;
+}
+
+.theme-panel__hint-icon {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.theme-panel__hint-message {
+  font-size: 13px;
+  color: #6e6e73;
+  line-height: 1.5;
+}

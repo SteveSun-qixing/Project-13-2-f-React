@@ -1,0 +1,12 @@
+{
+  "id": "app-standard",
+  "name": "标准应用插件模板",
+  "description": "适用于一般业务场景的单窗口应用插件模板，内建 React + 组件库 + 主题 + 多语言 + Bridge 调用示例。",
+  "tags": ["app", "standard", "single-window"],
+  "supports": {
+    "multiWindow": false,
+    "sdk": false,
+    "componentLibrary": true
+  }
+}
+

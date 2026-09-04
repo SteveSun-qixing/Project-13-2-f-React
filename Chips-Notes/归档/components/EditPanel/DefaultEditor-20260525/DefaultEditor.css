@@ -1,0 +1,228 @@
+/* ==================== 容器 ==================== */
+.default-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--chips-color-surface, #ffffff);
+}
+
+/* ==================== 工具栏 ==================== */
+.default-editor__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--chips-spacing-sm, 8px) var(--chips-spacing-md, 12px);
+  border-bottom: 1px solid var(--chips-color-border, #e0e0e0);
+  background: var(--chips-color-background, #f5f5f5);
+  flex-shrink: 0;
+}
+
+.default-editor__info {
+  display: flex;
+  align-items: baseline;
+  gap: var(--chips-spacing-xs, 4px);
+  overflow: hidden;
+}
+
+.default-editor__type {
+  font-size: var(--chips-font-size-sm, 13px);
+  font-weight: 500;
+  color: var(--chips-color-text, #333333);
+}
+
+.default-editor__id {
+  font-size: 11px;
+  color: var(--chips-color-text-secondary, #666666);
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.default-editor__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--chips-spacing-xs, 4px);
+}
+
+.default-editor__btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.default-editor__btn--mode {
+  font-family: monospace;
+  font-weight: bold;
+}
+
+/* ==================== JSON 编辑模式 ==================== */
+.default-editor__json {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--chips-spacing-xs, 4px);
+  position: relative;
+}
+
+.default-editor__json-input {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--chips-color-border, #e0e0e0);
+  border-radius: var(--chips-radius-sm, 4px);
+  padding: var(--chips-spacing-sm, 8px);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--chips-color-text, #333333);
+  background: var(--chips-color-surface, #ffffff);
+  transition: border-color var(--chips-transition-fast, 0.15s) ease,
+              box-shadow var(--chips-transition-fast, 0.15s) ease;
+}
+
+.default-editor__json-input:focus {
+  outline: none;
+  border-color: var(--chips-color-primary, #1890ff);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chips-color-primary) 20%, transparent);
+}
+
+.default-editor__json-input--error {
+  border-color: var(--chips-color-error, #f5222d);
+}
+
+.default-editor__json-input--error:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chips-color-error) 20%, transparent);
+}
+
+.default-editor__json-error {
+  position: absolute;
+  bottom: var(--chips-spacing-sm, 8px);
+  left: var(--chips-spacing-md, 12px);
+  right: var(--chips-spacing-md, 12px);
+  padding: var(--chips-spacing-xs, 4px) var(--chips-spacing-sm, 8px);
+  background: var(--chips-color-error-light, #fff1f0);
+  border: 1px solid var(--chips-color-error-border, #ffa39e);
+  border-radius: var(--chips-radius-sm, 4px);
+  color: var(--chips-color-error, #f5222d);
+  font-size: 11px;
+  pointer-events: none;
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==================== 表单编辑模式 ==================== */
+.default-editor__form {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--chips-spacing-md, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--chips-spacing-md, 16px);
+}
+
+.default-editor__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--chips-color-text-secondary, #666666);
+  font-size: var(--chips-font-size-sm, 13px);
+}
+
+.default-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--chips-spacing-xs, 4px);
+}
+
+.default-editor__label {
+  font-size: var(--chips-font-size-sm, 13px);
+  font-weight: 500;
+  color: var(--chips-color-text-secondary, #666666);
+  display: flex;
+  align-items: center;
+}
+
+.default-editor__required {
+  color: var(--chips-color-error, #f5222d);
+  margin-left: 2px;
+}
+
+.default-editor__input {
+  padding: 6px 12px;
+  border: 1px solid var(--chips-color-border, #e0e0e0);
+  border-radius: var(--chips-radius-sm, 4px);
+  font-size: var(--chips-font-size-sm, 13px);
+  color: var(--chips-color-text, #333333);
+  background: var(--chips-color-surface, #ffffff);
+  transition: all var(--chips-transition-fast, 0.15s) ease;
+}
+
+.default-editor__textarea {
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  padding: 8px 12px;
+  border: 1px solid var(--chips-color-border, #e0e0e0);
+  border-radius: var(--chips-radius-sm, 4px);
+  font-size: var(--chips-font-size-sm, 13px);
+}
+
+.default-editor__input:focus,
+.default-editor__textarea:focus {
+  outline: none;
+  border-color: var(--chips-color-primary, #1890ff);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chips-color-primary) 20%, transparent);
+}
+
+.default-editor__input:hover:not(:focus):not(:disabled),
+.default-editor__textarea:hover:not(:focus):not(:disabled) {
+  border-color: var(--chips-color-primary-light, #40a9ff);
+}
+
+.default-editor__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--chips-font-size-sm, 13px);
+  color: var(--chips-color-text, #333333);
+  cursor: pointer;
+}
+
+/* 表单错误状态 */
+.default-editor__field--error .default-editor__label {
+  color: var(--chips-color-error, #f5222d);
+}
+
+.default-editor__field--error .default-editor__input,
+.default-editor__field--error .default-editor__textarea {
+  border-color: var(--chips-color-error, #f5222d);
+}
+
+.default-editor__field--error .default-editor__input:focus,
+.default-editor__field--error .default-editor__textarea:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chips-color-error) 20%, transparent);
+}
+
+.default-editor__error {
+  font-size: 12px;
+  color: var(--chips-color-error, #f5222d);
+  margin-top: 2px;
+}

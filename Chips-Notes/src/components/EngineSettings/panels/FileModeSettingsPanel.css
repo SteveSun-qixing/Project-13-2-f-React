@@ -1,0 +1,59 @@
+@import '../styles/settings-panel.css';
+
+.file-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.file-mode-option {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.10);
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition:
+    border-color 100ms ease,
+    box-shadow 100ms ease;
+}
+
+.file-mode-option:hover {
+  border-color: color-mix(
+    in srgb,
+    #0a84ff 50%,
+    transparent
+  );
+}
+
+.file-mode-option--selected {
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 1px #0a84ff;
+}
+
+.file-mode-option__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-mode-option__icon {
+  font-size: 20px;
+}
+
+.file-mode-option__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.file-mode-option__desc {
+  margin: 0;
+  font-size: 13px;
+  color: #6e6e73;
+  line-height: 1.625;
+}

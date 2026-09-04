@@ -1,0 +1,83 @@
+id: chips-official.notes
+name: 笔记
+version: 0.1.0
+type: app
+entry: dist/index.html
+
+description: 薯片生态笔记应用，基于 React 构建。
+
+author:
+  name: Chips Ecosystem
+  email: support@chips-ecosystem.com
+
+keywords:
+  - chips
+  - app
+  - notes
+
+permissions:
+  - theme.write
+  - command.read
+  - command.write
+  - command.invoke
+  - resource.read
+  - file.read
+  - file.write
+  - zip.manage
+  - config.read
+  - config.write
+  - window.control
+  - platform.read
+  - platform.external
+  - plugin.read
+  - module.read
+  - module.invoke
+  - card.read
+  - card.write
+  - box.read
+  - box.write
+
+runtime:
+  targets:
+    desktop:
+      supported: true
+    web:
+      supported: false
+    mobile:
+      supported: false
+    headless:
+      supported: false
+
+capabilityFallbacks:
+  open-file:
+    whenUnsupported: reject
+  save-file:
+    whenUnsupported: reject
+
+engines:
+  chips: "^1.0.0"
+
+os:
+  - darwin
+  - win32
+  - linux
+
+ui:
+  layout:
+    owner: page
+    unit: cpx
+    baseWidth: 1024
+  launcher:
+    displayName: 笔记
+    icon: assets/icons/app-icon.ico
+  surface:
+    defaultKind: window
+    preferredKinds:
+      desktop: window
+      web: route
+      mobile: fullscreen
+      headless: window
+  window:
+    chrome:
+      backgroundColor: "#fafafa"
+      titleBarStyle: default

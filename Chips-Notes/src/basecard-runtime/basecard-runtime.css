@@ -1,0 +1,75 @@
+.composite-card-assembler {
+  display: grid;
+  grid-auto-rows: max-content;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.composite-card-assembler__node {
+  position: relative;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: none;
+}
+
+.composite-card-assembler--preview .composite-card-assembler__node[data-selectable='true'] {
+  cursor: pointer;
+}
+
+.basecard-frame-host {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  background: transparent;
+}
+
+.basecard-frame-host__frame {
+  position: relative;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  border: 0;
+  background: transparent;
+}
+
+body[data-chips-library-dragging='true'][data-chips-library-drag-type='card'] .basecard-frame-host__frame {
+  pointer-events: none;
+}
+
+.basecard-frame-host__selection-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+  cursor: pointer;
+}
+
+.basecard-frame-host__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.basecard-frame-host__overlay[data-state='error'] {
+  color: #ff3b30;
+}
+
+.basecard-frame-host__overlay-text {
+  font-size: 13px;
+  line-height: 1.5;
+}

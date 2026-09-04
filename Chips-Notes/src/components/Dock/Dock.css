@@ -1,0 +1,52 @@
+.dock {
+    position: absolute;
+    display: flex;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    pointer-events: auto;
+    z-index: 1000;
+    transition:
+        opacity 0.3s ease,
+        transform 0.3s ease;
+}
+
+.dock--bottom {
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-direction: row;
+}
+
+.dock--left {
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    flex-direction: column;
+}
+
+.dock--right {
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    flex-direction: column;
+}
+
+.dock__divider {
+    width: 1px;
+    height: 32px;
+    background: rgba(0, 0, 0, 0.06);
+    align-self: center;
+    flex-shrink: 0;
+}
+
+.dock--left .dock__divider,
+.dock--right .dock__divider {
+    width: 32px;
+    height: 1px;
+}

@@ -1,0 +1,102 @@
+.context-menu {
+  position: fixed;
+  min-width: 180px;
+  padding: var(--chips-spacing-xs, 4px) 0;
+  background-color: var(--chips-color-bg-primary, #fff);
+  border: 1px solid var(--chips-color-border, #e0e0e0);
+  border-radius: var(--chips-radius-md, 6px);
+  box-shadow: var(--chips-shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.15));
+  z-index: 9999;
+  animation: contextMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--chips-spacing-sm, 8px);
+  padding: var(--chips-spacing-sm, 8px) var(--chips-spacing-md, 12px);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.context-menu__item:hover {
+  background-color: var(--chips-color-bg-hover, rgba(0, 0, 0, 0.05));
+}
+
+.context-menu__item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.context-menu__item--disabled:hover {
+  background-color: transparent;
+}
+
+.context-menu__icon {
+  width: 16px;
+  font-size: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.context-menu__label {
+  flex: 1;
+  font-size: var(--chips-font-size-sm, 14px);
+  color: var(--chips-color-text-primary, #1a1a1a);
+  white-space: nowrap;
+}
+
+.context-menu__shortcut {
+  font-size: var(--chips-font-size-xs, 12px);
+  color: var(--chips-color-text-tertiary, #999);
+  margin-left: 20px;
+}
+
+.context-menu__arrow {
+  font-size: 10px;
+  color: var(--chips-color-text-secondary, #666);
+  margin-left: auto;
+}
+
+.context-menu__divider {
+  height: 1px;
+  margin: var(--chips-spacing-xs, 4px) 0;
+  background-color: var(--chips-color-border-light, #f0f0f0);
+}
+
+.context-menu__submenu {
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  min-width: 160px;
+  padding: var(--chips-spacing-xs, 4px) 0;
+  background-color: var(--chips-color-bg-primary, #fff);
+  border: 1px solid var(--chips-color-border, #e0e0e0);
+  border-radius: var(--chips-radius-md, 6px);
+  box-shadow: var(--chips-shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.15));
+  z-index: 10000;
+  animation: submenuSlideIn 0.1s ease-out;
+}
+
+@keyframes submenuSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

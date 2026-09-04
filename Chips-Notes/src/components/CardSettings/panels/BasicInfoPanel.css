@@ -1,0 +1,95 @@
+.basic-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.basic-info-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.basic-info-panel__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
+}
+
+.basic-info-panel__input {
+  width: 100%;
+}
+
+.basic-info-panel__tag-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.basic-info-panel__tag-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.basic-info-panel__tag-add-btn {
+  flex-shrink: 0;
+}
+
+.basic-info-panel__tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* 元数据区域 */
+.basic-info-panel__metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+}
+
+.basic-info-panel__metadata-row {
+  display: grid;
+  grid-template-columns: minmax(80px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.basic-info-panel__metadata-label {
+  color: #6e6e73;
+}
+
+.basic-info-panel__metadata-value {
+  color: #1d1d1f;
+  word-break: break-all;
+}
+
+.basic-info-panel__metadata-value--mono {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 480px) {
+  .basic-info-panel__tag-input-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .basic-info-panel__tag-add-btn {
+    width: 100%;
+  }
+
+  .basic-info-panel__metadata {
+    padding: 14px;
+  }
+
+  .basic-info-panel__metadata-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}

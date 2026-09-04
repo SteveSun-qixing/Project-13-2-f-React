@@ -1,0 +1,20 @@
+.box-settings-dialog__field {
+  display: grid;
+  gap: 8px;
+}
+
+.box-settings-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.box-settings-dialog__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.box-settings-dialog__textarea {
+  resize: vertical;
+}

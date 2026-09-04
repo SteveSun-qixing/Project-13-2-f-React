@@ -1,0 +1,178 @@
+.cover-crop-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.cover-crop-dialog__panel {
+  width: 78vw;
+  max-width: 960px;
+  height: 70vh;
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+
+.cover-crop-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cover-crop-dialog__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: #1d1d1f;
+}
+
+.cover-crop-dialog__subtitle {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #6e6e73;
+}
+
+.cover-crop-dialog__close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #1d1d1f;
+  cursor: pointer;
+}
+
+.cover-crop-dialog__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  touch-action: none;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%) 0 0 / 24px 24px,
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%) 0 0 / 24px 24px,
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%) 0 0 / 24px 24px,
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%) 0 0 / 24px 24px,
+    #0f172a;
+}
+
+.cover-crop-dialog__image {
+  position: absolute;
+  user-select: none;
+  pointer-events: none;
+}
+
+.cover-crop-dialog__crop-box {
+  position: absolute;
+  cursor: move;
+  touch-action: none;
+  border: 2px solid rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.56);
+}
+
+.cover-crop-dialog__crop-grid {
+  width: 100%;
+  height: 100%;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.32) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.32) 1px, transparent 1px);
+  background-size: calc(100% / 3) calc(100% / 3);
+}
+
+.cover-crop-dialog__handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  border-radius: 999px;
+  background: #0a84ff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
+  padding: 0;
+}
+
+.cover-crop-dialog__handle--nw {
+  top: -10px;
+  left: -10px;
+  cursor: nwse-resize;
+}
+
+.cover-crop-dialog__handle--ne {
+  top: -10px;
+  right: -10px;
+  cursor: nesw-resize;
+}
+
+.cover-crop-dialog__handle--se {
+  right: -10px;
+  bottom: -10px;
+  cursor: nwse-resize;
+}
+
+.cover-crop-dialog__handle--sw {
+  left: -10px;
+  bottom: -10px;
+  cursor: nesw-resize;
+}
+
+.cover-crop-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.cover-crop-dialog__button {
+  min-width: 120px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.cover-crop-dialog__button--secondary {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: #ffffff;
+  color: #1d1d1f;
+}
+
+.cover-crop-dialog__button--primary {
+  background: #0a84ff;
+  color: #ffffff;
+}
+
+@media (max-width: 720px) {
+  .cover-crop-dialog {
+    padding: 12px;
+  }
+
+  .cover-crop-dialog__panel {
+    padding: 16px;
+  }
+
+  .cover-crop-dialog__stage {
+    min-height: 320px;
+  }
+
+  .cover-crop-dialog__footer {
+    flex-direction: column-reverse;
+  }
+
+  .cover-crop-dialog__button {
+    width: 100%;
+  }
+}
