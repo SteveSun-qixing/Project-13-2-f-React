@@ -1,0 +1,414 @@
+import "./styles/word-editor.css";
+
+/* Word 编辑器样式 */
+
+.word-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: #f5f5f5;
+}
+
+.word-editor__main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 工具栏样式 */
+.word-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background-color: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.word-toolbar--readonly {
+  background-color: #fafafa;
+}
+
+.word-toolbar__readonly-label {
+  color: #999;
+  font-size: 12px;
+}
+
+.word-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.word-toolbar__font-button,
+.word-toolbar__fontsize-button {
+  min-width: 80px;
+}
+
+.word-toolbar__font-name,
+.word-toolbar__fontsize-value {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 画布样式 */
+.word-canvas {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.word-canvas__container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.word-canvas__background {
+  background-color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  min-height: 100%;
+}
+
+.word-canvas__page {
+  min-height: 100%;
+}
+
+.word-canvas__blocks {
+  padding: 0;
+}
+
+.word-canvas__loading,
+.word-canvas__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: #999;
+}
+
+.word-canvas__pagination {
+  position: sticky;
+  bottom: 0;
+  padding: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-top: 1px solid #e8e8e8;
+  text-align: center;
+}
+
+/* 块样式 */
+.word-block {
+  padding: 4px 0;
+  cursor: text;
+  outline: none;
+  min-height: 1.6em;
+}
+
+.word-block--selected {
+  background-color: rgba(22, 119, 255, 0.1);
+}
+
+.word-block--heading {
+  font-weight: bold;
+}
+
+.word-block--listItem {
+  padding-left: 24px;
+}
+
+.word-block--table {
+  overflow-x: auto;
+}
+
+.word-block--image {
+  display: flex;
+  justify-content: center;
+}
+
+.word-block--passthrough {
+  padding: 12px;
+  background-color: #f5f5f5;
+  border: 1px dashed #d9d9d9;
+  text-align: center;
+  color: #999;
+}
+
+.word-run--empty::before {
+  content: '\00A0';
+}
+
+/* 表格样式 */
+.word-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.word-table--empty {
+  padding: 24px;
+  text-align: center;
+  color: #999;
+}
+
+.word-table__row {
+  border: 1px solid #000;
+}
+
+.word-table__cell {
+  border: 1px solid #000;
+  padding: 8px;
+  vertical-align: top;
+}
+
+.word-table__cell-content {
+  margin: 0;
+  min-height: 1em;
+}
+
+/* 图片样式 */
+.word-image {
+  max-width: 100%;
+  height: auto;
+}
+
+.word-image--wrapper {
+  display: flex;
+}
+
+.word-image--align-left {
+  justify-content: flex-start;
+}
+
+.word-image--align-center {
+  justify-content: center;
+}
+
+.word-image--align-right {
+  justify-content: flex-end;
+}
+
+.word-image--empty {
+  padding: 24px;
+  background-color: #f5f5f5;
+  border: 1px dashed #d9d9d9;
+  text-align: center;
+  color: #999;
+}
+
+/* 数学公式样式 */
+.word-math {
+  font-style: italic;
+  color: #333;
+}
+
+/* 批注面板样式 */
+.comment-panel {
+  width: 280px;
+  min-width: 280px;
+  background-color: #fff;
+  border-left: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.comment-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8e8e8;
+  font-weight: 500;
+}
+
+.comment-panel__count {
+  color: #999;
+  font-weight: normal;
+}
+
+.comment-panel__add {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.comment-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px;
+}
+
+.comment-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.comment-item--selected {
+  background-color: #e6f7ff;
+  border: 1px solid #91caff;
+}
+
+.comment-item--resolved {
+  opacity: 0.6;
+}
+
+.comment-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.comment-item__author {
+  font-weight: 500;
+}
+
+.comment-item__date {
+  font-size: 12px;
+  color: #999;
+}
+
+.comment-item__content {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.comment-item__content p {
+  margin: 0 0 4px 0;
+}
+
+.comment-item__actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.comment-item:hover .comment-item__actions {
+  opacity: 1;
+}
+
+.comment-item__resolved-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 10px;
+  color: #52c41a;
+  background-color: #f6ffed;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid #b7eb8f;
+}
+
+/* 表格编辑器样式 */
+.table-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.table-editor__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.table-editor__label {
+  font-weight: 500;
+}
+
+/* 图片插入样式 */
+.image-insert {
+  min-height: 200px;
+}
+
+.image-insert__uploader {
+  padding: 32px 0;
+}
+
+.image-insert__preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+}
+
+.image-insert__preview-image {
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+}
+
+.image-insert__preview-info {
+  color: #999;
+  font-size: 12px;
+}
+
+/* 状态栏样式 */
+.word-editor__statusbar,
+.word-canvas__pagination {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background-color: #fff;
+  border-top: 1px solid #e8e8e8;
+  font-size: 12px;
+  color: #666;
+}
+
+.word-statusbar__dirty {
+  color: #fa8c16;
+  font-weight: bold;
+}
+
+/* 查看器样式 */
+.word-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.word-viewer__statusbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background-color: #fff;
+  border-top: 1px solid #e8e8e8;
+  font-size: 12px;
+  color: #666;
+}
+
+.word-viewer__mode {
+  color: #999;
+}
+
+/* 加载和空状态 */
+.word-viewer--loading,
+.word-viewer--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 16px;
+  color: #999;
+}
+
+.word-viewer--error {
+  padding: 16px;
+}
