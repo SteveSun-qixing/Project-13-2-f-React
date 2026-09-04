@@ -1,0 +1,100 @@
+id: com.chips.pdf
+name: PDF 编辑器
+version: 0.1.0
+type: app
+entry: dist/index.html
+
+description: 薯片生态 PDF 编辑器应用插件，用于查看、批注与保存 PDF 文档。
+
+author:
+  name: Chips PDF
+  email: dev@chips.local
+
+keywords:
+  - chips
+  - pdf
+  - viewer
+  - editor
+
+capabilities:
+  - resource-handler:view:application/pdf
+  - file-handler:.pdf
+
+permissions:
+  - resource.read
+  - file.read
+  - file.write
+  - office.read
+  - office.write
+  - platform.read
+  - config.read
+  - config.write
+  - network.request
+  - command.read
+  - command.write
+  - command.invoke
+
+runtime:
+  targets:
+    desktop:
+      supported: true
+    web:
+      supported: true
+    mobile:
+      supported: false
+    headless:
+      supported: false
+
+capabilityFallbacks:
+  open-file:
+    whenUnsupported: reject
+  save-file:
+    whenUnsupported: download
+
+cli:
+  commands:
+    - commandPath: chips-pdf open
+      target:
+        type: app
+        pluginId: com.chips.pdf
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+      titleKey: 打开 PDF 编辑器
+      descriptionKey: 启动 PDF 编辑器并聚焦工作区
+      arguments:
+        - name: subject
+          position: 0
+          type: string
+          required: false
+          mapsTo: subject
+      output:
+        mode: json
+
+engines:
+  chips: "^1.0.0"
+
+os:
+  - darwin
+  - win32
+  - linux
+
+ui:
+  layout:
+    owner: page
+    unit: cpx
+    baseWidth: 1024
+  launcher:
+    displayName: PDF 编辑器
+    icon: assets/icons/app-icon.ico
+  surface:
+    defaultKind: window
+    preferredKinds:
+      desktop: window
+      web: route
+      mobile: fullscreen
+      headless: window
+  window:
+    chrome:
+      titleBarStyle: default

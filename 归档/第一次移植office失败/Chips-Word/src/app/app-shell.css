@@ -1,0 +1,35 @@
+.app-shell {
+  position: relative;
+  display: grid;
+  height: 100%;
+  min-height: 0;
+}
+
+.app-shell__document {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.app-shell__document--hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-shell__start {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--word-shell-bg, #f5f5f7);
+  overflow: auto;
+}
+
+@media print {
+  .app-shell__document--hidden {
+    display: none !important;
+  }
+
+  .app-shell__start {
+    display: none !important;
+  }
+}

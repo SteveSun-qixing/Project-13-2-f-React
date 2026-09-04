@@ -1,0 +1,100 @@
+id: com.chips.slide
+name: 演示文稿编辑器
+version: 0.1.0
+type: app
+entry: dist/index.html
+
+description: 薯片生态演示文稿编辑器应用插件，用于打开、编辑与保存 PowerPoint（.pptx）演示文稿。
+
+author:
+  name: Chips Slide
+  email: dev@chips.local
+
+keywords:
+  - chips
+  - slide
+  - pptx
+  - editor
+
+capabilities:
+  - resource-handler:view:application/vnd.openxmlformats-officedocument.presentationml.presentation
+  - file-handler:.pptx
+
+permissions:
+  - resource.read
+  - file.read
+  - file.write
+  - office.read
+  - office.write
+  - platform.read
+  - config.read
+  - config.write
+  - network.request
+  - command.read
+  - command.write
+  - command.invoke
+
+runtime:
+  targets:
+    desktop:
+      supported: true
+    web:
+      supported: true
+    mobile:
+      supported: false
+    headless:
+      supported: false
+
+capabilityFallbacks:
+  open-file:
+    whenUnsupported: reject
+  save-file:
+    whenUnsupported: download
+
+cli:
+  commands:
+    - commandPath: chips-slide open
+      target:
+        type: app
+        pluginId: com.chips.slide
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+      titleKey: 打开演示文稿编辑器
+      descriptionKey: 启动演示文稿编辑器并聚焦工作区
+      arguments:
+        - name: subject
+          position: 0
+          type: string
+          required: false
+          mapsTo: subject
+      output:
+        mode: json
+
+engines:
+  chips: "^1.0.0"
+
+os:
+  - darwin
+  - win32
+  - linux
+
+ui:
+  layout:
+    owner: page
+    unit: cpx
+    baseWidth: 1024
+  launcher:
+    displayName: 演示文稿编辑器
+    icon: assets/icons/app-icon.ico
+  surface:
+    defaultKind: window
+    preferredKinds:
+      desktop: window
+      web: route
+      mobile: fullscreen
+      headless: window
+  window:
+    chrome:
+      titleBarStyle: default
