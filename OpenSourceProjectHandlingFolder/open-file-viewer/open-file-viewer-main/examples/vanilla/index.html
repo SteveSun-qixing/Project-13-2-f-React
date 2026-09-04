@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Open File Viewer Vanilla Demo</title>
+  </head>
+  <body>
+    <main class="demo-shell">
+      <aside class="demo-panel">
+        <h1>Open File Viewer</h1>
+        <label for="file">File</label>
+        <input id="file" type="file" multiple />
+        <label for="width">Width</label>
+        <input id="width" value="100%" />
+        <label for="height">Height</label>
+        <input id="height" value="620px" />
+        <label for="fit">Fit</label>
+        <select id="fit">
+          <option value="contain">contain</option>
+          <option value="cover">cover</option>
+          <option value="width">width</option>
+          <option value="height">height</option>
+          <option value="actual">actual</option>
+          <option value="scale-down">scale-down</option>
+        </select>
+        <label for="locale">Locale</label>
+        <select id="locale">
+          <option value="en-US">en-US</option>
+          <option value="zh-CN">zh-CN</option>
+        </select>
+        <label for="theme">Theme</label>
+        <select id="theme">
+          <option value="light">light</option>
+          <option value="dark">dark</option>
+          <option value="auto">auto</option>
+        </select>
+        <button id="apply">Apply container size</button>
+      </aside>
+      <section id="viewer"></section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

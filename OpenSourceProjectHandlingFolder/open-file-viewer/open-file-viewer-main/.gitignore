@@ -1,0 +1,11 @@
+node_modules
+dist
+.DS_Store
+.turbo
+coverage
+*.log
+.svelte-kit
+
+# Keep the pinned DWG runtime assets in Git for source checkouts and deployments.
+!doc/public/vendor/libredwg-web/dist/
+!doc/public/vendor/libredwg-web/dist/**

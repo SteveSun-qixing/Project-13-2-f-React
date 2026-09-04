@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Open File Viewer about page, community, open source support and contact information."
+    />
+    <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#05060e" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="mask-icon" href="/favicon.svg" color="#7c5cff" />
+    <script>
+      (() => {
+        const root = document.documentElement;
+        root.dataset.siteBoot = "loading";
+        root.dataset.motion = "on";
+        try {
+          const theme = localStorage.getItem("ofv-site-theme") === "light" ? "light" : "dark";
+          root.dataset.siteTheme = theme;
+        } catch {
+          root.dataset.siteTheme = "dark";
+        }
+        window.setTimeout(() => {
+          if (root.dataset.siteBoot === "loading") {
+            root.dataset.siteBoot = "timeout";
+            delete root.dataset.motion;
+          }
+        }, 1600);
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        background: #05060e;
+      }
+
+      :root[data-site-theme="light"] {
+        color-scheme: light;
+        background: #f6f7fb;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        background-color: #05060e;
+      }
+
+      :root[data-site-theme="light"] body {
+        background-color: #f6f7fb;
+      }
+
+      :root[data-site-boot="loading"] body {
+        visibility: hidden;
+      }
+
+      :root[data-site-boot="loading"] *,
+      :root[data-site-boot="loading"] *::before,
+      :root[data-site-boot="loading"] *::after {
+        animation-play-state: paused !important;
+        transition: none !important;
+      }
+    </style>
+    <title>About - Open File Viewer</title>
+  </head>
+  <body class="api-doc-page about-doc-page">
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-docs" viewBox="0 0 24 24">
+        <path d="M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+        <path d="M14 3v4h4M8.5 12h7M8.5 15h7M8.5 18h4" />
+      </symbol>
+      <symbol id="icon-framework" viewBox="0 0 24 24">
+        <path d="M12 3 4.5 7.2v9.6L12 21l7.5-4.2V7.2L12 3Z" />
+        <path d="m4.8 7.5 7.2 4 7.2-4M12 11.5V21" />
+      </symbol>
+      <symbol id="icon-grid" viewBox="0 0 24 24">
+        <path d="M4 4h6v6H4V4ZM14 4h6v6h-6V4ZM4 14h6v6H4v-6ZM14 14h6v6h-6v-6Z" />
+      </symbol>
+      <symbol id="icon-api" viewBox="0 0 24 24">
+        <path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 4l-4 16" />
+      </symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24">
+        <path d="M8 5.5v13l11-6.5-11-6.5Z" />
+      </symbol>
+      <symbol id="icon-moon" viewBox="0 0 24 24">
+        <path d="M20 15.2A8.2 8.2 0 0 1 8.8 4a8.6 8.6 0 1 0 11.2 11.2Z" />
+      </symbol>
+      <symbol id="icon-sun" viewBox="0 0 24 24">
+        <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+      </symbol>
+      <symbol id="icon-github" viewBox="0 0 24 24">
+        <path d="M12 2.5a9.5 9.5 0 0 0-3 18.52c.48.09.65-.2.65-.46v-1.65c-2.65.58-3.2-1.12-3.2-1.12-.43-1.1-1.05-1.39-1.05-1.39-.86-.59.06-.58.06-.58.95.07 1.45.98 1.45.98.84 1.44 2.2 1.02 2.74.78.08-.61.33-1.02.6-1.26-2.11-.24-4.33-1.06-4.33-4.7 0-1.04.37-1.89.98-2.55-.1-.24-.43-1.22.09-2.52 0 0 .8-.26 2.62.98A9 9 0 0 1 12 7.2c.81 0 1.63.11 2.39.32 1.82-1.24 2.62-.98 2.62-.98.52 1.3.19 2.28.09 2.52.61.66.98 1.51.98 2.55 0 3.66-2.23 4.45-4.35 4.69.34.29.64.87.64 1.76v2.5c0 .26.17.56.66.46A9.5 9.5 0 0 0 12 2.5Z" />
+      </symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24">
+        <path d="M5 12h13M13 6l6 6-6 6" />
+      </symbol>
+      <symbol id="icon-eye" viewBox="0 0 24 24">
+        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+        <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+      </symbol>
+      <symbol id="icon-heart" viewBox="0 0 24 24">
+        <path d="M20.8 5.6a5.2 5.2 0 0 0-7.4 0L12 7l-1.4-1.4a5.2 5.2 0 0 0-7.4 7.4L12 21l8.8-8a5.2 5.2 0 0 0 0-7.4Z" />
+      </symbol>
+    </svg>
+
+    <div class="fx-layer" aria-hidden="true">
+      <div class="fx-aurora">
+        <span class="fx-blob fx-blob-a"></span>
+        <span class="fx-blob fx-blob-b"></span>
+        <span class="fx-blob fx-blob-c"></span>
+      </div>
+      <div class="fx-grid"></div>
+    </div>
+    <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Open File Viewer home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <defs>
+              <linearGradient id="ofv-body" gradientUnits="userSpaceOnUse" x1="4.2" y1="2.8" x2="20" y2="21.4">
+                <stop offset="0" stop-color="#7deefb" /><stop offset="0.52" stop-color="#7c5cff" /><stop offset="1" stop-color="#3b21c4" />
+              </linearGradient>
+              <linearGradient id="ofv-flap" gradientUnits="userSpaceOnUse" x1="14.6" y1="7.9" x2="17.6" y2="4.9">
+                <stop offset="0" stop-color="#e9ffb2" /><stop offset="1" stop-color="#a2df31" />
+              </linearGradient>
+            </defs>
+            <g stroke="none">
+              <path fill="url(#ofv-body)" fill-rule="evenodd" d="M5.9 2 L13.5 2 L20.5 9 L20.5 19.6 A2.4 2.4 0 0 1 18.1 22 L5.9 22 A2.4 2.4 0 0 1 3.5 19.6 L3.5 4.4 A2.4 2.4 0 0 1 5.9 2 Z M9.2 9.2 L16 12.4 L9.2 15.6 Z" />
+              <path fill="url(#ofv-flap)" d="M13.5 2 L20.5 9 L13.5 9 Z" />
+            </g>
+          </svg>
+        </span>
+        <span>Open File Viewer</span>
+      </a>
+      <nav class="desktop-nav" aria-label="Primary navigation" data-i18n-aria-label="aria.primaryNav">
+        <a href="/#docs"><svg><use href="#icon-docs"></use></svg><span data-i18n="nav.docs">Documentation</span></a>
+        <a href="/#frameworks"><svg><use href="#icon-framework"></use></svg><span data-i18n="nav.frameworks">Frameworks</span></a>
+        <a href="/#formats"><svg><use href="#icon-grid"></use></svg><span data-i18n="nav.formats">Formats</span></a>
+        <a href="/api.html"><svg><use href="#icon-api"></use></svg><span>API</span></a>
+        <a href="/#playground"><svg><use href="#icon-play"></use></svg><span data-i18n="nav.playground">Live Demo</span></a>
+        <a class="active" href="/about.html"><svg><use href="#icon-heart"></use></svg><span data-i18n="nav.about">About</span></a>
+      </nav>
+      <div class="nav-actions">
+        <button class="ghost-icon" id="themeToggle" type="button" aria-label="Toggle dark mode"><svg><use href="#icon-moon"></use></svg></button>
+        <button class="ghost-icon" id="languageToggle" type="button" aria-label="Switch to Chinese">ZH</button>
+        <a class="github-button" href="https://github.com/xushanpei/open-file-viewer" target="_blank" rel="noreferrer"><svg><use href="#icon-github"></use></svg><span>GitHub</span><span class="gh-stars" data-gh-stars hidden></span></a>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="api-doc-hero about-doc-hero">
+        <p data-i18n="about.hero.eyebrow">About Open File Viewer</p>
+        <h1 data-i18n="about.hero.title">Open source takes time. Thank you for every thoughtful use.</h1>
+        <div>
+          <a class="primary-button" href="https://github.com/xushanpei/open-file-viewer" target="_blank" rel="noreferrer"><span>GitHub Star</span><span class="gh-stars on-primary" data-gh-stars hidden></span><svg><use href="#icon-arrow"></use></svg></a>
+          <a class="secondary-button" href="/#playground"><svg><use href="#icon-eye"></use></svg><span data-i18n="action.liveDemo">Live Demo</span></a>
+        </div>
+      </section>
+
+      <section class="api-doc-layout about-doc-layout">
+        <aside class="api-sidebar" aria-label="About sections" data-i18n-aria-label="aria.aboutSections">
+          <strong data-i18n="contents">Contents</strong>
+          <a href="#opensource" data-i18n="about.sidebar.openSource">Open source</a>
+          <a href="#support" data-i18n="about.sidebar.support">Support the author</a>
+          <a href="#thanks" data-i18n="about.sidebar.thanks">Thanks</a>
+        </aside>
+
+        <div class="api-doc-content">
+          <section class="doc-panel" id="opensource">
+            <p class="doc-eyebrow" data-i18n="about.eyebrow.openSource">Open Source</p>
+            <h2 data-i18n="about.openSource.title">Turn complex file previews into maintainable infrastructure</h2>
+            <p data-i18n="about.openSource.body">
+              Open File Viewer keeps improving format coverage, framework integrations and production workflows. The project provides stable, extensible web file previews for vanilla JavaScript, React, Vue and Svelte.
+            </p>
+            <div class="doc-kpi-grid">
+              <div><strong>4</strong><span>Native JS / React / Vue / Svelte</span></div>
+              <div><strong>15+</strong><span data-i18n="about.openSource.formats">Format and plugin capabilities</span></div>
+              <div><strong>1</strong><span data-i18n="about.openSource.protocol">Unified viewer and plugin protocol</span></div>
+            </div>
+          </section>
+
+          <section class="doc-panel about-section" id="support">
+            <div class="about-panel">
+              <div class="about-copy">
+                <span class="about-icon"><svg><use href="#icon-heart"></use></svg></span>
+                <h3 data-i18n="about.support.title">Help the project keep moving</h3>
+                <p data-i18n="about.support.body">If this open source project saved you development time, please consider giving it a free GitHub Star.</p>
+                <div class="about-actions">
+                  <a class="primary-button" href="https://github.com/xushanpei/open-file-viewer" target="_blank" rel="noreferrer"><svg class="gh-fill"><use href="#icon-github"></use></svg><span>GitHub Star</span><span class="gh-stars on-primary" data-gh-stars hidden></span></a>
+                  <a class="secondary-button" href="/#playground"><svg><use href="#icon-play"></use></svg><span data-i18n="action.liveDemo">Live Demo</span></a>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="thanks">
+            <p class="doc-eyebrow" data-i18n="about.eyebrow.thanks">Thanks</p>
+            <h2 data-i18n="about.thanks.title">Every report helps improve the preview experience</h2>
+            <p data-i18n="about.thanks.body">
+              Share production file samples, layout issues, container integration problems and format requests through GitHub Issues. The project will keep improving stability, integration clarity and format coverage.
+            </p>
+            <div class="doc-card-grid">
+              <article><strong data-i18n="about.thanks.issueTitle">Report an issue</strong><p data-i18n="about.thanks.issueBody">Please include reproducible details for format detection, rendering, responsive layout or toolbar interaction problems.</p></article>
+              <article><strong data-i18n="about.thanks.caseTitle">Share a use case</strong><p data-i18n="about.thanks.caseBody">If you use Open File Viewer in production, share your workflow and improvement ideas.</p></article>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Open File Viewer</span>
+      <span data-i18n="footer.text">Framework-agnostic file preview SDK for modern web products.</span>
+    </footer>
+
+    <script type="module" src="/src/api.ts"></script>
+  </body>
+</html>

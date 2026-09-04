@@ -1,0 +1,49 @@
+{
+  "name": "@open-file-viewer/react",
+  "version": "0.1.43",
+  "description": "React adapter for Open File Viewer.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://open-file-viewer-workspace.void.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xushanpei/open-file-viewer.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/xushanpei/open-file-viewer/issues"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.tsx --format esm,cjs --dts --sourcemap --clean",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@open-file-viewer/core": "0.1.43",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@open-file-viewer/core": "workspace:*",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

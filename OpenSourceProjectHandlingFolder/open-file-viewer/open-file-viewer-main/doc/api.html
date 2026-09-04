@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Open File Viewer API documentation for JavaScript, React, Vue, Svelte, toolbar customization and plugin development."
+    />
+    <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#05060e" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="mask-icon" href="/favicon.svg" color="#7c5cff" />
+    <script>
+      (() => {
+        const root = document.documentElement;
+        root.dataset.siteBoot = "loading";
+        root.dataset.motion = "on";
+        try {
+          const theme = localStorage.getItem("ofv-site-theme") === "light" ? "light" : "dark";
+          root.dataset.siteTheme = theme;
+        } catch {
+          root.dataset.siteTheme = "dark";
+        }
+        window.setTimeout(() => {
+          if (root.dataset.siteBoot === "loading") {
+            root.dataset.siteBoot = "timeout";
+            delete root.dataset.motion;
+          }
+        }, 1600);
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        background: #05060e;
+      }
+
+      :root[data-site-theme="light"] {
+        color-scheme: light;
+        background: #f6f7fb;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        background-color: #05060e;
+      }
+
+      :root[data-site-theme="light"] body {
+        background-color: #f6f7fb;
+      }
+
+      :root[data-site-boot="loading"] body {
+        visibility: hidden;
+      }
+
+      :root[data-site-boot="loading"] *,
+      :root[data-site-boot="loading"] *::before,
+      :root[data-site-boot="loading"] *::after {
+        animation-play-state: paused !important;
+        transition: none !important;
+      }
+    </style>
+    <title>API Reference - Open File Viewer</title>
+  </head>
+  <body class="api-doc-page">
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-logo" viewBox="0 0 24 24">
+        <g stroke="none">
+          <path fill="url(#ofv-body)" fill-rule="evenodd" d="M5.9 2 L13.5 2 L20.5 9 L20.5 19.6 A2.4 2.4 0 0 1 18.1 22 L5.9 22 A2.4 2.4 0 0 1 3.5 19.6 L3.5 4.4 A2.4 2.4 0 0 1 5.9 2 Z M9.2 9.2 L16 12.4 L9.2 15.6 Z" />
+          <path fill="url(#ofv-flap)" d="M13.5 2 L20.5 9 L13.5 9 Z" />
+        </g>
+      </symbol>
+      <symbol id="icon-docs" viewBox="0 0 24 24">
+        <path d="M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+        <path d="M14 3v4h4M8.5 12h7M8.5 15h7M8.5 18h4" />
+      </symbol>
+      <symbol id="icon-framework" viewBox="0 0 24 24">
+        <path d="M12 3 4.5 7.2v9.6L12 21l7.5-4.2V7.2L12 3Z" />
+        <path d="m4.8 7.5 7.2 4 7.2-4M12 11.5V21" />
+      </symbol>
+      <symbol id="icon-grid" viewBox="0 0 24 24">
+        <path d="M4 4h6v6H4V4ZM14 4h6v6h-6V4ZM4 14h6v6H4v-6ZM14 14h6v6h-6v-6Z" />
+      </symbol>
+      <symbol id="icon-api" viewBox="0 0 24 24">
+        <path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 4l-4 16" />
+      </symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24">
+        <path d="M8 5.5v13l11-6.5-11-6.5Z" />
+      </symbol>
+      <symbol id="icon-moon" viewBox="0 0 24 24">
+        <path d="M20 15.2A8.2 8.2 0 0 1 8.8 4a8.6 8.6 0 1 0 11.2 11.2Z" />
+      </symbol>
+      <symbol id="icon-sun" viewBox="0 0 24 24">
+        <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+      </symbol>
+      <symbol id="icon-github" viewBox="0 0 24 24">
+        <path d="M12 2.5a9.5 9.5 0 0 0-3 18.52c.48.09.65-.2.65-.46v-1.65c-2.65.58-3.2-1.12-3.2-1.12-.43-1.1-1.05-1.39-1.05-1.39-.86-.59.06-.58.06-.58.95.07 1.45.98 1.45.98.84 1.44 2.2 1.02 2.74.78.08-.61.33-1.02.6-1.26-2.11-.24-4.33-1.06-4.33-4.7 0-1.04.37-1.89.98-2.55-.1-.24-.43-1.22.09-2.52 0 0 .8-.26 2.62.98A9 9 0 0 1 12 7.2c.81 0 1.63.11 2.39.32 1.82-1.24 2.62-.98 2.62-.98.52 1.3.19 2.28.09 2.52.61.66.98 1.51.98 2.55 0 3.66-2.23 4.45-4.35 4.69.34.29.64.87.64 1.76v2.5c0 .26.17.56.66.46A9.5 9.5 0 0 0 12 2.5Z" />
+      </symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24">
+        <path d="M5 12h13M13 6l6 6-6 6" />
+      </symbol>
+      <symbol id="icon-eye" viewBox="0 0 24 24">
+        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+        <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="m5 12 4 4 10-10" />
+      </symbol>
+      <symbol id="icon-heart" viewBox="0 0 24 24">
+        <path d="M20.8 5.6a5.2 5.2 0 0 0-7.4 0L12 7l-1.4-1.4a5.2 5.2 0 0 0-7.4 7.4L12 21l8.8-8a5.2 5.2 0 0 0 0-7.4Z" />
+      </symbol>
+      <symbol id="icon-puzzle" viewBox="0 0 24 24">
+        <path d="M9 3h6v4a2 2 0 1 0 4 0h2v6h-4a2 2 0 1 0 0 4h4v4h-6v-3a2 2 0 1 0-4 0v3H3v-6h4a2 2 0 1 0 0-4H3V7h6V3Z" />
+      </symbol>
+      <symbol id="icon-layers" viewBox="0 0 24 24">
+        <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+        <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
+      </symbol>
+      <symbol id="icon-resize" viewBox="0 0 24 24">
+        <path d="M4 9V4h5M20 15v5h-5M4 15v5h5M20 9V4h-5" />
+        <path d="m4 4 6 6M20 20l-6-6M4 20l6-6M20 4l-6 6" />
+      </symbol>
+    </svg>
+
+    <div class="fx-layer" aria-hidden="true">
+      <div class="fx-aurora">
+        <span class="fx-blob fx-blob-a"></span>
+        <span class="fx-blob fx-blob-b"></span>
+        <span class="fx-blob fx-blob-c"></span>
+      </div>
+      <div class="fx-grid"></div>
+    </div>
+    <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Open File Viewer home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <defs>
+              <linearGradient id="ofv-body" gradientUnits="userSpaceOnUse" x1="4.2" y1="2.8" x2="20" y2="21.4">
+                <stop offset="0" stop-color="#7deefb" /><stop offset="0.52" stop-color="#7c5cff" /><stop offset="1" stop-color="#3b21c4" />
+              </linearGradient>
+              <linearGradient id="ofv-flap" gradientUnits="userSpaceOnUse" x1="14.6" y1="7.9" x2="17.6" y2="4.9">
+                <stop offset="0" stop-color="#e9ffb2" /><stop offset="1" stop-color="#a2df31" />
+              </linearGradient>
+            </defs>
+            <use href="#icon-logo" />
+          </svg>
+        </span>
+        <span>Open File Viewer</span>
+      </a>
+      <nav class="desktop-nav" aria-label="Primary navigation" data-i18n-aria-label="aria.primaryNav">
+        <a href="/#docs"><svg><use href="#icon-docs"></use></svg><span data-i18n="nav.docs">Documentation</span></a>
+        <a href="/#frameworks"><svg><use href="#icon-framework"></use></svg><span data-i18n="nav.frameworks">Frameworks</span></a>
+        <a href="/#formats"><svg><use href="#icon-grid"></use></svg><span data-i18n="nav.formats">Formats</span></a>
+        <a class="active" href="/api.html"><svg><use href="#icon-api"></use></svg><span>API</span></a>
+        <a href="/#playground"><svg><use href="#icon-play"></use></svg><span data-i18n="nav.playground">Live Demo</span></a>
+        <a href="/about.html"><svg><use href="#icon-heart"></use></svg><span data-i18n="nav.about">About</span></a>
+      </nav>
+      <div class="nav-actions">
+        <button class="ghost-icon" id="themeToggle" type="button" aria-label="Toggle dark mode"><svg><use href="#icon-moon"></use></svg></button>
+        <button class="ghost-icon" id="languageToggle" type="button" aria-label="Switch to Chinese">ZH</button>
+        <a class="github-button" href="https://github.com/xushanpei/open-file-viewer" target="_blank" rel="noreferrer"><svg><use href="#icon-github"></use></svg><span>GitHub</span><span class="gh-stars" data-gh-stars hidden></span></a>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="api-doc-hero">
+        <p data-i18n="api.hero.eyebrow">API Documentation</p>
+        <h1 data-i18n="api.hero.title">Open File Viewer integration and API guide</h1>
+        <div>
+          <a class="primary-button" href="#quick-start"><span data-i18n="action.getStarted">Get Started</span><svg><use href="#icon-arrow"></use></svg></a>
+          <a class="secondary-button" href="/#playground"><svg><use href="#icon-eye"></use></svg><span data-i18n="action.liveDemo">Live Demo</span></a>
+        </div>
+      </section>
+
+      <section class="api-doc-layout">
+        <aside class="api-sidebar" aria-label="API sections" data-i18n-aria-label="aria.apiSections">
+          <strong data-i18n="contents">Contents</strong>
+          <a href="#overview" data-i18n="api.sidebar.overview">Overview</a>
+          <a href="#frameworks" data-i18n="api.sidebar.frameworks">Frameworks</a>
+          <a href="#install" data-i18n="api.sidebar.install">Installation</a>
+          <a href="#optional-deps" data-i18n="api.sidebar.optional">Optional dependencies</a>
+          <a href="#quick-start" data-i18n="api.sidebar.quickStart">Quick start</a>
+          <a href="#options" data-i18n="api.sidebar.core">Core API</a>
+          <a href="#instance" data-i18n="api.sidebar.instance">Instance methods</a>
+          <a href="#toolbar" data-i18n="api.sidebar.toolbar">Toolbar customization</a>
+          <a href="#plugins" data-i18n="api.sidebar.plugins">Plugin protocol</a>
+          <a href="#formats" data-i18n="api.sidebar.builtIn">Built-in plugins</a>
+          <a href="#faq" data-i18n="api.sidebar.faq">FAQ</a>
+        </aside>
+
+        <div class="api-doc-content">
+          <section class="doc-panel" id="overview">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.overview">Overview</p>
+            <h2 data-i18n="api.overview.title">Start file previews from one stable container</h2>
+            <p data-i18n="api.overview.body">
+              Open File Viewer combines a framework-agnostic core with UI adapters. The core handles file detection, plugin matching, container sizing, toolbar commands, fallbacks and lifecycle events. React, Vue and Svelte adapters expose the same capability as components.
+            </p>
+            <div class="doc-kpi-grid">
+              <div><strong>4</strong><span>Vanilla JS / React / Vue / Svelte</span></div>
+              <div><strong>15+</strong><span data-i18n="api.overview.plugins">Built-in preview plugins</span></div>
+              <div><strong>1</strong><span data-i18n="api.overview.protocol">Unified plugin protocol</span></div>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="frameworks">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.frameworks">Frameworks</p>
+            <h2 data-i18n="api.frameworks.title">Supported frameworks</h2>
+            <div class="doc-card-grid">
+              <article>
+                <strong>Vanilla JavaScript</strong>
+                <p data-i18n="api.frameworks.vanilla">Call <code>createViewer()</code> directly in any web page, low-code platform, micro-frontend container or framework-free project.</p>
+              </article>
+              <article>
+                <strong>React</strong>
+                <p data-i18n="api.frameworks.react">Use the <code>FileViewer</code> component from <code>@open-file-viewer/react</code>, including <code>renderToolbar</code> for complete toolbar replacement.</p>
+              </article>
+              <article>
+                <strong>Vue</strong>
+                <p data-i18n="api.frameworks.vue">Use the <code>OpenFileViewer</code> component from <code>@open-file-viewer/vue</code>, with a <code>#toolbar</code> slot.</p>
+              </article>
+              <article>
+                <strong>Svelte</strong>
+                <p data-i18n="api.frameworks.svelte">Use the <code>OpenFileViewer</code> component from <code>@open-file-viewer/svelte</code>, with <code>slot="toolbar"</code> and <code>renderToolbar</code>.</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="install">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.install">Install</p>
+            <h2 data-i18n="api.install.title">Installation</h2>
+            <p data-i18n="api.install.body">Install the core package, then add the adapter for your framework when needed.</p>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>terminal</strong></div>
+              <pre><code data-language="bash">npm install @open-file-viewer/core
+npm install @open-file-viewer/react
+npm install @open-file-viewer/vue
+npm install @open-file-viewer/svelte</code></pre>
+            </div>
+            <div class="doc-callout">
+              <strong data-i18n="api.install.stylesTitle">Import the stylesheet</strong>
+              <p data-i18n="api.install.stylesBody">The default UI, toolbar, error states and plugin containers depend on <code>@open-file-viewer/core/style.css</code>. Override CSS variables or classes after this import.</p>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="optional-deps">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.optional">Optional Dependencies</p>
+            <h2 data-i18n="api.optional.title">Optional enhanced capabilities</h2>
+            <p data-i18n="api.optional.body">The default core install contains common preview capabilities. A few proprietary or streaming formats need optional dependencies. Without them, plugins show metadata or a download fallback without affecting ordinary previews.</p>
+            <div class="doc-card-grid">
+              <article>
+                <strong>PDF</strong>
+                <p data-i18n="api.optional.pdf"><code>pdfPlugin()</code> requires the host app to provide a <code>pdfjs-dist</code> worker URL so Vite, Webpack, Next.js and other build systems can handle worker assets correctly.</p>
+              </article>
+              <article>
+                <strong>DWG</strong>
+                <p data-i18n="api.optional.dwg"><code>cadPlugin({ webglDwg })</code> uses a Worker-backed WebGL CAD scene for complex DWG files. The host copies the parser and MTEXT Workers into a public static directory. Without that option, the lightweight LibreDWG SVG path remains available.</p>
+              </article>
+              <article>
+                <strong>FLV / M2TS</strong>
+                <p data-i18n="api.optional.video"><code>videoPlugin()</code> needs no extra dependency for native formats such as MP4, WebM and MOV. Pass <code>{ controlsList: "nodownload" }</code> to hide Chromium's native Download item. This browser UI hint does not disable the viewer toolbar or fallback downloads. FLV and MPEG-TS/M2TS require <code>mpegts.js</code>; otherwise a download fallback is shown.</p>
+              </article>
+            </div>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>terminal</strong></div>
+              <pre><code data-language="bash">npm install pdfjs-dist
+npm install @mlightcad/cad-simple-viewer@1.5.9 @mlightcad/data-model@1.12.3 lodash-es@4.17.21
+npm install @mlightcad/libredwg-web@0.7.4
+npm install mpegts.js</code></pre>
+            </div>
+            <div class="doc-callout">
+              <strong data-i18n="api.optional.dwgSetupTitle">Recommended DWG setup</strong>
+              <p data-i18n="api.optional.dwgSetupBody">Install the pinned optional dependencies, add the copy script below to the host application's <code>scripts/</code> directory, and run it in <code>predev</code>/<code>prebuild</code>. The example targets the conventional <code>public/</code> static directory. After startup, verify both CAD Workers and the lightweight SVG engine assets return 200.</p>
+            </div>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>scripts/copy-libredwg-assets.mjs</strong></div>
+              <pre><code data-language="javascript">import { copyFile, cp, mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const moduleEntry = fileURLToPath(import.meta.resolve("@mlightcad/libredwg-web"));
+const packageRoot = dirname(dirname(moduleEntry));
+const targetRoot = fileURLToPath(
+  new URL("../public/vendor/libredwg-web/", import.meta.url)
+);
+const viewerEntry = fileURLToPath(import.meta.resolve("@mlightcad/cad-simple-viewer"));
+const viewerRoot = dirname(dirname(viewerEntry));
+const viewerTarget = fileURLToPath(
+  new URL("../public/vendor/cad-engine/", import.meta.url)
+);
+
+await Promise.all([
+  mkdir(targetRoot, { recursive: true }),
+  mkdir(viewerTarget, { recursive: true })
+]);
+await Promise.all([
+  cp(join(packageRoot, "dist"), join(targetRoot, "dist"), {
+    recursive: true,
+    force: true
+  }),
+  cp(join(packageRoot, "wasm"), join(targetRoot, "wasm"), {
+    recursive: true,
+    force: true
+  }),
+  copyFile(
+    join(viewerRoot, "dist/libredwg-parser-worker.js"),
+    join(viewerTarget, "libredwg-parser-worker.js")
+  ),
+  copyFile(
+    join(viewerRoot, "dist/mtext-renderer-worker.js"),
+    join(viewerTarget, "mtext-renderer-worker.js")
+  )
+]);</code></pre>
+            </div>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>package.json</strong></div>
+              <pre><code data-language="json">{
+  "scripts": {
+    "assets:dwg": "node scripts/copy-libredwg-assets.mjs",
+    "predev": "npm run assets:dwg",
+    "prebuild": "npm run assets:dwg"
+  }
+}</code></pre>
+            </div>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>viewer.ts</strong></div>
+              <pre><code data-language="typescript">cadPlugin({
+  webglDwg: {
+    // Host-owned loading keeps non-CAD builds free of the optional engine
+    // and gives strict esbuild resolution an explicit import.
+    engineLoader: () =&gt; import("@mlightcad/cad-simple-viewer"),
+    workerBaseUrl: "/vendor/cad-engine"
+  },
+  libreDwg: {
+    wasmBaseUrl: "/vendor/libredwg-web/wasm",
+    workerModuleUrl: "/vendor/libredwg-web/dist/libredwg-web.js",
+    workerTimeoutMs: 120_000
+  }
+});</code></pre>
+            </div>
+            <div class="doc-callout">
+              <strong data-i18n="api.optional.dwgDeployTitle">DWG deployment check</strong>
+              <p data-i18n="api.optional.dwgDeployBody">The two files below <code>/vendor/cad-engine/</code> and the lightweight SVG engine assets must be reachable. Add the application's public base path for subpath deployments, serve WASM as <code>application/wasm</code>, and allow Workers in CSP.</p>
+            </div>
+            <div class="doc-callout">
+              <strong data-i18n="api.optional.pnpmTitle">pnpm 11 / blockExoticSubdeps note</strong>
+              <p data-i18n="api.optional.pnpmBody">An upstream dependency of <code>mpegts.js</code> references <code>webworkify-webpack</code> through git, so Open File Viewer no longer makes it a required core dependency. Install it only for FLV/M2TS playback. If pnpm blocks git subdependencies, override it with the npm release or keep the built-in download fallback.</p>
+            </div>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>package.json</strong></div>
+              <pre><code data-language="json">{
+  "pnpm": {
+    "overrides": {
+      "webworkify-webpack": "2.1.5"
+    }
+  }
+}</code></pre>
+            </div>
+            <div class="doc-callout">
+              <strong data-i18n="api.optional.umiTitle">Umi / utoo PDF compatibility</strong>
+              <p data-i18n="api.optional.umiBody">If the PDF and worker are reachable but the preview still falls back with <code>Cannot set properties of undefined (setting 'onPull')</code>, enable <code>useFetchData</code>. The main thread will read the PDF bytes before passing them to pdf.js, avoiding worker network-stream compatibility issues.</p>
+            </div>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>viewer.ts</strong></div>
+              <pre><code data-language="typescript">pdfPlugin({
+  workerSrc,
+  useFetchData: true
+});</code></pre>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="quick-start">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.quickStart">Quick Start</p>
+            <h2 data-i18n="api.quickStart.title">Integration examples</h2>
+            <div class="doc-tabs">
+              <article>
+                <h3>Vanilla JS</h3>
+                <div class="editor-window doc-code-window">
+                  <div class="editor-titlebar"><span></span><span></span><span></span><strong>viewer.ts</strong></div>
+                  <pre><code data-language="typescript">import {
+  createViewer,
+  imagePlugin,
+  officePlugin,
+  pdfPlugin,
+  textPlugin
+} from "@open-file-viewer/core";
+import "@open-file-viewer/core/style.css";
+import workerSrc from "pdfjs-dist/build/pdf.worker.mjs?url";
+
+const viewer = createViewer({
+  container: "#viewer",
+  file,
+  fileName: file.name,
+  height: "70vh",
+  theme: "auto",
+  toolbar: true,
+  plugins: [
+    imagePlugin(),
+    pdfPlugin({ workerSrc }),
+    officePlugin(),
+    textPlugin()
+  ]
+});</code></pre>
+                </div>
+              </article>
+              <article>
+                <h3>React</h3>
+                <div class="editor-window doc-code-window">
+                  <div class="editor-titlebar"><span></span><span></span><span></span><strong>AttachmentPreview.tsx</strong></div>
+                  <pre><code data-language="tsx">import { FileViewer } from "@open-file-viewer/react";
+import { imagePlugin, officePlugin, pdfPlugin, textPlugin } from "@open-file-viewer/core";
+import "@open-file-viewer/core/style.css";
+
+const plugins = [imagePlugin(), pdfPlugin({ workerSrc }), officePlugin(), textPlugin()];
+
+export function AttachmentPreview({ file }: { file: File }) {
+  return (
+    &lt;FileViewer
+      file={file}
+      fileName={file.name}
+      height="640px"
+      toolbar
+      plugins={plugins}
+    /&gt;
+  );
+}</code></pre>
+                </div>
+              </article>
+              <article>
+                <h3>Vue</h3>
+                <div class="editor-window doc-code-window">
+                  <div class="editor-titlebar"><span></span><span></span><span></span><strong>AttachmentPreview.vue</strong></div>
+                  <pre><code data-language="markup">&lt;script setup lang="ts"&gt;
+import { OpenFileViewer } from "@open-file-viewer/vue";
+import { imagePlugin, officePlugin, pdfPlugin, textPlugin } from "@open-file-viewer/core";
+import "@open-file-viewer/core/style.css";
+
+defineProps&lt;{ file: File }&gt;();
+const plugins = [imagePlugin(), pdfPlugin({ workerSrc }), officePlugin(), textPlugin()];
+&lt;/script&gt;
+
+&lt;template&gt;
+  &lt;OpenFileViewer
+    :file="file"
+    :file-name="file.name"
+    height="640px"
+    toolbar
+    :plugins="plugins"
+  /&gt;
+&lt;/template&gt;</code></pre>
+                </div>
+              </article>
+              <article>
+                <h3>Svelte</h3>
+                <div class="editor-window doc-code-window">
+                  <div class="editor-titlebar"><span></span><span></span><span></span><strong>AttachmentPreview.svelte</strong></div>
+                  <pre><code data-language="markup">&lt;script lang="ts"&gt;
+  import { OpenFileViewer } from "@open-file-viewer/svelte";
+  import { imagePlugin, officePlugin, pdfPlugin, textPlugin } from "@open-file-viewer/core";
+  import "@open-file-viewer/core/style.css";
+
+  export let file: File;
+  const plugins = [imagePlugin(), pdfPlugin({ workerSrc }), officePlugin(), textPlugin()];
+&lt;/script&gt;
+
+&lt;OpenFileViewer {file} fileName={file.name} height="640px" toolbar {plugins} /&gt;</code></pre>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="options">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.core">Core API</p>
+            <h2><code>createViewer(options)</code></h2>
+            <div class="doc-table">
+              <div><strong>container</strong><code>HTMLElement | string</code><span data-i18n="api.options.container">Required. The viewer mount element; string values are resolved with <code>document.querySelector</code>.</span></div>
+              <div><strong>file</strong><code>File | Blob | string | ArrayBuffer</code><span data-i18n="api.options.file">Single-file source. Remote URLs must allow cross-origin access.</span></div>
+              <div><strong>files</strong><code>(PreviewSource | PreviewItem)[]</code><span data-i18n="api.options.files">Multi-file queue. The default toolbar can navigate to the previous and next item.</span></div>
+              <div><strong>initialIndex</strong><code>number</code><span data-i18n="api.options.initialIndex">Initial queue index. Defaults to the first file.</span></div>
+              <div><strong>fileName</strong><code>string</code><span data-i18n="api.options.fileName">Recommended when the source is not a <code>File</code>, because plugins use the extension for format detection.</span></div>
+              <div><strong>mimeType</strong><code>string</code><span data-i18n="api.options.mimeType">Additional MIME type for Blob, ArrayBuffer or remote URLs with unreliable extensions.</span></div>
+              <div><strong>width / height</strong><code>number | string</code><span data-i18n="api.options.size">Viewer dimensions. Common values include <code>100%</code>, <code>640px</code> and <code>70vh</code>.</span></div>
+              <div><strong>fit</strong><code>contain | cover | width | height | actual | scale-down</code><span data-i18n="api.options.fit">Content fitting mode. Plugins follow the same semantics where possible.</span></div>
+              <div><strong>plugins</strong><code>PreviewPlugin[]</code><span data-i18n="api.options.plugins">Ordered plugin list. Put specific product plugins before general-purpose plugins.</span></div>
+              <div><strong>fallback</strong><code>inline | download | custom</code><span data-i18n="api.options.fallback">Fallback strategy for unsupported files. Use with <code>renderFallback</code> for complete customization.</span></div>
+              <div><strong>toolbar</strong><code>boolean | PreviewToolbarOptions</code><span data-i18n="api.options.toolbar">Default toolbar switch or configuration for actions, labels, icons, order and custom commands.</span></div>
+              <div><strong>theme</strong><code>light | dark | auto</code><span data-i18n="api.options.theme">Viewer theme. <code>auto</code> follows the system or host environment.</span></div>
+              <div><strong>className</strong><code>string</code><span data-i18n="api.options.className">Custom class added to the root element for scoped style overrides.</span></div>
+              <div><strong>onLoad</strong><code>(file) =&gt; void</code><span data-i18n="api.options.onLoad">Runs after the current file loads successfully.</span></div>
+              <div><strong>onError</strong><code>(error, file?) =&gt; void</code><span data-i18n="api.options.onError">Runs when plugin rendering or file reading fails.</span></div>
+              <div><strong>onUnsupported</strong><code>(file) =&gt; void</code><span data-i18n="api.options.onUnsupported">Runs when no plugin matches the current file.</span></div>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="instance">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.instance">Viewer Instance</p>
+            <h2 data-i18n="api.instance.title">Instance methods</h2>
+            <div class="doc-table compact">
+              <div><strong>reload(file?)</strong><code>Promise&lt;void&gt;</code><span data-i18n="api.instance.reload">Reload the current file or replace it with a new source.</span></div>
+              <div><strong>next()</strong><code>Promise&lt;void&gt;</code><span data-i18n="api.instance.next">Move to the next file in the queue.</span></div>
+              <div><strong>previous()</strong><code>Promise&lt;void&gt;</code><span data-i18n="api.instance.previous">Move to the previous file in the queue.</span></div>
+              <div><strong>goTo(index)</strong><code>Promise&lt;void&gt;</code><span data-i18n="api.instance.goTo">Move to a specific queue index.</span></div>
+              <div><strong>getCurrentIndex()</strong><code>number</code><span data-i18n="api.instance.getIndex">Return the current queue index.</span></div>
+              <div><strong>resize()</strong><code>void</code><span data-i18n="api.instance.resize">Ask the active plugin to recalculate after the container size changes.</span></div>
+              <div><strong>destroy()</strong><code>void</code><span data-i18n="api.instance.destroy">Destroy the viewer and release event listeners and plugin resources.</span></div>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="toolbar">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.toolbar">Toolbar</p>
+            <h2 data-i18n="api.toolbar.title">Toolbar customization</h2>
+            <p data-i18n="api.toolbar.body">Customize the toolbar at three levels: configure built-in actions, add product actions or replace the renderer. You can also override <code>.ofv-toolbar</code>, <code>.ofv-toolbar button</code> and <code>.ofv-toolbar-search</code>.</p>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>toolbar.ts</strong></div>
+              <pre><code data-language="typescript">createViewer({
+  container: "#viewer",
+  file,
+  toolbar: {
+    labels: {
+      download: "Download",
+      fullscreen: "Fullscreen",
+      search: "Search"
+    },
+    order: ["search", "download", "favorite", "approve", "share", "fullscreen"],
+    actions: [
+      { id: "favorite", label: "Favorite", onClick: (ctx) =&gt; favoriteFile(ctx.file) },
+      { id: "approve", label: "Approve", onClick: (ctx) =&gt; openApproval(ctx.file) },
+      { id: "share", label: "Share", onClick: (ctx) =&gt; shareFile(ctx.file) }
+    ]
+  },
+  plugins
+});</code></pre>
+            </div>
+            <div class="doc-card-grid">
+              <article><strong data-i18n="api.toolbar.labelsTitle">Custom labels</strong><p data-i18n="api.toolbar.labelsBody">Use <code>labels</code> and <code>titles</code> to adapt actions to product terminology.</p></article>
+              <article><strong data-i18n="api.toolbar.orderTitle">Custom order</strong><p data-i18n="api.toolbar.orderBody"><code>order</code> accepts both built-in and custom action IDs.</p></article>
+              <article><strong data-i18n="api.toolbar.iconsTitle">Custom icons</strong><p data-i18n="api.toolbar.iconsBody"><code>icons</code> accepts SVG strings, HTMLElement or SVGElement values.</p></article>
+              <article><strong data-i18n="api.toolbar.actionsTitle">Product actions</strong><p data-i18n="api.toolbar.actionsBody"><code>actions</code> adds approval, favorite, sharing and other actions with hidden and disabled functions.</p></article>
+            </div>
+            <h3 data-i18n="api.toolbar.replaceTitle">Replace the toolbar in React, Vue or Svelte</h3>
+            <div class="doc-tabs">
+              <article>
+                <h3>React render prop</h3>
+                <pre><code data-language="tsx">&lt;FileViewer
+  file={file}
+  toolbar
+  renderToolbar={(ctx) =&gt; (
+    &lt;div className="business-toolbar"&gt;
+      &lt;button onClick={ctx.previous} disabled={!ctx.canPrevious}&gt;Previous&lt;/button&gt;
+      &lt;span&gt;{ctx.index + 1} / {ctx.length}&lt;/span&gt;
+      &lt;button onClick={ctx.download}&gt;Download&lt;/button&gt;
+      &lt;button onClick={() =&gt; approve(ctx.file)}&gt;Approve&lt;/button&gt;
+    &lt;/div&gt;
+  )}
+/&gt;</code></pre>
+              </article>
+              <article>
+                <h3>Vue slot</h3>
+                <pre><code data-language="markup">&lt;OpenFileViewer :file="file" toolbar&gt;
+  &lt;template #toolbar="ctx"&gt;
+    &lt;div class="business-toolbar"&gt;
+      &lt;button @click="ctx.previous()" :disabled="!ctx.canPrevious"&gt;Previous&lt;/button&gt;
+      &lt;span&gt;{{ ctx.index + 1 }} / {{ ctx.length }}&lt;/span&gt;
+      &lt;button @click="ctx.download()"&gt;Download&lt;/button&gt;
+      &lt;button @click="approve(ctx.file)"&gt;Approve&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/template&gt;
+&lt;/OpenFileViewer&gt;</code></pre>
+              </article>
+              <article>
+                <h3>Svelte slot</h3>
+                <pre><code data-language="markup">&lt;OpenFileViewer {file} toolbar&gt;
+  &lt;svelte:fragment slot="toolbar" let:ctx&gt;
+    &lt;div class="business-toolbar"&gt;
+      &lt;button on:click={ctx.previous} disabled={!ctx.canPrevious}&gt;Previous&lt;/button&gt;
+      &lt;span&gt;{ctx.index + 1} / {ctx.length}&lt;/span&gt;
+      &lt;button on:click={ctx.download}&gt;Download&lt;/button&gt;
+      &lt;button on:click={() =&gt; approve(ctx.file)}&gt;Approve&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/svelte:fragment&gt;
+&lt;/OpenFileViewer&gt;</code></pre>
+              </article>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="plugins">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.plugins">Plugin Protocol</p>
+            <h2 data-i18n="api.plugins.title">Plugin protocol</h2>
+            <p data-i18n="api.plugins.body">A plugin only needs to implement <code>match(file)</code> and <code>render(ctx)</code>. The core selects the first matching plugin in array order and passes it a consistent rendering context.</p>
+            <div class="editor-window doc-code-window">
+              <div class="editor-titlebar"><span></span><span></span><span></span><strong>custom-plugin.ts</strong></div>
+              <pre><code data-language="typescript">import type { PreviewPlugin } from "@open-file-viewer/core";
+
+export function customReportPlugin(): PreviewPlugin {
+  return {
+    name: "custom-report",
+    match(file) {
+      return file.extension === "report" || file.mimeType === "application/x-report";
+    },
+    render(ctx) {
+      const element = document.createElement("div");
+      element.className = "report-preview";
+      element.textContent = ctx.file.name;
+      ctx.viewport.append(element);
+
+      return {
+        resize(size) {
+          element.style.setProperty("--viewer-width", `${size.width}px`);
+        },
+        command(command) {
+          if (command === "zoom-in") {
+            element.classList.add("zoomed");
+            return true;
+          }
+          return false;
+        },
+        destroy() {
+          element.remove();
+        }
+      };
+    }
+  };
+}</code></pre>
+            </div>
+            <div class="doc-callout">
+              <strong data-i18n="api.plugins.orderTitle">Plugin order matters</strong>
+              <p data-i18n="api.plugins.orderBody">Put product-specific formats or server conversion plugins before general-purpose plugins so <code>textPlugin</code> or a fallback does not match first.</p>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="formats">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.builtIn">Built-in Plugins</p>
+            <h2 data-i18n="api.builtIn.title">Built-in plugins</h2>
+            <div class="doc-card-grid three">
+              <article><strong>imagePlugin</strong><p data-i18n="api.builtIn.image">Image formats including jpg, png, gif, webp, avif, svg, bmp, ico, heic and heif.</p></article>
+              <article><strong>pdfPlugin</strong><p data-i18n="api.builtIn.pdf">PDF rendering, zoom, search, print and high-resolution canvas output.</p></article>
+              <article><strong>officePlugin</strong><p data-i18n="api.builtIn.office">Office and OpenDocument formats including doc, docx, xls, xlsx, pptx, rtf, odt, ods and odp.</p></article>
+              <article><strong>textPlugin</strong><p data-i18n="api.builtIn.text">txt, md, json, yaml, toml, source code and syntax highlighting.</p></article>
+              <article><strong>archivePlugin</strong><p data-i18n="api.builtIn.archive">Archive directories and file structures for zip, rar, 7z, tar, gz and more.</p></article>
+              <article><strong>gisPlugin</strong><p data-i18n="api.builtIn.gis">Map data including geojson, kml, kmz, gpx, topojson and shp.</p></article>
+              <article><strong>model3dPlugin</strong><p data-i18n="api.builtIn.model3d">3D models including gltf, glb, obj, stl, fbx, dae, 3mf and usdz.</p></article>
+              <article><strong>cadPlugin</strong><p data-i18n="api.builtIn.cad">Engineering drawings and chip layouts including dxf, dwg, step, ifc, gds and oas. Complex DWG files can use the Worker-backed WebGL CAD scene; the lightweight SVG and custom renderer paths remain available.</p></article>
+              <article><strong>emailPlugin</strong><p data-i18n="api.builtIn.email">Email bodies, headers and attachment structures for eml, msg and mbox.</p></article>
+            </div>
+          </section>
+
+          <section class="doc-panel" id="faq">
+            <p class="doc-eyebrow" data-i18n="api.eyebrow.faq">FAQ</p>
+            <h2 data-i18n="api.faq.title">Frequently asked questions</h2>
+            <div class="doc-faq">
+              <details open>
+                <summary data-i18n="api.faq.remoteTitle">Why does a remote URL preview fail?</summary>
+                <p data-i18n="api.faq.remoteBody">The browser must be able to access the file directly and the origin must allow CORS. For private files, use a temporary URL from your backend or fetch the resource into a Blob before passing it to the viewer.</p>
+              </details>
+              <details>
+                <summary data-i18n="api.faq.resizeTitle">How do I avoid layout issues after the container width changes?</summary>
+                <p data-i18n="api.faq.resizeBody">Give the outer container stable width and height values, then call <code>resize()</code> after layout changes. Built-in plugins keep scrolling inside the preview container where possible.</p>
+              </details>
+              <details>
+                <summary data-i18n="api.faq.convertTitle">How do I connect a server-side conversion service?</summary>
+                <p data-i18n="api.faq.convertBody">Create a custom plugin, call the conversion service from <code>render(ctx)</code>, then render the returned HTML, image, PDF or structured data into <code>ctx.viewport</code>.</p>
+              </details>
+              <details>
+                <summary data-i18n="api.faq.qiankunTitle">Why do Office previews hang on "Loading" inside qiankun / micro-app?</summary>
+                <p data-i18n="api.faq.qiankunBody">Micro-frontend sandboxes tear down the window <code>message</code> listeners that jszip's <code>setImmediate</code> polyfill relies on, so <code>JSZip.loadAsync</code> never resolves and zip-based previews (docx, xlsx, pptx, epub, ofd) stay on the loading state. Newer versions detect sandbox flags such as <code>__POWERED_BY_QIANKUN__</code> and switch to a MessageChannel-based scheduler automatically. On 0.1.27 and earlier, patch <code>window.setImmediate = (fn, ...args) =&gt; setTimeout(fn, 0, ...args)</code> in the sub-app entry before any imports.</p>
+              </details>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Open File Viewer</span>
+      <span data-i18n="footer.text">Framework-agnostic file preview SDK for modern web products.</span>
+    </footer>
+
+    <script type="module" src="/src/api.ts"></script>
+  </body>
+</html>

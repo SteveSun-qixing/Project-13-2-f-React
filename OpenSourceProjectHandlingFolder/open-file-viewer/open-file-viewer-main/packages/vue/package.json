@@ -1,0 +1,45 @@
+{
+  "name": "@open-file-viewer/vue",
+  "version": "0.1.43",
+  "description": "Vue adapter for Open File Viewer.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://open-file-viewer-workspace.void.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xushanpei/open-file-viewer.git",
+    "directory": "packages/vue"
+  },
+  "bugs": {
+    "url": "https://github.com/xushanpei/open-file-viewer/issues"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@open-file-viewer/core": "0.1.43",
+    "vue": ">=3"
+  },
+  "devDependencies": {
+    "@open-file-viewer/core": "workspace:*",
+    "vue": "^3.5.13"
+  }
+}
