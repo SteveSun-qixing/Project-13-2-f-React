@@ -1,4 +1,4 @@
-# 应用启动图标说明
+# UniversalFileViewer 应用插件图标来源说明
 
 - 正式设计源目录：`design-assets/Appicon/`
 - 对应设计源文件：`UniversalFileViewer.png/.ico/.icns/.svg`

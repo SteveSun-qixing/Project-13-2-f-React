@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 960 960" xmlns="http://www.w3.org/2000/svg">
+  <title>Sheet - Material Symbols table_chart</title>
+  <rect x="0" y="0" width="960" height="960" fill="#ffffff"/>
+  <g transform="translate(0 960)">
+  <path d="M760-120H200q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120ZM200-640h560v-120H200v120Zm100 80H200v360h100v-360Zm360 0v360h100v-360H660Zm-80 0H380v360h200v-360Z" fill="#000000"/>
+  </g>
+</svg>
