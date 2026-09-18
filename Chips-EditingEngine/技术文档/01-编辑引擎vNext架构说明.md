@@ -83,7 +83,8 @@ src/main.tsx
 - 箱子：`box.create/rename` + `box.session.*`，本仓 `services/box-document-service.ts` 为纯会话消费层；
 - ZIP 目录导入：`resource.importArchive`（本仓 archive-import 本地实现已归档）；
 - 封面能力：`chips.module.cover` 共享模块（本仓 `services/cover-service.ts` 模块优先 + fallback，UI 保留）；
-- 工作区：`workspace.scan`（本仓 workspace-service 扫描/建卡走 Host 动作）；
+- 工作区：`workspace.getContext` + `workspace.scan`（本仓 workspace-service 扫描卡片、箱子及所有普通文件；普通文件保留 MIME、扩展名、分类、文档类型和大小元数据）；
+- Office 原格式文件：编辑引擎只消费工作区文件视图并转交对应应用插件；DOCX/PPTX/XLSX/PDF 的字节会话由 Host `office.document.*` 与 SDK `client.office` 托管，不在本仓复制文件路径或实现第二套保存链路；
 - 文件类型识别：`file.detectType`（拖放识别扩展名兜底走 SDK guessMimeType）。
 
 自动保存与 undo/redo 由 Host 会话管理，本仓只订阅事件（card.session.persisted/persist-error 等）与代理历史视图。

@@ -17,8 +17,9 @@ type MockFileEntry = {
 
 const { mockFileService, mockClient } = vi.hoisted(() => ({
   mockFileService: {
-    readText: vi.fn<[string], Promise<string>>(),
-    writeText: vi.fn<[string, string], Promise<void>>(),
+      readText: vi.fn<[string], Promise<string>>(),
+      writeText: vi.fn<[string, string], Promise<void>>(),
+      writeBinary: vi.fn<[string, Uint8Array], Promise<void>>(),
     stat: vi.fn<[string], Promise<MockFileStat>>(),
     exists: vi.fn<[string], Promise<boolean>>(),
       ensureDir: vi.fn<[string], Promise<void>>(),
@@ -153,6 +154,10 @@ describe('WorkspaceService', () => {
 
     mockFileService.writeText.mockImplementation(async (targetPath, content) => {
       setFile(targetPath, content);
+    });
+
+    mockFileService.writeBinary.mockImplementation(async (targetPath, content) => {
+      setFile(targetPath, new TextDecoder().decode(content));
     });
 
     mockFileService.exists.mockImplementation(async (targetPath) => {
@@ -474,5 +479,60 @@ describe('WorkspaceService', () => {
 
     await expect(service.createCard('新卡片', undefined, 'Abc123XyZ9')).rejects.toThrow('当前工作区未绑定，无法创建卡片。');
     expect(mockFileService.writeText).not.toHaveBeenCalled();
+  });
+
+  it('indexes and exposes generic files with resource metadata', async () => {
+    mockClient.workspace.scan.mockResolvedValueOnce([
+      {
+        id: '/workspace/报告.docx',
+        name: '报告.docx',
+        path: '/workspace/报告.docx',
+        type: 'file',
+        extension: '.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        category: 'document',
+        size: 42,
+        createdAt: '2026-05-20T00:00:00.000Z',
+        modifiedAt: '2026-05-21T00:00:00.000Z',
+      },
+    ] as never);
+
+    const service = new WorkspaceService();
+    await service.initialize();
+
+    const file = service.getFileByPath('/workspace/报告.docx');
+    expect(file).toMatchObject({
+      type: 'file',
+      extension: '.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      category: 'document',
+      size: 42,
+    });
+
+    const opened = vi.fn();
+    service.on('workspace:file-opened', opened);
+    const target = service.openFile('/workspace/报告.docx');
+    expect(target).toMatchObject({
+      type: 'file',
+      path: '/workspace/报告.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    expect(opened).toHaveBeenCalledWith(expect.objectContaining({ target }));
+  });
+
+  it('creates a binary file through the formal file service and indexes it', async () => {
+    const service = new WorkspaceService();
+    await service.initialize();
+    const created = await service.createFile('新文档.docx', new Uint8Array([80, 75, 3, 4]), {
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+
+    expect(mockFileService.writeBinary).toHaveBeenCalledWith('/workspace/新文档.docx', expect.any(Uint8Array));
+    expect(created).toMatchObject({
+      type: 'file',
+      path: '/workspace/新文档.docx',
+      extension: '.docx',
+      category: 'document',
+    });
   });
 });

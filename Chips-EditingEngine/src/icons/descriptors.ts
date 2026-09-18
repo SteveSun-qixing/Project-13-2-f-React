@@ -66,7 +66,7 @@ export const ENGINE_ICONS = {
   zip: icon("folder_zip"),
 } as const;
 
-export function getWorkspaceFileIcon(file: Pick<WorkspaceFile, "type" | "expanded">): IconDescriptor {
+export function getWorkspaceFileIcon(file: Pick<WorkspaceFile, "type" | "expanded" | "extension" | "mimeType" | "category">): IconDescriptor {
   if (file.type === "folder") {
     return file.expanded ? ENGINE_ICONS.folderOpen : ENGINE_ICONS.folderClosed;
   }
@@ -75,6 +75,18 @@ export function getWorkspaceFileIcon(file: Pick<WorkspaceFile, "type" | "expande
   }
   if (file.type === "box") {
     return ENGINE_ICONS.box;
+  }
+  if (file.category === "image" || file.mimeType?.startsWith("image/")) {
+    return ENGINE_ICONS.image;
+  }
+  if (file.extension === ".pdf" || file.mimeType === "application/pdf") {
+    return ENGINE_ICONS.pdf;
+  }
+  if (file.category === "archive" || [".zip", ".7z", ".rar", ".tar", ".gz"].includes(file.extension ?? "")) {
+    return ENGINE_ICONS.zip;
+  }
+  if (file.category === "html" || file.extension === ".html" || file.extension === ".htm") {
+    return ENGINE_ICONS.html;
   }
   return ENGINE_ICONS.document;
 }
