@@ -5,9 +5,9 @@
  * 渲染进程侧对应能力为 `client.file.detectType`（走本模块实现的动作）。
  */
 
-import { guessMimeType } from './mime';
+import { getFileExtension, guessMimeType } from './mime';
 
-export type DetectDocumentType = 'card' | 'box';
+export type DetectDocumentType = 'card' | 'box' | 'word' | 'slide' | 'sheet' | 'pdf';
 
 export type DetectCategory =
   | 'document'
@@ -23,26 +23,36 @@ export interface DetectTypeResult {
   documentType: DetectDocumentType | null;
   mimeType: string;
   category: DetectCategory;
+  extension: string | null;
+  size: number | null;
 }
 
 /** 按路径进行结构化文件类型识别。 */
-export const detectTypeByPath = (path: string): DetectTypeResult => {
+export const detectTypeByPath = (path: string, size: number | null = null): DetectTypeResult => {
   const normalizedPath = path.replace(/\\/g, '/').trim();
-  const lowerPath = normalizedPath.toLowerCase();
+  const extension = getFileExtension(normalizedPath);
 
   let documentType: DetectDocumentType | null = null;
-  if (lowerPath.endsWith('.card')) {
+  if (extension === 'card') {
     documentType = 'card';
-  } else if (lowerPath.endsWith('.box')) {
+  } else if (extension === 'box') {
     documentType = 'box';
+  } else if (['doc', 'docx', 'docm', 'dot', 'dotx', 'dotm', 'rtf', 'odt'].includes(extension ?? '')) {
+    documentType = 'word';
+  } else if (['ppt', 'pptx', 'pptm', 'pot', 'potx', 'potm', 'odp'].includes(extension ?? '')) {
+    documentType = 'slide';
+  } else if (['xls', 'xlsx', 'xlsm', 'xlsb', 'xlt', 'xltx', 'xltm', 'ods', 'csv', 'tsv'].includes(extension ?? '')) {
+    documentType = 'sheet';
+  } else if (extension === 'pdf') {
+    documentType = 'pdf';
   }
 
   const mimeType = guessMimeType(normalizedPath);
 
   let category: DetectCategory;
-  if (documentType === 'card' || documentType === 'box') {
+  if (documentType !== null) {
     category = 'document';
-  } else if (lowerPath.endsWith('.zip') || lowerPath.endsWith('.cpk')) {
+  } else if (extension === 'zip' || extension === 'cpk' || extension === '7z' || extension === 'tar' || extension === 'gz' || extension === 'rar') {
     category = 'archive';
   } else if (mimeType.startsWith('image/')) {
     category = 'image';
@@ -58,13 +68,22 @@ export const detectTypeByPath = (path: string): DetectTypeResult => {
     mimeType === 'application/pdf' ||
     mimeType === 'application/json' ||
     mimeType === 'application/yaml' ||
+    mimeType === 'application/xml' ||
     mimeType === 'application/msword' ||
-    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mimeType.startsWith('application/vnd.openxmlformats-officedocument.') ||
+    mimeType.startsWith('application/vnd.ms-') ||
+    mimeType.startsWith('application/vnd.oasis.opendocument.') ||
+    mimeType === 'application/rtf' ||
+    mimeType === 'application/epub+zip' ||
+    mimeType === 'application/x-mobipocket-ebook' ||
+    mimeType === 'application/vnd.amazon.ebook' ||
+    mimeType === 'application/x-fictionbook+xml'
   ) {
     category = 'document';
   } else {
     category = 'unknown';
   }
 
-  return { documentType, mimeType, category };
+  return { documentType, mimeType, category, extension, size };
 };

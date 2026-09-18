@@ -297,7 +297,7 @@ describe('ResourceOpenService', () => {
       }),
     ).resolves.toMatchObject({
       pluginId: 'chips.universal.viewer',
-      matchedCapability: 'file-handler:.xls',
+      matchedCapability: 'resource-handler:view:application/vnd.ms-excel',
     });
   });
 

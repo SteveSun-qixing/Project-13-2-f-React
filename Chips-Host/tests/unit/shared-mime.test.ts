@@ -24,6 +24,10 @@ describe('shared/mime 契约测试', () => {
     expect(guessMimeType('a.yaml')).toBe('application/yaml');
     expect(guessMimeType('a.yml')).toBe('application/yaml');
     expect(guessMimeType('a.pdf')).toBe('application/pdf');
+    expect(guessMimeType('a.docx')).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    expect(guessMimeType('a.pptx')).toBe('application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    expect(guessMimeType('a.xlsx')).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(guessMimeType('a.csv')).toBe('text/csv');
     expect(guessMimeType('a.txt')).toBe('text/plain');
     expect(guessMimeType('a.md')).toBe('text/markdown');
   });
@@ -43,5 +47,11 @@ describe('shared/mime 契约测试', () => {
   it('未知类型回退 octet-stream', () => {
     expect(guessMimeType('a.unknown')).toBe('application/octet-stream');
     expect(guessMimeType('noextension')).toBe('application/octet-stream');
+  });
+
+  it('忽略 URL 查询参数和片段', () => {
+    expect(guessMimeType('https://example.test/report.xlsx?download=1#sheet')).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
   });
 });

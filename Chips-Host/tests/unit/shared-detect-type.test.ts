@@ -5,16 +5,20 @@ describe('shared/detect-type 契约测试', () => {
   it('识别 .card 文件', () => {
     expect(detectTypeByPath('/tmp/hello.card')).toEqual({
       documentType: 'card',
-      mimeType: 'application/octet-stream',
+      mimeType: 'application/vnd.chips.card+zip',
       category: 'document',
+      extension: 'card',
+      size: null,
     });
   });
 
   it('识别 .box 文件', () => {
     expect(detectTypeByPath('/tmp/hello.box')).toEqual({
       documentType: 'box',
-      mimeType: 'application/octet-stream',
+      mimeType: 'application/vnd.chips.box+zip',
       category: 'document',
+      extension: 'box',
+      size: null,
     });
   });
 
@@ -28,6 +32,8 @@ describe('shared/detect-type 契约测试', () => {
       documentType: null,
       mimeType: 'image/png',
       category: 'image',
+      extension: 'png',
+      size: null,
     });
     expect(detectTypeByPath('/tmp/a.jpeg').category).toBe('image');
   });
@@ -44,6 +50,8 @@ describe('shared/detect-type 契约测试', () => {
       documentType: null,
       mimeType: 'text/html',
       category: 'html',
+      extension: 'html',
+      size: null,
     });
     expect(detectTypeByPath('/tmp/a.md').category).toBe('text');
   });
@@ -52,6 +60,10 @@ describe('shared/detect-type 契约测试', () => {
     expect(detectTypeByPath('/tmp/a.pdf').category).toBe('document');
     expect(detectTypeByPath('/tmp/a.docx').category).toBe('document');
     expect(detectTypeByPath('/tmp/a.doc').category).toBe('document');
+    expect(detectTypeByPath('/tmp/a.pptx').documentType).toBe('slide');
+    expect(detectTypeByPath('/tmp/a.xlsx').documentType).toBe('sheet');
+    expect(detectTypeByPath('/tmp/a.xlsx').category).toBe('document');
+    expect(detectTypeByPath('/tmp/a.pdf', 128).size).toBe(128);
   });
 
   it('识别压缩包为 archive', () => {
@@ -64,6 +76,8 @@ describe('shared/detect-type 契约测试', () => {
       documentType: null,
       mimeType: 'application/octet-stream',
       category: 'unknown',
+      extension: 'xyz',
+      size: null,
     });
   });
 });

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createError } from '../../../src/shared/errors';
+import { getFileExtension, guessMimeType } from '../../../src/shared/mime';
 import { resolveHandlerFromRecords, sanitizeHandlerPreferences } from './handler-resolver';
 
 type ResourceHandlerPluginType = 'app' | 'card' | 'layout' | 'module' | 'theme';
@@ -52,32 +53,6 @@ export interface ResourceOpenServiceOptions {
   openExternalUrl(url: string): Promise<void>;
 }
 
-const MIME_BY_EXTENSION: Record<string, string> = {
-  '.avif': 'image/avif',
-  '.bmp': 'image/bmp',
-  '.gif': 'image/gif',
-  '.azw': 'application/vnd.amazon.ebook',
-  '.azw3': 'application/vnd.amazon.ebook',
-  '.djv': 'image/vnd.djvu',
-  '.djvu': 'image/vnd.djvu',
-  '.doc': 'application/msword',
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.epub': 'application/epub+zip',
-  '.epub3': 'application/epub+zip',
-  '.fb2': 'application/x-fictionbook+xml',
-  '.jpeg': 'image/jpeg',
-  '.jpg': 'image/jpeg',
-  '.markdown': 'text/markdown',
-  '.md': 'text/markdown',
-  '.mobi': 'application/x-mobipocket-ebook',
-  '.pdf': 'application/pdf',
-  '.png': 'image/png',
-  '.rtf': 'application/rtf',
-  '.svg': 'image/svg+xml',
-  '.txt': 'text/plain',
-  '.webp': 'image/webp',
-};
-
 const normalizeIntent = (value: string | undefined): string => {
   const normalized = value?.trim().toLowerCase();
   return normalized && normalized.length > 0 ? normalized : 'view';
@@ -92,13 +67,14 @@ const inferMimeType = (extension: string | undefined): string | undefined => {
   if (!extension) {
     return undefined;
   }
-  return MIME_BY_EXTENSION[extension.toLowerCase()];
+  const normalized = extension.startsWith('.') ? extension.slice(1) : extension;
+  return guessMimeType(`resource.${normalized}`);
 };
 
 const resolveExtension = (filePath: string | undefined, resourceId: string): string | undefined => {
   const candidate = filePath ?? resourceId;
-  const extension = path.extname(candidate).trim().toLowerCase();
-  return extension.length > 0 ? extension : undefined;
+  const extension = getFileExtension(candidate);
+  return extension ? `.${extension}` : undefined;
 };
 
 export class ResourceOpenService {

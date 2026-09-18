@@ -64,9 +64,25 @@ describe('WorkspaceService 契约测试', () => {
 
     const files = await service.scan({ rootPath: root });
     const types = files.map((file) => file.type).sort();
-    expect(types).toEqual(['box', 'card', 'folder']);
+    expect(types).toEqual(['box', 'card', 'file', 'folder']);
+    const card = files.find((file) => file.type === 'card');
+    expect(card).toMatchObject({
+      name: 'plain.card',
+      extension: 'card',
+      mimeType: 'application/vnd.chips.card+zip',
+      category: 'document',
+      size: 1,
+    });
     const folder = files.find((file) => file.type === 'folder');
     expect(folder?.name).toBe('assets');
+    const generic = files.find((file) => file.type === 'file');
+    expect(generic).toMatchObject({
+      name: 'notes.txt',
+      extension: 'txt',
+      mimeType: 'text/plain',
+      category: 'text',
+      size: 1,
+    });
   });
 
   it('排除 Host 运行时目录', async () => {

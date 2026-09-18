@@ -14,6 +14,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import yaml from 'yaml';
 import { createError } from '../../../src/shared/errors';
+import { detectTypeByPath, type DetectCategory, type DetectDocumentType } from '../../../src/shared/detect-type';
 
 /** Host 运行时根目录条目（工作区根下排除，公共契约）。 */
 export const HOST_RUNTIME_ROOT_ENTRIES = new Set([
@@ -35,9 +36,15 @@ export interface WorkspaceFileView {
   id: string;
   name: string;
   path: string;
-  type: 'card' | 'box' | 'folder';
+  type: 'card' | 'box' | 'folder' | 'file';
   createdAt: string;
   modifiedAt: string;
+  /** Generic file metadata is present for every regular file. */
+  extension?: string | null;
+  mimeType?: string;
+  category?: DetectCategory;
+  documentType?: DetectDocumentType | null;
+  size?: number | null;
   children?: WorkspaceFileView[];
 }
 
@@ -99,10 +106,10 @@ const readDirEntries = async (dir: string): Promise<Array<{ name: string; isDire
   }
 };
 
-const statOf = async (targetPath: string): Promise<{ mtimeMs: number } | null> => {
+const statOf = async (targetPath: string): Promise<{ mtimeMs: number; size: number } | null> => {
   try {
     const stat = await fs.stat(targetPath);
-    return { mtimeMs: stat.mtimeMs };
+    return { mtimeMs: stat.mtimeMs, size: stat.size };
   } catch {
     return null;
   }
@@ -166,6 +173,7 @@ export class WorkspaceService {
 
       const lowerName = entry.name.toLowerCase();
       if (lowerName.endsWith('.card')) {
+        const metadata = detectTypeByPath(entryPath, stat.size);
         result.push({
           id: entryPath,
           name: entry.name,
@@ -173,9 +181,12 @@ export class WorkspaceService {
           type: 'card',
           createdAt: toIso(stat.mtimeMs),
           modifiedAt: toIso(stat.mtimeMs),
+          ...metadata,
         });
       } else if (lowerName.endsWith('.box')) {
-        result.push(await this.createWorkspaceBoxFile(entryPath, stat.mtimeMs));
+        result.push(await this.createWorkspaceBoxFile(entryPath, stat.mtimeMs, stat.size));
+      } else {
+        result.push(this.createWorkspaceGenericFile(entryPath, stat.mtimeMs, stat.size));
       }
     }
 
@@ -197,10 +208,11 @@ export class WorkspaceService {
       type: 'card',
       createdAt,
       modifiedAt,
+      ...detectTypeByPath(cardPath),
     };
   }
 
-  private async createWorkspaceBoxFile(boxPath: string, fallbackMtimeMs: number): Promise<WorkspaceFileView> {
+  private async createWorkspaceBoxFile(boxPath: string, fallbackMtimeMs: number, size: number): Promise<WorkspaceFileView> {
     const fileName = path.basename(boxPath);
 
     if (this.options.readBoxMetadata) {
@@ -214,6 +226,7 @@ export class WorkspaceService {
             type: 'box',
             createdAt: metadata.createdAt,
             modifiedAt: metadata.modifiedAt,
+            ...detectTypeByPath(boxPath, size),
           };
         }
       } catch {
@@ -228,6 +241,19 @@ export class WorkspaceService {
       type: 'box',
       createdAt: toIso(fallbackMtimeMs),
       modifiedAt: toIso(fallbackMtimeMs),
+      ...detectTypeByPath(boxPath, size),
+    };
+  }
+
+  private createWorkspaceGenericFile(filePath: string, mtimeMs: number, size: number): WorkspaceFileView {
+    return {
+      id: filePath,
+      name: path.basename(filePath),
+      path: filePath,
+      type: 'file',
+      createdAt: toIso(mtimeMs),
+      modifiedAt: toIso(mtimeMs),
+      ...detectTypeByPath(filePath, size),
     };
   }
 }
