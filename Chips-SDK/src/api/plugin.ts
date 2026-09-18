@@ -1,5 +1,6 @@
 import type { CoreClient } from "../types/client";
 import { createError } from "../types/errors";
+import type { FileHandlerTier } from "../contracts/file";
 
 export type PluginType = "app" | "card" | "layout" | "theme" | "module";
 
@@ -75,7 +76,8 @@ export interface PluginShortcutRecord {
 
 export type FileHandlerKind = "resource-handler" | "file-handler";
 
-export type FileHandlerTier = "primary" | "fallback";
+/** 处理器层级（`primary` / `fallback`），契约定义见 `../contracts/file.ts`。 */
+export type { FileHandlerTier };
 
 export interface FileHandlerSlotPlugin {
   pluginId: string;

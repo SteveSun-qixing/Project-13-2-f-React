@@ -2296,6 +2296,69 @@
       "idempotent": false,
       "retries": 0
     },
+    "office.document.create": {
+      "action": "office.document.create",
+      "schemaIn": "schemas/office.document.create.request.json",
+      "schemaOut": "schemas/office.document.create.response.json",
+      "permission": ["office.write"],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "office.document.open": {
+      "action": "office.document.open",
+      "schemaIn": "schemas/office.document.open.request.json",
+      "schemaOut": "schemas/office.document.open.response.json",
+      "permission": ["office.read"],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "office.document.read": {
+      "action": "office.document.read",
+      "schemaIn": "schemas/office.document.read.request.json",
+      "schemaOut": "schemas/office.document.read.response.json",
+      "permission": ["office.read"],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "office.document.write": {
+      "action": "office.document.write",
+      "schemaIn": "schemas/office.document.write.request.json",
+      "schemaOut": "schemas/office.document.write.response.json",
+      "permission": ["office.write"],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "office.document.get": {
+      "action": "office.document.get",
+      "schemaIn": "schemas/office.document.get.request.json",
+      "schemaOut": "schemas/office.document.get.response.json",
+      "permission": ["office.read"],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "office.document.persist": {
+      "action": "office.document.persist",
+      "schemaIn": "schemas/office.document.persist.request.json",
+      "schemaOut": "schemas/office.document.persist.response.json",
+      "permission": ["office.write"],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "office.document.close": {
+      "action": "office.document.close",
+      "schemaIn": "schemas/office.document.close.request.json",
+      "schemaOut": "schemas/office.document.close.response.json",
+      "permission": ["office.write"],
+      "timeoutMs": 5000,
+      "idempotent": false,
+      "retries": 0
+    },
     "resource.importArchive": {
       "action": "resource.importArchive",
       "schemaIn": "schemas/resource.importArchive.request.json",
@@ -2317,6 +2380,143 @@
         "file.read"
       ],
       "timeoutMs": 15000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "workspace.getContext": {
+      "action": "workspace.getContext",
+      "schemaIn": "schemas/workspace.getContext.request.json",
+      "schemaOut": "schemas/workspace.getContext.response.json",
+      "permission": [
+        "file.read"
+      ],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "file.session.create": {
+      "action": "file.session.create",
+      "schemaIn": "schemas/file.session.create.request.json",
+      "schemaOut": "schemas/file.session.create.response.json",
+      "permission": ["file.write"],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "file.session.open": {
+      "action": "file.session.open",
+      "schemaIn": "schemas/file.session.open.request.json",
+      "schemaOut": "schemas/file.session.open.response.json",
+      "permission": ["file.read"],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "file.session.read": {
+      "action": "file.session.read",
+      "schemaIn": "schemas/file.session.read.request.json",
+      "schemaOut": "schemas/file.session.read.response.json",
+      "permission": ["file.read"],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "file.session.write": {
+      "action": "file.session.write",
+      "schemaIn": "schemas/file.session.write.request.json",
+      "schemaOut": "schemas/file.session.write.response.json",
+      "permission": ["file.write"],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "file.session.get": {
+      "action": "file.session.get",
+      "schemaIn": "schemas/file.session.get.request.json",
+      "schemaOut": "schemas/file.session.get.response.json",
+      "permission": ["file.read"],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "file.session.persist": {
+      "action": "file.session.persist",
+      "schemaIn": "schemas/file.session.persist.request.json",
+      "schemaOut": "schemas/file.session.persist.response.json",
+      "permission": ["file.write"],
+      "timeoutMs": 15000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "file.session.close": {
+      "action": "file.session.close",
+      "schemaIn": "schemas/file.session.close.request.json",
+      "schemaOut": "schemas/file.session.close.response.json",
+      "permission": ["file.write"],
+      "timeoutMs": 5000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "file.session.watch": {
+      "action": "file.session.watch",
+      "schemaIn": "schemas/file.session.watch.request.json",
+      "schemaOut": "schemas/file.session.watch.response.json",
+      "permission": ["file.read"],
+      "timeoutMs": 30000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "file.preview.generate": {
+      "action": "file.preview.generate",
+      "schemaIn": "schemas/file.preview.generate.request.json",
+      "schemaOut": "schemas/file.preview.generate.response.json",
+      "permission": ["file.read"],
+      "timeoutMs": 30000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "file.preview.getCapabilities": {
+      "action": "file.preview.getCapabilities",
+      "schemaIn": "schemas/file.preview.getCapabilities.request.json",
+      "schemaOut": "schemas/file.preview.getCapabilities.response.json",
+      "permission": ["file.read"],
+      "timeoutMs": 5000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "file.convert": {
+      "action": "file.convert",
+      "schemaIn": "schemas/file.convert.request.json",
+      "schemaOut": "schemas/file.convert.response.json",
+      "permission": ["file.read", "file.write"],
+      "timeoutMs": 120000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "file.batchConvert": {
+      "action": "file.batchConvert",
+      "schemaIn": "schemas/file.batchConvert.request.json",
+      "schemaOut": "schemas/file.batchConvert.response.json",
+      "permission": ["file.read", "file.write"],
+      "timeoutMs": 600000,
+      "idempotent": false,
+      "retries": 0
+    },
+    "file.compare": {
+      "action": "file.compare",
+      "schemaIn": "schemas/file.compare.request.json",
+      "schemaOut": "schemas/file.compare.response.json",
+      "permission": ["file.read"],
+      "timeoutMs": 30000,
+      "idempotent": true,
+      "retries": 0
+    },
+    "file.versionDiff": {
+      "action": "file.versionDiff",
+      "schemaIn": "schemas/file.versionDiff.request.json",
+      "schemaOut": "schemas/file.versionDiff.response.json",
+      "permission": ["file.read"],
+      "timeoutMs": 30000,
       "idempotent": true,
       "retries": 0
     }

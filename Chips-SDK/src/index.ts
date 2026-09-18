@@ -21,6 +21,12 @@ export type {
   MockChipsHostState,
 } from "./testing";
 export type {
+  OfficeDocumentApi,
+  OfficeDocumentDescriptor,
+  OfficeDocumentFormat,
+  OfficeDocumentSessionStatus,
+} from "./api/office-document";
+export type {
   DocumentApi,
   DocumentType,
   DocumentWindowErrorPayload,
@@ -84,19 +90,17 @@ export type {
   CompositeMode,
   FrameRenderResult,
 } from "./api/card";
+// file.* 共享协议类型统一从 contracts/file.ts 导出（见文件末尾导出块），
+// 这里只导出 API 封装层特有的类型。
 export type {
   FileApi,
-  FileCategory,
   FileContent,
-  FileDeleteOptions,
-  FileDetectTypeResult,
-  FileDocumentType,
-  FileEntry,
-  FileListOptions,
-  FileReadOptions,
-  FileStat,
-  FileWatchEvent,
-  FileWatchOptions,
+  FileSessionApi,
+  FileOperationsApi,
+  FileTypeDetectionApi,
+  FilePreviewApi,
+  FileConvertApi,
+  FileCompareApi,
 } from "./api/file";
 export type {
   ResolvedTheme,
@@ -191,7 +195,6 @@ export type {
   ThemePluginInfo,
   LayoutPluginInfo,
   FileHandlerKind,
-  FileHandlerTier,
   FileHandlerSlot,
   FileHandlerSlotPlugin,
 } from "./api/plugin";
@@ -348,7 +351,7 @@ export type {
   ResourceOpenResult,
 } from "./api/resource";
 export type { ZipApi, ZipEntryMeta } from "./api/zip";
-export type { WorkspaceApi, WorkspaceFileView } from "./api/workspace";
+export type { WorkspaceApi, WorkspaceContext, WorkspaceFileView } from "./api/workspace";
 export type {
   LogApi,
   LogEntry,
@@ -369,7 +372,81 @@ export type {
 export type { PermissionDiagnostic, StandardError } from "./types/errors";
 export {
   createFileUrl,
+  getFileExtension,
   guessMimeType,
   joinResourcePath,
   normalizeRelativeResourcePath,
 } from "./utils";
+
+export {
+  FILE_ACTIONS,
+  FILE_ACTION_PERMISSIONS,
+  FILE_ERROR_CODES,
+  FILE_SESSION_EVENTS,
+} from "./contracts/file";
+// file.* 万能文件处理链路：共享协议类型的唯一来源为 contracts/file.ts。
+export type {
+  FileAction,
+  FileBatchConvertRequest,
+  FileBatchConvertResult,
+  FileCategory,
+  FileCompareAlgorithm,
+  FileCompareDiff,
+  FileCompareRequest,
+  FileCompareResult,
+  FileConvertArtifact,
+  FileConvertOptions,
+  FileConvertOutput,
+  FileConvertRequest,
+  FileConvertResult,
+  FileConvertSource,
+  FileConvertTarget,
+  FileConvertWarning,
+  FileCopyOptions,
+  FileDeleteOptions,
+  FileDetectSource,
+  FileDetectTypeOptions,
+  FileDetectTypeResult,
+  FileDocumentType,
+  FileEntry,
+  FileErrorCode,
+  FileFormat,
+  FileHandlerAction,
+  FileHandlerCapability,
+  FileHandlerResolution,
+  FileHandlerTier,
+  FileListOptions,
+  FileMkdirOptions,
+  FileMoveOptions,
+  FilePreviewCapabilitiesResult,
+  FilePreviewImageFormat,
+  FilePreviewRequest,
+  FilePreviewResult,
+  FileReadOptions,
+  FileSessionChangedEvent,
+  FileSessionClosedEvent,
+  FileSessionCloseRequest,
+  FileSessionCreateRequest,
+  FileSessionCreatedEvent,
+  FileSessionDescriptor,
+  FileSessionEventName,
+  FileSessionOpenRequest,
+  FileSessionPersistRequest,
+  FileSessionReadRequest,
+  FileSessionReadResult,
+  FileSessionStatus,
+  FileSessionStatusChangedEvent,
+  FileSessionWatchRequest,
+  FileSessionWatchResult,
+  FileSessionWriteRequest,
+  FileSessionWriteResult,
+  FileStat,
+  FileTextEncoding,
+  FileVersionDiffFormat,
+  FileVersionDiffRequest,
+  FileVersionDiffResult,
+  FileWatchEvent,
+  FileWatchEventPayload,
+  FileWatchOptions,
+  FileWriteOptions,
+} from "./contracts/file";

@@ -12,6 +12,7 @@ import type { StandardError } from "../types/errors";
 import { createFileApi } from "../api/file";
 import { createCardApi } from "../api/card";
 import { createDocumentApi } from "../api/document";
+import { createOfficeDocumentApi } from "../api/office-document";
 import { createThemeApi } from "../api/theme";
 import { createConfigApi } from "../api/config";
 import { createI18nApi } from "../api/i18n";
@@ -220,6 +221,7 @@ export function createClient(config: ClientConfig = {}): Client {
 
   return {
     ...core,
+    office: createOfficeDocumentApi(core),
     document: createDocumentApi(core),
     file: createFileApi(core),
     card: createCardApi(core),

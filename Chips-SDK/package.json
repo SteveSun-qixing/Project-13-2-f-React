@@ -18,7 +18,7 @@
     "chipsdev-r": "cli/index.js"
   },
   "scripts": {
-    "test": "vitest run tests/utils.test.ts tests/client.test.ts tests/card.test.ts tests/card-session.test.ts tests/document-window.test.ts tests/resource.test.ts tests/testing.test.ts tests/route-manifest.test.ts tests/community-card-transfer.test.ts tests/tooling/contract-drift.test.ts && node ./tests/run-cli-smoke-tests.cjs && node ./tests/run-cli-host-managed-tests.cjs && node ./tests/run-cli-create-workspace-tests.cjs && node ./tests/run-cli-create-card-workspace-tests.cjs && node ./tests/run-cli-create-layout-workspace-tests.cjs && node ./tests/run-cli-create-module-workspace-tests.cjs && node ./tests/run-cli-module-invoke-tests.cjs && node ./tests/run-cli-package-compatibility-tests.cjs && node ./tests/run-cli-tooling-tests.cjs"
+    "test": "vitest run tests/utils.test.ts tests/client.test.ts tests/card.test.ts tests/card-session.test.ts tests/document-window.test.ts tests/office-document.test.ts tests/resource.test.ts tests/testing.test.ts tests/route-manifest.test.ts tests/community-card-transfer.test.ts tests/tooling/contract-drift.test.ts && node ./tests/run-cli-smoke-tests.cjs && node ./tests/run-cli-host-managed-tests.cjs && node ./tests/run-cli-create-workspace-tests.cjs && node ./tests/run-cli-create-card-workspace-tests.cjs && node ./tests/run-cli-create-layout-workspace-tests.cjs && node ./tests/run-cli-create-module-workspace-tests.cjs && node ./tests/run-cli-module-invoke-tests.cjs && node ./tests/run-cli-package-compatibility-tests.cjs && node ./tests/run-cli-tooling-tests.cjs"
   },
   "dependencies": {
     "jsdom": "^28.1.0",

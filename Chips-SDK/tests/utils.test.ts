@@ -63,9 +63,16 @@ describe("SDK utils/mime 契约测试", () => {
     expect(guessMimeType("a.html")).toBe("text/html");
     expect(guessMimeType("a.yaml")).toBe("application/yaml");
     expect(guessMimeType("a.pdf")).toBe("application/pdf");
+    expect(guessMimeType("a.docx")).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    expect(guessMimeType("a.pptx")).toBe("application/vnd.openxmlformats-officedocument.presentationml.presentation");
+    expect(guessMimeType("a.xlsx")).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    expect(guessMimeType("a.csv")).toBe("text/csv");
     expect(guessMimeType("a.mp4")).toBe("video/mp4");
     expect(guessMimeType("a.mp3")).toBe("audio/mpeg");
     expect(guessMimeType("A.PNG")).toBe("image/png");
+    expect(guessMimeType("https://example.test/file.xlsx?download=1#sheet")).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
   });
 
   it("未知类型回退 octet-stream", () => {

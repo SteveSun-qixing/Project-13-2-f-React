@@ -670,6 +670,20 @@ function handleDefaultAction(
   },
 ): unknown | Promise<unknown> {
   switch (action) {
+    case "office.document.create":
+      return mockOfficeCreate(payload, host);
+    case "office.document.open":
+      return mockOfficeOpen(payload, host);
+    case "office.document.read":
+      return mockOfficeRead(payload, host);
+    case "office.document.write":
+      return mockOfficeWrite(payload, host);
+    case "office.document.get":
+      return mockOfficeGet(payload, host);
+    case "office.document.persist":
+      return mockOfficePersist(payload, host);
+    case "office.document.close":
+      return mockOfficeClose(payload, host);
     case "theme.list":
       return { themes: host.state.themes };
     case "theme.apply":
@@ -788,6 +802,124 @@ function handleDefaultAction(
         false,
       );
   }
+}
+
+interface MockOfficeSession {
+  document: Record<string, unknown>;
+  bytes: Uint8Array;
+}
+
+const mockOfficeSessions = new WeakMap<object, Map<string, MockOfficeSession>>();
+
+function officeSessions(host: MockChipsHost): Map<string, MockOfficeSession> {
+  const current = mockOfficeSessions.get(host);
+  if (current) return current;
+  const created = new Map<string, MockOfficeSession>();
+  mockOfficeSessions.set(host, created);
+  return created;
+}
+
+function mockOfficeBytes(value: unknown): Uint8Array {
+  if (value instanceof Uint8Array) return Uint8Array.from(value);
+  if (Array.isArray(value)) return Uint8Array.from(value as number[]);
+  if (value && typeof value === "object" && "data" in value) {
+    return mockOfficeBytes((value as { data?: unknown }).data);
+  }
+  return new Uint8Array();
+}
+
+function mockOfficeDescriptor(input: {
+  sessionId: string;
+  filePath: string;
+  fileName: string;
+  format: string;
+  bytes: Uint8Array;
+  revision?: number;
+  status?: string;
+}): Record<string, unknown> {
+  const mimeType = input.format === "pdf"
+    ? "application/pdf"
+    : input.format === "pptx"
+      ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      : input.format === "xlsx"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const now = new Date().toISOString();
+  return {
+    sessionId: input.sessionId,
+    documentId: `mock-${input.sessionId}`,
+    filePath: input.filePath,
+    fileName: input.fileName,
+    format: input.format,
+    mimeType,
+    size: input.bytes.byteLength,
+    revision: input.revision ?? 0,
+    status: input.status ?? "clean",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function mockOfficeRequire(payload: unknown, host: MockChipsHost): MockOfficeSession {
+  const sessionId = String(toRecord(payload).sessionId ?? "");
+  const session = officeSessions(host).get(sessionId);
+  if (!session) throw createError("SESSION_NOT_FOUND", `Mock Office session not found: ${sessionId}`);
+  return session;
+}
+
+function mockOfficeCreate(payload: unknown, host: MockChipsHost): { document: Record<string, unknown> } {
+  const record = toRecord(payload);
+  const format = String(record.format ?? "binary");
+  const sessionId = `office-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const fileName = String(record.fileName ?? `未命名文档.${format}`);
+  const filePath = `/workspace/documents/${fileName}`;
+  const bytes = mockOfficeBytes(record.initialBytes);
+  const document = mockOfficeDescriptor({ sessionId, filePath, fileName, format, bytes });
+  officeSessions(host).set(sessionId, { document, bytes });
+  return { document };
+}
+
+function mockOfficeOpen(payload: unknown, host: MockChipsHost): { document: Record<string, unknown> } {
+  const record = toRecord(payload);
+  const filePath = String(record.filePath ?? "");
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+  const format = String(record.format ?? "binary");
+  const sessionId = `office-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const bytes = new Uint8Array();
+  const document = mockOfficeDescriptor({ sessionId, filePath, fileName, format, bytes });
+  officeSessions(host).set(sessionId, { document, bytes });
+  return { document };
+}
+
+function mockOfficeRead(payload: unknown, host: MockChipsHost): { document: Record<string, unknown>; bytes: Uint8Array } {
+  const session = mockOfficeRequire(payload, host);
+  return { document: { ...session.document }, bytes: Uint8Array.from(session.bytes) };
+}
+
+function mockOfficeWrite(payload: unknown, host: MockChipsHost): { document: Record<string, unknown> } {
+  const session = mockOfficeRequire(payload, host);
+  session.bytes = mockOfficeBytes(toRecord(payload).bytes);
+  session.document = { ...session.document, size: session.bytes.byteLength, revision: Number(session.document.revision ?? 0) + 1, status: "dirty", updatedAt: new Date().toISOString() };
+  return { document: { ...session.document } };
+}
+
+function mockOfficeGet(payload: unknown, host: MockChipsHost): { document: Record<string, unknown> } {
+  const session = mockOfficeRequire(payload, host);
+  return { document: { ...session.document } };
+}
+
+function mockOfficePersist(payload: unknown, host: MockChipsHost): { document: Record<string, unknown> } {
+  const session = mockOfficeRequire(payload, host);
+  const filePath = String(toRecord(payload).filePath ?? session.document.filePath ?? "");
+  const fileName = filePath.split(/[\\/]/).pop() || session.document.fileName;
+  session.document = { ...session.document, filePath, fileName, status: "clean", updatedAt: new Date().toISOString() };
+  return { document: { ...session.document } };
+}
+
+function mockOfficeClose(payload: unknown, host: MockChipsHost): { ack: true } {
+  const sessionId = String(toRecord(payload).sessionId ?? "");
+  officeSessions(host).delete(sessionId);
+  return { ack: true };
 }
 
 function applyTheme(payload: unknown, host: MockChipsHost): Promise<{ ack: true }> {

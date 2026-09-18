@@ -67,6 +67,7 @@ export interface CoreClient {
 
 export interface Client extends CoreClient {
   // Domain APIs 按模块挂载
+  office: import("../api/office-document").OfficeDocumentApi;
   document: import("../api/document").DocumentApi;
   file: import("../api/file").FileApi;
   card: import("../api/card").CardApi;
