@@ -36,6 +36,10 @@ import {
 import { ResourceImageService } from '../../../packages/resource-image-service/src';
 import { BoxService, BoxSessionService } from '../../../packages/box-service/src';
 import { StoreZipService } from '../../../packages/zip-service/src';
+import { OfficeDocumentService } from '../../../packages/office-document-service/src';
+import { FileSessionService } from '../../../packages/file-session-service/src';
+import { XlsxEngineService } from '../../../packages/xlsx-engine-service/src';
+import { decryptOfficeFile } from '../../../packages/file-session-service/src/office-crypto';
 import {
   buildModuleProviderRecords,
   compareSemver,
@@ -4195,9 +4199,11 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
         descriptor: descriptor<
           { path: string },
           {
-            documentType: 'card' | 'box' | null;
+            documentType: 'card' | 'box' | 'word' | 'slide' | 'sheet' | 'pdf' | null;
             mimeType: string;
             category: 'document' | 'image' | 'video' | 'audio' | 'text' | 'html' | 'archive' | 'unknown';
+            extension: string | null;
+            size: number | null;
           }
         >(
           'file.detectType',
@@ -4206,7 +4212,317 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
           true,
           0,
           withMetrics(state, 'file.detectType', async (input) => {
-            return detectTypeByPath(input.path);
+            let size: number | null = null;
+            try {
+              size = (await ctx.pal.fs.stat(input.path)).size;
+            } catch {
+              // Type inference remains useful for virtual or not-yet-created resources.
+            }
+            return detectTypeByPath(input.path, size);
+          })
+        )
+      },
+      compare: {
+        descriptor: descriptor<
+          {
+            left: { filePath: string; format?: string };
+            right: { filePath: string; format?: string };
+            options?: {
+              algorithm?: 'hash' | 'binary' | 'semantic';
+              context?: number;
+              ignoreWhitespace?: boolean;
+              ignoreCase?: boolean;
+            };
+          },
+          {
+            identical: boolean;
+            diffs: Array<{
+              type: 'add' | 'remove' | 'modify';
+              leftRange?: { start: number; end: number };
+              rightRange?: { start: number; end: number };
+              leftContent?: string;
+              rightContent?: string;
+            }>;
+            stats: { additions: number; deletions: number; modifications: number };
+          }
+        >(
+          'file.compare',
+          ['file.read'],
+          30_000,
+          true,
+          0,
+          withMetrics(state, 'file.compare', async (input) => {
+            if (!input?.left?.filePath || !input?.right?.filePath) {
+              throw createError('INVALID_ARGUMENT', 'file.compare: left.filePath and right.filePath are required.');
+            }
+            const [leftBytes, rightBytes] = await Promise.all([
+              ctx.pal.fs.readFile(input.left.filePath),
+              ctx.pal.fs.readFile(input.right.filePath),
+            ]);
+            const left = new Uint8Array(leftBytes as ArrayBuffer);
+            const right = new Uint8Array(rightBytes as ArrayBuffer);
+            const algorithm = input.options?.algorithm ?? 'hash';
+            if (algorithm === 'semantic') {
+              return compareSemantic(left, right, input.options);
+            }
+            if (algorithm === 'binary') {
+              return compareBinary(left, right);
+            }
+            const leftHash = crypto.createHash('sha256').update(left).digest('hex');
+            const rightHash = crypto.createHash('sha256').update(right).digest('hex');
+            if (leftHash === rightHash) {
+              return { identical: true, diffs: [], stats: { additions: 0, deletions: 0, modifications: 0 } };
+            }
+            return {
+              identical: false,
+              diffs: [{ type: 'modify', leftRange: { start: 0, end: left.length }, rightRange: { start: 0, end: right.length } }],
+              stats: { additions: 0, deletions: 0, modifications: 1 },
+            };
+          })
+        )
+      },
+      versionDiff: {
+        descriptor: descriptor<
+          { filePath: string; versionA: number | string; versionB: number | string; format?: 'unified' | 'side-by-side' | 'html' },
+          {
+            filePath: string;
+            versionA: number | string;
+            versionB: number | string;
+            format: 'unified' | 'side-by-side' | 'html';
+            diffOutput: string;
+            stats: { additions: number; deletions: number };
+          }
+        >(
+          'file.versionDiff',
+          ['file.read'],
+          30_000,
+          true,
+          0,
+          withMetrics(state, 'file.versionDiff', async (input) => {
+            if (!input?.filePath) {
+              throw createError('INVALID_ARGUMENT', 'file.versionDiff: filePath is required.');
+            }
+            const resolveVersionPath = (version: number | string): string => {
+              if (version === 'current') {
+                return input.filePath;
+              }
+              if (version === 'backup') {
+                return `${input.filePath}.bak`;
+              }
+              throw createError('FILE_COMPARE_FAILED', 'file.versionDiff: arbitrary numeric versions are not tracked; use "current" or "backup" (created by file.session.persist backup).');
+            };
+            const leftPath = resolveVersionPath(input.versionA);
+            const rightPath = resolveVersionPath(input.versionB);
+            const readVersion = async (versionPath: string, version: number | string): Promise<string> => {
+              try {
+                const bytes = new Uint8Array(await ctx.pal.fs.readFile(versionPath) as ArrayBuffer);
+                return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+              } catch {
+                throw createError('FILE_COMPARE_FAILED', `file.versionDiff: version "${String(version)}" is not available at ${versionPath}.`);
+              }
+            };
+            const [leftText, rightText] = await Promise.all([
+              readVersion(leftPath, input.versionA),
+              readVersion(rightPath, input.versionB),
+            ]);
+            const leftLines = leftText.split(/\r?\n/);
+            const rightLines = rightText.split(/\r?\n/);
+            const outputFormat = input.format ?? 'unified';
+            const { diffOutput, stats } = unifiedDiff(leftLines, rightLines);
+            if (outputFormat === 'side-by-side') {
+              const columns = Math.max(leftLines.length, rightLines.length);
+              const rows: string[] = [];
+              for (let index = 0; index < columns; index += 1) {
+                const leftLine = leftLines[index] ?? '';
+                const rightLine = rightLines[index] ?? '';
+                rows.push(`${leftLine.padEnd(40)} | ${rightLine}`);
+              }
+              return { filePath: input.filePath, versionA: input.versionA, versionB: input.versionB, format: outputFormat, diffOutput: rows.join('\n'), stats };
+            }
+            if (outputFormat === 'html') {
+              const escapeHtml = (value: string): string => value
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+              const columns = Math.max(leftLines.length, rightLines.length);
+              const rows: string[] = ['<table class="chips-diff"><tbody>'];
+              for (let index = 0; index < columns; index += 1) {
+                const leftLine = escapeHtml(leftLines[index] ?? '');
+                const rightLine = escapeHtml(rightLines[index] ?? '');
+                const changed = (leftLines[index] ?? '') !== (rightLines[index] ?? '');
+                rows.push(`<tr${changed ? ' class="changed"' : ''}><td>${leftLine}</td><td>${rightLine}</td></tr>`);
+              }
+              rows.push('</tbody></table>');
+              return { filePath: input.filePath, versionA: input.versionA, versionB: input.versionB, format: outputFormat, diffOutput: rows.join('\n'), stats };
+            }
+            return { filePath: input.filePath, versionA: input.versionA, versionB: input.versionB, format: outputFormat, diffOutput, stats };
+          })
+        )
+      },
+      previewGenerate: {
+        descriptor: descriptor<
+          {
+            filePath: string;
+            options?: {
+              width?: number;
+              height?: number;
+              format?: 'png' | 'jpeg' | 'webp';
+              quality?: number;
+              page?: number;
+              thumbnail?: boolean;
+            };
+          },
+          {
+            previewPath: string;
+            format: 'png' | 'jpeg' | 'webp' | 'gif' | 'bmp';
+            width: number;
+            height: number;
+            isThumbnail: boolean;
+            mimeType: string;
+          }
+        >(
+          'file.preview.generate',
+          ['file.read'],
+          15_000,
+          true,
+          0,
+          withMetrics(state, 'file.preview.generate', async (input) => {
+            if (!input?.filePath) {
+              throw createError('INVALID_ARGUMENT', 'file.preview.generate: filePath is required.');
+            }
+            const mimeType = guessMimeType(input.filePath);
+            if (!mimeType.startsWith('image/')) {
+              // v1 原生预览仅覆盖位图（直出原图）；位图之外的格式由 file-handler:preview
+              // 能力插件承接（能力声明见《10-资源打开契约》），Host 不代渲染。
+              throw createError('FILE_PREVIEW_UNSUPPORTED', `file.preview.generate: native preview supports raster images only, got ${mimeType}.`);
+            }
+            const bytes = new Uint8Array(await ctx.pal.fs.readFile(input.filePath) as ArrayBuffer);
+            const dimensions = readImageDimensions(bytes);
+            if (!dimensions) {
+              throw createError('FILE_PREVIEW_FAILED', `file.preview.generate: unable to parse image dimensions for ${input.filePath}.`);
+            }
+            const formatMap: Record<string, 'png' | 'jpeg' | 'webp' | 'gif' | 'bmp'> = {
+              'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/webp': 'webp',
+            };
+            const nativeFormat = formatMap[mimeType] ?? 'png';
+            const requestedFormat = input.options?.format;
+            if (requestedFormat && requestedFormat !== nativeFormat) {
+              throw createError('FILE_PREVIEW_UNSUPPORTED', `file.preview.generate: transcoding ${nativeFormat} to ${requestedFormat} is not available; request the native format.`);
+            }
+            return {
+              previewPath: input.filePath,
+              format: nativeFormat,
+              width: dimensions.width,
+              height: dimensions.height,
+              isThumbnail: input.options?.thumbnail === true,
+              mimeType,
+            };
+          })
+        )
+      },
+      previewGetCapabilities: {
+        descriptor: descriptor<
+          Record<string, never>,
+          {
+            supportedFormats: string[];
+            unsupportedFormats: string[];
+            maxPreviewSize: { width: number; height: number };
+            thumbnailSizes: Array<{ width: number; height: number; name: string }>;
+          }
+        >(
+          'file.preview.getCapabilities',
+          ['file.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'file.preview.getCapabilities', async () => ({
+            supportedFormats: ['image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/webp'],
+            unsupportedFormats: [],
+            // 0 表示不限制：原生预览按图片原始分辨率直出，不做缩放。
+            maxPreviewSize: { width: 0, height: 0 },
+            thumbnailSizes: [],
+          }))
+        )
+      },
+      convert: {
+        descriptor: descriptor<
+          {
+            source: { filePath: string; format?: string };
+            target: { format: string; options?: Record<string, unknown> };
+            output: { filePath: string; overwrite?: boolean };
+            options?: { quality?: number; pageSize?: string; landscape?: boolean; marginMm?: Record<string, number> };
+          },
+          {
+            sourcePath: string;
+            sourceFormat: string;
+            targetPath: string;
+            targetFormat: string;
+            conversionTime: number;
+            artifacts?: Array<{ type: string; path: string; mimeType?: string }>;
+            warnings?: Array<{ code: string; message: string }>;
+          }
+        >(
+          'file.convert',
+          ['file.read', 'file.write'],
+          130_000,
+          false,
+          0,
+          withMetrics(state, 'file.convert', async (input, routeContext) => runFileConvert(state, ctx, input, routeContext))
+        )
+      },
+      batchConvert: {
+        descriptor: descriptor<
+          {
+            sources: Array<{ filePath: string; format?: string }>;
+            target: { format: string; options?: Record<string, unknown> };
+            outputDir: string;
+            options?: { overwrite?: boolean; parallel?: boolean; concurrency?: number };
+          },
+          {
+            results: Array<{ sourcePath: string; targetPath: string; success: boolean; error?: { code: string; message: string } }>;
+            summary: { total: number; succeeded: number; failed: number; totalTime: number };
+          }
+        >(
+          'file.batchConvert',
+          ['file.read', 'file.write'],
+          300_000,
+          false,
+          0,
+          withMetrics(state, 'file.batchConvert', async (input, routeContext) => {
+            if (!Array.isArray(input?.sources) || input.sources.length === 0) {
+              throw createError('INVALID_ARGUMENT', 'file.batchConvert: sources must be a non-empty array.');
+            }
+            const startedAt = Date.now();
+            const results: Array<{ sourcePath: string; targetPath: string; success: boolean; error?: { code: string; message: string } }> = [];
+            for (const source of input.sources) {
+              const targetPath = path.join(
+                input.outputDir,
+                `${path.basename(source.filePath, path.extname(source.filePath))}${extensionForTargetFormat(input.target.format)}`,
+              );
+              try {
+                await runFileConvert(state, ctx, {
+                  source: { filePath: source.filePath, format: source.format },
+                  target: { format: input.target.format, options: input.target.options },
+                  output: { filePath: targetPath, overwrite: input.options?.overwrite },
+                }, routeContext);
+                results.push({ sourcePath: source.filePath, targetPath, success: true });
+              } catch (error) {
+                const standard = error as { code?: string; message?: string };
+                results.push({
+                  sourcePath: source.filePath,
+                  targetPath,
+                  success: false,
+                  error: { code: standard?.code ?? 'FILE_CONVERT_FAILED', message: standard?.message ?? String(error) },
+                });
+              }
+            }
+            return {
+              results,
+              summary: {
+                total: results.length,
+                succeeded: results.filter((result) => result.success).length,
+                failed: results.filter((result) => !result.success).length,
+                totalTime: Date.now() - startedAt,
+              },
+            };
           })
         )
       }
@@ -4384,6 +4700,204 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
             );
             return result;
           })
+        )
+      }
+    }
+  };
+
+  const officeDocumentService = new OfficeDocumentService({
+    workspacePath: ctx.workspacePath,
+    storage: ctx.pal.fs,
+  });
+
+  const fileSessionService = new FileSessionService({
+    workspacePath: ctx.workspacePath,
+    storage: ctx.pal.fs,
+  });
+
+  const xlsxEngineService = new XlsxEngineService();
+
+  const fileSessionServiceRegistration: ServiceRegistration = {
+    name: 'file-session',
+    actions: {
+      create: {
+        descriptor: descriptor<Parameters<FileSessionService['create']>[0], Awaited<ReturnType<FileSessionService['create']>>>(
+          'file.session.create', ['file.write'], 15_000, false, 0,
+          withMetrics(state, 'file.session.create', (input) => fileSessionService.create(input))
+        )
+      },
+      open: {
+        descriptor: descriptor<Parameters<FileSessionService['open']>[0], Awaited<ReturnType<FileSessionService['open']>>>(
+          'file.session.open', ['file.read'], 15_000, false, 0,
+          withMetrics(state, 'file.session.open', (input) => fileSessionService.open(input))
+        )
+      },
+      read: {
+        descriptor: descriptor<Parameters<FileSessionService['read']>[0], ReturnType<FileSessionService['read']>>(
+          'file.session.read', ['file.read'], 10_000, true, 0,
+          withMetrics(state, 'file.session.read', (input) => fileSessionService.read(input))
+        )
+      },
+      write: {
+        descriptor: descriptor<Parameters<FileSessionService['write']>[0], ReturnType<FileSessionService['write']>>(
+          'file.session.write', ['file.write'], 15_000, false, 0,
+          withMetrics(state, 'file.session.write', (input) => fileSessionService.write(input))
+        )
+      },
+      get: {
+        descriptor: descriptor<{ sessionId: string }, ReturnType<FileSessionService['get']>>(
+          'file.session.get', ['file.read'], 5_000, true, 0,
+          withMetrics(state, 'file.session.get', (input) => fileSessionService.get(input.sessionId))
+        )
+      },
+      persist: {
+        descriptor: descriptor<Parameters<FileSessionService['persist']>[0], Awaited<ReturnType<FileSessionService['persist']>>>(
+          'file.session.persist', ['file.write'], 15_000, false, 0,
+          withMetrics(state, 'file.session.persist', (input) => fileSessionService.persist(input))
+        )
+      },
+      close: {
+        descriptor: descriptor<Parameters<FileSessionService['close']>[0], Awaited<ReturnType<FileSessionService['close']>>>(
+          'file.session.close', ['file.write'], 15_000, false, 0,
+          withMetrics(state, 'file.session.close', (input) => fileSessionService.close(input))
+        )
+      },
+      watch: {
+        descriptor: descriptor<Parameters<FileSessionService['watch']>[0], Awaited<ReturnType<FileSessionService['watch']>>>(
+          'file.session.watch', ['file.read'], 31_000, false, 0,
+          withMetrics(state, 'file.session.watch', (input) => fileSessionService.watch(input))
+        )
+      }
+    }
+  };
+
+  const xlsxEngineServiceRegistration: ServiceRegistration = {
+    name: 'xlsx-engine',
+    actions: {
+      open: {
+        descriptor: descriptor<Parameters<XlsxEngineService['open']>[0], Promise<unknown>>(
+          'office.engine.open', ['office.read'], 130_000, false, 0,
+          withMetrics(state, 'office.engine.open', (input) => xlsxEngineService.open(input))
+        )
+      },
+      readRange: {
+        descriptor: descriptor<Parameters<XlsxEngineService['readRange']>[0], Promise<unknown>>(
+          'office.engine.readRange', ['office.read'], 35_000, true, 0,
+          withMetrics(state, 'office.engine.readRange', (input) => xlsxEngineService.readRange(input))
+        )
+      },
+      readFormulaCells: {
+        descriptor: descriptor<Parameters<XlsxEngineService['readFormulaCells']>[0], Promise<unknown>>(
+          'office.engine.readFormulaCells', ['office.read'], 35_000, true, 0,
+          withMetrics(state, 'office.engine.readFormulaCells', (input) => xlsxEngineService.readFormulaCells(input))
+        )
+      },
+      readMedia: {
+        descriptor: descriptor<Parameters<XlsxEngineService['readMedia']>[0], Promise<unknown>>(
+          'office.engine.readMedia', ['office.read'], 35_000, true, 0,
+          withMetrics(state, 'office.engine.readMedia', (input) => xlsxEngineService.readMedia(input))
+        )
+      },
+      recalcCells: {
+        descriptor: descriptor<Parameters<XlsxEngineService['recalcCells']>[0], Promise<unknown>>(
+          'office.engine.recalcCells', ['office.read'], 60_000, false, 0,
+          withMetrics(state, 'office.engine.recalcCells', (input) => xlsxEngineService.recalcCells(input))
+        )
+      },
+      cancel: {
+        descriptor: descriptor<Parameters<XlsxEngineService['cancel']>[0], Promise<unknown>>(
+          'office.engine.cancel', ['office.read'], 5_000, false, 0,
+          withMetrics(state, 'office.engine.cancel', (input) => xlsxEngineService.cancel(input))
+        )
+      },
+      archiveManifest: {
+        descriptor: descriptor<Parameters<XlsxEngineService['archiveManifest']>[0], Promise<unknown>>(
+          'office.engine.archiveManifest', ['office.read'], 30_000, true, 0,
+          withMetrics(state, 'office.engine.archiveManifest', (input) => xlsxEngineService.archiveManifest(input))
+        )
+      },
+      readEntries: {
+        descriptor: descriptor<Parameters<XlsxEngineService['readEntries']>[0], Promise<unknown>>(
+          'office.engine.readEntries', ['office.read'], 30_000, true, 0,
+          withMetrics(state, 'office.engine.readEntries', (input) => xlsxEngineService.readEntries(input))
+        )
+      },
+      scanEntries: {
+        descriptor: descriptor<Parameters<XlsxEngineService['scanEntries']>[0], Promise<unknown>>(
+          'office.engine.scanEntries', ['office.read'], 30_000, true, 0,
+          withMetrics(state, 'office.engine.scanEntries', (input) => xlsxEngineService.scanEntries(input))
+        )
+      },
+      convertWorkbook: {
+        descriptor: descriptor<Parameters<XlsxEngineService['convertWorkbook']>[0], Promise<unknown>>(
+          'office.engine.convertWorkbook', ['office.write'], 120_000, false, 0,
+          withMetrics(state, 'office.engine.convertWorkbook', (input) => xlsxEngineService.convertWorkbook(input))
+        )
+      },
+      saveArchive: {
+        descriptor: descriptor<Parameters<XlsxEngineService['saveArchive']>[0], Promise<unknown>>(
+          'office.engine.saveArchive', ['office.write'], 120_000, false, 0,
+          withMetrics(state, 'office.engine.saveArchive', (input) => xlsxEngineService.saveArchive(input))
+        )
+      },
+      close: {
+        descriptor: descriptor<Parameters<XlsxEngineService['close']>[0], Promise<unknown>>(
+          'office.engine.close', ['office.read'], 5_000, false, 0,
+          withMetrics(state, 'office.engine.close', (input) => xlsxEngineService.close(input))
+        )
+      }
+    }
+  };
+
+  const officeService: ServiceRegistration = {
+    name: 'office',
+    actions: {
+      cryptoDecrypt: {
+        descriptor: descriptor<{ filePath: string; password: string }, Promise<{ bytes: Uint8Array }>>(
+          'office.crypto.decrypt', ['office.read'], 30_000, false, 0,
+          withMetrics(state, 'office.crypto.decrypt', async (input) => decryptOfficeFile(input, ctx.pal.fs))
+        )
+      },
+      create: {
+        descriptor: descriptor<Parameters<OfficeDocumentService['create']>[0], Awaited<ReturnType<OfficeDocumentService['create']>>>(
+          'office.document.create', ['office.write'], 15_000, false, 0,
+          withMetrics(state, 'office.document.create', (input) => officeDocumentService.create(input))
+        )
+      },
+      open: {
+        descriptor: descriptor<Parameters<OfficeDocumentService['open']>[0], Awaited<ReturnType<OfficeDocumentService['open']>>>(
+          'office.document.open', ['office.read'], 15_000, false, 0,
+          withMetrics(state, 'office.document.open', (input) => officeDocumentService.open(input))
+        )
+      },
+      read: {
+        descriptor: descriptor<Parameters<OfficeDocumentService['read']>[0], ReturnType<OfficeDocumentService['read']>>(
+          'office.document.read', ['office.read'], 5_000, true, 0,
+          withMetrics(state, 'office.document.read', async (input) => officeDocumentService.read(input))
+        )
+      },
+      write: {
+        descriptor: descriptor<Parameters<OfficeDocumentService['write']>[0], ReturnType<OfficeDocumentService['write']>>(
+          'office.document.write', ['office.write'], 15_000, false, 0,
+          withMetrics(state, 'office.document.write', async (input) => officeDocumentService.write(input))
+        )
+      },
+      get: {
+        descriptor: descriptor<{ sessionId: string }, ReturnType<OfficeDocumentService['get']>>(
+          'office.document.get', ['office.read'], 5_000, true, 0,
+          withMetrics(state, 'office.document.get', async (input) => officeDocumentService.get(input.sessionId))
+        )
+      },
+      persist: {
+        descriptor: descriptor<Parameters<OfficeDocumentService['persist']>[0], Awaited<ReturnType<OfficeDocumentService['persist']>>>(
+          'office.document.persist', ['office.write'], 15_000, false, 0,
+          withMetrics(state, 'office.document.persist', (input) => officeDocumentService.persist(input))
+        )
+      },
+      close: {
+        descriptor: descriptor<Parameters<OfficeDocumentService['close']>[0], Awaited<ReturnType<OfficeDocumentService['close']>>>(
+          'office.document.close', ['office.write'], 15_000, false, 0,
+          withMetrics(state, 'office.document.close', (input) => officeDocumentService.close(input))
         )
       }
     }
@@ -8034,6 +8548,16 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
   const workspaceService: ServiceRegistration = {
     name: 'workspace',
     actions: {
+      getContext: {
+        descriptor: descriptor<{}, { rootPath: string }>(
+          'workspace.getContext',
+          ['file.read'],
+          5_000,
+          true,
+          0,
+          withMetrics(state, 'workspace.getContext', async () => ({ rootPath: ctx.workspacePath }))
+        )
+      },
       scan: {
         descriptor: descriptor<{ rootPath: string }, { files: unknown[] }>(
           'workspace.scan',
@@ -8237,6 +8761,9 @@ const createServices = (ctx: HostServiceContext, state: RuntimeState): ServiceRe
   const rawServices = [
     fileService,
     resourceService,
+    officeService,
+    fileSessionServiceRegistration,
+    xlsxEngineServiceRegistration,
     configService,
     themeService,
     i18nService,

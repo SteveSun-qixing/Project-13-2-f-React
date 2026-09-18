@@ -773,7 +773,43 @@ export const registerHostSchemas = (): void => {
   registerPair('file.copy', ['sourcePath', 'destPath']);
   registerPair('file.detectType', ['path']);
   registerPair('resource.importArchive', ['zipFile', 'targetRoot']);
+  registerPair('workspace.getContext', [], ['rootPath']);
   registerPair('workspace.scan', ['rootPath'], ['files']);
+
+  registerPair('office.document.create', ['format'], ['document']);
+  registerPair('office.document.open', ['filePath'], ['document']);
+  registerPair('office.document.read', ['sessionId'], ['document', 'bytes']);
+  registerPair('office.document.write', ['sessionId', 'bytes'], ['document']);
+  registerPair('office.document.get', ['sessionId'], ['document']);
+  registerPair('office.document.persist', ['sessionId'], ['document']);
+  registerPair('office.document.close', ['sessionId'], ['ack']);
+
+  // file.session.* 万能文件会话（《15-万能文件处理协议》）；options 为可选对象，passthrough。
+  // create 的 format/fileName 二选一由服务层校验，schema 不强制单键。
+  registerPair('file.session.create', [], ['document']);
+  registerPair('file.session.open', ['filePath'], ['document']);
+  registerPair('file.session.read', ['sessionId'], ['document', 'bytes', 'offset', 'totalSize']);
+  registerPair('file.session.write', ['sessionId', 'bytes'], ['document']);
+  registerPair('file.session.get', ['sessionId'], ['document']);
+  registerPair('file.session.persist', ['sessionId'], ['document']);
+  registerPair('file.session.close', ['sessionId'], ['ack']);
+  registerPair('file.session.watch', ['sessionId'], ['event']);
+
+  // office.engine.* xlsx 引擎服务（sidecar 协议转发；大对象 passthrough 由插件侧校验）。
+  registerPair('office.engine.open', ['path']);
+  registerPair('office.engine.readRange', ['sessionId', 'sheetId', 'range']);
+  registerPair('office.engine.readFormulaCells', ['sessionId', 'sheetId']);
+  registerPair('office.engine.readMedia', ['sessionId', 'visualId'], ['mediaType', 'base64']);
+  registerPair('office.engine.recalcCells', ['path']);
+  registerPair('office.engine.cancel', ['sessionId', 'targetRequestId'], ['ack']);
+  registerPair('office.engine.archiveManifest', ['path'], ['entries']);
+  registerPair('office.engine.readEntries', ['path', 'entries'], ['entries']);
+  registerPair('office.engine.scanEntries', ['path', 'entries', 'needle']);
+  registerPair('office.engine.convertWorkbook', ['sourcePath'], ['targetPath']);
+  registerPair('office.engine.saveArchive', ['sourcePath', 'targetPath', 'replacements', 'removals', 'additions']);  registerPair('office.engine.close', ['sessionId'], ['ack']);
+
+  // office.crypto.* 加密 Office 文档解密（Node 域系统能力）。
+  registerPair('office.crypto.decrypt', ['filePath', 'password'], ['bytes']);
 
   registerPair('resource.resolve', ['resourceId']);
   schemaRegistry.register('schemas/resource.open.request.json', validateResourceOpenRequest);
