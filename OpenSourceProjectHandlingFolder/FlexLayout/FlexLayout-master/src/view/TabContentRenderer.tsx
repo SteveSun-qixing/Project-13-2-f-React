@@ -1,0 +1,48 @@
+import * as React from "react";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { I18nLabel } from "./I18nLabel";
+import { LayoutController, LayoutInternal } from "./layout/LayoutInternal";
+import { TabNode } from "../model/TabNode";
+import { CLASSES } from "../CSSClassNames";
+
+export interface ITabContentRenderProps {
+    controller: LayoutController;
+    tabNode: TabNode;
+    windowId: string;
+    visible: boolean;
+    fullRedrawRevision: number;
+    parentRedrawRevision: object;
+}
+
+export const TabContentRenderer = React.memo(({ controller, tabNode }: ITabContentRenderProps) => {
+    let content;
+    if (tabNode.getComponent()) {
+        content = controller.getFactory()(tabNode);
+    } else if (tabNode.getSubLayoutId()) {
+        const model = tabNode.getModel();
+        const subLayout = model.getLayouts().get(tabNode.getSubLayoutId()!)!;
+        content = (
+            <div className={controller.getClassName(CLASSES.FLEXLAYOUT__TAB_LAYOUT_CONTAINER)}>
+                <LayoutInternal {...controller.getProps()} layoutId={tabNode.getSubLayoutId()} path={tabNode.getPath() + subLayout.getPath()} mainLayoutController={controller.getMainController()} />
+            </div>
+        );
+    }
+    return (
+        <ErrorBoundary message={controller.i18nName(I18nLabel.Error_rendering_component)} retryText={controller.i18nName(I18nLabel.Error_rendering_component_retry)}>
+            {content}
+        </ErrorBoundary>
+    );
+}, arePropsEqual);
+TabContentRenderer.displayName = "TabContentRenderer"; // name in react dev tools
+
+// only re-render if visible && (fullRedrawRevision or parentRedrawRevision changed)
+function arePropsEqual(prevProps: ITabContentRenderProps, nextProps: ITabContentRenderProps) {
+    const reRender =
+        nextProps.visible &&
+        (prevProps.windowId !== nextProps.windowId ||
+            prevProps.fullRedrawRevision !== nextProps.fullRedrawRevision ||
+            prevProps.parentRedrawRevision !== nextProps.parentRedrawRevision ||
+            prevProps.tabNode !== nextProps.tabNode || // node instance replaced (fromJson with a previous model)
+            nextProps.tabNode.getSubLayoutId() !== undefined);
+    return !reRender;
+}

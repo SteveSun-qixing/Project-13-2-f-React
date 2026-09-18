@@ -1,0 +1,19 @@
+node_modules/
+types/
+dist/
+.idea/
+demo/dist/
+@private/
+.DS_Store
+typedoc/
+style/*.css.map
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.vscode/
+
+# Vitest coverage
+/coverage/

@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "noEmit": true,
+        "noImplicitAny": true,
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "stripInternal": true,
+        "alwaysStrict": true,
+        "forceConsistentCasingInFileNames": true,
+        "noImplicitReturns": true,
+        "strict": true,
+        "noUnusedLocals": true,
+        "jsx": "react-jsx",
+        "skipLibCheck": true,
+        "types": ["vitest/globals", "node"],
+        "allowSyntheticDefaultImports": true,
+        "esModuleInterop": true
+    },
+    "include": ["./src/**/*", "./demo/**/*", "./tests/**/*", "./tests-playwright/**/*"]
+}
