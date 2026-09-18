@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "useDefineForClassFields": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/*"],
+      "@genoffice/docx-engine": ["vendor/docx-engine/src/index.ts"],
+      "@genoffice/docx-engine/*": ["vendor/docx-engine/src/*"],
+      "@genoffice/pptx-engine": ["vendor/pptx-engine/src/index.ts"],
+      "@genoffice/pptx-engine/*": ["vendor/pptx-engine/src/*"],
+      "@genoffice/pptx-render": ["vendor/pptx-render/src/index.ts"],
+      "@genoffice/pptx-render/*": ["vendor/pptx-render/src/*"],
+      "@genoffice/ui": ["vendor/ui/src/index.ts"],
+      "@genoffice/ui/*": ["vendor/ui/src/*"],
+      "@genoffice/i18n": ["vendor/i18n/src/index.ts"],
+      "@genoffice/i18n/*": ["vendor/i18n/src/*"],
+      "@genoffice/font-metrics": ["vendor/font-metrics/src/index.ts"],
+      "@genoffice/pdf2docx": ["vendor/pdf2docx/src/index.ts"],
+      "@genoffice/pdf2docx/*": ["vendor/pdf2docx/src/*"]
+    },
+    "types": ["vitest"]
+  },
+  "include": ["src", "tests", "vendor"],
+  "exclude": [
+    "vendor/font-metrics/src/node",
+    "vendor/font-metrics/tests-node",
+    "vendor/pdf2docx/src/ocr-vision.ts",
+    "vendor/docx-engine/tests",
+    "vendor/pptx-engine/tests",
+    "vendor/pptx-render/tests",
+    "vendor/ui/tests",
+    "vendor/i18n/tests"
+  ]
+}
