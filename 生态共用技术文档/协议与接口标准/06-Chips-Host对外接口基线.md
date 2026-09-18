@@ -85,6 +85,7 @@
 - `credential`
 - `card`
 - `box`
+- `office`
 - `zip`
 - `serializer`
 - `control-plane`
@@ -246,7 +247,14 @@
 - `box.session.*`：open / get / addEntry / addEmbeddedCard / updateEntry / moveEntry / removeEntry / updateMetadata / updateLayoutConfig / importAsset / deleteAsset / updateCover / persist / undo / redo / history / close
 - `resource.importArchive`：ZIP 目录导入（payload 根探测/过滤/系统垃圾清理/暂存回滚）
 - `workspace.scan`：工作区文件树扫描（卡片目录/`.card`/`.box`/文件夹识别 + Host 运行时目录排除）
-- `file.detectType`：文件类型结构化识别（documentType/mimeType/category）
+- `workspace.getContext`：获取当前 Host 工作区根路径；插件不得自行推断工作区位置
+- `file.detectType`：文件类型结构化识别（documentType/mimeType/category/extension/size）
+
+办公文档由独立 `office.document.*` 会话链路承载，不属于卡片或箱子会话：
+
+- `office.document.create/open/read/write/get/persist/close`
+- `create` 默认在工作区 `documents/` 目录落盘完整初始字节；`read` 返回 `Uint8Array`
+- 插件通过 `client.office` 使用会话，Host 不解析 DOCX/PPTX/XLSX/PDF 业务语义；详见《办公文档会话协议》
 
 关键语义：
 
@@ -256,6 +264,7 @@
 - 会话工作目录由 Host 分配回收（系统临时区）；
 - `resource.importArchive` 与 `zip.extract` 语义区分：extract 是原语（解到指定目录），importArchive 是业务语义（根探测/过滤/清理/回滚）；
 - `workspace.scan` 识别规则：卡片目录 = 含 `.card/metadata.yaml`；排除清单见 `Chips-Host/packages/workspace-service/src/workspace-service.ts` 的 `HOST_RUNTIME_ROOT_ENTRIES`。
+- `workspace.scan` 同时返回所有普通文件，文件节点包含 `extension/mimeType/category/documentType/size`；未知类型使用 `application/octet-stream`。
 
 ### 6.10 封面共享模块（task034 新增）
 

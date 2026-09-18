@@ -307,6 +307,37 @@ Desktop preload 还会在 `window.chips.platform` 下暴露两个页面辅助入
 - `zip.compress / zip.extract / zip.list` 是网页基础卡片等整包导入场景的正式 ZIP 能力；
 - 这些动作属于 Host 服务命名空间，不应误写为 `window.chips.resource.*` 或 `window.chips.box.*` 直接子对象。
 
+#### 7.3.1 万能文件处理链路（`file.*`）
+
+万能文件处理链路提供统一的文件处理能力：
+
+**基础操作**：
+- `file.read` / `file.write` / `file.stat` / `file.list` / `file.mkdir` / `file.delete` / `file.move` / `file.copy` / `file.watch` / `file.detectType`
+
+**文件会话操作**（`file.session.*`）：
+- `file.session.create` - 创建新文件会话
+- `file.session.open` - 打开文件会话
+- `file.session.read` - 读取会话内容
+- `file.session.write` - 写入会话内容
+- `file.session.get` - 获取会话信息
+- `file.session.persist` - 持久化会话
+- `file.session.close` - 关闭会话
+- `file.session.watch` - 监听文件变化
+
+**文件预览操作**（`file.preview.*`）：
+- `file.preview.generate` - 生成预览/缩略图
+- `file.preview.getCapabilities` - 获取支持的预览格式
+
+**文件转换操作**（`file.convert.*`）：
+- `file.convert` - 单一文件格式转换
+- `file.batchConvert` - 批量文件格式转换
+
+**文件对比操作**（`file.compare.*`）：
+- `file.compare` - 文件内容对比
+- `file.versionDiff` - 版本差异对比
+
+详细协议定义见《15-万能文件处理协议.md》。
+
 ## 8. 启动上下文
 
 Desktop preload 继续向页面暴露：

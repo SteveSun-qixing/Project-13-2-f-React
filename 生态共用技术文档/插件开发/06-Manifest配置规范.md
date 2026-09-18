@@ -210,6 +210,135 @@ capabilities:
 3. 除 `@fallback` 外的 `@` 后缀均视为非法能力串；
 4. 用户默认处理器偏好由 Host `fileOpen.defaults` 配置承载，处理器槽位视图通过 `plugin.listHandlers` 查询（见《资源打开契约》第 4.5 节）。
 
+### 6.2 万能文件处理器能力声明（`file-handler`）
+
+应用插件要在万能文件处理链路（`file.session.*` / `file.preview.*` / `file.convert.*`）中成为处理器，需在 `capabilities` 中声明：
+
+```yaml
+capabilities:
+  # 文件类型处理能力
+  - file-handler:view:application/pdf       # 查看 PDF
+  - file-handler:edit:application/pdf        # 编辑 PDF
+  - file-handler:preview:application/pdf    # 生成 PDF 预览
+
+  # MIME 类型通配
+  - file-handler:view:image/*               # 查看所有图片格式
+  - file-handler:view:video/*               # 查看所有视频格式
+
+  # 扩展名声明
+  - file-handler:.pdf                       # 等同于 file-handler:view:application/pdf
+  - file-handler:.docx                      # 查看 Word 文档
+  - file-handler:.xlsx                      # 查看 Excel 表格
+
+  # 格式转换能力
+  - file-handler:convert:application/pdf->image/png   # PDF 转 PNG
+  - file-handler:convert:image/webp->image/png        # WebP 转 PNG
+
+  # 兜底层级
+  - file-handler:view:*@fallback            # 通用文件查看器兜底
+```
+
+#### 6.2.1 能力格式规范
+
+```
+file-handler:<action>:<mime-or-ext>[@tier]
+```
+
+| 组成部分 | 说明 | 示例 |
+|---|---|---|
+| `file-handler` | 固定前缀 | `file-handler` |
+| `<action>` | 操作类型 | `view`、`edit`、`preview`、`convert`、`compare`、`metadata` |
+| `<mime-or-ext>` | MIME 类型或扩展名 | `application/pdf`、`.pdf`、`image/*`、`*` |
+| `[@tier]` | 可选层级后缀 | 省略表示 `primary`，`@fallback` 表示兜底 |
+
+#### 6.2.2 操作类型
+
+| 操作类型 | 说明 | 权限要求 |
+|---|---|---|
+| `view` | 查看/预览文件 | `file.read` |
+| `edit` | 编辑文件内容 | `file.write` |
+| `preview` | 生成预览/缩略图 | `file.read` |
+| `convert` | 格式转换 | `file.read`、`file.write` |
+| `compare` | 文件对比 | `file.read` |
+| `metadata` | 读取/修改元数据 | `file.read` / `file.write` |
+
+#### 6.2.3 层级后缀
+
+| 层级 | 说明 | 使用场景 |
+|---|---|---|
+| 省略（默认） | `primary` 专用处理器 | 图片查看器、视频播放器、办公编辑器等专用处理器 |
+| `@fallback` | `fallback` 通用兜底 | 通用文件查看器等兜底应用 |
+
+#### 6.2.4 转换能力声明
+
+转换能力需要声明源格式和目标格式：
+
+```yaml
+capabilities:
+  # PDF 转图片
+  - file-handler:convert:application/pdf->image/png
+  - file-handler:convert:application/pdf->image/jpeg
+
+  # Word 转 PDF
+  - file-handler:convert:application/vnd.openxmlformats-officedocument.wordprocessingml.document->application/pdf
+
+  # 图片格式互转
+  - file-handler:convert:image/webp->image/png
+  - file-handler:convert:image/png->image/jpeg
+```
+
+#### 6.2.5 能力匹配规则
+
+1. **用户默认处理器偏好优先**：Host 配置 `fileOpen.defaults` 中存在当前请求命中的偏好键时，优先使用用户设置的默认处理器
+2. **精确匹配优先**：精确 MIME 类型 > 主类型通配 > 扩展名 > 全局通配
+3. **专用处理器优先**：同类型能力中，`primary` 层级优先于 `fallback` 层级
+4. **安装顺序**：同层级按插件安装顺序
+5. **操作类型优先**：同格式的情况下，`edit` > `view` > `preview`
+
+#### 6.2.6 典型插件声明示例
+
+**图片查看器插件**：
+```yaml
+capabilities:
+  - file-handler:view:image/*
+  - file-handler:preview:image/*
+  - file-handler:convert:image/webp->image/png
+  - file-handler:convert:image/png->image/jpeg
+```
+
+**视频播放器插件**：
+```yaml
+capabilities:
+  - file-handler:view:video/*
+  - file-handler:preview:video/*
+```
+
+**办公编辑器插件**：
+```yaml
+capabilities:
+  - file-handler:view:application/pdf
+  - file-handler:edit:application/pdf
+  - file-handler:preview:application/pdf
+  - file-handler:view:application/vnd.openxmlformats-officedocument.*
+  - file-handler:edit:application/vnd.openxmlformats-officedocument.*
+  - file-handler:convert:application/vnd.openxmlformats-officedocument.*->application/pdf
+```
+
+**通用文件查看器（兜底）**：
+```yaml
+capabilities:
+  - file-handler:view:*@fallback
+  - file-handler:preview:*@fallback
+```
+
+#### 6.2.7 与 `resource-handler` 的关系
+
+- `file-handler` 是万能文件处理链路的专用能力声明
+- `resource-handler` 是资源打开路由的能力声明
+- 两者可以同时声明，Host 会根据调用链路选择匹配的能力
+- 详细协议定义见《15-万能文件处理协议.md》
+- SDK 侧的纯类型契约与路由常量集中在 `Chips-SDK/src/contracts/file.ts`，插件代码（包括类型守卫、handlers、manifest 校验脚本）应优先复用该模块，而不是重新声明 `FileSessionDescriptor`、`FILE_ACTIONS`、`FILE_ACTION_PERMISSIONS`、`FILE_ERROR_CODES` 等与 Host 重复的类型
+
 ## 7. 命令行扩展声明：`cli.commands`
 
 `type: app` 与 `type: module` 插件可以通过 `cli.commands` 声明可被 Host 动态发现的命令行入口。Host 在 `plugin.install` 时解析并校验这些声明，并通过 `cli.command.list / cli.command.get / cli.command.resolve` 暴露只读命令索引。

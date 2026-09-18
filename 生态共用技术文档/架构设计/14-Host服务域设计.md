@@ -1,10 +1,13 @@
 # Host服务域设计
 
-> **版本**：vNext 已落地口径  
+> **版本**：vNext 已落地口径（含万能文件处理链路扩展）  
 > **层级**：L3 Host Services  
-> **当前实现状态**：20 个服务域已在 Host 中注册
+> **当前实现状态**：20 个服务域已在 Host 中注册  
+> **最新更新**：2026-09-03 添加万能文件处理链路扩展
 
 > **状态注记（task030 卸担计划，2026-08）**：本文档描述 Host 服务域（含 theme/i18n 服务），属 Host 内部链路，保留有效；其中 command 图标由组件库 `ChipsIcon` 消费的口径已失效——插件侧图标统一使用 `@ant-design/icons`。
+
+> **万能文件处理链路说明（task031）**：本轮新增万能文件处理链路（`file.session.*` / `file.preview.*` / `file.convert.*`），详细协议定义见《15-万能文件处理协议.md》。
 
 ## 架构归属声明（2026-04-08）
 
@@ -23,7 +26,7 @@
 
 | 序号 | 服务域 | 说明 |
 |---|---|---|
-| 1 | `file` | 文件读写、枚举、拷贝、移动 |
+| 1 | `file` | 文件读写、枚举、拷贝、移动、文件会话、类型检测、预览、转换、对比 |
 | 2 | `resource` | 资源解析、读取、统一打开、受控资源格式转换 |
 | 3 | `config` | 配置治理 |
 | 4 | `theme` | 主题管理 |
@@ -43,6 +46,46 @@
 | 18 | `zip` | ZIP 压缩与解压 |
 | 19 | `serializer` | 序列化与校验 |
 | 20 | `control-plane` | 健康检查、指标、诊断 |
+
+### 2.1 `file` 服务域扩展（万能文件处理链路）
+
+`file` 服务域在基础文件操作之上扩展了万能文件处理能力：
+
+#### 2.1.1 文件会话动作（`file.session.*`）
+
+| 动作 | 权限 | 语义 |
+|---|---|---|
+| `file.session.create` | `file.write` | 在工作区创建新文件并建立会话 |
+| `file.session.open` | `file.read` | 从指定路径打开文件并建立会话 |
+| `file.session.read` | `file.read` | 读取会话的全部或部分内容 |
+| `file.session.write` | `file.write` | 修改会话内容（仅内存） |
+| `file.session.get` | `file.read` | 获取会话描述符与状态 |
+| `file.session.persist` | `file.write` | 将内存内容写回磁盘 |
+| `file.session.close` | `file.write` | 关闭会话，释放资源 |
+| `file.session.watch` | `file.read` | 监听文件变化 |
+
+#### 2.1.2 文件预览动作（`file.preview.*`）
+
+| 动作 | 权限 | 语义 |
+|---|---|---|
+| `file.preview.generate` | `file.read` | 生成文件预览/缩略图 |
+| `file.preview.getCapabilities` | `file.read` | 获取支持的预览格式信息 |
+
+#### 2.1.3 文件转换动作（`file.convert.*`）
+
+| 动作 | 权限 | 语义 |
+|---|---|---|
+| `file.convert` | `file.read`、`file.write` | 单一文件格式转换 |
+| `file.batchConvert` | `file.read`、`file.write` | 批量文件格式转换 |
+
+#### 2.1.4 文件对比动作（`file.compare.*`）
+
+| 动作 | 权限 | 语义 |
+|---|---|---|
+| `file.compare` | `file.read` | 文件内容对比 |
+| `file.versionDiff` | `file.read` | 版本差异对比 |
+
+详细协议定义见《15-万能文件处理协议.md》。
 
 ## 3. 本轮新增的正式主语义
 
