@@ -44,6 +44,7 @@ export { SettingsGroup, type SettingsGroupProps } from "./components/SettingsGro
 export { SettingsLayout, type SettingsLayoutProps } from "./components/SettingsLayout";
 export { SettingsRow, type SettingsRowProps } from "./components/SettingsRow";
 export { StateBoundary, type StateBoundaryProps } from "./components/StateBoundary";
+export { StartHome, type StartHomeProps } from "./components/StartHome";
 export {
   EmptyHint,
   LayoutSkeleton,
