@@ -23,6 +23,8 @@
     "Chips-Host",
     "Chips-ModulePlugin/*",
     "Chips-MusicPlayer",
+    "Chips-Notes",
+    "Chips-Office",
     "Chips-PhotoViewer",
     "Chips-RichTextEditor",
     "Chips-Scaffold/*",
