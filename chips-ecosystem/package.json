@@ -1,0 +1,61 @@
+{
+  "name": "chips-ecosystem",
+  "version": "0.1.0",
+  "private": true,
+  "description": "薯片生态 Monorepo：Cordis 内核、Rust 核心与 Neon 绑定、Bridge、Electron 壳、React + @chips/ui 前端与插件",
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@9",
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @chips/host dev",
+    "build": "cargo build --workspace --release && pnpm -r --filter \"./packages/*\" --filter \"./plugins/*\" --filter \"./plugins/*/*\" run build",
+    "test": "cargo test --workspace && pnpm -r run test",
+    "test:coverage": "pnpm --filter @chips/testing run coverage",
+    "test:coverage:ts": "vitest run --coverage --configLoader runner",
+    "test:coverage:rust": "cargo tarpaulin --workspace --no-fail-fast --out Xml Json Lcov --output-dir coverage/rust",
+    "report:coverage": "pnpm --filter @chips/testing run report",
+    "bench": "cargo bench --workspace",
+    "test:contract": "cargo test -p chips-native && pnpm -r run test:contract",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:fixtures": "node tests/e2e/fixtures/generate-fixtures.mjs",
+    "test:e2e:fixtures:check": "node tests/e2e/fixtures/generate-fixtures.mjs --check",
+    "lint": "eslint . && prettier --check . && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings",
+    "typecheck": "tsc -b && pnpm -r run typecheck",
+    "package": "pnpm -r run package",
+    "clean": "pnpm -r run clean && cargo clean",
+    "docs:check": "node tools/gates/check-docs.mjs",
+    "gates:docs": "node tools/gates/check-docs.mjs",
+    "gates:contracts": "node tools/gates/check-contracts.mjs",
+    "gates:boundaries": "node tools/gates/check-boundaries.mjs",
+    "gates:coverage": "node tools/gates/check-coverage.mjs",
+    "gates:entries": "node tools/gates/check-entries.mjs",
+    "gates:all": "node tools/gates/gates-all.mjs",
+    "gates:test": "node --test \"tools/gates/tests/**/*.test.mjs\"",
+    "ci": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:contract && pnpm run build && pnpm run gates:all"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@playwright/test": "1.61.0",
+    "@types/node": "20.19.37",
+    "@vitest/coverage-v8": "3.2.7",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-import-x": "4.17.1",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.12.0",
+    "prettier": "3.9.8",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "3.2.7"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "antd@6.6.4": "packages/antd/patches/antd@6.6.4.patch"
+    }
+  }
+}

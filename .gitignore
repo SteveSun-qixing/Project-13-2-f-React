@@ -36,3 +36,11 @@ release-artifacts/
 打包/
 .codex-runtime-logs/
 .omo/
+
+# cargo 构建产物目录
+target/
+**/target/
+
+# SQLite WAL/SHM 临时文件不入库
+*.db-shm
+*.db-wal

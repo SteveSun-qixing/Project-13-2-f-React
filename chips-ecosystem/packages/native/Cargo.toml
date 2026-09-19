@@ -1,0 +1,18 @@
+[package]
+name = "chips-native"
+description = "薯片平台 Neon 绑定：核心 ABI 导出面、类型映射、错误归一与线程约束"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.75"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+chips-core = { path = "../core-rust/crates/chips-core" }
+chips-cordis = { path = "../core-rust/crates/chips-cordis" }
+neon = "1"
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time"] }

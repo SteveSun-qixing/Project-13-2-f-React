@@ -1,0 +1,1211 @@
+{
+  "data": {
+    "app": {
+      "declarations": [
+        {
+          "kind": "type",
+          "name": "AppSurface",
+          "text": "'window' | 'desktop' | 'tray'"
+        },
+        {
+          "kind": "type",
+          "name": "AppLaunchSource",
+          "text": "'launcher' | 'file-association' | 'command' | 'deep-link'"
+        },
+        {
+          "kind": "type",
+          "name": "AppExitReason",
+          "text": "'user' | 'platform' | 'shutdown' | 'failure'"
+        },
+        {
+          "kind": "type",
+          "name": "ConfigLayer",
+          "text": "'platform' | 'user' | 'workspace' | 'plugin'"
+        },
+        {
+          "kind": "type",
+          "name": "ConfigWriteScope",
+          "text": "'user' | 'workspace'"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "source",
+              "optional": false,
+              "signature": "readonly source: AppLaunchSource"
+            },
+            {
+              "name": "files",
+              "optional": false,
+              "signature": "readonly files: readonly string[]"
+            },
+            {
+              "name": "url",
+              "optional": true,
+              "signature": "readonly url?: string"
+            },
+            {
+              "name": "command",
+              "optional": true,
+              "signature": "readonly command?: string"
+            },
+            {
+              "name": "commandArgs",
+              "optional": true,
+              "signature": "readonly commandArgs?: unknown"
+            }
+          ],
+          "name": "IAppLaunchArgs"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "name",
+              "optional": false,
+              "signature": "readonly name: string"
+            },
+            {
+              "name": "icon",
+              "optional": false,
+              "signature": "readonly icon: string"
+            },
+            {
+              "name": "description",
+              "optional": true,
+              "signature": "readonly description?: string"
+            }
+          ],
+          "name": "IAppLauncherInfo"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "id",
+              "optional": false,
+              "signature": "readonly id: number"
+            },
+            {
+              "name": "close",
+              "optional": false,
+              "signature": "close(): Promise<void>"
+            },
+            {
+              "name": "focus",
+              "optional": false,
+              "signature": "focus(): Promise<void>"
+            },
+            {
+              "name": "setTitle",
+              "optional": false,
+              "signature": "setTitle(title: string): Promise<void>"
+            },
+            {
+              "name": "setSize",
+              "optional": false,
+              "signature": "setSize(width: number, height: number): Promise<void>"
+            }
+          ],
+          "name": "IAppWindow"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "beforeExit",
+              "optional": false,
+              "signature": "beforeExit(handler: (reason: AppExitReason) => Promise<void> | void): ISubscription"
+            }
+          ],
+          "name": "IAppLifecycle"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "key",
+              "optional": false,
+              "signature": "readonly key: string"
+            },
+            {
+              "name": "value",
+              "optional": false,
+              "signature": "readonly value: unknown"
+            },
+            {
+              "name": "layer",
+              "optional": false,
+              "signature": "readonly layer: ConfigLayer"
+            },
+            {
+              "name": "isDefault",
+              "optional": false,
+              "signature": "readonly isDefault: boolean"
+            }
+          ],
+          "name": "IAppConfigView"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "key",
+              "optional": false,
+              "signature": "readonly key: string"
+            },
+            {
+              "name": "layer",
+              "optional": false,
+              "signature": "readonly layer: ConfigLayer"
+            },
+            {
+              "name": "value",
+              "optional": false,
+              "signature": "readonly value: unknown"
+            },
+            {
+              "name": "effectiveValue",
+              "optional": false,
+              "signature": "readonly effectiveValue: unknown"
+            },
+            {
+              "name": "isDefault",
+              "optional": false,
+              "signature": "readonly isDefault: boolean"
+            },
+            {
+              "name": "origin",
+              "optional": false,
+              "signature": "readonly origin: string"
+            }
+          ],
+          "name": "IAppConfigChange"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "get",
+              "optional": false,
+              "signature": "get(key: string): Promise<IAppConfigView>"
+            },
+            {
+              "name": "snapshot",
+              "optional": false,
+              "signature": "snapshot(prefix?: string): Promise<Readonly<Record<string, unknown>>>"
+            },
+            {
+              "name": "set",
+              "optional": false,
+              "signature": "set(key: string, value: unknown, scope: ConfigWriteScope): Promise<void>"
+            },
+            {
+              "name": "reset",
+              "optional": false,
+              "signature": "reset(keys: readonly string[], scope: ConfigWriteScope): Promise<void>"
+            },
+            {
+              "name": "watch",
+              "optional": false,
+              "signature": "watch(prefix: string, handler: (change: IAppConfigChange) => void): IEventSubscription"
+            }
+          ],
+          "name": "IAppConfig"
+        },
+        {
+          "kind": "type",
+          "name": "AppLogFields",
+          "text": "Readonly<Record<string, string | number | boolean | null>>"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "debug",
+              "optional": false,
+              "signature": "debug(message: string, fields?: AppLogFields): void"
+            },
+            {
+              "name": "info",
+              "optional": false,
+              "signature": "info(message: string, fields?: AppLogFields): void"
+            },
+            {
+              "name": "warn",
+              "optional": false,
+              "signature": "warn(message: string, fields?: AppLogFields): void"
+            },
+            {
+              "name": "error",
+              "optional": false,
+              "signature": "error(message: string, error?: unknown, fields?: AppLogFields): void"
+            }
+          ],
+          "name": "IAppLogger"
+        },
+        {
+          "kind": "type",
+          "name": "IAppBridge",
+          "text": "Pick<IChipsBridge, 'request' | 'resource'>"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "appId",
+              "optional": false,
+              "signature": "readonly appId: string"
+            },
+            {
+              "name": "surface",
+              "optional": false,
+              "signature": "readonly surface: AppSurface"
+            },
+            {
+              "name": "launcher",
+              "optional": false,
+              "signature": "readonly launcher: IAppLauncherInfo | null"
+            },
+            {
+              "name": "args",
+              "optional": false,
+              "signature": "readonly args: IAppLaunchArgs"
+            },
+            {
+              "name": "window",
+              "optional": false,
+              "signature": "readonly window: IAppWindow | null"
+            },
+            {
+              "name": "lifecycle",
+              "optional": false,
+              "signature": "readonly lifecycle: IAppLifecycle"
+            },
+            {
+              "name": "bridge",
+              "optional": false,
+              "signature": "readonly bridge: IAppBridge"
+            },
+            {
+              "name": "config",
+              "optional": false,
+              "signature": "readonly config: IAppConfig"
+            },
+            {
+              "name": "logger",
+              "optional": false,
+              "signature": "readonly logger: IAppLogger"
+            },
+            {
+              "name": "inject",
+              "optional": false,
+              "signature": "inject(dependencies: readonly string[], callback: (ctx: IAppContext) => void): void"
+            },
+            {
+              "name": "on",
+              "optional": false,
+              "signature": "on<TPayload>(event: string, listener: (payload: TPayload) => void): IEventSubscription"
+            },
+            {
+              "name": "once",
+              "optional": false,
+              "signature": "once<TPayload>(event: string, listener: (payload: TPayload) => void): IEventSubscription"
+            },
+            {
+              "name": "emit",
+              "optional": false,
+              "signature": "emit<TPayload>(event: string, payload: TPayload): void"
+            },
+            {
+              "name": "effect",
+              "optional": false,
+              "signature": "effect(cleanup: () => void): void"
+            },
+            {
+              "name": "exit",
+              "optional": false,
+              "signature": "exit(code?: number): Promise<void>"
+            }
+          ],
+          "name": "IAppContext"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "launch",
+              "optional": false,
+              "signature": "launch(ctx: IAppContext): Promise<void>"
+            },
+            {
+              "name": "handleCommand",
+              "optional": true,
+              "signature": "handleCommand?(command: string, args: unknown): Promise<void>"
+            },
+            {
+              "name": "openFile",
+              "optional": true,
+              "signature": "openFile?(uri: string): Promise<void>"
+            }
+          ],
+          "name": "IAppPlugin"
+        }
+      ],
+      "entry": "IAppPlugin",
+      "refs": [
+        {
+          "file": "05-接口与契约/07.02-07-应用插件接口-二、接口总览.md",
+          "section": "二、接口总览"
+        }
+      ]
+    },
+    "basecard": {
+      "declarations": [
+        {
+          "kind": "type",
+          "name": "Dispose",
+          "text": "() => void"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "renderView",
+              "optional": false,
+              "signature": "renderView(basecard: BaseCardView, container: HTMLElement): void | Dispose"
+            },
+            {
+              "name": "renderEditor",
+              "optional": false,
+              "signature": "renderEditor(basecard: BaseCardView, container: HTMLElement): IBaseCardEditor"
+            },
+            {
+              "name": "validateConfig",
+              "optional": false,
+              "signature": "validateConfig(config: unknown): boolean"
+            },
+            {
+              "name": "createInitialContent",
+              "optional": false,
+              "signature": "createInitialContent(): Record<string, unknown>"
+            },
+            {
+              "name": "collectResourcePaths",
+              "optional": false,
+              "signature": "collectResourcePaths(basecard: BaseCardView): string[]"
+            },
+            {
+              "name": "export",
+              "optional": true,
+              "signature": "export?(basecard: BaseCardView, format: string): Promise<Blob>"
+            }
+          ],
+          "name": "IBaseCardPlugin"
+        },
+        {
+          "kind": "type",
+          "name": "CardTag",
+          "text": "string | readonly string[]"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "card_id",
+              "optional": false,
+              "signature": "card_id: string"
+            },
+            {
+              "name": "name",
+              "optional": false,
+              "signature": "name: string"
+            },
+            {
+              "name": "chip_standards_version",
+              "optional": false,
+              "signature": "chip_standards_version: string"
+            },
+            {
+              "name": "cover_ratio",
+              "optional": false,
+              "signature": "cover_ratio: string"
+            },
+            {
+              "name": "tags",
+              "optional": false,
+              "signature": "tags: CardTag[]"
+            }
+          ],
+          "name": "BaseCardContext"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "kind",
+              "optional": false,
+              "signature": "kind: 'basecard'"
+            },
+            {
+              "name": "node_id",
+              "optional": false,
+              "signature": "node_id: string"
+            },
+            {
+              "name": "card_type",
+              "optional": false,
+              "signature": "card_type: string"
+            },
+            {
+              "name": "content",
+              "optional": false,
+              "signature": "content: Record<string, unknown>"
+            },
+            {
+              "name": "revision",
+              "optional": false,
+              "signature": "revision: number"
+            },
+            {
+              "name": "card",
+              "optional": false,
+              "signature": "card: BaseCardContext"
+            }
+          ],
+          "name": "BaseCardView"
+        },
+        {
+          "kind": "type",
+          "name": "EditorState",
+          "text": "'active' | 'disposed'"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "op",
+              "optional": false,
+              "signature": "op: 'add' | 'remove' | 'replace'"
+            },
+            {
+              "name": "path",
+              "optional": false,
+              "signature": "path: string"
+            },
+            {
+              "name": "value",
+              "optional": true,
+              "signature": "value?: unknown"
+            }
+          ],
+          "name": "ICardPatchOperation"
+        },
+        {
+          "kind": "type",
+          "name": "BaseCardChange",
+          "text": "| { kind: 'replace'; content: Record<string, unknown> } | { kind: 'patch'; operations: readonly ICardPatchOperation[] }"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "change",
+              "optional": false,
+              "signature": "change: { change: BaseCardChange }"
+            },
+            {
+              "name": "dirty",
+              "optional": false,
+              "signature": "dirty: { isDirty: boolean }"
+            }
+          ],
+          "name": "IBaseCardEditorEventMap"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "state",
+              "optional": false,
+              "signature": "readonly state: EditorState"
+            },
+            {
+              "name": "isDirty",
+              "optional": false,
+              "signature": "isDirty(): boolean"
+            },
+            {
+              "name": "getChange",
+              "optional": false,
+              "signature": "getChange(): BaseCardChange | null"
+            },
+            {
+              "name": "markCommitted",
+              "optional": false,
+              "signature": "markCommitted(revision: number): void"
+            },
+            {
+              "name": "update",
+              "optional": false,
+              "signature": "update(basecard: BaseCardView, revision: number): void"
+            },
+            {
+              "name": "subscribe",
+              "optional": false,
+              "signature": "subscribe<TEvent extends keyof IBaseCardEditorEventMap>(event: TEvent, handler: (payload: IBaseCardEditorEventMap[TEvent]) => void): ISubscription"
+            },
+            {
+              "name": "focus",
+              "optional": false,
+              "signature": "focus(): void"
+            },
+            {
+              "name": "dispose",
+              "optional": false,
+              "signature": "dispose(): void"
+            }
+          ],
+          "name": "IBaseCardEditor"
+        }
+      ],
+      "entry": "IBaseCardPlugin",
+      "refs": [
+        {
+          "file": "05-接口与契约/08.02-08-基础卡片插件接口-二、接口定义.md",
+          "section": "二、接口定义§2.1 完整签名"
+        },
+        {
+          "file": "05-接口与契约/08.03-08-基础卡片插件接口-三、BaseCardView 节点渲染视图模型.md",
+          "section": "三、BaseCardView 节点渲染视图模型"
+        },
+        {
+          "file": "05-接口与契约/08.04-08-基础卡片插件接口-四、IBaseCardEditor 编辑契约.md",
+          "section": "四、IBaseCardEditor 编辑契约§4.1 类型定义"
+        }
+      ]
+    },
+    "boxlayout": {
+      "declarations": [
+        {
+          "kind": "type",
+          "name": "Dispose",
+          "text": "() => void"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "renderLayout",
+              "optional": false,
+              "signature": "renderLayout(box: BoxRenderView, container: HTMLElement): void | Dispose"
+            },
+            {
+              "name": "renderEditor",
+              "optional": false,
+              "signature": "renderEditor(box: BoxRenderView, container: HTMLElement): ILayoutEditor"
+            },
+            {
+              "name": "validateConfig",
+              "optional": false,
+              "signature": "validateConfig(config: unknown): boolean"
+            }
+          ],
+          "name": "IBoxLayoutPlugin"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "kind",
+              "optional": false,
+              "signature": "readonly kind: 'box'"
+            },
+            {
+              "name": "box_id",
+              "optional": false,
+              "signature": "readonly box_id: string"
+            },
+            {
+              "name": "name",
+              "optional": false,
+              "signature": "readonly name: string"
+            },
+            {
+              "name": "chip_standards_version",
+              "optional": false,
+              "signature": "readonly chip_standards_version: string"
+            },
+            {
+              "name": "revision",
+              "optional": false,
+              "signature": "readonly revision: number"
+            },
+            {
+              "name": "active_layout_type",
+              "optional": false,
+              "signature": "readonly active_layout_type: string"
+            },
+            {
+              "name": "layout_config",
+              "optional": false,
+              "signature": "readonly layout_config: Record<string, unknown>"
+            },
+            {
+              "name": "cover",
+              "optional": false,
+              "signature": "readonly cover: CoverView"
+            },
+            {
+              "name": "entries",
+              "optional": false,
+              "signature": "readonly entries: EntryView[]"
+            }
+          ],
+          "name": "BoxRenderView"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "entry_id",
+              "optional": false,
+              "signature": "entry_id: string"
+            },
+            {
+              "name": "url",
+              "optional": false,
+              "signature": "url: string"
+            },
+            {
+              "name": "enabled",
+              "optional": false,
+              "signature": "enabled: boolean"
+            },
+            {
+              "name": "snapshot",
+              "optional": true,
+              "signature": "snapshot?: Record<string, unknown>"
+            },
+            {
+              "name": "layout_hints",
+              "optional": true,
+              "signature": "layout_hints?: Record<string, unknown>"
+            },
+            {
+              "name": "displayTitle",
+              "optional": false,
+              "signature": "displayTitle: string"
+            },
+            {
+              "name": "order",
+              "optional": false,
+              "signature": "order: number"
+            }
+          ],
+          "name": "EntryView"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "attachRuntime",
+              "optional": false,
+              "signature": "attachRuntime(runtime: IBoxLayoutFrameRuntime): void"
+            }
+          ],
+          "name": "IBoxLayoutRuntimeAware"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "level",
+              "optional": false,
+              "signature": "level: 'info' | 'warning' | 'error'"
+            },
+            {
+              "name": "message",
+              "optional": false,
+              "signature": "message: string"
+            }
+          ],
+          "name": "FrameNotification"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "entryIds",
+              "optional": false,
+              "signature": "entryIds: readonly string[]"
+            }
+          ],
+          "name": "EntryRequest"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "requestEntries",
+              "optional": false,
+              "signature": "requestEntries(request: EntryRequest): Promise<EntryTicket[]>"
+            },
+            {
+              "name": "mountEntry",
+              "optional": false,
+              "signature": "mountEntry(ticket: EntryTicket, container: HTMLElement): Promise<Dispose>"
+            },
+            {
+              "name": "openDocument",
+              "optional": false,
+              "signature": "openDocument(source: string): Promise<void>"
+            },
+            {
+              "name": "openExternal",
+              "optional": false,
+              "signature": "openExternal(url: string): Promise<void>"
+            },
+            {
+              "name": "copyText",
+              "optional": false,
+              "signature": "copyText(text: string): Promise<void>"
+            },
+            {
+              "name": "notify",
+              "optional": false,
+              "signature": "notify(notification: FrameNotification): Promise<void>"
+            }
+          ],
+          "name": "IBoxLayoutFrameRuntime"
+        },
+        {
+          "kind": "type",
+          "name": "EditorState",
+          "text": "'active' | 'disposed'"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "op",
+              "optional": false,
+              "signature": "op: 'add' | 'remove' | 'replace'"
+            },
+            {
+              "name": "path",
+              "optional": false,
+              "signature": "path: string"
+            },
+            {
+              "name": "value",
+              "optional": true,
+              "signature": "value?: unknown"
+            }
+          ],
+          "name": "ILayoutPatchOperation"
+        },
+        {
+          "kind": "type",
+          "name": "LayoutChange",
+          "text": "| { kind: 'replace'; config: Record<string, unknown>; schemaVersion: string } | { kind: 'patch'; operations: readonly ILayoutPatchOperation[] }"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "change",
+              "optional": false,
+              "signature": "change: { change: LayoutChange }"
+            },
+            {
+              "name": "dirty",
+              "optional": false,
+              "signature": "dirty: { isDirty: boolean }"
+            }
+          ],
+          "name": "ILayoutEditorEventMap"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "state",
+              "optional": false,
+              "signature": "readonly state: EditorState"
+            },
+            {
+              "name": "isDirty",
+              "optional": false,
+              "signature": "isDirty(): boolean"
+            },
+            {
+              "name": "getChange",
+              "optional": false,
+              "signature": "getChange(): LayoutChange | null"
+            },
+            {
+              "name": "markCommitted",
+              "optional": false,
+              "signature": "markCommitted(revision: number): void"
+            },
+            {
+              "name": "update",
+              "optional": false,
+              "signature": "update(box: BoxRenderView, revision: number): void"
+            },
+            {
+              "name": "subscribe",
+              "optional": false,
+              "signature": "subscribe<TEvent extends keyof ILayoutEditorEventMap>(event: TEvent, handler: (payload: ILayoutEditorEventMap[TEvent]) => void): ISubscription"
+            },
+            {
+              "name": "focus",
+              "optional": false,
+              "signature": "focus(): void"
+            },
+            {
+              "name": "dispose",
+              "optional": false,
+              "signature": "dispose(): void"
+            }
+          ],
+          "name": "ILayoutEditor"
+        }
+      ],
+      "entry": "IBoxLayoutPlugin",
+      "refs": [
+        {
+          "file": "05-接口与契约/09.03-09-箱子布局插件接口-三、IBoxLayoutPlugin 接口.md",
+          "section": "三、IBoxLayoutPlugin 接口§3.1 接口定义"
+        },
+        {
+          "file": "05-接口与契约/09.04-09-箱子布局插件接口-四、数据模型.md",
+          "section": "四、数据模型§4.1 BoxRenderView"
+        },
+        {
+          "file": "05-接口与契约/09.04-09-箱子布局插件接口-四、数据模型.md",
+          "section": "四、数据模型§4.2 EntryView"
+        },
+        {
+          "file": "05-接口与契约/09.06-09-箱子布局插件接口-六、条目渲染与资源访问.md",
+          "section": "六、条目渲染与资源访问§6.1 帧运行时契约"
+        },
+        {
+          "file": "05-接口与契约/09.07-09-箱子布局插件接口-七、布局编辑面板.md",
+          "section": "七、布局编辑面板§7.1 ILayoutEditor"
+        }
+      ]
+    },
+    "service": {
+      "declarations": [
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "start",
+              "optional": false,
+              "signature": "start(ctx: IServiceContext): Promise<void>"
+            },
+            {
+              "name": "stop",
+              "optional": false,
+              "signature": "stop(): Promise<void>"
+            },
+            {
+              "name": "health",
+              "optional": true,
+              "signature": "health?(): Promise<boolean>"
+            },
+            {
+              "name": "handleFile",
+              "optional": true,
+              "signature": "handleFile?(uri: string): Promise<void>"
+            }
+          ],
+          "name": "IServicePlugin"
+        },
+        {
+          "kind": "type",
+          "name": "ConfigLayer",
+          "text": "'platform' | 'user' | 'workspace' | 'plugin'"
+        },
+        {
+          "kind": "type",
+          "name": "ConfigWriteScope",
+          "text": "'user' | 'workspace'"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "key",
+              "optional": false,
+              "signature": "key: string"
+            },
+            {
+              "name": "value",
+              "optional": false,
+              "signature": "value: unknown"
+            },
+            {
+              "name": "layer",
+              "optional": false,
+              "signature": "layer: ConfigLayer"
+            },
+            {
+              "name": "isDefault",
+              "optional": false,
+              "signature": "isDefault: boolean"
+            }
+          ],
+          "name": "IConfigView"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "key",
+              "optional": false,
+              "signature": "key: string"
+            },
+            {
+              "name": "layer",
+              "optional": false,
+              "signature": "layer: ConfigLayer"
+            },
+            {
+              "name": "value",
+              "optional": false,
+              "signature": "value: unknown"
+            },
+            {
+              "name": "effectiveValue",
+              "optional": false,
+              "signature": "effectiveValue: unknown"
+            },
+            {
+              "name": "isDefault",
+              "optional": false,
+              "signature": "isDefault: boolean"
+            },
+            {
+              "name": "origin",
+              "optional": false,
+              "signature": "origin: string"
+            }
+          ],
+          "name": "IConfigChange"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "get",
+              "optional": false,
+              "signature": "get(key: string): Promise<IConfigView>"
+            },
+            {
+              "name": "snapshot",
+              "optional": false,
+              "signature": "snapshot(prefix?: string): Promise<Readonly<Record<string, unknown>>>"
+            },
+            {
+              "name": "set",
+              "optional": false,
+              "signature": "set(key: string, value: unknown, scope: ConfigWriteScope): Promise<void>"
+            },
+            {
+              "name": "reset",
+              "optional": false,
+              "signature": "reset(keys: readonly string[], scope: ConfigWriteScope): Promise<void>"
+            },
+            {
+              "name": "watch",
+              "optional": false,
+              "signature": "watch(prefix: string, handler: (change: IConfigChange) => void): IEventSubscription"
+            }
+          ],
+          "name": "IServiceConfig"
+        },
+        {
+          "kind": "type",
+          "name": "ServiceLogFields",
+          "text": "Readonly<Record<string, string | number | boolean | null>>"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "debug",
+              "optional": false,
+              "signature": "debug(message: string, fields?: ServiceLogFields): void"
+            },
+            {
+              "name": "info",
+              "optional": false,
+              "signature": "info(message: string, fields?: ServiceLogFields): void"
+            },
+            {
+              "name": "warn",
+              "optional": false,
+              "signature": "warn(message: string, fields?: ServiceLogFields): void"
+            },
+            {
+              "name": "error",
+              "optional": false,
+              "signature": "error(message: string, error?: unknown, fields?: ServiceLogFields): void"
+            }
+          ],
+          "name": "IServiceLogger"
+        },
+        {
+          "kind": "type",
+          "name": "IServiceBridge",
+          "text": "Pick<IChipsBridge, 'request' | 'resource'>"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "timeoutMs",
+              "optional": true,
+              "signature": "timeoutMs?: number"
+            },
+            {
+              "name": "concurrency",
+              "optional": true,
+              "signature": "concurrency?: 'parallel' | 'serial'"
+            },
+            {
+              "name": "maxQueue",
+              "optional": true,
+              "signature": "maxQueue?: number"
+            }
+          ],
+          "name": "ICapabilityRegisterOptions"
+        },
+        {
+          "heritage": [],
+          "kind": "interface",
+          "members": [
+            {
+              "name": "pluginId",
+              "optional": false,
+              "signature": "readonly pluginId: string"
+            },
+            {
+              "name": "bridge",
+              "optional": false,
+              "signature": "readonly bridge: IServiceBridge"
+            },
+            {
+              "name": "config",
+              "optional": false,
+              "signature": "readonly config: IServiceConfig"
+            },
+            {
+              "name": "logger",
+              "optional": false,
+              "signature": "readonly logger: IServiceLogger"
+            },
+            {
+              "name": "provide",
+              "optional": false,
+              "signature": "provide<T extends object>(name: string, service: T): void"
+            },
+            {
+              "name": "inject",
+              "optional": false,
+              "signature": "inject(dependencies: readonly string[], callback: (ctx: IServiceContext) => void): void"
+            },
+            {
+              "name": "on",
+              "optional": false,
+              "signature": "on<TPayload>(event: string, listener: (payload: TPayload) => void): IEventSubscription"
+            },
+            {
+              "name": "once",
+              "optional": false,
+              "signature": "once<TPayload>(event: string, listener: (payload: TPayload) => void): IEventSubscription"
+            },
+            {
+              "name": "emit",
+              "optional": false,
+              "signature": "emit<TPayload>(event: string, payload: TPayload): void"
+            },
+            {
+              "name": "registerCapability",
+              "optional": false,
+              "signature": "registerCapability<TInput = unknown, TOutput = unknown>(capability: ICapability<TInput, TOutput>, options?: ICapabilityRegisterOptions): void"
+            },
+            {
+              "name": "effect",
+              "optional": false,
+              "signature": "effect(cleanup: () => void): void"
+            }
+          ],
+          "name": "IServiceContext"
+        }
+      ],
+      "entry": "IServicePlugin",
+      "refs": [
+        {
+          "file": "05-接口与契约/10.02-10-服务插件接口-二、角色契约：IServicePlugin.md",
+          "section": "二、角色契约：IServicePlugin§2.1 接口定义"
+        },
+        {
+          "file": "05-接口与契约/10.03-10-服务插件接口-三、服务上下文：IServiceContext.md",
+          "section": "三、服务上下文：IServiceContext§3.1 接口定义"
+        }
+      ]
+    }
+  },
+  "generator": "tests/contract/src/snapshot-data.ts#buildRoleSnapshotData",
+  "schemaVersion": 1,
+  "sources": [
+    "05-接口与契约/07.02-07-应用插件接口-二、接口总览.md",
+    "05-接口与契约/08.02-08-基础卡片插件接口-二、接口定义.md",
+    "05-接口与契约/08.03-08-基础卡片插件接口-三、BaseCardView 节点渲染视图模型.md",
+    "05-接口与契约/08.04-08-基础卡片插件接口-四、IBaseCardEditor 编辑契约.md",
+    "05-接口与契约/09.03-09-箱子布局插件接口-三、IBoxLayoutPlugin 接口.md",
+    "05-接口与契约/09.04-09-箱子布局插件接口-四、数据模型.md",
+    "05-接口与契约/09.06-09-箱子布局插件接口-六、条目渲染与资源访问.md",
+    "05-接口与契约/09.07-09-箱子布局插件接口-七、布局编辑面板.md",
+    "05-接口与契约/10.02-10-服务插件接口-二、角色契约：IServicePlugin.md",
+    "05-接口与契约/10.03-10-服务插件接口-三、服务上下文：IServiceContext.md"
+  ]
+}

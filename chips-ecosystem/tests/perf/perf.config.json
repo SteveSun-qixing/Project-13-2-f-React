@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0.0",
+  "phase": 4,
+  "allowGateOverride": false,
+  "overrides": {},
+  "regression": {
+    "tolerancePercent": {
+      "ms": 10,
+      "fps": 5,
+      "mb": 5,
+      "us": 10,
+      "count": 10
+    },
+    "absoluteFloor": {
+      "ms": 1,
+      "fps": 0.5,
+      "mb": 5,
+      "us": 0.05,
+      "count": 1
+    }
+  },
+  "measurement": {
+    "rounds": 5,
+    "warmupRounds": 1,
+    "idleWindowMs": 300000
+  },
+  "reports": {
+    "outputDir": "reports"
+  }
+}

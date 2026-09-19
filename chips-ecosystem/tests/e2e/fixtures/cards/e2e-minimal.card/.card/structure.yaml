@@ -1,0 +1,7 @@
+structure:
+  - id: "E2eNodeRt1"
+    type: "base.richtext"
+manifest:
+  card_count: 1
+  resource_count: 0
+  resources: []

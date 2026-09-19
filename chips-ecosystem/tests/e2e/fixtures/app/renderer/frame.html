@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>E2E Harness Frame</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      #root {
+        padding: 12px;
+      }
+
+      #content {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"><pre id="content"></pre></div>
+    <script>
+      const PROTOCOL = 'chips-frame/1';
+      const token = location.hash.replace(/^#/, '');
+      const contentElement = document.getElementById('content');
+      let port = null;
+      let sessionId = null;
+      let frameId = null;
+      let ready = false;
+      let epoch = 0;
+
+      function render(view) {
+        const node = view.content_nodes[0];
+        contentElement.textContent = node.content.content_text;
+      }
+
+      function reportHeight() {
+        if (port === null) {
+          return;
+        }
+        epoch += 1;
+        const height = Math.ceil(document.documentElement.getBoundingClientRect().height);
+        port.postMessage({
+          protocol: PROTOCOL,
+          sessionId,
+          frameId,
+          message: { type: 'frame:height', payload: { height, epoch } },
+        });
+      }
+
+      function handle(envelope) {
+        if (!envelope || envelope.protocol !== PROTOCOL) {
+          return;
+        }
+        const message = envelope.message;
+        if (message.type === 'host:init') {
+          render(message.payload.view);
+          requestAnimationFrame(() => {
+            if (!ready) {
+              ready = true;
+              port.postMessage({
+                protocol: PROTOCOL,
+                sessionId,
+                frameId,
+                message: { type: 'frame:ready', payload: { capabilities: ['measure'] } },
+              });
+            }
+            reportHeight();
+          });
+          return;
+        }
+        if (message.type === 'host:update') {
+          render(message.payload.view);
+          requestAnimationFrame(reportHeight);
+        }
+      }
+
+      window.addEventListener('message', (event) => {
+        const data = event.data;
+        if (!data || data.protocol !== PROTOCOL || data.token !== token || !event.ports[0]) {
+          return;
+        }
+        port = event.ports[0];
+        sessionId = data.sessionId;
+        frameId = data.frameId;
+        port.onmessage = (portEvent) => handle(portEvent.data);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "workspaceRoot": ".",
+  "reports": { "dir": "reports" },
+  "docs": { "root": "docs", "index": "README.md" }
+}

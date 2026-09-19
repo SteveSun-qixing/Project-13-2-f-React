@@ -1,0 +1,4 @@
+# 工作区级 Cargo 源覆盖：把全局的 ustc 替换源改为 USTC 稀疏索引
+# 说明：全局配置使用 USTC git 索引，该 git 仓库当前不可用；此处仅重定义 URL，保持 replace-with 不变。
+[source.ustc]
+registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "generatedBy": "fixtures/generate-fixtures.mjs",
+  "card": {
+    "id": "E2eCardRt1",
+    "name": "E2E 最小富文本卡片",
+    "nodeId": "E2eNodeRt1",
+    "cardType": "base.richtext",
+    "inlineText": "# E2E 最小富文本卡片\n\n这是金链路 E2E 使用的最小富文本卡片。\n\n- 打开：document:open\n- 渲染：基础卡片插件 renderView\n- 编辑：document:write\n- 保存：document:save\n",
+    "directoryPath": "cards/e2e-minimal.card",
+    "archivePath": "cards/archive/e2e-minimal.card"
+  },
+  "box": {
+    "id": "E2eBoxGrd1",
+    "name": "E2E 最小箱子",
+    "entryId": "E2eEntry01",
+    "layoutType": "chips.layout.list",
+    "embeddedCardPath": "entries/e2e-minimal.card",
+    "archivePath": "boxes/e2e-minimal.box"
+  }
+}

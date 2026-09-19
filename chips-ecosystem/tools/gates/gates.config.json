@@ -1,0 +1,165 @@
+{
+  "workspaceRoot": "../..",
+  "reports": {
+    "dir": "reports"
+  },
+  "docs": {
+    "root": "../薯片生态文档库",
+    "index": "README.md",
+    "skipDirs": ["归档", "node_modules", ".git", "dist", "coverage", "reports"],
+    "headerKeys": ["版本", "日期", "状态", "适用范围"],
+    "statusValues": ["正式版", "已废弃"],
+    "adrStatusPrefixes": ["已接受", "已废弃"],
+    "minPieceContentLines": 3
+  },
+  "contracts": {
+    "generated": {
+      "dir": "packages/sdk/src/generated",
+      "capabilities": "capability-ids.ts",
+      "permissions": "permission-ids.ts",
+      "events": "event-ids.ts",
+      "mapping": "capability-permissions.ts"
+    },
+    "sources": {
+      "capabilities": {
+        "file": "../薯片生态文档库/05-接口与契约/04.06-04-能力契约规范-六、权限映射（R19 全表）.md",
+        "section": "^###\\s+6\\.2",
+        "declaredCount": "本表的\\s*(\\d+)\\s*项计数"
+      },
+      "permissions": {
+        "file": "../薯片生态文档库/01-架构设计/01-子系统设计/08.04-08-权限系统设计-四、内置权限清单与映射.md",
+        "section": "^###\\s+4\\.1"
+      },
+      "events": {
+        "dir": "../薯片生态文档库/05-接口与契约",
+        "files": "05.*-05-事件契约规范-四、标准事件*.md",
+        "excludedDomains": ["internal"]
+      }
+    }
+  },
+  "boundaries": {
+    "internalScope": "@chips/",
+    "rootManifest": "package.json",
+    "sourceExtensions": [".ts", ".tsx", ".mjs", ".js", ".cjs", ".mts", ".cts"],
+    "ignoredDirs": [
+      "node_modules",
+      ".git",
+      "dist",
+      "coverage",
+      "reports",
+      "tests",
+      "__tests__",
+      "fixtures"
+    ],
+    "testFilePatterns": ["\\.test\\.", "\\.spec\\.", "\\.stories\\."],
+    "workspaceProtocol": "workspace:",
+    "forbiddenProtocolPrefixes": ["file:", "link:"],
+    "allowedDevInternal": ["@chips/testing"],
+    "rules": [
+      { "id": "root", "match": ".", "kind": "root" },
+      {
+        "id": "packages/host",
+        "match": "packages/host*",
+        "allowedInternal": ["@chips/bridge", "@chips/ui"],
+        "forbiddenModules": ["@chips/antd"]
+      },
+      {
+        "id": "packages/bridge",
+        "match": "packages/bridge",
+        "allowedInternal": [],
+        "forbiddenModules": ["electron"]
+      },
+      {
+        "id": "packages/sdk",
+        "match": "packages/sdk",
+        "allowedInternal": ["@chips/bridge"],
+        "typeOnlyInternal": ["@chips/bridge"]
+      },
+      {
+        "id": "packages/ui",
+        "match": "packages/ui",
+        "allowedInternal": ["@chips/antd"],
+        "forbiddenModules": ["electron"]
+      },
+      {
+        "id": "packages/antd",
+        "match": "packages/antd*",
+        "allowedInternal": []
+      },
+      {
+        "id": "packages/native",
+        "match": "packages/native",
+        "allowedInternal": []
+      },
+      {
+        "id": "packages/cli",
+        "match": "packages/cli",
+        "allowedInternal": ["@chips/sdk", "@chips/bridge"],
+        "forbiddenModules": ["electron"]
+      },
+      {
+        "id": "plugins",
+        "match": "plugins/*/*",
+        "allowedInternal": ["@chips/ui", "@chips/sdk"],
+        "forbiddenModules": ["electron", "chips-native", "chips-native.node"],
+        "forbidNodeBuiltins": true
+      },
+      {
+        "id": "examples",
+        "match": "examples/plugins/*",
+        "allowedInternal": ["@chips/ui", "@chips/sdk"],
+        "forbiddenModules": ["electron", "chips-native", "chips-native.node"],
+        "forbidNodeBuiltins": true
+      },
+      {
+        "id": "tools",
+        "match": "tools/*",
+        "allowedInternal": ["@chips/sdk", "@chips/bridge"],
+        "forbiddenModules": ["electron"]
+      },
+      {
+        "id": "tests",
+        "match": "tests/*",
+        "allowAnyInternal": true
+      }
+    ],
+    "rust": {
+      "workspaceManifest": "Cargo.toml",
+      "internalPrefix": "chips-",
+      "allowedDeps": {
+        "chips-core": [],
+        "chips-cordis": ["chips-core"],
+        "chips-bridge": ["chips-core"],
+        "chips-parser": ["chips-core"],
+        "chips-resource": ["chips-core"],
+        "chips-native": [
+          "chips-core",
+          "chips-cordis",
+          "chips-bridge",
+          "chips-parser",
+          "chips-resource"
+        ]
+      }
+    }
+  },
+  "coverage": {
+    "inputs": {
+      "ts": { "path": "coverage/ts/coverage-summary.json", "required": true },
+      "rust": { "path": "coverage/rust/cobertura.xml", "required": true }
+    },
+    "metrics": ["lines", "functions", "branches", "statements"],
+    "defaultThreshold": 80,
+    "groups": [
+      {
+        "id": "shared",
+        "threshold": 90,
+        "match": ["packages/ui/", "packages/bridge/"],
+        "required": true
+      }
+    ],
+    "rust": {
+      "coreThreshold": 90,
+      "coreMatch": ["packages/core-rust/crates/chips-", "packages/native/"]
+    }
+  }
+}

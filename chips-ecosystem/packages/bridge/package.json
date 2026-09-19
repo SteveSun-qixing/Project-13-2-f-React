@@ -1,0 +1,32 @@
+{
+  "name": "@chips/bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bridge 协议类型、能力与事件契约、preload 与渲染进程共用的类型化桥接层",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:contract": "pnpm --filter @chips/contract-tests run test:contract",
+    "lint": "eslint .",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "rimraf": "5.0.10"
+  }
+}

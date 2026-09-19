@@ -1,0 +1,15 @@
+chip_standards_version: "1.0.0"
+card_id: "E2eCardRt1"
+name: "E2E 最小富文本卡片"
+created_at: "2026-09-19T00:00:00.000Z"
+modified_at: "2026-09-19T00:00:00.000Z"
+theme: ""
+cover_ratio: "3:4"
+tags:
+  - "E2E"
+  - - "用途"
+    - "自动化测试"
+visibility: "private"
+downloadable: true
+remixable: true
+commentable: false

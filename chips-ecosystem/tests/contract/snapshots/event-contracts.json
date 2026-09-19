@@ -1,0 +1,1015 @@
+{
+  "data": [
+    {
+      "file": "05-接口与契约/05.11-05-事件契约规范-四、标准事件-4.7 窗口与应用.md",
+      "id": "app:exited",
+      "payload": [
+        {
+          "name": "appId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "exitCode",
+          "required": false,
+          "type": "number"
+        }
+      ],
+      "trigger": "应用退出时发布；`exitCode` 非零表示异常退出。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.11-05-事件契约规范-四、标准事件-4.7 窗口与应用.md",
+      "id": "app:launched",
+      "payload": [
+        {
+          "name": "appId",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "应用启动完成并进入可用状态时发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.11-05-事件契约规范-四、标准事件-4.7 窗口与应用.md",
+      "id": "app:opened-with-url",
+      "payload": [
+        {
+          "name": "appId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "url",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "平台接收深链接且目标应用声明了对应 `deepLinks` 时发布；应用未运行时先以 `launch` 的 `source: 'deep-link'` 投递启动参数再发布本事件，运行中直接投递命令（[07-应用插件接口](./07-应用插件接口.md) §3.2、§3.3）。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.04-05-事件契约规范-四、标准事件.md",
+      "id": "command:changed",
+      "payload": [
+        {
+          "name": "commandId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "ownerPluginId",
+          "required": true,
+          "type": "string | null"
+        },
+        {
+          "name": "target",
+          "required": true,
+          "type": "CommandTarget"
+        }
+      ],
+      "trigger": "同一 owner 对已登记命令执行幂等更新后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.04-05-事件契约规范-四、标准事件.md",
+      "id": "command:invoked",
+      "payload": [
+        {
+          "name": "invocationId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "commandId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "handlerId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "source",
+          "required": true,
+          "type": "CommandSource"
+        },
+        {
+          "name": "payload",
+          "required": false,
+          "type": "unknown"
+        },
+        {
+          "name": "context",
+          "required": true,
+          "type": "ICommandContext"
+        }
+      ],
+      "trigger": "`ui` 目标命令派发时发布（`main` / `platform` 目标不发布本事件，直接经调用返回收口）。",
+      "visibility": "命令 owner 插件（含其注册会话）与平台；其他插件不可订阅。投递保证为至多一次，处理方必须幂等容忍重复派发（[13-命令系统契约](./13-命令系统契约.md) §4.3）。",
+      "visibilityKind": "owner-lookup:command"
+    },
+    {
+      "file": "05-接口与契约/05.04-05-事件契约规范-四、标准事件.md",
+      "id": "command:registered",
+      "payload": [
+        {
+          "name": "commandId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "ownerPluginId",
+          "required": true,
+          "type": "string | null"
+        },
+        {
+          "name": "target",
+          "required": true,
+          "type": "CommandTarget"
+        },
+        {
+          "name": "scopeKind",
+          "required": true,
+          "type": "CommandScopeKind"
+        }
+      ],
+      "trigger": "命令首次登记成功后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.04-05-事件契约规范-四、标准事件.md",
+      "id": "command:unregistered",
+      "payload": [
+        {
+          "name": "commandId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "ownerPluginId",
+          "required": true,
+          "type": "string | null"
+        },
+        {
+          "name": "target",
+          "required": true,
+          "type": "CommandTarget"
+        },
+        {
+          "name": "reason",
+          "required": true,
+          "type": "`'unregister' | 'session-closed' | 'instance-exited' | 'plugin-disabled' | 'plugin-uninstalled'`"
+        }
+      ],
+      "trigger": "主动注销或生命周期清理完成后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.09-05-事件契约规范-四、标准事件-4.5 配置.md",
+      "id": "config:changed",
+      "payload": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "layer",
+          "required": true,
+          "type": "ConfigLayer"
+        },
+        {
+          "name": "value",
+          "required": true,
+          "type": "unknown"
+        },
+        {
+          "name": "effectiveValue",
+          "required": true,
+          "type": "unknown"
+        },
+        {
+          "name": "isDefault",
+          "required": true,
+          "type": "boolean"
+        },
+        {
+          "name": "origin",
+          "required": true,
+          "type": "ConfigOrigin"
+        }
+      ],
+      "trigger": "配置写入或删除提交成功后逐键发布；迁移完成、外部修改被采纳、工作区切换后按生效值变化逐键发布。同值写入不落盘、不发事件；写入被更高层遮蔽时事件仍按发生变化的层发布，订阅方以 `effectiveValue` 判断是否需要响应（见《[10-配置系统设计](../01-架构设计/01-子系统设计/10-配置系统设计.md)》第六节）。",
+      "visibility": "`platform` 命名空间的事件对持有 `config:read:platform` 的插件可见；`plugins.<pluginId>` 命名空间的事件只对该插件与平台可见。",
+      "visibilityKind": "config-namespace"
+    },
+    {
+      "file": "05-接口与契约/05.06-05-事件契约规范-四、标准事件-4.2 文档.md",
+      "id": "document:changed",
+      "payload": [
+        {
+          "name": "uri",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "documentId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "kind",
+          "required": true,
+          "type": "`'card' | 'box'`"
+        },
+        {
+          "name": "digest",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "size",
+          "required": true,
+          "type": "number"
+        }
+      ],
+      "trigger": "文档内容或元数据发生变化后发布（平台写入持久化完成，或外部变更被采纳并收敛后）；字段为同步引擎等消费者的最小需求（见《[07-同步引擎设计](../01-架构设计/01-子系统设计/07-同步引擎设计.md)》9.4）。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.06-05-事件契约规范-四、标准事件-4.2 文档.md",
+      "id": "document:closed",
+      "payload": [
+        {
+          "name": "uri",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "kind",
+          "required": true,
+          "type": "`'card' | 'box'`"
+        }
+      ],
+      "trigger": "文档关闭、相关资源句柄释放完成后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.06-05-事件契约规范-四、标准事件-4.2 文档.md",
+      "id": "document:opened",
+      "payload": [
+        {
+          "name": "uri",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "kind",
+          "required": true,
+          "type": "`'card' | 'box'`"
+        },
+        {
+          "name": "title",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "文档解析完成并开始渲染时发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.06-05-事件契约规范-四、标准事件-4.2 文档.md",
+      "id": "document:saved",
+      "payload": [
+        {
+          "name": "uri",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "kind",
+          "required": true,
+          "type": "`'card' | 'box'`"
+        }
+      ],
+      "trigger": "文档经平台写入并持久化完成后发布（保存、另存成功）。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.07-05-事件契约规范-四、标准事件-4.3 文件.md",
+      "id": "file:changed",
+      "payload": [
+        {
+          "name": "uri",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "kind",
+          "required": true,
+          "type": "`'created' | 'modified' | 'deleted' | 'renamed'`"
+        },
+        {
+          "name": "previousUri",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "trigger": "被监视的文件或目录发生变化时发布（`file:watch` 监视生效）。",
+      "visibility": "公开；URI 一律为合法资源 URI，不含裸绝对路径。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.10-05-事件契约规范-四、标准事件-4.6 安全与审计.md",
+      "id": "permission:denied",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "pluginVersion",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "permission",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "qualifier",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "capabilityId",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "resourceUri",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "reason",
+          "required": true,
+          "type": "`'not_granted' | 'revoked' | 'out_of_scope' | 'user_rejected' | 'policy'`"
+        },
+        {
+          "name": "sessionId",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "traceId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "timestamp",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "能力调用或资源访问被权限判定拒绝时发布。",
+      "visibility": "目标插件（`payload.pluginId`）与平台。",
+      "visibilityKind": "plugin-field:pluginId"
+    },
+    {
+      "file": "05-接口与契约/05.10-05-事件契约规范-四、标准事件-4.6 安全与审计.md",
+      "id": "permission:granted",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "pluginVersion",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "permission",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "qualifier",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "source",
+          "required": true,
+          "type": "`'enable' | 'first-call' | 'settings' | 'update' | 'uninstall'`"
+        },
+        {
+          "name": "actor",
+          "required": true,
+          "type": "`'user' | 'system'`"
+        },
+        {
+          "name": "timestamp",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "权限被用户或策略授予后发布（启用确认、首次调用记住、设置面板、更新）。",
+      "visibility": "目标插件（`payload.pluginId`）与平台。",
+      "visibilityKind": "plugin-field:pluginId"
+    },
+    {
+      "file": "05-接口与契约/05.05-05-事件契约规范-四、标准事件-4.1 插件生命周期.md",
+      "id": "plugin:disabled",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "插件停用完成、事件监听器已摘除后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.05-05-事件契约规范-四、标准事件-4.1 插件生命周期.md",
+      "id": "plugin:enabled",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "插件由停用转为启用并完成启动后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.05-05-事件契约规范-四、标准事件-4.1 插件生命周期.md",
+      "id": "plugin:failed",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "error",
+          "required": true,
+          "type": "ChipsError"
+        }
+      ],
+      "trigger": "插件加载失败或运行中崩溃、状态转为 `failed` 时发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.05-05-事件契约规范-四、标准事件-4.1 插件生命周期.md",
+      "id": "plugin:installed",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "插件包安装完成（解包、校验、原子落盘、注册表状态置为 `installed`）后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.05-05-事件契约规范-四、标准事件-4.1 插件生命周期.md",
+      "id": "plugin:loaded",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "required": true,
+          "type": "PluginRole"
+        }
+      ],
+      "trigger": "插件加载完成并进入运行态（状态 `active`）后发布；首次加载与更新后重新加载均发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.05-05-事件契约规范-四、标准事件-4.1 插件生命周期.md",
+      "id": "plugin:uninstalled",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "插件卸载完成（插件目录、配置、授权与注册表记录删除）后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.05-05-事件契约规范-四、标准事件-4.1 插件生命周期.md",
+      "id": "plugin:unloaded",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "插件从运行时卸载完成、Fork 副作用全部清理后发布；停用与卸载路径均会经过。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.08-05-事件契约规范-四、标准事件-4.4 资源.md",
+      "id": "resource:invalidated",
+      "payload": [
+        {
+          "name": "uri",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "reason",
+          "required": true,
+          "type": "ResourceInvalidateReason"
+        }
+      ],
+      "trigger": "资源来源变化、会话关闭或作用域撤销导致句柄失效时发布；句柄转为 `invalidated` 后不再可读（见《[04-资源管理设计](../01-架构设计/01-子系统设计/04-资源管理设计.md)》四、五节）。",
+      "visibility": "公开；经 `event:resource:invalidated` 投递到对应渲染会话。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.08-05-事件契约规范-四、标准事件-4.4 资源.md",
+      "id": "resource:opened",
+      "payload": [
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "context",
+          "required": true,
+          "type": "IResourceOpenContext"
+        }
+      ],
+      "trigger": "命中处理器的实例已进入 `active`、平台准备投递 `openFile` 之前发布；`context.uri` 与随后 `openFile` 的 `uri` 同值，顺序固定为「事件先到、`openFile` 后到」。",
+      "visibility": "定向投递给该插件实例（主逻辑经 `ctx.on`，UI 经 `chips.subscribe`）；其他插件不接收。新建实例不使用该事件（初始上下文随 `ctx.args.resourceOpen` 送达）。payload 类型与完整规则以《[14-资源打开与默认处理器契约](./14-资源打开与默认处理器契约.md)》§5.5 为准。",
+      "visibilityKind": "plugin-field:pluginId"
+    },
+    {
+      "file": "05-接口与契约/05.10-05-事件契约规范-四、标准事件-4.6 安全与审计.md",
+      "id": "security:audit",
+      "payload": [
+        {
+          "name": "id",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "timestamp",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "action",
+          "required": true,
+          "type": "`'grant' | 'revoke' | 'deny' | 'allow'`"
+        },
+        {
+          "name": "source",
+          "required": false,
+          "type": "`'enable' | 'first-call' | 'settings' | 'update' | 'uninstall'`"
+        },
+        {
+          "name": "actor",
+          "required": true,
+          "type": "`'user' | 'system'`"
+        },
+        {
+          "name": "pluginId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "pluginVersion",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "sessionId",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "permission",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "qualifier",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "capabilityId",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "resourceUri",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "reason",
+          "required": false,
+          "type": "`'not_granted' | 'revoked' | 'out_of_scope' | 'user_rejected' | 'policy'`"
+        },
+        {
+          "name": "traceId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "requestId",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "trigger": "授权、撤销、拒绝、敏感放行等审计动作产生时发布。",
+      "visibility": "仅平台与官方审计界面；插件不可订阅。",
+      "visibilityKind": "platform"
+    },
+    {
+      "file": "05-接口与契约/05.13-05-事件契约规范-四、标准事件-4.10 托盘、快捷键与传输.md",
+      "id": "shortcut:triggered",
+      "payload": [
+        {
+          "name": "shortcutId",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "已注册的快捷键被按下时发布；同时按应用命令通道投递对应 `command`（[07-应用插件接口](./07-应用插件接口.md) §3.3）。",
+      "visibility": "注册该快捷键的插件（`app` 角色）与平台。",
+      "visibilityKind": "owner-lookup:shortcut"
+    },
+    {
+      "file": "05-接口与契约/05.12-05-事件契约规范-四、标准事件-4.8 同步.md",
+      "id": "sync:blocked",
+      "payload": [
+        {
+          "name": "scopeId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "code",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "message",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "同步进入阻塞、需要用户处理时发布（认证失效、授权缺失、远端拒绝等）。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.12-05-事件契约规范-四、标准事件-4.8 同步.md",
+      "id": "sync:conflict-detected",
+      "payload": [
+        {
+          "name": "conflictId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "scopeId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "documentId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "detectedAt",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "检测到并发修改冲突时发布；冲突进入 `pending`，等待用户显式选择。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.12-05-事件契约规范-四、标准事件-4.8 同步.md",
+      "id": "sync:conflict-resolved",
+      "payload": [
+        {
+          "name": "conflictId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "scopeId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "documentId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "strategy",
+          "required": true,
+          "type": "`'keep-local' | 'keep-remote' | 'keep-both'`"
+        }
+      ],
+      "trigger": "冲突被用户显式解决后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.12-05-事件契约规范-四、标准事件-4.8 同步.md",
+      "id": "sync:progress",
+      "payload": [
+        {
+          "name": "scopeId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "sessionId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "phase",
+          "required": true,
+          "type": "SyncSessionPhase"
+        },
+        {
+          "name": "completedEntries",
+          "required": true,
+          "type": "number"
+        },
+        {
+          "name": "totalEntries",
+          "required": true,
+          "type": "number"
+        },
+        {
+          "name": "transferredBytes",
+          "required": true,
+          "type": "number"
+        }
+      ],
+      "trigger": "同步会话进行中按进度发布；高频事件，发布方限流且最小发布间隔不低于 200 ms。",
+      "visibility": "公开；订阅方不得依赖逐条投递做关键状态计算。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.12-05-事件契约规范-四、标准事件-4.8 同步.md",
+      "id": "sync:queue-changed",
+      "payload": [
+        {
+          "name": "scopeId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "pendingChanges",
+          "required": true,
+          "type": "number"
+        }
+      ],
+      "trigger": "离线队列长度变化时发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.12-05-事件契约规范-四、标准事件-4.8 同步.md",
+      "id": "sync:state-changed",
+      "payload": [
+        {
+          "name": "scopeId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "providerId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "required": true,
+          "type": "SyncState"
+        }
+      ],
+      "trigger": "同步状态迁移时发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.13-05-事件契约规范-四、标准事件-4.10 托盘、快捷键与传输.md",
+      "id": "transfer:completed",
+      "payload": [
+        {
+          "name": "transferId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "digest",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "传输完成、临时文件原子替换到目标路径后发布。",
+      "visibility": "发起传输的插件与平台。",
+      "visibilityKind": "owner-lookup:transfer"
+    },
+    {
+      "file": "05-接口与契约/05.13-05-事件契约规范-四、标准事件-4.10 托盘、快捷键与传输.md",
+      "id": "transfer:failed",
+      "payload": [
+        {
+          "name": "transferId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "error",
+          "required": true,
+          "type": "ChipsError"
+        },
+        {
+          "name": "cancelled",
+          "required": true,
+          "type": "boolean"
+        }
+      ],
+      "trigger": "传输失败或取消后发布；临时物已清理、目标路径未被修改。",
+      "visibility": "发起传输的插件与平台。",
+      "visibilityKind": "owner-lookup:transfer"
+    },
+    {
+      "file": "05-接口与契约/05.13-05-事件契约规范-四、标准事件-4.10 托盘、快捷键与传输.md",
+      "id": "transfer:progress",
+      "payload": [
+        {
+          "name": "transferId",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "transferredBytes",
+          "required": true,
+          "type": "number"
+        },
+        {
+          "name": "totalBytes",
+          "required": true,
+          "type": "number | null"
+        }
+      ],
+      "trigger": "传输进行中按进度发布；高频事件，发布方限流且最小发布间隔不低于 200 ms。",
+      "visibility": "发起传输的插件与平台。",
+      "visibilityKind": "owner-lookup:transfer"
+    },
+    {
+      "file": "05-接口与契约/05.13-05-事件契约规范-四、标准事件-4.10 托盘、快捷键与传输.md",
+      "id": "tray:clicked",
+      "payload": [
+        {
+          "name": "button",
+          "required": true,
+          "type": "`'left' | 'right'`"
+        }
+      ],
+      "trigger": "用户点击托盘图标时发布。",
+      "visibility": "创建该托盘的插件（`app` 角色）与平台。",
+      "visibilityKind": "owner-lookup:tray"
+    },
+    {
+      "file": "05-接口与契约/05.11-05-事件契约规范-四、标准事件-4.7 窗口与应用.md",
+      "id": "window:closed",
+      "payload": [
+        {
+          "name": "windowId",
+          "required": true,
+          "type": "number"
+        }
+      ],
+      "trigger": "窗口关闭、窗口级资源释放完成后发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.11-05-事件契约规范-四、标准事件-4.7 窗口与应用.md",
+      "id": "window:created",
+      "payload": [
+        {
+          "name": "windowId",
+          "required": true,
+          "type": "number"
+        },
+        {
+          "name": "appId",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "trigger": "应用窗口创建完成时发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    },
+    {
+      "file": "05-接口与契约/05.11-05-事件契约规范-四、标准事件-4.7 窗口与应用.md",
+      "id": "window:focused",
+      "payload": [
+        {
+          "name": "windowId",
+          "required": true,
+          "type": "number"
+        }
+      ],
+      "trigger": "窗口获得焦点时发布。",
+      "visibility": "公开。",
+      "visibilityKind": "public"
+    }
+  ],
+  "generator": "tests/contract/src/snapshot-data.ts#buildEventSnapshotData",
+  "schemaVersion": 1,
+  "sources": [
+    "05-接口与契约/05.02-05-事件契约规范-二、命名契约.md",
+    "05-接口与契约/05.04-05-事件契约规范-四、标准事件.md",
+    "05-接口与契约/05.05-05-事件契约规范-四、标准事件-4.1 插件生命周期.md",
+    "05-接口与契约/05.06-05-事件契约规范-四、标准事件-4.2 文档.md",
+    "05-接口与契约/05.07-05-事件契约规范-四、标准事件-4.3 文件.md",
+    "05-接口与契约/05.08-05-事件契约规范-四、标准事件-4.4 资源.md",
+    "05-接口与契约/05.09-05-事件契约规范-四、标准事件-4.5 配置.md",
+    "05-接口与契约/05.10-05-事件契约规范-四、标准事件-4.6 安全与审计.md",
+    "05-接口与契约/05.11-05-事件契约规范-四、标准事件-4.7 窗口与应用.md",
+    "05-接口与契约/05.12-05-事件契约规范-四、标准事件-4.8 同步.md",
+    "05-接口与契约/05.13-05-事件契约规范-四、标准事件-4.10 托盘、快捷键与传输.md"
+  ]
+}

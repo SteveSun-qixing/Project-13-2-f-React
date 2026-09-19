@@ -1,0 +1,38 @@
+{
+  "name": "@chips/contract-gen",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "契约常量生成器：从薯片生态文档库权威表生成 @chips/sdk 的能力 / 权限 / 事件 / 错误码常量与类型",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "chips-contract-gen": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "generate": "tsc -p tsconfig.build.json && node dist/cli.js generate",
+    "check": "tsc -p tsconfig.build.json && node dist/cli.js check",
+    "validate": "tsc -p tsconfig.build.json && node dist/cli.js validate",
+    "test:contract": "tsc -p tsconfig.build.json && node dist/cli.js check"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.37",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

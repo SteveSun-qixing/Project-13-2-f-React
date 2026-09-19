@@ -1,0 +1,38 @@
+{
+  "name": "@chips/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "薯片 CLI：用户侧 chips 与开发侧 chips dev 命令树、参数解析、输出与退出码、cli-command/cli-task 对接层与本地插件包引擎",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "chips": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@chips/bridge": "workspace:*",
+    "@chips/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "5.0.10"
+  }
+}

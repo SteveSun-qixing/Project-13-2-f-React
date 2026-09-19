@@ -1,0 +1,293 @@
+{
+  "data": {
+    "envelope": {
+      "heritage": [],
+      "kind": "interface",
+      "members": [
+        {
+          "name": "protocol",
+          "optional": false,
+          "signature": "protocol: typeof FRAME_PROTOCOL"
+        },
+        {
+          "name": "sessionId",
+          "optional": false,
+          "signature": "sessionId: string"
+        },
+        {
+          "name": "frameId",
+          "optional": false,
+          "signature": "frameId: string"
+        },
+        {
+          "name": "message",
+          "optional": false,
+          "signature": "message: TMessage"
+        }
+      ],
+      "name": "FrameEnvelope"
+    },
+    "messages": [
+      {
+        "direction": "child-to-parent",
+        "name": "FrameReady",
+        "payload": "payload: { capabilities: FrameCapability[] }",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "frame:ready"
+      },
+      {
+        "direction": "child-to-parent",
+        "name": "FrameHeight",
+        "payload": "payload: { height: number; epoch: number }",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "frame:height"
+      },
+      {
+        "direction": "child-to-parent",
+        "name": "FrameEntryRequest",
+        "payload": "payload: { requestId: string; entry_ids: string[]; firstVisible: number; lastVisible: number }",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "frame:entry-request"
+      },
+      {
+        "direction": "child-to-parent",
+        "name": "FrameActionRequest",
+        "payload": "payload: { requestId: string; action: FrameActionPayload }",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "frame:action"
+      },
+      {
+        "direction": "child-to-parent",
+        "name": "FrameError",
+        "payload": "payload: ChipsError",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "frame:error"
+      },
+      {
+        "direction": "child-to-parent",
+        "name": "FrameDisposeAck",
+        "payload": "payload: null",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "frame:dispose-ack"
+      },
+      {
+        "direction": "parent-to-child",
+        "name": "HostInit",
+        "payload": "payload: FrameInitPayload",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "host:init"
+      },
+      {
+        "direction": "parent-to-child",
+        "name": "HostUpdate",
+        "payload": "payload: { view: DocumentView | BoxCoverView; revision: number }",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "host:update"
+      },
+      {
+        "direction": "parent-to-child",
+        "name": "HostEntries",
+        "payload": "payload: { requestId: string; tickets: EntryTicket[] }",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "host:entries"
+      },
+      {
+        "direction": "parent-to-child",
+        "name": "HostHeightAck",
+        "payload": "payload: { epoch: number }",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "host:height-ack"
+      },
+      {
+        "direction": "parent-to-child",
+        "name": "HostActionError",
+        "payload": "payload: { requestId: string; error: ChipsError }",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "host:action-error"
+      },
+      {
+        "direction": "parent-to-child",
+        "name": "HostDispose",
+        "payload": "payload: null",
+        "ref": {
+          "file": "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md",
+          "section": "九、高度自适应与宿主-内容通信协议"
+        },
+        "type": "host:dispose"
+      }
+    ],
+    "outboundUnions": [
+      {
+        "members": [
+          "'measure'",
+          "'nested-frames'"
+        ],
+        "name": "FrameCapability"
+      },
+      {
+        "members": [
+          "{ kind: 'open-external'; url: string }",
+          "{ kind: 'open-resource'; request: IResourceOpenRequest }",
+          "{ kind: 'copy-text'; text: string }",
+          "{ kind: 'notify'; level: 'info'",
+          "'warning'",
+          "'error'; message: string }"
+        ],
+        "name": "FrameActionPayload"
+      },
+      {
+        "members": [
+          "FrameReady",
+          "FrameHeight",
+          "FrameEntryRequest",
+          "FrameActionRequest",
+          "FrameError",
+          "FrameDisposeAck"
+        ],
+        "name": "FrameOutboundMessage"
+      },
+      {
+        "members": [
+          "HostInit",
+          "HostUpdate",
+          "HostEntries",
+          "HostHeightAck",
+          "HostActionError",
+          "HostDispose"
+        ],
+        "name": "HostOutboundMessage"
+      }
+    ],
+    "payloadTypes": [],
+    "protocol": "chips-frame/1",
+    "table": [
+      {
+        "constraint": "每个渲染会话仅一次；封套 `sessionId` / `frameId` 必须与通道登记一致（§9.6）",
+        "direction": "父 → 子",
+        "messageTypes": [
+          "host:init"
+        ],
+        "trigger": "通道建立后父帧下发初始装载载荷（`role`、`view`、`nodes`、`resourceBase`、`pluginEntries`、`tokens`、`limits`）"
+      },
+      {
+        "constraint": "只能发送一次；重发视为协议违规",
+        "direction": "子 → 父",
+        "messageTypes": [
+          "frame:ready"
+        ],
+        "trigger": "插件装载完成、首帧已提交"
+      },
+      {
+        "constraint": "每 rAF 最多一条；`epoch` 单调递增",
+        "direction": "子 → 父",
+        "messageTypes": [
+          "frame:height"
+        ],
+        "trigger": "内容高度变化（合并后）"
+      },
+      {
+        "constraint": "回带 `epoch`，子帧清理已确认批次",
+        "direction": "父 → 子",
+        "messageTypes": [
+          "host:height-ack"
+        ],
+        "trigger": "父帧接受高度"
+      },
+      {
+        "constraint": "仅布局帧允许；`maxNestedFrames = 0` 的帧发送视为违规；必须携带 `requestId` 用于关联本次请求",
+        "direction": "子 → 父",
+        "messageTypes": [
+          "frame:entry-request"
+        ],
+        "trigger": "布局帧可见范围变化"
+      },
+      {
+        "constraint": "顺序与 `entry_ids` 对应；`requestId` 必须回带对应 `frame:entry-request` 的值；只允许发往布局帧",
+        "direction": "父 → 子",
+        "messageTypes": [
+          "host:entries"
+        ],
+        "trigger": "批量下发条目 ticket"
+      },
+      {
+        "constraint": "全部经 Bridge 能力转发并做权限判定；`open-resource` 的 `request` 为 `IResourceOpenRequest`（[14-资源打开与默认处理器契约](../../05-接口与契约/14-资源打开与默认处理器契约.md) §2.2），RenderHost 校验 URI 属于当前渲染会话可见引用后按 `origin: 'frame'` 调用资源打开路由",
+        "direction": "子 → 父",
+        "messageTypes": [
+          "frame:action"
+        ],
+        "trigger": "用户触发资源打开/跳转/复制/通知"
+      },
+      {
+        "constraint": "`requestId` 必须与请求对应",
+        "direction": "父 → 子",
+        "messageTypes": [
+          "host:action-error"
+        ],
+        "trigger": "动作被拒绝或失败"
+      },
+      {
+        "constraint": "`ChipsError` 结构；可重试错误带 `retryable`",
+        "direction": "子 → 父",
+        "messageTypes": [
+          "frame:error"
+        ],
+        "trigger": "插件抛错、资源失败"
+      },
+      {
+        "constraint": "`revision` 严格递增且来自 `document:write`；帧内自行 diff 渲染并逐节点重建 `BaseCardView`",
+        "direction": "父 → 子",
+        "messageTypes": [
+          "host:update"
+        ],
+        "trigger": "编辑链路在 `document:write` 成功后更新会话视图"
+      },
+      {
+        "constraint": "父帧等待 ack 或 1s 超时后强制移除",
+        "direction": "父 ⇄ 子",
+        "messageTypes": [
+          "host:dispose",
+          "frame:dispose-ack"
+        ],
+        "trigger": "帧销毁"
+      }
+    ]
+  },
+  "generator": "tests/contract/src/snapshot-data.ts#buildFrameSnapshotData",
+  "schemaVersion": 1,
+  "sources": [
+    "01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md"
+  ]
+}

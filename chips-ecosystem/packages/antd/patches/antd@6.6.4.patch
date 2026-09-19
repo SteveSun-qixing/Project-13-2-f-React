@@ -1,0 +1,488 @@
+diff --git a/es/date-picker/locale/en_US.js b/es/date-picker/locale/en_US.js
+index 8cbb826147c88eed34a8f9851b207e83665a1dd7..9e600efcd9561883a80b7e83de19101663dba7cf 100644
+--- a/es/date-picker/locale/en_US.js
++++ b/es/date-picker/locale/en_US.js
+@@ -1,24 +1,7 @@
+-import CalendarLocale from '@rc-component/picker/locale/en_US';
+-import TimePickerLocale from '../../time-picker/locale/en_US';
+-// Merge into a locale object
+-const locale = {
+-  lang: {
+-    placeholder: 'Select date',
+-    yearPlaceholder: 'Select year',
+-    quarterPlaceholder: 'Select quarter',
+-    monthPlaceholder: 'Select month',
+-    weekPlaceholder: 'Select week',
+-    rangePlaceholder: ['Start date', 'End date'],
+-    rangeYearPlaceholder: ['Start year', 'End year'],
+-    rangeQuarterPlaceholder: ['Start quarter', 'End quarter'],
+-    rangeMonthPlaceholder: ['Start month', 'End month'],
+-    rangeWeekPlaceholder: ['Start week', 'End week'],
+-    ...CalendarLocale
+-  },
+-  timePickerLocale: {
+-    ...TimePickerLocale
+-  }
+-};
+-// All settings at:
+-// https://github.com/ant-design/ant-design/blob/master/components/date-picker/locale/example.json
+-export default locale;
+\ No newline at end of file
++// 薯片生态 fork 补丁 default-locale-zh-cn：日期组件默认语言固定为简体中文。
++// dayjs 语言包在此一次性登记，保证日期面板的月份与星期名称不回退为英文。
++import dayjs from 'dayjs';
++import 'dayjs/locale/zh-cn';
++import zhCN from './zh_CN';
++dayjs.locale('zh-cn');
++export default zhCN;
+diff --git a/es/locale/en_US.js b/es/locale/en_US.js
+index 8d91e2110b00f58ca40df601346d7578f039c87c..16fd54ba618c71e7547247090ffbab0142d801ee 100644
+--- a/es/locale/en_US.js
++++ b/es/locale/en_US.js
+@@ -1,151 +1,3 @@
+-import Pagination from '@rc-component/pagination/locale/en_US';
+-import Calendar from '../calendar/locale/en_US';
+-import DatePicker from '../date-picker/locale/en_US';
+-import TimePicker from '../time-picker/locale/en_US';
+-const typeTemplate = '${label} is not a valid ${type}';
+-const localeValues = {
+-  locale: 'en',
+-  Pagination,
+-  DatePicker,
+-  TimePicker,
+-  Calendar,
+-  global: {
+-    placeholder: 'Please select',
+-    close: 'Close',
+-    sortable: 'sortable',
+-    show: 'Show',
+-    hide: 'Hide'
+-  },
+-  Table: {
+-    filterTitle: 'Filter menu',
+-    filterConfirm: 'OK',
+-    filterReset: 'Reset',
+-    filterEmptyText: 'No filters',
+-    filterCheckAll: 'Select all items',
+-    filterSearchPlaceholder: 'Search in filters',
+-    emptyText: 'No data',
+-    selectAll: 'Select current page',
+-    selectInvert: 'Invert current page',
+-    selectNone: 'Clear all data',
+-    selectionAll: 'Select all data',
+-    sortTitle: 'Sort',
+-    expand: 'Expand row',
+-    collapse: 'Collapse row',
+-    triggerDesc: 'Click to sort descending',
+-    triggerAsc: 'Click to sort ascending',
+-    cancelSort: 'Click to cancel sorting'
+-  },
+-  Tour: {
+-    Next: 'Next',
+-    Previous: 'Previous',
+-    Finish: 'Finish'
+-  },
+-  Modal: {
+-    okText: 'OK',
+-    cancelText: 'Cancel',
+-    justOkText: 'OK'
+-  },
+-  Popconfirm: {
+-    okText: 'OK',
+-    cancelText: 'Cancel'
+-  },
+-  Transfer: {
+-    titles: ['', ''],
+-    searchPlaceholder: 'Search here',
+-    itemUnit: 'item',
+-    itemsUnit: 'items',
+-    remove: 'Remove',
+-    selectCurrent: 'Select current page',
+-    removeCurrent: 'Remove current page',
+-    selectAll: 'Select all data',
+-    deselectAll: 'Deselect all data',
+-    removeAll: 'Remove all data',
+-    selectInvert: 'Invert current page'
+-  },
+-  Upload: {
+-    uploading: 'Uploading...',
+-    removeFile: 'Remove file',
+-    uploadError: 'Upload error',
+-    previewFile: 'Preview file',
+-    downloadFile: 'Download file'
+-  },
+-  Empty: {
+-    description: 'No data'
+-  },
+-  Icon: {
+-    icon: 'icon'
+-  },
+-  Text: {
+-    edit: 'Edit',
+-    copy: 'Copy',
+-    copied: 'Copied',
+-    expand: 'Expand',
+-    collapse: 'Collapse'
+-  },
+-  Carousel: {
+-    prevSlide: 'Previous slide',
+-    nextSlide: 'Next slide'
+-  },
+-  Form: {
+-    optional: '(optional)',
+-    defaultValidateMessages: {
+-      default: 'Field validation error for ${label}',
+-      required: 'Please enter ${label}',
+-      enum: '${label} must be one of [${enum}]',
+-      whitespace: '${label} cannot be a blank character',
+-      date: {
+-        format: '${label} date format is invalid',
+-        parse: '${label} cannot be converted to a date',
+-        invalid: '${label} is an invalid date'
+-      },
+-      types: {
+-        string: typeTemplate,
+-        method: typeTemplate,
+-        array: typeTemplate,
+-        object: typeTemplate,
+-        number: typeTemplate,
+-        date: typeTemplate,
+-        boolean: typeTemplate,
+-        integer: typeTemplate,
+-        float: typeTemplate,
+-        regexp: typeTemplate,
+-        email: typeTemplate,
+-        url: typeTemplate,
+-        hex: typeTemplate
+-      },
+-      string: {
+-        len: '${label} must be ${len} characters',
+-        min: '${label} must be at least ${min} characters',
+-        max: '${label} must be up to ${max} characters',
+-        range: '${label} must be between ${min}-${max} characters'
+-      },
+-      number: {
+-        len: '${label} must be equal to ${len}',
+-        min: '${label} must be minimum ${min}',
+-        max: '${label} must be maximum ${max}',
+-        range: '${label} must be between ${min}-${max}'
+-      },
+-      array: {
+-        len: 'Must be ${len} ${label}',
+-        min: 'At least ${min} ${label}',
+-        max: 'At most ${max} ${label}',
+-        range: 'The amount of ${label} must be between ${min}-${max}'
+-      },
+-      pattern: {
+-        mismatch: '${label} does not match the pattern ${pattern}'
+-      }
+-    }
+-  },
+-  QRCode: {
+-    expired: 'QR code expired',
+-    refresh: 'Refresh',
+-    scanned: 'Scanned'
+-  },
+-  ColorPicker: {
+-    presetEmpty: 'Empty',
+-    transparent: 'Transparent',
+-    singleColor: 'Single',
+-    gradientColor: 'Gradient'
+-  }
+-};
+-export default localeValues;
+\ No newline at end of file
++// 薯片生态 fork 补丁 default-locale-zh-cn：上游组件在无语言上下文时回退到本模块，
++// 内容收敛为 zh_CN，使 antd 默认语言固定为简体中文。
++export { default } from './zh_CN';
+diff --git a/es/pagination/Pagination.js b/es/pagination/Pagination.js
+index 2c5aa0e528ba97a55b24f2bab62f20680d7e2bb4..4f7e487ca5ecae378f6fb35d246a2785d7a301c0 100644
+--- a/es/pagination/Pagination.js
++++ b/es/pagination/Pagination.js
+@@ -7,7 +7,7 @@ import EllipsisOutlined from "@ant-design/icons/es/icons/EllipsisOutlined";
+ import LeftOutlined from "@ant-design/icons/es/icons/LeftOutlined";
+ import RightOutlined from "@ant-design/icons/es/icons/RightOutlined";
+ import RcPagination from '@rc-component/pagination';
+-import enUS from '@rc-component/pagination/locale/en_US';
++import zhCN from '@rc-component/pagination/locale/zh_CN';
+ import { clsx } from 'clsx';
+ import { useMergeSemantic, useSemanticRootStyle } from '../_util/hooks/useMergeSemantic';
+ import { devUseWarning } from '../_util/warning';
+@@ -73,7 +73,7 @@ const Pagination = props => {
+     props: mergedProps
+   });
+   // ============================= Locale =============================
+-  const [contextLocale] = useLocale('Pagination', enUS);
++  const [contextLocale] = useLocale('Pagination', zhCN);
+   const locale = {
+     ...contextLocale,
+     ...customLocale
+diff --git a/es/time-picker/locale/en_US.js b/es/time-picker/locale/en_US.js
+index e2256120f317976a04520c0b7a77a7a1b0def743..4f5cb3bb0631044cb4bbc14ce643825071cb064c 100644
+--- a/es/time-picker/locale/en_US.js
++++ b/es/time-picker/locale/en_US.js
+@@ -1,5 +1,3 @@
+-const locale = {
+-  placeholder: 'Select time',
+-  rangePlaceholder: ['Start time', 'End time']
+-};
+-export default locale;
+\ No newline at end of file
++// 薯片生态 fork 补丁 default-locale-zh-cn：时间组件默认语言固定为简体中文。
++import zhCN from './zh_CN';
++export default zhCN;
+diff --git a/lib/date-picker/locale/en_US.js b/lib/date-picker/locale/en_US.js
+index 066b4e21b3efeeb9b76b0ba79364ebce17c9c280..b355533acdcd6f9137f0ba8abde96d7d15fe806e 100644
+--- a/lib/date-picker/locale/en_US.js
++++ b/lib/date-picker/locale/en_US.js
+@@ -1,31 +1,14 @@
+ "use strict";
+ 
++// 薯片生态 fork 补丁 default-locale-zh-cn：日期组件默认语言固定为简体中文。
++// dayjs 语言包在此一次性登记，保证日期面板的月份与星期名称不回退为英文。
+ var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault").default;
++var _dayjs = _interopRequireDefault(require("dayjs"));
++require("dayjs/locale/zh-cn");
+ Object.defineProperty(exports, "__esModule", {
+   value: true
+ });
+ exports.default = void 0;
+-var _en_US = _interopRequireDefault(require("@rc-component/picker/locale/en_US"));
+-var _en_US2 = _interopRequireDefault(require("../../time-picker/locale/en_US"));
+-// Merge into a locale object
+-const locale = {
+-  lang: {
+-    placeholder: 'Select date',
+-    yearPlaceholder: 'Select year',
+-    quarterPlaceholder: 'Select quarter',
+-    monthPlaceholder: 'Select month',
+-    weekPlaceholder: 'Select week',
+-    rangePlaceholder: ['Start date', 'End date'],
+-    rangeYearPlaceholder: ['Start year', 'End year'],
+-    rangeQuarterPlaceholder: ['Start quarter', 'End quarter'],
+-    rangeMonthPlaceholder: ['Start month', 'End month'],
+-    rangeWeekPlaceholder: ['Start week', 'End week'],
+-    ..._en_US.default
+-  },
+-  timePickerLocale: {
+-    ..._en_US2.default
+-  }
+-};
+-// All settings at:
+-// https://github.com/ant-design/ant-design/blob/master/components/date-picker/locale/example.json
+-var _default = exports.default = locale;
+\ No newline at end of file
++var _zh_CN = _interopRequireDefault(require("./zh_CN"));
++_dayjs.default.locale('zh-cn');
++var _default = exports.default = _zh_CN.default;
+diff --git a/lib/locale/en_US.js b/lib/locale/en_US.js
+index 2eed0343b03a9a3358f3c3f257710994007e66c9..7a5e788ebaa32c753b52d3433745ccff29f9354f 100644
+--- a/lib/locale/en_US.js
++++ b/lib/locale/en_US.js
+@@ -1,158 +1,11 @@
+ "use strict";
+ 
++// 薯片生态 fork 补丁 default-locale-zh-cn：上游组件在无语言上下文时回退到本模块，
++// 内容收敛为 zh_CN，使 antd 默认语言固定为简体中文。
+ var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault").default;
+ Object.defineProperty(exports, "__esModule", {
+   value: true
+ });
+ exports.default = void 0;
+-var _en_US = _interopRequireDefault(require("@rc-component/pagination/locale/en_US"));
+-var _en_US2 = _interopRequireDefault(require("../calendar/locale/en_US"));
+-var _en_US3 = _interopRequireDefault(require("../date-picker/locale/en_US"));
+-var _en_US4 = _interopRequireDefault(require("../time-picker/locale/en_US"));
+-const typeTemplate = '${label} is not a valid ${type}';
+-const localeValues = {
+-  locale: 'en',
+-  Pagination: _en_US.default,
+-  DatePicker: _en_US3.default,
+-  TimePicker: _en_US4.default,
+-  Calendar: _en_US2.default,
+-  global: {
+-    placeholder: 'Please select',
+-    close: 'Close',
+-    sortable: 'sortable',
+-    show: 'Show',
+-    hide: 'Hide'
+-  },
+-  Table: {
+-    filterTitle: 'Filter menu',
+-    filterConfirm: 'OK',
+-    filterReset: 'Reset',
+-    filterEmptyText: 'No filters',
+-    filterCheckAll: 'Select all items',
+-    filterSearchPlaceholder: 'Search in filters',
+-    emptyText: 'No data',
+-    selectAll: 'Select current page',
+-    selectInvert: 'Invert current page',
+-    selectNone: 'Clear all data',
+-    selectionAll: 'Select all data',
+-    sortTitle: 'Sort',
+-    expand: 'Expand row',
+-    collapse: 'Collapse row',
+-    triggerDesc: 'Click to sort descending',
+-    triggerAsc: 'Click to sort ascending',
+-    cancelSort: 'Click to cancel sorting'
+-  },
+-  Tour: {
+-    Next: 'Next',
+-    Previous: 'Previous',
+-    Finish: 'Finish'
+-  },
+-  Modal: {
+-    okText: 'OK',
+-    cancelText: 'Cancel',
+-    justOkText: 'OK'
+-  },
+-  Popconfirm: {
+-    okText: 'OK',
+-    cancelText: 'Cancel'
+-  },
+-  Transfer: {
+-    titles: ['', ''],
+-    searchPlaceholder: 'Search here',
+-    itemUnit: 'item',
+-    itemsUnit: 'items',
+-    remove: 'Remove',
+-    selectCurrent: 'Select current page',
+-    removeCurrent: 'Remove current page',
+-    selectAll: 'Select all data',
+-    deselectAll: 'Deselect all data',
+-    removeAll: 'Remove all data',
+-    selectInvert: 'Invert current page'
+-  },
+-  Upload: {
+-    uploading: 'Uploading...',
+-    removeFile: 'Remove file',
+-    uploadError: 'Upload error',
+-    previewFile: 'Preview file',
+-    downloadFile: 'Download file'
+-  },
+-  Empty: {
+-    description: 'No data'
+-  },
+-  Icon: {
+-    icon: 'icon'
+-  },
+-  Text: {
+-    edit: 'Edit',
+-    copy: 'Copy',
+-    copied: 'Copied',
+-    expand: 'Expand',
+-    collapse: 'Collapse'
+-  },
+-  Carousel: {
+-    prevSlide: 'Previous slide',
+-    nextSlide: 'Next slide'
+-  },
+-  Form: {
+-    optional: '(optional)',
+-    defaultValidateMessages: {
+-      default: 'Field validation error for ${label}',
+-      required: 'Please enter ${label}',
+-      enum: '${label} must be one of [${enum}]',
+-      whitespace: '${label} cannot be a blank character',
+-      date: {
+-        format: '${label} date format is invalid',
+-        parse: '${label} cannot be converted to a date',
+-        invalid: '${label} is an invalid date'
+-      },
+-      types: {
+-        string: typeTemplate,
+-        method: typeTemplate,
+-        array: typeTemplate,
+-        object: typeTemplate,
+-        number: typeTemplate,
+-        date: typeTemplate,
+-        boolean: typeTemplate,
+-        integer: typeTemplate,
+-        float: typeTemplate,
+-        regexp: typeTemplate,
+-        email: typeTemplate,
+-        url: typeTemplate,
+-        hex: typeTemplate
+-      },
+-      string: {
+-        len: '${label} must be ${len} characters',
+-        min: '${label} must be at least ${min} characters',
+-        max: '${label} must be up to ${max} characters',
+-        range: '${label} must be between ${min}-${max} characters'
+-      },
+-      number: {
+-        len: '${label} must be equal to ${len}',
+-        min: '${label} must be minimum ${min}',
+-        max: '${label} must be maximum ${max}',
+-        range: '${label} must be between ${min}-${max}'
+-      },
+-      array: {
+-        len: 'Must be ${len} ${label}',
+-        min: 'At least ${min} ${label}',
+-        max: 'At most ${max} ${label}',
+-        range: 'The amount of ${label} must be between ${min}-${max}'
+-      },
+-      pattern: {
+-        mismatch: '${label} does not match the pattern ${pattern}'
+-      }
+-    }
+-  },
+-  QRCode: {
+-    expired: 'QR code expired',
+-    refresh: 'Refresh',
+-    scanned: 'Scanned'
+-  },
+-  ColorPicker: {
+-    presetEmpty: 'Empty',
+-    transparent: 'Transparent',
+-    singleColor: 'Single',
+-    gradientColor: 'Gradient'
+-  }
+-};
+-var _default = exports.default = localeValues;
+\ No newline at end of file
++var _zh_CN = _interopRequireDefault(require("./zh_CN"));
++var _default = exports.default = _zh_CN.default;
+diff --git a/lib/pagination/Pagination.js b/lib/pagination/Pagination.js
+index 78603fa9fe9ffd1ffa4a309af3a9fe56c191492e..011b8bdbec5820820bf6e21f762492978c0b6515 100644
+--- a/lib/pagination/Pagination.js
++++ b/lib/pagination/Pagination.js
+@@ -14,7 +14,7 @@ var _EllipsisOutlined = _interopRequireDefault(require("@ant-design/icons/Ellips
+ var _LeftOutlined = _interopRequireDefault(require("@ant-design/icons/LeftOutlined"));
+ var _RightOutlined = _interopRequireDefault(require("@ant-design/icons/RightOutlined"));
+ var _pagination = _interopRequireDefault(require("@rc-component/pagination"));
+-var _en_US = _interopRequireDefault(require("@rc-component/pagination/locale/en_US"));
++var _zhCN = _interopRequireDefault(require("@rc-component/pagination/locale/zh_CN"));
+ var _clsx = require("clsx");
+ var _useMergeSemantic = require("../_util/hooks/useMergeSemantic");
+ var _warning = require("../_util/warning");
+@@ -80,7 +80,7 @@ const Pagination = props => {
+     props: mergedProps
+   });
+   // ============================= Locale =============================
+-  const [contextLocale] = (0, _locale.useLocale)('Pagination', _en_US.default);
++  const [contextLocale] = (0, _locale.useLocale)('Pagination', _zhCN.default);
+   const locale = {
+     ...contextLocale,
+     ...customLocale
+diff --git a/lib/time-picker/locale/en_US.js b/lib/time-picker/locale/en_US.js
+index 322c6d2435af6862584469ca9f3e602364941c08..aa215eaf30429eeb8e228e8eb6ef59565f9672a5 100644
+--- a/lib/time-picker/locale/en_US.js
++++ b/lib/time-picker/locale/en_US.js
+@@ -1,11 +1,10 @@
+ "use strict";
+ 
++// 薯片生态 fork 补丁 default-locale-zh-cn：时间组件默认语言固定为简体中文。
++var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault").default;
+ Object.defineProperty(exports, "__esModule", {
+   value: true
+ });
+ exports.default = void 0;
+-const locale = {
+-  placeholder: 'Select time',
+-  rangePlaceholder: ['Start time', 'End time']
+-};
+-var _default = exports.default = locale;
+\ No newline at end of file
++var _zh_CN = _interopRequireDefault(require("./zh_CN"));
++var _default = exports.default = _zh_CN.default;

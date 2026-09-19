@@ -1,0 +1,30 @@
+{
+  "name": "@chips/perf",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "薯片生态性能基线与测量工具（指标注册表、标记点/采样测量、JSON+Markdown 报告、回归比较）",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint . --max-warnings 0 && prettier --check --ignore-path ../../.prettierignore .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node -e \"require('node:fs').rmSync('reports', { recursive: true, force: true }); require('node:fs').rmSync('coverage', { recursive: true, force: true })\"",
+    "list": "tsx src/cli.ts list",
+    "selftest": "tsx src/cli.ts selftest",
+    "measure": "tsx src/cli.ts measure",
+    "ingest": "tsx src/cli.ts ingest",
+    "compare": "tsx src/cli.ts compare"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.37",
+    "@vitest/coverage-v8": "3.2.7",
+    "eslint": "9.39.5",
+    "prettier": "3.9.8",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

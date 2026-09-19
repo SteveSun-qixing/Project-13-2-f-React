@@ -1,0 +1,15 @@
+[package]
+name = "chips-core"
+description = "薯片平台核心：公共类型、标识别名、错误模型、取消令牌与版本工具"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.75"
+
+[dependencies]
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "time"] }

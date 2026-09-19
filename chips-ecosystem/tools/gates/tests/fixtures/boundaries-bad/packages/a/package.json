@@ -1,0 +1,8 @@
+{
+  "name": "@chips/a",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@chips/b": "file:../b"
+  }
+}

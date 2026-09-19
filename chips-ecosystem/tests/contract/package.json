@@ -1,0 +1,23 @@
+{
+  "name": "@chips/contract-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "薯片生态契约测试（G8）：角色接口与 SDK 导出快照、能力/事件/错误码表一致性、帧协议消息快照与失败报告",
+  "license": "MIT OR Apache-2.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:contract": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:contract:update": "CHIPS_CONTRACT_SNAPSHOT_UPDATE=1 vitest run",
+    "lint": "eslint src tests vitest.config.ts",
+    "clean": "node -e \"import('node:fs').then((fs) => fs.rmSync('../../reports/contract', { recursive: true, force: true }))\""
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.37",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

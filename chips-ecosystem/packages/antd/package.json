@@ -1,0 +1,57 @@
+{
+  "name": "@chips/antd",
+  "version": "6.6.4-chips.1",
+  "private": true,
+  "type": "module",
+  "description": "薯片生态 fork antd（基础组件库）：上游版本锁定、补丁栈、主题根与 Design Tokens 桥接、类型再导出；仅 packages/ui 内部使用",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint . && prettier --check --ignore-path ../../.prettierignore .",
+    "check:boundary": "node scripts/check-boundary.mjs",
+    "check:patches": "node scripts/verify-patches.mjs",
+    "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['dist', 'coverage']) fs.rmSync(p, { recursive: true, force: true }); })\""
+  },
+  "dependencies": {
+    "@ant-design/icons": "6.3.4",
+    "antd": "6.6.4"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@testing-library/jest-dom": "6.10.0",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "22.20.4",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "eslint": "9.39.5",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.5.0",
+    "jsdom": "26.1.0",
+    "prettier": "3.9.8",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "3.2.7"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@chips/testing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "薯片生态测试基础设施：vitest 项目工厂、覆盖率口径单一事实源与覆盖率聚合门禁",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./vitest": "./src/vitest.ts",
+    "./thresholds": "./src/thresholds.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "coverage": "tsx src/coverage/run.ts",
+    "report": "tsx src/coverage/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src tests vitest.config.ts",
+    "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['coverage', '.tsbuildinfo']) fs.rmSync(p, { recursive: true, force: true }); })\""
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@types/node": "20.19.37",
+    "@vitejs/plugin-react": "4.7.0",
+    "jsdom": "28.1.0",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}

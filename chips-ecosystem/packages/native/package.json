@@ -1,0 +1,23 @@
+{
+  "name": "@chips/native",
+  "version": "0.1.0",
+  "private": true,
+  "description": "chips-native.node：Neon 绑定的构建、ABI 契约与 JS 侧类型检查（Rust crate 位于同目录）",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "files": [
+    "types",
+    "abi"
+  ],
+  "scripts": {
+    "build": "node scripts/build-native.mjs",
+    "build:rust": "cargo build -p chips-native --release",
+    "copy-native": "node scripts/copy-native.mjs",
+    "test": "node scripts/check-abi.mjs && node scripts/check-types.mjs",
+    "test:rust": "cargo test -p chips-native",
+    "test:contract": "node scripts/check-abi.mjs",
+    "lint": "node scripts/check-abi.mjs",
+    "typecheck": "node scripts/check-types.mjs",
+    "clean": "cargo clean -p chips-native"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@chips/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "插件开发 SDK：插件角色接口类型、平台契约类型、类型化客户端、测试 Mock 与契约常量",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:contract": "pnpm --filter @chips/contract-tests run test:contract",
+    "lint": "eslint .",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@chips/bridge": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "5.0.10"
+  }
+}

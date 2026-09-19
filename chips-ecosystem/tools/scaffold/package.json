@@ -1,0 +1,34 @@
+{
+  "name": "@chips/scaffold",
+  "version": "0.1.0",
+  "private": true,
+  "description": "薯片生态插件脚手架：四角色模板与纯函数生成器",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests",
+    "typecheck": "tsc -p tsconfig.json",
+    "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['dist', 'coverage']) fs.rmSync(p, { recursive: true, force: true }); })\""
+  },
+  "devDependencies": {
+    "@types/node": "20.19.37",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4",
+    "yaml": "2.8.2"
+  }
+}

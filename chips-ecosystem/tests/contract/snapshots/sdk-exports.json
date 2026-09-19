@@ -1,0 +1,296 @@
+{
+  "data": {
+    "entries": [
+      {
+        "entry": "@chips/sdk",
+        "purpose": "类型、客户端封装、辅助函数、全局声明",
+        "stage": "插件运行时代码 + 开发期代码"
+      },
+      {
+        "entry": "@chips/sdk/testing",
+        "purpose": "Mock Bridge、断言辅助",
+        "stage": "仅测试代码"
+      },
+      {
+        "entry": "@chips/sdk/scaffold",
+        "purpose": "脚手架模板与生成器",
+        "stage": "仅 `@chips/cli` 与构建脚本"
+      }
+    ],
+    "testing": [
+      "createMockBridge",
+      "installMockBridge",
+      "uninstallMockBridge",
+      "assertChipsError",
+      "IMockBridge",
+      "IMockBridgeOptions",
+      "IMockResourceInit",
+      "IMockCall"
+    ],
+    "types": [
+      {
+        "category": "Bridge 协议",
+        "names": [
+          "IAppBridge",
+          "IChipsBridge",
+          "IServiceBridge",
+          "ISubscription"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "能力",
+        "names": [
+          "ICapability",
+          "JSONSchema"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "能力契约",
+        "names": [
+          "CapabilityId",
+          "CapabilityInput",
+          "CapabilityOutput",
+          "DocumentKind",
+          "DocumentModel",
+          "DocumentPart",
+          "ICapabilityContracts",
+          "VoidInput"
+        ],
+        "patterns": [
+          "I*Input",
+          "I*Output"
+        ]
+      },
+      {
+        "category": "命令",
+        "names": [
+          "CommandScopeKind",
+          "CommandSource",
+          "CommandTarget",
+          "ICommandCondition",
+          "ICommandContext",
+          "ICommandDefinition",
+          "ICommandGetInput",
+          "ICommandGetOutput",
+          "ICommandInvokeInput",
+          "ICommandInvokeOutput",
+          "ICommandListInput",
+          "ICommandListOutput",
+          "ICommandMenuPlacement",
+          "ICommandOwner",
+          "ICommandRegisterInput",
+          "ICommandRegisterOutput",
+          "ICommandScope",
+          "ICommandState",
+          "ICommandToolbarPlacement",
+          "ICommandUnregisterInput",
+          "ICommandView",
+          "ICommandWhen"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "CLI 任务",
+        "names": [
+          "CliTaskRecord",
+          "CliTaskStatus",
+          "ICliTaskActiveInput",
+          "ICliTaskActiveOutput",
+          "ICliTaskCompleteInput",
+          "ICliTaskCompleteOutput",
+          "ICliTaskFailInput",
+          "ICliTaskFailOutput",
+          "ICliTaskGetInput",
+          "ICliTaskGetOutput",
+          "ICliTaskProgressInput",
+          "ICliTaskProgressOutput"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "资源打开与处理器治理",
+        "names": [
+          "HandlerTier",
+          "IHandlerCandidate",
+          "IHandlerSlot",
+          "IListHandlersOutput",
+          "IResourceOpenContext",
+          "IResourceOpenRequest",
+          "IResourceOpenResource",
+          "IResourceOpenResult",
+          "OpenIntent",
+          "OpenOrigin",
+          "ResourceOpenMode"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "资源",
+        "names": [
+          "IResourceHandle",
+          "IResourceMetadata",
+          "ResourceInvalidateReason",
+          "ResourceScope",
+          "ResourceState"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "内核上下文",
+        "names": [
+          "Context",
+          "IEventSubscription",
+          "ITaskHandle",
+          "ITaskOptions",
+          "PluginConfig"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "插件角色",
+        "names": [
+          "BaseCardChange",
+          "Dispose",
+          "EditorState",
+          "EntryRequest",
+          "EntryTicket",
+          "FrameNotification",
+          "IAppContext",
+          "IAppPlugin",
+          "IAppWindow",
+          "IBaseCardEditor",
+          "IBaseCardEditorEventMap",
+          "IBaseCardPlugin",
+          "IBoxLayoutFrameRuntime",
+          "IBoxLayoutPlugin",
+          "IBoxLayoutRuntimeAware",
+          "ICardPatchOperation",
+          "ILayoutEditor",
+          "ILayoutEditorEventMap",
+          "ILayoutPatchOperation",
+          "IPermissionDeniedDetails",
+          "IServiceContext",
+          "IServicePlugin",
+          "LayoutChange"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "文档模型",
+        "names": [
+          "BoxMetadata",
+          "CardContent",
+          "CardMetadata",
+          "ContentNode",
+          "Diagnostic",
+          "Entry",
+          "StructureModel"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "渲染视图",
+        "names": [
+          "BaseCardContext",
+          "BaseCardView",
+          "BoxCoverView",
+          "BoxRenderView",
+          "CardNodeView",
+          "CardRenderView",
+          "CoverView",
+          "DocumentView",
+          "EntryView",
+          "TagView"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "manifest",
+        "names": [
+          "IPluginCapabilities",
+          "IPluginCardType",
+          "IPluginDeepLink",
+          "IPluginDependency",
+          "IPluginEngines",
+          "IPluginExportFormat",
+          "IPluginFileAssociation",
+          "IPluginHealthCheck",
+          "IPluginLayoutType",
+          "IPluginManifest",
+          "IPluginRuntime",
+          "IPluginUi",
+          "PluginRole",
+          "PluginSurface",
+          "PluginTarget"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "客户端",
+        "names": [
+          "IChipsError",
+          "IChipsErrorInit",
+          "ICreateClientOptions"
+        ],
+        "patterns": []
+      },
+      {
+        "category": "CLI 扩展",
+        "names": [
+          "CliCommandApi",
+          "CliCommandConflict",
+          "CliCommandIndex",
+          "CliCommandListResult",
+          "CliCommandQueryOptions",
+          "CliCommandResolveResult",
+          "CliCommandTargetType",
+          "CliCommandView",
+          "CliTaskApi",
+          "CliTaskRecord",
+          "CliTaskStatus"
+        ],
+        "patterns": []
+      }
+    ],
+    "values": [
+      {
+        "kind": "常量",
+        "name": "chips",
+        "purpose": "默认客户端单例，惰性绑定 `window.chips`；见 3.2 节"
+      },
+      {
+        "kind": "函数",
+        "name": "createClient",
+        "purpose": "创建 SDK 客户端；见 3.2 节"
+      },
+      {
+        "kind": "类",
+        "name": "ChipsBridge",
+        "purpose": "SDK 客户端实现；见 3.2 节"
+      },
+      {
+        "kind": "类",
+        "name": "ChipsError",
+        "purpose": "错误模型；见 6.2 节"
+      },
+      {
+        "kind": "函数",
+        "name": "isChipsError",
+        "purpose": "错误结构守卫；见 5.1 节"
+      },
+      {
+        "kind": "函数",
+        "name": "toChipsError",
+        "purpose": "错误归一；见 5.1 节"
+      }
+    ]
+  },
+  "generator": "tests/contract/src/snapshot-data.ts#buildSdkSnapshotData",
+  "schemaVersion": 1,
+  "sources": [
+    "05-接口与契约/02.02-02-SDK-API规范-二、导出入口.md",
+    "05-接口与契约/02.08-02-SDK-API规范-八、脚手架（@chips-sdk-scaffold）.md"
+  ]
+}

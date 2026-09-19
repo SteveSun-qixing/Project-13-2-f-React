@@ -1,0 +1,72 @@
+{
+  "upstream": {
+    "package": "antd",
+    "version": "6.6.4",
+    "forkVersion": "6.6.4-chips.1",
+    "icons": {
+      "package": "@ant-design/icons",
+      "version": "6.3.4"
+    }
+  },
+  "patches": [
+    {
+      "id": "default-locale-zh-cn",
+      "file": "antd@6.6.4.patch",
+      "targets": [
+        "es/locale/en_US.js",
+        "es/date-picker/locale/en_US.js",
+        "es/time-picker/locale/en_US.js",
+        "es/pagination/Pagination.js",
+        "lib/locale/en_US.js",
+        "lib/date-picker/locale/en_US.js",
+        "lib/time-picker/locale/en_US.js",
+        "lib/pagination/Pagination.js"
+      ],
+      "reason": "fork 移除多语言与 locale 切换：上游在无语言上下文时回退到 en_US，Pagination 与日期/时间组件各自内置 en_US 默认值。补丁把上游的默认回退内容全部收敛为 zh_CN，并在日期组件内登记 dayjs 简体中文语言包，使组件文案、日期面板星期与月份名称固定为简体中文。",
+      "spec": "薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md §5.2（fork 的改造：移除多语言与 locale 切换，组件文案与日期等格式固定为简体中文）；薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md（废弃主题与多语言系统）",
+      "status": "applied",
+      "verifications": [
+        {
+          "file": "es/locale/en_US.js",
+          "contains": "export { default } from './zh_CN';"
+        },
+        {
+          "file": "lib/locale/en_US.js",
+          "contains": "require(\"./zh_CN\")"
+        },
+        {
+          "file": "es/date-picker/locale/en_US.js",
+          "contains": "import 'dayjs/locale/zh-cn';"
+        },
+        {
+          "file": "es/date-picker/locale/en_US.js",
+          "contains": "dayjs.locale('zh-cn');"
+        },
+        {
+          "file": "lib/date-picker/locale/en_US.js",
+          "contains": "require(\"dayjs/locale/zh-cn\");"
+        },
+        {
+          "file": "lib/date-picker/locale/en_US.js",
+          "contains": "_dayjs.default.locale('zh-cn');"
+        },
+        {
+          "file": "es/time-picker/locale/en_US.js",
+          "contains": "import zhCN from './zh_CN';"
+        },
+        {
+          "file": "lib/time-picker/locale/en_US.js",
+          "contains": "require(\"./zh_CN\")"
+        },
+        {
+          "file": "es/pagination/Pagination.js",
+          "contains": "import zhCN from '@rc-component/pagination/locale/zh_CN';"
+        },
+        {
+          "file": "lib/pagination/Pagination.js",
+          "contains": "require(\"@rc-component/pagination/locale/zh_CN\")"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+# 隔离验证工作区：仅挂载 Rust 核心（chips-core / chips-cordis）。
+#
+# 根工作区 `chips-ecosystem/Cargo.toml` 的 `packages/native` 由 W1-Neon 负责落地；
+# 在其 Cargo.toml 就位前，根工作区无法加载。本清单提供与根工作区完全一致的工具链
+# 与依赖解析入口，供 W1-KERNEL 独立完成 `fmt / clippy / test / doc` 门禁验证。
+#
+# 说明：`chips-ecosystem/Cargo.toml` 的 `members` 已包含
+# `packages/core-rust/crates/*`；本文件同时作为嵌套工作区根，Cargo 允许其成员
+# 在两侧工作区中各自构建，依赖解析结果一致。待 `packages/native` 落地后，
+# 内核验证改用根工作区执行（见开发日志）。
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+async-trait = "0.1"
+criterion = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tokio = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

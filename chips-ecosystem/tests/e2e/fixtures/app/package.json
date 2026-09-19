@@ -1,0 +1,7 @@
+{
+  "name": "chips-e2e-harness-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "E2E 骨架自检用的受控 Electron 应用：只实现被测断言工具所需的契约子集，不进入产品链路",
+  "main": "main.cjs"
+}

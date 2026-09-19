@@ -1,0 +1,16 @@
+{
+  "name": "@chips/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "薯片生态全链路 E2E 骨架：Playwright Electron 启动器、断言工具、金链路用例与产品级夹具",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs --max-warnings 0 && prettier --check --ignore-path ../../.prettierignore .",
+    "fixtures": "node fixtures/generate-fixtures.mjs",
+    "fixtures:check": "node fixtures/generate-fixtures.mjs --check"
+  }
+}

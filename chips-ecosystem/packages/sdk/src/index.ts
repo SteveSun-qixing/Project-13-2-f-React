@@ -1,0 +1,285 @@
+/**
+ * `@chips/sdk` 主入口（02-SDK-API规范 §2.2）。
+ *
+ * 导出面口径：
+ * - 值导出固定为 `chips`、`createClient`、`ChipsBridge`、`ChipsError`、`isChipsError`、
+ *   `toChipsError` 六项；`testing` 与 `scaffold` 两组开发期工具不从本入口导出（§2.2 末段）。
+ * - 类型导出按 §2.2 的分类组织：Bridge 协议与能力类型转发 `@chips/bridge`（§2.3、§11 约束 5），
+ *   能力契约、命令、资源打开、内核上下文、插件角色、文档模型、渲染视图与客户端选项等类型由
+ *   SDK 定义，形状权威在对应接口文档，本入口不复制其内容（§1.3）。§2.2 清单中的 manifest 与
+ *   CLI 扩展类型尚未随本入口落地，缺口登记见包内说明与波次报告。
+ * - 附带 `Window.chips` 全局声明（§4、§9.2），插件不得重复声明。
+ * - 三个入口均无默认导出（§2.1）。
+ */
+
+import './global.js';
+
+export { chips, ChipsBridge, createClient } from './client/index.js';
+export { ChipsError, isChipsError, toChipsError } from './errors.js';
+
+export type { ICreateClientOptions } from './client/index.js';
+export type { IChipsError, IChipsErrorInit } from './errors.js';
+
+/* Bridge 协议与能力类型：转发 @chips/bridge，形状权威见 01-Bridge-API规范。 */
+export type {
+  IAppBridge,
+  ICapability,
+  ICapabilityContext,
+  IChipsBridge,
+  IPermissionDeniedDetails,
+  IResourceHandle,
+  IResourceMetadata,
+  ISubscription,
+  IServiceBridge,
+  JSONSchema,
+  ResourceInvalidateReason,
+  ResourceScope,
+  ResourceState,
+} from './types/bridge.js';
+
+/* 能力契约类型：清单、schema 与权限映射的权威是 04-能力契约规范。 */
+export type { CapabilityId } from './generated/capability-ids.js';
+export type {
+  CapabilityInput,
+  CapabilityOutput,
+  ICapabilityContracts,
+} from './types/capabilities/contracts.js';
+export type {
+  DocumentKind,
+  DocumentModel,
+  DocumentPart,
+  VoidInput,
+} from './types/capabilities/common.js';
+export type {
+  DocumentExportForm,
+  IDocumentCreateContent,
+  IDocumentCreateInput,
+  IDocumentCreateOutput,
+  IDocumentExportInput,
+  IDocumentExportOutput,
+  IDocumentOpenInput,
+  IDocumentOpenOutput,
+  IDocumentReadInput,
+  IDocumentReadOutput,
+  IDocumentSaveInput,
+  IDocumentSaveOutput,
+  IDocumentWriteInput,
+  IDocumentWriteOutput,
+} from './types/capabilities/document.js';
+export type {
+  IFileCopyInput,
+  IFileDeleteInput,
+  IFileListInput,
+  IFileListOutput,
+  IFileMkdirInput,
+  IFileMoveInput,
+  IFileReadInput,
+  IFileReadOutput,
+  IFileWatchInput,
+  IFileWatchOutput,
+  IFileWriteInput,
+} from './types/capabilities/file.js';
+export type {
+  HttpMethod,
+  IConfigGetInput,
+  IConfigGetOutput,
+  IConfigResetInput,
+  IConfigSetInput,
+  IConfigSnapshotInput,
+  IConfigSnapshotOutput,
+  ICredentialDeleteInput,
+  ICredentialGetInput,
+  ICredentialGetOutput,
+  ICredentialSetInput,
+  IEventPublishInput,
+  IHttpRequestInput,
+  IHttpRequestOutput,
+  ITransferCancelInput,
+  ITransferDownloadInput,
+  ITransferDownloadOutput,
+} from './types/capabilities/net.js';
+export type {
+  IResourceReadInput,
+  IResourceReadOutput,
+  IResourceWriteInput,
+  IResourceWriteOutput,
+} from './types/capabilities/resource.js';
+export type {
+  IClipboardReadOutput,
+  IClipboardWriteInput,
+  IDialogFileFilter,
+  IDialogOpenInput,
+  IDialogOpenOutput,
+  IDialogSaveInput,
+  IDialogSaveOutput,
+  IMenuItem,
+  IMenuSetInput,
+  INotificationSendInput,
+  IPowerPreventSleepInput,
+  IPowerQueryOutput,
+  IShellOpenExternalInput,
+  IShortcutRegisterInput,
+  IShortcutUnregisterInput,
+  ISystemInfoOutput,
+  ITraySetInput,
+  IWindowCloseInput,
+  IWindowCreateInput,
+  IWindowCreateOutput,
+  IWindowFocusInput,
+  IWindowInfo,
+  IWindowListOutput,
+  IWindowMoveInput,
+  IWindowResizeInput,
+  IWindowSetStateInput,
+  IWindowSetTitleInput,
+  MenuTarget,
+  PlatformId,
+  PowerIdleState,
+  PowerThermalState,
+  WindowDisplayState,
+} from './types/capabilities/system.js';
+
+/* CLI 任务类型：任务记录与状态权威见 07-CLI完整参考 §5.6，能力面见 04-能力契约规范 §7.17。 */
+export type {
+  CliTaskRecord,
+  CliTaskStatus,
+  ICliTaskActiveInput,
+  ICliTaskActiveOutput,
+  ICliTaskCompleteInput,
+  ICliTaskCompleteOutput,
+  ICliTaskFailInput,
+  ICliTaskFailOutput,
+  ICliTaskGetInput,
+  ICliTaskGetOutput,
+  ICliTaskProgressInput,
+  ICliTaskProgressOutput,
+} from './types/capabilities/cli-task.js';
+
+/* 命令类型：权威见 13-命令系统契约 §2、§3.2。 */
+export type {
+  CommandScopeKind,
+  CommandSource,
+  CommandTarget,
+  ICommandCondition,
+  ICommandContext,
+  ICommandDefinition,
+  ICommandGetInput,
+  ICommandGetOutput,
+  ICommandInvokeInput,
+  ICommandInvokeOutput,
+  ICommandListInput,
+  ICommandListOutput,
+  ICommandMenuPlacement,
+  ICommandOwner,
+  ICommandRegisterInput,
+  ICommandRegisterOutput,
+  ICommandScope,
+  ICommandState,
+  ICommandToolbarPlacement,
+  ICommandUnregisterInput,
+  ICommandView,
+  ICommandWhen,
+} from './types/commands.js';
+
+/* 配置层类型：权威见 10-配置系统设计 §4。 */
+export type { ConfigLayer, ConfigWriteScope } from './types/config.js';
+
+/* 资源打开与处理器治理：权威见 14-资源打开与默认处理器契约。 */
+export type {
+  HandlerTier,
+  IHandlerCandidate,
+  IHandlerSlot,
+  IListHandlersOutput,
+  IResourceOpenContext,
+  IResourceOpenLaunchArgs,
+  IResourceOpenRequest,
+  IResourceOpenResource,
+  IResourceOpenResult,
+  OpenIntent,
+  OpenOrigin,
+  ResourceOpenMode,
+} from './types/resource-open.js';
+
+/* 内核上下文类型：由 Cordis 注入主进程插件，成员见 03-核心接口规范。 */
+export type {
+  Context,
+  EventListener,
+  IEventSubscription,
+  ITaskHandle,
+  ITaskOptions,
+  PluginConfig,
+} from './types/kernel.js';
+
+/* 插件角色类型：四类角色的入口与上下文，名称与形状以 07/08/09/10-插件接口文档为准。 */
+export type {
+  AppExitReason,
+  AppLaunchSource,
+  AppLogFields,
+  AppSurface,
+  IAppConfig,
+  IAppConfigChange,
+  IAppConfigView,
+  IAppContext,
+  IAppLauncherInfo,
+  IAppLaunchArgs,
+  IAppLifecycle,
+  IAppLogger,
+  IAppPlugin,
+  IAppWindow,
+} from './types/roles/app.js';
+export type { Dispose, EditorState } from './types/roles/common.js';
+export type {
+  BaseCardChange,
+  IBaseCardEditor,
+  IBaseCardEditorEventMap,
+  IBaseCardPlugin,
+  ICardPatchOperation,
+} from './types/roles/basecard.js';
+export type {
+  EntryRequest,
+  EntryTicket,
+  FrameNotification,
+  IBoxLayoutFrameRuntime,
+  IBoxLayoutPlugin,
+  IBoxLayoutRuntimeAware,
+  ILayoutEditor,
+  ILayoutEditorEventMap,
+  ILayoutPatchOperation,
+  LayoutChange,
+} from './types/roles/boxlayout.js';
+export type {
+  ICapabilityRegisterOptions,
+  IConfigChange,
+  IConfigView,
+  IServiceConfig,
+  IServiceContext,
+  IServiceLogger,
+  IServicePlugin,
+  ServiceLogFields,
+} from './types/roles/service.js';
+
+/* 文档模型类型：字段权威见 04-文件格式规范。 */
+export type {
+  BoxMetadata,
+  CardContent,
+  CardMetadata,
+  ContentNode,
+  Diagnostic,
+  Entry,
+  StructureModel,
+  Tag,
+} from './types/document.js';
+
+/* 渲染视图类型：权威表见 03-核心接口规范 §6.6。 */
+export type {
+  BaseCardContext,
+  BaseCardView,
+  BoxCoverView,
+  BoxRenderView,
+  CardNodeView,
+  CardRenderView,
+  CoverView,
+  DocumentView,
+  EntryView,
+  TagView,
+} from './types/views.js';

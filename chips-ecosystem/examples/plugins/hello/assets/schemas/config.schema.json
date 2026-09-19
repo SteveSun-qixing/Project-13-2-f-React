@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "你好世界配置",
+  "x-chips-schema-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "default": "你好世界",
+      "title": "窗口标题"
+    },
+    "greeting": {
+      "type": "string",
+      "default": "你好，世界！",
+      "title": "问候语"
+    }
+  }
+}

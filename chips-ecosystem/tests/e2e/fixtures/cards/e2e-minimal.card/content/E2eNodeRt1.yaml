@@ -1,0 +1,22 @@
+card_type: "base.richtext"
+content_format: "markdown"
+content_source: "inline"
+content_text: |
+  # E2E 最小富文本卡片
+
+  这是金链路 E2E 使用的最小富文本卡片。
+
+  - 打开：document:open
+  - 渲染：基础卡片插件 renderView
+  - 编辑：document:write
+  - 保存：document:save
+locale: "zh-CN"
+theme: ""
+markdown_capabilities:
+  commonmark: true
+  gfm: true
+  math: true
+  highlight: true
+  underline: true
+  superscript: true
+  subscript: true

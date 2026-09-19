@@ -1,0 +1,8 @@
+{
+  "name": "@chips/e",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@chips/d": "workspace:*"
+  }
+}

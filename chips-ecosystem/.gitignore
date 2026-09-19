@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+release/
+render.js
+reports/
+test-results/
+playwright-report/
+target/
+*.node
+*.cpk
+*.tsbuildinfo
+.DS_Store

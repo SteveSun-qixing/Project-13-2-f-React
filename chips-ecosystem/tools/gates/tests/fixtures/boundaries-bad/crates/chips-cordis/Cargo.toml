@@ -1,0 +1,8 @@
+[package]
+name = "chips-cordis"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+chips-core = { path = "../chips-core" }
+chips-parser = { path = "../chips-parser" }

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' chips-resource:; style-src 'self' 'unsafe-inline'; img-src 'self' data: chips-resource:; font-src 'self' chips-resource:; media-src 'self' chips-resource:; frame-src chips-resource:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>薯片 · 壳自检</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        line-height: 1.6;
+      }
+      h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      li {
+        margin: 4px 0;
+      }
+      .state {
+        font-weight: 600;
+        margin-right: 8px;
+      }
+      .state-ok {
+        color: #16794c;
+      }
+      .state-fail {
+        color: #b42318;
+      }
+      .detail {
+        opacity: 0.72;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>薯片 · 壳自检</h1>
+      <p class="detail">本页验证 preload 桥、IPC 通道与 chips-resource:// 协议的最小可用链路。</p>
+      <ul id="shell-checks"></ul>
+    </main>
+    <script src="shell-window.js" defer></script>
+  </body>
+</html>

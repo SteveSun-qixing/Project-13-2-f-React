@@ -1,0 +1,20 @@
+id: chips.example.hello
+version: 0.1.0
+type: app
+name: 你好世界
+description: 最小应用插件示例：窗口、命令注册与能力调用
+author: 薯片示例
+license: MIT
+runtime:
+  targets: [host]
+  background: false
+permissions:
+  - command:write
+  - notifications:send
+  - clipboard:access
+ui:
+  surface: window
+  launcher:
+    icon: assets/icons/app.svg
+    name: 你好世界
+    description: 最小应用插件示例

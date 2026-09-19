@@ -1,0 +1,86 @@
+{
+  "abiVersion": 1,
+  "exports": [
+    {
+      "name": "coreVersion",
+      "kind": "sync",
+      "signature": "() => string"
+    },
+    {
+      "name": "coreAbiVersion",
+      "kind": "sync",
+      "signature": "() => number"
+    },
+    {
+      "name": "contextProvide",
+      "kind": "sync",
+      "signature": "(handle: ContextHandle, name: string, value: unknown) => void"
+    },
+    {
+      "name": "contextInject",
+      "kind": "sync",
+      "signature": "(handle: ContextHandle, dependencies: readonly string[], callback: (ctx: ContextHandle) => void) => number"
+    },
+    {
+      "name": "contextGet",
+      "kind": "sync",
+      "signature": "(handle: ContextHandle, name: string) => unknown"
+    },
+    {
+      "name": "contextOn",
+      "kind": "sync",
+      "signature": "(handle: ContextHandle, event: string, listener: (payload: unknown) => void, once: boolean) => number"
+    },
+    {
+      "name": "contextUnsubscribe",
+      "kind": "sync",
+      "signature": "(handle: ContextHandle, token: number) => void"
+    },
+    {
+      "name": "contextEmit",
+      "kind": "sync",
+      "signature": "(handle: ContextHandle, event: string, payload: unknown) => void"
+    },
+    {
+      "name": "contextEffect",
+      "kind": "sync",
+      "signature": "(handle: ContextHandle, cleanup: () => void) => void"
+    },
+    {
+      "name": "createCancelToken",
+      "kind": "sync",
+      "signature": "() => CancelTokenHandle"
+    },
+    {
+      "name": "cancelTokenCancel",
+      "kind": "sync",
+      "signature": "(token: CancelTokenHandle) => void"
+    }
+  ],
+  "blocked": [
+    {
+      "name": "bridgeRegister",
+      "kind": "sync",
+      "signature": "(registration: INativeCapabilityRegistration) => void",
+      "ticket": "工单005-chips-bridge能力内核未交付"
+    },
+    {
+      "name": "bridgeUnregister",
+      "kind": "sync",
+      "signature": "(capabilityId: string) => void",
+      "ticket": "工单005-chips-bridge能力内核未交付"
+    },
+    {
+      "name": "bridgeRequest",
+      "kind": "async",
+      "signature": "(request: INativeBridgeRequest) => Promise<unknown>",
+      "ticket": "工单005-chips-bridge能力内核未交付"
+    },
+    {
+      "name": "bridgeCancelSession",
+      "kind": "sync",
+      "signature": "(sessionId: number) => void",
+      "ticket": "工单005-chips-bridge能力内核未交付"
+    }
+  ]
+}

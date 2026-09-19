@@ -1,0 +1,17 @@
+[package]
+name = "chips-cordis"
+description = "薯片平台 Cordis 运行时：Context、Fork、服务注册表、插件管理与事件总线"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.75"
+
+[dependencies]
+async-trait.workspace = true
+chips-core = { path = "../chips-core" }
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
