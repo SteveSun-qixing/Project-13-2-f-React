@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runCli } from '../src/cli.js';
 import { DEFAULT_DOCS_ROOT } from '../src/sources.js';
@@ -13,25 +13,29 @@ interface ConsoleCapture {
   readonly restore: () => void;
 }
 
+/**
+ * 捕获 `process.stdout` / `process.stderr` 写入。
+ *
+ * @remarks 以 `vi.spyOn` 接管写口：`write` 继承自 `Writable.prototype`，`mockRestore` 会删除自有
+ * 属性并还原原型实现（不 detach 方法引用，避免 `this` 绑定漂移）。
+ */
 function captureConsole(): ConsoleCapture {
-  const originalStdoutWrite = process.stdout.write;
-  const originalStderrWrite = process.stderr.write;
   let stdout = '';
   let stderr = '';
-  process.stdout.write = ((chunk: string | Uint8Array): boolean => {
+  const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array): boolean => {
     stdout += chunk.toString();
     return true;
-  }) as typeof process.stdout.write;
-  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+  });
+  const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: string | Uint8Array): boolean => {
     stderr += chunk.toString();
     return true;
-  }) as typeof process.stderr.write;
+  });
   return {
     stdout: () => stdout,
     stderr: () => stderr,
     restore: () => {
-      process.stdout.write = originalStdoutWrite;
-      process.stderr.write = originalStderrWrite;
+      stdoutWrite.mockRestore();
+      stderrWrite.mockRestore();
     },
   };
 }

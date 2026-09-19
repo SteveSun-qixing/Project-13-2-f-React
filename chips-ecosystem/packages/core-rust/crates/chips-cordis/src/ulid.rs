@@ -2,7 +2,7 @@
 
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -21,8 +21,21 @@ pub(crate) fn now_ms() -> u64 {
 #[derive(Debug)]
 pub(crate) struct UlidGenerator {
     seed: u128,
-    last_ms: AtomicU64,
-    counter: AtomicU64,
+    clock: Mutex<ClockState>,
+}
+
+/// 时钟与序号状态；二者必须作为同一临界区整体推进。
+///
+/// 拆成两个独立原子量时，「跨毫秒复位序号」与并发线程的 `fetch_add` 存在竞态：
+/// 复位会抹掉同毫秒内已发出的序号，令后续生成复用同一 `(毫秒, 序号)` 组合，
+/// 直接破坏 §8.1 的事件 ID 唯一性。序号改为全程不回绕复位后，
+/// `(有效毫秒, 序号)` 在 48 位序号空间内天然唯一。
+#[derive(Debug, Default)]
+struct ClockState {
+    /// 已发出的最大有效毫秒；时间回拨时沿用该值。
+    last_ms: u64,
+    /// 全程递增的序号低 48 位。
+    sequence: u64,
 }
 
 impl UlidGenerator {
@@ -35,39 +48,34 @@ impl UlidGenerator {
         let high = u128::from(hasher.finish());
         Self {
             seed: (high << 64) | low,
-            last_ms: AtomicU64::new(0),
-            counter: AtomicU64::new(0),
+            clock: Mutex::new(ClockState::default()),
         }
     }
 
     /// 生成一个 ULID 字符串（26 字符，Crockford Base32）。
     ///
     /// 时间戳部分保证跨毫秒单调；同一有效毫秒内随机基值不变、序号递增，
-    /// 因此进程内严格单调。时间回拨时沿用上次时钟并继续递增序号。
+    /// 因此进程内严格单调（含任意线程并发调用）。时间回拨时沿用上次时钟并
+    /// 继续递增序号。
     pub(crate) fn generate(&self, now_ms: u64) -> String {
         let timestamp = now_ms & TIME_MASK;
-        let mut last = self.last_ms.load(Ordering::Acquire);
-        while timestamp > last {
-            match self.last_ms.compare_exchange_weak(
-                last,
-                timestamp,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ) {
-                Ok(_) => {
-                    self.counter.store(0, Ordering::Release);
-                    last = timestamp;
-                    break;
-                }
-                Err(current) => last = current,
-            }
-        }
-        let effective_ms = timestamp.max(last);
-        let sequence = self.counter.fetch_add(1, Ordering::AcqRel);
+        let (effective_ms, sequence) = {
+            // 临界区内只有整数运算，不嵌套任何内核状态锁（《薯片内核设计》§10.3）。
+            // 中毒锁由本模块自身的 panic 造成，状态仍是合法的 `(毫秒, 序号)` 对，
+            // 取回内部值继续递增即可，不得让事件发布路径因上游 panic 而中断。
+            let mut clock = self
+                .clock
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let effective_ms = timestamp.max(clock.last_ms);
+            clock.last_ms = effective_ms;
+            clock.sequence = clock.sequence.wrapping_add(1) & SEQUENCE_MASK;
+            (effective_ms, clock.sequence)
+        };
 
         let mut encoded = String::with_capacity(26);
         encode_base32(u128::from(effective_ms) << 2, 10, &mut encoded);
-        let mixed = random80(self.seed, effective_ms) | u128::from(sequence & SEQUENCE_MASK);
+        let mixed = random80(self.seed, effective_ms) | u128::from(sequence);
         encode_base32(mixed, 16, &mut encoded);
         encoded
     }
