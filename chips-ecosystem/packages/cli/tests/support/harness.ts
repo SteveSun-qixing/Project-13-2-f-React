@@ -102,7 +102,7 @@ function buildDeps(options: IRunOptions, capture: ReturnType<typeof createCaptur
     cwd: options.cwd ?? '/work',
     fileSystem: options.fileSystem ?? new MemoryFileSystem(),
     now: () => 1000,
-    sleep: async (): Promise<void> => undefined,
+    sleep: (): Promise<void> => Promise.resolve(),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   };
   return deps;

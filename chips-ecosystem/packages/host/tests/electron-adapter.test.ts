@@ -11,7 +11,7 @@ describe('createElectronRuntime：形状校验', () => {
     const fake = createFakeElectron();
     const withoutApp = { ...fake.module, app: undefined };
     expect(() => createElectronRuntime(withoutApp)).toThrow('Electron 模块缺失或形状非法：app');
-    const { BrowserWindow: _browserWindow, ...withoutWindow } = fake.module;
+    const withoutWindow = { ...fake.module, BrowserWindow: undefined };
     expect(() => createElectronRuntime(withoutWindow)).toThrow('Electron BrowserWindow 构造器缺失');
   });
 

@@ -264,7 +264,22 @@ function defaultValue(declaration: IParameterDeclaration): string {
     return 'false';
   }
   if (declaration.type === 'enum' && declaration.choices !== undefined && declaration.choices.length > 0) {
-    return String(declaration.choices[0]);
+    return choiceText(declaration.choices[0]);
+  }
+  return '';
+}
+
+/**
+ * 选项取值 → 表单文本：声明模型的 `choices` 是 `readonly unknown[]`（清单可写任意 YAML 标量），
+ * 这里只承认标量形态，非字符串标量按其字面量呈现，对象/数组/空值一律按空串处理，
+ * 避免出现 `[object Object]` 这类无法回落到参数校验的伪值。
+ */
+function choiceText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
   }
   return '';
 }
@@ -305,7 +320,7 @@ function adjustChoice(state: ITuiState, delta: number): ITuiState {
       return state;
     }
     const next = (field.choiceIndex + delta + choices.length) % choices.length;
-    return updateField(state, index, { ...field, choiceIndex: next, value: String(choices[next]) });
+    return updateField(state, index, { ...field, choiceIndex: next, value: choiceText(choices[next]) });
   }
   if (control === 'stepper' || control === 'slider' || field.declaration.type === 'number' || field.declaration.type === 'integer') {
     const step = field.declaration.ui?.step ?? 1;
@@ -327,7 +342,7 @@ function toggleField(state: ITuiState): ITuiState {
   if (control === 'multiSelect') {
     const choices = field.declaration.ui?.choices ?? field.declaration.choices ?? [];
     const selected = new Set(field.value.split(',').filter((item) => item.length > 0));
-    const candidate = String(choices[field.choiceIndex % Math.max(1, choices.length)] ?? '');
+    const candidate = choiceText(choices[field.choiceIndex % Math.max(1, choices.length)]);
     if (selected.has(candidate)) {
       selected.delete(candidate);
     } else if (candidate.length > 0) {

@@ -239,9 +239,7 @@ describe('chips help 命令（§3.1.1）', () => {
       ...fake,
       cliCommand: {
         ...fake.cliCommand,
-        list: async () => {
-          throw new Error('索引不可用');
-        },
+        list: () => Promise.reject(new Error('索引不可用')),
       },
     };
     const outcome = await runUser(['help'], { client });

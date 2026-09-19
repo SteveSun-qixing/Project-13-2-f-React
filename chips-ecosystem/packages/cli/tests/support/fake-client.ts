@@ -171,44 +171,48 @@ export class FakeCliClient implements ICliClient {
 
   public devRunCalls: unknown[] = [];
 
+  /**
+   * 平台操作替身：端口契约是 Promise，替身按同步方式记账后以 `Promise.resolve` 交付预置结果
+   * （替身不存在真实的异步等待，不写 `async`）。
+   */
   public readonly platform = {
-    version: async (): Promise<string> => {
+    version: (): Promise<string> => {
       this.calls.push('platform.version');
-      return this.workspaceStatusResult.platformVersion;
+      return Promise.resolve(this.workspaceStatusResult.platformVersion);
     },
-    defaultWorkspacePath: async (kind: 'user' | 'dev'): Promise<string> => {
+    defaultWorkspacePath: (kind: 'user' | 'dev'): Promise<string> => {
       this.calls.push(`platform.defaultWorkspacePath:${kind}`);
-      return kind === 'dev' ? '/tmp/chips-dev' : '/tmp/chips-user';
+      return Promise.resolve(kind === 'dev' ? '/tmp/chips-dev' : '/tmp/chips-user');
     },
-    workspaceStatus: async (): Promise<ICliWorkspaceStatus> => {
+    workspaceStatus: (): Promise<ICliWorkspaceStatus> => {
       this.calls.push('platform.workspaceStatus');
-      return this.workspaceStatusResult;
+      return Promise.resolve(this.workspaceStatusResult);
     },
-    workspaceStart: async (): Promise<typeof this.workspaceStartResult> => {
+    workspaceStart: (): Promise<typeof this.workspaceStartResult> => {
       this.calls.push('platform.workspaceStart');
-      return this.workspaceStartResult;
+      return Promise.resolve(this.workspaceStartResult);
     },
-    workspaceStop: async (): Promise<typeof this.workspaceStopResult> => {
+    workspaceStop: (): Promise<typeof this.workspaceStopResult> => {
       this.calls.push('platform.workspaceStop');
-      return this.workspaceStopResult;
+      return Promise.resolve(this.workspaceStopResult);
     },
-    configList: async (layer?: string): Promise<unknown> => {
+    configList: (layer?: string): Promise<unknown> => {
       this.calls.push(`platform.configList:${layer ?? 'default'}`);
-      return this.configListResult;
+      return Promise.resolve(this.configListResult);
     },
-    configSet: async (key: string, value: unknown, layer?: string): Promise<unknown> => {
+    configSet: (key: string, value: unknown, layer?: string): Promise<unknown> => {
       this.calls.push(`platform.configSet:${key}:${JSON.stringify(value)}:${layer ?? 'default'}`);
-      return this.configSetResult;
+      return Promise.resolve(this.configSetResult);
     },
-    configReset: async (key: string, layer?: string): Promise<unknown> => {
+    configReset: (key: string, layer?: string): Promise<unknown> => {
       this.calls.push(`platform.configReset:${key}:${layer ?? 'default'}`);
-      return this.configResetResult;
+      return Promise.resolve(this.configResetResult);
     },
-    logsRead: async (options: { lines: number; level?: string }): Promise<readonly ICliLogEntry[]> => {
+    logsRead: (options: { lines: number; level?: string }): Promise<readonly ICliLogEntry[]> => {
       this.calls.push(`platform.logsRead:${options.lines}:${options.level ?? 'all'}`);
-      return this.logsEntries;
+      return Promise.resolve(this.logsEntries);
     },
-    logsFollow: async (
+    logsFollow: (
       options: { level?: string },
       onEntry: (entry: ICliLogEntry) => void,
       _signal: AbortSignal,
@@ -217,170 +221,184 @@ export class FakeCliClient implements ICliClient {
       for (const entry of this.followEntries) {
         onEntry(entry);
       }
+      return Promise.resolve();
     },
-    pluginList: async (filter: { role?: string; source?: string }): Promise<readonly ICliPluginRecord[]> => {
+    pluginList: (filter: { role?: string; source?: string }): Promise<readonly ICliPluginRecord[]> => {
       this.calls.push(`platform.pluginList:${filter.role ?? 'all'}:${filter.source ?? 'all'}`);
-      return this.pluginRecords;
+      return Promise.resolve(this.pluginRecords);
     },
-    pluginInfo: async (pluginId: string): Promise<ICliPluginDetail> => {
+    pluginInfo: (pluginId: string): Promise<ICliPluginDetail> => {
       this.calls.push(`platform.pluginInfo:${pluginId}`);
-      return this.pluginDetail;
+      return Promise.resolve(this.pluginDetail);
     },
-    pluginInstall: async (input: { path: string; source: string; yes: boolean }): Promise<ICliPluginRecord> => {
+    pluginInstall: (input: { path: string; source: string; yes: boolean }): Promise<ICliPluginRecord> => {
       this.calls.push(`platform.pluginInstall:${input.path}:${input.source}:${String(input.yes)}`);
-      return this.installResult;
+      return Promise.resolve(this.installResult);
     },
-    pluginUninstall: async (pluginId: string): Promise<void> => {
+    pluginUninstall: (pluginId: string): Promise<void> => {
       this.calls.push(`platform.pluginUninstall:${pluginId}`);
+      return Promise.resolve();
     },
-    pluginEnable: async (pluginId: string): Promise<ICliPluginRecord> => {
+    pluginEnable: (pluginId: string): Promise<ICliPluginRecord> => {
       this.calls.push(`platform.pluginEnable:${pluginId}`);
-      return { ...this.installResult, state: 'active', enabled: true };
+      return Promise.resolve({ ...this.installResult, state: 'active', enabled: true });
     },
-    pluginDisable: async (pluginId: string): Promise<ICliPluginRecord> => {
+    pluginDisable: (pluginId: string): Promise<ICliPluginRecord> => {
       this.calls.push(`platform.pluginDisable:${pluginId}`);
-      return { ...this.installResult, state: 'disabled', enabled: false };
+      return Promise.resolve({ ...this.installResult, state: 'disabled', enabled: false });
     },
-    open: async (path: string): Promise<ICliOpenResult> => {
+    open: (path: string): Promise<ICliOpenResult> => {
       this.calls.push(`platform.open:${path}`);
-      return { ...this.openResult, path };
+      return Promise.resolve({ ...this.openResult, path });
     },
-    updateCheck: async (channel: string): Promise<ICliUpdateCheckResult> => {
+    updateCheck: (channel: string): Promise<ICliUpdateCheckResult> => {
       this.calls.push(`platform.updateCheck:${channel}`);
-      return this.updateCheckResult;
+      return Promise.resolve(this.updateCheckResult);
     },
-    updateInstall: async (channel: string): Promise<ICliUpdateInstallResult> => {
+    updateInstall: (channel: string): Promise<ICliUpdateInstallResult> => {
       this.calls.push(`platform.updateInstall:${channel}`);
-      return this.updateInstallResult;
+      return Promise.resolve(this.updateInstallResult);
     },
-    doctor: async (options: { fix: boolean; verbose: boolean }): Promise<ICliDoctorReport> => {
+    doctor: (options: { fix: boolean; verbose: boolean }): Promise<ICliDoctorReport> => {
       this.calls.push(`platform.doctor:${String(options.fix)}:${String(options.verbose)}`);
-      return this.doctorResult;
+      return Promise.resolve(this.doctorResult);
     },
   };
 
+  /** 可注入错误的替身：预置错误一律以拒绝形态透出，与真实承载适配器一致。 */
   public readonly apps = {
-    ensureRunning: async (input: { pluginId: string }): Promise<void> => {
+    ensureRunning: (input: { pluginId: string }): Promise<void> => {
       this.ensureRunningCalls += 1;
       this.calls.push(`apps.ensureRunning:${input.pluginId}`);
-      if (this.ensureRunningError !== undefined) {
-        throw this.ensureRunningError;
-      }
+      return this.ensureRunningError === undefined
+        ? Promise.resolve()
+        : Promise.reject(this.ensureRunningError);
     },
   };
 
   public readonly devHost = {
-    runPlugin: async (input: unknown): Promise<unknown> => {
+    runPlugin: (input: unknown): Promise<unknown> => {
       this.devRunCalls.push(input);
       this.calls.push('devHost.runPlugin');
-      return this.devRunResult;
+      return Promise.resolve(this.devRunResult);
     },
   };
 
   public readonly commands = {
-    invoke: async (input: { commandId: string }): Promise<{ invocationId: string; commandId: string; target: 'main'; status: 'completed' | 'dispatched' }> => {
+    invoke: (input: { commandId: string }): Promise<{
+      invocationId: string;
+      commandId: string;
+      target: 'main';
+      status: 'completed' | 'dispatched';
+    }> => {
       this.calls.push(`commands.invoke:${input.commandId}`);
       if (this.invokeError !== undefined) {
-        throw this.invokeError;
+        return Promise.reject(this.invokeError);
       }
-      return {
+      return Promise.resolve({
         invocationId: 'inv-1',
         commandId: input.commandId,
         target: 'main',
         status: this.invokeStatus,
-      };
+      });
     },
   };
 
   public readonly capabilities = {
-    invoke: async (input: { capability: string }): Promise<{ output: unknown; owner?: string }> => {
+    invoke: (input: { capability: string }): Promise<{ output: unknown; owner?: string }> => {
       this.calls.push(`capabilities.invoke:${input.capability}`);
-      return this.capabilityResult;
+      return Promise.resolve(this.capabilityResult);
     },
   };
 
   public readonly cliCommand = {
-    list: async (): Promise<ICliCommandListResult> => {
+    list: (): Promise<ICliCommandListResult> => {
       this.calls.push('cliCommand.list');
-      return { index: {}, commands: this.commandsIndex };
+      return Promise.resolve({ index: {}, commands: this.commandsIndex });
     },
-    get: async (query: ICliCommandQuery): Promise<ICliCommandView | undefined> => {
+    get: (query: ICliCommandQuery): Promise<ICliCommandView | undefined> => {
       this.calls.push(`cliCommand.get:${JSON.stringify(query)}`);
-      return this.resolveResult.command;
+      return Promise.resolve(this.resolveResult.command);
     },
-    resolve: async (query: ICliCommandQuery): Promise<ICliCommandResolveResult> => {
+    resolve: (query: ICliCommandQuery): Promise<ICliCommandResolveResult> => {
       this.calls.push(`cliCommand.resolve:${JSON.stringify(query)}`);
       const command = this.resolveResult.command;
-      return {
+      return Promise.resolve({
         ...(command === undefined ? {} : { command }),
         conflicts: this.resolveResult.conflicts ?? [],
-      };
+      });
     },
   };
 
   public readonly cliTask = {
-    create: async (input: { pluginId: string; commandId: string }): Promise<ICliTaskRecord> => {
+    create: (input: { pluginId: string; commandId: string }): Promise<ICliTaskRecord> => {
       this.calls.push(`cliTask.create:${input.commandId}`);
-      return this.taskRecord('running');
+      return Promise.resolve(this.taskRecord('running'));
     },
-    bindInvocation: async (input: { taskId: string }): Promise<ICliTaskRecord> => {
+    bindInvocation: (input: { taskId: string }): Promise<ICliTaskRecord> => {
       this.calls.push(`cliTask.bindInvocation:${input.taskId}`);
-      return this.taskRecord(this.taskStatus);
+      return Promise.resolve(this.taskRecord(this.taskStatus));
     },
-    get: async (taskId: string): Promise<ICliTaskRecord> => {
+    get: (taskId: string): Promise<ICliTaskRecord> => {
       this.calls.push(`cliTask.get:${taskId}`);
-      return this.taskRecord(this.taskStatus);
+      return Promise.resolve(this.taskRecord(this.taskStatus));
     },
-    active: async (commandId: string): Promise<ICliTaskRecord | undefined> => {
+    active: (commandId: string): Promise<ICliTaskRecord | undefined> => {
       this.calls.push(`cliTask.active:${commandId}`);
-      return undefined;
+      return Promise.resolve(undefined);
     },
-    progress: async (taskId: string): Promise<ICliTaskRecord> => {
+    progress: (taskId: string): Promise<ICliTaskRecord> => {
       this.calls.push(`cliTask.progress:${taskId}`);
-      return this.taskRecord('running');
+      return Promise.resolve(this.taskRecord('running'));
     },
-    complete: async (taskId: string): Promise<ICliTaskRecord> => {
+    complete: (taskId: string): Promise<ICliTaskRecord> => {
       this.calls.push(`cliTask.complete:${taskId}`);
-      return this.taskRecord('completed');
+      return Promise.resolve(this.taskRecord('completed'));
     },
-    fail: async (taskId: string): Promise<ICliTaskRecord> => {
+    fail: (taskId: string): Promise<ICliTaskRecord> => {
       this.calls.push(`cliTask.fail:${taskId}`);
-      return this.taskRecord('failed');
+      return Promise.resolve(this.taskRecord('failed'));
     },
-    cancel: async (taskId: string): Promise<ICliTaskRecord> => {
+    cancel: (taskId: string): Promise<ICliTaskRecord> => {
       this.calls.push(`cliTask.cancel:${taskId}`);
       this.taskStatus = 'cancelled';
-      return this.taskRecord('cancelled');
+      return Promise.resolve(this.taskRecord('cancelled'));
     },
   };
 
   public readonly artifacts = {
-    create: async (input: { role: string; pluginId: string; name: string; dir: string }): Promise<ICliArtifactCreateResult> => {
+    create: (input: {
+      role: string;
+      pluginId: string;
+      name: string;
+      dir: string;
+    }): Promise<ICliArtifactCreateResult> => {
       this.calls.push(`artifacts.create:${input.role}:${input.pluginId}`);
       if (this.createError !== undefined) {
-        throw this.createError;
+        return Promise.reject(this.createError);
       }
-      return { ...this.createResult, pluginId: input.pluginId, targetDir: input.dir };
+      return Promise.resolve({ ...this.createResult, pluginId: input.pluginId, targetDir: input.dir });
     },
-    pack: async (input: { dir: string; sign: boolean }): Promise<ICliArtifactPackResult> => {
+    pack: (input: { dir: string; sign: boolean }): Promise<ICliArtifactPackResult> => {
       this.calls.push(`artifacts.pack:${input.dir}:${String(input.sign)}`);
       if (this.packError !== undefined) {
-        throw this.packError;
+        return Promise.reject(this.packError);
       }
-      return this.packResult;
+      return Promise.resolve(this.packResult);
     },
-    validate: async (input: { path: string; source: string }): Promise<ICliArtifactValidateResult> => {
+    validate: (input: { path: string; source: string }): Promise<ICliArtifactValidateResult> => {
       this.calls.push(`artifacts.validate:${input.path}:${input.source}`);
       if (this.validateError !== undefined) {
-        throw this.validateError;
+        return Promise.reject(this.validateError);
       }
-      return this.validateResult;
+      return Promise.resolve(this.validateResult);
     },
   };
 
   public readonly operations = {
-    record: async (record: unknown): Promise<void> => {
+    record: (record: unknown): Promise<void> => {
       this.operationsRecords.push(record);
+      return Promise.resolve();
     },
   };
 

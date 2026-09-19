@@ -131,6 +131,13 @@ function boxlayoutManifest(overrides: Record<string, unknown> = {}): Record<stri
   };
 }
 
+/** 去掉指定根字段后的清单副本：用于断言「必填字段缺失」分支。 */
+function withoutField(manifest: Record<string, unknown>, field: string): Record<string, unknown> {
+  const copy = { ...manifest };
+  delete copy[field];
+  return copy;
+}
+
 interface IFixture {
   readonly members?: readonly string[];
   readonly fileSystem?: IFileSystemPort;
@@ -335,8 +342,7 @@ describe('基础字段（§三）', () => {
   });
 
   it('必填字段缺失与空串拒绝', () => {
-    const { name: _name, ...withoutName } = appManifest();
-    expectFailure(() => validate(withoutName), 'CPK_MANIFEST_INVALID', 'name');
+    expectFailure(() => validate(withoutField(appManifest(), 'name')), 'CPK_MANIFEST_INVALID', 'name');
     expectFailure(() => validate(appManifest({ name: '' })), 'CPK_MANIFEST_INVALID', 'name');
     expectFailure(() => validate(appManifest({ description: '' })), 'CPK_MANIFEST_INVALID', 'description');
     expectFailure(() => validate(appManifest({ author: 1 })), 'CPK_MANIFEST_INVALID', 'author');
@@ -364,8 +370,7 @@ describe('基础字段（§三）', () => {
 
 describe('runtime（§四）', () => {
   it('缺失 runtime 拒绝', () => {
-    const { runtime: _runtime, ...withoutRuntime } = appManifest();
-    expectFailure(() => validate(withoutRuntime), 'CPK_MANIFEST_INVALID', 'runtime');
+    expectFailure(() => validate(withoutField(appManifest(), 'runtime')), 'CPK_MANIFEST_INVALID', 'runtime');
   });
 
   it('targets 不得为空、只允许 host、不得重复', () => {
@@ -905,8 +910,7 @@ describe('capabilities：boxlayout（§7.3）', () => {
 
 describe('ui（§7.4）', () => {
   it('app 必须声明 ui，其他角色不得声明', () => {
-    const { ui: _ui, ...withoutUi } = appManifest();
-    expectFailure(() => validate(withoutUi), 'CPK_MANIFEST_INVALID', 'ui');
+    expectFailure(() => validate(withoutField(appManifest(), 'ui')), 'CPK_MANIFEST_INVALID', 'ui');
     expectFailure(() => validate(basecardManifest({ ui: { surface: 'window' } })), 'CPK_MANIFEST_INVALID', 'ui');
   });
 

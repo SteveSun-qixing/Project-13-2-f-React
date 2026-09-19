@@ -416,7 +416,7 @@ export function readDottedPath(root: unknown, path: string): unknown[] {
   return current;
 }
 
-function readSegment(value: unknown, segment: string): unknown[] {
+function readSegment(value: unknown, segment: string): readonly unknown[] {
   if (typeof value !== 'object' || value === null) {
     return [];
   }
@@ -425,7 +425,7 @@ function readSegment(value: unknown, segment: string): unknown[] {
     return [];
   }
   const found = record[segment];
-  return Array.isArray(found) ? [...found] : [found];
+  return Array.isArray(found) ? [...(found as readonly unknown[])] : [found];
 }
 
 /**

@@ -230,20 +230,21 @@ describe('本地客户端组装（§2.5 无承载环境）', () => {
     const seen: string[] = [];
     const client = createLocalClient({
       invoker: {
-        request: async <T>(id: string): Promise<T> => {
+        request: <T>(id: string): Promise<T> => {
           seen.push(id);
-          return { index: {}, commands: [] } as unknown as T;
+          return Promise.resolve({ index: {}, commands: [] } as unknown as T);
         },
       },
       apps: {
-        ensureRunning: async (input) => {
+        ensureRunning: (input) => {
           seen.push(`apps.ensureRunning:${input.pluginId}`);
+          return Promise.resolve();
         },
       },
       devHost: {
-        runPlugin: async (input) => {
+        runPlugin: (input) => {
           seen.push(`devHost.runPlugin:${input.dir}`);
-          return { started: true };
+          return Promise.resolve({ started: true });
         },
       },
       scaffoldProvider: providerOf(PLAN),

@@ -47,6 +47,9 @@ const UI_CONTROLS = new Set([
   'pasteBox',
   'textarea',
 ]);
+const PATH_OVERWRITE_POLICIES = new Set(['fail', 'overwrite', 'rename', 'skip']);
+const SURFACE_REUSE_POLICIES = new Set(['always', 'never', 'preferred']);
+const OUTPUT_JSON_POLICIES = new Set(['supported', 'required', 'unsupported']);
 
 /** 校验输入。 */
 export interface IManifestValidationInput {
@@ -110,6 +113,25 @@ function expectNonNegativeInteger(value: unknown, pointer: string): number {
     fail(`应为非负整数：${pointer}`, pointer);
   }
   return value;
+}
+
+/**
+ * 枚举字段：取值必须是字符串且落在候选集内。
+ *
+ * 不做 `String(value)` 隐式字符串化——清单里写成对象/数组的取值会被字符串化成
+ * `[object Object]` 这类伪值，必须先按字符串收紧再比对候选。
+ */
+function expectEnum(value: unknown, allowed: ReadonlySet<string>, pointer: string, message: string): string {
+  const text = expectString(value, pointer);
+  if (!allowed.has(text)) {
+    fail(message, pointer);
+  }
+  return text;
+}
+
+/** 数组判定：`Array.isArray` 会把取值收窄成 `any[]`，这里统一给出 `unknown` 视图以免污染下游。 */
+function isUnknownArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value);
 }
 
 function rejectUnknownKeys(object: Record<string, unknown>, allowed: readonly string[], pointer: string): void {
@@ -219,7 +241,7 @@ function validateJsonSchemaDocument(
     if (typeof current !== 'object' || current === null) {
       continue;
     }
-    if (Array.isArray(current)) {
+    if (isUnknownArray(current)) {
       visited.push(...current);
       continue;
     }
@@ -311,9 +333,7 @@ function validateParameter(
       if (path.role !== 'output') {
         fail('path.overwrite 只允许 path.role: output', `${pointer}.path.overwrite`);
       }
-      if (!['fail', 'overwrite', 'rename', 'skip'].includes(String(path.overwrite))) {
-        fail('path.overwrite 取值非法', `${pointer}.path.overwrite`);
-      }
+      expectEnum(path.overwrite, PATH_OVERWRITE_POLICIES, `${pointer}.path.overwrite`, 'path.overwrite 取值非法');
     }
     if (path.role === 'output' && type !== 'path') {
       fail('path.role: output 只允许 type: path', `${pointer}.path.role`);
@@ -340,8 +360,11 @@ function validateParameter(
   if (parameter.ui !== undefined) {
     const ui = expectObject(parameter.ui, `${pointer}.ui`);
     rejectUnknownKeys(ui, ['control', 'choices', 'min', 'max', 'step', 'placeholder'], `${pointer}.ui`);
-    if (ui.control !== undefined && !UI_CONTROLS.has(String(ui.control))) {
-      fail(`不支持的 TUI 控件：${String(ui.control)}`, `${pointer}.ui.control`);
+    if (ui.control !== undefined) {
+      const control = expectString(ui.control, `${pointer}.ui.control`);
+      if (!UI_CONTROLS.has(control)) {
+        fail(`不支持的 TUI 控件：${control}`, `${pointer}.ui.control`);
+      }
     }
   }
 }
@@ -444,8 +467,8 @@ function validateCliCommands(
         if (surface.focus !== undefined) {
           expectBoolean(surface.focus, `${commandPointer}.target.surface.focus`);
         }
-        if (surface.reuse !== undefined && !['always', 'never', 'preferred'].includes(String(surface.reuse))) {
-          fail('surface.reuse 取值非法', `${commandPointer}.target.surface.reuse`);
+        if (surface.reuse !== undefined) {
+          expectEnum(surface.reuse, SURFACE_REUSE_POLICIES, `${commandPointer}.target.surface.reuse`, 'surface.reuse 取值非法');
         }
       }
     } else {
@@ -503,8 +526,8 @@ function validateCliCommands(
       if (output.mode !== undefined && output.mode !== 'human' && output.mode !== 'json') {
         fail('output.mode 取值非法', `${commandPointer}.output.mode`);
       }
-      if (output.json !== undefined && !['supported', 'required', 'unsupported'].includes(String(output.json))) {
-        fail('output.json 取值非法', `${commandPointer}.output.json`);
+      if (output.json !== undefined) {
+        expectEnum(output.json, OUTPUT_JSON_POLICIES, `${commandPointer}.output.json`, 'output.json 取值非法');
       }
       if (output.artifacts !== undefined) {
         expectArray(output.artifacts, `${commandPointer}.output.artifacts`);

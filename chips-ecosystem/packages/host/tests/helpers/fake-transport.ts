@@ -8,7 +8,8 @@ import type { IPreloadTransport } from '../../src/preload/transport.js';
 export class FakeTransport implements IPreloadTransport {
   readonly invocations: Array<{ channel: string; payload: unknown }> = [];
   readonly listeners = new Map<string, Set<(payload: unknown) => void>>();
-  responder: (channel: string, payload: unknown) => unknown | Promise<unknown> = (channel) => {
+  /** 响应工厂；返回值或 Promise 均可，`invoke` 统一包装为 Promise。 */
+  responder: (channel: string, payload: unknown) => unknown = (channel) => {
     throw new Error(`未配置响应：${channel}`);
   };
 

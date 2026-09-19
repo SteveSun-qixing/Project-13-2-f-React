@@ -18,7 +18,7 @@ function createBridge(responder?: FakeTransport['responder']): {
   const bridge = createPreloadBridge({
     transport,
     generateId: () => 'r1',
-    fetchImpl: vi.fn(async () => new Response(new Uint8Array([1]))) as unknown as typeof fetch,
+    fetchImpl: vi.fn(async () => Promise.resolve(new Response(new Uint8Array([1])))),
     onDiagnostic: (message) => {
       diagnostics.push(message);
     },

@@ -358,16 +358,16 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
     client.taskStatus = 'running';
     const fileSystem = new MemoryFileSystem();
     fileSystem.writeText('/work/报告.docx', 'doc');
-    client.cliTask.get = async (): Promise<ICliTaskRecord> => {
+    client.cliTask.get = (): Promise<ICliTaskRecord> => {
       const status = controller.signal.aborted ? 'cancelled' : 'running';
-      return {
+      return Promise.resolve({
         taskId: 'task-1',
         pluginId: 'chips.official.office',
         commandId: 'office:open',
         status,
         createdAt: 1,
         updatedAt: 2,
-      };
+      });
     };
     const outcomePromise = runUser(['office', 'open', '报告.docx'], {
       client,
@@ -396,16 +396,16 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
       }),
     ];
     client.taskStatus = 'running';
-    client.cliTask.get = async (): Promise<ICliTaskRecord> => {
+    client.cliTask.get = (): Promise<ICliTaskRecord> => {
       controller.abort();
-      return {
+      return Promise.resolve({
         taskId: 'task-1',
         pluginId: 'chips.official.office',
         commandId: 'tool:long',
         status: 'running',
         createdAt: 1,
         updatedAt: 2,
-      };
+      });
     };
     const outcomePromise = runUser(['long'], { client, signal: controller.signal });
     const outcome = await outcomePromise;

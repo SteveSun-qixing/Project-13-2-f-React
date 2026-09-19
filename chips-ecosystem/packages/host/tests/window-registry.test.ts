@@ -19,7 +19,7 @@ describe('WindowRegistry', () => {
     const window = {
       windowId: 1,
       webContents,
-      loadURL: async (): Promise<void> => undefined,
+      loadURL: async (): Promise<void> => Promise.resolve(),
       close: (): void => undefined,
       destroy: (): void => undefined,
       isDestroyed: (): boolean => false,

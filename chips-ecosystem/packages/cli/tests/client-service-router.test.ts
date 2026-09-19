@@ -242,83 +242,85 @@ describe('平台操作与适配器注入（§2.5）', () => {
   it('注入平台适配器后按方法逐项委托给适配器', async () => {
     const seen: { method: string; args: unknown[] }[] = [];
     const platform: ICliPlatformOperations = {
-      version: async () => {
+      version: () => {
         seen.push({ method: 'version', args: [] });
-        return '0.1.0';
+        return Promise.resolve('0.1.0');
       },
-      defaultWorkspacePath: async (kind) => {
+      defaultWorkspacePath: (kind) => {
         seen.push({ method: 'defaultWorkspacePath', args: [kind] });
-        return `/ws/${kind}`;
+        return Promise.resolve(`/ws/${kind}`);
       },
-      workspaceStatus: async () => {
+      workspaceStatus: () => {
         seen.push({ method: 'workspaceStatus', args: [] });
-        return { workspace: { path: '/ws', kind: 'user' }, state: { running: true }, platformVersion: '0.1.0' };
+        return Promise.resolve({ workspace: { path: '/ws', kind: 'user' }, state: { running: true }, platformVersion: '0.1.0' });
       },
-      workspaceStart: async () => {
+      workspaceStart: () => {
         seen.push({ method: 'workspaceStart', args: [] });
-        return { running: true, pid: 7 };
+        return Promise.resolve({ running: true, pid: 7 });
       },
-      workspaceStop: async () => {
+      workspaceStop: () => {
         seen.push({ method: 'workspaceStop', args: [] });
-        return { running: false };
+        return Promise.resolve({ running: false });
       },
-      configList: async (layer) => {
+      configList: (layer) => {
         seen.push({ method: 'configList', args: [layer] });
-        return { layer };
+        return Promise.resolve({ layer });
       },
-      configSet: async (key, value, layer) => {
+      configSet: (key, value, layer) => {
         seen.push({ method: 'configSet', args: [key, value, layer] });
-        return { key, value, layer };
+        return Promise.resolve({ key, value, layer });
       },
-      configReset: async (key, layer) => {
+      configReset: (key, layer) => {
         seen.push({ method: 'configReset', args: [key, layer] });
-        return { key, layer };
+        return Promise.resolve({ key, layer });
       },
-      logsRead: async (options) => {
+      logsRead: (options) => {
         seen.push({ method: 'logsRead', args: [options] });
-        return [];
+        return Promise.resolve([]);
       },
-      logsFollow: async (options, onEntry, signal) => {
+      logsFollow: (options, onEntry, signal) => {
         seen.push({ method: 'logsFollow', args: [options, typeof onEntry, signal instanceof AbortSignal] });
+        return Promise.resolve();
       },
-      pluginList: async (filter) => {
+      pluginList: (filter) => {
         seen.push({ method: 'pluginList', args: [filter] });
-        return [];
+        return Promise.resolve([]);
       },
-      pluginInfo: async (pluginId) => {
+      pluginInfo: (pluginId) => {
         seen.push({ method: 'pluginInfo', args: [pluginId] });
-        throw new Error('未安装');
+        return Promise.reject(new Error('未安装'));
       },
-      pluginInstall: async (input) => {
+      pluginInstall: (input) => {
         seen.push({ method: 'pluginInstall', args: [input] });
-        return { id: 'chips.demo.app', version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'installed', enabled: true };
+        return Promise.resolve({ id: 'chips.demo.app', version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'installed', enabled: true });
       },
-      pluginUninstall: async (pluginId) => {
+      pluginUninstall: (pluginId) => {
         seen.push({ method: 'pluginUninstall', args: [pluginId] });
+        return Promise.resolve();
       },
-      pluginEnable: async (pluginId) => {
+      pluginEnable: (pluginId) => {
         seen.push({ method: 'pluginEnable', args: [pluginId] });
-        return { id: pluginId, version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'active', enabled: true };
+        return Promise.resolve({ id: pluginId, version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'active', enabled: true });
       },
-      pluginDisable: async (pluginId) => {
+      pluginDisable: (pluginId) => {
         seen.push({ method: 'pluginDisable', args: [pluginId] });
-        return { id: pluginId, version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'disabled', enabled: false };
+        return Promise.resolve({ id: pluginId, version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'disabled', enabled: false });
       },
-      open: async (path) => {
+      open: (path) => {
         seen.push({ method: 'open', args: [path] });
-        return { path, handler: { kind: 'shell' } };
+        return Promise.resolve({ path, handler: { kind: 'shell' } });
       },
-      updateCheck: async (channel) => {
+      updateCheck: (channel) => {
         seen.push({ method: 'updateCheck', args: [channel] });
-        return { currentVersion: '0.1.0', latestVersion: null, channel, updateAvailable: false };
+        return Promise.resolve({ currentVersion: '0.1.0', latestVersion: null, channel, updateAvailable: false });
       },
-      updateInstall: async (channel) => {
+      updateInstall: (channel) => {
         seen.push({ method: 'updateInstall', args: [channel] });
-        return { installed: false, channel };
+        return Promise.resolve({ installed: false, channel });
       },
-      doctor: async (input) => {
+      doctor: (input) => {
         seen.push({ method: 'doctor', args: [input] });
-        return { workspace: { path: '/ws', kind: 'user' }, checks: [] };
+        return Promise.resolve({ workspace: { path: '/ws', kind: 'user' }, checks: [] });
       },
     };
     const client = createServiceRouterClient({ invoker: new RecordingInvoker(), platform });
@@ -346,8 +348,9 @@ describe('平台操作与适配器注入（§2.5）', () => {
     const client = createServiceRouterClient({
       invoker: new RecordingInvoker(),
       apps: {
-        ensureRunning: async (input) => {
+        ensureRunning: (input) => {
           launched.push(input);
+          return Promise.resolve();
         },
       },
     });
@@ -361,7 +364,7 @@ describe('平台操作与适配器注入（§2.5）', () => {
     const client = createServiceRouterClient({
       invoker: new RecordingInvoker(),
       devHost: {
-        runPlugin: async (input) => ({ started: input.dir }),
+        runPlugin: (input) => Promise.resolve({ started: input.dir }),
       },
     });
     await expect(client.devHost.runPlugin({ dir: '/p', workspace: '/ws' })).resolves.toEqual({ started: '/p' });
@@ -374,8 +377,9 @@ describe('平台操作与适配器注入（§2.5）', () => {
     const client = createServiceRouterClient({
       invoker: new RecordingInvoker(),
       operations: {
-        record: async (record) => {
+        record: (record) => {
           records.push(record);
+          return Promise.resolve();
         },
       },
     });
@@ -402,8 +406,8 @@ describe('本地产物引擎接缝（§3.5）', () => {
 
   it('注入的 artifacts 实现被原样挂到客户端', async () => {
     const artifacts = {
-      create: async () => ({ pluginId: 'chips.demo.app', role: 'app', targetDir: '/out', files: ['manifest.yaml'] }),
-      pack: async () => ({
+      create: () => Promise.resolve({ pluginId: 'chips.demo.app', role: 'app', targetDir: '/out', files: ['manifest.yaml'] }),
+      pack: () => Promise.resolve({
         archivePath: '/out/a.cpk',
         name: '示例',
         version: '1.0.0',
@@ -413,7 +417,7 @@ describe('本地产物引擎接缝（§3.5）', () => {
         digest: 'sha256:x',
         signed: false,
       }),
-      validate: async () => ({ valid: true, stages: [] }),
+      validate: () => Promise.resolve({ valid: true, stages: [] }),
     } as unknown as ICliClient['artifacts'];
     const client = createServiceRouterClient({ invoker: new RecordingInvoker(), artifacts });
     expect(client.artifacts).toBe(artifacts);

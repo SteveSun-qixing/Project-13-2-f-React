@@ -129,7 +129,10 @@ describe('createMacMenuPort', () => {
   });
 
   /** 创建菜单端口与托盘控制器。 */
-  function createPorts() {
+  function createPorts(): {
+    controller: ReturnType<typeof createMacTrayController>;
+    port: ReturnType<typeof createMacMenuPort>;
+  } {
     const controller = createMacTrayController({ Tray: tray.Tray, nativeImage });
     const port = createMacMenuPort({
       Menu: menu,

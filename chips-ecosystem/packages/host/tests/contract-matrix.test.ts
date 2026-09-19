@@ -29,7 +29,7 @@ function createFullHost(): ReturnType<typeof createMacPalHost> {
     hostPlatform: 'darwin',
     getSystemVersion: () => '15.0.0',
     arch: 'arm64',
-    runCommand: { run: async () => ({ stdout: '', stderr: '', exitCode: 0 }) },
+    runCommand: { run: async () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }) },
   });
 }
 

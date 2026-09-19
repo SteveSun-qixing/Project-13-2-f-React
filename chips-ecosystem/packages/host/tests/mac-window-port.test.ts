@@ -14,7 +14,7 @@ const WINDOW_INPUT = {
 };
 
 /** 创建窗口端口。 */
-function createPort(options: MacWindowPortOptions = {}) {
+function createPort(options: MacWindowPortOptions = {}): ReturnType<typeof createMacWindowPort> {
   return createMacWindowPort({ BrowserWindow: MockBrowserWindow }, options);
 }
 

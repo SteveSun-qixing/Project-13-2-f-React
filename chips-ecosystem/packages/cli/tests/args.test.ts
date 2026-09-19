@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { parseGlobalOptions } from '../src/args/global-options.js';
 import { parseParameters } from '../src/args/parse.js';
+import type { IParseResult } from '../src/args/parse.js';
 import type { IParameterSet } from '../src/args/types.js';
 import type { CliErrorCode } from '../src/errors.js';
 import { MemoryFileSystem } from './support/memory-file-system.js';
@@ -49,7 +50,7 @@ describe('全局选项（§2.1、§2.2）', () => {
   });
 });
 
-function parse(argv: readonly string[], declarations: IParameterSet, fileSystem = new MemoryFileSystem()) {
+function parse(argv: readonly string[], declarations: IParameterSet, fileSystem = new MemoryFileSystem()): IParseResult {
   return parseParameters({ argv, declarations, cwd: '/work', fileSystem });
 }
 

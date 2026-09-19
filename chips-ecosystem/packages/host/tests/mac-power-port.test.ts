@@ -72,7 +72,7 @@ describe('createMacPowerPort · query', () => {
   });
 
   /** 创建电源端口。 */
-  function createPort() {
+  function createPort(): ReturnType<typeof createMacPowerPort> {
     return createMacPowerPort({
       powerMonitor,
       powerSaveBlocker: blocker,
@@ -143,7 +143,7 @@ describe('createMacPowerPort · setPreventSleep', () => {
   });
 
   /** 创建电源端口。 */
-  function createPort() {
+  function createPort(): ReturnType<typeof createMacPowerPort> {
     return createMacPowerPort({
       powerMonitor,
       powerSaveBlocker: blocker,

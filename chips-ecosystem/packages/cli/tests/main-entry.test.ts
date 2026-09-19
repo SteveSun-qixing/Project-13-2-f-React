@@ -115,9 +115,9 @@ describe('main（§2.5 进程入口）', () => {
     const client: ICliClient = {
       ...fake,
       capabilities: {
-        invoke: async (input): Promise<{ output: unknown }> => {
+        invoke: (input): Promise<{ output: unknown }> => {
           seen.push(input);
-          return { output: { text: 'pong' } };
+          return Promise.resolve({ output: { text: 'pong' } });
         },
       },
     };
@@ -145,9 +145,9 @@ describe('main（§2.5 进程入口）', () => {
     const capture = captureSink();
     await main(['__complete'], {
       client: fake,
-      clientFactory: async (): Promise<ICliClient> => {
+      clientFactory: (): Promise<ICliClient> => {
         factoryCalls += 1;
-        return fake;
+        return Promise.resolve(fake);
       },
       io: capture.sink,
       env: {},
@@ -157,9 +157,9 @@ describe('main（§2.5 进程入口）', () => {
 
     const other = captureSink();
     const exitCode = await main(['__complete'], {
-      clientFactory: async (): Promise<ICliClient> => {
+      clientFactory: (): Promise<ICliClient> => {
         factoryCalls += 1;
-        return fake;
+        return Promise.resolve(fake);
       },
       io: other.sink,
       env: {},
@@ -199,9 +199,9 @@ describe('main（§2.5 进程入口）', () => {
       ...fake,
       cliCommand: {
         ...fake.cliCommand,
-        list: async (): Promise<ICliCommandListResult> => {
+        list: (): Promise<ICliCommandListResult> => {
           during = process.listenerCount('SIGINT');
-          return { index: {}, commands: [] };
+          return Promise.resolve({ index: {}, commands: [] });
         },
       },
     };
@@ -218,9 +218,7 @@ describe('main（§2.5 进程入口）', () => {
       ...fake,
       cliCommand: {
         ...fake.cliCommand,
-        list: async (): Promise<never> => {
-          throw new Error('承载链路断开');
-        },
+        list: (): Promise<never> => Promise.reject(new Error('承载链路断开')),
       },
     };
     const capture = captureSink();

@@ -134,7 +134,7 @@ describe('createMacHttpPort', () => {
       request.options['url'] === 'https://a.example.com/start'
         ? { redirect: { status: 302, location: '/next' } }
         : { status: 200, chunks: ['final'] };
-    const authorizeRedirect = vi.fn(async () => true);
+    const authorizeRedirect = vi.fn(() => Promise.resolve(true));
     const port = createMacHttpPort({ net });
 
     const response = await port.request({
@@ -164,7 +164,7 @@ describe('createMacHttpPort', () => {
     await expect(
       port.request({
         url: 'https://a.example.com/',
-        authorizeRedirect: async () => false,
+        authorizeRedirect: () => Promise.resolve(false),
       }),
     ).rejects.toMatchObject({ code: PAL_ERROR_CODES.HTTP_REDIRECT_DENIED });
   });
@@ -174,7 +174,7 @@ describe('createMacHttpPort', () => {
     const port = createMacHttpPort({ net });
 
     await expect(
-      port.request({ url: 'https://a.example.com/', authorizeRedirect: async () => true }),
+      port.request({ url: 'https://a.example.com/', authorizeRedirect: () => Promise.resolve(true) }),
     ).rejects.toMatchObject({
       code: PAL_ERROR_CODES.HTTP_REDIRECT_DENIED,
       details: { host: null },
@@ -191,7 +191,7 @@ describe('createMacHttpPort', () => {
     await port.request({
       url: 'https://a.example.com/start',
       headers: { Authorization: 'Bearer secret', Cookie: 'a=b', 'X-Keep': 'yes' },
-      authorizeRedirect: async () => true,
+      authorizeRedirect: () => Promise.resolve(true),
     });
 
     expect(net.requests[1]?.headers).toEqual({ 'X-Keep': 'yes' });
@@ -207,7 +207,7 @@ describe('createMacHttpPort', () => {
     await port.request({
       url: 'https://a.example.com/start',
       headers: { Authorization: 'Bearer secret' },
-      authorizeRedirect: async () => true,
+      authorizeRedirect: () => Promise.resolve(true),
     });
 
     expect(net.requests[1]?.headers).toEqual({ Authorization: 'Bearer secret' });
@@ -225,7 +225,7 @@ describe('createMacHttpPort', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Keep': 'yes' },
       body: new Uint8Array([1]),
-      authorizeRedirect: async () => true,
+      authorizeRedirect: () => Promise.resolve(true),
     });
 
     const second = net.requests[1];
@@ -239,7 +239,7 @@ describe('createMacHttpPort', () => {
     const port = createMacHttpPort({ net, limits: fastLimits({ maxRedirects: 2 }) });
 
     await expect(
-      port.request({ url: 'https://a.example.com/', authorizeRedirect: async () => true }),
+      port.request({ url: 'https://a.example.com/', authorizeRedirect: () => Promise.resolve(true) }),
     ).rejects.toMatchObject({
       code: PAL_ERROR_CODES.HTTP_REQUEST_FAILED,
       details: { reason: 'too-many-redirects', maxRedirects: 2 },
@@ -363,7 +363,11 @@ describe('createMacTransferPort', () => {
       readonly progressIntervalMs?: number;
       readonly limits?: Partial<NetworkLimits>;
     } = {},
-  ) {
+  ): Promise<{
+    port: ReturnType<typeof createMacTransferPort>;
+    transferId: string;
+    collector: ReturnType<typeof collectTransferEvents>;
+  }> {
     const collector = collectTransferEvents();
     const port = createMacTransferPort({
       net,
@@ -484,7 +488,7 @@ describe('createMacTransferPort', () => {
     net.plan = () => ({ redirect: { location: 'https://cdn.example.com/next' } });
     const target = join(root, 'redirect.card');
     const { collector } = await downloadAndWait(target, {
-      authorizeRedirect: async () => false,
+      authorizeRedirect: () => Promise.resolve(false),
     });
 
     const failure = await collector.failed;

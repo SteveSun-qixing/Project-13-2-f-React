@@ -200,7 +200,7 @@ export class FakeIpcMain {
     if (handler === undefined) {
       throw new Error(`通道未注册：${channel}`);
     }
-    return handler(event, ...args);
+    return Promise.resolve(handler(event, ...args));
   }
 }
 
@@ -312,7 +312,8 @@ export function createFakeElectron(): FakeElectronModule {
   class BrowserWindow extends FakeBrowserWindow {
     constructor(options: Readonly<Record<string, unknown>>) {
       const webPreferences = options['webPreferences'] as Record<string, unknown> | undefined;
-      const partition = String(webPreferences?.['partition'] ?? `session-${sessionSequence++}`);
+      const declaredPartition = webPreferences?.['partition'];
+      const partition = typeof declaredPartition === 'string' ? declaredPartition : `session-${sessionSequence++}`;
       let session = sessions.get(partition);
       if (session === undefined) {
         session = new FakeSession(partition);

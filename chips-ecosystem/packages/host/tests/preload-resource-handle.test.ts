@@ -92,14 +92,14 @@ function createHarness(
   const hub = new ResourceInvalidationHub(invalidations.subscribe, (message) => {
     diagnostics.push(message);
   });
-  const fetchImpl = vi.fn(async () => new Response(new Uint8Array([1, 2, 3, 4])));
+  const fetchImpl = vi.fn(async () => Promise.resolve(new Response(new Uint8Array([1, 2, 3, 4]))));
   let sequence = 0;
   const handle = createResourceHandle(uri, {
     transport,
     permissions,
     invalidations: hub,
     generateRequestId: () => `r${++sequence}`,
-    fetchImpl: fetchImpl as unknown as typeof fetch,
+    fetchImpl,
     onDiagnostic: (message) => {
       diagnostics.push(message);
     },
@@ -128,7 +128,7 @@ describe('createResourceHandle：预检', () => {
         permissions: blocked.permissions,
         invalidations: new ResourceInvalidationHub(blocked.invalidations.subscribe, () => undefined),
         generateRequestId: () => 'r',
-        fetchImpl: blocked.fetchImpl as unknown as typeof fetch,
+        fetchImpl: blocked.fetchImpl,
         onDiagnostic: () => undefined,
       }),
     ).toThrow('没有访问该资源的权限');
@@ -147,7 +147,7 @@ describe('createResourceHandle：预检', () => {
         permissions: harness.permissions,
         invalidations: new ResourceInvalidationHub(harness.invalidations.subscribe, () => undefined),
         generateRequestId: () => 'r',
-        fetchImpl: harness.fetchImpl as unknown as typeof fetch,
+        fetchImpl: harness.fetchImpl,
         onDiagnostic: () => undefined,
       }),
     ).not.toThrow();
@@ -237,7 +237,7 @@ describe('createResourceHandle：读取', () => {
     const harness = createHarness();
     harness.fetchImpl.mockImplementation(async (_input: unknown, init?: RequestInit) => {
       expect((init?.headers as Record<string, string>)['Range']).toBe('bytes=1-2');
-      return new Response(new Uint8Array([2, 3]), { status: 206 });
+      return Promise.resolve(new Response(new Uint8Array([2, 3]), { status: 206 }));
     });
     await expect(harness.handle.readRange(1, 2)).resolves.toEqual(new Uint8Array([2, 3]));
   });
@@ -292,7 +292,7 @@ describe('createResourceHandle：流式与互斥', () => {
           controller.close();
         },
       });
-      return new Response(body, { status: 200 });
+      return Promise.resolve(new Response(body, { status: 200 }));
     });
     const stream = await harness.handle.stream();
     await expect(harness.handle.readRange(0, 1)).rejects.toMatchObject({ code: 'RESOURCE_BUSY' });
@@ -362,7 +362,7 @@ describe('createResourceHandle：释放与失效', () => {
     expect(harness.invalidations.size).toBe(0);
   });
 
-  it('失效事件只影响匹配 URI 的句柄', async () => {
+  it('失效事件只影响匹配 URI 的句柄', () => {
     const harness = createHarness();
     const other = createHarness({ uri: 'chips-resource://platform/b.bin' });
     const handler = vi.fn();
