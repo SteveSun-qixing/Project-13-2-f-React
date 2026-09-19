@@ -3,14 +3,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { WindowBindings } from '../src/main/window-bindings.js';
 import { WebContentsBinder } from '../src/main/web-contents-binder.js';
 import { WindowRegistry } from '../src/main/window-registry.js';
-import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 import type { IResourceBackend } from '../src/runtime/contracts.js';
 import { FakeSession, FakeWebContents } from './helpers/shell-electron.js';
 import { createWireError } from './helpers/wire-error.js';
 
 const CHIPS_RESOURCE_SCHEME = 'chips-resource';
 
-function createDiagnostics(): DiagnosticsSink & { warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> } {
+/** 诊断口替身：属性式函数签名，便于断言时直接引用替身本身。 */
+interface SpyDiagnostics {
+  warn: ReturnType<typeof vi.fn>;
+  error: ReturnType<typeof vi.fn>;
+}
+
+function createDiagnostics(): SpyDiagnostics {
   return { warn: vi.fn(), error: vi.fn() };
 }
 

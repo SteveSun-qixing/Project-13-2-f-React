@@ -30,12 +30,13 @@ function groupCommand(
     summary,
     usage,
     subcommands,
-    run: async (context: ICommandContext): Promise<never> => {
-      throw cliError('CLI_COMMAND_NOT_FOUND', `命令 ${context.commandPath} 缺少子命令`, {
-        commandPath: context.commandPath,
-        subcommands: [...subcommands],
-      });
-    },
+    run: (context: ICommandContext): Promise<never> =>
+      Promise.reject(
+        cliError('CLI_COMMAND_NOT_FOUND', `命令 ${context.commandPath} 缺少子命令`, {
+          commandPath: context.commandPath,
+          subcommands: [...subcommands],
+        }),
+      ),
   };
 }
 

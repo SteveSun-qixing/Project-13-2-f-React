@@ -53,14 +53,15 @@ describe('resolveIpcSession', () => {
 
 describe('pushSessionPermissions', () => {
   it('向存活窗口投递权限快照', () => {
-    const webContents = createWebContents();
+    const send = vi.fn();
+    const webContents = createWebContents({ send });
     const delivered = pushSessionPermissions(webContents, 'session:permissions', {
       sessionId: 's1',
       grantedPermissions: ['resources:read'],
       permissionVersion: 1,
     });
     expect(delivered).toBe(true);
-    expect(webContents.send).toHaveBeenCalledWith('session:permissions', {
+    expect(send).toHaveBeenCalledWith('session:permissions', {
       sessionId: 's1',
       grantedPermissions: ['resources:read'],
       permissionVersion: 1,
@@ -68,13 +69,14 @@ describe('pushSessionPermissions', () => {
   });
 
   it('窗口已销毁时不投递', () => {
-    const webContents = createWebContents({ isDestroyed: () => true });
+    const send = vi.fn();
+    const webContents = createWebContents({ send, isDestroyed: () => true });
     const delivered = pushSessionPermissions(webContents, 'session:permissions', {
       sessionId: 's1',
       grantedPermissions: [],
       permissionVersion: 2,
     });
     expect(delivered).toBe(false);
-    expect(webContents.send).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 });

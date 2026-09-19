@@ -482,7 +482,7 @@ export function validateCpk(options: ICpkValidateOptions): ICliArtifactValidateR
       const normalized = normalizeError(error);
       throw cliError(normalized.code, normalized.message, {
         ...(typeof normalized.details === 'object' && normalized.details !== null
-          ? (normalized.details as Record<string, unknown>)
+          ? normalized.details
           : {}),
         stages,
       });

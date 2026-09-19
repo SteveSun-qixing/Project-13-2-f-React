@@ -237,13 +237,15 @@ export function createServiceRouterClient(options: IServiceRouterClientOptions):
 }
 
 function createUnavailableArtifacts(): ICliClient['artifacts'] {
-  const fail = (method: string): never => {
-    throw cliError('CLI_TARGET_UNAVAILABLE', `缺少本地产物引擎：${method}`, { method });
-  };
+  // 端口契约是 Promise：缺失引擎时以拒绝形态透出 `CLI_TARGET_UNAVAILABLE`，不做同步抛出。
+  const unavailable = (method: string): Promise<never> =>
+    Promise.reject(
+      cliError('CLI_TARGET_UNAVAILABLE', `缺少本地产物引擎：${method}`, { method }),
+    );
   return {
-    create: async () => fail('artifacts.create'),
-    pack: async () => fail('artifacts.pack'),
-    validate: async () => fail('artifacts.validate'),
+    create: () => unavailable('artifacts.create'),
+    pack: () => unavailable('artifacts.pack'),
+    validate: () => unavailable('artifacts.validate'),
   };
 }
 

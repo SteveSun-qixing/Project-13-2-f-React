@@ -65,9 +65,7 @@ describe('HostApplication.start', () => {
     const runtime = createFakeRuntime();
     const failing = {
       ...runtime.runtime,
-      start: async (): Promise<void> => {
-        throw new Error('能力注册校验失败');
-      },
+      start: async (): Promise<void> => Promise.reject(new Error('能力注册校验失败')),
     };
     const fake = createFakeElectron();
     const application = new HostApplication({
@@ -140,9 +138,7 @@ describe('HostApplication：权限下行与事件下行', () => {
     const runtime = createFakeRuntime();
     const failing: typeof runtime.runtime = {
       ...runtime.runtime,
-      handleStartupInputs: async () => {
-        throw new Error('路由不可用');
-      },
+      handleStartupInputs: async (): Promise<void> => Promise.reject(new Error('路由不可用')),
     };
     const fake = createFakeElectron();
     const diagnostics = { warn: vi.fn(), error: vi.fn() };
@@ -198,17 +194,15 @@ describe('HostApplication.shutdown', () => {
       },
     });
     const runtime = createFakeRuntime();
-    const originalStopPlugins = runtime.runtime.stopPlugins;
-    const originalShutdown = runtime.runtime.shutdown;
     const tracked: typeof runtime.runtime = {
       ...runtime.runtime,
       stopPlugins: async (): Promise<void> => {
         calls.push('stop-plugins');
-        await originalStopPlugins();
+        await runtime.runtime.stopPlugins();
       },
       shutdown: async (): Promise<void> => {
         calls.push('core-shutdown');
-        await originalShutdown();
+        await runtime.runtime.shutdown();
       },
     };
     const fake = createFakeElectron();

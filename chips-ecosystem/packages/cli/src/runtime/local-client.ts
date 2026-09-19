@@ -25,12 +25,14 @@ export function createLocalClient(options: ILocalClientOptions = {}): ICliClient
   const artifacts = createLocalArtifacts(options);
   const invoker: ICliInvoker =
     options.invoker ?? {
-      async request(id: string): Promise<never> {
-        throw cliError('CLI_TARGET_UNAVAILABLE', `缺少平台承载环境：无法调用 ${id}`, {
-          route: id,
-          hint: '请在平台发行包内运行 chips，或通过 createServiceRouterClient 注入承载适配器',
-        });
-      },
+      // 无承载环境：`ICliInvoker.request` 的契约是 Promise，缺省实现以拒绝形态透出错误。
+      request: (id: string): Promise<never> =>
+        Promise.reject(
+          cliError('CLI_TARGET_UNAVAILABLE', `缺少平台承载环境：无法调用 ${id}`, {
+            route: id,
+            hint: '请在平台发行包内运行 chips，或通过 createServiceRouterClient 注入承载适配器',
+          }),
+        ),
     };
   return createServiceRouterClient({
     invoker,

@@ -47,26 +47,38 @@ export function createLocalArtifacts(options: ILocalArtifactsOptions = {}): ICli
         files: written.files,
       };
     },
-    async pack(input) {
-      return packCpk({
-        fileSystem: input.fileSystem,
-        dir: input.dir,
-        ...(input.out === undefined ? {} : { out: input.out }),
-        sign: input.sign,
-        ...(input.keyId === undefined ? {} : { keyId: input.keyId }),
-        ...(input.signingKeyFile === undefined ? {} : { signingKeyFile: input.signingKeyFile }),
-        catalog,
-      });
-    },
-    async validate(input) {
-      return validateCpk({
-        fileSystem: input.fileSystem,
-        path: input.path,
-        source: input.source,
-        catalog,
-        ...(input.platformVersion === undefined ? {} : { platformVersion: input.platformVersion }),
-        ...(options.trustRoots === undefined ? {} : { trustRoots: options.trustRoots }),
-      });
-    },
+    pack: (input) =>
+      toPortTask(() =>
+        packCpk({
+          fileSystem: input.fileSystem,
+          dir: input.dir,
+          ...(input.out === undefined ? {} : { out: input.out }),
+          sign: input.sign,
+          ...(input.keyId === undefined ? {} : { keyId: input.keyId }),
+          ...(input.signingKeyFile === undefined ? {} : { signingKeyFile: input.signingKeyFile }),
+          catalog,
+        }),
+      ),
+    validate: (input) =>
+      toPortTask(() =>
+        validateCpk({
+          fileSystem: input.fileSystem,
+          path: input.path,
+          source: input.source,
+          catalog,
+          ...(input.platformVersion === undefined ? {} : { platformVersion: input.platformVersion }),
+          ...(options.trustRoots === undefined ? {} : { trustRoots: options.trustRoots }),
+        }),
+      ),
   };
+}
+
+/**
+ * 同步引擎 → 异步端口契约：`packCpk` / `validateCpk` 按 `ICliArtifactsApi` 的调用时序在调用点
+ * 同步执行完毕，引擎抛出的错误一律以拒绝形态透出（与 `async` 包装等价），调用方无需区分来源。
+ */
+function toPortTask<T>(engine: () => T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    resolve(engine());
+  });
 }

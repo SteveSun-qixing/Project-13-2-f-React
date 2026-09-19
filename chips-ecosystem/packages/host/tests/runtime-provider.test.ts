@@ -11,8 +11,8 @@ describe('createHostAssembly', () => {
       createPalHost: () => createFakePalHost(),
       createRuntime: () => runtime.runtime,
     });
-    expect(assembly.createPalHost).toBeTypeOf('function');
-    expect(assembly.createRuntime).toBeTypeOf('function');
+    expect(typeof assembly.createPalHost).toBe('function');
+    expect(typeof assembly.createRuntime).toBe('function');
   });
 
   it('缺少构造方法时抛出启动错误', () => {

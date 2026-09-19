@@ -25,11 +25,14 @@ export const completionCommand: ICliCommandDefinition = {
   usage: 'chips completion <bash|zsh|fish>',
   outputMode: 'human',
   parameters: { arguments: [shellArgument] },
-  run: async (context: ICommandContext): Promise<ICommandResult> => {
+  run: (context: ICommandContext): Promise<ICommandResult> => {
     const { values } = parseCommandOptions(context, { arguments: [shellArgument] });
     const shell = readString(values, 'shell') ?? '';
     const script = renderCompletionScript(shell, context.entry);
-    return { json: { shell, script }, human: script.split('\n').filter((line) => line.length > 0) };
+    return Promise.resolve({
+      json: { shell, script },
+      human: script.split('\n').filter((line) => line.length > 0),
+    });
   },
 };
 

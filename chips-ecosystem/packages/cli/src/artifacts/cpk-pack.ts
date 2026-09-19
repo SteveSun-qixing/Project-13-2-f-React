@@ -9,7 +9,7 @@ import { createPrivateKey, sign as signValue } from 'node:crypto';
 import { basename, join } from 'node:path';
 
 import { cliError, normalizeError } from '../errors.js';
-import type { CliPluginRole, ICliArtifactPackResult } from '../client/types.js';
+import type { ICliArtifactPackResult } from '../client/types.js';
 import type { IFileSystemPort } from '../args/filesystem.js';
 import { parseManifestText, validateManifest } from './manifest.js';
 import type { IPermissionCatalog } from './permission-catalog.js';
@@ -93,7 +93,7 @@ export function packCpk(options: ICpkPackOptions): ICliArtifactPackResult {
     archivePath,
     name,
     version: manifest.version,
-    role: manifest.role as CliPluginRole,
+    role: manifest.role,
     memberCount: entries.length,
     archiveSize: archive.length,
     digest: `sha256:${sha256Hex(archive)}`,
