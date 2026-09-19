@@ -110,7 +110,7 @@ describe('createNodeTerminal（§3.1.1 备用屏幕与 raw mode）', () => {
   it('两端均为 TTY 时才判定可交互，并暴露尺寸', async () => {
     const stdin = new FakeStdin();
     const stdout = new FakeStdout();
-    await withFakeStreams(stdin, stdout, async () => {
+    await withFakeStreams(stdin, stdout, () => {
       const terminal = createNodeTerminal();
       expect(terminal.isTTY).toBe(true);
       expect(terminal.columns).toBe(80);
@@ -130,7 +130,7 @@ describe('createNodeTerminal（§3.1.1 备用屏幕与 raw mode）', () => {
   it('enter 进入备用屏幕、隐藏光标并开启 raw mode 输入', async () => {
     const stdin = new FakeStdin();
     const stdout = new FakeStdout();
-    await withFakeStreams(stdin, stdout, async () => {
+    await withFakeStreams(stdin, stdout, () => {
       const terminal = createNodeTerminal();
       const keys: ITuiKey[] = [];
       terminal.onKey((key) => keys.push(key));
@@ -153,7 +153,7 @@ describe('createNodeTerminal（§3.1.1 备用屏幕与 raw mode）', () => {
   it('exit 摘除监听、恢复光标与主屏幕并关闭 raw mode', async () => {
     const stdin = new FakeStdin();
     const stdout = new FakeStdout();
-    await withFakeStreams(stdin, stdout, async () => {
+    await withFakeStreams(stdin, stdout, () => {
       const terminal = createNodeTerminal();
       const keys: ITuiKey[] = [];
       const off = terminal.onKey((key) => keys.push(key));
@@ -180,7 +180,7 @@ describe('createNodeTerminal（§3.1.1 备用屏幕与 raw mode）', () => {
   it('退订后不再收到按键，resize 通知可注册与退订', async () => {
     const stdin = new FakeStdin();
     const stdout = new FakeStdout();
-    await withFakeStreams(stdin, stdout, async () => {
+    await withFakeStreams(stdin, stdout, () => {
       const terminal = createNodeTerminal();
       const keys: ITuiKey[] = [];
       const resizes: number[] = [];
@@ -203,7 +203,7 @@ describe('createNodeTerminal（§3.1.1 备用屏幕与 raw mode）', () => {
     const stdin = new FakeStdin();
     stdin.isTTY = false;
     const stdout = new FakeStdout();
-    await withFakeStreams(stdin, stdout, async () => {
+    await withFakeStreams(stdin, stdout, () => {
       const terminal = createNodeTerminal();
       terminal.enter();
       expect(stdin.rawMode).toBeUndefined();
@@ -295,14 +295,14 @@ function createContext(client: ICliClient, io: IOutputSink): ICommandContext {
     fileSystem: new MemoryFileSystem(),
     client,
     signal: new AbortController().signal,
-    resolvePlatformVersion: async () => '0.1.0',
+    resolvePlatformVersion: () => Promise.resolve('0.1.0'),
     workspace: {
       kind: 'user',
-      resolve: async () => ({ path: '/ws', kind: 'user' as const }),
+      resolve: () => Promise.resolve({ path: '/ws', kind: 'user' as const }),
     },
     logger: createNullOperationLogger(),
     now: () => 1000,
-    sleep: async () => undefined,
+    sleep: () => Promise.resolve(),
     commandPath: '',
     args: [],
     argv: [],
@@ -333,7 +333,7 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
     const { sink, stderr } = captureSink();
     const exitCode = await runTui({
       context: createContext(new FakeCliClient(), sink),
-      execute: async () => 0,
+      execute: () => Promise.resolve(0),
       terminal,
     });
     expect(exitCode).toBe(1);
@@ -346,10 +346,10 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
     const executed: { tokens: readonly string[]; signal: AbortSignal }[] = [];
     const options: ITuiRunOptions = {
       context: createContext(new FakeCliClient(), captureSink().sink),
-      execute: async (tokens, sink, signal) => {
+      execute: (tokens, sink, signal) => {
         executed.push({ tokens, signal });
         sink.writeOut('已列出插件');
-        return 0;
+        return Promise.resolve(0);
       },
       terminal,
     };
@@ -376,9 +376,9 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
     const tokens: string[][] = [];
     const running = runTui({
       context: createContext(new FakeCliClient(), captureSink().sink),
-      execute: async (t) => {
+      execute: (t) => {
         tokens.push([...t]);
-        return 0;
+        return Promise.resolve(0);
       },
       terminal,
     });
@@ -409,12 +409,13 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
     let mode = 'throw';
     const running = runTui({
       context: createContext(new FakeCliClient(), sink),
-      execute: async (_tokens, out) => {
+      execute: (_tokens, out) => {
         if (mode === 'throw') {
-          throw { code: 'CLI_TASK_FAILED', message: '任务执行失败' };
+          // 带 `code` 的普通 `Error`：走 `normalizeError` 的「非 ChipsError 但带错误码」归一分支。
+          throw Object.assign(new Error('任务执行失败'), { code: 'CLI_TASK_FAILED' });
         }
         out.writeOut('{"code":"CLI_PLUGIN_FAILED","error":"插件返回失败"}');
-        return 5;
+        return Promise.resolve(5);
       },
       terminal,
     });
@@ -440,10 +441,10 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
     const terminal = new FakeTerminal();
     const running = runTui({
       context: createContext(new FakeCliClient(), captureSink().sink),
-      execute: async (_tokens, out) => {
+      execute: (_tokens, out) => {
         out.writeOut('{ 这不是一个 JSON 文档');
         out.writeErr('\n进度提示');
-        return 2;
+        return Promise.resolve(2);
       },
       terminal,
     });
@@ -464,7 +465,7 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
     const terminal = new FakeTerminal();
     const running = runTui({
       context: createContext(new FakeCliClient(), captureSink().sink),
-      execute: async () => 0,
+      execute: () => Promise.resolve(0),
       terminal,
     });
     await settle();
@@ -492,7 +493,7 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
     const terminal = new FakeTerminal();
     const running = runTui({
       context: createContext(new FakeCliClient(), captureSink().sink),
-      execute: async () => 0,
+      execute: () => Promise.resolve(0),
       terminal,
     });
     await settle();
@@ -527,9 +528,9 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
     const terminal = new FakeTerminal();
     const running = runTui({
       context: createContext(client, captureSink().sink),
-      execute: async (tokens) => {
+      execute: (tokens) => {
         executed.push(tokens);
-        return 0;
+        return Promise.resolve(0);
       },
       terminal,
     });
@@ -557,15 +558,13 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
       ...client,
       cliCommand: {
         ...client.cliCommand,
-        list: async () => {
-          throw new Error('索引不可用');
-        },
+        list: () => Promise.reject(new Error('索引不可用')),
       },
     };
     const terminalTwo = new FakeTerminal();
     const runningTwo = runTui({
       context: createContext(broken, captureSink().sink),
-      execute: async () => 0,
+      execute: () => Promise.resolve(0),
       terminal: terminalTwo,
     });
     await settle();
