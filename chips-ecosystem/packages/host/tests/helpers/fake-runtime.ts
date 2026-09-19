@@ -23,6 +23,7 @@ import type {
   IResourceControlRequest,
   IResourceControlResponse,
 } from '../../src/protocol/wire.js';
+import { createWireError } from './wire-error.js';
 
 /** 运行时替身选项。 */
 export interface FakeRuntimeOptions {
@@ -89,25 +90,30 @@ export function createFakeRuntime(options: FakeRuntimeOptions = {}): FakeRuntime
       if (options.readResource !== undefined) {
         return options.readResource(request);
       }
-      throw { code: 'RESOURCE_NOT_FOUND', message: '资源不存在', retryable: false };
+      return Promise.reject(createWireError('RESOURCE_NOT_FOUND', '资源不存在'));
     },
   };
 
   const runtime: IPlatformRuntime = {
     async start(host: IPalHost, channel: IPlatformHostChannel): Promise<void> {
       calls.start.push({ host, channel });
+      return Promise.resolve();
     },
     async restorePlugins(): Promise<void> {
       calls.restorePlugins += 1;
+      return Promise.resolve();
     },
     async handleStartupInputs(inputs: readonly IPlatformStartupInput[]): Promise<void> {
       calls.startupInputs.push([...inputs]);
+      return Promise.resolve();
     },
     async stopPlugins(): Promise<void> {
       calls.stopPlugins += 1;
+      return Promise.resolve();
     },
     async shutdown(): Promise<void> {
       calls.shutdown += 1;
+      return Promise.resolve();
     },
     ipc: {
       async handleRequest(session, request): Promise<IBridgeResponse> {

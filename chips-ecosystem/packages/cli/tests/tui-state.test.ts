@@ -90,6 +90,22 @@ function formOf(target: ITuiTarget): ITuiState {
   };
 }
 
+/**
+ * 与 `formOf` 同形，但整体不写 `commandPath` 键。
+ *
+ * `ITuiState.commandPath?: string` 在 `exactOptionalPropertyTypes` 下以「键缺席」表达无命令路径
+ * （`initialState()` 与 `src/tui/run.ts` 的 compose 态同此），显式赋 `undefined` 不是合法构造。
+ */
+function formOfWithoutCommandPath(target: ITuiTarget): ITuiState {
+  return {
+    ...initialState(),
+    panel: 'form',
+    buffer: target.commandPath.join(' '),
+    fields: createFields(target),
+    fieldIndex: 0,
+  };
+}
+
 function fieldOf(state: ITuiState, name: string): { value: string; choiceIndex: number } {
   const field = state.fields.find((item) => item.declaration.name === name);
   if (field === undefined) {
@@ -413,9 +429,10 @@ describe('buildTokens：表单结果交回同一执行器', () => {
   });
 
   it('缺少命令路径时只输出参数 token', () => {
-    const state = formOf(LIST_TARGET);
-    const { commandPath: _omitted, ...stateWithoutPath } = state;
-    expect(buildTokens(stateWithoutPath)).toEqual(['--role', 'app']);
+    const withoutPath = formOfWithoutCommandPath(LIST_TARGET);
+    expect(withoutPath.commandPath).toBeUndefined();
+    expect(withoutPath.fields).toEqual(formOf(LIST_TARGET).fields);
+    expect(buildTokens(withoutPath)).toEqual(['--role', 'app']);
   });
 });
 

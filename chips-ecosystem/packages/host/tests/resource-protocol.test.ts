@@ -14,6 +14,7 @@ import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 import type { IResourceBackend, IResourceReadRequest } from '../src/runtime/contracts.js';
 import type { ShellCustomScheme } from '../src/main/shell-api.js';
 import { FakeSessionProtocol } from './helpers/shell-electron.js';
+import { createWireError } from './helpers/wire-error.js';
 
 const diagnostics: DiagnosticsSink = { warn: vi.fn(), error: vi.fn() };
 
@@ -81,10 +82,12 @@ describe('registerResourceSchemePrivileges', () => {
 
 describe('handleResourceRequest', () => {
   const okBackend = backendOf(async (request) => {
-    return new Response(request.method === 'HEAD' ? null : new Uint8Array([1, 2, 3]), {
-      status: 200,
-      headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': '3' },
-    });
+    return Promise.resolve(
+      new Response(request.method === 'HEAD' ? null : new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': '3' },
+      }),
+    );
   });
 
   it('OPTIONS 返回 204 与 CORS 头', async () => {
@@ -148,10 +151,12 @@ describe('handleResourceRequest', () => {
   it('成功读取附加安全头并在需要时附加 CORS', async () => {
     const scriptBackend = backendOf(
       async () =>
-        new Response(new Uint8Array([1]), {
-          status: 200,
-          headers: { 'Content-Type': 'text/javascript; charset=utf-8' },
-        }),
+        Promise.resolve(
+          new Response(new Uint8Array([1]), {
+            status: 200,
+            headers: { 'Content-Type': 'text/javascript; charset=utf-8' },
+          }),
+        ),
     );
     const response = await handleResourceRequest(new Request('chips-resource://platform/shell-window.js'), session, {
       backend: scriptBackend,
@@ -176,9 +181,7 @@ describe('handleResourceRequest', () => {
   });
 
   it('核心资源错误归一为对应 HTTP 状态且不泄露内部信息', async () => {
-    const failing = backendOf(async () => {
-      throw { code: 'RESOURCE_NOT_FOUND', message: '资源不存在', retryable: false };
-    });
+    const failing = backendOf(async () => Promise.reject(createWireError('RESOURCE_NOT_FOUND', '资源不存在')));
     const response = await handleResourceRequest(new Request('chips-resource://platform/missing.bin'), session, {
       backend: failing,
       bindings: createBindings(1),
@@ -189,9 +192,7 @@ describe('handleResourceRequest', () => {
   });
 
   it('未识别后端异常归一为 500', async () => {
-    const failing = backendOf(async () => {
-      throw new Error('内部路径 /Users/me/secret');
-    });
+    const failing = backendOf(async () => Promise.reject(new Error('内部路径 /Users/me/secret')));
     const response = await handleResourceRequest(new Request('chips-resource://platform/a.bin'), session, {
       backend: failing,
       bindings: createBindings(1),
@@ -204,14 +205,16 @@ describe('handleResourceRequest', () => {
   it('流式响应原样透传', async () => {
     const streaming = backendOf(
       async () =>
-        new Response(
-          new ReadableStream<Uint8Array>({
-            start(controller): void {
-              controller.enqueue(new Uint8Array([7, 8]));
-              controller.close();
-            },
-          }),
-          { status: 206, headers: { 'Content-Type': 'application/octet-stream' } },
+        Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller): void {
+                controller.enqueue(new Uint8Array([7, 8]));
+                controller.close();
+              },
+            }),
+            { status: 206, headers: { 'Content-Type': 'application/octet-stream' } },
+          ),
         ),
     );
     const response = await handleResourceRequest(new Request('chips-resource://platform/a.bin'), session, {
@@ -228,7 +231,11 @@ describe('attachResourceProtocol', () => {
   it('按会话注册处理器，注销幂等且不重复注册', () => {
     const protocol = new FakeSessionProtocol();
     const target: ShellSession = { key: 's', protocol };
-    const deps = { backend: backendOf(async () => new Response(null)), bindings: new WindowBindings(), diagnostics };
+    const deps = {
+      backend: backendOf(async () => Promise.resolve(new Response(null))),
+      bindings: new WindowBindings(),
+      diagnostics,
+    };
     const dispose = attachResourceProtocol(target, deps);
     expect(protocol.isProtocolHandled(CHIPS_RESOURCE_SCHEME)).toBe(true);
     attachResourceProtocol(target, deps);

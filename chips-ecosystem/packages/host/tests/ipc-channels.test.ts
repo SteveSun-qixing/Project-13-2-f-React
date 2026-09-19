@@ -8,14 +8,16 @@ import {
   RENDERER_TO_MAIN_CHANNELS,
 } from '../src/protocol/channels.js';
 import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
+import type { ShellIpcInvokeEvent } from '../src/main/shell-api.js';
 import { createFakeElectron } from './helpers/shell-electron.js';
 import { createFakeRuntime } from './helpers/fake-runtime.js';
+import { createWireError } from './helpers/wire-error.js';
 
 function createDiagnostics(): DiagnosticsSink & { warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> } {
   return { warn: vi.fn(), error: vi.fn() };
 }
 
-const invokeEvent = (windowId: number, routingId = 0) => ({
+const invokeEvent = (windowId: number, routingId = 0): ShellIpcInvokeEvent => ({
   sender: { id: windowId },
   senderFrame: { routingId },
 });

@@ -6,6 +6,7 @@ import { WindowRegistry } from '../src/main/window-registry.js';
 import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 import type { IResourceBackend } from '../src/runtime/contracts.js';
 import { FakeSession, FakeWebContents } from './helpers/shell-electron.js';
+import { createWireError } from './helpers/wire-error.js';
 
 const CHIPS_RESOURCE_SCHEME = 'chips-resource';
 
@@ -15,7 +16,7 @@ function createDiagnostics(): DiagnosticsSink & { warn: ReturnType<typeof vi.fn>
 
 const backend: IResourceBackend = {
   async read() {
-    throw { code: 'RESOURCE_NOT_FOUND', message: '资源不存在', retryable: false };
+    return Promise.reject(createWireError('RESOURCE_NOT_FOUND', '资源不存在'));
   },
 };
 

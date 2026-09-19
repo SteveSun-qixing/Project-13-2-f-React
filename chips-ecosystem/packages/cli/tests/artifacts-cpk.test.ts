@@ -193,7 +193,10 @@ type ISignatureDocument = {
   readonly signature: string;
 };
 
-function signatureDocumentFor(entries: readonly IZipEntry[], keyId = 'chips-test'): ISignatureDocument {
+function signatureDocumentFor(
+  entries: readonly IZipEntry[],
+  keyId = 'chips-test',
+): ISignatureDocument {
   const contentHash = computeContentHash(entries.filter((entry) => entry.path !== 'signature.json'));
   const signature = signValue(null, Buffer.from(contentHash, 'utf8'), privateKey).toString('base64');
   return { format: 'chips-signature-v1', keyId, algorithm: 'ed25519', contentHash, signature };
@@ -831,7 +834,9 @@ describe('packCpk（§7.1 打包）', () => {
     const entries = readZipStore(bytes);
     const signatureEntry = entries.find((entry) => entry.path === 'signature.json');
     expect(signatureEntry).toBeDefined();
-    const document = JSON.parse(new TextDecoder().decode(signatureEntry?.data ?? new Uint8Array())) as ISignatureDocument;
+    const document = JSON.parse(
+      new TextDecoder().decode(signatureEntry?.data ?? new Uint8Array()),
+    ) as ISignatureDocument;
     expect(Object.keys(document).sort()).toEqual(['algorithm', 'contentHash', 'format', 'keyId', 'signature']);
     expect(document.format).toBe('chips-signature-v1');
     expect(document.algorithm).toBe('ed25519');

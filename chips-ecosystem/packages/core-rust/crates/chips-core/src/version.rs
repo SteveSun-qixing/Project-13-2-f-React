@@ -687,6 +687,54 @@ mod tests {
     }
 
     #[test]
+    fn test_eq_comparator_prerelease_semantics() {
+        // 《版本与迁移规范》§4.3 规则 2：预发布版本默认不匹配，除非范围显式包含
+        // 相同 `MAJOR.MINOR.PATCH` 的预发布标识；`=` 精确匹配自身。
+        let exact = range("=1.2.3");
+        assert!(exact.satisfies(&version("1.2.3")));
+        assert!(
+            !exact.satisfies(&version("1.2.3-rc.1")),
+            "预发布不匹配正式版"
+        );
+        assert!(!exact.satisfies(&version("1.2.4")));
+
+        let exact_pre = range("=1.2.3-alpha");
+        assert!(exact_pre.satisfies(&version("1.2.3-alpha")));
+        assert!(
+            !exact_pre.satisfies(&version("1.2.3-beta")),
+            "显式预发布范围只匹配同一标识"
+        );
+        assert!(
+            !exact_pre.satisfies(&version("1.2.3")),
+            "显式预发布范围不匹配正式版"
+        );
+    }
+
+    #[test]
+    fn test_gt_comparator_prerelease_semantics() {
+        // 《版本与迁移规范》§4.2：`>` 为直接数值比较；§4.3 规则 2 约束预发布匹配。
+        let gt_pre = range(">1.2.3-alpha.1");
+        assert!(gt_pre.satisfies(&version("1.2.3-alpha.2")));
+        assert!(
+            !gt_pre.satisfies(&version("1.2.3-alpha.1")),
+            "严格大于不匹配边界自身"
+        );
+        assert!(
+            !gt_pre.satisfies(&version("1.3.0-rc.1")),
+            "异三元组的预发布默认排除"
+        );
+        assert!(gt_pre.satisfies(&version("1.2.3")), "正式版按数值比较匹配");
+
+        let gt_release = range(">1.2.3");
+        assert!(gt_release.satisfies(&version("1.2.4")));
+        assert!(!gt_release.satisfies(&version("1.2.3")));
+        assert!(
+            !gt_release.satisfies(&version("1.2.4-rc.1")),
+            "预发布版本不匹配只含正式版边界的范围"
+        );
+    }
+
+    #[test]
     fn test_range_select_highest_candidate() {
         let candidates = vec![version("1.2.0"), version("1.9.1"), version("2.0.0")];
         let selected = range("^1.0.0").select(&candidates).cloned();
