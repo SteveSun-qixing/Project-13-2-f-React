@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>薯片生态多维梳理监控台</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1d212a; --line: #2a2f3a;
+    --text: #e6e9ef; --muted: #98a2b3; --accent: #4c9aff;
+    --ok: #3fb950; --part: #d29922; --miss: #f85149; --conf: #a371f7;
+    --alt: #6e7681; --okbg: rgba(63,185,80,.15); --partbg: rgba(210,153,34,.15);
+    --missbg: rgba(248,81,73,.15); --confbg: rgba(163,113,247,.15);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 13px/1.55 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { position: sticky; top: 0; z-index: 10; background: rgba(15,17,21,.94);
+           backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); padding: 10px 18px; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 16px; margin: 0 10px 0 0; font-weight: 600; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1; }
+  .tabs { display: flex; gap: 4px; margin: 8px 0 0; }
+  .tab { padding: 6px 14px; border-radius: 8px 8px 0 0; cursor: pointer; color: var(--muted);
+         border: 1px solid transparent; border-bottom: none; user-select: none; }
+  .tab.active { color: var(--text); background: var(--panel); border-color: var(--line); }
+  main { padding: 16px 18px 40px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .card .num { font-size: 26px; font-weight: 650; }
+  .card .lbl { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+           padding: 14px; margin-top: 14px; }
+  .panel h2 { font-size: 14px; margin: 0 0 10px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line);
+           vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; position: sticky; top: 0;
+       background: var(--panel); }
+  tr:hover td { background: var(--panel2); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; white-space: nowrap; }
+  .s-已覆盖 { background: var(--okbg); color: var(--ok); }
+  .s-部分, .s-部分覆盖 { background: var(--partbg); color: var(--part); }
+  .s-缺失 { background: var(--missbg); color: var(--miss); }
+  .s-冲突 { background: var(--confbg); color: var(--conf); }
+  .s-已替代, .s-已废弃, .s-不适用, .s-done, .s-planned { background: rgba(110,118,129,.18); color: var(--alt); }
+  .s-open { background: var(--missbg); color: var(--miss); }
+  .bar { height: 8px; border-radius: 6px; background: #262b35; overflow: hidden; display: flex; min-width: 120px; }
+  .bar > i { display: block; height: 100%; }
+  .seg-已覆盖 { background: var(--ok); } .seg-部分 { background: var(--part); }
+  .seg-缺失 { background: var(--miss); } .seg-冲突 { background: var(--conf); }
+  .seg-已替代, .seg-已废弃, .seg-不适用 { background: var(--alt); }
+  input, select { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+                  border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+           border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 12px; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: rgba(76,154,255,.15); border-color: var(--accent); color: var(--accent); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+  .heat { text-align: center; font-variant-numeric: tabular-nums; }
+  .heat-0 { color: #3a4150; } .heat-1 { color: #7d8aa5; } .heat-2 { color: #c9d1e0; }
+  .heat-3 { color: #fff; font-weight: 600; }
+  .kw { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .progress { height: 14px; border-radius: 8px; overflow: hidden; display: flex; background: #262b35; }
+  .progress > i { display: block; height: 100%; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .pager { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .nowrap { white-space: nowrap; } .wrap { word-break: break-all; }
+  .detail { position: fixed; right: 0; top: 0; bottom: 0; width: min(560px, 92vw);
+            background: var(--panel); border-left: 1px solid var(--line); padding: 18px;
+            overflow: auto; transform: translateX(102%); transition: transform .18s ease; z-index: 20; }
+  .detail.open { transform: none; }
+  .detail h3 { margin: 0 0 8px; } .detail dt { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .detail dd { margin: 2px 0 0; word-break: break-all; }
+  .live { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block;
+          animation: pulse 1.6s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>薯片生态多维梳理监控台</h1>
+    <span class="muted" id="liveTag"><span class="live"></span> 实时</span>
+    <span class="muted" id="meta"></span>
+    <span class="spacer"></span>
+    <label class="muted">自动刷新
+      <select id="interval">
+        <option value="0">关闭</option>
+        <option value="3000" selected>3 秒</option>
+        <option value="10000">10 秒</option>
+        <option value="30000">30 秒</option>
+      </select>
+    </label>
+    <button id="refresh" class="primary">立即刷新</button>
+  </div>
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-view="overview">总览</div>
+    <div class="tab" data-view="sources">来源覆盖</div>
+    <div class="tab" data-view="dims">维度矩阵</div>
+    <div class="tab" data-view="gaps">缺口清单</div>
+    <div class="tab" data-view="nodes">节点浏览器</div>
+    <div class="tab" data-view="docs">新文档登记</div>
+    <div class="tab" data-view="edges">关系网络</div>
+  </div>
+</header>
+<main>
+  <section id="view-overview"></section>
+  <section id="view-sources" hidden></section>
+  <section id="view-dims" hidden></section>
+  <section id="view-gaps" hidden></section>
+  <section id="view-nodes" hidden></section>
+  <section id="view-docs" hidden></section>
+  <section id="view-edges" hidden></section>
+</main>
+<aside class="detail" id="detail"></aside>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api = async (p, q = {}) => {
+  const u = new URL(p, location.origin);
+  Object.entries(q).forEach(([k, v]) => { if (v !== "" && v != null) u.searchParams.set(k, v); });
+  const r = await fetch(u);
+  if (!r.ok) throw new Error((await r.json()).error || r.status);
+  return r.json();
+};
+const badge = s => `<span class="badge s-${esc(s)}">${esc(s)}</span>`;
+const bar = arr => `<div class="bar">${arr.map(x => x.n ? `<i class="seg-${esc(x.status)}" style="width:${x.pct}%" title="${esc(x.status)} ${x.n}"></i>` : "").join("")}</div>`;
+
+let stats = null;
+const state = {
+  view: "overview",
+  gaps: { page: 0, limit: 50, severity: "", status: "open", source: "", q: "" },
+  nodes: { page: 0, limit: 50, status: "", dimension: "", source: "", q: "" },
+};
+
+function stack(rows, keyOf) {
+  const map = new Map();
+  rows.forEach(r => {
+    const k = keyOf(r);
+    if (!map.has(k)) map.set(k, { key: k, total: 0, parts: {} });
+    const e = map.get(k);
+    e.total += r.n; e.parts[r.status] = (e.parts[r.status] || 0) + r.n;
+  });
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+function renderOverview() {
+  const by = Object.fromEntries(stats.by_status.map(r => [r.k, r.n]));
+  const total = Object.values(by).reduce((a, b) => a + b, 0) || 1;
+  const gapP1 = stats.gaps.filter(g => g.severity === "P1" && g.status === "open").reduce((a, b) => a + b.n, 0);
+  const gapP2 = stats.gaps.filter(g => g.severity === "P2" && g.status === "open").reduce((a, b) => a + b.n, 0);
+  const order = stats.status_order;
+  const segs = order.map(s => ({ status: s, n: by[s] || 0, pct: Math.round((by[s] || 0) / total * 1000) / 10 }));
+  $("#view-overview").innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="num">${total}</div><div class="lbl">节点总数</div></div>
+      <div class="card"><div class="num" style="color:var(--ok)">${by["已覆盖"] || 0}</div><div class="lbl">已覆盖</div></div>
+      <div class="card"><div class="num" style="color:var(--part)">${by["部分"] || 0}</div><div class="lbl">部分覆盖</div></div>
+      <div class="card"><div class="num" style="color:var(--miss)">${by["缺失"] || 0}</div><div class="lbl">缺失</div></div>
+      <div class="card"><div class="num" style="color:var(--conf)">${by["冲突"] || 0}</div><div class="lbl">冲突</div></div>
+      <div class="card"><div class="num" style="color:var(--miss)">${gapP1}</div><div class="lbl">未闭合 P1 缺口</div></div>
+      <div class="card"><div class="num" style="color:var(--part)">${gapP2}</div><div class="lbl">未闭合 P2 缺口</div></div>
+      <div class="card"><div class="num">${stats.docs}</div><div class="lbl">新文档登记</div></div>
+      <div class="card"><div class="num">${stats.edges}</div><div class="lbl">关系边</div></div>
+    </div>
+    <div class="panel">
+      <h2>覆盖进度</h2>
+      <div class="progress">${segs.map(s => s.n ? `<i class="seg-${s.status}" style="width:${s.pct}%" title="${s.status} ${s.n}"></i>` : "").join("")}</div>
+      <div class="legend">${segs.filter(s => s.n).map(s => `<span><i class="dot" style="background:var(--${({ "已覆盖": "ok", "部分": "part", "缺失": "miss", "冲突": "conf" })[s.status] || "alt"})"></i>${s.status} ${s.n}</span>`).join("")}</div>
+    </div>
+    <div class="panel"><h2>覆盖状态分布</h2>
+      <table><thead><tr><th>状态</th><th>数量</th><th style="width:60%">占比</th></tr></thead><tbody>
+      ${order.filter(s => by[s]).map(s => `<tr><td>${badge(s)}</td><td>${by[s]}</td>
+        <td><div class="bar"><i class="seg-${s}" style="width:${Math.round(by[s] / total * 100)}%"></i></div></td></tr>`).join("")}
+      </tbody></table>
+    </div>
+    <div class="panel"><h2>缺口（按严重度 / 状态）</h2>
+      <table><thead><tr><th>严重度</th><th>状态</th><th>数量</th></tr></thead><tbody>
+      ${stats.gaps.map(g => `<tr><td>${esc(g.severity)}</td><td>${badge(g.status)}</td><td>${g.n}</td></tr>`).join("")}
+      </tbody></table>
+    </div>`;
+}
+
+function renderSources() {
+  const groups = stack(stats.by_source, r => r.source);
+  $("#view-sources").innerHTML = `<div class="panel"><h2>来源覆盖（旧文档库 / 旧仓库 / 新库）</h2>
+    <table><thead><tr><th>来源</th><th>总计</th><th style="width:40%">分布</th>
+    ${stats.status_order.map(s => `<th class="heat">${s}</th>`).join("")}</tr></thead><tbody>
+    ${groups.map(g => `<tr><td class="wrap">${esc(g.key)}</td><td>${g.total}</td>
+      <td>${bar(stats.status_order.map(s => ({ status: s, n: g.parts[s] || 0, pct: Math.round((g.parts[s] || 0) / g.total * 100) })))}</td>
+      ${stats.status_order.map(s => `<td class="heat">${g.parts[s] || ""}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+function renderDims() {
+  const dims = stats.dimensions.filter(d => d !== "其他");
+  const cell = (d, s) => stats.by_dimension.find(r => r.dimension === d && r.status === s)?.n || 0;
+  const heat = n => n === 0 ? "heat-0" : n < 5 ? "heat-1" : n < 20 ? "heat-2" : "heat-3";
+  $("#view-dims").innerHTML = `<div class="panel"><h2>维度 × 状态矩阵</h2>
+    <table><thead><tr><th>维度</th>${stats.status_order.map(s => `<th class="heat">${s}</th>`).join("")}<th>合计</th></tr></thead><tbody>
+    ${dims.map(d => {
+      const cells = stats.status_order.map(s => cell(d, s));
+      return `<tr><td>${esc(d)}</td>${cells.map(n => `<td class="heat ${heat(n)}">${n || ""}</td>`).join("")}
+        <td class="heat">${cells.reduce((a, b) => a + b, 0)}</td></tr>`;
+    }).join("")}
+    </tbody></table></div>`;
+}
+
+async function renderGaps() {
+  const st = state.gaps;
+  const r = await api("/api/gaps", { severity: st.severity, status: st.status, source: st.source, q: st.q, limit: st.limit, offset: st.page * st.limit });
+  const pages = Math.ceil(r.total / st.limit);
+  $("#view-gaps").innerHTML = `<div class="panel">
+    <div class="row" style="margin-bottom:10px">
+      <select id="gSeverity"><option value="">全部严重度</option>${stats.severity_order.map(s => `<option ${st.severity === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+      <select id="gStatus">
+        <option value="">全部状态</option>
+        <option value="open" ${st.status === "open" ? "selected" : ""}>未闭合</option>
+        <option value="done" ${st.status === "done" ? "selected" : ""}>已解决</option>
+        <option value="planned" ${st.status === "planned" ? "selected" : ""}>已计划</option>
+        <option value="wontfix" ${st.status === "wontfix" ? "selected" : ""}>不处理</option>
+      </select>
+      <select id="gSource"><option value="">全部来源</option>${stats.sources.map(s => `<option ${st.source === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+      <input id="gQ" placeholder="搜索主题/证据/建议" value="${esc(st.q)}" style="flex:1;min-width:200px">
+      <button id="gApply" class="primary">应用</button>
+      <span class="muted">共 ${r.total} 条</span>
+    </div>
+    <table><thead><tr><th>缺口</th><th>主题</th><th>严重度</th><th>状态</th><th>来源</th><th>证据</th></tr></thead><tbody>
+    ${r.items.map(g => `<tr data-gap="${esc(g.id)}" style="cursor:pointer">
+      <td class="kw">${esc(g.id)}</td><td>${esc(g.topic)}</td><td>${esc(g.severity)}</td>
+      <td>${badge(g.status)}</td><td class="wrap">${esc(g.source_type || "")}</td>
+      <td class="wrap kw">${esc(g.evidence || "").slice(0, 110)}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="pager"><button id="gPrev" ${st.page === 0 ? "disabled" : ""}>上一页</button>
+      <span class="muted">${st.page + 1} / ${pages || 1}</span>
+      <button id="gNext" ${st.page + 1 >= pages ? "disabled" : ""}>下一页</button></div></div>`;
+  $("#gApply").onclick = () => { Object.assign(st, { severity: $("#gSeverity").value, status: $("#gStatus").value, source: $("#gSource").value, q: $("#gQ").value, page: 0 }); renderGaps(); };
+  $("#gPrev").onclick = () => { st.page--; renderGaps(); };
+  $("#gNext").onclick = () => { st.page++; renderGaps(); };
+  $$("#view-gaps tr[data-gap]").forEach(tr => tr.onclick = () => showGapDetail(tr.dataset.gap));
+}
+
+async function showGapDetail(id) {
+  const r = await api("/api/gaps", { q: id, limit: 5 });
+  const g = r.items.find(x => x.id === id);
+  if (!g) return;
+  $("#detail").innerHTML = `<button id="closeDetail" style="float:right">关闭</button>
+    <h3>${esc(g.id)} · ${esc(g.topic)}</h3>
+    <div>${badge(g.status)} <span class="badge s-${g.severity === "P1" ? "缺失" : "部分"}">${esc(g.severity)}</span></div>
+    <dl>
+      <dt>来源</dt><dd>${esc(g.source_type || "")}</dd>
+      <dt>维度</dt><dd>${esc(g.dimensions || "")}</dd>
+      <dt>证据</dt><dd class="kw">${esc(g.evidence || "")}</dd>
+      <dt>建议动作</dt><dd>${esc(g.proposal || g.action || "")}</dd>
+      <dt>处理文档</dt><dd class="kw">${esc(g.doc_path || "")}</dd>
+      <dt>负责人</dt><dd>${esc(g.owner || "")}</dd>
+    </dl>`;
+  $("#detail").classList.add("open");
+  $("#closeDetail").onclick = () => $("#detail").classList.remove("open");
+}
+
+async function renderNodes() {
+  const st = state.nodes;
+  const r = await api("/api/nodes", { status: st.status, dimension: st.dimension, source: st.source, q: st.q, limit: st.limit, offset: st.page * st.limit });
+  const pages = Math.ceil(r.total / st.limit);
+  $("#view-nodes").innerHTML = `<div class="panel">
+    <div class="row" style="margin-bottom:10px">
+      <select id="nStatus"><option value="">全部状态</option>${stats.status_order.map(s => `<option ${st.status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+      <select id="nDim"><option value="">全部维度</option>${stats.dimensions.map(s => `<option ${st.dimension === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+      <select id="nSource"><option value="">全部来源</option>${stats.sources.map(s => `<option ${st.source === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+      <input id="nQ" placeholder="搜索节点/主题/路径/证据" value="${esc(st.q)}" style="flex:1;min-width:200px">
+      <button id="nApply" class="primary">应用</button>
+      <span class="muted">共 ${r.total} 条</span>
+    </div>
+    <table><thead><tr><th>节点</th><th>主题</th><th>状态</th><th>维度</th><th>新库对应</th><th>来源</th></tr></thead><tbody>
+    ${r.items.map(n => `<tr><td class="kw">${esc(n.id)}</td><td>${esc(n.topic)}</td>
+      <td>${badge(n.status)}</td><td>${esc(n.dimensions || "")}</td>
+      <td class="wrap kw">${esc(n.coverage_ref || "")}</td><td class="wrap">${esc(n.source_type || "")}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="pager"><button id="nPrev" ${st.page === 0 ? "disabled" : ""}>上一页</button>
+      <span class="muted">${st.page + 1} / ${pages || 1}</span>
+      <button id="nNext" ${st.page + 1 >= pages ? "disabled" : ""}>下一页</button></div></div>`;
+  $("#nApply").onclick = () => { Object.assign(st, { status: $("#nStatus").value, dimension: $("#nDim").value, source: $("#nSource").value, q: $("#nQ").value, page: 0 }); renderNodes(); };
+  $("#nPrev").onclick = () => { st.page--; renderNodes(); };
+  $("#nNext").onclick = () => { st.page++; renderNodes(); };
+}
+
+async function renderDocs() {
+  const r = await api("/api/docs");
+  $("#view-docs").innerHTML = `<div class="panel"><h2>新增文档登记（实时）</h2>
+    <table><thead><tr><th>路径</th><th>文档名</th><th>状态</th><th>负责人</th><th>更新时间</th></tr></thead><tbody>
+    ${r.items.length ? r.items.map(d => `<tr><td class="kw wrap">${esc(d.path)}</td><td>${esc(d.title)}</td>
+      <td>${esc(d.status || "")}</td><td>${esc(d.owner || "")}</td><td class="nowrap">${esc(d.updated_at || "")}</td></tr>`).join("")
+      : `<tr><td colspan="5" class="muted">暂无登记（子智能体完成后写入 登记-*.tsv 并运行 import）</td></tr>`}
+    </tbody></table></div>`;
+}
+
+async function renderEdges() {
+  const r = await api("/api/edges", { limit: 300 });
+  $("#view-edges").innerHTML = `<div class="panel"><h2>关系网络（最新 300 条）</h2>
+    <table><thead><tr><th>起点（缺口/节点）</th><th>关系</th><th>终点（文档/节点）</th><th>说明</th></tr></thead><tbody>
+    ${r.items.map(e => `<tr><td class="kw">${esc(e.from_id)}</td><td>${esc(e.relation)}</td>
+      <td class="kw wrap">${esc(e.to_id)}</td><td class="muted">${esc(e.evidence || "")}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+async function refresh() {
+  try {
+    const [meta, st] = await Promise.all([api("/api/meta"), api("/api/stats")]);
+    stats = st;
+    $("#meta").textContent = `数据库 ${meta.db} · mtime ${meta.db_mtime} · 大小 ${(meta.db_size / 1024).toFixed(1)} KB · 最后节点更新 ${st.last_node_update || "-"}`;
+    if (state.view === "overview") renderOverview();
+    if (state.view === "sources") renderSources();
+    if (state.view === "dims") renderDims();
+    if (state.view === "gaps") await renderGaps();
+    if (state.view === "nodes") await renderNodes();
+    if (state.view === "docs") await renderDocs();
+    if (state.view === "edges") await renderEdges();
+  } catch (e) {
+    $("#meta").textContent = "加载失败：" + e.message;
+  }
+}
+
+let timer = null;
+function setInterval2(ms) { if (timer) clearInterval(timer); timer = ms > 0 ? setInterval(refresh, ms) : null; }
+
+$$("#tabs .tab").forEach(t => t.onclick = async () => {
+  $$("#tabs .tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  state.view = t.dataset.view;
+  $$("main > section").forEach(s => s.hidden = true);
+  $("#view-" + state.view).hidden = false;
+  await refresh();
+});
+$("#refresh").onclick = refresh;
+$("#interval").onchange = e => setInterval2(+e.target.value);
+
+refresh();
+setInterval2(3000);
+</script>
+</body>
+</html>

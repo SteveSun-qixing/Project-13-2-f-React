@@ -10,6 +10,8 @@ const FORMAT_MIME_TYPES: Record<IconOutputFormat, string> = {
   icns: "image/icns",
 };
 
+const ICO_MAX_SIZE = 256;
+
 function resolveBaseName(options: RenderIconOptions): string {
   if (options.sourceMode === "image" && options.imageSource) {
     return options.imageSource.baseName;
@@ -54,11 +56,12 @@ async function createPngIcon(options: RenderIconOptions, baseName: string): Prom
 }
 
 async function createIcoIcon(options: RenderIconOptions, baseName: string): Promise<BinaryIconFile> {
-  const pngBytes = await renderPng(options);
+  const icoSize = Math.min(options.size, ICO_MAX_SIZE);
+  const pngBytes = await renderPng(options, icoSize);
   return {
     fileName: `${baseName}.ico`,
     mimeType: FORMAT_MIME_TYPES.ico,
-    bytes: createIcoFile([{ size: options.size, pngBytes }]),
+    bytes: createIcoFile([{ size: icoSize, pngBytes }]),
   };
 }
 

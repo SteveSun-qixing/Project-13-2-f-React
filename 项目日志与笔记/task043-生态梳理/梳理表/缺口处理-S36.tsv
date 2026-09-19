@@ -1,0 +1,25 @@
+缺口ID	状态	新文档路径	说明
+INV4-MOD-04	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	Cover 模块处置已收口：平台封面链内置（cover.html 生成与受控封面渲染、cover_ratio 规范由渲染链路与文档服务承担），不单列插件；旧 cover.html.generate/cover.ratio 能力 ID 作废
+INV4-MOD-08	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	module 角色与作业模型已裁决作废（R1）：module.apiVersion/runtime/activation/methods 全部作废，内容处理由服务插件以 Cordis 服务提供（§6.2 规则 2/3）
+INV4-BLP-02	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	cardStack 布局已在新库登记（chips.layout.cardstack）并在官方布局视觉细则 §4.6 定义呈现规则；旧 .blp ID 归一为 chips.layout.cardstack
+INV4-BLP-03	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	coverFlow 布局已登记（chips.layout.coverflow）并定义封面流规则；ID 去 .blp
+INV4-BLP-04	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	documentLibrary 布局已登记（chips.layout.documentlibrary）并定义文档库专属结构（07/04 §4.7）
+INV4-BLP-06	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	infiniteCanvas 布局已登记（chips.layout.infinitecanvas）并定义坐标/平移缩放/模式规则
+INV4-BLP-07	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	list 布局已登记（chips.layout.list）为箱子默认布局并定义列表与导航规则
+INV4-BLP-08	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	map 布局已登记（chips.layout.map）并定义静态底图/点位/未定位列表规则
+INV4-BLP-09	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	masonry 布局已登记（chips.layout.masonry）并定义最短列与列宽档位规则
+INV4-BLP-10	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	scattered 布局已登记（chips.layout.scattered）并定义稳定随机散落与动效偏好规则
+INV4-BLP-11	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	timeline 布局已登记（chips.layout.timeline）并定义横/竖轴与未安排区块规则
+INV4-BCP-01	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	book 卡片已登记（base.book，已设计）：open 载荷见 14/05 §5.4，阅读能力见 查看器设计 §8.2；EPUB/CBZ 属插件实现细节（§6.10 机制）
+INV4-BCP-03	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	hyperlink 卡片已登记（chips.basecard.hyperlink，待实现；§6.10 插件自定义 schema），manifest 权限 ID 与打开载荷另开 S36 缺口
+INV4-MOD-02	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	ColorPicker 内容处理服务：图像颜色提取的提供方 ID、服务契约与支持矩阵未登记（09 §6.2 待实现）
+INV4-MOD-06	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	HtmltoImage 内容处理服务：HTML 转图片的提供方契约未登记（09 §6.2 待实现；platform.renderHtmlToImage 非正式链路）
+INV4-MOD-07	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	HtmltoPDF 内容处理服务：HTML 转 PDF 的提供方契约未登记（09 §6.2 待实现；platform.renderHtmlToPdf 非正式链路）
+S36-01	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	内容处理服务提供方登记缺失：card→html、html→image、html→pdf、文件转换、颜色提取等服务在 09 §6.1 服务登记表无条目，须先登记 chips.service.* ID 与服务契约
+S36-02	planned	薯片生态文档库/04-文件格式规范/01-卡片文件格式.md	card_type 正式标识口径冲突待收口：04/01 §5 要求新写入 base.*，但 09 §4.2 登记表、03/02.09:77、14/05:100,127 混用或把 PascalCase 当正式，需统一为 base.* + aliases
+S36-03	planned	薯片生态文档库/04-文件格式规范/01-卡片文件格式.md	01 卡片文件格式分卷文件命名与内容错位（01.08/01.10/01.14/01.15/01.16 等），需重切分卷
+S36-04	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	电子书卡片口径冲突：08/08 §十六 称类型与载荷未定义，与 14/05 §5.4 base.book 载荷及 09 目录登记矛盾，需收口待设计条目
+S36-05	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	超链接卡片打开载荷与复合卡片内跳转语义未登记：kind=chips.hyperlink-card、open_mode 两态与安全提示需在 14/05 或等价契约登记
+S36-06	planned	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	@chips-ui 导出清单缺 appleTheme 与 EmbeddedDocumentFrame：Chips-Ui 实际导出（index.ts:3,31）且布局视觉细则要求使用，清单需补齐或明确废弃
+S36-07	planned	薯片生态文档库/08-产品与交互/07-官方布局视觉细则.md	看板（chips.layout.board）与复合卡片（chips.layout.composite）布局已登记但无实现来源，待补插件设计/实现
+S36-08	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	base.richtext exportFormats:[html] 缺导出实现示例与导出链路细则（09 §4.2 与 04 指南需补）

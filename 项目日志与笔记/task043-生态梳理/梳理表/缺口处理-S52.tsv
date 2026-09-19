@@ -1,0 +1,4 @@
+缺口ID	状态	新文档路径	说明
+ND-S45-012	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	控制面补全：5.3 会话字段与 capabilities（includeRenderArtifacts）、5.6 产物清单与发布语义、5.5 完成分派、5.8 箱子下载会话（boxFile 计划）、5.9 与 16 的边界；同时修正 5.1/5.2/5.9 拆分错位与角色桶口径。契约侧已收口；服务端实现（includeRenderArtifacts / render-file / 箱子下载）与 ND-S45-011/013 同批 Phase 3 迁移
+ND-S45-014	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	新增第十一节「管理端 API」：逐端点登记方法/路径/鉴权/幂等/错误码（GET stats、GET/PATCH users、GET content、DELETE content/:type/:id），与前台共用错误模型
+ND-S45-015	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	契约 §4.5 确立卡片状态三值枚举唯一权威并排除 processing（渲染中由 viewState 表达）；14-社区平台设计 §4.2 改为引用契约 §4.5 并双向互链；服务端 card_status 枚举与迁移同步属实现侧 Phase 3 迁移项

@@ -1,0 +1,11 @@
+缺口ID	状态	新文档路径	说明
+INV6-035	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	DPlayer 源码已登记为 RA-01：用途、上游与版本 1.27.1、MIT 许可、仅参考处置、Chips-VideoPlayer 吸收位置与低维护风险（缺口处理-S40.tsv 的旧 planned 行已被本表实际收口取代，主代理合并时以本表为准）
+INV6-036	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	FlexLayout 已登记为 RA-03：Chips-Notes 经 npm flexlayout-react@^0.10.8 运行时依赖、MIT 许可、ESM 与自带样式表风险、活跃维护状态
+INV6-037	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	GenOffice 已登记为 RA-04：Apache-2.0、Chips-Office vendor 与 Host xlsx-sidecar 吸收位置、ee/ 排除、商标与平台构建风险
+INV6-038	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	MusicPlayer 已登记为 RA-05：思路吸收 + default.svg 素材按 MIT 纳入、TestAudio 测试素材不得再分发的边界
+INV6-039	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	iconMaker 已登记为 RA-06：工具来源与用途、MIT 许可、能力迁移至 Chip-iconMaker 的 chips iconmaker generate 链路、来源可追溯性不足与并行运行时禁用
+INV6-040	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	miniPaint 已登记为 RA-07：v4.14.3 MIT、移植产物归档于 归档/Chips-Photo、内嵌第三方库与上游 Other 标记的复核要求
+INV6-041	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	open-file-viewer 已登记为 RA-08：core 包整包源码移植至 viewer-engine、MIT 声明随附、GPL-3.0 DWG 可选链未启用与升级比对要求
+INV6-042	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	Thorium Reader 已登记为 RA-09/RA-10：ReadiumCSS 与分页逻辑移植位置、BSD-3-Clause 版权头义务、wiki 与源码漂移仅作参考、未迁入链路清单
+INV5-049	planned	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	第三方参考资产（OpenSourceProjectHandlingFolder 10 组）与许可登记已由本文收口；剩余范围（design-assets 字体与图标素材许可、INV6-060）待设计资产规范承接，故保持 planned
+

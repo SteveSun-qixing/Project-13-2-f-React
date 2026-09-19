@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ICON_TARGETS } from "./icon-targets.mjs";
 
-type IconKind = "app" | "basecard" | "layout" | "module" | "theme" | "template";
+type IconKind = "app" | "basecard" | "layout" | "template";
 
 interface IconTarget {
   kind: IconKind;
@@ -16,7 +16,8 @@ const ROOT = process.cwd();
 const SIZE = 512;
 const SYNC_DATE = "2026-08-29";
 const MATERIAL_SVG_DIR = path.join(ROOT, "design-assets/material-symbols/svg/rounded");
-const MATERIAL_SVG_BASE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web";
+const MATERIAL_UPSTREAM_COMMIT = "caeba1e66925218b1fd1464171f93e2656f9a0b9";
+const MATERIAL_SVG_BASE_URL = `https://raw.githubusercontent.com/google/material-design-icons/${MATERIAL_UPSTREAM_COMMIT}/symbols/web`;
 
 const TARGETS = ICON_TARGETS as unknown as IconTarget[];
 
@@ -32,11 +33,13 @@ async function ensureMaterialSvg(materialName: string): Promise<string> {
     const url = `${MATERIAL_SVG_BASE_URL}/${materialName}/materialsymbolsrounded/${materialName}_24px.svg`;
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Material SVG unavailable: ${materialName} (${response.status})`);
+      throw new Error(
+        `Material SVG unavailable at locked commit ${MATERIAL_UPSTREAM_COMMIT}: ${materialName} (${response.status})`,
+      );
     }
     const svg = await response.text();
     if (!svg.includes("<svg") || !svg.includes("<path")) {
-      throw new Error(`Material SVG invalid: ${materialName}`);
+      throw new Error(`Material SVG invalid at locked commit ${MATERIAL_UPSTREAM_COMMIT}: ${materialName}`);
     }
     await mkdir(MATERIAL_SVG_DIR, { recursive: true });
     await writeFile(svgPath, svg, "utf-8");
@@ -71,17 +74,11 @@ async function writeIconSvg(directory: string, baseName: string, svg: string): P
 }
 
 function sourceDirectoryFor(kind: IconKind): string {
-  if (kind === "module") {
-    return path.join(ROOT, "design-assets/Moduleicon");
-  }
   if (kind === "basecard") {
     return path.join(ROOT, "design-assets/Basecardicon");
   }
   if (kind === "layout") {
     return path.join(ROOT, "design-assets/Layouticon");
-  }
-  if (kind === "theme") {
-    return path.join(ROOT, "design-assets/Themeicon");
   }
   return path.join(ROOT, "design-assets/Appicon");
 }
@@ -101,12 +98,6 @@ function kindLabel(kind: IconKind): string {
   if (kind === "layout") {
     return "箱子布局插件";
   }
-  if (kind === "module") {
-    return "模块插件";
-  }
-  if (kind === "theme") {
-    return "主题包身份";
-  }
   if (kind === "template") {
     return "应用插件脚手架模板";
   }
@@ -120,36 +111,25 @@ function outputBaseName(target: IconTarget): string {
 function iconBoundary(target: IconTarget): string[] {
   if (target.kind === "app" || target.kind === "template") {
     return [
-      `- \`${outputBaseName(target)}.ico\` 是 \`manifest.yaml -> ui.launcher.icon\` 的正式声明文件；`,
-      "- Host 会按平台选择 `ico / icns / png` 作为系统入口图标；",
-      "- 这些文件只属于系统入口与安装分发链路，不属于运行时 `ChipsIcon` 图标模型。",
+      `- \`${outputBaseName(target)}.svg\` 是设计源与平台中立主图；`,
+      `- \`manifest.yaml -> ui.launcher.icon\` 只声明 \`${outputBaseName(target)}.svg\` 或 \`${outputBaseName(target)}.png\`，不声明平台专属容器；`,
+      `- \`${outputBaseName(target)}.ico\` 与 \`${outputBaseName(target)}.icns\` 是平台派生的系统入口容器，由平台变体解析链按平台选择；`,
+      "- 这些文件只属于系统入口与安装分发链路，不属于运行时 UI 图标链路。",
     ];
   }
   if (target.kind === "basecard") {
     return [
       "- 基础卡片插件没有 `manifest.ui.launcher.icon`，这些文件不属于系统入口图标链路；",
-      "- 运行时图标描述符以 `src/index.ts -> basecardDefinition.icon` 为准；",
-      "- 查看器、编辑器和治理页渲染图标时仍应使用 `ChipsIcon + IconDescriptor`。",
-    ];
-  }
-  if (target.kind === "layout") {
-    return [
-      "- 箱子布局插件没有 `manifest.ui.launcher.icon`，这些文件不属于系统入口图标链路；",
-      "- 运行时图标描述符以 `src/index.ts -> layoutDefinition.icon` 为准；",
-      "- 查看器、编辑器和治理页渲染图标时仍应使用 `ChipsIcon + IconDescriptor`。",
-    ];
-  }
-  if (target.kind === "module") {
-    return [
-      "- 模块插件没有 `manifest.ui.launcher.icon`，这些文件不属于系统入口图标链路；",
-      "- 当前作为模块静态身份资源保存在工程内，供模块治理、物料清点和后续运行时展示链路复用；",
-      "- 运行时 UI 图标仍应使用 `ChipsIcon + IconDescriptor`。",
+      "- `basecard-icon.svg` 是身份四件套的设计源与平台中立主图，`.png` / `.ico` / `.icns` 为同批派生物；",
+      "- 清单 `capabilities.cardTypes[].icon` 只声明各卡片类型的平台中立主图（`assets/icons/<类型短名>.svg`）；",
+      "- 运行时 UI 图标统一经 `@chips/ui` 图标出口渲染。",
     ];
   }
   return [
-    "- 主题包正式运行时图标链路为 `icons/variablefont/*.woff2` 与构建产物 `dist/icons/variablefont/`；",
-    "- 本目录只保存主题包身份图标设计源，不写入主题包 `assets/icons/`；",
-    "- 主题包运行时 UI 图标仍由 `ChipsIcon` 通过 Material Symbols 字体渲染。",
+    "- 箱子布局插件没有 `manifest.ui.launcher.icon`，这些文件不属于系统入口图标链路；",
+    "- `layout-icon.svg` 是身份四件套的设计源与平台中立主图，`.png` / `.ico` / `.icns` 为同批派生物；",
+    "- 清单 `capabilities.layouts[].icon` 只声明各布局类型的平台中立主图（`assets/icons/<布局短名>.svg`）；",
+    "- 运行时 UI 图标统一经 `@chips/ui` 图标出口渲染。",
   ];
 }
 
@@ -157,39 +137,26 @@ function designSourceIntro(kind: IconKind): string[] {
   if (kind === "app" || kind === "template") {
     return [
       "- 本目录保存应用插件系统入口图标的正式设计源；",
-      "- 对应运行时消费链路为 `manifest.ui.launcher.icon`、Host 安装复制、快捷方式解析、安装分发与启动台入口；",
-      "- 本目录不是运行时 UI 图标目录，运行时 UI 图标统一使用 `ChipsIcon + IconDescriptor`；",
-      "- 模块、基础卡片、布局和主题身份图标分别使用各自的设计源目录，不混入本目录。",
+      "- 对应运行时消费链路为 `manifest.ui.launcher.icon`、平台安装复制、系统快捷方式与启动台入口；",
+      "- 目录内 `.svg` 为设计源，`.png` 为平台中立主图，`.ico` / `.icns` 为平台派生容器；",
+      "- 本目录不是运行时 UI 图标目录，运行时 UI 图标统一经 `@chips/ui` 图标出口渲染；",
+      "- 基础卡片与布局身份图标分别使用各自的设计源目录，不混入本目录。",
     ];
   }
   if (kind === "basecard") {
     return [
       "- 本目录保存基础卡片插件静态身份图标的正式设计源；",
-      "- 工程内同步到 `assets/icons/basecard-icon.*`，用于插件静态身份、物料清点和后续展示链路；",
-      "- 基础卡片运行时图标仍以 `basecardDefinition.icon` 与 `ChipsIcon + IconDescriptor` 为准；",
+      "- 工程内同步到 `assets/icons/basecard-icon.*`，用于插件静态身份、物料清点和治理展示链路；",
+      "- 目录内 `.svg` 为设计源与平台中立主图，`.png` / `.ico` / `.icns` 为同批派生物；",
+      "- 运行时 UI 图标统一经 `@chips/ui` 图标出口渲染；",
       "- 本目录不属于 `manifest.ui.launcher.icon` 系统入口链路。",
-    ];
-  }
-  if (kind === "layout") {
-    return [
-      "- 本目录保存箱子布局插件静态身份图标的正式设计源；",
-      "- 工程内同步到 `assets/icons/layout-icon.*`，用于插件静态身份、物料清点和后续展示链路；",
-      "- 布局运行时图标仍以 `layoutDefinition.icon` 与 `ChipsIcon + IconDescriptor` 为准；",
-      "- 本目录不属于 `manifest.ui.launcher.icon` 系统入口链路。",
-    ];
-  }
-  if (kind === "module") {
-    return [
-      "- 本目录保存模块插件静态身份图标的正式设计源；",
-      "- 工程内同步到 `assets/icons/module-icon.*`，用于模块治理、物料清点和后续展示链路；",
-      "- 模块插件没有 `manifest.ui.launcher.icon`，这些文件不属于系统入口图标链路；",
-      "- 应用插件启动图标源目录仍为 `design-assets/Appicon/`。",
     ];
   }
   return [
-    "- 本目录保存主题包身份图标的正式设计源；",
-    "- 主题包正式运行时 UI 图标资源仍为 `icons/variablefont/*.woff2`，不从本目录复制到主题包 `assets/icons/`；",
-    "- 本目录用于主题治理、物料清点和后续安装分发展示链路；",
+    "- 本目录保存箱子布局插件静态身份图标的正式设计源；",
+    "- 工程内同步到 `assets/icons/layout-icon.*`，用于插件静态身份、物料清点和治理展示链路；",
+    "- 目录内 `.svg` 为设计源与平台中立主图，`.png` / `.ico` / `.icns` 为同批派生物；",
+    "- 运行时 UI 图标统一经 `@chips/ui` 图标出口渲染；",
     "- 本目录不属于 `manifest.ui.launcher.icon` 系统入口链路。",
   ];
 }
@@ -201,31 +168,15 @@ function designSourceTitle(kind: IconKind): string {
   if (kind === "layout") {
     return "箱子布局插件静态图标源目录说明";
   }
-  if (kind === "module") {
-    return "模块插件静态图标源目录说明";
-  }
-  if (kind === "theme") {
-    return "主题包身份图标源目录说明";
-  }
   return "应用启动图标源目录说明";
 }
 
-function designUpdateRules(kind: IconKind): string[] {
-  const common = [
+function designUpdateRules(): string[] {
+  return [
     "- 图标调整时，先更新本目录正式 SVG 源文件，再通过 `scripts/generate-plugin-material-icons.ts` 同步 SVG 设计源，并通过 `scripts/sync-plugin-icons.mjs`（`chips iconmaker generate`）重新渲染 PNG/ICO/ICNS；",
     "- 不再使用字体码位、HTML 文本渲染或截图方式生成图标，避免出现乱码；",
-  ];
-  if (kind === "theme") {
-    return [
-      ...common,
-      "- 主题包身份图标只写入本设计源目录，不写入主题包 `assets/icons/`；",
-      "- 主题包运行时 UI 图标仍通过生态正式 `ChipsIcon + IconDescriptor` 链路渲染。",
-    ];
-  }
-  return [
-    ...common,
     "- 每次改动本目录资产，必须同步更新本文件与对应工程 `assets/icons/SOURCE.md`；",
-    "- 运行时 UI 图标仍通过生态正式 `ChipsIcon + IconDescriptor` 链路渲染。",
+    "- 运行时 UI 图标统一经 `@chips/ui` 图标出口渲染。",
   ];
 }
 
@@ -243,7 +194,7 @@ async function writeDesignSourceDoc(kind: IconKind, targets: IconTarget[]): Prom
     .map((target) => {
       const output = target.projectDir && target.projectIconBaseName
         ? `\`${target.projectDir}/assets/icons/${target.projectIconBaseName}.png/.ico/.icns/.svg\``
-        : "只输出设计源";
+        : `\`${sourceDir}/${target.sourceBaseName}.png/.ico/.icns\`（设计源目录内派生容器）`;
       return `| \`${target.sourceBaseName}\` | \`${target.materialName}\` | ${target.projectDir ? `\`${target.projectDir}\`` : "无工程输出"} | ${output} |`;
     })
     .join("\n");
@@ -269,7 +220,7 @@ ${rows}
 
 ## 更新规则
 
-${designUpdateRules(kind).join("\n")}
+${designUpdateRules().join("\n")}
 `;
   await writeFile(path.join(sourceDirectoryFor(kind), "SOURCE.md"), content, "utf-8");
 }
@@ -281,7 +232,7 @@ async function writeProjectSourceDoc(target: IconTarget): Promise<void> {
   }
   const baseName = outputBaseName(target);
   const sourceDir = sourceDirectoryName(target.kind);
-  const sourceFile = `${target.sourceBaseName}.png/.ico/.icns/.svg`;
+  const sourceFile = `${target.sourceBaseName}.svg`;
   const materialSource = `design-assets/material-symbols/svg/rounded/${target.materialName}.svg`;
   const title = target.kind === "template"
     ? "应用启动图标说明"
@@ -289,19 +240,19 @@ async function writeProjectSourceDoc(target: IconTarget): Promise<void> {
   const content = `# ${title}
 
 - 正式设计源目录：\`${sourceDir}/\`
-- 对应设计源文件：\`${sourceFile}\`
+- 对应设计源文件：\`${sourceFile}\`（SVG 为唯一源）
 - Material Symbols 名称：\`${target.materialName}\`
-- 官方 SVG 缓存：\`${materialSource}\`
+- 上游 SVG 缓存（锁定提交）：\`${materialSource}\`
 - SVG 生成脚本：\`scripts/generate-plugin-material-icons.ts\`
 - PNG/ICO/ICNS 渲染脚本：\`scripts/sync-plugin-icons.mjs\`（\`chips iconmaker generate\` 命令行链路）
 - 同步时间：${SYNC_DATE}
 
 ## 当前工程内纳入版本控制的文件
 
-- \`${baseName}.png\`
-- \`${baseName}.ico\`
-- \`${baseName}.icns\`
-- \`${baseName}.svg\`
+- \`${baseName}.svg\`（设计源与平台中立主图）
+- \`${baseName}.png\`（平台中立主图位图）
+- \`${baseName}.ico\`（平台派生容器）
+- \`${baseName}.icns\`（平台派生容器）
 
 ## 使用边界
 

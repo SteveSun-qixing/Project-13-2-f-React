@@ -1,0 +1,6 @@
+缺口ID	状态	新文档路径	说明
+INV4-BCP-04	done	薯片生态文档库/04-文件格式规范/01-卡片文件格式.md	§6.3 图片卡片 schema const 与示例统一为 base.image，历史别名 ImageCard 仅读取归一，正式标识已在 schema 出现
+INV4-BCP-05	done	薯片生态文档库/04-文件格式规范/01-卡片文件格式.md	§6.8 音乐卡片 schema const 与示例统一为 base.music，历史别名 MusicCard 仅读取归一
+INV4-BCP-07	done	薯片生态文档库/04-文件格式规范/01-卡片文件格式.md	§6.4 评分卡片 schema const 与示例统一为 base.score，消除了 const 用别名与正式标识的口径不一致
+INV4-BCP-08	done	薯片生态文档库/04-文件格式规范/01-卡片文件格式.md	§6.2 视频卡片 schema const 与示例统一为 base.video，消除了 const 用别名与正式标识的口径不一致
+INV4-BCP-09	done	薯片生态文档库/04-文件格式规范/01-卡片文件格式.md	§6.5 网页卡片 schema const 与示例统一为 base.webpage，历史别名 WebPageCard 仅读取归一

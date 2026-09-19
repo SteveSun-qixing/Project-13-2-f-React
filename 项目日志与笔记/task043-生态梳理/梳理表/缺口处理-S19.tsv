@@ -1,0 +1,5 @@
+缺口ID	状态	新文档路径	说明
+INV1-007	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	共享层使用指南已入库：唯一导入面、导出清单、Provider、命令运行时、帧内使用与红线全覆盖
+INV4-UI-01	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	共享组件清单与 Props 契约已覆盖（2.1、2.2）；受管帧与系统菜单由平台链路承担，旧 iframe 嵌入与窗口内菜单栏组件不再保留
+INV4-UI-02	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	ChipsProvider 与 useChips 的运行环境契约与挂载规则已覆盖（3.1）
+INV4-UI-03	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	命令运行时 UI 侧契约已覆盖：CommandProvider、useCommandRuntime、命令面板与工具栏消费、快捷键体系（3.2-3.4），行为权威为 13-命令系统契约

@@ -1,0 +1,6 @@
+缺口ID	状态	新文档路径	说明
+OR-S34-044	done	薯片生态文档库/05-接口与契约/15-文件处理契约.md	文件比较与差异（hash / binary / semantic、unified diff）已入 15-文件处理契约 §3.10：会话 compare、差异块与摘要类型、文本类来源判定、流式与上限、无历史版本口径；旧 file.compare / file.versionDiff 与 .bak 备份语义废止；图片尺寸（旧 readImageDimensions）归预览结果（IFilePreviewResult.width/height）与 content-image.* 原子能力，不属比较契约
+OR-S34-045	done	薯片生态文档库/05-接口与契约/04-能力契约规范.md	Office 加密容器识别与解密归属 content-office.inspect / content-office.decrypt（04 §八登记 13 项）；口令不落日志、审计与 details，明文产物不落盘，不提供加密回写；Office 应用主逻辑消费，不进入 file-processing 会话
+INV4-HOST-16	done	薯片生态文档库/06-开发与运维/06-更新与分发规范.md	安装器与内置插件引导补齐：安装产物 builtin-plugins/index.json 布局、首启固定顺序（校验→装载→启用→自检修复）、失败隔离与用户状态保留；02-构建与打包 §6.1 增加 extraResources 落点
+INV6-017	wontfix	薯片生态文档库/01-架构设计/01-子系统设计/17-跨端Shell与平台抽象设计.md	裁决：浏览器侧应用插件宿主不在本架构范围，插件运行目标仅 host；如需再评估走 RFC → 评审 → ADR；旧 plugin-sessions / resource-open-plan / entry / bootstrap 与 Web Runtime 不迁移、不保留
+OR-S45-008	done	薯片生态文档库/01-架构设计/01-子系统设计/14-社区平台设计.md	社区 Web 插件宿主链路按裁决作废：14 §6.5 改为服务端渲染产物呈现边界，/host/plugins 路由与 host-runtime 模块移除，11.01 边界表同步；ADR-007 现状注记补记

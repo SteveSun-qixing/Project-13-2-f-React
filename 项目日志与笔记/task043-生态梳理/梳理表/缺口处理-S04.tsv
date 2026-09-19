@@ -1,0 +1,3 @@
+缺口ID	状态	新文档路径	说明
+INV1-023	done	薯片生态文档库/05-接口与契约/13-命令系统契约.md	关闭：CommandDefinition（id/标题/图标/默认快捷键/when/scope/参数 schema）、作用域与条件、放置、注册表事件、CLI 共享与组件消费契约全部落位；旧证据 旧版-生态共用技术文档/协议与契约/13-命令系统契约.md:5-20
+INV4-UI-03	done	薯片生态文档库/05-接口与契约/13-命令系统契约.md	关闭：应用 UI 命令运行时契约（CommandProvider 单例、ICommandRuntime attach/list/invoke、command:invoked 事件配对、快捷键派发与可编辑上下文保护）已定义；组件 Props 细节归组件库共享层文档

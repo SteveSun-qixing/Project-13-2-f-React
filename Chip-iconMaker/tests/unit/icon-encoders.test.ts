@@ -34,6 +34,10 @@ describe("icon encoder core", () => {
     expect(ico[22]).toBe(0);
   });
 
+  it("rejects ICO payloads larger than 256 pixels", () => {
+    expect(() => createIcoFile([{ size: 512, pngBytes: tinyPng }])).toThrow();
+  });
+
   it("creates an ICNS container with big-endian length fields", () => {
     const icns = createIcnsFile([{ type: "ic09", pngBytes: tinyPng }]);
     const view = new DataView(icns.buffer);

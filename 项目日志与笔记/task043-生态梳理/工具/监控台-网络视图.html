@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>薯片生态网络梳理图谱</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --bg: #05070c; --surf1: #0a0d12; --surf2: #0f131c; --surf3: #161d2b;
+  --surf4: #1e2636; --line: #2a2f3a; --text: #e6e9ef; --muted: #98a2b3;
+  --accent: #38bdf8; --ok: #6ee7b7; --part: #e9a568; --miss: #f85149;
+  --conf: #a371f7; --alt: #6e7681;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text); overflow: hidden;
+  font: 13px/1.55 -apple-system, "PingFang SC", sans-serif;
+}
+#app { display: flex; height: 100vh; width: 100vw; }
+
+/* 侧边栏 */
+#sidebar { width: 280px; background: var(--surf1); border-right: 1px solid var(--line);
+           display: flex; flex-direction: column; overflow: hidden; }
+#sideHeader { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+#sideHeader h1 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+#sideHeader .meta { font-size: 11px; color: var(--muted); }
+#searchBox { width: 100%; background: var(--surf2); border: 1px solid var(--line);
+             border-radius: 8px; padding: 7px 10px; color: var(--text); font-size: 12px; }
+#searchBox::placeholder { color: var(--muted); }
+#filters { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+#filters select { width: 100%; background: var(--surf2); border: 1px solid var(--line);
+                  border-radius: 8px; padding: 6px 8px; color: var(--text); font-size: 12px;
+                  margin-top: 6px; }
+#tree { flex: 1; overflow-y: auto; padding: 8px; }
+#tree::-webkit-scrollbar { width: 8px; }
+#tree::-webkit-scrollbar-track { background: var(--surf1); }
+#tree::-webkit-scrollbar-thumb { background: var(--surf3); border-radius: 4px; }
+
+/* 树节点 */
+.treeNode { user-select: none; }
+.treeLabel { display: flex; align-items: center; padding: 5px 8px; border-radius: 6px;
+             cursor: pointer; font-size: 12px; gap: 6px; }
+.treeLabel:hover { background: var(--surf2); }
+.treeLabel.active { background: var(--surf3); color: var(--accent); }
+.treeToggle { width: 14px; height: 14px; display: inline-flex; align-items: center;
+              justify-content: center; font-size: 10px; color: var(--muted); }
+.treeIcon { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+.treeChildren { margin-left: 18px; display: none; }
+.treeNode.expanded > .treeChildren { display: block; }
+.badge { display: inline-block; padding: 1px 7px; border-radius: 999px;
+         font-size: 10px; background: var(--surf3); color: var(--muted); }
+
+/* 主画布区 */
+#main { flex: 1; display: flex; flex-direction: column; position: relative; }
+#toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+           background: var(--surf1); border-bottom: 1px solid var(--line); }
+#toolbar button { background: var(--surf2); color: var(--text); border: 1px solid var(--line);
+                  border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 12px; }
+#toolbar button:hover { border-color: var(--accent); }
+#toolbar button.active { background: rgba(56,189,248,.15); border-color: var(--accent);
+                         color: var(--accent); }
+.spacer { flex: 1; }
+#canvas { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
+#graphCanvas { position: absolute; inset: 0; cursor: grab; }
+#graphCanvas:active { cursor: grabbing; }
+
+/* 详情面板 */
+#detail { position: absolute; top: 12px; right: 12px; width: 340px; max-height: calc(100vh - 140px);
+          background: var(--surf2); border: 1px solid var(--line); border-radius: 12px;
+          padding: 16px; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,.4);
+          transform: translateX(370px); transition: transform .2s ease; }
+#detail.open { transform: none; }
+#detail::-webkit-scrollbar { width: 6px; }
+#detail::-webkit-scrollbar-thumb { background: var(--surf4); border-radius: 3px; }
+#detailClose { float: right; background: none; border: none; color: var(--muted);
+               cursor: pointer; font-size: 16px; }
+#detailClose:hover { color: var(--text); }
+#detail h2 { font-size: 15px; margin-bottom: 10px; color: var(--text); }
+#detail .kw { font-family: ui-monospace, monospace; font-size: 11px; color: var(--accent); }
+#detail dt { color: var(--muted); font-size: 11px; margin-top: 12px; font-weight: 500; }
+#detail dd { margin-top: 4px; word-break: break-all; }
+#detail .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+#detail .tag { padding: 3px 10px; background: var(--surf3); border-radius: 999px;
+               font-size: 11px; }
+#detail .links { margin-top: 6px; }
+#detail .link { display: block; padding: 6px 10px; background: var(--surf3); border-radius: 6px;
+                margin-top: 4px; cursor: pointer; font-size: 11px; }
+#detail .link:hover { background: var(--surf4); }
+
+/* 状态颜色 */
+.s-已覆盖 { background: rgba(110,231,183,.2); color: var(--ok); }
+.s-部分, .s-部分覆盖 { background: rgba(233,165,104,.2); color: var(--part); }
+.s-缺失 { background: rgba(248,81,73,.2); color: var(--miss); }
+.s-冲突 { background: rgba(163,113,247,.2); color: var(--conf); }
+.s-已替代, .s-已废弃, .s-不适用 { background: rgba(110,118,129,.15); color: var(--alt); }
+
+#loading { position: absolute; inset: 0; display: flex; align-items: center;
+           justify-content: center; background: rgba(5,7,12,.9); z-index: 100;
+           font-size: 14px; color: var(--muted); }
+#loading.hide { display: none; }
+
+/* 图例 */
+#legend { position: absolute; bottom: 12px; left: 12px; background: var(--surf2);
+          border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+#legend .item { display: flex; align-items: center; gap: 8px; margin: 4px 0;
+                font-size: 11px; color: var(--muted); }
+#legend .dot { width: 10px; height: 10px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div id="sideHeader">
+      <h1>薯片生态网络图谱</h1>
+      <div class="meta" id="meta">加载中...</div>
+      <input id="searchBox" type="text" placeholder="搜索节点 ID / 主题...">
+    </div>
+    <div id="filters">
+      <select id="filterDim"><option value="">全部维度</option></select>
+      <select id="filterStatus"><option value="">全部状态</option></select>
+      <select id="filterSource"><option value="">全部来源</option></select>
+    </div>
+    <div id="tree"></div>
+  </aside>
+  
+  <main id="main">
+    <div id="toolbar">
+      <button id="btnGraph" class="active">网络图谱</button>
+      <button id="btnTable">数据表格</button>
+      <button id="btnReset">重置视图</button>
+      <span class="spacer"></span>
+      <span class="badge">节点 <span id="nodeCount">0</span></span>
+      <span class="badge">关系 <span id="edgeCount">0</span></span>
+      <button id="btnExport">导出 CSV</button>
+    </div>
+    <div id="canvas">
+      <canvas id="graphCanvas"></canvas>
+      <div id="legend">
+        <div class="item"><div class="dot" style="background:var(--ok)"></div>已覆盖</div>
+        <div class="item"><div class="dot" style="background:var(--part)"></div>部分覆盖</div>
+        <div class="item"><div class="dot" style="background:var(--miss)"></div>缺失</div>
+        <div class="item"><div class="dot" style="background:var(--conf)"></div>冲突</div>
+      </div>
+    </div>
+    <div id="tableView" style="display:none; height:100%; overflow:auto; padding:16px; background:var(--bg);">
+      <div style="margin-bottom:12px; display:flex; gap:10px; align-items:center;">
+        <input id="tableSearch" type="text" placeholder="搜索表格内容..." style="flex:1; background:var(--surf2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; color:var(--text); font-size:12px;">
+        <select id="tableSortBy" style="background:var(--surf2); border:1px solid var(--line); border-radius:8px; padding:6px 10px; color:var(--text); font-size:12px;">
+          <option value="id">按 ID 排序</option>
+          <option value="topic">按主题排序</option>
+          <option value="status">按状态排序</option>
+          <option value="source_type">按来源排序</option>
+        </select>
+      </div>
+      <div id="tableContainer" style="overflow:auto; max-height:calc(100vh - 180px);"></div>
+    </div>
+    <aside id="detail">
+      <button id="detailClose">✕</button>
+      <div id="detailContent"></div>
+    </aside>
+  </main>
+</div>
+<div id="loading">正在加载数据...</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const api = async (p, q = {}) => {
+  const u = new URL(p, location.origin);
+  Object.entries(q).forEach(([k, v]) => { if (v !== "" && v != null) u.searchParams.set(k, v); });
+  const r = await fetch(u);
+  if (!r.ok) throw new Error((await r.json()).error || r.status);
+  return r.json();
+};
+
+// 状态颜色映射
+const STATUS_COLOR = {
+  "已覆盖": "#6ee7b7", "部分": "#e9a568", "缺失": "#f85149",
+  "冲突": "#a371f7", "已替代": "#6e7681", "已废弃": "#6e7681", "不适用": "#6e7681"
+};
+
+// 全局数据
+let allNodes = [];
+let allEdges = [];
+let allDimensions = [];
+let filteredNodes = [];
+let filteredEdges = [];
+let selectedNode = null;
+
+// 画布状态
+const canvas = $("#graphCanvas");
+const ctx = canvas.getContext("2d");
+let nodes = []; // { id, x, y, vx, vy, r, color, label, data }
+let edges = []; // { from, to, fromNode, toNode }
+let transform = { x: 0, y: 0, scale: 1 };
+let dragging = null;
+let hovering = null;
+
+// 初始化画布尺寸
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+  ctx.scale(dpr, dpr);
+  draw();
+}
+window.addEventListener("resize", resizeCanvas);
+
+// 加载数据
+async function loadData() {
+  try {
+    const [metaRes, graphRes] = await Promise.all([
+      api("/api/meta"),
+      api("/api/graph")
+    ]);
+    
+    $("#meta").textContent = `${graphRes.nodes.length} 节点 · ${graphRes.edges.length} 关系`;
+    
+    allNodes = graphRes.nodes.map(n => ({
+      ...n,
+      dimensions: Array.isArray(n.dimensions) ? n.dimensions : (n.dimensions || "").split(",").filter(Boolean)
+    }));
+    allEdges = graphRes.edges;
+    allDimensions = graphRes.dimensions || [];
+    
+    // 填充筛选器
+    $("#filterDim").innerHTML = "<option value=''>全部维度</option>" +
+      allDimensions.map(d => `<option value="${d}">${d}</option>`).join("");
+    $("#filterStatus").innerHTML = "<option value=''>全部状态</option>" +
+      graphRes.status_order.map(s => `<option value="${s}">${s}</option>`).join("");
+    $("#filterSource").innerHTML = "<option value=''>全部来源</option>" +
+      graphRes.sources.map(s => `<option value="${s}">${s}</option>`).join("");
+    
+    applyFilters();
+    buildTree();
+    $("#loading").classList.add("hide");
+  } catch (e) {
+    $("#loading").textContent = "加载失败：" + e.message;
+  }
+}
+
+// 应用筛选
+function applyFilters() {
+  const dim = $("#filterDim").value;
+  const status = $("#filterStatus").value;
+  const source = $("#filterSource").value;
+  const q = $("#searchBox").value.trim().toLowerCase();
+  
+  filteredNodes = allNodes.filter(n => {
+    if (dim && !n.dimensions.includes(dim)) return false;
+    if (status && n.status !== status) return false;
+    if (source && n.source_type !== source) return false;
+    if (q && !(n.id + n.topic).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  
+  const nodeIds = new Set(filteredNodes.map(n => n.id));
+  filteredEdges = allEdges.filter(e => nodeIds.has(e.from_id) && nodeIds.has(e.to_id));
+  
+  $("#nodeCount").textContent = filteredNodes.length;
+  $("#edgeCount").textContent = filteredEdges.length;
+  
+  buildGraph();
+  buildTree();
+}
+
+// 构建力导向图
+function buildGraph() {
+  const w = canvas.getBoundingClientRect().width;
+  const h = canvas.getBoundingClientRect().height;
+  
+  nodes = filteredNodes.map((n, i) => ({
+    id: n.id,
+    x: w / 2 + (Math.random() - 0.5) * w * 0.6,
+    y: h / 2 + (Math.random() - 0.5) * h * 0.6,
+    vx: 0, vy: 0,
+    r: Math.max(8, 6 + (n.dimensions.length * 2.5)),
+    color: STATUS_COLOR[n.status] || "#6e7681",
+    label: n.topic || n.id,
+    data: n
+  }));
+  
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  edges = filteredEdges.map(e => ({
+    from: e.from_id,
+    to: e.to_id,
+    fromNode: nodeMap.get(e.from_id),
+    toNode: nodeMap.get(e.to_id),
+    relation: e.relation
+  })).filter(e => e.fromNode && e.toNode);
+  
+  transform = { x: 0, y: 0, scale: 1 };
+  startSimulation();
+}
+
+// 力导向布局模拟
+let simTimer = null;
+function startSimulation() {
+  if (simTimer) clearInterval(simTimer);
+  let iter = 0;
+  const maxIter = 400;
+  // 节点越多，理想边长和斥力越大，避免大图挤在一起
+  const n = nodes.length || 1;
+  const repelStrength = 2600 + Math.min(n * 12, 4000);
+  const idealEdgeLen = 90 + Math.min(n * 0.6, 160);
+
+  simTimer = setInterval(() => {
+    const settling = iter > maxIter;
+    iter++;
+    if (iter > maxIter + 40) { clearInterval(simTimer); fitToView(); return; }
+    
+    // 斥力
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[j].x - nodes[i].x;
+        const dy = nodes[j].y - nodes[i].y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = repelStrength / (dist * dist);
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        nodes[i].vx -= fx; nodes[i].vy -= fy;
+        nodes[j].vx += fx; nodes[j].vy += fy;
+      }
+    }
+    
+    // 引力（边）
+    edges.forEach(e => {
+      const dx = e.toNode.x - e.fromNode.x;
+      const dy = e.toNode.y - e.fromNode.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const force = (dist - idealEdgeLen) * 0.06;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      e.fromNode.vx += fx; e.fromNode.vy += fy;
+      e.toNode.vx -= fx; e.toNode.vy -= fy;
+    });
+    
+    // 中心引力（轻微，避免图谱飘散）
+    const cx = canvas.getBoundingClientRect().width / 2;
+    const cy = canvas.getBoundingClientRect().height / 2;
+    nodes.forEach(n => {
+      n.vx += (cx - n.x) * 0.0015;
+      n.vy += (cy - n.y) * 0.0015;
+    });
+    
+    // 更新位置
+    nodes.forEach(n => {
+      n.vx *= 0.88; n.vy *= 0.88;
+      n.x += n.vx; n.y += n.vy;
+    });
+    
+    if (!settling || iter % 3 === 0) draw();
+  }, 16);
+}
+
+// 自动缩放并居中，让全部节点都在可视范围内
+function fitToView() {
+  if (nodes.length === 0) return;
+  const pad = 80;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  nodes.forEach(n => {
+    minX = Math.min(minX, n.x - n.r);
+    minY = Math.min(minY, n.y - n.r);
+    maxX = Math.max(maxX, n.x + n.r);
+    maxY = Math.max(maxY, n.y + n.r);
+  });
+  const w = canvas.getBoundingClientRect().width;
+  const h = canvas.getBoundingClientRect().height;
+  const contentW = Math.max(maxX - minX, 1);
+  const contentH = Math.max(maxY - minY, 1);
+  const scale = Math.min((w - pad * 2) / contentW, (h - pad * 2) / contentH, 2.5);
+  transform.scale = Math.max(scale, 0.05);
+  transform.x = w / 2 - ((minX + maxX) / 2) * transform.scale;
+  transform.y = h / 2 - ((minY + maxY) / 2) * transform.scale;
+  draw();
+}
+
+// 绘制
+function draw() {
+  const w = canvas.getBoundingClientRect().width;
+  const h = canvas.getBoundingClientRect().height;
+  ctx.clearRect(0, 0, w, h);
+  
+  ctx.save();
+  ctx.translate(transform.x, transform.y);
+  ctx.scale(transform.scale, transform.scale);
+  
+  // 计算相关节点集合
+  let relatedIds = new Set();
+  let relatedEdges = new Set();
+  if (selectedNode) {
+    relatedIds.add(selectedNode.id);
+    edges.forEach(e => {
+      if (e.fromNode.id === selectedNode.id || e.toNode.id === selectedNode.id) {
+        relatedIds.add(e.fromNode.id);
+        relatedIds.add(e.toNode.id);
+        relatedEdges.add(e);
+      }
+    });
+  }
+  
+  // 绘制边
+  edges.forEach(e => {
+    const isHighlight = selectedNode && relatedEdges.has(e);
+    ctx.strokeStyle = isHighlight ? "#38bdf8" : "#2a2f3a";
+    ctx.lineWidth = isHighlight ? 2.5 : 1.5;
+    ctx.globalAlpha = isHighlight ? 1 : (selectedNode ? 0.15 : 0.4);
+    ctx.beginPath();
+    ctx.moveTo(e.fromNode.x, e.fromNode.y);
+    ctx.lineTo(e.toNode.x, e.toNode.y);
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+  
+  // 绘制节点
+  nodes.forEach(n => {
+    const isSelected = n === selectedNode;
+    const isRelated = selectedNode && relatedIds.has(n.id);
+    const isDimmed = selectedNode && !isRelated;
+    
+    ctx.globalAlpha = isDimmed ? 0.2 : 1;
+    ctx.fillStyle = n.color;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+    ctx.fill();
+    
+    if (isSelected || isRelated || n === hovering) {
+      ctx.strokeStyle = isSelected ? "#38bdf8" : (isRelated ? "#6ee7b7" : "#38bdf8");
+      ctx.lineWidth = isSelected ? 3 : 2;
+      ctx.stroke();
+    }
+    
+    // 绘制相关节点的标签
+    if (isRelated && selectedNode && n !== selectedNode) {
+      ctx.fillStyle = "#0f131c";
+      ctx.strokeStyle = "#2a2f3a";
+      ctx.lineWidth = 1;
+      const label = n.label.slice(0, 25);
+      ctx.font = "11px -apple-system, sans-serif";
+      const lw = ctx.measureText(label).width + 12;
+      ctx.fillRect(n.x + n.r + 6, n.y - 12, lw, 20);
+      ctx.strokeRect(n.x + n.r + 6, n.y - 12, lw, 20);
+      ctx.fillStyle = "#e6e9ef";
+      ctx.fillText(label, n.x + n.r + 12, n.y + 2);
+    }
+  });
+  ctx.globalAlpha = 1;
+  
+  // 绘制悬停标签
+  if (hovering && !selectedNode) {
+    ctx.fillStyle = "#0f131c";
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = 1;
+    const label = hovering.label.slice(0, 30);
+    ctx.font = "12px -apple-system, sans-serif";
+    const lw = ctx.measureText(label).width + 16;
+    ctx.fillRect(hovering.x + 10, hovering.y - 18, lw, 24);
+    ctx.strokeRect(hovering.x + 10, hovering.y - 18, lw, 24);
+    ctx.fillStyle = "#e6e9ef";
+    ctx.fillText(label, hovering.x + 18, hovering.y - 2);
+  }
+  
+  ctx.restore();
+}
+
+// 鼠标交互
+let mouseDown = false;
+let lastMouse = { x: 0, y: 0 };
+
+canvas.addEventListener("mousedown", e => {
+  mouseDown = true;
+  lastMouse = { x: e.clientX, y: e.clientY };
+  const [mx, my] = screenToWorld(e.clientX, e.clientY);
+  dragging = nodes.find(n => {
+    const dx = n.x - mx, dy = n.y - my;
+    return Math.sqrt(dx * dx + dy * dy) < n.r + 5;
+  });
+  if (dragging) {
+    selectedNode = dragging;
+    showDetail(dragging.data);
+  }
+});
+
+canvas.addEventListener("mousemove", e => {
+  if (mouseDown && dragging) {
+    const [mx, my] = screenToWorld(e.clientX, e.clientY);
+    dragging.x = mx;
+    dragging.y = my;
+    dragging.vx = 0;
+    dragging.vy = 0;
+    draw();
+  } else if (mouseDown) {
+    transform.x += e.clientX - lastMouse.x;
+    transform.y += e.clientY - lastMouse.y;
+    lastMouse = { x: e.clientX, y: e.clientY };
+    draw();
+  } else {
+    const [mx, my] = screenToWorld(e.clientX, e.clientY);
+    hovering = nodes.find(n => {
+      const dx = n.x - mx, dy = n.y - my;
+      return Math.sqrt(dx * dx + dy * dy) < n.r + 5;
+    });
+    draw();
+  }
+});
+
+canvas.addEventListener("mouseup", () => {
+  mouseDown = false;
+  dragging = null;
+});
+
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  const [mx, my] = screenToWorld(e.clientX, e.clientY);
+  transform.scale *= delta;
+  transform.x = e.clientX - (mx * transform.scale);
+  transform.y = e.clientY - (my * transform.scale);
+  draw();
+});
+
+function screenToWorld(sx, sy) {
+  return [(sx - transform.x) / transform.scale, (sy - transform.y) / transform.scale];
+}
+
+// 详情面板
+function showDetail(node) {
+  const related = allEdges.filter(e => e.from_id === node.id || e.to_id === node.id);
+  const relatedNodes = [...new Set(related.flatMap(e => [e.from_id, e.to_id]))]
+    .filter(id => id !== node.id);
+  
+  $("#detailContent").innerHTML = `
+    <h2>${node.id}</h2>
+    <div class="badge s-${node.status}">${node.status}</div>
+    <dl>
+      <dt>主题</dt><dd>${node.topic || "-"}</dd>
+      <dt>维度标签</dt>
+      <dd class="tags">${node.dimensions.map(d => `<span class="tag">${d}</span>`).join("") || "-"}</dd>
+      <dt>来源</dt><dd class="kw">${node.source_type || "-"}</dd>
+      <dt>新库对应</dt><dd class="kw">${node.coverage_ref || "-"}</dd>
+      <dt>证据</dt><dd class="kw">${(node.evidence || "").slice(0, 200)}</dd>
+      <dt>关联节点 (${relatedNodes.length})</dt>
+      <dd class="links">${relatedNodes.slice(0, 10).map(id => 
+        `<div class="link" data-id="${id}">${id}</div>`
+      ).join("") || "无关联"}</dd>
+    </dl>
+  `;
+  
+  $$(".link").forEach(el => {
+    el.onclick = () => {
+      const n = allNodes.find(nd => nd.id === el.dataset.id);
+      if (n) {
+        const gn = nodes.find(gn => gn.id === n.id);
+        if (gn) {
+          selectedNode = gn;
+          showDetail(n);
+          // 居中并高亮
+          const w = canvas.getBoundingClientRect().width;
+          const h = canvas.getBoundingClientRect().height;
+          transform.x = w / 2 - gn.x * transform.scale;
+          transform.y = h / 2 - gn.y * transform.scale;
+          draw();
+        }
+      }
+    };
+  });
+  
+  $("#detail").classList.add("open");
+}
+
+$("#detailClose").onclick = () => $("#detail").classList.remove("open");
+
+// 树状导航
+function buildTree() {
+  const byDim = {};
+  filteredNodes.forEach(n => {
+    n.dimensions.forEach(d => {
+      if (!byDim[d]) byDim[d] = [];
+      byDim[d].push(n);
+    });
+  });
+  
+  const html = Object.keys(byDim).sort().map(dim => {
+    const items = byDim[dim].slice(0, 50);
+    return `<div class="treeNode">
+      <div class="treeLabel" data-toggle="${dim}">
+        <span class="treeToggle">▸</span>
+        <div class="treeIcon" style="background:var(--accent)"></div>
+        <span>${dim}</span>
+        <span class="badge">${byDim[dim].length}</span>
+      </div>
+      <div class="treeChildren">
+        ${items.map(n => `<div class="treeNode">
+          <div class="treeLabel" data-node="${n.id}">
+            <span class="treeToggle"></span>
+            <div class="treeIcon" style="background:${STATUS_COLOR[n.status]}"></div>
+            <span>${n.topic || n.id}</span>
+          </div>
+        </div>`).join("")}
+        ${byDim[dim].length > 50 ? `<div class="treeLabel"><span class="muted">...还有 ${byDim[dim].length - 50} 个</span></div>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+  
+  $("#tree").innerHTML = html;
+  
+  $$("[data-toggle]").forEach(el => {
+    el.onclick = () => {
+      el.parentElement.classList.toggle("expanded");
+      const icon = el.querySelector(".treeToggle");
+      icon.textContent = el.parentElement.classList.contains("expanded") ? "▾" : "▸";
+    };
+  });
+  
+  $$("[data-node]").forEach(el => {
+    el.onclick = () => {
+      const id = el.dataset.node;
+      const n = allNodes.find(nd => nd.id === id);
+      const gn = nodes.find(gn => gn.id === id);
+      if (n && gn) {
+        selectedNode = gn;
+        showDetail(n);
+        const w = canvas.getBoundingClientRect().width;
+        const h = canvas.getBoundingClientRect().height;
+        transform.x = w / 2 - gn.x * transform.scale;
+        transform.y = h / 2 - gn.y * transform.scale;
+        draw();
+      }
+    };
+  });
+}
+
+// 工具栏
+$("#btnReset").onclick = () => {
+  selectedNode = null;
+  $("#detail").classList.remove("open");
+  buildGraph();
+};
+
+$("#btnGraph").onclick = () => {
+  $("#btnGraph").classList.add("active");
+  $("#btnTable").classList.remove("active");
+  $("#canvas").style.display = "";
+  $("#tableView").style.display = "none";
+  resizeCanvas();
+  fitToView();
+};
+
+$("#btnTable").onclick = () => {
+  $("#btnTable").classList.add("active");
+  $("#btnGraph").classList.remove("active");
+  $("#canvas").style.display = "none";
+  $("#tableView").style.display = "block";
+  renderTable();
+};
+
+$("#btnExport").onclick = exportCsv;
+
+// 筛选和搜索
+$("#filterDim").onchange = () => { applyFilters(); if ($("#tableView").style.display !== "none") renderTable(); };
+$("#filterStatus").onchange = () => { applyFilters(); if ($("#tableView").style.display !== "none") renderTable(); };
+$("#filterSource").onchange = () => { applyFilters(); if ($("#tableView").style.display !== "none") renderTable(); };
+$("#searchBox").oninput = () => { applyFilters(); if ($("#tableView").style.display !== "none") renderTable(); };
+$("#tableSearch").oninput = renderTable;
+$("#tableSortBy").onchange = renderTable;
+
+// 全部字段（按记录列展开，用于表格视图完整展示每条记录）
+const FIELD_LABELS = {
+  id: "节点ID", source_type: "来源", path: "旧路径", topic: "主题",
+  dimensions: "维度标签", coverage_ref: "新库对应", status: "覆盖状态",
+  action: "建议动作", evidence: "证据", owner: "负责人",
+  gap_severity: "缺口等级", gap_status: "缺口状态", updated_at: "更新时间",
+  related: "关联节点"
+};
+const FIELD_ORDER = ["id", "topic", "source_type", "status", "dimensions", "path",
+  "coverage_ref", "action", "evidence", "owner", "gap_severity", "gap_status", "related", "updated_at"];
+
+function nodeRelatedList(nodeId) {
+  return allEdges
+    .filter(e => e.from_id === nodeId || e.to_id === nodeId)
+    .map(e => (e.from_id === nodeId ? e.to_id : e.from_id) + `(${e.relation})`)
+    .join("; ");
+}
+
+function renderTable() {
+  const kw = ($("#tableSearch").value || "").trim().toLowerCase();
+  const sortBy = $("#tableSortBy").value;
+
+  let list = filteredNodes.map(n => ({
+    ...n,
+    dimensions: (n.dimensions || []).join("、"),
+    related: nodeRelatedList(n.id)
+  }));
+
+  if (kw) {
+    list = list.filter(n => FIELD_ORDER.some(f => String(n[f] || "").toLowerCase().includes(kw)));
+  }
+  list.sort((a, b) => String(a[sortBy] || "").localeCompare(String(b[sortBy] || ""), "zh"));
+
+  const container = $("#tableContainer");
+  if (list.length === 0) {
+    container.innerHTML = `<div style="color:var(--muted); padding:24px; text-align:center;">没有匹配的记录</div>`;
+    return;
+  }
+
+  let html = `<table style="width:100%; border-collapse:collapse; font-size:12px;">`;
+  html += `<thead><tr style="position:sticky; top:0; background:var(--surf2); z-index:1;">`;
+  FIELD_ORDER.forEach(f => {
+    html += `<th style="text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); color:var(--muted); white-space:nowrap;">${FIELD_LABELS[f]}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  list.forEach(n => {
+    const color = STATUS_COLOR[n.status] || "#6e7681";
+    html += `<tr style="border-bottom:1px solid var(--line);" onmouseover="this.style.background='var(--surf2)'" onmouseout="this.style.background=''">`;
+    FIELD_ORDER.forEach(f => {
+      let val = n[f] == null ? "" : String(n[f]);
+      let cellStyle = "padding:8px 10px; vertical-align:top; max-width:320px; word-break:break-word;";
+      if (f === "status") {
+        html += `<td style="${cellStyle}"><span style="display:inline-block; padding:2px 8px; border-radius:6px; background:${color}22; color:${color}; font-weight:600;">${val}</span></td>`;
+      } else if (f === "id") {
+        html += `<td style="${cellStyle} font-family:monospace; color:#38bdf8; cursor:pointer;" onclick="jumpToNodeById('${val.replace(/'/g, "\\'")}')">${val}</td>`;
+      } else {
+        html += `<td style="${cellStyle} color:var(--text);">${val || "—"}</td>`;
+      }
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+function jumpToNodeById(id) {
+  const n = allNodes.find(x => x.id === id);
+  if (!n) return;
+  $("#btnGraph").click();
+  showDetail(n);
+  const gn = nodes.find(x => x.id === id);
+  if (gn) {
+    selectedNode = gn;
+    const w = canvas.getBoundingClientRect().width;
+    const h = canvas.getBoundingClientRect().height;
+    transform.x = w / 2 - gn.x * transform.scale;
+    transform.y = h / 2 - gn.y * transform.scale;
+    draw();
+  }
+}
+
+function exportCsv() {
+  const list = filteredNodes.map(n => ({
+    ...n,
+    dimensions: (n.dimensions || []).join("、"),
+    related: nodeRelatedList(n.id)
+  }));
+  const header = FIELD_ORDER.map(f => FIELD_LABELS[f]);
+  const esc = v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const lines = [header.map(esc).join(",")];
+  list.forEach(n => lines.push(FIELD_ORDER.map(f => esc(n[f])).join(",")));
+  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "薯片生态梳理表导出.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 启动
+resizeCanvas();
+loadData();
+</script>
+</body>
+</html>

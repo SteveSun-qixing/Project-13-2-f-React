@@ -19,6 +19,9 @@ export function createIcoFile(entries: IcoImageEntry[]): Uint8Array {
   let imageOffset = headerLength;
 
   sortedEntries.forEach((entry, index) => {
+    if (entry.size > 256) {
+      throw new Error(`ICO payload exceeds 256 pixels: ${entry.size}`);
+    }
     const directoryOffset = 6 + index * 16;
     const dimension = entry.size >= 256 ? 0 : entry.size;
 

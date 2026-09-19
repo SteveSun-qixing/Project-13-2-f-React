@@ -1,0 +1,7 @@
+节点ID	来源	旧路径	主题	维度标签	新库对应	覆盖状态	建议动作	证据
+ND-95001	新库	薯片生态文档库/08-产品与交互/04-资源管理器产品设计.md	资源管理器产品设计：标签导航与筛选、视图（列表/网格/时间线）、条目与批量操作、收藏与最近、工作区扫描与事件对接、搜索与索引边界、拖放、空态与错误态、快捷键、性能与自检	产品;交互;功能;规范质量;前端	薯片生态文档库/08-产品与交互/04-资源管理器产品设计.md	已覆盖	无需动作	薯片生态文档库/08-产品与交互/04-资源管理器产品设计.md:1-6;:177-228;:232-285;:287-327;:329-352;:354-395;:397-444;:446-481;:483-528;:530-566;:568-593;:595-633
+OR-95001	旧仓库	Chips-EditingEngine/src/components/FileManager/FileManager.tsx	文件管理器组件：工具栏命令（新建卡片/箱子、打开、重命名、删除、刷新、搜索）、搜索展开、多选、状态栏与空态	前端;功能;交互	ND-95001	已覆盖	无需动作	Chips-EditingEngine/src/components/FileManager/FileManager.tsx:28-36;:231-343;:352-445
+OR-95002	旧仓库	Chips-EditingEngine/src/components/FileManager/FileTree.tsx	文件树交互：Shift/Ctrl 多选、roving tabindex 键盘导航（方向键/Enter/展开折叠）、内联重命名、空文件夹空态	前端;交互;无障碍	ND-95001	已覆盖	无需动作	Chips-EditingEngine/src/components/FileManager/FileTree.tsx:14-18;:140-177;:188-236;:281-288
+OR-95003	旧仓库	Chips-EditingEngine/src/scenes/WorkspaceScene.tsx	工作台场景：文件管理器/卡箱库/程序坞组合、文件打开与创建事件接线、画布拖放目标解析（卡箱库与程序坞归编辑引擎产品）	前端;功能;交互	ND-95001	部分	补设计	Chips-EditingEngine/src/scenes/WorkspaceScene.tsx:126-158;:160-250;:278-390;:392-441
+OR-95004	旧仓库	Chips-EditingEngine/src/core/drag-drop-manager.ts	拖放管理器：拖动源/落点/效果模型、外部文件类型识别与拖放状态机	前端;交互;功能	ND-95001	已覆盖	无需动作	Chips-EditingEngine/src/core/drag-drop-manager.ts:1-80
+OR-95005	旧仓库	Chips-Notes/src/panels/DirectoryTreePanel.tsx	Chips-Notes 工作台目录树面板：笔记本/笔记树、右键重命名与删除、新建笔记本/笔记对话框	前端;交互;功能	ND-95001	部分	补设计	Chips-Notes/src/panels/DirectoryTreePanel.tsx:1-30;:95-166;:168-174

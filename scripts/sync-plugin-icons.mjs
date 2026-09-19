@@ -13,8 +13,6 @@ const KIND_DIRS = {
   template: "design-assets/Appicon",
   basecard: "design-assets/Basecardicon",
   layout: "design-assets/Layouticon",
-  module: "design-assets/Moduleicon",
-  theme: "design-assets/Themeicon",
 };
 
 async function exists(filePath) {

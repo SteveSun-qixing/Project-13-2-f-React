@@ -1,0 +1,18 @@
+节点ID	来源	旧路径	主题	维度标签	新库对应	覆盖状态	建议动作	证据
+ND-S33-001	新库	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	官方应用功能总览：14 个官方应用的职责矩阵（定位、核心功能、依赖的插件与能力、数据格式、已知取舍）	功能;产品;插件;交互	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md:1-12;薯片生态文档库/08-产品与交互/08-官方应用功能总览.md:71-252
+ND-S33-002	新库	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	官方应用总表与登记标识（editor/viewer/resource-manager/settings/office/photo-viewer/book-reader/universal-file-viewer/iconmaker/community-client）	产品;插件;架构;入口	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md:57-69
+ND-S33-003	新库	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	待设计条目：电子书渲染引擎、媒体播放消费契约、Office 文档处理服务、OCR（只登记落点不展开契约）	功能;接口契约;架构;扩展	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	部分	补设计	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md:253-271;薯片生态文档库/05-接口与契约/04-能力契约规范.md:1-7
+ND-S33-004	新库	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	官方应用通用约束（路由唯一、链路唯一、应用解耦、官方同构）与自检清单	架构;规范质量;安全;插件	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md:40-46;薯片生态文档库/08-产品与交互/08-官方应用功能总览.md:272-296
+OD-S33-001	旧仓库	Chips-EditingEngine/README.md	编辑引擎定位：工作区管理、卡片/箱子窗口、正式链路访问与 RuntimeIcon 图标系统	功能;产品;插件	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-EditingEngine/README.md:7-18
+OD-S33-002	旧仓库	Chips-CardViewer/README.md	卡片查看器套壳定位：统一文档显示链路、不解析不拼帧、资源打开转发	功能;架构;接口契约	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-CardViewer/README.md:5-17
+OD-S33-003	旧仓库	Chips-Notes/README.md	笔记应用定位与三栏工作台，笔记本=箱子、笔记=卡片的内容组织	功能;产品;文件	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-Notes/README.md:8-18;Chips-Notes/README.md:47-72
+OD-S33-004	旧仓库	Chips-Office/README.md	办公四件套（docx/xlsx/xlsm/xls/csv/pptx/pdf）查看编辑与 OCR 不移植边界	功能;产品;接口契约;合规	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	部分	补设计	Chips-Office/README.md:6;Chips-Office/技术文档/01-移植架构说明.md:78
+OD-S33-005	旧仓库	Chips-MusicPlayer/README.md	音频播放控制、队列、嵌入元数据与歌词、封面发现、副本保存	功能;数据;插件	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-MusicPlayer/README.md:17-28
+OD-S33-006	旧仓库	Chips-VideoPlayer/README.md	视频播放控制、倍速、全屏、画中画、字幕与音轨面板	功能;数据;插件	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-VideoPlayer/README.md:32-40
+OD-S33-007	旧仓库	Chips-BookReader/README.md	电子书正式渲染范围、重型格式错误态与不纳入项（书架/设置中心/OPDS）	功能;文件;产品	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	部分	补设计	Chips-BookReader/README.md:5-11;Chips-BookReader/README.md:38-42
+OD-S33-008	旧仓库	Chips-PhotoViewer/README.md	图片查看（缩放、适应、实际大小）与副本保存、格式清单	功能;数据;插件	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-PhotoViewer/README.md:5-28
+OD-S33-009	旧仓库	Chips-RichTextEditor/README.md	单文档 Markdown 编辑器、固定复合卡片产物、不声明 .card 文件关联	功能;文件;产品	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-RichTextEditor/README.md:3;Chips-RichTextEditor/README.md:18-36
+OD-S33-010	旧仓库	Chips-UniversalFileViewer/README.md	兜底查看定位、广谱预览矩阵、重依赖懒加载与 DWG 许可取舍	功能;插件;扩展;合规	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-UniversalFileViewer/README.md:3-19
+OD-S33-011	旧仓库	Chip-iconMaker/README.md	图标工坊：图片/字体来源、尺寸档位、PNG/ICO/ICNS 与 ZIP Store 输出	功能;产品;文件	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chip-iconMaker/README.md:5-18
+OD-S33-012	旧仓库	Chips-EcoSettingsPanel/README.md	运行时设置与治理入口（应用/卡片/布局插件治理、预览与质量）	功能;产品;平台	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-EcoSettingsPanel/README.md:9-17
+OD-S33-013	旧仓库	Chips-CommunityClient/README.md	社区客户端四职责：浏览、上传、完整下载、本地查看	功能;产品;链路	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	已覆盖	无需动作	Chips-CommunityClient/README.md:6-11

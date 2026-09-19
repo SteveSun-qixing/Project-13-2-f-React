@@ -11,9 +11,10 @@
 ## 目录职责
 
 - 本目录保存应用插件系统入口图标的正式设计源；
-- 对应运行时消费链路为 `manifest.ui.launcher.icon`、Host 安装复制、快捷方式解析、安装分发与启动台入口；
-- 本目录不是运行时 UI 图标目录，运行时 UI 图标统一使用 `ChipsIcon + IconDescriptor`；
-- 模块、基础卡片、布局和主题身份图标分别使用各自的设计源目录，不混入本目录。
+- 对应运行时消费链路为 `manifest.ui.launcher.icon`、平台安装复制、系统快捷方式与启动台入口；
+- 目录内 `.svg` 为设计源，`.png` 为平台中立主图，`.ico` / `.icns` 为平台派生容器；
+- 本目录不是运行时 UI 图标目录，运行时 UI 图标统一经 `@chips/ui` 图标出口渲染；
+- 基础卡片与布局身份图标分别使用各自的设计源目录，不混入本目录。
 
 ## 当前正式命名基线
 
@@ -27,15 +28,21 @@
 | `EditingEngine` | `edit_note` | `Chips-EditingEngine` | `Chips-EditingEngine/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `IconMaker` | `palette` | `Chip-iconMaker` | `Chip-iconMaker/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `MusicPlayer` | `library_music` | `Chips-MusicPlayer` | `Chips-MusicPlayer/assets/icons/app-icon.png/.ico/.icns/.svg` |
-| `Office` | `dashboard` | `Chips-Office` | `Chips-Office/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `PhotoViewer` | `image` | `Chips-PhotoViewer` | `Chips-PhotoViewer/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `RichTextEditor` | `draw` | `Chips-RichTextEditor` | `Chips-RichTextEditor/assets/icons/app-icon.png/.ico/.icns/.svg` |
+| `Office` | `dashboard` | `Chips-Office` | `Chips-Office/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `UniversalFileViewer` | `folder_open` | `Chips-UniversalFileViewer` | `Chips-UniversalFileViewer/assets/icons/app-icon.png/.ico/.icns/.svg` |
 | `VideoPlayer` | `movie` | `Chips-VideoPlayer` | `Chips-VideoPlayer/assets/icons/app-icon.png/.ico/.icns/.svg` |
+| `Notes` | `edit_note` | `Chips-Notes` | `Chips-Notes/assets/icons/app-icon.png/.ico/.icns/.svg` |
+| `PDF` | `picture_as_pdf` | 无工程输出 | `design-assets/Appicon/PDF.png/.ico/.icns`（设计源目录内派生容器） |
+| `Photo` | `brush` | 无工程输出 | `design-assets/Appicon/Photo.png/.ico/.icns`（设计源目录内派生容器） |
+| `Sheet` | `table_chart` | 无工程输出 | `design-assets/Appicon/Sheet.png/.ico/.icns`（设计源目录内派生容器） |
+| `Slide` | `slideshow` | 无工程输出 | `design-assets/Appicon/Slide.png/.ico/.icns`（设计源目录内派生容器） |
+| `Word` | `description` | 无工程输出 | `design-assets/Appicon/Word.png/.ico/.icns`（设计源目录内派生容器） |
 
 ## 更新规则
 
 - 图标调整时，先更新本目录正式 SVG 源文件，再通过 `scripts/generate-plugin-material-icons.ts` 同步 SVG 设计源，并通过 `scripts/sync-plugin-icons.mjs`（`chips iconmaker generate`）重新渲染 PNG/ICO/ICNS；
 - 不再使用字体码位、HTML 文本渲染或截图方式生成图标，避免出现乱码；
 - 每次改动本目录资产，必须同步更新本文件与对应工程 `assets/icons/SOURCE.md`；
-- 运行时 UI 图标仍通过生态正式 `ChipsIcon + IconDescriptor` 链路渲染。
+- 运行时 UI 图标统一经 `@chips/ui` 图标出口渲染。

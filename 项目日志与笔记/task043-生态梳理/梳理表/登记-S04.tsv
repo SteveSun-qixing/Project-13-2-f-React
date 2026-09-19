@@ -1,0 +1,2 @@
+编号	文档名	路径	权威范围	依赖	状态	负责人
+13	命令系统契约	薯片生态文档库/05-接口与契约/13-命令系统契约.md	命令定义模型（ICommandDefinition/ICommandView/条件键/快捷键文法/scope/paramsSchema/放置）、命令能力面 command:register/unregister/list/get/invoke 与 owner/执行目标、注册校验与生命周期清理、命令域标准事件、执行与结果、命令面板/菜单/托盘/工具栏/快捷键统一消费与 UI 命令运行时契约、命令权限与审计、冲突与错误码	04-能力契约规范；05-事件契约规范；07-应用插件接口；08-权限系统设计；01-Bridge-API规范；CLI 完整参考	待评审	S04

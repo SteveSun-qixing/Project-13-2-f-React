@@ -1,0 +1,8 @@
+缺口ID	状态	新文档路径	说明
+S03-007	done	薯片生态文档库/05-接口与契约/12-个人服务器API契约.md	契约已明确单作品上限默认值（MAX_CARD_SIZE_MB=500 / MAX_BOX_SIZE_MB=100）、体积口径、执行点（presign 累计 + complete 复核）与超限码：个人服务器 FILE_TOO_LARGE（413，12 §6.4/§7.2）、社区 COMMUNITY_FILE_TOO_LARGE（413，11 §6.5/§7.3）；Chips-PersonalServer 旧实现属旧仓库，按 Phase 3 重写，不修旧代码
+S03-008	done	薯片生态文档库/05-接口与契约/12-个人服务器API契约.md	契约已补齐删除两阶段清理：资源清单校验、级联清理（源对象/资源/产物/封面/暂存物）、失败重试队列与死信（12 §4.2.7、§4.3.5、§5.6；共享模型 11 §4.9）；旧实现（card.service/box.service）随 Phase 3 重写
+S35-019	done	薯片生态文档库/05-接口与契约/10-服务插件接口.md	旧 module 调用面处置入 10 §6.5：listProviders/resolve 无对应、invoke 归 Bridge/Cordis、job 归消费方会话契约；SDK 不导出（02 §2.2、02.11 第 11 条），自检见 10.10；旧仓库封装随 Phase 3 清理
+S37-121	planned		与 Chips-EditingEngine 同名继承实现（FileManager/InfiniteCanvas 等服务与组件副本）属旧仓库过渡态；Phase 3 按 12-编辑引擎设计统一为平台编辑链路装配，旧副本不迁移（理由：Phase 3 重写）
+OR-S45-010	planned		社区平台服务端路由层为旧实现，含与新控制面冲突的 upload/box 直传路由（ND-S45-013）与未登记管理端端点（ND-S45-014）；Phase 3 按 11-社区平台API契约与 14-社区平台设计重写（理由：Phase 3 重写）
+OR-S45-011	planned		渲染 Worker 为旧实现；Phase 3 按 14-社区平台设计渲染队列与 11 §5.7 渲染状态口径重写（理由：Phase 3 重写）
+OR-S45-012	planned		管理后台 SPA 为旧实现，含已废止的自建 locale/theme（ADR-006）；Phase 3 按 14-社区平台设计 §8、§9 用 React + antd + @chips/ui 重写（理由：Phase 3 重写）

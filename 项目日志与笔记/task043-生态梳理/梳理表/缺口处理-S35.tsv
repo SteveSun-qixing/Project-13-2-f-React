@@ -1,0 +1,10 @@
+缺口ID	状态	新文档路径	说明
+INV4-SDK-08	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	已复核：插件 CLI 命令扩展（cli.commands 声明、参数模型、目标与执行语义、输出与产物、冲突消解、SDK 接口、任务生命周期）在 CLI 完整参考 §五（07.05-07.11）完整落位；SDK 导出面残余见 ND-S01-002
+INV4-SDK-15	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	已复核：chipsdev-r 全量子命令在 CLI 完整参考 §4.7 映射表逐一给出正式命令或废除依据（preview/component/theme inspect/quality/assimilate 废除，diagnostics 归 chips doctor）
+INV4-SDK-19	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	已复核：create app/card/layout/module/theme 工作区创建映射为 chips plugin create --role，角色名统一为 app/basecard/boxlayout/service，theme 随 ADR-006 废除
+INV4-SDK-09	done	薯片生态文档库/05-接口与契约/16-卡片传输协议.md	已复核：社区卡片与箱子传输域由《16-卡片传输协议》承接（含箱子上传会话 3.10）；openRemoteBox 本地查看残余见 OR-11012
+INV4-UI-01	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	已复核：共享组件清单与 Props 契约在指南 §2.1、§2.2 完整；受管帧与系统菜单由平台链路承担，旧窗口内菜单栏与 iframe 内嵌组件不再保留
+INV4-UI-02	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	已复核：窗口运行环境契约与挂载规则在指南 §3.1（appId/surface、主题根、中文环境、antd App 上下文）
+INV4-UI-03	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	已复核：命令运行时 UI 侧契约在指南 §3.2-3.4，行为权威为 13-命令系统契约 §5.6
+INV4-UI-05	done	薯片生态文档库/02-开发规范/09-统一视觉规范.md	已复核：Design Tokens 数值基线与组件定制在《统一视觉规范》§二、§三落位；共享层改为 ChipsProvider 安装主题根
+INV1-007	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	已复核：唯一导入面、组件与 Hooks 导出清单、Provider、命令运行时、帧内使用方法与禁止事项全覆盖

@@ -1,0 +1,5 @@
+缺口ID	状态	新文档路径	说明
+INV4-HOST-24	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	15-文件处理契约 §1.1 废止旧 `office.document.*` 平台链路，Office 应用归口与功能范围已入《官方应用功能总览》§七/§十六；docx/xlsx/pptx/pdf 引擎作为内容处理服务提供方的契约仍登记为待设计条目，故为 planned 而非 done
+INV4-HOST-16	open		首启引导已由《生态设置面板设计》§7 覆盖、安装包产物由《构建与打包》§6 覆盖，但安装器内置插件装载（resources/builtin-plugins）与首次启动引导链仍无平台契约；保持 open
+INV4-HOST-25	open		Chips-Host xlsx-engine-service 为子进程 sidecar 形态，与《插件架构设计》§5.2 禁止子进程/原生载荷、《15-文件处理契约》§2.1 禁止创建子进程冲突；电子表格引擎原子能力契约仍待服务插件补设计；保持 open
+INV4-HOST-28	open		Headless 宿主形态在新库仅于个人服务器文档出现“无头”字样，桌面/CLI 托管宿主设计仍缺；保持 open

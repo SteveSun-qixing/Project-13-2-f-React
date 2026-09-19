@@ -1,0 +1,24 @@
+缺口ID	状态	新文档路径	说明
+S05-011	done	薯片生态文档库/05-接口与契约/14.05-14-资源打开与默认处理器契约-五、启动载荷.md	电子书卡片载荷 BookCardOpenPayload（ebook / image-sequence 两模式、resources.book/images、display）已登记于 §5.4，消费规则见 §5.4 与 §5.5 resource:opened；BookReader/PhotoViewer 载荷消费有据可依
+INV5-056	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	多处理器默认优先级治理已由处理器声明层级（primary/fallback）与 §4 路由解析、§6 默认处理器偏好统一回答
+INV5-067	done	薯片生态文档库/05-接口与契约/14.06-14-资源打开与默认处理器契约-六、默认处理器与治理.md	默认查看器治理落位：平台配置键 platform.fileOpen.defaults 与只读槽位能力 resource:list-handlers；设置面板对接见 08-产品与交互/05-生态设置面板设计.md §3.7、§8.1
+INV5-908	done	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	官方应用清单与职责矩阵已建立：十四个官方应用的定位、核心功能、依赖插件与能力、数据格式、已知取舍五要素齐全；登记标识待《官方插件与应用目录》最终收口
+INV5-031	done	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	视频格式支持与 HTML5 播放栈：08-总览 §九 正式声明（mp4/webm/mov/m4v/ogv，解码能力随宿主平台，无解码给明确错误）；播放交互见 08-产品与交互/03-查看器设计.md §4.4
+INV5-036	done	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	保存视频副本列入视频播放器核心功能（08-总览 §九）；保存/导出界面语义见 08-产品与交互/03-查看器设计.md §3.5
+INV5-045	done	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	阅读进度与书签正式定为应用自有持久化、不写入平台配置（08-总览 §十），应用侧按配置命名空间实现，平台不再提供统一进度契约
+INV5-084	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	图标生成链路（Canvas 合成→PNG/ICO/ICNS 多选→ZIP Store 打包）列入图标工坊核心功能（08-总览 §十四），生成链路已由 08-总览 §十四 收口；图标资产格式规范仍缺（INV5-087/INV5-086/INV6-054~059），故与 S40 口径保持 planned 合并跟踪
+INV5-020	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	应用自定义 CLI 命令契约已建立：cli.commands 声明、app 目标 surface open/focus/reuse、cli:task-* 任务能力；Office/iconMaker 声明按新字段重写（见 S38-058）
+INV6-035	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	参考资产 DPlayer 登记为 RA-01/RA-02（1.27.1、MIT、仅参考、吸收位置 Chips-VideoPlayer），第三方参考资产清单建成
+INV6-037	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	参考资产 GenOffice 登记为 RA-04（0.1.0、Apache-2.0、源码移植、吸收位置 Chips-Office/Chips-Host）
+INV6-038	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	参考资产 MusicPlayer 登记为 RA-05（MIT、思路吸收+素材纳入、吸收位置 Chips-MusicPlayer）
+INV6-039	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	参考资产 iconMaker 登记为 RA-06（MIT、源码移植能力重写），吸收位置含 scripts/sync-plugin-icons.mjs 经 chips iconmaker generate 同步链路
+INV6-041	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	参考资产 open-file-viewer 登记为 RA-08（0.1.43、MIT、源码移植、吸收位置 Chips-UniversalFileViewer）
+INV6-042	done	薯片生态文档库/02-开发规范/11-第三方参考资产清单.md	参考资产 Thorium Reader 登记为 RA-09/RA-10（BSD-3-Clause、源码移植、吸收位置 Chips-BookReader）
+INV5-034	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	字幕与音轨的运行时消费语义登记为待设计条目（08-总览 §十六 媒体播放消费契约），落点《官方插件与应用目录》与能力契约 §八；VideoPlayer 现状转待设计跟踪
+INV5-085	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	图标来源（Material Symbols codepoints、Emoji、自定义字体）列入图标工坊核心功能（08-总览 §十四）；上游字体素材许可登记仍待补（见 INV6-060）
+INV5-907	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	内容处理服务契约登记为待设计条目（08-总览 §十六：媒体元数据解析与图像转换、Office 引擎、OCR），服务名与能力描述符随《官方插件与应用目录》与提供方插件契约发布
+INV5-013	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	办公文档引擎服务（xlsx sidecar/saveArchive/office.crypto.decrypt）登记为待设计条目（08-总览 §七、§十六）；Office 应用按内容处理服务提供方重建
+INV4-HOST-24	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	Office 文档会话服务归口更新：旧 file.session.* 废止（05-接口与契约/15.01 第 21 行），办公引擎以内容处理服务提供方形态重建，编排归文件处理契约（08-总览 §七、§十六）
+INV5-018	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	GenOffice 三层移植边界已有处置结论：源码移植、引擎层随内容处理服务重建、主进程职责重定位（08-总览 §七；02-开发规范/11-第三方参考资产清单 RA-04）
+INV5-901	planned	薯片生态文档库/05-接口与契约/04-能力契约规范.md	九应用 manifest 旧权限词汇统一按 R19 全表重写（music/video/book/photo/office/settings/iconMaker/RTE/UVF）；本轮已在分片登记 9 应用 manifest 冲突行（S38-001/S38-002）
+S06-004	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	TIFF→PNG 与媒体元数据抽取转入内容处理服务待设计条目（08-总览 §十六），不再作为 Host 原子能力；MusicPlayer 的 resource.convertTiffToPng 调用随服务契约重写

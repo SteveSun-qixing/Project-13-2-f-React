@@ -11,8 +11,9 @@
 ## 目录职责
 
 - 本目录保存基础卡片插件静态身份图标的正式设计源；
-- 工程内同步到 `assets/icons/basecard-icon.*`，用于插件静态身份、物料清点和后续展示链路；
-- 基础卡片运行时图标仍以 `basecardDefinition.icon` 与 `ChipsIcon + IconDescriptor` 为准；
+- 工程内同步到 `assets/icons/basecard-icon.*`，用于插件静态身份、物料清点和治理展示链路；
+- 目录内 `.svg` 为设计源与平台中立主图，`.png` / `.ico` / `.icns` 为同批派生物；
+- 运行时 UI 图标统一经 `@chips/ui` 图标出口渲染；
 - 本目录不属于 `manifest.ui.launcher.icon` 系统入口链路。
 
 ## 当前正式命名基线
@@ -34,4 +35,4 @@
 - 图标调整时，先更新本目录正式 SVG 源文件，再通过 `scripts/generate-plugin-material-icons.ts` 同步 SVG 设计源，并通过 `scripts/sync-plugin-icons.mjs`（`chips iconmaker generate`）重新渲染 PNG/ICO/ICNS；
 - 不再使用字体码位、HTML 文本渲染或截图方式生成图标，避免出现乱码；
 - 每次改动本目录资产，必须同步更新本文件与对应工程 `assets/icons/SOURCE.md`；
-- 运行时 UI 图标仍通过生态正式 `ChipsIcon + IconDescriptor` 链路渲染。
+- 运行时 UI 图标统一经 `@chips/ui` 图标出口渲染。

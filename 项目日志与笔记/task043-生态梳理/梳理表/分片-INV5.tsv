@@ -1,0 +1,102 @@
+节点ID	来源	旧路径	主题	维度标签	新库对应	覆盖状态	建议动作	证据
+INV5-001	Chips-Notes	README.md:10-25,47-72	笔记应用定位与三栏工作台（目录树/编辑区/卡片库）	功能;产品;UI	无（仅平台级文档）	缺失	产品与内部交互留 Chips-Notes 技术文档；若定为生态通用应用模型再入新库	旧 README:10-25；新库 grepF "笔记本|三栏" 0 命中
+INV5-002	Chips-Notes	README.md:95-111	笔记本=.box、笔记=.card、基础卡片概念映射	功能;文件格式	04-文件格式规范/01-卡片文件格式.md；04-文件格式规范/02-箱子文件格式.md	部分覆盖	确认"文档库布局"正式布局 ID（chips.layout.*）或明确为应用内部概念	新库箱子布局仅 chips.layout.grid/board；grepF "文档库布局|笔记本" 0 命中
+INV5-003	Chips-Notes	技术文档/Chips-Notes架构设计.md:66-75,99-143	笔记读写链路（box/card 会话、元数据与结构读取）	接口契约;架构	01-架构设计/01-子系统设计/11-文档服务设计.md；05-接口与契约/04-能力契约规范.md §7.3	已覆盖	直接引用平台文档链路，不新增	旧架构设计:66-75；新库 11 会话模型、04 §7.3 document:*
+INV5-004	Chips-Notes	技术文档/Chips-Notes架构设计.md:153-163,177-206	复用编辑引擎装配与渲染基础卡片	架构;功能	01-架构设计/01-子系统设计/12-编辑引擎设计.md；05-接口与契约/08-基础卡片插件接口.md	部分覆盖	平台机制已定义；笔记场景装配参考留应用文档	新库 12 含官方编辑引擎应用参考架构；08 §2.5 双入口
+INV5-005	Chips-Notes	README.md:136-141；技术文档/Chips-Notes架构设计.md:171-175	卡片库面板与拖拽插入/排序基础卡片	功能;交互	01-架构设计/01-子系统设计/12-编辑引擎设计.md；01-架构设计/01-子系统设计/05-渲染引擎设计.md	部分覆盖	拖拽交互留应用内部；若形成通用编辑交互协议再进新库	新库 12/05 有拖拽与编辑态渲染；grepF "卡片库" 0 命中
+INV5-006	Chips-Notes	技术文档/Chips-Notes架构设计.md:165-169	防抖自动保存（3s）与保存状态提示	功能;数据	01-架构设计/01-子系统设计/12-编辑引擎设计.md；01-架构设计/01-子系统设计/11-文档服务设计.md	已覆盖	引用平台自动保存与保存原子性机制	新库 12 自动保存/revision；11 保存原子性
+INV5-007	Chips-Notes	项目日志/任务006-复合卡片导出链路打通/00-导出链路说明.md	复合卡片导出链路	接口契约;导出	05-接口与契约/08-基础卡片插件接口.md §3.5、§6.3；04-文件格式规范/01	已覆盖	引用 exportFormats/export 契约	新库 08:169-178、447-462
+INV5-008	Chips-Notes	README.md:145-148；src/commands	命令面板/快捷键统一 CommandItem 注册	接口契约;交互	05-接口与契约/07-应用插件接口.md §3.3；03-插件开发/03-应用插件开发指南.md §7	已覆盖	引用命令注册与投递契约	新库 07:206-222；03/03 §7
+INV5-009	Chips-Notes	README.md:178-191	运行时图标系统（IconDescriptor/RuntimeIcon，禁 emoji/字符图标）	UI;规范	无（仅清单 §7.4 launcher.icon 路径规则）	缺失	新建《前端图标与视觉资产规范》落点 02-开发规范	新库 grepF "IconDescriptor" 0 命中；清单 §7.4:529-541
+INV5-010	Chips-Notes	README.md:115-131；技术架构:63-72	笔记本/笔记 CRUD 与工作区扫描	功能;平台接入	01-架构设计/01-子系统设计/13-工作区设计.md；05-接口与契约/04-能力契约规范.md §7.1	部分覆盖	平台扫描/文件能力已覆盖；应用菜单与 CRUD 留应用文档	新库 13 WS 规则；04 §7.1 file:*
+INV5-011	Chips-Office	manifest.yaml:7；README.md:6	办公四件套（docx/xlsx/xls/csv/pptx/pdf）查看与编辑	功能;产品	无	缺失	应用产品能力留仓库；跨仓需《办公文档处理服务契约》落点 05-接口与契约	新库 grepF "docx|xlsx|pptx" 0 命中（仅 04/01:1248 FileCard 示例）
+INV5-012	Chips-Office	技术文档/01-移植架构说明.md:34；src/bridge/document-session.ts	文件会话链路 file.session.*（open/create/read/write/persist/close）	接口契约	01-架构设计/01-子系统设计/11-文档服务设计.md；05-接口与契约/04-能力契约规范.md §7.3	部分覆盖	明确 file.session 门面与 document:* 的映射（或统一替换为 document:*）	新库 grepF "file.session" 0 命中；11 会话模型、04 §7.3
+INV5-013	Chips-Office	技术文档/01:43,60	Host office.engine.* 服务（xlsx sidecar calamine/ironcalc、saveArchive）	接口契约;架构	05-接口与契约/04-能力契约规范.md §3.2:275（仅机制）	缺失	新建《办公文档引擎服务契约》（服务插件 ctx.provide）	旧文档:43,60；新库仅"内容处理由服务插件提供"
+INV5-014	Chips-Office	技术文档/01:47	加密 docx 解密路由 office.crypto.decrypt	接口契约;安全	无	缺失	并入《办公文档处理服务契约》安全章节	旧文档:47；新库 grepF "crypto" 0 命中
+INV5-015	Chips-Office	manifest.yaml:44-66	Office 文档打开路由与 file-handler 声明	平台接入;文件关联	03-插件开发/02-插件清单规范.md §7.4；05-接口与契约/07-应用插件接口.md §5.4	部分覆盖	扩展名关联可表达；MIME 级与专用/兜底优先级缺失，见 INV5-902	新库清单:556-566；旧 manifest:46-66
+INV5-016	Chips-Office	技术文档/01:48	PDF 导出与打印（pdf-lib + 浏览器打印）	功能;导出	无	缺失	应用内部能力；若形成通用打印/导出契约再进新库	旧文档:48；新库"打印"仅构建语境
+INV5-017	Chips-Office	技术文档/01:49	字体度量（sfnt 与浏览器 canvas 差异、fallback 契约）	功能;工程	无	缺失	工程细节留仓库；平台长期复用需服务契约	旧文档:49；新库 grepF "字体度量" 0 命中
+INV5-018	Chips-Office	技术文档/01:15-16,58-62,64-74	GenOffice 三层移植边界与浏览器安全分层	工程;架构	02-开发规范/01-代码组织规范.md（一般约束）	缺失	项目内部工程文档；如沉淀通用移植规范入 02-开发规范	旧文档:15-16,64-74；新库无第三方移植规范
+INV5-019	Chips-Office	技术文档/01:56,78	OCR 能力边界（扫描 PDF 不移植）	功能;能力	无	缺失	登记内容处理能力规划（图像/OCR）或明确不做	旧文档:78；新库 grepF "OCR" 0 命中
+INV5-020	Chips-Office	manifest.yaml:74-93	应用 CLI 命令 office open（命令→surface 启动）	平台接入;CLI	03-插件开发/01-快速开始.md:111-118（仅开发 CLI）；05-接口与契约/07 §3.3	部分覆盖	应用自定义 CLI 命令无契约，见 INV5-906/908	新库 grepF "cli.task|office.engine" 0 命中
+INV5-021	Chips-MusicPlayer	manifest.yaml:20-30；需求文档/02:3-20	音频格式支持与 HTML5 audio 播放	功能;媒体处理	04-文件格式规范/01 §6.8 MusicCard	部分覆盖	卡片字段已覆盖；应用播放能力留仓库	新库 04/01:1124-1216；旧 manifest:21-30
+INV5-022	Chips-MusicPlayer	需求文档/02:22-31	启动恢复（resourceOpen/targetPath/文件选择/拖拽）	平台接入;启动	05-接口与契约/07-应用插件接口.md §3.4、§5.4；03-插件开发/03 §8	部分覆盖	resourceOpen 载荷语义缺失，见 INV5-903	新库 07:257-331；grepF "resourceOpen|targetPath" 0 命中
+INV5-023	Chips-MusicPlayer	README.md:24；需求文档/02:59-63	嵌入元数据解析（ID3v2/ID3v1、Vorbis Comment、moov.ilst、OpusTags）	功能;媒体处理	05-接口与契约/04-能力契约规范.md §3.2:275（仅机制）	缺失	新建《媒体元数据服务契约》（服务插件）落点 05-接口与契约	旧需求:59-63；新库 grepF "ID3|Vorbis" 0 命中
+INV5-024	Chips-MusicPlayer	README.md:25；需求文档/02:55-66	伴生封面发现与 TIFF→PNG 归一	功能;媒体处理	04-文件格式规范/01:1213（TIFF 转换要求）	部分覆盖	卡片格式已定要求；转换服务契约缺失（旧版《资源图像转换契约》）	新库 04/01:1213；grepF "convertTiff" 0 命中
+INV5-025	Chips-MusicPlayer	需求文档/02:64-66；README.md:27	LRC 歌词解析与滚动高亮	功能;媒体处理	04-文件格式规范/01:1146（lyrics_file 字段）	缺失	歌词呈现与应用行为留仓库；媒体解析服务契约见 INV5-907	新库"歌词"仅 04/01:1146,1211；grepF "LRC" 0 命中
+INV5-026	Chips-MusicPlayer	需求文档/02:33-51	播放控制（播放/暂停/进度/音量/循环/队列）	功能;交互	无	缺失	应用内部能力	新库 grepF "播放控制|音量" 0 命中
+INV5-027	Chips-MusicPlayer	需求文档/02:92-102	键盘交互语义（Space/Arrow/M/L）	交互;规范	02-开发规范/03-React组件开发规范.md（通用）	缺失	应用内部；通用快捷键/无障碍模型可沉淀（旧 @chips/a11y）	新库 grepF "a11y|快捷键模型" 0 命中
+INV5-028	Chips-MusicPlayer	需求文档/02:104-113	保存音频副本（file.copy/下载回退）	平台接入;文件	05-接口与契约/04-能力契约规范.md §7.1；05-接口与契约/07 §5.4	部分覆盖	平台文件能力覆盖；应用保存语义留仓库	新库 04 §7.1 file:*；旧需求:110-112
+INV5-029	Chips-MusicPlayer	README.md:23；需求文档/02:72	音乐卡片查看态点击→交给音乐播放器	文件格式;交互	04-文件格式规范/01:1216	已覆盖	引用卡片格式行为约定	新库 04/01:1208-1216
+INV5-030	Chips-MusicPlayer	需求文档/02:125-126	主题与多语言接入（theme.read/i18n.read）	规范;冲突	01-架构设计/ADR/ADR-006-主题系统与多语言系统.md（废弃）；README R5	冲突	应用迁移到 @chips/ui 苹果主题+中文直写；清权限残留	新库 README:47 R5；旧需求:125-126
+INV5-031	Chips-VideoPlayer	manifest.yaml:19-26；需求文档/02:3-17	视频格式支持与 HTML5 video 播放	功能;媒体处理	04-文件格式规范/01 §6.2 VideoCard	部分覆盖	格式已覆盖；播放能力留仓库	新库 04/01:586-693
+INV5-032	Chips-VideoPlayer	需求文档/02:19-27	启动恢复（resourceOpen/targetPath/拖放）	平台接入;启动	05-接口与契约/07-应用插件接口.md §3.4	部分覆盖	同 INV5-903	新库 07:257-331
+INV5-033	Chips-VideoPlayer	需求文档/02:29-48	播放控制（倍速/全屏/画中画）	功能;交互	无	缺失	应用内部；VideoCard playback 消费契约待定	新库 grepF "画中画|倍速" 0 命中；04/01:636-657 playback 字段
+INV5-034	Chips-VideoPlayer	需求文档/02:85-92	更多面板（视频信息/字幕/音轨）	功能;媒体处理	04-文件格式规范/01:606-635（subtitles 字段）	部分覆盖	字幕轨格式已覆盖；运行时轨道消费无契约	新库 04/01:606-635
+INV5-035	Chips-VideoPlayer	需求文档/02:51-60	悬浮工具条/自动隐藏/空态	交互;UI	无	缺失	应用内部	新库 grepF "工具条" 0 命中
+INV5-036	Chips-VideoPlayer	需求文档/02:74-83	保存视频副本	平台接入;文件	05-接口与契约/04-能力契约规范.md §7.1	部分覆盖	平台能力覆盖；应用语义留仓库	新库 04 §7.1
+INV5-037	Chips-VideoPlayer	需求文档/02:62-72	键盘交互（Space/Arrow/F/M）	交互;规范	02-开发规范/03（通用）	缺失	同 INV5-027	新库无快捷键模型
+INV5-038	Chips-VideoPlayer	需求文档/02:103-104	主题与多语言接入	规范;冲突	ADR-006；README R5	冲突	同 INV5-030	旧需求:103-104；新库 R5
+INV5-039	Chips-BookReader	技术文档/02:64-66,90；README.md:7	EPUB/EPUB3 解析渲染（OPF/nav/HTML 变换/ReadiumCSS）	功能;媒体处理	无	缺失	新建《电子书渲染与阅读引擎设计》落点 01-架构设计/01-子系统设计（或应用内部+服务契约）	新库 grepF "epub" 0 命中
+INV5-040	Chips-BookReader	技术文档/02:90	PDF/TXT/MD/FB2/RTF 虚拟章节加载	功能;媒体处理	04-文件格式规范/01:1248（PDF 仅 FileCard 示例）	缺失	并入《电子书渲染与阅读引擎设计》	旧技术文档:90；新库无电子书加载链路
+INV5-041	Chips-BookReader	README.md:8；技术文档/02:91	MOBI/AZW/AZW3/DJVU/DOC/DOCX 目标识别与错误态	功能;能力	无	缺失	在格式支持矩阵登记解码能力边界	新库无电子书格式支持矩阵
+INV5-042	Chips-BookReader	需求文档/01:13,77；技术文档/02:88	电子书卡片 chips.book-card 载荷	文件格式;接口契约	无	缺失	04-文件格式规范新增电子书卡片类型；05 定义载荷	新库 grepF "book-card|BookCard" 0 命中
+INV5-043	Chips-BookReader	需求文档/01:23-25；技术文档/02:97	分页/滚动双模式与单双页 spread 计算	功能;渲染	无	缺失	应用内部引擎设计（留仓库技术文档）	新库 grepF "滚动模式" 0 命中；分页仅箱子弹窗语境
+INV5-044	Chips-BookReader	需求文档/01:14-15,55-56	目录/章节/锚点/搜索（防抖/高亮/计数）	功能;交互	无	缺失	应用内部	新库无阅读器交互
+INV5-045	Chips-BookReader	需求文档/01:43-45；README.md:106	书签与阅读进度持久化（按书源恢复）	功能;数据	01-架构设计/01-子系统设计/10-配置系统设计.md:582	部分覆盖	高频进度不入 config；应用自有持久化策略需入应用文档	新库 10:582；grepF "阅读进度" 0 命中
+INV5-046	Chips-BookReader	需求文档/01:32-42	阅读偏好（字号/行高/字距/字体/版心/竖排/背景/亮度）	功能;UI	无	缺失	应用内部	新库无阅读排版规范
+INV5-047	Chips-BookReader	需求文档/01:27-31；README.md:17-21	多输入设备翻页（键盘/点击/滚轮/触摸）	交互	无	缺失	应用内部；通用输入意图层可沉淀入 02-开发规范	新库 grepF "滚轮翻页|触摸" 0 命中
+INV5-048	Chips-BookReader	README.md:24；需求文档/01:46-48	翻页动画与 prefers-reduced-motion 降级	交互;无障碍	无	缺失	无障碍与动效规范建议入 02-开发规范	新库 grepF "prefers-reduced-motion|a11y" 0 命中
+INV5-049	Chips-BookReader	技术文档/03-Thorium-Readium来源与许可证说明.md	Readium/Thorium 开源吸收与许可证登记	工程;合规	00-愿景与原则/01-架构原则.md:387（仅选型原则）；清单 license 字段	缺失	新建《第三方开源资产与许可证登记》落点 07-工程管理	新库无第三方许可登记文档
+INV5-050	Chips-PhotoViewer	manifest.yaml:19-28；需求文档/01:53-108	图片查看（缩放/适应/实际大小/平移）	功能;交互	04-文件格式规范/01 §6.3 ImageCard	部分覆盖	格式已覆盖；查看控制留应用文档	新库 04/01:695-805
+INV5-051	Chips-PhotoViewer	README.md:33-39；需求文档/01:19-35	启动恢复/文件关联/安装器条件注册	平台接入;文件关联	清单规范 §7.4；07-应用插件接口 §5.4	部分覆盖	声明与路由已覆盖；未安装不注册/卸载回收治理缺失（INV5-902）	新库清单:556-566
+INV5-052	Chips-PhotoViewer	需求文档/01:37-42	卡片点击图片→资源打开→图片查看器	文件格式;交互	04-文件格式规范/01（ImageCard 未定义查看态点击行为）	部分覆盖	04/01 补 ImageCard 查看态行为小节（对齐 MusicCard/FileCard）	新库 MusicCard:1216、FileCard:1268 有；ImageCard:695-805 无
+INV5-053	Chips-PhotoViewer	需求文档/01:44-49	图包 chips.book-card image-sequence 队列浏览	文件格式;接口契约	无	缺失	并入 INV5-042 电子书卡片与载荷契约	新库 grepF "image-sequence" 0 命中
+INV5-054	Chips-PhotoViewer	需求文档/01:110-120	保存图片副本（readBinary+file.write，不转码）	平台接入;文件	05-接口与契约/04-能力契约规范.md §7.1-7.2	部分覆盖	平台能力覆盖；应用保存语义留仓库	新库 04 §7.1-7.2
+INV5-055	Chips-PhotoViewer	需求文档/01:94-108	多输入设备缩放平移（滚轮/触控板/触摸）	交互	无	缺失	同 INV5-047	新库无输入手势规范
+INV5-056	Chips-PhotoViewer	需求文档/01:155-161	多图片查看器默认处理器优先级治理	平台接入;治理	04/01:1268（未命中回退系统）	缺失	新建《资源打开与默认处理器契约》（INV5-902）	旧需求:160；新库 grepF "默认查看器" 0 命中
+INV5-057	Chips-PhotoViewer	需求文档/01:124-130	主题与多语言接入	规范;冲突	ADR-006；README R5	冲突	同 INV5-030	旧需求:127-128；新库 R5
+INV5-058	Chips-RichTextEditor	README.md:18-22；需求文档/02:3-91	单文档编辑会话（草稿/打开/保存/另存/自动保存/放弃确认）	功能;交互	01-架构设计/01-子系统设计/12-编辑引擎设计.md；11-文档服务设计.md	部分覆盖	编辑机制已覆盖；应用会话流程留仓库	新库 12 IEditSession/revision/自动保存
+INV5-059	Chips-RichTextEditor	README.md:18-22；需求文档/03-文件模型与验收要求.md	固定复合卡片结构（一容器+一 base.richtext）	文件格式	04-文件格式规范/01 §6.6	已覆盖	引用 base.richtext 与 structure 规范	新库 04/01:1024-1072
+INV5-060	Chips-RichTextEditor	README.md:32	正式编辑器装载（card.renderEditor/SDK editorPanel.render）	接口契约	05-接口与契约/08-基础卡片插件接口.md §3-4；05-接口与契约/02-SDK-API规范.md	已覆盖	引用插件编辑器接口	新库 08 §3-4；02-SDK-API:458
+INV5-061	Chips-RichTextEditor	需求文档/02:29-38	打开校验（仅单 base.richtext 复合卡片）	功能;文件格式	06-文档解析器设计.md §6（三层校验，仅通用信封）	部分覆盖	应用级结构校验留仓库	新库 06 §6
+INV5-062	Chips-RichTextEditor	README.md:36	不声明 .card 文件关联以避免与卡片查看器争抢	平台接入;治理	清单规范 §7.4:563-566（无优先级模型）	冲突	默认处理器治理缺失，无法表达"不争抢"；见 INV5-902	新库仅"启用状态与用户选择"
+INV5-063	Chips-RichTextEditor	需求文档/02:92-107	Typora 风格界面（原生标题栏/命令面板/弱管理感）	UI;交互	02-开发规范/03-React组件开发规范.md（通用）	部分覆盖	应用内部；共享层 AppChrome 未入新库（grep 0）	旧需求:94-98；新库 grepF "AppChrome" 0 命中
+INV5-064	Chips-RichTextEditor	manifest.yaml:26	i18n.write 权限残留	规范;冲突	ADR-006；05-接口与契约/04-能力契约规范.md R19	冲突	删除 i18n.write；文案中文直写	旧 manifest:26；新库 R5/R19 无 i18n 权限
+INV5-065	Chips-UniversalFileViewer	需求文档/01:9-17；manifest.yaml:40-107	兜底查看定位与 @fallback 能力层级	平台接入;治理	无	缺失	新建《资源打开与默认处理器契约》落点 05-接口与契约	新库 grepF "resource-handler|@fallback" 0 命中
+INV5-066	Chips-UniversalFileViewer	需求文档/01:21-33；README.md:5-19	广谱格式预览矩阵（图片/音视频/代码/PDF/EPUB/Office/压缩包/邮件/CAD/3D/GIS/设计资产）	功能;媒体处理	04-文件格式规范/01（仅基础卡片类型）	缺失	建立《查看器能力与格式支持矩阵》落点 01-架构设计/01-子系统设计或应用文档	新库"压缩包"仅 04/01:1265；grepF "邮件|CAD|GIS" 0 命中
+INV5-067	Chips-UniversalFileViewer	需求文档/01:17,60	默认查看器治理（fileOpen.defaults/plugin.listHandlers/设置页）	接口契约;治理	无	缺失	新建《运行时设置治理接口契约》与《资源打开与默认处理器契约》	新库 grepF "listHandlers|fileOpen.defaults|文件打开方式" 0 命中
+INV5-068	Chips-UniversalFileViewer	README.md:25；需求文档/01:41	资源装载口径（resource.resolve/readBinary/http）	接口契约;平台接入	05-接口与契约/06-资源协议规范.md；04-能力契约规范 §7.2-7.3	已覆盖	引用资源协议与能力契约	新库 06 §2/§5；04 §7.2
+INV5-069	Chips-UniversalFileViewer	需求文档/01:52	重依赖懒加载（首屏不受影响）	性能	01-架构设计/01-子系统设计/05-渲染引擎设计.md（性能优化）；02-开发规范/03	部分覆盖	应用内部约束；性能基线引用 R18	新库 05 性能优化；README R18
+INV5-070	Chips-UniversalFileViewer	需求文档/01:23-33,46	预览工具栏（页码/搜索/打印/旋转/队列导航/另存）	功能;交互	无	缺失	应用内部	新库 grepF "旋转|打印" 0 命中（打印仅构建语境）
+INV5-071	Chips-UniversalFileViewer	需求文档/01:33,54	不支持格式兜底信息卡（识别+下载入口）	功能;交互	04/01:1268（未命中回退系统打开）	部分覆盖	兜底卡与应用策略留仓库；与默认处理器治理联动	旧需求:33；新库仅"回退系统默认打开方式"
+INV5-072	Chips-UniversalFileViewer	README.md:24；需求文档/01:39	chips.book-card 图片序列兜底消费	文件格式;接口契约	无	缺失	并入 INV5-042	新库 grepF "book-card" 0 命中
+INV5-073	Chips-UniversalFileViewer	README.md:7；src/viewer-engine/LICENSE.open-file-viewer	open-file-viewer 移植与许可证保留	工程;合规	00-愿景与原则/01-架构原则.md:387（仅选型原则）	部分覆盖	并入《第三方开源资产与许可证登记》（INV5-049）	新库无许可证登记文档
+INV5-074	Chips-EcoSettingsPanel	README.md:9-17；需求文档/02:3-19	运行时治理设置中枢（注册表驱动菜单/一级 Scene）	功能;架构	无	缺失	新建《生态设置面板设计》落点 01-架构设计/01-子系统设计或应用文档	新库"设置面板"仅权限系统人机交互语境
+INV5-075	Chips-EcoSettingsPanel	需求文档/02:76-108,154-173	插件治理（安装/启用/停用/卸载/查询/类型校验）	接口契约;治理	03-插件开发/01-快速开始.md:380-398；05-接口与契约/05-事件契约规范.md:164-203	部分覆盖	补 Bridge/SDK 插件治理接口契约（旧版《运行时设置治理接口标准》）	新库 grepF "plugin.manage|plugin.install" 0 命中
+INV5-076	Chips-EcoSettingsPanel	需求文档/02:102-107	应用快捷方式治理（桌面/启动台创建/移除/定位）	功能;平台接入	无	缺失	新建《应用快捷方式治理接口契约》落点 05-接口与契约	新库 grepF "快捷方式|启动台" 0 命中
+INV5-077	Chips-EcoSettingsPanel	旧版-生态共用技术文档/协议与接口标准/07-运行时设置治理接口标准.md	文件打开方式/默认处理器治理页	接口契约;治理	无	缺失	并入《运行时设置治理接口契约》（INV5-067）	新库 grepF "文件打开方式" 0 命中
+INV5-078	Chips-EcoSettingsPanel	需求文档/02:5-17,154-173；README.md:13-14	卡片/布局/模块三类插件治理页	架构;冲突	00-愿景与原则/01-架构原则.md R1；01-架构设计/01-子系统设计/03-插件架构设计.md	冲突	按四角色重写治理页（basecard/boxlayout/app/service）；模块插件不存在	新库 R1；旧需求文档仍列 module-plugins（未同步 README:80）
+INV5-079	Chips-EcoSettingsPanel	README.md:83	插件快捷方式图标 iconPath 获取与回退	接口契约;UI	03-插件开发/02-插件清单规范.md §7.4（launcher.icon）	部分覆盖	插件治理接口需返回图标路径契约（并入 INV5-076）	旧 README:83；新库 grepF "iconPath" 0 命中
+INV5-080	Chips-EcoSettingsPanel	需求文档/02:9-11,61-74,132-144	主题/多语言治理与诊断页	规范;冲突	ADR-006（废弃）；README:17,80	冲突	删除该体系；旧需求文档归档/重写	旧需求文档未同步；新库 R5
+INV5-081	Chips-EcoSettingsPanel	需求文档/02:109-130	组件展示页（真实组件/状态覆盖/主题验证）	UI;规范	02-开发规范/03-React组件开发规范.md；@chips/ui 共享层	部分覆盖	组件库无独立契约文档；组件矩阵可入 02-开发规范	新库 README:57；grepF "组件展示|Bento" 0 命中
+INV5-082	Chips-EcoSettingsPanel	需求文档/02:146-152；README.md:15	预览与质量页（chipsdev-r 命令入口/报告边界）	工具链;质量	06-开发与运维/05-CICD与质量门禁.md	部分覆盖	CLI 名称/报告消费链路需统一（INV5-906）	新库 grepF "chipsdev" 0 命中
+INV5-083	Chips-EcoSettingsPanel	manifest.yaml:19-23；README.md:81	治理权限词（theme.write/i18n.write/plugin.manage/config.*）	权限;冲突	05-接口与契约/04-能力契约规范.md §6.2 R19	冲突	按 R19 重映射；治理域能力需登记（INV5-901/907）	新库 R19 无 plugin.manage/theme.write
+INV5-084	Chip-iconMaker	manifest.yaml:7；README.md:11；技术文档/01:13-16	图标生成（Canvas 合成→PNG/ICO/ICNS→ZIP Store）	功能;媒体处理	无	缺失	应用内部；图标资产格式规范入 02-开发规范（INV5-087）	新库 grepF "ICO|ICNS|图标生成" 0 命中（仅 ADR-002:324 Electron 图标示例）
+INV5-085	Chip-iconMaker	README.md:8；需求文档/01:20-27	图片来源与字体图标源（Material Symbols codepoints/Emoji/自定义字体）	功能;UI	无	缺失	应用内部	新库 grepF "Material Symbols" 0 命中
+INV5-086	Chip-iconMaker	需求文档/01:28-46	输出格式/尺寸档位/适应填充/背景合成	功能;交互	无	缺失	应用内部	新库无图标生成规范
+INV5-087	Chip-iconMaker	manifest.yaml:62；README.md:19	launcher 图标资产（app-icon.ico/.icns 等格式与尺寸）	文件格式;规范	03-插件开发/02-插件清单规范.md §7.4（仅路径要求）	部分覆盖	新建《应用图标资产规范》（PNG/ICO/ICNS 尺寸/命名/平台矩阵）落点 02-开发规范或 04-文件格式规范	新库清单:531-541；grepF "icns" 仅 ADR-002:324
+INV5-088	Chip-iconMaker	manifest.yaml:73-97；技术文档/01:30-38	应用 CLI 命令与 cli.task 进度上报	平台接入;CLI	03-插件开发/01-快速开始.md（仅开发 CLI）	缺失	新建《应用 CLI 命令规范》（声明/参数/job/进度/产物）	新库 grepF "cli.task|cliTask" 0 命中
+INV5-089	Chip-iconMaker	manifest.yaml:98-146	CLI 参数声明模型（path/choices/validation/ui control）	接口契约;CLI	无	缺失	并入《应用 CLI 命令规范》	新库清单字段表无 cli
+INV5-090	Chip-iconMaker	技术文档/01:5,23	浏览器安全边界（禁 Node/Electron/Python/sips/iconutil）	安全;规范	00-愿景与原则/01-架构原则.md R17；01-架构设计/01-子系统设计/03-插件架构设计.md	已覆盖	引用平台红线；应用实现合规	新库 R17；旧技术文档:5,23
+INV5-091	Chip-iconMaker	README.md:16；技术文档/01:85-90	中文直写与 antd+@chips/ui 视觉	规范	README R4/R5；02-开发规范/03	已覆盖	无需新文档	新库 R5；旧 README:16
+INV5-901	多仓库（10 应用）	全仓 manifest.yaml permissions（示例 Chips-Notes:18-38、Chips-MusicPlayer:32-40）	旧权限词汇→R19 能力/权限映射缺失	权限;接口契约;迁移	05-接口与契约/04-能力契约规范.md §6.2 R19	缺失	新建《旧权限到 R19 映射表》落点 05-接口与契约（并入 04 附录）或迁移指南	新库 grepF 旧 ID（file.read/resource.read/platform.read/command.*/config.*/plugin.read/module.*/card.*/box.*/zip.manage/theme.write/i18n.write/cli.task/log.write）全部 0 命中
+INV5-902	多仓库（Music/Video/Photo/Book/Office/UVF）	各 manifest capabilities（resource-handler/file-handler/@fallback）	资源处理器与兜底优先级声明缺失	平台接入;治理;接口契约	03-插件开发/02-插件清单规范.md §7.4（fileAssociations）	缺失	新建《资源打开与默认处理器契约》：MIME 级声明、primary/fallback 层级、默认项治理、未安装回收	新库 grepF "resource-handler|file-handler|@fallback" 0 命中；清单:556-566 仅扩展名+action open
+INV5-903	多仓库（Music/Video/Photo/Book/UVF/Office）	各需求文档 resourceOpen/targetPath/payload（示例 图片查看器需求:21-24,44-49）	启动资源打开载荷语义（resourceOpen.payload 卡片上下文）	接口契约;启动	05-接口与契约/07-应用插件接口.md §3.4、§5.4	部分覆盖	在《应用插件接口》或《资源打开契约》定义载荷（含书卡/音乐卡上下文）	新库 07:257-331 用 files URI+openFile；grepF "resourceOpen|targetPath" 0 命中
+INV5-904	多仓库（全部 10 应用）	全仓 manifest.yaml capabilityFallbacks	capabilityFallbacks（open-file/save-file 回退）在新清单规范缺失	文件格式;接口契约	03-插件开发/02-插件清单规范.md（无该字段）	缺失	明确废弃并给出替代（平台统一回退策略）或补字段规范	新库 grepF "capabilityFallbacks" 0 命中
+INV5-905	多仓库（Notes/Music/Video/Photo/Book/RTE/Settings）	各 manifest/需求 theme.read/i18n.read/theme.changed/language.changed	主题/多语言系统依赖与 R5 冲突	规范;迁移	ADR-006；README R5	冲突	应用统一改造：@chips/ui appleTheme + 中文直写；清权限与事件订阅	新库 grepF "theme.read|i18n.read|theme.changed|language.changed" 0 命中
+INV5-906	多仓库（全部 10 应用）	package.json scripts 与各 README 常用命令	chipsdev-r 工具链与新库 @chips/cli 口径不一致	工具链;工程	03-插件开发/01-快速开始.md:111-118；06-开发与运维/02-构建与打包.md	部分覆盖	新建《开发 CLI 命令规范》并冻结正式命令名（run/build/validate/package/preview/quality gate）	新库 grepF "chipsdev" 0 命中；旧脚本 npm run run/validate/package
+INV5-907	多仓库（Music/Office/UVF/iconMaker）	旧版-生态共用技术文档/协议与契约/07、11、14、15；Chips-Office 技术文档/01	内容处理服务契约（图像转换/媒体元数据/Office 引擎/OCR）	接口契约;媒体处理	05-接口与契约/04-能力契约规范.md §3.2:275（仅机制）	缺失	新建服务插件契约文档族（建议 05-接口与契约/11-内容处理服务契约.md 或按域拆分）	新库仅"由服务插件提供"一处；grepF "office.engine|convertTiff|ID3" 0 命中
+INV5-908	多仓库（10 应用）	00-薯片生态白皮书.md:26	官方应用清单与职责边界（编辑器/阅读器/播放器/查看器/设置/图标工坊等）	产品;架构	00-愿景与原则/00-薯片生态白皮书.md:26（仅一句）	缺失	新建《官方应用总览与职责矩阵》落点 00-愿景与原则或 07-工程管理	新库无应用清单文档
+INV5-909	多仓库（Book/Photo/UVF/Music）	各卡片查看态行为（ImageCard 缺，MusicCard/FileCard 有）	基础卡片查看态点击行为契约不完整	文件格式;交互	04-文件格式规范/01 §6	部分覆盖	04/01 每种卡片类型补"查看态行为"；统一"打开意图→资源打开"口径	新库 04/01:1216、1268 vs ImageCard:695-805 无
+INV5-910	多仓库（全部 10 应用）	各 manifest.yaml ui 段（window.chrome/layout/baseWidth）	manifest.ui 字段与 surface 模型不一致	文件格式;平台接入	03-插件开发/02-插件清单规范.md §7.4（ui.surface 三值）	冲突	按新 surface 模型（window/desktop/tray）重写 manifest；窗口外观由 @chips/ui/平台承担	新库清单:518-541；旧 manifest 无对应字段

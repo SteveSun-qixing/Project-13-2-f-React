@@ -1,0 +1,23 @@
+缺口ID	状态	新文档路径	说明
+INV1-018	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	社区平台 HTTP API 契约转正：认证/浏览检索/传输控制面/错误模型按新架构重写
+INV1-029	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	旧“对外服务 API 标准”的认证、分页、限流、错误格式并入社区平台契约（分页/幂等/限流/错误模型章节）
+INV6-004	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	认证与会话契约：双令牌、refreshToken 存 Host credential、401 自动刷新
+INV6-014	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	服务端数据模型与接口映射转正：卡片 status/viewState、箱子上传并入 card-transfer 控制面
+INV6-024	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	社区平台 HTTP API 正式契约（旧 1029 行）转正并按新架构改写
+INV6-025	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	传输控制面 + 对象角色与桶可见性 + 预签名/分片/断点/校验/恢复清单接口口径
+INV6-028	done	薯片生态文档库/05-接口与契约/11-社区平台API契约.md	渲染产物上传协议：includeRenderArtifacts、render-file/cover-file 角色与 complete 校验
+INV1-019	planned		个人服务器 API 契约归 12-个人服务器API契约，共享口径引用本文件
+INV3-027	planned		社区与个人服务器产品/架构设计归服务端产品文档；本文件只交付 API 契约
+INV6-005	planned		客户端传输模块 openRemote 与上传下载协议归 16-卡片传输协议
+INV6-006	planned		社区服务器地址配置与客户端 CSP 归客户端文档；CORS 基线已入本文件第九节
+INV6-011	planned		社区平台产品设计归 01-架构设计/01-子系统设计/14-社区平台设计
+INV6-012	planned		社区前端页面需求归社区平台产品文档
+INV6-013	planned		社区前端 V2 技术方案归社区平台架构/前端文档
+INV6-016	planned		服务端启动与运行归服务端内部技术文档
+INV6-019	planned		服务端实现架构与模块划分归服务端内部技术文档
+INV6-020	planned		社区前端 SPA 归社区平台前端文档
+INV6-022	planned		部署与反向代理归服务端部署文档
+INV6-026	planned		个人服务器产品设计归 12-个人服务器API契约及产品文档
+INV6-027	planned		个人服务器架构与鉴权模型归 12-个人服务器API契约
+INV6-031	planned		个人服务器实现归其仓库技术文档
+INV6-033	planned		个人服务器 API 契约归 12-个人服务器API契约

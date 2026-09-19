@@ -1,0 +1,108 @@
+缺口ID	状态	新文档路径	说明
+INV1-009	done	薯片生态文档库/01-架构设计/01-子系统设计/03-插件架构设计.md	五类插件与旧路由命名废止；四角色与插件路由口径由 03-插件架构设计与 04-能力契约规范承接
+INV1-014	done	薯片生态文档库/05-接口与契约/10-服务插件接口.md	module 角色撤销；Capability/Provider/Method/Job 收口为 service 角色与 Cordis 服务模型（04 §八、10）
+INV1-021	planned		与 INV5-024/INV5-907 合并：TIFF→PNG 与视频抽帧原子契约待 04 §八 内容处理服务契约；编排已由 15-文件处理契约收口
+INV1-022	planned		颜色提取并入内容处理服务契约（INV5-907）；实现随官方模块插件仓库，文档库不单列
+INV1-024	done	薯片生态文档库/05-接口与契约/15-文件处理契约.md	office.document.* 正式废止并统一为 document:* 与 file-processing（15 §1.2 废止清单）
+INV1-026	planned		旧 12 层中心路由手册归档；新库以内核路由与 Bridge 为唯一口径，不做逐条迁移
+INV1-028	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	i18n 服务与语言包随 ADR-006 正式废止，文案简体中文直写（R5）
+INV1-039	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	主题包结构与运行时产物随 ADR-006 废止，视觉数值统一由 09-统一视觉规范
+INV1-040	done	薯片生态文档库/02-开发规范/09-统一视觉规范.md	theme.* 接口废止；主题经 @chips/ui 与 Design Tokens 暴露（ADR-006、09）
+INV1-041	done	薯片生态文档库/02-开发规范/09-统一视觉规范.md	图标字体体系废止；图标只从 @chips/ui 导入，禁独立图标包与 emoji/字符图标
+INV1-043	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	多语言归档副本随 ADR-006 处置，无新库落点
+INV1-044	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	自研组件库索引由 @chips/ui 唯一共享层与导出清单取代（08 §2）
+INV1-045	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	组件库定位、接入与命令消费由 08 与 13-命令系统契约承接
+INV1-046	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	组件契约标准改为导出契约与 09 组件视觉验收清单，禁止第二组件库
+INV1-047	done	薯片生态文档库/02-开发规范/09-统一视觉规范.md	Token 层级与作用域由 09 §二 收口；主题包对接随 ADR-006 废止
+INV1-048	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	组件库接入步骤与阻断条件由 08 §八 约束与自检清单承接
+INV1-053	done	薯片生态文档库/02-开发规范/08-@chips-ui共享层使用指南.md	基础控件能力矩阵由 08 §2.2/2.6 导出清单承接
+INV1-054	done	薯片生态文档库/02-开发规范/03-React组件开发规范.md	旧状态环境与 Binding 模型废止；状态与绑定按 React Hooks 规范
+INV1-061	done	薯片生态文档库/05-接口与契约/10-服务插件接口.md	module 插件定位与 module.invoke 废止；服务角色与调用模型由 10 定义
+INV1-065	planned		SDK 颜色提取指南迁官方模块插件仓库；待内容处理服务契约（INV5-907）后封装
+INV1-072	planned		PAL 2.0 与能力分面废止；平台能力统一走 Bridge 与壳层，旧资产归档
+INV1-075	planned		旧数据存储架构归档；本地优先与工作区模型为唯一口径，不迁移 DB 方案
+INV1-080	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	国际化架构随 ADR-006 废止
+INV1-086	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	主题运行时与 token 五层废止；视觉基线见 09-统一视觉规范
+INV1-088	planned		L8 声明式 UI 体系废止；React 与 @chips/ui 承接，旧册归档
+INV1-090	planned		vNext 术语冻结失效；术语与裁决以《12-术语与裁决速查》为准，旧册归档
+INV1-093	planned		vNext 12 层架构总册以新库替代，整体归档
+INV1-094	done	薯片生态文档库/05-接口与契约/15-文件处理契约.md	office→file 迁移映射由 15 §1.2 废止清单与 document:*/file-processing 口径覆盖
+INV4-HOST-24	planned		平台不再内置业务服务；office-document-service 改由官方 Office 服务插件承载，契约并入 INV5-907
+INV4-HOST-25	planned		xlsx-engine-service 为服务插件内部 sidecar；服务契约并入 INV5-907，平台不承载业务引擎
+INV4-MOD-01	done	薯片生态文档库/05-接口与契约/15-文件处理契约.md	card→HTML 属转换目标且必须复用平台渲染链路；module 角色废止（15 §二、§四）
+INV4-MOD-02	planned		image.color.pick 并入内容处理服务契约（INV5-907）；随官方模块插件仓库文档化
+INV4-MOD-05	done	薯片生态文档库/05-接口与契约/15-文件处理契约.md	转换编排统一归 file-processing 服务；旧 converter.file.convert 标识废止（15 §1.2、§3.5）
+INV4-MOD-06	planned		HTML→图片算法并入内容处理服务契约（INV5-907）；编排由 15 收口
+INV4-MOD-07	planned		HTML→PDF 同上，并入 INV5-907
+INV4-SDK-10	planned		SDK 不再直连模块能力；待 INV5-907 后由官方插件封装
+INV4-SDK-11	planned		Office 封装随服务插件承载，SDK 不再直连模块；契约见 INV5-907
+INV5-001	planned		笔记应用定位与三栏工作台留 Chips-Notes 仓库技术文档；生态通用应用模型未立项
+INV5-009	done	薯片生态文档库/02-开发规范/09-统一视觉规范.md	运行时图标统一从 @chips/ui 导入，禁 emoji/字符图标；原拟《前端图标与视觉资产规范》由 09 §四 V12 与 08 §2.6 覆盖
+INV5-011	planned		查看能力由 03-查看器设计 §8.3 覆盖；Office 编辑与引擎契约并入 INV5-907
+INV5-013	planned		office.engine.* 改为服务插件内部实现；契约并入 INV5-907
+INV5-014	planned		加密 docx 解密随服务插件承载；安全条款并入 INV5-907
+INV5-016	planned		导出与打印为应用内部能力；查看器侧导出/打印行为已由 03-查看器设计 §五 定义
+INV5-017	planned		字体度量留 Chips-Office 仓库；如形成通用服务契约并入 INV5-907
+INV5-018	planned		GenOffice 移植边界与安全分层属项目内部工程文档，不入文档库
+INV5-019	planned		OCR 能力随内容处理服务规划（INV5-907）登记或明确不做
+INV5-023	planned		媒体元数据解析并入 INV5-907；原《媒体元数据服务契约》建议并入该契约族
+INV5-025	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	歌词呈现为查看器界面能力（03 §8.2）；LRC 解析留应用内部
+INV5-026	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	播放/暂停/进度/音量/循环/队列由 03 §8.2 与 §十 定义
+INV5-027	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	媒体键盘语义（Space/方向/M/F）由 03 §10.1 统一定义
+INV5-030	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	theme.read/i18n.read 随 ADR-006 废止；统一 @chips/ui 主题与中文直写
+INV5-033	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	倍速/全屏/画中画由 03 §8.2 矩阵定义
+INV5-035	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	工具条形态、自动隐藏与状态反馈由 03 §3.1/§3.3 定义
+INV5-037	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	视频键盘交互同 INV5-027，由 03 §10.1 统一定义
+INV5-038	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	同 INV5-030，随 ADR-006 与 09 收口
+INV5-039	planned		电子书解析引擎实现留 Chips-BookReader 仓库；格式、能力与失败边界由 03 §1/§8 收口，原拟《电子书渲染与阅读引擎设计》不再单立
+INV5-040	planned		多格式虚拟章节加载为引擎内部实现，留仓库技术文档
+INV5-041	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	格式支持矩阵与不支持格式错误态由 03 §8.2/§8.4 定义
+INV5-043	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	分页/滚动双模式与单双页 spread 由 03 §4.2 定义
+INV5-044	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	目录/章节/锚点/搜索/书签由 03 §3.2/§8.2 定义
+INV5-046	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	阅读偏好由 03 §8.2/§7 定义，高频状态不入配置
+INV5-047	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	多输入设备翻页由 03 §10.2 手势矩阵与键盘等价定义
+INV5-048	done	薯片生态文档库/02-开发规范/09-统一视觉规范.md	prefers-reduced-motion 降级由 09 §2.7/§四 V9 与 03 §10.3 定义
+INV5-049	open		保留 open：第三方开源资产与许可证登记仍缺失；建议《第三方参考资产与许可证清单》落点 07-工程管理，合并 INV6-035~042、INV6-060、INV5-073 的 Readium/Thorium 等许可条目（本轮不新增文档）
+INV5-055	done	薯片生态文档库/08-产品与交互/03-查看器设计.md	图片缩放平移的多输入设备手势由 03 §4.3/§10.2 定义
+INV5-057	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	同 INV5-030
+INV5-062	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	不声明 fileAssociations 即可避免争抢；处理器声明、tier 与默认治理由 14 定义
+INV5-064	planned		i18n.write 随仓库迁移轮清除；R5/R19 已无该权限，不影响文档库口径
+INV5-083	planned		旧治理权限词按 R19 重映射；治理域能力登记并入 INV5-901/S16-03（planned）随能力表同步轮处理
+INV5-084	open		保留 open：图标资产生成/同步规范仍缺失；建议《图标与设计资产规范》落点 02-开发规范或 07-工程管理，合并 INV5-085/086、INV6-039/054/055/058/059（本轮不新增文档）
+INV5-085	planned		与 INV5-084 合并跟踪；素材来源与许可以 INV5-049 为准
+INV5-086	planned		与 INV5-084 合并跟踪（输出格式/尺寸档位/背景合成）
+INV5-901	planned		无兼容映射需求：旧权限词按“不考虑兼容”原则直接废弃，迁移轮按 04 §六 R19 全表重写 10 个应用 manifest
+INV5-905	done	薯片生态文档库/01-架构设计/ADR/ADR-006-主题系统与多语言系统.md	主题/多语言依赖与 R5 冲突随 ADR-006 收口；统一 @chips/ui 主题与中文直写
+INV5-908	open		保留 open：官方应用总览与职责矩阵无唯一权威；建议并入 00-薯片生态白皮书 Phase 3 应用索引或各应用文档登记（本轮不新增文档）
+INV5-910	planned		旧 manifest.ui 字段随仓库迁移轮按新 surface 模型重写；权威为 02-插件清单规范与 07-应用插件接口
+INV6-017	open		保留 open：浏览器侧插件宿主是否保留需生态裁决；未裁决前不建议迁移，先登记工单
+INV6-021	planned		管理员后台随社区平台产品文档统一收口（S02 已 planned 的社区平台产品/架构文档族）
+INV6-023	planned		社区前端 V2 重构计划为过程材料，不迁移
+INV6-035	planned		与 INV5-049 合并跟踪（DPlayer 参考资产与许可证）
+INV6-036	planned		与 INV5-049 合并跟踪（FlexLayout 参考资产与许可证）
+INV6-037	planned		与 INV5-049 合并跟踪（GenOffice 参考资产与许可证）
+INV6-038	planned		与 INV5-049 合并跟踪（MusicPlayer 参考资产与许可证）
+INV6-039	planned		图标工具来源与用途并入 INV5-084，许可证并入 INV5-049
+INV6-040	planned		与 INV5-049 合并跟踪（miniPaint 参考资产与许可证）
+INV6-041	planned		与 INV5-049 合并跟踪（open-file-viewer 参考资产与许可证）
+INV6-042	planned		与 INV5-049 合并跟踪（Thorium Reader 参考资产与许可证）
+INV6-043	planned		一次性复现脚本归工具脚本清点或归档，不新增文档
+INV6-047	planned		成品物料清点脚本迁正式工具链属工具链轮，不新增文档
+INV6-054	planned		与 INV5-084 合并跟踪（Material Symbols 映射与批量生成）
+INV6-055	planned		与 INV5-084 合并跟踪（PNG/ICO/ICNS 渲染同步链路）
+INV6-056	planned		与 INV6-047 重复，合并为一条跟踪
+INV6-058	planned		与 INV5-084 合并跟踪（布局图标源目录与命名基线）
+INV6-059	planned		与 INV5-084 合并跟踪（各角色图标源目录）；Themeicon 随 ADR-006 归档
+INV6-060	planned		上游字体/图标素材并入 INV5-049 第三方资产与许可证清单
+INV6-061	planned		占位素材归设计资产清点，无规范需求
+INV6-063	planned		开发期样例数据不迁移；按新库工作区规范重新生成
+INV6-065	planned		开发大纲参考意见为过程材料，不迁移；有效观点提炼进阶段计划后归档
+INV6-066	planned		投资问卷不纳入文档库（与产品开发无关）
+INV6-068	planned		AI 会话历史等本地工具产物不迁移，核查 .gitignore 覆盖
+OR-11012	done	薯片生态文档库/05-接口与契约/16-卡片传输协议.md	箱子下载计划（boxFile 对象）见 11.13/12.04，下载后经 14 资源打开路由交本地查看器；openRemoteBox 专有链路不再需要
+S03-007	open		保留 open：MAX_CARD_SIZE_MB/MAX_BOX_SIZE_MB 仅声明未执行；服务端在 create/complete 校验或移除声明，属 Chips-PersonalServer 修复，跨模块需登记工单
+S03-008	open		保留 open：删除清理不完整（resourceManifest.verifiedResources 字段不存在、封面对象不清理）；服务端修复并补回归测试
+S12-007	open		保留 open：document:create 链路缺失；建议在 04 §7.3 与 11-文档服务设计补创建能力（与 ND-S13-003 同一缺口，合并跟踪）
+S16-008	planned		旧仓库技术文档口径修订归仓库迁移轮；新口径已由 05-生态设置面板设计与 R19 定义
+S16-013	planned		旧 manifest 权限词删除归仓库迁移轮
+S16-014	planned		capabilityFallbacks 与 ui 旧字段随仓库 manifest 重写清理；废弃口径已由 INV5-904 确定

@@ -1,0 +1,11 @@
+缺口ID	状态	新文档路径	说明
+INV1-033	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	用户 CLI 手册补齐：start/stop/status/config/logs/plugin/open/update/doctor/completion、插件命令发现与执行、TUI 与操作日志按新架构重写（§二、§三）
+INV1-034	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	开发者 CLI 补齐：开发工作区模型、chips dev run/service invoke/plugin、工程命令映射冻结（§四、§4.7）
+INV1-037	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	用户 CLI 与开发 CLI 职责边界与工作区模型收口（§一、§2.2、§四）
+INV4-HOST-21	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	Host CLI 命令集逐项定义；theme 命令按 R5 移除、host 二级入口废止（§二、§三）
+INV4-SDK-08	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	插件 CLI 命令扩展：cli.commands 声明模型、参数/路径/批量/输出/冲突、目标调度、cli.task 生命周期、SDK 接口与服务路由（§五）
+INV4-SDK-15	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	开发者 CLI 全量子命令按新命令名冻结：chips dev run/service invoke、pnpm 工程脚本、chips plugin pack/validate（§4.7）
+INV4-SDK-19	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	CLI 工作区创建改为 chips plugin create --role app/basecard/boxlayout/service；theme 工作区随 ADR-006 废弃（§3.5.1、§4.7）
+INV5-088	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	应用 CLI 命令与 cli-task 进度上报：声明/参数/job/进度/产物与完整示例（§5.1、§5.7、§5.9）
+INV5-089	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	CLI 参数声明模型：11 种类型、path/choices/validation/ui control/batch 全表与校验规则（§5.2）
+INV5-906	done	薯片生态文档库/06-开发与运维/07-CLI完整参考.md	chipsdev-r 与 @chips/cli 口径统一：正式命令名冻结为 chips / chips dev / chips plugin / pnpm 脚本，旧名不保留（§4.7）

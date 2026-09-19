@@ -1,0 +1,23 @@
+缺口ID	状态	新文档路径	说明
+ND-S24-010	done		SDK 脚手架示例统一 chips.basecard.markdown
+ND-S24-011	done		文件处理契约包路径统一 chips.service.file-processing/contracts
+ND-S24-012	done		命令示例统一 chips.official.iconmaker
+ND-S26-010	done		插件包图片类型补充 .ico/.icns
+ND-S29-006	done		Markdown 卡片标识统一 base.markdown
+ND-S29-008	done		插件清单规范正式标识统一
+ND-S29-009	done		启动载荷 cardType 统一 base.*
+ND-S32-002	done		依赖清单表述改 pnpm-lock.yaml
+ND-S36-132	done		目录登记表卡片类型统一 base.*
+ND-S36-133	done		校验规则示例统一 base.*
+ND-S36-136	done		资源打开启动载荷统一 base.*
+S37-006	done		文档窗口模型统一为应用内窗口层（08/01 口径）
+S42-001	done		README 与文档编写规范已补 08/09 分区
+ND-S36-135	planned		电子书载荷口径以 14-资源打开契约 §5.4 与官方插件目录为准（待二次核对）
+ND-S36-138	planned		看板/复合卡片布局为新设计待实现（Phase 3）
+S35-021	planned		图标服务为旧实现迁移项（Phase 3 官方插件重写）
+S35-022	planned		颜色提取为旧实现迁移项（内容处理服务已登记）
+ND-04005	done	薯片生态文档库/05-接口与契约/04-能力契约规范.md	命令域能力/权限/事件全链同步：04 §2.3/§6.2/§7.16、08 §4.1/§4.3、05 §4.9、09 §8.9、01.09 R19 计数 60、02.02 SDK 导出
+ND-S01-005	done	薯片生态文档库/05-接口与契约/04-能力契约规范.md	command:register/unregister/list/get/invoke 已登记（§7.16）；权限 command:read/write/execute 入 04 §6.2 与 08 §4.1/§4.3
+ND-S01-006	done	薯片生态文档库/05-接口与契约/04-能力契约规范.md	cli:task-active/get/progress/complete/fail 五项按 CLI 参考 §5.6 定稿并登记（§7.17）；空权限、owner 归属、SDK 类型导出同步
+S05-014	done	薯片生态文档库/05-接口与契约/04-能力契约规范.md	resource:open / resource:list-handlers 入 04 §6.2、08 §4.1/§4.3、06 §4.2；resource:opened 入 05 §4.4 与 09 §8.4；fileAssociations mimeTypes/tier 入 02 §7.4/§9.2 与 07 §5.4；帧动作 open-resource 入 05 渲染 §9.2；07/10 文件访问权限口径统一
+S12-007	done	薯片生态文档库/01-架构设计/01-子系统设计/12.14-12-编辑引擎设计-十三、文档创建链路.md	document:create 能力入 04 §7.3（kind/parent/name/initialContent，输出 documentId/source）；创建链路见 12 §十三，新建交互落点见 08/01 §6.3，权限 resources:write 口径统一

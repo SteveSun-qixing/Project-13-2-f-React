@@ -1,0 +1,11 @@
+缺口ID	状态	新文档路径	说明
+ND-S36-132	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	并入 S36-02：§4.2 登记表卡片类型列的历史别名统一为 base.* 正式标识，别名仅读取归一
+ND-S36-133	planned	薯片生态文档库/03-插件开发/02-插件清单规范.md	并入 S36-02：§9 校验规则示例 VideoCard 改为 base.video（正式标识）
+ND-S36-135	planned	薯片生态文档库/08-产品与交互/08-官方应用功能总览.md	并入 S36-04：§十六 与 14/05 §5.4 电子书口径统一为 base.book
+ND-S36-136	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	并入 S36-02：启动载荷 cardType 字面量改为 base.music / base.video
+ND-S36-138	planned	薯片生态文档库/08-产品与交互/07-官方布局视觉细则.md	并入 S36-07：chips.layout.board / chips.layout.composite 保留 Phase 3 官方布局实现
+ND-S29-006	planned	薯片生态文档库/04-文件格式规范/01-卡片文件格式.md	并入 S36-03：04/01 分卷重切时收口 MarkdownCard §6.7 与 base.richtext / chips.basecard.markdown 口径
+ND-S29-008	planned	薯片生态文档库/03-插件开发/02-插件清单规范.md	并入 S36-02：§7 专有字段示例与 §9 校验规则统一为 base.* 正式标识
+ND-S29-009	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	并入 S36-02（与 ND-S36-136 同落点）：启动载荷 cardType 统一为 base.music / base.video
+S35-021	done	薯片生态文档库/02-开发规范/10-设计资产与图标规范.md	已裁决：IconDescriptor/IconStyle 运行时图标体系退出（10 §2.7、INV4-SDK-06 done），运行时图标只经 @chips/ui 与 09-统一视觉规范
+S35-022	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	并入 S36-01/INV4-MOD-02：颜色提取（content-image.pick-colors）已登记 04 §八，提供方 ID 与服务契约待内容处理服务轮

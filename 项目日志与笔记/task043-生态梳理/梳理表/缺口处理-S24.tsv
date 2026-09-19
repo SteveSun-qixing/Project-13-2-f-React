@@ -1,0 +1,21 @@
+缺口ID	状态	新文档路径	说明
+INV5-908	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	官方应用与插件清单、职责边界、依赖、能力与权限摘要、状态与对应设计文档已建立（§七、§八）
+INV6-049	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	官方四角色插件清单与新 ID 命名（chips.official.* / chips.basecard.* / chips.layout.* / chips.service.*）已登记；旧 com.chips.*、chips-official.*、chips.module.*、*.blp 一律作废（§二、§八）
+INV4-MOD-08	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	module 角色不存在（R1）；7 个旧模块插件按服务插件/平台链路归并，作业模型字段全部作废（§6.2）
+INV4-MOD-04	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	Cover 模块明确为平台内置封面链（受控封面渲染接口 + cover.html + 比例规范），不单列插件（§6.2）
+INV4-MOD-02	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	ColorPicker 归图像内容处理服务；插件 ID 使用 chips.service.*，契约随插件发布并回写目录（§6.1、§6.2）
+INV4-MOD-06	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	HtmltoImage 归内容处理服务；契约随插件发布并回写目录（§6.2）
+INV4-MOD-07	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	HtmltoPDF 归内容处理服务；契约随插件发布并回写目录（§6.2）
+INV4-BLP-02	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	卡片堆（扑克牌）布局已登记为 chips.layout.cardstack，职责与呈现规则引用官方布局视觉细则 §4.6；configSchema 随插件包发布
+INV4-BLP-03	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	封面流（唱片）布局已登记为 chips.layout.coverflow
+INV4-BLP-04	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	文档库布局已登记为 chips.layout.documentlibrary（含内容态交平台托管规则）
+INV4-BLP-06	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	无限画布布局已登记为 chips.layout.infinitecanvas
+INV4-BLP-07	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	列表布局已登记为 chips.layout.list，并明确为箱子默认布局
+INV4-BLP-08	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	地图布局已登记为 chips.layout.map（不发起瓦片请求）
+INV4-BLP-09	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	瀑布流布局已登记为 chips.layout.masonry
+INV4-BLP-10	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	散乱堆叠布局已登记为 chips.layout.scattered
+INV4-BLP-11	done	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	时间线布局已登记为 chips.layout.timeline
+INV4-BCP-01	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	电子书卡片插件与类型已登记（chips.basecard.book / base.book，待实现）；EPUB/CBZ 等 schema 细节随插件发布（04/01 §6.10）
+INV4-BCP-03	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	超链接卡片插件与类型已登记（chips.basecard.hyperlink / base.hyperlink，待实现）；schema 随插件发布
+INV5-001	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	笔记应用已登记为 chips.official.notes（待实现）；三栏工作台产品设计待按新架构落位（§7.2）
+INV5-011	planned	薯片生态文档库/03-插件开发/09-官方插件与应用目录.md	薯片办公已登记为 chips.official.office（待实现）；Office 四件套查看/编辑设计待落位（§7.2）

@@ -1,0 +1,2 @@
+缺口ID	状态	新文档路径	说明
+INV3-017	done	薯片生态文档库/08-产品与交互/07-官方布局视觉细则.md	官方网格视觉细则（条目结构、空态、背景与顶部内容区、文档库布局）已由本文承接：旧版-生态设计原稿/10-布局插件结构.md:39、53-71；旧仓库 Chips-BoxLayoutPlugin/*/README.md 与 contracts 为布局证据；布局配置字段仍归各插件 manifest/configSchema 与插件文档

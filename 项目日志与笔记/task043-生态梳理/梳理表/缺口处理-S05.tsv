@@ -1,0 +1,18 @@
+缺口ID	状态	新文档路径	说明
+INV1-020	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：resource.open 转正为 resource:open，处理器声明（mimeTypes/tier）、解析顺序、默认查看器与槽位查询（platform.fileOpen.defaults + resource:list-handlers）、复合卡片资源打开口径全部落位
+INV5-015	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：Office 文档打开路由的 MIME 级声明与 primary/fallback 层级、edit 意图（resource:open intent）已定义；旧证据 Chips-Office/manifest.yaml:46-66
+INV5-022	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：resourceOpen 启动载荷语义（IResourceOpenLaunchArgs/resourceOpen）与 targetPath 正式废弃；旧证据 Chips-MusicPlayer/需求文档/02-音乐播放器功能需求规格.md:22-31
+INV5-032	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：同 INV5-903 的启动载荷口径覆盖视频播放器；旧证据 Chips-VideoPlayer/需求文档/02-视频播放器功能需求规格.md:19-27
+INV5-042	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	部分关闭：chips.book-card 载荷已定义（ebook/image-sequence）；base.book 卡片类型仍待 04-文件格式规范登记后联调
+INV5-051	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	部分关闭：声明/路由与未安装不注册、卸载回收语义已定义；安装器条件注册与壳层流程归口待平台发行流程收口
+INV5-052	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	保持：查看态资源打开口径已定义；ImageCard 查看态点击行为小节仍待 04-卡片文件格式补充
+INV5-053	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	部分关闭：image-sequence 队列与主资源口径已定义；电子书卡片类型待 04-文件格式规范登记
+INV5-056	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：多图片查看器等同类多处理器冲突的默认优先级治理（有效偏好 → 匹配等级 → tier → 安装序 → 插件 ID）
+INV5-065	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：兜底查看定位由 tier: fallback 承接 @fallback 语义，匹配顺序、接管与降级规则完整
+INV5-067	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：治理机制（resource:list-handlers/platform.fileOpen.defaults/set/clear/reset）与设置页表现（05-生态设置面板设计 §3.7）双向闭环
+INV5-071	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：平台侧路由与未命中回退闭环（Directory→shell、External→external、Archive/Memory→RESOURCE_HANDLER_MISSING）；兜底信息卡为处理器应用策略（查看器设计 §9）
+INV5-072	planned	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	部分关闭：图片序列兜底消费规则（resources.images[]、主资源为首项）已定义；卡片类型与 UVF 侧实现待 04/仓库
+INV5-077	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：文件打开方式/默认处理器治理页的接口与交互落位（14 §6；05-生态设置面板设计 §3.7）
+INV5-902	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：MIME 级声明、primary/fallback 层级、默认项治理、未安装不注册、停用降级与卸载偏好回收全部定义
+INV5-903	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：resourceOpen 启动载荷、运行中 resource:opened 投递与音乐/视频/电子书标准 payload 定义；targetPath 正式废弃
+INV5-904	done	薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md	关闭：capabilityFallbacks 废弃；回退由平台路由统一承担（§4.6、§7.3），插件以 tier: fallback 表达兜底意愿
