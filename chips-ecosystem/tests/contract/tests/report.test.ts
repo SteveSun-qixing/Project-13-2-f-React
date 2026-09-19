@@ -19,13 +19,21 @@ const files: readonly ContractTestFile[] = [
   {
     file: 'tests/contract/tests/capabilities.test.ts',
     tests: [
-      { name: '通过用例', fullName: '能力表 > 通过用例', state: 'passed', durationMs: 3, errors: [] },
+      {
+        name: '通过用例',
+        fullName: '能力表 > 通过用例',
+        state: 'passed',
+        durationMs: 3,
+        errors: [],
+      },
       {
         name: '失败用例',
         fullName: '能力表 > 失败用例',
         state: 'failed',
         durationMs: 5,
-        errors: ['[CONTRACT_CAPABILITY_MISSING] file:read：文档登记的内置能力未出现在 Bridge 注册表'],
+        errors: [
+          '[CONTRACT_CAPABILITY_MISSING] file:read：文档登记的内置能力未出现在 Bridge 注册表',
+        ],
       },
     ],
   },

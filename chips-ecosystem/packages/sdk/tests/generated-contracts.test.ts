@@ -17,11 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as sdk from '../src/index.js';
 import * as generated from '../src/generated/index.js';
-import {
-  CAPABILITY_IDS,
-  Capability,
-  type CapabilityId,
-} from '../src/generated/capability-ids.js';
+import { CAPABILITY_IDS, Capability, type CapabilityId } from '../src/generated/capability-ids.js';
 import { CAPABILITY_PERMISSIONS } from '../src/generated/capability-permissions.js';
 import { ERROR_CODES, type ErrorCode } from '../src/generated/error-codes.js';
 import { EVENT_IDS, StandardEvent, type EventId } from '../src/generated/event-ids.js';
@@ -358,7 +354,11 @@ describe('错误码清单（04-能力契约规范 §11.1）', () => {
   });
 
   it('平台错误码清单不收录 SDK 自身错误码（§6.3）', () => {
-    for (const code of ['SDK_BRIDGE_UNAVAILABLE', 'SDK_UNKNOWN_ERROR', 'SDK_INVALID_SCAFFOLD_OPTIONS']) {
+    for (const code of [
+      'SDK_BRIDGE_UNAVAILABLE',
+      'SDK_UNKNOWN_ERROR',
+      'SDK_INVALID_SCAFFOLD_OPTIONS',
+    ]) {
       expect(ERROR_CODES).not.toContain(code);
     }
   });

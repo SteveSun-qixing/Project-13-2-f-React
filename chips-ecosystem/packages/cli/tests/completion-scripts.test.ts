@@ -38,19 +38,19 @@ describe('renderCompletionScript（§3.9）', () => {
 
   it('bash 与 zsh 以当前入口前缀调用 __complete，注册行不受入口影响', () => {
     expect(renderCompletionScript('bash', 'user')).toContain(
-      'candidates=$(chips __complete "${COMP_WORDS[@]:1:COMP_CWORD}" 2>/dev/null)',
+      'candidates=$(chips __complete "${COMP_WORDS[@]:1:COMP_CWORD}" 2>/dev/null)'
     );
     expect(renderCompletionScript('bash', 'dev')).toContain(
-      'candidates=$(chips dev __complete "${COMP_WORDS[@]:1:COMP_CWORD}" 2>/dev/null)',
+      'candidates=$(chips dev __complete "${COMP_WORDS[@]:1:COMP_CWORD}" 2>/dev/null)'
     );
     expect(renderCompletionScript('zsh', 'dev')).toContain(
-      'candidates=("${(@f)$(chips dev __complete "${words[@]:1}" 2>/dev/null)}")',
+      'candidates=("${(@f)$(chips dev __complete "${words[@]:1}" 2>/dev/null)}")'
     );
     for (const entry of ['user', 'dev'] as const) {
       expect(renderCompletionScript('bash', entry)).toContain('complete -F _chips_complete chips');
       expect(renderCompletionScript('zsh', entry)).toContain('compdef _chips_complete chips');
       expect(renderCompletionScript('bash', entry).split('\n')[0]).toBe(
-        `# 薯片生态 ${entry === 'dev' ? 'chips dev' : 'chips'} 补全脚本（bash）`,
+        `# 薯片生态 ${entry === 'dev' ? 'chips dev' : 'chips'} 补全脚本（bash）`
       );
     }
   });
@@ -109,7 +109,7 @@ describe('fixedPathsForEntry（§4.4、§4.5）', () => {
         'start',
         'status',
         'stop',
-      ].sort(),
+      ].sort()
     );
     // `update` 是用户侧平台自更新入口（§1.5），开发侧不存在。
     expect(paths).not.toContain('update');
@@ -126,10 +126,14 @@ describe('__complete 候选合成（§3.9）', () => {
     const outcome = await runUser(['__complete'], { client });
     expect(outcome.exitCode).toBe(0);
     const candidates = outcome.stdout.trim().split('\n');
-    expect(candidates).toEqual(expect.arrayContaining(['__complete', 'config', 'plugin', 'update', 'office']));
+    expect(candidates).toEqual(
+      expect.arrayContaining(['__complete', 'config', 'plugin', 'update', 'office'])
+    );
     // 只补当前段：不出现多级路径。
     expect(candidates.every((candidate) => !candidate.includes(' '))).toBe(true);
-    expect(candidates).toEqual([...candidates].sort((left, right) => left.localeCompare(right, 'en')));
+    expect(candidates).toEqual(
+      [...candidates].sort((left, right) => left.localeCompare(right, 'en'))
+    );
   });
 
   it('已输入段定位到子命令层并按前缀过滤（大小写不敏感）', async () => {
@@ -144,7 +148,9 @@ describe('__complete 候选合成（§3.9）', () => {
   });
 
   it('与已输入段不匹配时返回空集', async () => {
-    const outcome = await runUser(['__complete', 'plugin', 'nope', 'a'], { client: new FakeCliClient() });
+    const outcome = await runUser(['__complete', 'plugin', 'nope', 'a'], {
+      client: new FakeCliClient(),
+    });
     expect(outcome.stdout.trim()).toBe('');
   });
 

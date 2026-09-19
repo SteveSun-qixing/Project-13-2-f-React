@@ -42,7 +42,7 @@ export const doctorCommand: ICliCommandDefinition = {
     const human = [
       `工作区: ${report.workspace.path}（${report.workspace.kind === 'dev' ? '开发' : '用户'}）`,
       ...report.checks.map(
-        (check) => `[${STATUS_LABEL[check.status]}] ${check.id}: ${check.detail}`,
+        (check) => `[${STATUS_LABEL[check.status]}] ${check.id}: ${check.detail}`
       ),
     ];
     const hasError = report.checks.some((check) => check.status === 'error');

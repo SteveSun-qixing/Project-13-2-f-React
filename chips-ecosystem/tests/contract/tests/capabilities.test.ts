@@ -12,7 +12,7 @@ describe('能力表 ↔ Bridge 注册表一致性', () => {
         docs: models.capabilities,
         docPermissions: models.permissions,
         code: bridgeCode(),
-      }),
+      })
     );
   });
 });

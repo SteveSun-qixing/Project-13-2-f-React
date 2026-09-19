@@ -45,21 +45,25 @@ export function parseCapabilityModel(reader: DocReader): DocCapabilityModel {
   const countMatch = DECLARED_COUNT_PATTERN.exec(body);
   if (countMatch === null || countMatch[1] === undefined) {
     throw new Error(
-      `能力总表章节缺少计数声明（"本表的 N 项计数"）：${CAPABILITY_SOURCE.file} §${CAPABILITY_SOURCE.heading}`,
+      `能力总表章节缺少计数声明（"本表的 N 项计数"）：${CAPABILITY_SOURCE.file} §${CAPABILITY_SOURCE.heading}`
     );
   }
   const table = findTable(body, '能力 ID');
   if (table === null) {
-    throw new Error(`能力总表章节缺少「能力 ID」表：${CAPABILITY_SOURCE.file} §${CAPABILITY_SOURCE.heading}`);
+    throw new Error(
+      `能力总表章节缺少「能力 ID」表：${CAPABILITY_SOURCE.file} §${CAPABILITY_SOURCE.heading}`
+    );
   }
   const capabilities: DocCapability[] = [];
   const seen = new Set<string>();
   for (const row of table.rows) {
     const capabilityCell = row[0] ?? '';
-    const ids = inlineCodeTokens(capabilityCell).filter((token) => CAPABILITY_ID_PATTERN.test(token));
+    const ids = inlineCodeTokens(capabilityCell).filter((token) =>
+      CAPABILITY_ID_PATTERN.test(token)
+    );
     if (ids.length === 0) {
       throw new Error(
-        `能力总表行未解析出能力 ID：${capabilityCell}（${CAPABILITY_SOURCE.file} §${CAPABILITY_SOURCE.heading}）`,
+        `能力总表行未解析出能力 ID：${capabilityCell}（${CAPABILITY_SOURCE.file} §${CAPABILITY_SOURCE.heading}）`
       );
     }
     const permissionCell = row[1] ?? '';
@@ -67,13 +71,13 @@ export function parseCapabilityModel(reader: DocReader): DocCapabilityModel {
       ...new Set(
         inlineCodeTokens(permissionCell)
           .map((token) => toBasePermission(token))
-          .filter((token): token is string => token !== null),
+          .filter((token): token is string => token !== null)
       ),
     ].sort((left, right) => left.localeCompare(right));
     for (const id of ids) {
       if (seen.has(id)) {
         throw new Error(
-          `能力总表出现重复能力 ID：${id}（${CAPABILITY_SOURCE.file} §${CAPABILITY_SOURCE.heading}）`,
+          `能力总表出现重复能力 ID：${id}（${CAPABILITY_SOURCE.file} §${CAPABILITY_SOURCE.heading}）`
         );
       }
       seen.add(id);

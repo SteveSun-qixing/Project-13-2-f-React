@@ -29,7 +29,14 @@ const COMMAND_VIEW: ICliCommandView = {
   conflicts: [],
 };
 
-const TASK = { taskId: 'task-1', pluginId: 'chips.demo.app', commandId: 'demo.open', status: 'running', createdAt: 1, updatedAt: 2 };
+const TASK = {
+  taskId: 'task-1',
+  pluginId: 'chips.demo.app',
+  commandId: 'demo.open',
+  status: 'running',
+  createdAt: 1,
+  updatedAt: 2,
+};
 
 /** 记录调用与预置返回的传输端口替身。 */
 class RecordingInvoker implements ICliInvoker {
@@ -63,7 +70,10 @@ function expectCode(promise: Promise<unknown>, code: string): Promise<unknown> {
 describe('cli.command.* 路由映射（§5.6、§5.8）', () => {
   it('list 缺省查询以空对象请求并原样返回索引与条目', async () => {
     const invoker = new RecordingInvoker({
-      'cli.command.list': { index: { 'demo open': ['chips.demo.app#open'] }, commands: [COMMAND_VIEW] },
+      'cli.command.list': {
+        index: { 'demo open': ['chips.demo.app#open'] },
+        commands: [COMMAND_VIEW],
+      },
     });
     const client = createServiceRouterClient({ invoker });
     const result = await client.cliCommand.list();
@@ -81,26 +91,40 @@ describe('cli.command.* 路由映射（§5.6、§5.8）', () => {
   });
 
   it('list 返回结构非法时给出 CLI_COMMAND_QUERY_INVALID', async () => {
-    const nonCommands = createServiceRouterClient({ invoker: new RecordingInvoker({ 'cli.command.list': { index: {} } }) });
+    const nonCommands = createServiceRouterClient({
+      invoker: new RecordingInvoker({ 'cli.command.list': { index: {} } }),
+    });
     await expectCode(nonCommands.cliCommand.list(), 'CLI_COMMAND_QUERY_INVALID');
-    const nonObject = createServiceRouterClient({ invoker: new RecordingInvoker({ 'cli.command.list': '非法' }) });
+    const nonObject = createServiceRouterClient({
+      invoker: new RecordingInvoker({ 'cli.command.list': '非法' }),
+    });
     await expectCode(nonObject.cliCommand.list(), 'CLI_COMMAND_QUERY_INVALID');
   });
 
   it('get 以 entryId 或 commandPath 查询，未命中返回 undefined', async () => {
     const invoker = new RecordingInvoker({ 'cli.command.get': { command: COMMAND_VIEW } });
     const client = createServiceRouterClient({ invoker });
-    await expect(client.cliCommand.get({ entryId: 'chips.demo.app#open' })).resolves.toEqual(COMMAND_VIEW);
+    await expect(client.cliCommand.get({ entryId: 'chips.demo.app#open' })).resolves.toEqual(
+      COMMAND_VIEW
+    );
     expect(invoker.last('cli.command.get')?.input).toEqual({ entryId: 'chips.demo.app#open' });
-    const empty = createServiceRouterClient({ invoker: new RecordingInvoker({ 'cli.command.get': {} }) });
+    const empty = createServiceRouterClient({
+      invoker: new RecordingInvoker({ 'cli.command.get': {} }),
+    });
     await expect(empty.cliCommand.get({ commandPath: ['demo', 'open'] })).resolves.toBeUndefined();
   });
 
   it('get 与 resolve 拒绝缺少定位键与非法 targetType 的查询', async () => {
     const client = createServiceRouterClient({ invoker: new RecordingInvoker() });
     await expectCode(client.cliCommand.get({}), 'CLI_COMMAND_QUERY_INVALID');
-    await expectCode(client.cliCommand.resolve({ pluginId: 'chips.demo.app' }), 'CLI_COMMAND_QUERY_INVALID');
-    await expectCode(client.cliCommand.get({ commandPath: ['demo'], targetType: 'worker' as 'app' }), 'CLI_COMMAND_QUERY_INVALID');
+    await expectCode(
+      client.cliCommand.resolve({ pluginId: 'chips.demo.app' }),
+      'CLI_COMMAND_QUERY_INVALID'
+    );
+    await expectCode(
+      client.cliCommand.get({ commandPath: ['demo'], targetType: 'worker' as 'app' }),
+      'CLI_COMMAND_QUERY_INVALID'
+    );
   });
 
   it('get 与 resolve 返回标量时给出 CLI_COMMAND_QUERY_INVALID', async () => {
@@ -112,9 +136,16 @@ describe('cli.command.* 路由映射（§5.6、§5.8）', () => {
   });
 
   it('resolve 归一冲突列表：无命令时只返回冲突，缺字段时按空数组', async () => {
-    const conflict = { entryId: 'other', commandPath: ['demo', 'open'], pluginId: 'chips.other', priority: 10 };
+    const conflict = {
+      entryId: 'other',
+      commandPath: ['demo', 'open'],
+      pluginId: 'chips.other',
+      priority: 10,
+    };
     const withCommand = createServiceRouterClient({
-      invoker: new RecordingInvoker({ 'cli.command.resolve': { command: COMMAND_VIEW, conflicts: [conflict] } }),
+      invoker: new RecordingInvoker({
+        'cli.command.resolve': { command: COMMAND_VIEW, conflicts: [conflict] },
+      }),
     });
     await expect(withCommand.cliCommand.resolve({ commandPath: 'demo open' })).resolves.toEqual({
       command: COMMAND_VIEW,
@@ -123,8 +154,13 @@ describe('cli.command.* 路由映射（§5.6、§5.8）', () => {
     const withoutConflicts = createServiceRouterClient({
       invoker: new RecordingInvoker({ 'cli.command.resolve': { command: COMMAND_VIEW } }),
     });
-    await expect(withoutConflicts.cliCommand.resolve({ entryId: 'e' })).resolves.toEqual({ command: COMMAND_VIEW, conflicts: [] });
-    const miss = createServiceRouterClient({ invoker: new RecordingInvoker({ 'cli.command.resolve': {} }) });
+    await expect(withoutConflicts.cliCommand.resolve({ entryId: 'e' })).resolves.toEqual({
+      command: COMMAND_VIEW,
+      conflicts: [],
+    });
+    const miss = createServiceRouterClient({
+      invoker: new RecordingInvoker({ 'cli.command.resolve': {} }),
+    });
     await expect(miss.cliCommand.resolve({ entryId: 'e' })).resolves.toEqual({ conflicts: [] });
   });
 });
@@ -145,22 +181,39 @@ describe('cli.task.* 路由映射（§5.7、§5.8）', () => {
 
   it('任务生命周期方法各自映射到对应路由并透传入参', async () => {
     const { client: cli, invoker } = client({ task: TASK });
-    await cli.cliTask.create({ pluginId: 'chips.demo.app', commandId: 'demo.open', commandPath: ['demo', 'open'] });
+    await cli.cliTask.create({
+      pluginId: 'chips.demo.app',
+      commandId: 'demo.open',
+      commandPath: ['demo', 'open'],
+    });
     expect(invoker.last('cli.task.create')?.input).toEqual({
       pluginId: 'chips.demo.app',
       commandId: 'demo.open',
       commandPath: ['demo', 'open'],
     });
     await cli.cliTask.bindInvocation({ taskId: 'task-1', invocationId: 'inv-1', sessionId: 's-1' });
-    expect(invoker.last('cli.task.bindInvocation')?.input).toEqual({ taskId: 'task-1', invocationId: 'inv-1', sessionId: 's-1' });
+    expect(invoker.last('cli.task.bindInvocation')?.input).toEqual({
+      taskId: 'task-1',
+      invocationId: 'inv-1',
+      sessionId: 's-1',
+    });
     await cli.cliTask.get('task-1');
     expect(invoker.last('cli.task.get')?.input).toEqual({ taskId: 'task-1' });
     await cli.cliTask.progress('task-1', { percent: 40 });
-    expect(invoker.last('cli.task.progress')?.input).toEqual({ taskId: 'task-1', progress: { percent: 40 } });
+    expect(invoker.last('cli.task.progress')?.input).toEqual({
+      taskId: 'task-1',
+      progress: { percent: 40 },
+    });
     await cli.cliTask.complete('task-1', { ok: true });
-    expect(invoker.last('cli.task.complete')?.input).toEqual({ taskId: 'task-1', output: { ok: true } });
+    expect(invoker.last('cli.task.complete')?.input).toEqual({
+      taskId: 'task-1',
+      output: { ok: true },
+    });
     await cli.cliTask.fail('task-1', { code: 'X', message: '失败' });
-    expect(invoker.last('cli.task.fail')?.input).toEqual({ taskId: 'task-1', error: { code: 'X', message: '失败' } });
+    expect(invoker.last('cli.task.fail')?.input).toEqual({
+      taskId: 'task-1',
+      error: { code: 'X', message: '失败' },
+    });
     await cli.cliTask.cancel('task-1');
     expect(invoker.last('cli.task.cancel')?.input).toEqual({ taskId: 'task-1' });
   });
@@ -179,7 +232,10 @@ describe('cli.task.* 路由映射（§5.7、§5.8）', () => {
   it('active 以 activeOnly 查询当前运行任务，未命中返回 undefined', async () => {
     const found = client({ task: TASK });
     await expect(found.client.cliTask.active('demo.open')).resolves.toEqual(TASK);
-    expect(found.invoker.last('cli.task.get')?.input).toEqual({ commandId: 'demo.open', activeOnly: true });
+    expect(found.invoker.last('cli.task.get')?.input).toEqual({
+      commandId: 'demo.open',
+      activeOnly: true,
+    });
     const missing = client({});
     await expect(missing.client.cliTask.active('demo.open')).resolves.toBeUndefined();
     const scalar = client('x');
@@ -189,18 +245,33 @@ describe('cli.task.* 路由映射（§5.7、§5.8）', () => {
 
 describe('命令与能力调用（§5.3、§5.8）', () => {
   it('commands.invoke 固定以 source: "cli" 请求 command:invoke', async () => {
-    const result = { invocationId: 'inv-1', commandId: 'demo.open', target: 'main', status: 'dispatched' };
+    const result = {
+      invocationId: 'inv-1',
+      commandId: 'demo.open',
+      target: 'main',
+      status: 'dispatched',
+    };
     const invoker = new RecordingInvoker({ 'command:invoke': result });
     const client = createServiceRouterClient({ invoker });
-    await expect(client.commands.invoke({ commandId: 'demo.open', payload: { a: 1 } })).resolves.toEqual(result);
-    expect(invoker.last('command:invoke')?.input).toEqual({ commandId: 'demo.open', payload: { a: 1 }, source: 'cli' });
+    await expect(
+      client.commands.invoke({ commandId: 'demo.open', payload: { a: 1 } })
+    ).resolves.toEqual(result);
+    expect(invoker.last('command:invoke')?.input).toEqual({
+      commandId: 'demo.open',
+      payload: { a: 1 },
+      source: 'cli',
+    });
   });
 
   it('capabilities.invoke 以能力 ID 为路由并包装为 output 信封', async () => {
     const invoker = new RecordingInvoker({ 'resources:read': { items: [] } });
     const client = createServiceRouterClient({ invoker });
     await expect(
-      client.capabilities.invoke({ capability: 'resources:read', input: { path: '/x' }, workspace: '/ws' }),
+      client.capabilities.invoke({
+        capability: 'resources:read',
+        input: { path: '/x' },
+        workspace: '/ws',
+      })
     ).resolves.toEqual({ output: { items: [] } });
     expect(invoker.last('resources:read')?.input).toEqual({ path: '/x' });
   });
@@ -217,7 +288,10 @@ describe('平台操作与适配器注入（§2.5）', () => {
     { method: 'configSet', args: ['platform.log.level', 'debug', 'user'] },
     { method: 'configReset', args: ['platform.log.level', 'workspace'] },
     { method: 'logsRead', args: [{ lines: 50, level: 'warn' }] },
-    { method: 'logsFollow', args: [{ level: 'info' }, () => undefined, new AbortController().signal] },
+    {
+      method: 'logsFollow',
+      args: [{ level: 'info' }, () => undefined, new AbortController().signal],
+    },
     { method: 'pluginList', args: [{ role: 'app' }] },
     { method: 'pluginInfo', args: ['chips.demo.app'] },
     { method: 'pluginInstall', args: [{ path: '/tmp/a.cpk', source: 'user', yes: true }] },
@@ -252,7 +326,11 @@ describe('平台操作与适配器注入（§2.5）', () => {
       },
       workspaceStatus: () => {
         seen.push({ method: 'workspaceStatus', args: [] });
-        return Promise.resolve({ workspace: { path: '/ws', kind: 'user' }, state: { running: true }, platformVersion: '0.1.0' });
+        return Promise.resolve({
+          workspace: { path: '/ws', kind: 'user' },
+          state: { running: true },
+          platformVersion: '0.1.0',
+        });
       },
       workspaceStart: () => {
         seen.push({ method: 'workspaceStart', args: [] });
@@ -279,7 +357,10 @@ describe('平台操作与适配器注入（§2.5）', () => {
         return Promise.resolve([]);
       },
       logsFollow: (options, onEntry, signal) => {
-        seen.push({ method: 'logsFollow', args: [options, typeof onEntry, signal instanceof AbortSignal] });
+        seen.push({
+          method: 'logsFollow',
+          args: [options, typeof onEntry, signal instanceof AbortSignal],
+        });
         return Promise.resolve();
       },
       pluginList: (filter) => {
@@ -292,7 +373,15 @@ describe('平台操作与适配器注入（§2.5）', () => {
       },
       pluginInstall: (input) => {
         seen.push({ method: 'pluginInstall', args: [input] });
-        return Promise.resolve({ id: 'chips.demo.app', version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'installed', enabled: true });
+        return Promise.resolve({
+          id: 'chips.demo.app',
+          version: '0.1.0',
+          role: 'app',
+          name: '示例',
+          source: 'user',
+          state: 'installed',
+          enabled: true,
+        });
       },
       pluginUninstall: (pluginId) => {
         seen.push({ method: 'pluginUninstall', args: [pluginId] });
@@ -300,11 +389,27 @@ describe('平台操作与适配器注入（§2.5）', () => {
       },
       pluginEnable: (pluginId) => {
         seen.push({ method: 'pluginEnable', args: [pluginId] });
-        return Promise.resolve({ id: pluginId, version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'active', enabled: true });
+        return Promise.resolve({
+          id: pluginId,
+          version: '0.1.0',
+          role: 'app',
+          name: '示例',
+          source: 'user',
+          state: 'active',
+          enabled: true,
+        });
       },
       pluginDisable: (pluginId) => {
         seen.push({ method: 'pluginDisable', args: [pluginId] });
-        return Promise.resolve({ id: pluginId, version: '0.1.0', role: 'app', name: '示例', source: 'user', state: 'disabled', enabled: false });
+        return Promise.resolve({
+          id: pluginId,
+          version: '0.1.0',
+          role: 'app',
+          name: '示例',
+          source: 'user',
+          state: 'disabled',
+          enabled: false,
+        });
       },
       open: (path) => {
         seen.push({ method: 'open', args: [path] });
@@ -312,7 +417,12 @@ describe('平台操作与适配器注入（§2.5）', () => {
       },
       updateCheck: (channel) => {
         seen.push({ method: 'updateCheck', args: [channel] });
-        return Promise.resolve({ currentVersion: '0.1.0', latestVersion: null, channel, updateAvailable: false });
+        return Promise.resolve({
+          currentVersion: '0.1.0',
+          latestVersion: null,
+          channel,
+          updateAvailable: false,
+        });
       },
       updateInstall: (channel) => {
         seen.push({ method: 'updateInstall', args: [channel] });
@@ -333,7 +443,11 @@ describe('平台操作与适配器注入（§2.5）', () => {
       }
     }
     expect(seen.map((item) => item.method)).toEqual(platformCalls.map((item) => item.method));
-    expect(seen.find((item) => item.method === 'configSet')?.args).toEqual(['platform.log.level', 'debug', 'user']);
+    expect(seen.find((item) => item.method === 'configSet')?.args).toEqual([
+      'platform.log.level',
+      'debug',
+      'user',
+    ]);
     expect(seen.find((item) => item.method === 'logsFollow')?.args).toEqual([
       { level: 'info' },
       'function',
@@ -343,7 +457,10 @@ describe('平台操作与适配器注入（§2.5）', () => {
 
   it('apps.ensureRunning 缺适配器时 CLI_TARGET_UNAVAILABLE，注入后委托', async () => {
     const missing = createServiceRouterClient({ invoker: new RecordingInvoker() });
-    await expectCode(missing.apps.ensureRunning({ pluginId: 'chips.demo.app' }), 'CLI_TARGET_UNAVAILABLE');
+    await expectCode(
+      missing.apps.ensureRunning({ pluginId: 'chips.demo.app' }),
+      'CLI_TARGET_UNAVAILABLE'
+    );
     const launched: unknown[] = [];
     const client = createServiceRouterClient({
       invoker: new RecordingInvoker(),
@@ -360,19 +477,26 @@ describe('平台操作与适配器注入（§2.5）', () => {
 
   it('devHost.runPlugin 缺适配器时 CLI_TARGET_UNAVAILABLE，注入后委托', async () => {
     const missing = createServiceRouterClient({ invoker: new RecordingInvoker() });
-    await expectCode(missing.devHost.runPlugin({ dir: '/p', workspace: '/ws' }), 'CLI_TARGET_UNAVAILABLE');
+    await expectCode(
+      missing.devHost.runPlugin({ dir: '/p', workspace: '/ws' }),
+      'CLI_TARGET_UNAVAILABLE'
+    );
     const client = createServiceRouterClient({
       invoker: new RecordingInvoker(),
       devHost: {
         runPlugin: (input) => Promise.resolve({ started: input.dir }),
       },
     });
-    await expect(client.devHost.runPlugin({ dir: '/p', workspace: '/ws' })).resolves.toEqual({ started: '/p' });
+    await expect(client.devHost.runPlugin({ dir: '/p', workspace: '/ws' })).resolves.toEqual({
+      started: '/p',
+    });
   });
 
   it('operations.record 缺写入器时静默成功，注入后委托记录', async () => {
     const missing = createServiceRouterClient({ invoker: new RecordingInvoker() });
-    await expect(missing.operations.record({ namespace: 'cli', action: 'operation.execute', metadata: {} })).resolves.toBeUndefined();
+    await expect(
+      missing.operations.record({ namespace: 'cli', action: 'operation.execute', metadata: {} })
+    ).resolves.toBeUndefined();
     const records: unknown[] = [];
     const client = createServiceRouterClient({
       invoker: new RecordingInvoker(),
@@ -383,7 +507,11 @@ describe('平台操作与适配器注入（§2.5）', () => {
         },
       },
     });
-    const record = { namespace: 'cli', action: 'operation.execute', metadata: { exitCode: 0 } } as const;
+    const record = {
+      namespace: 'cli',
+      action: 'operation.execute',
+      metadata: { exitCode: 0 },
+    } as const;
     await client.operations.record(record);
     expect(records).toEqual([record]);
   });
@@ -394,34 +522,56 @@ describe('本地产物引擎接缝（§3.5）', () => {
     const client = createServiceRouterClient({ invoker: new RecordingInvoker() });
     const fileSystem = new MemoryFileSystem();
     await expectCode(
-      client.artifacts.create({ role: 'app', pluginId: 'chips.demo.app', name: '示例', dir: '/out', fileSystem }),
-      'CLI_TARGET_UNAVAILABLE',
+      client.artifacts.create({
+        role: 'app',
+        pluginId: 'chips.demo.app',
+        name: '示例',
+        dir: '/out',
+        fileSystem,
+      }),
+      'CLI_TARGET_UNAVAILABLE'
     );
-    await expectCode(client.artifacts.pack({ dir: '/src', sign: false, fileSystem }), 'CLI_TARGET_UNAVAILABLE');
+    await expectCode(
+      client.artifacts.pack({ dir: '/src', sign: false, fileSystem }),
+      'CLI_TARGET_UNAVAILABLE'
+    );
     await expectCode(
       client.artifacts.validate({ path: '/out/a.cpk', source: 'user', fileSystem }),
-      'CLI_TARGET_UNAVAILABLE',
+      'CLI_TARGET_UNAVAILABLE'
     );
   });
 
   it('注入的 artifacts 实现被原样挂到客户端', async () => {
     const artifacts = {
-      create: () => Promise.resolve({ pluginId: 'chips.demo.app', role: 'app', targetDir: '/out', files: ['manifest.yaml'] }),
-      pack: () => Promise.resolve({
-        archivePath: '/out/a.cpk',
-        name: '示例',
-        version: '1.0.0',
-        role: 'app',
-        memberCount: 1,
-        archiveSize: 10,
-        digest: 'sha256:x',
-        signed: false,
-      }),
+      create: () =>
+        Promise.resolve({
+          pluginId: 'chips.demo.app',
+          role: 'app',
+          targetDir: '/out',
+          files: ['manifest.yaml'],
+        }),
+      pack: () =>
+        Promise.resolve({
+          archivePath: '/out/a.cpk',
+          name: '示例',
+          version: '1.0.0',
+          role: 'app',
+          memberCount: 1,
+          archiveSize: 10,
+          digest: 'sha256:x',
+          signed: false,
+        }),
       validate: () => Promise.resolve({ valid: true, stages: [] }),
     } as unknown as ICliClient['artifacts'];
     const client = createServiceRouterClient({ invoker: new RecordingInvoker(), artifacts });
     expect(client.artifacts).toBe(artifacts);
-    await expect(client.artifacts.validate({ path: '/out/a.cpk', source: 'user', fileSystem: new MemoryFileSystem() })).resolves.toEqual({
+    await expect(
+      client.artifacts.validate({
+        path: '/out/a.cpk',
+        source: 'user',
+        fileSystem: new MemoryFileSystem(),
+      })
+    ).resolves.toEqual({
       valid: true,
       stages: [],
     });

@@ -23,14 +23,18 @@ export function parsePermissionModel(reader: DocReader): DocPermissionModel {
   }
   const table = findTable(body, '权限 ID');
   if (table === null) {
-    throw new Error(`权限清单章节缺少「权限 ID」表：${PERMISSION_SOURCE.file} §${PERMISSION_SOURCE.heading}`);
+    throw new Error(
+      `权限清单章节缺少「权限 ID」表：${PERMISSION_SOURCE.file} §${PERMISSION_SOURCE.heading}`
+    );
   }
   const ids = new Set<string>();
   for (const row of table.rows) {
-    const tokens = inlineCodeTokens(row[0] ?? '').filter((token) => PERMISSION_ID_PATTERN.test(token));
+    const tokens = inlineCodeTokens(row[0] ?? '').filter((token) =>
+      PERMISSION_ID_PATTERN.test(token)
+    );
     if (tokens.length === 0) {
       throw new Error(
-        `权限清单行未解析出权限 ID：${row[0] ?? ''}（${PERMISSION_SOURCE.file} §${PERMISSION_SOURCE.heading}）`,
+        `权限清单行未解析出权限 ID：${row[0] ?? ''}（${PERMISSION_SOURCE.file} §${PERMISSION_SOURCE.heading}）`
       );
     }
     for (const token of tokens) {

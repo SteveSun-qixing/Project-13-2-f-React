@@ -36,7 +36,9 @@ describe('validateCompiled 标量与类型', () => {
       pointer: '/ratio',
       keyword: 'type',
     });
-    expect(compiled.validate({ count: 1, ratio: Number.POSITIVE_INFINITY }).issues[0]).toMatchObject({
+    expect(
+      compiled.validate({ count: 1, ratio: Number.POSITIVE_INFINITY }).issues[0]
+    ).toMatchObject({
       pointer: '/ratio',
       keyword: 'type',
     });
@@ -53,12 +55,16 @@ describe('validateCompiled 标量与类型', () => {
         when: { type: 'string', format: 'date-time' },
       },
     });
-    expect(compiled.validate({ text: '中', code: 'ab', when: '2026-09-19T00:00:00Z' }).valid).toBe(true);
-    expect(compiled.validate({ text: '', code: 'ab', when: 'x' }).issues.map((issue) => issue.keyword)).toContain(
-      'minLength',
+    expect(compiled.validate({ text: '中', code: 'ab', when: '2026-09-19T00:00:00Z' }).valid).toBe(
+      true
     );
     expect(
-      compiled.validate({ text: '中文中文', code: 'AB', when: 'x' }).issues.map((issue) => issue.keyword),
+      compiled.validate({ text: '', code: 'ab', when: 'x' }).issues.map((issue) => issue.keyword)
+    ).toContain('minLength');
+    expect(
+      compiled
+        .validate({ text: '中文中文', code: 'AB', when: 'x' })
+        .issues.map((issue) => issue.keyword)
     ).toEqual(expect.arrayContaining(['maxLength', 'pattern', 'format']));
   });
 
@@ -85,7 +91,9 @@ describe('validateCompiled 标量与类型', () => {
     expect(compiled.validate({ value: 10 }).issues.map((issue) => issue.keyword)).toEqual([
       'exclusiveMaximum',
     ]);
-    expect(compiled.validate({ value: 3 }).issues.map((issue) => issue.keyword)).toEqual(['multipleOf']);
+    expect(compiled.validate({ value: 3 }).issues.map((issue) => issue.keyword)).toEqual([
+      'multipleOf',
+    ]);
   });
 
   it('enum 与 const 使用深比较', () => {
@@ -99,12 +107,14 @@ describe('validateCompiled 标量与类型', () => {
       },
     });
     expect(compiled.validate({ mode: { key: 'a' }, fixed: { nested: [1, 2] } }).valid).toBe(true);
-    expect(compiled.validate({ mode: { key: 'b' }, fixed: { nested: [1, 2] } }).issues.map((i) => i.keyword)).toEqual([
-      'enum',
-    ]);
-    expect(compiled.validate({ mode: 'b', fixed: { nested: [2, 1] } }).issues.map((i) => i.keyword)).toEqual([
-      'const',
-    ]);
+    expect(
+      compiled
+        .validate({ mode: { key: 'b' }, fixed: { nested: [1, 2] } })
+        .issues.map((i) => i.keyword)
+    ).toEqual(['enum']);
+    expect(
+      compiled.validate({ mode: 'b', fixed: { nested: [2, 1] } }).issues.map((i) => i.keyword)
+    ).toEqual(['const']);
   });
 });
 
@@ -130,7 +140,7 @@ describe('validateCompiled 对象与数组', () => {
         '/path:required',
         '/extra:additionalProperties',
         '/nested/depth:type',
-      ]),
+      ])
     );
   });
 
@@ -149,10 +159,12 @@ describe('validateCompiled 对象与数组', () => {
       },
     });
     expect(compiled.validate({ map: { a: 1 } }).valid).toBe(true);
-    expect(compiled.validate({ map: {} }).issues.map((issue) => issue.keyword)).toEqual(['minProperties']);
-    expect(compiled.validate({ map: { a: 1, b: 2, c: 3 } }).issues.map((issue) => issue.keyword)).toEqual([
-      'maxProperties',
+    expect(compiled.validate({ map: {} }).issues.map((issue) => issue.keyword)).toEqual([
+      'minProperties',
     ]);
+    expect(
+      compiled.validate({ map: { a: 1, b: 2, c: 3 } }).issues.map((issue) => issue.keyword)
+    ).toEqual(['maxProperties']);
     expect(compiled.validate({ map: { BAD: 1 } }).issues.map((issue) => issue.keyword)).toEqual([
       'propertyNames',
     ]);
@@ -174,10 +186,18 @@ describe('validateCompiled 对象与数组', () => {
       },
     });
     expect(compiled.validate({ list: [1, 2] }).valid).toBe(true);
-    expect(compiled.validate({ list: [] }).issues.map((issue) => issue.keyword)).toEqual(['minItems']);
-    expect(compiled.validate({ list: [1, 2, 3] }).issues.map((issue) => issue.keyword)).toEqual(['maxItems']);
-    expect(compiled.validate({ list: [1, 1] }).issues.map((issue) => issue.keyword)).toEqual(['uniqueItems']);
-    expect(compiled.validate({ list: [1, 'x'] }).issues.map((issue) => issue.keyword)).toEqual(['type']);
+    expect(compiled.validate({ list: [] }).issues.map((issue) => issue.keyword)).toEqual([
+      'minItems',
+    ]);
+    expect(compiled.validate({ list: [1, 2, 3] }).issues.map((issue) => issue.keyword)).toEqual([
+      'maxItems',
+    ]);
+    expect(compiled.validate({ list: [1, 1] }).issues.map((issue) => issue.keyword)).toEqual([
+      'uniqueItems',
+    ]);
+    expect(compiled.validate({ list: [1, 'x'] }).issues.map((issue) => issue.keyword)).toEqual([
+      'type',
+    ]);
   });
 
   it('Uint8Array 不被当作普通对象校验', () => {
@@ -210,7 +230,9 @@ describe('validateCompiled 组合关键字与二进制', () => {
       'anyOf',
       'oneOf',
     ]);
-    expect(compiled.validate({ value: 'abc' }).issues.map((issue) => issue.keyword)).toEqual(['oneOf']);
+    expect(compiled.validate({ value: 'abc' }).issues.map((issue) => issue.keyword)).toEqual([
+      'oneOf',
+    ]);
   });
 
   it('anyOf 分支失败不污染父级问题列表', () => {
@@ -229,22 +251,32 @@ describe('validateCompiled 组合关键字与二进制', () => {
       required: ['data'],
       properties: { data: { 'x-chips-binary': 4 } },
     });
-    expect(compiled.validate({ data: 'a' }, { bin: new Map([['a', new Uint8Array(4)]]) }).valid).toBe(true);
     expect(
-      compiled.validate({ data: 'a' }, { bin: new Map([['a', new Uint8Array(5)]]) }).issues.map(
-        (issue) => issue.keyword,
-      ),
+      compiled.validate({ data: 'a' }, { bin: new Map([['a', new Uint8Array(4)]]) }).valid
+    ).toBe(true);
+    expect(
+      compiled
+        .validate({ data: 'a' }, { bin: new Map([['a', new Uint8Array(5)]]) })
+        .issues.map((issue) => issue.keyword)
     ).toEqual(['x-chips-binary']);
     expect(
-      compiled.validate({ data: 'missing' }, { bin: new Map() }).issues.map(
-        (issue) => issue.keyword,
-      ),
+      compiled
+        .validate({ data: 'missing' }, { bin: new Map() })
+        .issues.map((issue) => issue.keyword)
     ).toEqual(['x-chips-binary']);
-    expect(compiled.validate({ data: 1 }, { bin: new Map() }).issues.map((issue) => issue.keyword)).toEqual([
-      'x-chips-binary',
-    ]);
     expect(
-      compiled.validate({ data: 'a' }, { bin: new Map([['a', new Uint8Array(1)], ['b', new Uint8Array(1)]]) }).issues,
+      compiled.validate({ data: 1 }, { bin: new Map() }).issues.map((issue) => issue.keyword)
+    ).toEqual(['x-chips-binary']);
+    expect(
+      compiled.validate(
+        { data: 'a' },
+        {
+          bin: new Map([
+            ['a', new Uint8Array(1)],
+            ['b', new Uint8Array(1)],
+          ]),
+        }
+      ).issues
     ).toEqual([{ pointer: '', keyword: 'x-chips-binary', message: '包含未使用的二进制条目' }]);
   });
 

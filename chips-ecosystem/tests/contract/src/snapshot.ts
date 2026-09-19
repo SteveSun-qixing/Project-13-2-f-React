@@ -97,8 +97,8 @@ export function deepDiff(expected: unknown, actual: unknown, basePath = ''): Sna
   }
   if (isPlainObject(expected) && isPlainObject(actual)) {
     const diffs: SnapshotDiff[] = [];
-    const keys = [...new Set([...Object.keys(expected), ...Object.keys(actual)])].sort((left, right) =>
-      left.localeCompare(right),
+    const keys = [...new Set([...Object.keys(expected), ...Object.keys(actual)])].sort(
+      (left, right) => left.localeCompare(right)
     );
     for (const key of keys) {
       const entryPath = basePath === '' ? key : `${basePath}.${key}`;
@@ -115,7 +115,14 @@ export function deepDiff(expected: unknown, actual: unknown, basePath = ''): Sna
     return diffs;
   }
   if (JSON.stringify(expected) !== JSON.stringify(actual)) {
-    return [{ path: basePath === '' ? '<根>' : basePath, kind: 'changed', expected: describe(expected), actual: describe(actual) }];
+    return [
+      {
+        path: basePath === '' ? '<根>' : basePath,
+        kind: 'changed',
+        expected: describe(expected),
+        actual: describe(actual),
+      },
+    ];
   }
   return [];
 }
@@ -177,7 +184,11 @@ export function snapshotViolations(comparison: SnapshotComparison): ContractViol
   const subject = workspaceRelative(comparison.file);
   if (comparison.status === 'missing') {
     return [
-      violation('CONTRACT_SNAPSHOT_MISSING', subject, '契约快照缺失；评审后运行 `pnpm test:contract:update` 生成并提交'),
+      violation(
+        'CONTRACT_SNAPSHOT_MISSING',
+        subject,
+        '契约快照缺失；评审后运行 `pnpm test:contract:update` 生成并提交'
+      ),
     ];
   }
   if (comparison.status !== 'diff') {
@@ -191,16 +202,16 @@ export function snapshotViolations(comparison: SnapshotComparison): ContractViol
       {
         ...(diff.expected === undefined ? {} : { expected: diff.expected }),
         ...(diff.actual === undefined ? {} : { actual: diff.actual }),
-      },
-    ),
+      }
+    )
   );
   if (comparison.diffs.length > MAX_REPORTED_DIFFS) {
     violations.push(
       violation(
         'CONTRACT_SNAPSHOT_DIFF_TRUNCATED',
         subject,
-        `快照差异超过 ${MAX_REPORTED_DIFFS} 条，其余 ${comparison.diffs.length - MAX_REPORTED_DIFFS} 条未在报告中列出`,
-      ),
+        `快照差异超过 ${MAX_REPORTED_DIFFS} 条，其余 ${comparison.diffs.length - MAX_REPORTED_DIFFS} 条未在报告中列出`
+      )
     );
   }
   return violations;

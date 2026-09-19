@@ -133,7 +133,7 @@ function validateCombinators(
   node: ICompiledSchemaNode,
   value: unknown,
   pointer: string,
-  ctx: IValidationContext,
+  ctx: IValidationContext
 ): void {
   if (node.allOf !== undefined) {
     for (const branch of node.allOf) {
@@ -163,7 +163,7 @@ function countIssues(
   node: ICompiledSchemaNode,
   value: unknown,
   pointer: string,
-  parent: IValidationContext,
+  parent: IValidationContext
 ): number {
   const sub: IValidationContext = {
     issues: [],
@@ -182,7 +182,7 @@ function validateStringValue(
   node: ICompiledSchemaNode,
   value: string,
   pointer: string,
-  ctx: IValidationContext,
+  ctx: IValidationContext
 ): void {
   const length = [...value].length;
   if (node.minLength !== undefined && length < node.minLength) {
@@ -203,7 +203,7 @@ function validateNumberValue(
   node: ICompiledSchemaNode,
   value: number,
   pointer: string,
-  ctx: IValidationContext,
+  ctx: IValidationContext
 ): void {
   if (node.minimum !== undefined && value < node.minimum) {
     push(ctx, pointer, 'minimum', `数值不得小于 ${String(node.minimum)}`);
@@ -229,7 +229,7 @@ function validateObjectValue(
   node: ICompiledSchemaNode,
   value: Record<string, unknown>,
   pointer: string,
-  ctx: IValidationContext,
+  ctx: IValidationContext
 ): void {
   const keys = Object.keys(value);
   if (node.minProperties !== undefined && keys.length < node.minProperties) {
@@ -244,7 +244,7 @@ function validateObjectValue(
         ctx,
         `${pointer}/${escapePointerSegment(requiredKey)}`,
         'required',
-        `缺少必填字段：${requiredKey}`,
+        `缺少必填字段：${requiredKey}`
       );
     }
   }
@@ -283,7 +283,7 @@ function validateArrayValue(
   node: ICompiledSchemaNode,
   value: readonly unknown[],
   pointer: string,
-  ctx: IValidationContext,
+  ctx: IValidationContext
 ): void {
   if (node.minItems !== undefined && value.length < node.minItems) {
     push(ctx, pointer, 'minItems', `元素数量不得少于 ${String(node.minItems)}`);
@@ -312,7 +312,7 @@ function validateBinaryValue(
   node: ICompiledSchemaNode,
   value: unknown,
   pointer: string,
-  ctx: IValidationContext,
+  ctx: IValidationContext
 ): void {
   const binary = node.binary;
   if (binary === undefined) {
@@ -341,7 +341,7 @@ export function validateNode(
   node: ICompiledSchemaNode,
   value: unknown,
   pointer: string,
-  ctx: IValidationContext,
+  ctx: IValidationContext
 ): void {
   if (node.types !== undefined && !node.types.some((type) => matchesType(value, type))) {
     push(ctx, pointer, 'type', `类型必须为${typeLabel(node.types)}`);
@@ -373,7 +373,7 @@ export function validateNode(
 export function validateCompiled(
   root: ICompiledSchemaNode,
   value: unknown,
-  options: IValidateOptions = {},
+  options: IValidateOptions = {}
 ): IValidationResult {
   const ctx: IValidationContext = {
     issues: [],
@@ -390,7 +390,7 @@ export function validateCompiled(
     }
   }
   const sorted = [...ctx.issues].sort((left, right) =>
-    left.pointer < right.pointer ? -1 : left.pointer > right.pointer ? 1 : 0,
+    left.pointer < right.pointer ? -1 : left.pointer > right.pointer ? 1 : 0
   );
   const truncated = ctx.truncated || sorted.length > MAX_REPORTED_ISSUES;
   return {

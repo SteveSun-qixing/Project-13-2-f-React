@@ -24,7 +24,7 @@ describe('assertChipsError', () => {
     expect(() => assertChipsError(error)).not.toThrow();
     // 结构等价的普通对象同样通过：跨 Bridge 传输的是普通对象
     expect(() =>
-      assertChipsError({ code: 'DOCUMENT_NOT_OPEN', message: '文档会话不存在或已关闭' }),
+      assertChipsError({ code: 'DOCUMENT_NOT_OPEN', message: '文档会话不存在或已关闭' })
     ).not.toThrow();
   });
 
@@ -39,20 +39,20 @@ describe('assertChipsError', () => {
 
   it('非 ChipsError 值抛 Error，消息描述实际形状', () => {
     expect(failureMessage(() => assertChipsError(new Error('普通异常')))).toContain(
-      '期望 ChipsError',
+      '期望 ChipsError'
     );
     expect(failureMessage(() => assertChipsError('BRIDGE_TIMEOUT'))).toContain('string（');
     expect(failureMessage(() => assertChipsError(null))).toContain('null');
     expect(failureMessage(() => assertChipsError(undefined))).toContain('undefined（undefined）');
     // 结构判定只看 code 与 message 是否都是字符串（§5.1）：缺任一字段即非 ChipsError 形状
     expect(failureMessage(() => assertChipsError({ code: 'X' }))).toContain(
-      '结构不完整的对象（code=X，message=缺失）',
+      '结构不完整的对象（code=X，message=缺失）'
     );
     expect(failureMessage(() => assertChipsError({ message: '缺错误码' }))).toContain(
-      '结构不完整的对象（code=缺失，message=缺错误码）',
+      '结构不完整的对象（code=缺失，message=缺错误码）'
     );
     expect(failureMessage(() => assertChipsError({}))).toContain(
-      '结构不完整的对象（code=缺失，message=缺失）',
+      '结构不完整的对象（code=缺失，message=缺失）'
     );
   });
 
@@ -60,7 +60,7 @@ describe('assertChipsError', () => {
     // §5.1：isChipsError 不读取原型链；跨 Bridge 传输的是普通对象，故结构等价即通过
     expect(() => assertChipsError({ code: 'BRIDGE_TIMEOUT', message: '调用超时' })).not.toThrow();
     expect(failureMessage(() => assertChipsError({ code: 1, message: '调用超时' }))).toContain(
-      '期望 ChipsError',
+      '期望 ChipsError'
     );
   });
 
@@ -83,7 +83,7 @@ describe('assertChipsError', () => {
   it('期望错误码为不匹配字符串时不会静默通过', () => {
     const caught: unknown = new ChipsError({ code: 'BRIDGE_TIMEOUT', message: '调用超时' });
     expect(failureMessage(() => assertChipsError(caught, 'BRIDGE_INTERNAL'))).toContain(
-      '期望错误码 BRIDGE_INTERNAL，实际错误码 BRIDGE_TIMEOUT',
+      '期望错误码 BRIDGE_INTERNAL，实际错误码 BRIDGE_TIMEOUT'
     );
   });
 });

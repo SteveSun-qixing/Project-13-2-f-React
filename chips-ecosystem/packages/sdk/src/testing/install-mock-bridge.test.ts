@@ -177,10 +177,10 @@ describe('Mock 安装与默认客户端 chips 的联动（02-SDK-API规范 §11 
     expect(bridge.subscriptionCount('file:changed')).toBe(0);
     uninstall();
     expect(thrownCode(() => chips.resource('chips-resource://workspace/a.card'))).toBe(
-      SDK_BRIDGE_UNAVAILABLE,
+      SDK_BRIDGE_UNAVAILABLE
     );
     expect(thrownCode(() => chips.subscribe('file:changed', () => undefined))).toBe(
-      SDK_BRIDGE_UNAVAILABLE,
+      SDK_BRIDGE_UNAVAILABLE
     );
   });
 

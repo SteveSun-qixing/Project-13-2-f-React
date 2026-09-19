@@ -17,7 +17,7 @@ describe('mockError', () => {
   it('details 原样携带，未提供时保持缺省', () => {
     const details = { uri: 'chips-resource://workspace/a.card', reason: '含 fragment 段' };
     expect(mockError(MOCK_ERROR_CODES.invalidUri, '资源地址语法不合法', details).details).toBe(
-      details,
+      details
     );
     expect(mockError(MOCK_ERROR_CODES.invalidUri, '资源地址语法不合法', null).details).toBeNull();
   });

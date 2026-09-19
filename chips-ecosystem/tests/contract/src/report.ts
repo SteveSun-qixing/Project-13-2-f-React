@@ -91,7 +91,7 @@ export function renderMarkdownReport(report: ContractReport): string {
   lines.push(`- 状态：${report.status === 'passed' ? '通过' : '失败'}`);
   lines.push(`- 快照模式：${report.snapshotMode === 'update' ? '显式更新' : '校验'}`);
   lines.push(
-    `- 汇总：共 ${report.summary.total}，通过 ${report.summary.passed}，失败 ${report.summary.failed}，跳过 ${report.summary.skipped}，耗时 ${report.summary.durationMs} ms`,
+    `- 汇总：共 ${report.summary.total}，通过 ${report.summary.passed}，失败 ${report.summary.failed}，跳过 ${report.summary.skipped}，耗时 ${report.summary.durationMs} ms`
   );
   lines.push('');
   if (report.summary.failed > 0) {
@@ -148,7 +148,10 @@ export interface WrittenReport {
   readonly markdownPath: string;
 }
 
-export function writeContractReport(report: ContractReport, reportsDir: string = REPORTS_DIR): WrittenReport {
+export function writeContractReport(
+  report: ContractReport,
+  reportsDir: string = REPORTS_DIR
+): WrittenReport {
   mkdirSync(reportsDir, { recursive: true });
   const jsonPath = path.join(reportsDir, 'contract-report.json');
   const markdownPath = path.join(reportsDir, 'contract-report.md');

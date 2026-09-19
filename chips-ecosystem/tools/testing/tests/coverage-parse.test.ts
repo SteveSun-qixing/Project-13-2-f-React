@@ -10,7 +10,10 @@ import {
 
 const REPO_ROOT = '/workspace/chips-ecosystem';
 
-const vitestEntry = (covered: number, total: number): { covered: number; total: number; pct: number } => ({
+const vitestEntry = (
+  covered: number,
+  total: number
+): { covered: number; total: number; pct: number } => ({
   covered,
   total,
   pct: total === 0 ? 100 : (covered / total) * 100,
@@ -49,7 +52,10 @@ describe('parseVitestSummary', () => {
 
     const files = parseVitestSummary(summary, REPO_ROOT);
 
-    expect(files.map((file) => file.path)).toEqual(['packages/ui/src/a.ts', 'packages/ui/src/b.ts']);
+    expect(files.map((file) => file.path)).toEqual([
+      'packages/ui/src/a.ts',
+      'packages/ui/src/b.ts',
+    ]);
     expect(files[0]?.counts.lines).toEqual({ covered: 2, total: 2 });
     expect(files[0]?.counts.branches).toEqual({ covered: 0, total: 0 });
     expect(files[1]?.counts.branches).toEqual({ covered: 0, total: 1 });
@@ -57,14 +63,11 @@ describe('parseVitestSummary', () => {
 
   it('非法条目抛出明确错误', () => {
     expect(() => parseVitestSummary(null, REPO_ROOT)).toThrow('必须是对象');
+    expect(() => parseVitestSummary({ [`${REPO_ROOT}/a.ts`]: 'oops' }, REPO_ROOT)).toThrow(
+      '条目非法'
+    );
     expect(() =>
-      parseVitestSummary({ [`${REPO_ROOT}/a.ts`]: 'oops' }, REPO_ROOT)
-    ).toThrow('条目非法');
-    expect(() =>
-      parseVitestSummary(
-        { [`${REPO_ROOT}/a.ts`]: { lines: { covered: -1, total: 2 } } },
-        REPO_ROOT
-      )
+      parseVitestSummary({ [`${REPO_ROOT}/a.ts`]: { lines: { covered: -1, total: 2 } } }, REPO_ROOT)
     ).toThrow('数值非法');
   });
 });

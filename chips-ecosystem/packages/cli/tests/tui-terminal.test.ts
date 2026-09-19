@@ -13,7 +13,12 @@ import type { ICliClient } from '../src/client/types.js';
 import type { IOutputSink } from '../src/output/io.js';
 import { MemoryFileSystem } from './support/memory-file-system.js';
 import { FakeCliClient } from './support/fake-client.js';
-import { createNodeTerminal, parseKeys, type ITerminal, type ITuiKey } from '../src/tui/terminal.js';
+import {
+  createNodeTerminal,
+  parseKeys,
+  type ITerminal,
+  type ITuiKey,
+} from '../src/tui/terminal.js';
 import { runTui, type ITuiRunOptions } from '../src/tui/run.js';
 import type { ICommandContext } from '../src/commands/types.js';
 
@@ -68,7 +73,11 @@ class FakeStdin extends EventEmitter {
 }
 
 /** 用假的 stdin/stdout 替换进程流，回调结束后恢复。 */
-async function withFakeStreams<T>(stdin: FakeStdin, stdout: FakeStdout, body: () => Promise<T> | T): Promise<T> {
+async function withFakeStreams<T>(
+  stdin: FakeStdin,
+  stdout: FakeStdout,
+  body: () => Promise<T> | T
+): Promise<T> {
   const originalIn = process.stdin;
   const originalOut = process.stdout;
   Object.defineProperty(process, 'stdin', { value: stdin, configurable: true, writable: true });
@@ -76,14 +85,27 @@ async function withFakeStreams<T>(stdin: FakeStdin, stdout: FakeStdout, body: ()
   try {
     return await body();
   } finally {
-    Object.defineProperty(process, 'stdin', { value: originalIn, configurable: true, writable: true });
-    Object.defineProperty(process, 'stdout', { value: originalOut, configurable: true, writable: true });
+    Object.defineProperty(process, 'stdin', {
+      value: originalIn,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(process, 'stdout', {
+      value: originalOut,
+      configurable: true,
+      writable: true,
+    });
   }
 }
 
 describe('parseKeys（§3.1.1 键盘操作）', () => {
   it('方向键转义序列解析为独立按键，一次输入可含多键', () => {
-    expect(parseKeys('\u001b[A\u001b[B\u001b[C\u001b[D')).toEqual([{ name: 'up' }, { name: 'down' }, { name: 'right' }, { name: 'left' }]);
+    expect(parseKeys('\u001b[A\u001b[B\u001b[C\u001b[D')).toEqual([
+      { name: 'up' },
+      { name: 'down' },
+      { name: 'right' },
+      { name: 'left' },
+    ]);
   });
 
   it('回车、空格、退格、Ctrl+C、Ctrl+\\ 各自成键', () => {
@@ -96,13 +118,24 @@ describe('parseKeys（§3.1.1 键盘操作）', () => {
 
   it('孤立转义符按 escape 处理，普通字符携带 char', () => {
     expect(parseKeys('\u001b')).toEqual([{ name: 'escape' }]);
-    expect(parseKeys('\u001b[Z')).toEqual([{ name: 'escape' }, { name: 'char', char: '[' }, { name: 'char', char: 'Z' }]);
-    expect(parseKeys('ab')).toEqual([{ name: 'char', char: 'a' }, { name: 'char', char: 'b' }]);
+    expect(parseKeys('\u001b[Z')).toEqual([
+      { name: 'escape' },
+      { name: 'char', char: '[' },
+      { name: 'char', char: 'Z' },
+    ]);
+    expect(parseKeys('ab')).toEqual([
+      { name: 'char', char: 'a' },
+      { name: 'char', char: 'b' },
+    ]);
   });
 
   it('空输入与转义序列前缀混排按逐段解析', () => {
     expect(parseKeys('')).toEqual([]);
-    expect(parseKeys('x\u001b[Ay')).toEqual([{ name: 'char', char: 'x' }, { name: 'up' }, { name: 'char', char: 'y' }]);
+    expect(parseKeys('x\u001b[Ay')).toEqual([
+      { name: 'char', char: 'x' },
+      { name: 'up' },
+      { name: 'char', char: 'y' },
+    ]);
   });
 });
 
@@ -224,7 +257,7 @@ class FakeTerminal implements ITerminal {
   public constructor(
     public isTTY: boolean = true,
     public columns: number = 100,
-    public rows: number = 30,
+    public rows: number = 30
   ) {}
 
   public write(text: string): void {

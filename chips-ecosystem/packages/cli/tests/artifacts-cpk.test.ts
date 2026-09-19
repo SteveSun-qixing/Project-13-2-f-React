@@ -59,7 +59,9 @@ const RENDER_MODULE = 'export function render() { return null; }\n';
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>';
 
 /** 合法的基础卡片暂存成员（[插件包格式] §2.2、§三）。 */
-function baseMembers(overrides?: Readonly<Record<string, Uint8Array | null>>): Map<string, Uint8Array> {
+function baseMembers(
+  overrides?: Readonly<Record<string, Uint8Array | null>>
+): Map<string, Uint8Array> {
   const members = new Map<string, Uint8Array>([
     ['manifest.yaml', text(BASECARD_MANIFEST)],
     ['dist/index.js', text(ENTRY_MODULE)],
@@ -94,7 +96,10 @@ function archiveOf(members: ReadonlyMap<string, Uint8Array>): Uint8Array {
 }
 
 /** 把成员写入目录态暂存目录。 */
-function stageDirectory(members: ReadonlyMap<string, Uint8Array>, root = '/stage'): IFileSystemPort {
+function stageDirectory(
+  members: ReadonlyMap<string, Uint8Array>,
+  root = '/stage'
+): IFileSystemPort {
   const fileSystem = new MemoryFileSystem();
   for (const [path, data] of members) {
     fileSystem.writeBinary(`${root}/${path}`, data);
@@ -108,7 +113,10 @@ interface IValidateFixture {
   readonly trustRoots?: Readonly<Record<string, string>>;
 }
 
-function validateBytes(bytes: Uint8Array, fixture: IValidateFixture = {}): ICliArtifactValidateResult {
+function validateBytes(
+  bytes: Uint8Array,
+  fixture: IValidateFixture = {}
+): ICliArtifactValidateResult {
   const fileSystem = new MemoryFileSystem();
   fileSystem.writeBinary('/pkg/hello-basecard-1.0.0.cpk', bytes);
   return validateCpk({
@@ -121,13 +129,16 @@ function validateBytes(bytes: Uint8Array, fixture: IValidateFixture = {}): ICliA
   });
 }
 
-function validateEntries(entries: readonly IZipEntry[], fixture: IValidateFixture = {}): ICliArtifactValidateResult {
+function validateEntries(
+  entries: readonly IZipEntry[],
+  fixture: IValidateFixture = {}
+): ICliArtifactValidateResult {
   return validateBytes(writeZipStore(entries), fixture);
 }
 
 function validateStageDirectory(
   members: ReadonlyMap<string, Uint8Array>,
-  fixture: IValidateFixture = {},
+  fixture: IValidateFixture = {}
 ): ICliArtifactValidateResult {
   return validateCpk({
     fileSystem: stageDirectory(members),
@@ -195,14 +206,21 @@ type ISignatureDocument = {
 
 function signatureDocumentFor(
   entries: readonly IZipEntry[],
-  keyId = 'chips-test',
+  keyId = 'chips-test'
 ): ISignatureDocument {
-  const contentHash = computeContentHash(entries.filter((entry) => entry.path !== 'signature.json'));
-  const signature = signValue(null, Buffer.from(contentHash, 'utf8'), privateKey).toString('base64');
+  const contentHash = computeContentHash(
+    entries.filter((entry) => entry.path !== 'signature.json')
+  );
+  const signature = signValue(null, Buffer.from(contentHash, 'utf8'), privateKey).toString(
+    'base64'
+  );
   return { format: 'chips-signature-v1', keyId, algorithm: 'ed25519', contentHash, signature };
 }
 
-function withSignature(entries: readonly IZipEntry[], document: Readonly<Record<string, unknown>>): IZipEntry[] {
+function withSignature(
+  entries: readonly IZipEntry[],
+  document: Readonly<Record<string, unknown>>
+): IZipEntry[] {
   return [...entries, { path: 'signature.json', data: text(JSON.stringify(document)) }];
 }
 
@@ -215,7 +233,9 @@ describe('collectDirectory（目录态成员收集）', () => {
       'manifest.yaml',
       'render.js',
     ]);
-    expect(new TextDecoder().decode(members.get('render.js') ?? new Uint8Array())).toBe(RENDER_MODULE);
+    expect(new TextDecoder().decode(members.get('render.js') ?? new Uint8Array())).toBe(
+      RENDER_MODULE
+    );
   });
 
   it('容忍根路径尾部斜杠', () => {
@@ -227,9 +247,15 @@ describe('collectDirectory（目录态成员收集）', () => {
 
   it('超过深度上限即拒绝', () => {
     const fileSystem = new MemoryFileSystem();
-    const deep = Array.from({ length: CPK_LIMITS.depth + 4 }, (_unused, index) => `d${index}`).join('/');
+    const deep = Array.from({ length: CPK_LIMITS.depth + 4 }, (_unused, index) => `d${index}`).join(
+      '/'
+    );
     fileSystem.writeBinary(`/stage/${deep}/index.js`, text(ENTRY_MODULE));
-    expectCpkError(() => collectDirectory(fileSystem, '/stage'), 'CPK_LIMIT_EXCEEDED', '目录深度超过上限');
+    expectCpkError(
+      () => collectDirectory(fileSystem, '/stage'),
+      'CPK_LIMIT_EXCEEDED',
+      '目录深度超过上限'
+    );
   });
 });
 
@@ -243,41 +269,54 @@ describe('validateLayout（结构校验，§2.2、§三）', () => {
     expectCpkError(
       () => validateLayout(baseMembers({ 'render.js': null }), 'basecard'),
       'CPK_ENTRY_MISSING',
-      'render.js',
+      'render.js'
     );
     const withRender = new Map(serviceMembers());
     withRender.set('render.js', text(RENDER_MODULE));
-    expectCpkError(() => validateLayout(withRender, 'service'), 'CPK_LAYOUT_INVALID', 'service 角色不得携带 render.js');
+    expectCpkError(
+      () => validateLayout(withRender, 'service'),
+      'CPK_LAYOUT_INVALID',
+      'service 角色不得携带 render.js'
+    );
   });
 
   it('缺少 manifest.yaml 与 dist/index.js', () => {
     expectCpkError(
       () => validateLayout(baseMembers({ 'manifest.yaml': null }), 'basecard'),
       'CPK_MANIFEST_MISSING',
-      'manifest.yaml',
+      'manifest.yaml'
     );
     expectCpkError(
       () => validateLayout(baseMembers({ 'dist/index.js': null }), 'basecard'),
       'CPK_ENTRY_MISSING',
-      'dist/index.js',
+      'dist/index.js'
     );
   });
 
   it('入口必须是 UTF-8 文本 ESM 模块', () => {
     expectCpkError(
-      () => validateLayout(baseMembers({ 'dist/index.js': text('module.exports = {};') }), 'basecard'),
+      () =>
+        validateLayout(baseMembers({ 'dist/index.js': text('module.exports = {};') }), 'basecard'),
       'CPK_ENTRY_MISSING',
-      '入口必须是 UTF-8 文本 ESM 模块',
+      '入口必须是 UTF-8 文本 ESM 模块'
     );
     expectCpkError(
-      () => validateLayout(baseMembers({ 'dist/index.js': new Uint8Array([0xff, 0xfe, 0x00]) }), 'basecard'),
+      () =>
+        validateLayout(
+          baseMembers({ 'dist/index.js': new Uint8Array([0xff, 0xfe, 0x00]) }),
+          'basecard'
+        ),
       'CPK_ENTRY_MISSING',
-      'dist/index.js',
+      'dist/index.js'
     );
     expectCpkError(
-      () => validateLayout(baseMembers({ 'render.js': text(`export x${String.fromCharCode(0)}y`) }), 'basecard'),
+      () =>
+        validateLayout(
+          baseMembers({ 'render.js': text(`export x${String.fromCharCode(0)}y`) }),
+          'basecard'
+        ),
       'CPK_ENTRY_MISSING',
-      'render.js',
+      'render.js'
     );
   });
 
@@ -285,12 +324,13 @@ describe('validateLayout（结构校验，§2.2、§三）', () => {
     expectCpkError(
       () => validateLayout(baseMembers({ 'src/index.ts': text('export x') }), 'basecard'),
       'CPK_LAYOUT_INVALID',
-      '白名单外条目：src',
+      '白名单外条目：src'
     );
     expectCpkError(
-      () => validateLayout(baseMembers({ 'package.json': text('{"version":"1.0.0"}') }), 'basecard'),
+      () =>
+        validateLayout(baseMembers({ 'package.json': text('{"version":"1.0.0"}') }), 'basecard'),
       'CPK_LAYOUT_INVALID',
-      '白名单外条目：package.json',
+      '白名单外条目：package.json'
     );
   });
 
@@ -298,37 +338,43 @@ describe('validateLayout（结构校验，§2.2、§三）', () => {
     expectCpkError(
       () => validateLayout(baseMembers({ 'assets/.hidden': text('x') }), 'basecard'),
       'CPK_LAYOUT_INVALID',
-      '禁止隐藏文件或目录',
+      '禁止隐藏文件或目录'
     );
     expectCpkError(
       () => validateLayout(baseMembers({ 'dist/index.html': text('<html/>') }), 'basecard'),
       'CPK_LAYOUT_INVALID',
-      '禁止 HTML 文档',
+      '禁止 HTML 文档'
     );
     expectCpkError(
       () => validateLayout(baseMembers({ 'assets/helper.js': text('export x') }), 'basecard'),
       'CPK_LAYOUT_INVALID',
-      'assets/ 只允许登记的资源类型',
+      'assets/ 只允许登记的资源类型'
     );
     expectCpkError(
       () => validateLayout(baseMembers({ 'manifest.ts': text('export x') }), 'basecard'),
       'CPK_LAYOUT_INVALID',
-      '白名单外条目：manifest.ts',
+      '白名单外条目：manifest.ts'
     );
-    expect(() => validateLayout(baseMembers({ 'dist/helper.js': text('export x') }), 'basecard')).not.toThrow();
+    expect(() =>
+      validateLayout(baseMembers({ 'dist/helper.js': text('export x') }), 'basecard')
+    ).not.toThrow();
   });
 
   it('service 角色 assets/ 只允许数据文件', () => {
     const members = new Map(serviceMembers());
     members.set('assets/icons/clock.svg', text(SVG));
-    expectCpkError(() => validateLayout(members, 'service'), 'CPK_LAYOUT_INVALID', '只允许数据文件');
+    expectCpkError(
+      () => validateLayout(members, 'service'),
+      'CPK_LAYOUT_INVALID',
+      '只允许数据文件'
+    );
   });
 
   it('原生载荷按扩展名与魔数拒绝', () => {
     expectCpkError(
       () => validateLayout(baseMembers({ 'dist/native.node': text('export x') }), 'basecard'),
       'CPK_NATIVE_PAYLOAD',
-      '原生可执行文件',
+      '原生可执行文件'
     );
     const magics: readonly (readonly [string, readonly number[]])[] = [
       ['PE', [0x4d, 0x5a, 0x00, 0x00]],
@@ -349,7 +395,11 @@ describe('validateLayout（结构校验，§2.2、§三）', () => {
     for (let index = 0; index < CPK_LIMITS.members + 1; index += 1) {
       members.set(`dist/f${index}.json`, text('{}'));
     }
-    expectCpkError(() => validateLayout(members, 'basecard'), 'CPK_LIMIT_EXCEEDED', '文件成员数超过 512');
+    expectCpkError(
+      () => validateLayout(members, 'basecard'),
+      'CPK_LIMIT_EXCEEDED',
+      '文件成员数超过 512'
+    );
   });
 });
 
@@ -363,7 +413,7 @@ describe('computeContentHash 与 sha256Hex（安装摘要，§6.2）', () => {
       .update(
         `a.js\n${createHash('sha256').update(text('export x')).digest('hex')}\n` +
           `b.json\n${createHash('sha256').update(text('{}')).digest('hex')}\n`,
-        'utf8',
+        'utf8'
       )
       .digest('hex');
     expect(computeContentHash(entries)).toBe(`sha256:${expected}`);
@@ -379,7 +429,9 @@ describe('computeContentHash 与 sha256Hex（安装摘要，§6.2）', () => {
   });
 
   it('sha256Hex 输出小写十六进制', () => {
-    expect(sha256Hex(text(''))).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    expect(sha256Hex(text(''))).toBe(
+      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+    );
   });
 });
 
@@ -399,14 +451,16 @@ describe('verifySignature（签名阶段，§六）', () => {
     expectCpkError(
       () => verifySignature({ entries, source: 'builtin', trustRoots: {} }),
       'CPK_SIGNATURE_REQUIRED',
-      'builtin 来源必须签名',
+      'builtin 来源必须签名'
     );
   });
 
   it('信任根内 keyId 的 Ed25519 签名通过', () => {
     const unsigned = entriesOf(baseMembers());
     const entries = withSignature(unsigned, signatureDocumentFor(unsigned));
-    expect(verifySignature({ entries, source: 'user', trustRoots: { 'chips-test': PUBLIC_PEM } })).toEqual({
+    expect(
+      verifySignature({ entries, source: 'user', trustRoots: { 'chips-test': PUBLIC_PEM } })
+    ).toEqual({
       stage: 'signature',
       status: 'passed',
       detail: 'keyId: chips-test',
@@ -416,14 +470,18 @@ describe('verifySignature（签名阶段，§六）', () => {
   it('development 来源带签名时不做信任根校验', () => {
     const unsigned = entriesOf(baseMembers());
     const entries = withSignature(unsigned, signatureDocumentFor(unsigned));
-    expect(verifySignature({ entries, source: 'development', trustRoots: {} }).status).toBe('skipped');
+    expect(verifySignature({ entries, source: 'development', trustRoots: {} }).status).toBe(
+      'skipped'
+    );
   });
 
   it('内容被改动后摘要不一致', () => {
     const unsigned = entriesOf(baseMembers());
     const document = signatureDocumentFor(unsigned);
     const tampered = unsigned.map((entry) =>
-      entry.path === 'render.js' ? { path: entry.path, data: text('export function render() { return 1; }') } : entry,
+      entry.path === 'render.js'
+        ? { path: entry.path, data: text('export function render() { return 1; }') }
+        : entry
     );
     expectCpkError(
       () =>
@@ -433,7 +491,7 @@ describe('verifySignature（签名阶段，§六）', () => {
           trustRoots: { 'chips-test': PUBLIC_PEM },
         }),
       'CPK_SIGNATURE_INVALID',
-      '包内容摘要与签名声明不一致',
+      '包内容摘要与签名声明不一致'
     );
   });
 
@@ -443,17 +501,22 @@ describe('verifySignature（签名阶段，§六）', () => {
     expectCpkError(
       () => verifySignature({ entries, source: 'user', trustRoots: { 'other-key': PUBLIC_PEM } }),
       'CPK_SIGNATURE_INVALID',
-      '信任根未注册的 keyId',
+      '信任根未注册的 keyId'
     );
     expectCpkError(
-      () => verifySignature({ entries, source: 'user', trustRoots: { 'chips-test': OTHER_PUBLIC_PEM } }),
+      () =>
+        verifySignature({
+          entries,
+          source: 'user',
+          trustRoots: { 'chips-test': OTHER_PUBLIC_PEM },
+        }),
       'CPK_SIGNATURE_INVALID',
-      'Ed25519 签名校验失败',
+      'Ed25519 签名校验失败'
     );
     expectCpkError(
       () => verifySignature({ entries, source: 'user', trustRoots: { 'chips-test': '不是 PEM' } }),
       'CPK_SIGNATURE_INVALID',
-      '签名校验失败',
+      '签名校验失败'
     );
   });
 
@@ -471,7 +534,10 @@ describe('verifySignature（签名阶段，§六）', () => {
       { ...document, contentHash: undefined },
     ];
     for (const value of cases) {
-      const signatureEntry: IZipEntry = { path: 'signature.json', data: text(JSON.stringify(value)) };
+      const signatureEntry: IZipEntry = {
+        path: 'signature.json',
+        data: text(JSON.stringify(value)),
+      };
       expectCpkError(
         () =>
           verifySignature({
@@ -480,7 +546,7 @@ describe('verifySignature（签名阶段，§六）', () => {
             trustRoots: { 'chips-test': PUBLIC_PEM },
           }),
         'CPK_SIGNATURE_INVALID',
-        'signature.json 字段非法',
+        'signature.json 字段非法'
       );
     }
   });
@@ -497,7 +563,7 @@ describe('verifySignature（签名阶段，§六）', () => {
       expectCpkError(
         () => verifySignature({ entries, source: 'user', trustRoots: {} }),
         'CPK_SIGNATURE_INVALID',
-        message,
+        message
       );
     }
   });
@@ -525,7 +591,10 @@ describe('validateCpk：归档态', () => {
   it('签名归档在信任根内通过签名阶段', () => {
     const unsigned = entriesOf(baseMembers());
     const entries = withSignature(unsigned, signatureDocumentFor(unsigned));
-    const result = validateEntries(entries, { source: 'builtin', trustRoots: { 'chips-test': PUBLIC_PEM } });
+    const result = validateEntries(entries, {
+      source: 'builtin',
+      trustRoots: { 'chips-test': PUBLIC_PEM },
+    });
     expect(stageNames(result)).toEqual([
       'archive:passed',
       'layout:passed',
@@ -550,36 +619,49 @@ describe('validateCpk：归档态', () => {
           catalog: createDocumentedPermissionCatalog(),
         }),
       'CLI_PATH_NOT_FOUND',
-      '路径不存在',
+      '路径不存在'
     );
   });
 
   it('不是合法 ZIP 归档', () => {
-    expectCpkError(() => validateBytes(text('不是归档')), 'CPK_ARCHIVE_INVALID', '未找到中央目录结束记录');
+    expectCpkError(
+      () => validateBytes(text('不是归档')),
+      'CPK_ARCHIVE_INVALID',
+      '未找到中央目录结束记录'
+    );
   });
 
   it('缺少 manifest.yaml', () => {
     expectCpkError(
       () => validateEntries(entriesOf(baseMembers({ 'manifest.yaml': null }))),
       'CPK_MANIFEST_MISSING',
-      'manifest.yaml',
+      'manifest.yaml'
     );
   });
 
   it('清单阶段错误携带已完成的阶段结果', () => {
-    const entries = entriesOf(baseMembers({ 'manifest.yaml': text('id: Chips.Bad\nversion: 1.0.0\n') }));
-    const error = expectCpkError(() => validateEntries(entries), 'CPK_MANIFEST_INVALID', '反向域名');
+    const entries = entriesOf(
+      baseMembers({ 'manifest.yaml': text('id: Chips.Bad\nversion: 1.0.0\n') })
+    );
+    const error = expectCpkError(
+      () => validateEntries(entries),
+      'CPK_MANIFEST_INVALID',
+      '反向域名'
+    );
     expect((error.details as { pointer?: string }).pointer).toBe('id');
     expect(failedStageNames(() => validateEntries(entries))).toEqual(['archive']);
   });
 
   it('engines.chips 门禁在安装校验生效', () => {
-    const manifest = BASECARD_MANIFEST.replace('runtime:', 'engines:\n  chips: ">=2.0.0"\nruntime:');
+    const manifest = BASECARD_MANIFEST.replace(
+      'runtime:',
+      'engines:\n  chips: ">=2.0.0"\nruntime:'
+    );
     const entries = entriesOf(baseMembers({ 'manifest.yaml': text(manifest) }));
     expectCpkError(
       () => validateEntries(entries, { platformVersion: '1.0.0' }),
       'CPK_ENGINE_UNSUPPORTED',
-      '不满足当前平台版本',
+      '不满足当前平台版本'
     );
     expect(validateEntries(entries, { platformVersion: '2.1.0' }).valid).toBe(true);
   });
@@ -588,7 +670,7 @@ describe('validateCpk：归档态', () => {
     expectCpkError(
       () => validateEntries(entriesOf(baseMembers({ 'assets/icons/hello.svg': null }))),
       'CPK_MANIFEST_INVALID',
-      '清单引用的文件不存在',
+      '清单引用的文件不存在'
     );
   });
 
@@ -603,7 +685,11 @@ describe('validateCpk：归档态', () => {
     for (let index = 0; index < CPK_LIMITS.members + 1; index += 1) {
       members.set(`dist/f${index}.json`, text('{}'));
     }
-    expectCpkError(() => validateEntries(entriesOf(members)), 'CPK_LIMIT_EXCEEDED', '文件成员数超过 512');
+    expectCpkError(
+      () => validateEntries(entriesOf(members)),
+      'CPK_LIMIT_EXCEEDED',
+      '文件成员数超过 512'
+    );
   });
 
   it('manifest.yaml 超过 256 KiB', () => {
@@ -611,7 +697,7 @@ describe('validateCpk：归档态', () => {
     expectCpkError(
       () => validateEntries(entriesOf(baseMembers({ 'manifest.yaml': oversized }))),
       'CPK_LIMIT_EXCEEDED',
-      'manifest.yaml 超过 256 KiB',
+      'manifest.yaml 超过 256 KiB'
     );
   });
 
@@ -619,7 +705,7 @@ describe('validateCpk：归档态', () => {
     expectCpkError(
       () => validateEntries(entriesOf(baseMembers({ 'assets/bundle.zip': text('PK') }))),
       'CPK_ARCHIVE_INVALID',
-      '禁止嵌套归档',
+      '禁止嵌套归档'
     );
     for (const extension of ['.tar', '.tgz', '.7z', '.cpk', '.gz', '.rar']) {
       const members = baseMembers({ [`assets/x${extension}`]: text('x') });
@@ -647,7 +733,7 @@ describe('validateCpk：成员路径安全（§2.4）', () => {
       const error = expectCpkError(
         () => validateEntries(entriesOf(members)),
         'CPK_PATH_UNSAFE',
-        reason,
+        reason
       );
       expect((error.details as { file?: string }).file).toBe(path);
     }
@@ -658,13 +744,15 @@ describe('validateCpk：成员路径安全（§2.4）', () => {
     expectCpkError(
       () => validateEntries(entriesOf(baseMembers({ [`assets/${longName}`]: text('x') }))),
       'CPK_LIMIT_EXCEEDED',
-      '成员路径超长',
+      '成员路径超长'
     );
-    const deep = Array.from({ length: CPK_LIMITS.depth + 1 }, (_unused, index) => `d${index}`).join('/');
+    const deep = Array.from({ length: CPK_LIMITS.depth + 1 }, (_unused, index) => `d${index}`).join(
+      '/'
+    );
     expectCpkError(
       () => validateEntries(entriesOf(baseMembers({ [`assets/${deep}.svg`]: text('x') }))),
       'CPK_LIMIT_EXCEEDED',
-      '成员目录深度超限',
+      '成员目录深度超限'
     );
   });
 });
@@ -698,13 +786,17 @@ describe('validateCpk：目录态', () => {
     expectCpkError(
       () => validateStageDirectory(baseMembers({ 'assets/bundle.zip': text('PK') })),
       'CPK_LAYOUT_INVALID',
-      'assets/ 只允许登记的资源类型',
+      'assets/ 只允许登记的资源类型'
     );
   });
 
   it('目录态清单缺字段时返回清单阶段错误', () => {
     const members = baseMembers({ 'manifest.yaml': text('version: 1.0.0\n') });
-    const error = expectCpkError(() => validateStageDirectory(members), 'CPK_MANIFEST_INVALID', '应为字符串：id');
+    const error = expectCpkError(
+      () => validateStageDirectory(members),
+      'CPK_MANIFEST_INVALID',
+      '应为字符串：id'
+    );
     expect(failedStageNames(() => validateStageDirectory(members))).toEqual(['archive']);
     expect((error.details as { pointer?: string }).pointer).toBe('id');
   });
@@ -713,7 +805,7 @@ describe('validateCpk：目录态', () => {
 describe('packCpk（§7.1 打包）', () => {
   function packFixture(
     members: ReadonlyMap<string, Uint8Array>,
-    extra?: Readonly<Record<string, Uint8Array>>,
+    extra?: Readonly<Record<string, Uint8Array>>
   ): MemoryFileSystem {
     const fileSystem = new MemoryFileSystem();
     for (const [path, data] of members) {
@@ -735,7 +827,7 @@ describe('packCpk（§7.1 打包）', () => {
       readonly dir?: string;
       readonly platformVersion?: string;
       readonly extra?: Readonly<Record<string, Uint8Array>>;
-    },
+    }
   ): ReturnType<typeof packCpk> {
     const sign = options?.sign ?? false;
     const keyId = options?.keyId;
@@ -787,7 +879,9 @@ describe('packCpk（§7.1 打包）', () => {
       sign: false,
       catalog: createDocumentedPermissionCatalog(),
     });
-    const validated = validateBytes(fileSystem.readBinary(result.archivePath), { source: 'development' });
+    const validated = validateBytes(fileSystem.readBinary(result.archivePath), {
+      source: 'development',
+    });
     expect(stageNames(validated)).toEqual([
       'archive:passed',
       'layout:passed',
@@ -813,7 +907,9 @@ describe('packCpk（§7.1 打包）', () => {
       catalog: createDocumentedPermissionCatalog(),
     });
     expect(left.digest).toBe(right.digest);
-    expect(Buffer.from(first.readBinary(left.archivePath)).equals(second.readBinary(right.archivePath))).toBe(true);
+    expect(
+      Buffer.from(first.readBinary(left.archivePath)).equals(second.readBinary(right.archivePath))
+    ).toBe(true);
   });
 
   it('签名打包写入 signature.json 并可被信任根验证', () => {
@@ -835,15 +931,26 @@ describe('packCpk（§7.1 打包）', () => {
     const signatureEntry = entries.find((entry) => entry.path === 'signature.json');
     expect(signatureEntry).toBeDefined();
     const document = JSON.parse(
-      new TextDecoder().decode(signatureEntry?.data ?? new Uint8Array()),
+      new TextDecoder().decode(signatureEntry?.data ?? new Uint8Array())
     ) as ISignatureDocument;
-    expect(Object.keys(document).sort()).toEqual(['algorithm', 'contentHash', 'format', 'keyId', 'signature']);
+    expect(Object.keys(document).sort()).toEqual([
+      'algorithm',
+      'contentHash',
+      'format',
+      'keyId',
+      'signature',
+    ]);
     expect(document.format).toBe('chips-signature-v1');
     expect(document.algorithm).toBe('ed25519');
     expect(document.keyId).toBe('chips-test');
-    expect(document.contentHash).toBe(computeContentHash(entries.filter((entry) => entry.path !== 'signature.json')));
+    expect(document.contentHash).toBe(
+      computeContentHash(entries.filter((entry) => entry.path !== 'signature.json'))
+    );
 
-    const validated = validateBytes(bytes, { source: 'user', trustRoots: { 'chips-test': PUBLIC_PEM } });
+    const validated = validateBytes(bytes, {
+      source: 'user',
+      trustRoots: { 'chips-test': PUBLIC_PEM },
+    });
     expect(stageNames(validated)).toEqual([
       'archive:passed',
       'layout:passed',
@@ -863,24 +970,29 @@ describe('packCpk（§7.1 打包）', () => {
     expectCpkError(
       () => pack(baseMembers({ 'manifest.yaml': null })),
       'CPK_MANIFEST_MISSING',
-      '插件工程缺少 manifest.yaml',
+      '插件工程缺少 manifest.yaml'
     );
   });
 
   it('签名参数不完整时拒绝', () => {
-    expectCpkError(() => pack(baseMembers(), { sign: true }), 'CLI_ARGUMENT_INVALID', 'CHIPS_SIGNING_KEY_FILE');
+    expectCpkError(
+      () => pack(baseMembers(), { sign: true }),
+      'CLI_ARGUMENT_INVALID',
+      'CHIPS_SIGNING_KEY_FILE'
+    );
     expectCpkError(
       () => pack(baseMembers(), { sign: true, keyId: 'chips-test' }),
       'CLI_ARGUMENT_INVALID',
-      'CHIPS_SIGNING_KEY_FILE',
+      'CHIPS_SIGNING_KEY_FILE'
     );
   });
 
   it('私钥不可读时返回签名错误', () => {
     expectCpkError(
-      () => pack(baseMembers(), { sign: true, keyId: 'chips-test', signingKeyFile: '/keys/none.pem' }),
+      () =>
+        pack(baseMembers(), { sign: true, keyId: 'chips-test', signingKeyFile: '/keys/none.pem' }),
       'CPK_SIGNATURE_INVALID',
-      '签名失败',
+      '签名失败'
     );
   });
 
@@ -891,7 +1003,7 @@ describe('packCpk（§7.1 打包）', () => {
           extra: { '/plugins/hello-basecard/package.json': text('{"version":"2.0.0"}') },
         }),
       'CPK_MANIFEST_INVALID',
-      '不一致',
+      '不一致'
     );
     expectCpkError(
       () =>
@@ -899,20 +1011,23 @@ describe('packCpk（§7.1 打包）', () => {
           extra: { '/plugins/hello-basecard/package.json': text('{坏 JSON') },
         }),
       'CPK_MANIFEST_INVALID',
-      'package.json 不是合法 JSON',
+      'package.json 不是合法 JSON'
     );
   });
 
   it('清单校验与平台门禁在打包阶段生效', () => {
-    const manifest = BASECARD_MANIFEST.replace('runtime:', 'engines:\n  chips: ">=2.0.0"\nruntime:');
+    const manifest = BASECARD_MANIFEST.replace(
+      'runtime:',
+      'engines:\n  chips: ">=2.0.0"\nruntime:'
+    );
     expectCpkError(
       () => pack(baseMembers({ 'manifest.yaml': text(manifest) }), { platformVersion: '1.0.0' }),
       'CPK_ENGINE_UNSUPPORTED',
-      '不满足当前平台版本',
+      '不满足当前平台版本'
     );
     expectCpkError(
       () => pack(baseMembers({ 'manifest.yaml': text('id: BAD\nversion: 1.0.0\n') })),
-      'CPK_MANIFEST_INVALID',
+      'CPK_MANIFEST_INVALID'
     );
   });
 
@@ -923,7 +1038,7 @@ describe('packCpk（§7.1 打包）', () => {
           extra: { '/plugins/hello-basecard/package.json': text('{"version":"1.0.0"}') },
         }),
       'CPK_LAYOUT_INVALID',
-      '白名单外条目：package.json',
+      '白名单外条目：package.json'
     );
   });
 });

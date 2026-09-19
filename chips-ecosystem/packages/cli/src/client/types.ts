@@ -185,7 +185,12 @@ export interface ICliTaskRecord {
   readonly updatedAt: number;
   readonly progress?: Readonly<Record<string, unknown>>;
   readonly output?: unknown;
-  readonly error?: { readonly code: string; readonly message: string; readonly details?: unknown; readonly retryable?: boolean };
+  readonly error?: {
+    readonly code: string;
+    readonly message: string;
+    readonly details?: unknown;
+    readonly retryable?: boolean;
+  };
 }
 
 /** `cli-task` 契约（[CLI 完整参考] §5.6、§5.8）。 */
@@ -271,8 +276,7 @@ export interface ICliDoctorReport {
 export interface ICliOpenResult {
   readonly path: string;
   readonly handler:
-    | { readonly pluginId: string; readonly kind: 'app' | 'service' }
-    | { readonly kind: 'shell' };
+    { readonly pluginId: string; readonly kind: 'app' | 'service' } | { readonly kind: 'shell' };
 }
 
 /** 脚手架计划（`@chips/sdk/scaffold` 的 `IScaffoldPlan` 消费视图）。 */
@@ -373,11 +377,14 @@ export interface ICliPlatformOperations {
   configList(layer: CliConfigLayer | undefined): Promise<unknown>;
   configSet(key: string, value: unknown, layer: CliConfigLayer | undefined): Promise<unknown>;
   configReset(key: string, layer: CliConfigLayer | undefined): Promise<unknown>;
-  logsRead(options: { readonly lines: number; readonly level?: CliLogLevel }): Promise<readonly ICliLogEntry[]>;
+  logsRead(options: {
+    readonly lines: number;
+    readonly level?: CliLogLevel;
+  }): Promise<readonly ICliLogEntry[]>;
   logsFollow(
     options: { readonly level?: CliLogLevel },
     onEntry: (entry: ICliLogEntry) => void,
-    signal: AbortSignal,
+    signal: AbortSignal
   ): Promise<void>;
   pluginList(filter: {
     readonly role?: CliPluginRole;

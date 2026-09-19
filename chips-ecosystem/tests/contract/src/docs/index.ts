@@ -33,14 +33,56 @@ export function loadDocModels(reader: DocReader): DocModels {
   };
 }
 
-export { createFileReader, createMemoryReader, docRefLabel, type DocReader, type DocRef } from './reader.js';
-export { CAPABILITY_ID_PATTERN, PERMISSION_ID_PATTERN, toBasePermission, type DocCapability, type DocCapabilityModel } from './capabilities.js';
+export {
+  createFileReader,
+  createMemoryReader,
+  docRefLabel,
+  type DocReader,
+  type DocRef,
+} from './reader.js';
+export {
+  CAPABILITY_ID_PATTERN,
+  PERMISSION_ID_PATTERN,
+  toBasePermission,
+  type DocCapability,
+  type DocCapabilityModel,
+} from './capabilities.js';
 export { type DocPermissionModel } from './permissions.js';
-export { EVENT_ID_PATTERN, classifyVisibility, type DocEvent, type DocEventModel, type DocEventPayloadField, type DocReservedDomain, type DocVisibilityKind } from './events.js';
-export { ERROR_CODE_PATTERN, domainCodes, errorSourceRef, type DocErrorDomain, type DocErrorRegistry } from './errors.js';
-export { type DocExportClaim, type DocRole, type DocRoleDeclaration, type DocRoleModel } from './roles.js';
-export { isTypeExported, sdkConcreteTypeNames, type SdkExportModel, type SdkTypeExport, type SdkValueExport } from './sdk.js';
-export { type FrameDirection, type FrameMessageDeclaration, type FrameProtocolModel, type FrameTableRow } from './frame.js';
+export {
+  EVENT_ID_PATTERN,
+  classifyVisibility,
+  type DocEvent,
+  type DocEventModel,
+  type DocEventPayloadField,
+  type DocReservedDomain,
+  type DocVisibilityKind,
+} from './events.js';
+export {
+  ERROR_CODE_PATTERN,
+  domainCodes,
+  errorSourceRef,
+  type DocErrorDomain,
+  type DocErrorRegistry,
+} from './errors.js';
+export {
+  type DocExportClaim,
+  type DocRole,
+  type DocRoleDeclaration,
+  type DocRoleModel,
+} from './roles.js';
+export {
+  isTypeExported,
+  sdkConcreteTypeNames,
+  type SdkExportModel,
+  type SdkTypeExport,
+  type SdkValueExport,
+} from './sdk.js';
+export {
+  type FrameDirection,
+  type FrameMessageDeclaration,
+  type FrameProtocolModel,
+  type FrameTableRow,
+} from './frame.js';
 export { ROLE_ENTRY_INTERFACES, type RoleName } from './sources.js';
 export type {
   NormalizedDeclaration,

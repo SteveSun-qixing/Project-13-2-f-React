@@ -5,7 +5,16 @@
  * 测试注入内存实现；生产由 {@link createNodeFileSystem} 绑定 `node:fs`。
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
 
 /** 文件系统条目类型。 */

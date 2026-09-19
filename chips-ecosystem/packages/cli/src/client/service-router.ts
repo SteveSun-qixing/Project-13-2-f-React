@@ -75,9 +75,7 @@ export function createServiceRouterClient(options: IServiceRouterClientOptions):
         throw cliError('CLI_COMMAND_QUERY_INVALID', '命令解析返回结构非法', { query });
       }
       const conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
-      return result.command === undefined
-        ? { conflicts }
-        : { command: result.command, conflicts };
+      return result.command === undefined ? { conflicts } : { command: result.command, conflicts };
     },
   };
 
@@ -94,10 +92,14 @@ export function createServiceRouterClient(options: IServiceRouterClientOptions):
       readonly invocationId?: string;
       readonly sessionId?: string;
     }): Promise<ICliTaskRecord> {
-      return expectTask(await invoker.request<{ task: ICliTaskRecord }>('cli.task.bindInvocation', input));
+      return expectTask(
+        await invoker.request<{ task: ICliTaskRecord }>('cli.task.bindInvocation', input)
+      );
     },
     async get(taskId: string): Promise<ICliTaskRecord> {
-      return expectTask(await invoker.request<{ task: ICliTaskRecord }>('cli.task.get', { taskId }));
+      return expectTask(
+        await invoker.request<{ task: ICliTaskRecord }>('cli.task.get', { taskId })
+      );
     },
     async active(commandId: string): Promise<ICliTaskRecord | undefined> {
       const result = await invoker.request<{ task?: ICliTaskRecord }>('cli.task.get', {
@@ -108,18 +110,26 @@ export function createServiceRouterClient(options: IServiceRouterClientOptions):
     },
     async progress(
       taskId: string,
-      progress: Readonly<Record<string, unknown>>,
+      progress: Readonly<Record<string, unknown>>
     ): Promise<ICliTaskRecord> {
-      return expectTask(await invoker.request<{ task: ICliTaskRecord }>('cli.task.progress', { taskId, progress }));
+      return expectTask(
+        await invoker.request<{ task: ICliTaskRecord }>('cli.task.progress', { taskId, progress })
+      );
     },
     async complete(taskId: string, output?: unknown): Promise<ICliTaskRecord> {
-      return expectTask(await invoker.request<{ task: ICliTaskRecord }>('cli.task.complete', { taskId, output }));
+      return expectTask(
+        await invoker.request<{ task: ICliTaskRecord }>('cli.task.complete', { taskId, output })
+      );
     },
     async fail(taskId: string, error: unknown): Promise<ICliTaskRecord> {
-      return expectTask(await invoker.request<{ task: ICliTaskRecord }>('cli.task.fail', { taskId, error }));
+      return expectTask(
+        await invoker.request<{ task: ICliTaskRecord }>('cli.task.fail', { taskId, error })
+      );
     },
     async cancel(taskId: string): Promise<ICliTaskRecord> {
-      return expectTask(await invoker.request<{ task: ICliTaskRecord }>('cli.task.cancel', { taskId }));
+      return expectTask(
+        await invoker.request<{ task: ICliTaskRecord }>('cli.task.cancel', { taskId })
+      );
     },
   };
 
@@ -153,53 +163,82 @@ export function createServiceRouterClient(options: IServiceRouterClientOptions):
   };
 
   const platform: ICliPlatformOperations = {
-    version: async () => (options.platform === undefined ? unavailable('platform.version') : options.platform.version()),
+    version: async () =>
+      options.platform === undefined ? unavailable('platform.version') : options.platform.version(),
     defaultWorkspacePath: async (kind) =>
       options.platform === undefined
         ? unavailable('platform.defaultWorkspacePath')
         : options.platform.defaultWorkspacePath(kind),
     workspaceStatus: async () =>
-      options.platform === undefined ? unavailable('platform.workspaceStatus') : options.platform.workspaceStatus(),
+      options.platform === undefined
+        ? unavailable('platform.workspaceStatus')
+        : options.platform.workspaceStatus(),
     workspaceStart: async () =>
-      options.platform === undefined ? unavailable('platform.workspaceStart') : options.platform.workspaceStart(),
+      options.platform === undefined
+        ? unavailable('platform.workspaceStart')
+        : options.platform.workspaceStart(),
     workspaceStop: async () =>
-      options.platform === undefined ? unavailable('platform.workspaceStop') : options.platform.workspaceStop(),
+      options.platform === undefined
+        ? unavailable('platform.workspaceStop')
+        : options.platform.workspaceStop(),
     configList: async (layer) =>
-      options.platform === undefined ? unavailable('platform.configList') : options.platform.configList(layer),
+      options.platform === undefined
+        ? unavailable('platform.configList')
+        : options.platform.configList(layer),
     configSet: async (key, value, layer) =>
       options.platform === undefined
         ? unavailable('platform.configSet')
         : options.platform.configSet(key, value, layer),
     configReset: async (key, layer) =>
-      options.platform === undefined ? unavailable('platform.configReset') : options.platform.configReset(key, layer),
+      options.platform === undefined
+        ? unavailable('platform.configReset')
+        : options.platform.configReset(key, layer),
     logsRead: async (input) =>
-      options.platform === undefined ? unavailable('platform.logsRead') : options.platform.logsRead(input),
+      options.platform === undefined
+        ? unavailable('platform.logsRead')
+        : options.platform.logsRead(input),
     logsFollow: async (input, onEntry, signal) =>
       options.platform === undefined
         ? unavailable('platform.logsFollow')
         : options.platform.logsFollow(input, onEntry, signal),
     pluginList: async (filter) =>
-      options.platform === undefined ? unavailable('platform.pluginList') : options.platform.pluginList(filter),
+      options.platform === undefined
+        ? unavailable('platform.pluginList')
+        : options.platform.pluginList(filter),
     pluginInfo: async (pluginId) =>
-      options.platform === undefined ? unavailable('platform.pluginInfo') : options.platform.pluginInfo(pluginId),
+      options.platform === undefined
+        ? unavailable('platform.pluginInfo')
+        : options.platform.pluginInfo(pluginId),
     pluginInstall: async (input) =>
-      options.platform === undefined ? unavailable('platform.pluginInstall') : options.platform.pluginInstall(input),
+      options.platform === undefined
+        ? unavailable('platform.pluginInstall')
+        : options.platform.pluginInstall(input),
     pluginUninstall: async (pluginId) =>
       options.platform === undefined
         ? unavailable('platform.pluginUninstall')
         : options.platform.pluginUninstall(pluginId),
     pluginEnable: async (pluginId) =>
-      options.platform === undefined ? unavailable('platform.pluginEnable') : options.platform.pluginEnable(pluginId),
+      options.platform === undefined
+        ? unavailable('platform.pluginEnable')
+        : options.platform.pluginEnable(pluginId),
     pluginDisable: async (pluginId) =>
-      options.platform === undefined ? unavailable('platform.pluginDisable') : options.platform.pluginDisable(pluginId),
+      options.platform === undefined
+        ? unavailable('platform.pluginDisable')
+        : options.platform.pluginDisable(pluginId),
     open: async (path) =>
       options.platform === undefined ? unavailable('platform.open') : options.platform.open(path),
     updateCheck: async (channel) =>
-      options.platform === undefined ? unavailable('platform.updateCheck') : options.platform.updateCheck(channel),
+      options.platform === undefined
+        ? unavailable('platform.updateCheck')
+        : options.platform.updateCheck(channel),
     updateInstall: async (channel) =>
-      options.platform === undefined ? unavailable('platform.updateInstall') : options.platform.updateInstall(channel),
+      options.platform === undefined
+        ? unavailable('platform.updateInstall')
+        : options.platform.updateInstall(channel),
     doctor: async (input) =>
-      options.platform === undefined ? unavailable('platform.doctor') : options.platform.doctor(input),
+      options.platform === undefined
+        ? unavailable('platform.doctor')
+        : options.platform.doctor(input),
   };
 
   const apps: ICliAppLaunchOperations = {
@@ -239,9 +278,7 @@ export function createServiceRouterClient(options: IServiceRouterClientOptions):
 function createUnavailableArtifacts(): ICliClient['artifacts'] {
   // 端口契约是 Promise：缺失引擎时以拒绝形态透出 `CLI_TARGET_UNAVAILABLE`，不做同步抛出。
   const unavailable = (method: string): Promise<never> =>
-    Promise.reject(
-      cliError('CLI_TARGET_UNAVAILABLE', `缺少本地产物引擎：${method}`, { method }),
-    );
+    Promise.reject(cliError('CLI_TARGET_UNAVAILABLE', `缺少本地产物引擎：${method}`, { method }));
   return {
     create: () => unavailable('artifacts.create'),
     pack: () => unavailable('artifacts.pack'),
@@ -251,9 +288,15 @@ function createUnavailableArtifacts(): ICliClient['artifacts'] {
 
 function assertQuery(query: ICliCommandQuery): void {
   if (query.entryId === undefined && query.commandPath === undefined) {
-    throw cliError('CLI_COMMAND_QUERY_INVALID', '命令查询必须携带 entryId 或 commandPath', { query });
+    throw cliError('CLI_COMMAND_QUERY_INVALID', '命令查询必须携带 entryId 或 commandPath', {
+      query,
+    });
   }
-  if (query.targetType !== undefined && query.targetType !== 'app' && query.targetType !== 'service') {
+  if (
+    query.targetType !== undefined &&
+    query.targetType !== 'app' &&
+    query.targetType !== 'service'
+  ) {
     throw cliError('CLI_COMMAND_QUERY_INVALID', 'targetType 只能为 app 或 service', {
       targetType: query.targetType,
     });

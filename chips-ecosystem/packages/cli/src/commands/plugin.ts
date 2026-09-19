@@ -137,7 +137,8 @@ const STAGE_STATUS_LABEL: Readonly<Record<ICliArtifactStageResult['status'], str
 const createCommand: ICliCommandDefinition = {
   path: ['plugin', 'create'],
   summary: '按角色生成插件工程脚手架',
-  usage: 'chips plugin create --role <app|basecard|boxlayout|service> --id <插件ID> --name <显示名> [--dir <目录>]',
+  usage:
+    'chips plugin create --role <app|basecard|boxlayout|service> --id <插件ID> --name <显示名> [--dir <目录>]',
   outputMode: 'human',
   parameters: { options: [roleOption, idOption, nameOption, dirOption] },
   run: async (context: ICommandContext): Promise<ICommandResult> => {
@@ -180,7 +181,9 @@ const packCommand: ICliCommandDefinition = {
   outputMode: 'human',
   parameters: { options: [dirOption, outOption, signOption, keyIdOption] },
   run: async (context: ICommandContext): Promise<ICommandResult> => {
-    const declarations: IParameterSet = { options: [dirOption, outOption, signOption, keyIdOption] };
+    const declarations: IParameterSet = {
+      options: [dirOption, outOption, signOption, keyIdOption],
+    };
     const { values } = parseCommandOptions(context, declarations);
     const dir = readString(values, 'dir') ?? context.cwd;
     const out = readString(values, 'out');
@@ -239,7 +242,7 @@ const validateCommand: ICliCommandDefinition = {
         (stage) =>
           `${STAGE_LABEL[stage.stage]}: ${STAGE_STATUS_LABEL[stage.status]}${
             stage.detail.length > 0 ? `（${stage.detail}）` : ''
-          }`,
+          }`
       ),
       `结果: ${result.valid ? 'valid' : 'invalid'}`,
       ...(result.warnings ?? []).map((warning) => `警告: ${warning}`),
@@ -292,7 +295,17 @@ const listCommand: ICliCommandDefinition = {
   path: ['plugin', 'list'],
   summary: '列出已发现与已安装插件',
   usage: 'chips plugin list [--role <basecard|boxlayout|app|service>] [--source <builtin|user>]',
-  parameters: { options: [roleOption, { name: 'source', type: 'enum', choices: ['builtin', 'user', 'development'], mapsTo: 'source' }] },
+  parameters: {
+    options: [
+      roleOption,
+      {
+        name: 'source',
+        type: 'enum',
+        choices: ['builtin', 'user', 'development'],
+        mapsTo: 'source',
+      },
+    ],
+  },
   run: async (context: ICommandContext): Promise<ICommandResult> => {
     const sourceDeclaration: IParameterDeclaration = {
       name: 'source',
@@ -311,7 +324,7 @@ const listCommand: ICliCommandDefinition = {
       (record) =>
         `${record.id}@${record.version}  ${record.role}  ${record.name}  ${record.source}  ${record.state}${
           record.enabled ? '（已启用）' : ''
-        }`,
+        }`
     );
     // 表格便于终端阅读，其后的 JSON 记录数组是稳定契约（§2.4.2、§3.5.5）。
     return {
@@ -352,7 +365,7 @@ const infoCommand: ICliCommandDefinition = {
 
 function lifecycleCommand(
   action: 'enable' | 'disable' | 'uninstall',
-  summary: string,
+  summary: string
 ): ICliCommandDefinition {
   return {
     path: ['plugin', action],

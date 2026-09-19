@@ -65,7 +65,7 @@ export interface IMockBridge extends IChipsBridge {
    */
   handle<TInput = unknown, TOutput = unknown>(
     capabilityId: string,
-    handler: (input: TInput) => TOutput | Promise<TOutput>,
+    handler: (input: TInput) => TOutput | Promise<TOutput>
   ): void;
 
   /**
@@ -204,7 +204,7 @@ class MockBridge implements IMockBridge {
    */
   handle<TInput = unknown, TOutput = unknown>(
     capabilityId: string,
-    handler: (input: TInput) => TOutput | Promise<TOutput>,
+    handler: (input: TInput) => TOutput | Promise<TOutput>
   ): void {
     this.#handlers.set(capabilityId, handler as MockHandler);
   }

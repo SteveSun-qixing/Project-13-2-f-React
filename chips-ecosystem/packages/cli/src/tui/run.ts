@@ -28,7 +28,7 @@ export interface ITuiRunOptions {
   readonly execute: (
     tokens: readonly string[],
     sink: IOutputSink,
-    signal: AbortSignal,
+    signal: AbortSignal
   ) => Promise<number>;
   readonly terminal?: ITerminal;
 }
@@ -189,7 +189,11 @@ export async function runTui(options: ITuiRunOptions): Promise<number> {
         continue;
       }
       if (state.panel === 'result') {
-        if (key.name === 'char' && (key.char ?? '').toLowerCase() === 'r' && lastTokens.length > 0) {
+        if (
+          key.name === 'char' &&
+          (key.char ?? '').toLowerCase() === 'r' &&
+          lastTokens.length > 0
+        ) {
           await executeTokens(lastTokens);
           continue;
         }

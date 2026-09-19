@@ -23,7 +23,10 @@ export interface ICliMainOptions {
 /**
  * 识别入口与命令 token：全局选项可出现在 `dev` 前后（[CLI 完整参考] §2.1、§2.2）。
  */
-export function detectEntry(argv: readonly string[]): { readonly entry: CliEntryKind; readonly argv: readonly string[] } {
+export function detectEntry(argv: readonly string[]): {
+  readonly entry: CliEntryKind;
+  readonly argv: readonly string[];
+} {
   const rest: string[] = [];
   let skipNext = false;
   for (let index = 0; index < argv.length; index += 1) {
@@ -54,7 +57,10 @@ export function detectEntry(argv: readonly string[]): { readonly entry: CliEntry
 }
 
 /** 进程入口。 */
-export async function main(argv: readonly string[], options: ICliMainOptions = {}): Promise<number> {
+export async function main(
+  argv: readonly string[],
+  options: ICliMainOptions = {}
+): Promise<number> {
   const { entry, argv: entryArgv } = detectEntry(argv);
   const client =
     options.client ??

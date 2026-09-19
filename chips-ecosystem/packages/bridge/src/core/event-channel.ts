@@ -37,7 +37,7 @@ export interface IEventVisibilityResolver {
   isVisible(
     definition: IStandardEventDefinition,
     payload: unknown,
-    session: ISessionSnapshot,
+    session: ISessionSnapshot
   ): boolean;
 }
 
@@ -51,7 +51,7 @@ export interface IDefaultEventVisibilityOptions {
   readonly resolveOwnerPluginId?: (
     scope: EventOwnerScope,
     payload: unknown,
-    session: ISessionSnapshot,
+    session: ISessionSnapshot
   ) => string | null | undefined;
 }
 
@@ -75,13 +75,13 @@ function hasConfigNamespaceGrant(session: ISessionSnapshot, namespace: string): 
 
 /** 默认可见性解析：公开 / 平台专属 / payload 字段定向 / 配置命名空间 / 归属查询。 */
 export function createDefaultEventVisibilityResolver(
-  options: IDefaultEventVisibilityOptions = {},
+  options: IDefaultEventVisibilityOptions = {}
 ): IEventVisibilityResolver {
   return {
     isVisible(
       definition: IStandardEventDefinition,
       payload: unknown,
-      session: ISessionSnapshot,
+      session: ISessionSnapshot
     ): boolean {
       if (session.pluginId === 'platform') {
         return true;
@@ -110,7 +110,7 @@ export function createDefaultEventVisibilityResolver(
           const owner = options.resolveOwnerPluginId?.(
             definition.visibility.scope,
             payload,
-            session,
+            session
           );
           return typeof owner === 'string' && owner === session.pluginId;
         }
@@ -135,10 +135,15 @@ export interface IEventChannelOptions {
 
 export interface IEventChannel {
   /** 处理 `event:control` 请求并返回回执（subscribe / unsubscribe）。 */
-  handleControl(raw: unknown, source: ISessionSource): {
-    controlId: string;
-    ok: true;
-  } | { controlId: string; ok: false; error: IChipsError };
+  handleControl(
+    raw: unknown,
+    source: ISessionSource
+  ):
+    | {
+        controlId: string;
+        ok: true;
+      }
+    | { controlId: string; ok: false; error: IChipsError };
   /** 投递事件实例；返回实际投递的窗口数（0 表示无订阅者，不做序列化）。 */
   deliver(eventId: string, payload: unknown, emittedAt?: number): number;
   /** 某事件跨会话订阅总数。 */
@@ -199,10 +204,15 @@ export function createEventChannel(options: IEventChannelOptions): IEventChannel
   });
 
   return {
-    handleControl(raw: unknown, source: ISessionSource): {
-      controlId: string;
-      ok: true;
-    } | { controlId: string; ok: false; error: IChipsError } {
+    handleControl(
+      raw: unknown,
+      source: ISessionSource
+    ):
+      | {
+          controlId: string;
+          ok: true;
+        }
+      | { controlId: string; ok: false; error: IChipsError } {
       let controlId = '';
       try {
         const control = decodeEventControlRequest(raw);
@@ -246,8 +256,8 @@ export function createEventChannel(options: IEventChannelOptions): IEventChannel
           controlId,
           normalizeError(
             error,
-            options.onDiagnostic !== undefined ? { onDiagnostic: options.onDiagnostic } : {},
-          ),
+            options.onDiagnostic !== undefined ? { onDiagnostic: options.onDiagnostic } : {}
+          )
         );
       }
     },

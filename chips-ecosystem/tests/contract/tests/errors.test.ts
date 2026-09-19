@@ -12,7 +12,7 @@ describe('错误码表一致性', () => {
         code: bridgeCode(),
         host: hostCode(),
         bridgeRetryable: bridgeRetryable(),
-      }),
+      })
     );
   });
 });

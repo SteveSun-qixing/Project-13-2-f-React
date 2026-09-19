@@ -4,11 +4,7 @@
 
 /** 拒绝原因枚举；与权限系统共用。 */
 export type PermissionDenyReason =
-  | 'not_granted'
-  | 'revoked'
-  | 'out_of_scope'
-  | 'user_rejected'
-  | 'policy';
+  'not_granted' | 'revoked' | 'out_of_scope' | 'user_rejected' | 'policy';
 
 /** 授权记录（物化自授权存储）。 */
 export interface IPermissionGrant {

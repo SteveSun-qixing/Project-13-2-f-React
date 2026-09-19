@@ -35,9 +35,11 @@ describe('parseResourceUri', () => {
       uri: 'chips-resource://plugin-001/%E5%9B%BE%E7%89%87.png',
     });
     expect(parseResourceUri('chips-resource://plugin-001/%e5%9b%be%e7%89%87.png').uri).toBe(
-      'chips-resource://plugin-001/%E5%9B%BE%E7%89%87.png',
+      'chips-resource://plugin-001/%E5%9B%BE%E7%89%87.png'
     );
-    expect(parseResourceUri('chips-resource://temp-9/a.bin')).toMatchObject({ category: 'temporary' });
+    expect(parseResourceUri('chips-resource://temp-9/a.bin')).toMatchObject({
+      category: 'temporary',
+    });
     expect(parseResourceUri('chips-resource://memory/a.bin')).toMatchObject({ category: 'memory' });
     expect(parseResourceUri('chips-resource://workspace-2/notes/a.txt')).toMatchObject({
       category: 'workspace',
@@ -52,7 +54,7 @@ describe('parseResourceUri', () => {
 
   it('解析 external 作用域并归一 origin（默认端口省略、主机小写）', () => {
     const parsed = parseResourceUri(
-      'chips-resource://external/https/EXAMPLE.com:443/images/a.png?v=1',
+      'chips-resource://external/https/EXAMPLE.com:443/images/a.png?v=1'
     );
     expect(parsed.category).toBe('external');
     expect(parsed.external).toEqual({ scheme: 'https', host: 'example.com' });
@@ -61,21 +63,36 @@ describe('parseResourceUri', () => {
 
   it('拒绝空 URI、超长与 fragment', () => {
     expectCode(() => parseResourceUri(''), RESOURCE_ERROR_CODES.invalidUri);
-    expectCode(() => parseResourceUri('chips-resource://card-1/a', { maxUriLength: 5 }), RESOURCE_ERROR_CODES.invalidUri);
-    expectCode(() => parseResourceUri('chips-resource://card-1/a#top'), RESOURCE_ERROR_CODES.invalidUri);
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/a', { maxUriLength: 5 }),
+      RESOURCE_ERROR_CODES.invalidUri
+    );
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/a#top'),
+      RESOURCE_ERROR_CODES.invalidUri
+    );
   });
 
   it('拒绝非 ASCII、非法百分号编码与未编码空格', () => {
-    expectCode(() => parseResourceUri('chips-resource://card-1/图片.png'), RESOURCE_ERROR_CODES.invalidUri);
-    expectCode(() => parseResourceUri('chips-resource://card-1/%ZZ'), RESOURCE_ERROR_CODES.invalidUri);
-    expectCode(() => parseResourceUri('chips-resource://card-1/a b.png'), RESOURCE_ERROR_CODES.pathInvalid);
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/图片.png'),
+      RESOURCE_ERROR_CODES.invalidUri
+    );
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/%ZZ'),
+      RESOURCE_ERROR_CODES.invalidUri
+    );
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/a b.png'),
+      RESOURCE_ERROR_CODES.pathInvalid
+    );
   });
 
   it('拒绝非 chips-resource scheme（含 file:// 与 webdav://）', () => {
     expectCode(() => parseResourceUri('file:///tmp/a.png'), RESOURCE_ERROR_CODES.unsupportedScheme);
     expectCode(
       () => parseResourceUri('webdav://dav.example.com/a.card'),
-      RESOURCE_ERROR_CODES.unsupportedScheme,
+      RESOURCE_ERROR_CODES.unsupportedScheme
     );
   });
 
@@ -85,17 +102,17 @@ describe('parseResourceUri', () => {
     expectCode(() => parseResourceUri('chips-resource://ca_rd/a'), RESOURCE_ERROR_CODES.invalidUri);
     expectCode(
       () => parseResourceUri(`chips-resource://${'a'.repeat(65)}/x`),
-      RESOURCE_ERROR_CODES.invalidUri,
+      RESOURCE_ERROR_CODES.invalidUri
     );
   });
 
   it('受管作用域拒绝查询串，external 保留查询串', () => {
     expectCode(
       () => parseResourceUri('chips-resource://card-1/a.png?x=1'),
-      RESOURCE_ERROR_CODES.invalidUri,
+      RESOURCE_ERROR_CODES.invalidUri
     );
     expect(parseResourceUri('chips-resource://external/https/example.com/a?x=1').uri).toBe(
-      'chips-resource://external/https/example.com/a?x=1',
+      'chips-resource://external/https/example.com/a?x=1'
     );
   });
 
@@ -118,27 +135,39 @@ describe('parseResourceUri', () => {
   });
 
   it('拒绝尾随点/空格、设备名与段内冒号', () => {
-    expectCode(() => parseResourceUri('chips-resource://card-1/a.png.'), RESOURCE_ERROR_CODES.pathInvalid);
-    expectCode(() => parseResourceUri('chips-resource://card-1/con'), RESOURCE_ERROR_CODES.pathInvalid);
-    expectCode(() => parseResourceUri('chips-resource://card-1/aux.txt'), RESOURCE_ERROR_CODES.pathInvalid);
-    expectCode(() => parseResourceUri('chips-resource://card-1/a:b'), RESOURCE_ERROR_CODES.pathInvalid);
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/a.png.'),
+      RESOURCE_ERROR_CODES.pathInvalid
+    );
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/con'),
+      RESOURCE_ERROR_CODES.pathInvalid
+    );
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/aux.txt'),
+      RESOURCE_ERROR_CODES.pathInvalid
+    );
+    expectCode(
+      () => parseResourceUri('chips-resource://card-1/a:b'),
+      RESOURCE_ERROR_CODES.pathInvalid
+    );
   });
 
   it('external 缺少 origin 或携带 userinfo 时拒绝', () => {
     expectCode(
       () => parseResourceUri('chips-resource://external/https/example.com'),
-      RESOURCE_ERROR_CODES.invalidUri,
+      RESOURCE_ERROR_CODES.invalidUri
     );
     expectCode(
       () => parseResourceUri('chips-resource://external/https/user:pass@example.com/a'),
-      RESOURCE_ERROR_CODES.invalidUri,
+      RESOURCE_ERROR_CODES.invalidUri
     );
   });
 
   it('段长度与 URI 长度可配置', () => {
     expectCode(
       () => parseResourceUri('chips-resource://card-1/abcdef', { maxSegmentLength: 3 }),
-      RESOURCE_ERROR_CODES.invalidUri,
+      RESOURCE_ERROR_CODES.invalidUri
     );
   });
 });
@@ -146,20 +175,20 @@ describe('parseResourceUri', () => {
 describe('normalizeHttpReference', () => {
   it('裸 http(s):// 归一为 external 形式并保留查询串', () => {
     expect(normalizeHttpReference('https://example.com/a/b.png?x=1')).toBe(
-      'chips-resource://external/https/example.com/a/b.png?x=1',
+      'chips-resource://external/https/example.com/a/b.png?x=1'
     );
     expect(normalizeHttpReference('http://example.com:8080')).toBe(
-      'chips-resource://external/http/example.com:8080/',
+      'chips-resource://external/http/example.com:8080/'
     );
     expect(normalizeHttpReference('https://example.com?x=1')).toBe(
-      'chips-resource://external/https/example.com/?x=1',
+      'chips-resource://external/https/example.com/?x=1'
     );
   });
 
   it('拒绝 userinfo', () => {
     expectCode(
       () => normalizeHttpReference('https://user:pass@example.com/a'),
-      RESOURCE_ERROR_CODES.invalidUri,
+      RESOURCE_ERROR_CODES.invalidUri
     );
   });
 
@@ -182,8 +211,14 @@ describe('normalizeResourceInput', () => {
 
   it('缺少协议前缀与未知 scheme 拒绝', () => {
     expectCode(() => normalizeResourceInput('/tmp/a.png'), RESOURCE_ERROR_CODES.invalidUri);
-    expectCode(() => normalizeResourceInput('file:///tmp/a.png'), RESOURCE_ERROR_CODES.unsupportedScheme);
-    expectCode(() => normalizeResourceInput('webdav://x/a'), RESOURCE_ERROR_CODES.unsupportedScheme);
+    expectCode(
+      () => normalizeResourceInput('file:///tmp/a.png'),
+      RESOURCE_ERROR_CODES.unsupportedScheme
+    );
+    expectCode(
+      () => normalizeResourceInput('webdav://x/a'),
+      RESOURCE_ERROR_CODES.unsupportedScheme
+    );
   });
 });
 

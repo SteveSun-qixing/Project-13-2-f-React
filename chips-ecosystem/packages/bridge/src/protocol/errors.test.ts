@@ -29,7 +29,12 @@ describe('ChipsError', () => {
       retryable: false,
     });
     expect(
-      new ChipsError({ code: 'A_B', message: '文案', details: { path: '/a' }, retryable: true }).toPlain(),
+      new ChipsError({
+        code: 'A_B',
+        message: '文案',
+        details: { path: '/a' },
+        retryable: true,
+      }).toPlain()
     ).toEqual({ code: 'A_B', message: '文案', details: { path: '/a' }, retryable: true });
   });
 

@@ -38,19 +38,29 @@ describe('全局选项（§2.1、§2.2）', () => {
   });
 
   it('重复单值选项与缺失取值返回 CLI_ARGUMENT_INVALID', () => {
-    expectCode(() => parseGlobalOptions(['--plugin', 'a', '--plugin', 'b'], 'user'), 'CLI_ARGUMENT_INVALID');
+    expectCode(
+      () => parseGlobalOptions(['--plugin', 'a', '--plugin', 'b'], 'user'),
+      'CLI_ARGUMENT_INVALID'
+    );
     expectCode(() => parseGlobalOptions(['--plugin'], 'user'), 'CLI_ARGUMENT_INVALID');
     expectCode(() => parseGlobalOptions(['--json=1'], 'user'), 'CLI_ARGUMENT_INVALID');
   });
 
   it('用户侧拒绝 --workspace 并给出提示，开发侧接受', () => {
-    expectCode(() => parseGlobalOptions(['--workspace', '/tmp/ws'], 'user'), 'CLI_ARGUMENT_INVALID');
+    expectCode(
+      () => parseGlobalOptions(['--workspace', '/tmp/ws'], 'user'),
+      'CLI_ARGUMENT_INVALID'
+    );
     const dev = parseGlobalOptions(['--workspace=/tmp/ws', 'status'], 'dev');
     expect(dev.options.workspace).toBe('/tmp/ws');
   });
 });
 
-function parse(argv: readonly string[], declarations: IParameterSet, fileSystem = new MemoryFileSystem()): IParseResult {
+function parse(
+  argv: readonly string[],
+  declarations: IParameterSet,
+  fileSystem = new MemoryFileSystem()
+): IParseResult {
   return parseParameters({ argv, declarations, cwd: '/work', fileSystem });
 }
 
@@ -81,7 +91,9 @@ describe('参数模型（§5.2）', () => {
         '/work/items.json',
       ],
       {
-        arguments: [{ name: 'text', position: 0, type: 'string', required: true, mapsTo: 'inputs.text' }],
+        arguments: [
+          { name: 'text', position: 0, type: 'string', required: true, mapsTo: 'inputs.text' },
+        ],
         options: [
           { name: 'n', type: 'number' },
           { name: 'i', type: 'integer' },
@@ -93,7 +105,7 @@ describe('参数模型（§5.2）', () => {
           { name: 'array', type: 'jsonFile', batch: { format: 'json-array', itemType: 'value' } },
         ],
       },
-      fileSystem,
+      fileSystem
     );
     expect(result.payload).toEqual({
       inputs: { text: 'text-value' },
@@ -110,40 +122,73 @@ describe('参数模型（§5.2）', () => {
 
   it('默认值、必填缺失与未知选项', () => {
     const result = parse(['--level', 'info'], {
-      options: [{ name: 'level', type: 'string' }, { name: 'lines', type: 'integer', default: 100 }],
+      options: [
+        { name: 'level', type: 'string' },
+        { name: 'lines', type: 'integer', default: 100 },
+      ],
     });
     expect(result.payload).toEqual({ level: 'info', lines: 100 });
 
-    expectCode(() => parse([], { options: [{ name: 'role', type: 'string', required: true }] }), 'CLI_ARGUMENT_INVALID');
+    expectCode(
+      () => parse([], { options: [{ name: 'role', type: 'string', required: true }] }),
+      'CLI_ARGUMENT_INVALID'
+    );
     expectCode(() => parse(['--unknown', 'x'], { options: [] }), 'CLI_ARGUMENT_INVALID');
     expectCode(() => parse(['extra'], { arguments: [] }), 'CLI_ARGUMENT_INVALID');
-    expectCode(() => parse(['--mode', 'nope'], { options: [{ name: 'mode', type: 'enum', choices: ['a'] }] }), 'CLI_ARGUMENT_INVALID');
-    expectCode(() => parse(['--n', 'NaN'], { options: [{ name: 'n', type: 'number' }] }), 'CLI_ARGUMENT_INVALID');
-    expectCode(() => parse(['--n', '1.5'], { options: [{ name: 'n', type: 'integer' }] }), 'CLI_ARGUMENT_INVALID');
-    expectCode(() => parse(['--i', '1', '--i', '2'], { options: [{ name: 'i', type: 'integer' }] }), 'CLI_ARGUMENT_INVALID');
+    expectCode(
+      () =>
+        parse(['--mode', 'nope'], { options: [{ name: 'mode', type: 'enum', choices: ['a'] }] }),
+      'CLI_ARGUMENT_INVALID'
+    );
+    expectCode(
+      () => parse(['--n', 'NaN'], { options: [{ name: 'n', type: 'number' }] }),
+      'CLI_ARGUMENT_INVALID'
+    );
+    expectCode(
+      () => parse(['--n', '1.5'], { options: [{ name: 'n', type: 'integer' }] }),
+      'CLI_ARGUMENT_INVALID'
+    );
+    expectCode(
+      () => parse(['--i', '1', '--i', '2'], { options: [{ name: 'i', type: 'integer' }] }),
+      'CLI_ARGUMENT_INVALID'
+    );
   });
 
   it('路径规则：kind/exists/extensions 与相对路径解析', () => {
     const fileSystem = new MemoryFileSystem();
     fileSystem.writeText('/work/doc.md', 'x');
-    const result = parse(['--input', 'doc.md'], {
-      options: [
-        {
-          name: 'input',
-          type: 'path',
-          path: { kind: 'file', role: 'input', exists: true, extensions: ['md'] },
-        },
-      ],
-    }, fileSystem);
+    const result = parse(
+      ['--input', 'doc.md'],
+      {
+        options: [
+          {
+            name: 'input',
+            type: 'path',
+            path: { kind: 'file', role: 'input', exists: true, extensions: ['md'] },
+          },
+        ],
+      },
+      fileSystem
+    );
     expect(result.values.get('input')).toBe('/work/doc.md');
 
     expectCode(
-      () => parse(['--input', 'missing.md'], { options: [{ name: 'input', type: 'path', path: { exists: true } }] }, fileSystem),
-      'CLI_PATH_NOT_FOUND',
+      () =>
+        parse(
+          ['--input', 'missing.md'],
+          { options: [{ name: 'input', type: 'path', path: { exists: true } }] },
+          fileSystem
+        ),
+      'CLI_PATH_NOT_FOUND'
     );
     expectCode(
-      () => parse(['--input', 'doc.md'], { options: [{ name: 'input', type: 'path', path: { extensions: ['txt'] } }] }, fileSystem),
-      'CLI_PATH_INVALID',
+      () =>
+        parse(
+          ['--input', 'doc.md'],
+          { options: [{ name: 'input', type: 'path', path: { extensions: ['txt'] } }] },
+          fileSystem
+        ),
+      'CLI_PATH_INVALID'
     );
   });
 
@@ -152,21 +197,26 @@ describe('参数模型（§5.2）', () => {
     fileSystem.writeText('/work/out.txt', 'old');
 
     expectCode(
-      () => parse(['--out', '/work/out.txt'], { options: [{ name: 'out', type: 'path', path: { role: 'output' } }] }, fileSystem),
-      'CLI_OUTPUT_EXISTS',
+      () =>
+        parse(
+          ['--out', '/work/out.txt'],
+          { options: [{ name: 'out', type: 'path', path: { role: 'output' } }] },
+          fileSystem
+        ),
+      'CLI_OUTPUT_EXISTS'
     );
 
     const rename = parse(
       ['--out', '/work/out.txt'],
       { options: [{ name: 'out', type: 'path', path: { role: 'output', overwrite: 'rename' } }] },
-      fileSystem,
+      fileSystem
     );
     expect(rename.values.get('out')).toBe('/work/out-1.txt');
 
     const skip = parse(
       ['--out', '/work/out.txt'],
       { options: [{ name: 'out', type: 'path', path: { role: 'output', overwrite: 'skip' } }] },
-      fileSystem,
+      fileSystem
     );
     expect(skip.skipped).toBe(true);
 
@@ -192,19 +242,26 @@ describe('参数模型（§5.2）', () => {
           { name: 'batch', type: 'textFile', batch: { format: 'json-array' } },
         ],
       },
-      fileSystem,
+      fileSystem
     );
     expect(result.values.get('out')).toBe('/work/new/file.txt');
     expect(fileSystem.kind('/work/new')).toBe('directory');
 
     expectCode(
-      () => parse(['--batch', '/work/items.txt'], { options: [{ name: 'batch', type: 'textFile', batch: { format: 'json-array' } }] }, fileSystem),
-      'CLI_BATCH_INVALID',
+      () =>
+        parse(
+          ['--batch', '/work/items.txt'],
+          { options: [{ name: 'batch', type: 'textFile', batch: { format: 'json-array' } }] },
+          fileSystem
+        ),
+      'CLI_BATCH_INVALID'
     );
   });
 
   it('-- 之后的 token 按位置参数处理', () => {
-    const result = parse(['--', '--weird'], { arguments: [{ name: 'value', position: 0, type: 'string' }] });
+    const result = parse(['--', '--weird'], {
+      arguments: [{ name: 'value', position: 0, type: 'string' }],
+    });
     expect(result.values.get('value')).toBe('--weird');
   });
 
@@ -217,9 +274,12 @@ describe('参数模型（§5.2）', () => {
             { name: 'a', type: 'string' },
           ],
         }),
-      'CLI_COMMAND_FAILED',
+      'CLI_COMMAND_FAILED'
     );
-    expectCode(() => parse([], { options: [{ name: 'a', type: 'string', mapsTo: '1bad' }] }), 'CLI_COMMAND_FAILED');
+    expectCode(
+      () => parse([], { options: [{ name: 'a', type: 'string', mapsTo: '1bad' }] }),
+      'CLI_COMMAND_FAILED'
+    );
     expectCode(() => parse([], { options: [{ name: 'a', type: 'enum' }] }), 'CLI_COMMAND_FAILED');
   });
 });

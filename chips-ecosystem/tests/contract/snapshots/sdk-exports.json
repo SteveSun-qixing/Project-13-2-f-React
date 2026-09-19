@@ -30,20 +30,12 @@
     "types": [
       {
         "category": "Bridge 协议",
-        "names": [
-          "IAppBridge",
-          "IChipsBridge",
-          "IServiceBridge",
-          "ISubscription"
-        ],
+        "names": ["IAppBridge", "IChipsBridge", "IServiceBridge", "ISubscription"],
         "patterns": []
       },
       {
         "category": "能力",
-        "names": [
-          "ICapability",
-          "JSONSchema"
-        ],
+        "names": ["ICapability", "JSONSchema"],
         "patterns": []
       },
       {
@@ -58,10 +50,7 @@
           "ICapabilityContracts",
           "VoidInput"
         ],
-        "patterns": [
-          "I*Input",
-          "I*Output"
-        ]
+        "patterns": ["I*Input", "I*Output"]
       },
       {
         "category": "命令",
@@ -139,13 +128,7 @@
       },
       {
         "category": "内核上下文",
-        "names": [
-          "Context",
-          "IEventSubscription",
-          "ITaskHandle",
-          "ITaskOptions",
-          "PluginConfig"
-        ],
+        "names": ["Context", "IEventSubscription", "ITaskHandle", "ITaskOptions", "PluginConfig"],
         "patterns": []
       },
       {
@@ -229,11 +212,7 @@
       },
       {
         "category": "客户端",
-        "names": [
-          "IChipsError",
-          "IChipsErrorInit",
-          "ICreateClientOptions"
-        ],
+        "names": ["IChipsError", "IChipsErrorInit", "ICreateClientOptions"],
         "patterns": []
       },
       {

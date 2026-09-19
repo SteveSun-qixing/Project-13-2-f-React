@@ -12,7 +12,12 @@ import { readManifestRole } from '../artifacts/manifest.js';
 import type { IParameterDeclaration } from '../args/types.js';
 import type { ICommandResult } from '../output/result.js';
 import type { ICliCommandDefinition, ICommandContext } from './types.js';
-import { parseCommandOptions, providedOptionNames, readString, requireWorkspace } from './helpers.js';
+import {
+  parseCommandOptions,
+  providedOptionNames,
+  readString,
+  requireWorkspace,
+} from './helpers.js';
 
 const dirOption: IParameterDeclaration = {
   name: 'dir',
@@ -72,7 +77,8 @@ const runCommand: ICliCommandDefinition = {
 const serviceInvokeCommand: ICliCommandDefinition = {
   path: ['service', 'invoke'],
   summary: '在开发宿主中调用服务能力',
-  usage: 'chips dev service invoke --capability <能力ID> [--dir <插件工程目录>] [--input <JSON>] [--input-file <路径>]',
+  usage:
+    'chips dev service invoke --capability <能力ID> [--dir <插件工程目录>] [--input <JSON>] [--input-file <路径>]',
   parameters: { options: [capabilityOption, dirOption, inputOption, inputFileOption] },
   run: async (context: ICommandContext): Promise<ICommandResult> => {
     const declarations = { options: [capabilityOption, dirOption, inputOption, inputFileOption] };

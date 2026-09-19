@@ -47,9 +47,14 @@ function memberSignature(member: ts.TypeElement, source: ts.SourceFile): Normali
     const name = member.name.getText(source).replace(/^['"]|['"]$/g, '');
     const optional = member.questionToken !== undefined;
     const readonly =
-      member.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ReadonlyKeyword) ?? false;
+      member.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ReadonlyKeyword) ??
+      false;
     const type = member.type === undefined ? 'unknown' : collapse(member.type.getText(source));
-    return { name, optional, signature: `${readonly ? 'readonly ' : ''}${name}${optional ? '?' : ''}: ${type}` };
+    return {
+      name,
+      optional,
+      signature: `${readonly ? 'readonly ' : ''}${name}${optional ? '?' : ''}: ${type}`,
+    };
   }
   if (ts.isMethodSignature(member) && member.name !== undefined) {
     const name = member.name.getText(source);
@@ -77,10 +82,10 @@ function memberSignature(member: ts.TypeElement, source: ts.SourceFile): Normali
 
 function interfaceDeclaration(
   statement: ts.InterfaceDeclaration,
-  source: ts.SourceFile,
+  source: ts.SourceFile
 ): NormalizedInterface {
   const heritage = (statement.heritageClauses ?? []).flatMap((clause) =>
-    clause.types.map((type) => collapse(type.getText(source))),
+    clause.types.map((type) => collapse(type.getText(source)))
   );
   return {
     name: statement.name.text,
@@ -97,7 +102,7 @@ export function normalizeCodeBlock(content: string): NormalizedCodeBlock {
     content,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TS,
+    ts.ScriptKind.TS
   );
   const declarations: NormalizedDeclaration[] = [];
   const stringConstants: NormalizedStringConstant[] = [];
@@ -142,7 +147,7 @@ export function unionMembers(declaration: NormalizedTypeAlias): readonly string[
 /** 取接口中值为字符串字面量的成员（帧消息的 `type` 判别字段）。 */
 export function stringLiteralMember(
   declaration: NormalizedInterface,
-  memberName: string,
+  memberName: string
 ): string | undefined {
   const member = declaration.members.find((entry) => entry.name === memberName);
   if (member === undefined) {

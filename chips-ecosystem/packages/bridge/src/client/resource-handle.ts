@@ -56,7 +56,7 @@ function resourceError(code: string, message: string, details?: unknown): ChipsE
 const NOOP_SUBSCRIPTION: ISubscription = { dispose: () => undefined };
 
 export function createResourceHandleProxy(
-  options: IResourceHandleProxyOptions,
+  options: IResourceHandleProxyOptions
 ): IResourceHandleProxy {
   const createId = options.createRequestId ?? createRequestId;
   let state: ResourceState = 'open';
@@ -67,17 +67,15 @@ export function createResourceHandleProxy(
 
   const throwIfUnusable = (): void => {
     if (state === 'released') {
-      throw resourceError(
-        RESOURCE_ERROR_CODES.handleReleased,
-        '资源句柄已释放，请重新获取句柄',
-        { uri: options.uri },
-      );
+      throw resourceError(RESOURCE_ERROR_CODES.handleReleased, '资源句柄已释放，请重新获取句柄', {
+        uri: options.uri,
+      });
     }
     if (state === 'invalidated') {
       throw resourceError(
         RESOURCE_ERROR_CODES.handleInvalidated,
         '资源句柄已失效，请重新获取句柄',
-        { uri: options.uri, reason: invalidateReason },
+        { uri: options.uri, reason: invalidateReason }
       );
     }
   };
@@ -154,7 +152,7 @@ export function createResourceHandleProxy(
         throw resourceError(
           RESOURCE_ERROR_CODES.tooLarge,
           '资源超过单次读取上限，请使用 readRange() 或 stream()',
-          { uri: options.uri, size: metadata.size, maxBytes: RESOURCE_READ_MAX_BYTES },
+          { uri: options.uri, size: metadata.size, maxBytes: RESOURCE_READ_MAX_BYTES }
         );
       }
       return options.bytes.read(options.uri);

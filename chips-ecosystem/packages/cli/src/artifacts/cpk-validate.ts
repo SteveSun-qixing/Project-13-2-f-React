@@ -9,7 +9,11 @@ import { createHash, createPublicKey, verify as verifySignatureValue } from 'nod
 import { join, posix } from 'node:path';
 
 import { cliError, normalizeError } from '../errors.js';
-import type { CliPluginSource, ICliArtifactStageResult, ICliArtifactValidateResult } from '../client/types.js';
+import type {
+  CliPluginSource,
+  ICliArtifactStageResult,
+  ICliArtifactValidateResult,
+} from '../client/types.js';
 import type { IFileSystemPort } from '../args/filesystem.js';
 import { parseManifestText, validateManifest } from './manifest.js';
 import type { IPermissionCatalog } from './permission-catalog.js';
@@ -104,7 +108,7 @@ export interface ICpkValidateOptions {
 function stage(
   stageName: ICliArtifactStageResult['stage'],
   status: ICliArtifactStageResult['status'],
-  detail: string,
+  detail: string
 ): ICliArtifactStageResult {
   return { stage: stageName, status, detail };
 }
@@ -112,7 +116,7 @@ function stage(
 /** 目录态成员收集（相对路径 POSIX；深度上限防失控递归）。 */
 export function collectDirectory(
   fileSystem: IFileSystemPort,
-  root: string,
+  root: string
 ): Map<string, Uint8Array> {
   const members = new Map<string, Uint8Array>();
   const visit = (dir: string, prefix: string, depth: number): void => {
@@ -141,7 +145,10 @@ export function collectDirectory(
 
 function assertPathSafe(path: string): void {
   const unsafe = (reason: string): never => {
-    throw cliError('CPK_PATH_UNSAFE', `成员路径不安全（${reason}）：${path}`, { stage: 'archive', file: path });
+    throw cliError('CPK_PATH_UNSAFE', `成员路径不安全（${reason}）：${path}`, {
+      stage: 'archive',
+      file: path,
+    });
   };
   if (path.startsWith('/')) {
     unsafe('前导 /');
@@ -170,14 +177,20 @@ function assertPathSafe(path: string): void {
     throw cliError('CPK_LIMIT_EXCEEDED', `成员路径超长：${path}`, { stage: 'archive', file: path });
   }
   if (segments.length > CPK_LIMITS.depth) {
-    throw cliError('CPK_LIMIT_EXCEEDED', `成员目录深度超限：${path}`, { stage: 'archive', file: path });
+    throw cliError('CPK_LIMIT_EXCEEDED', `成员目录深度超限：${path}`, {
+      stage: 'archive',
+      file: path,
+    });
   }
 }
 
 function assertNoHidden(path: string): void {
   for (const segment of path.split('/')) {
     if (segment.startsWith('.')) {
-      throw cliError('CPK_LAYOUT_INVALID', `包内禁止隐藏文件或目录：${path}`, { stage: 'layout', file: path });
+      throw cliError('CPK_LAYOUT_INVALID', `包内禁止隐藏文件或目录：${path}`, {
+        stage: 'layout',
+        file: path,
+      });
     }
   }
 }
@@ -185,7 +198,10 @@ function assertNoHidden(path: string): void {
 function assertNoNestedArchive(path: string): void {
   const extension = posix.extname(path).toLowerCase();
   if (NESTED_ARCHIVE_EXTENSIONS.includes(extension)) {
-    throw cliError('CPK_ARCHIVE_INVALID', `包内禁止嵌套归档：${path}`, { stage: 'archive', file: path });
+    throw cliError('CPK_ARCHIVE_INVALID', `包内禁止嵌套归档：${path}`, {
+      stage: 'archive',
+      file: path,
+    });
   }
 }
 
@@ -200,16 +216,32 @@ function assertNoNativePayload(path: string, data: Uint8Array): void {
   const magic = (offset: number, bytes: readonly number[]): boolean =>
     bytes.every((byte, index) => data[offset + index] === byte);
   if (magic(0, [0x4d, 0x5a])) {
-    throw cliError('CPK_NATIVE_PAYLOAD', `插件包包含原生载荷（PE）：${path}`, { stage: 'layout', file: path });
+    throw cliError('CPK_NATIVE_PAYLOAD', `插件包包含原生载荷（PE）：${path}`, {
+      stage: 'layout',
+      file: path,
+    });
   }
   if (magic(0, [0x7f, 0x45, 0x4c, 0x46])) {
-    throw cliError('CPK_NATIVE_PAYLOAD', `插件包包含原生载荷（ELF）：${path}`, { stage: 'layout', file: path });
+    throw cliError('CPK_NATIVE_PAYLOAD', `插件包包含原生载荷（ELF）：${path}`, {
+      stage: 'layout',
+      file: path,
+    });
   }
-  if (magic(0, [0xfe, 0xed, 0xfa, 0xce]) || magic(0, [0xfe, 0xed, 0xfa, 0xcf]) || magic(0, [0xca, 0xfe, 0xba, 0xbe])) {
-    throw cliError('CPK_NATIVE_PAYLOAD', `插件包包含原生载荷（Mach-O）：${path}`, { stage: 'layout', file: path });
+  if (
+    magic(0, [0xfe, 0xed, 0xfa, 0xce]) ||
+    magic(0, [0xfe, 0xed, 0xfa, 0xcf]) ||
+    magic(0, [0xca, 0xfe, 0xba, 0xbe])
+  ) {
+    throw cliError('CPK_NATIVE_PAYLOAD', `插件包包含原生载荷（Mach-O）：${path}`, {
+      stage: 'layout',
+      file: path,
+    });
   }
   if (magic(0, [0x00, 0x61, 0x73, 0x6d])) {
-    throw cliError('CPK_NATIVE_PAYLOAD', `插件包包含原生载荷（WASM）：${path}`, { stage: 'layout', file: path });
+    throw cliError('CPK_NATIVE_PAYLOAD', `插件包包含原生载荷（WASM）：${path}`, {
+      stage: 'layout',
+      file: path,
+    });
   }
 }
 
@@ -234,15 +266,15 @@ function assertEntryModule(path: string, data: Uint8Array): void {
     });
   }
   if (data.length > CPK_LIMITS.entryFileBytes) {
-    throw cliError('CPK_LIMIT_EXCEEDED', `入口文件超过 8 MiB：${path}`, { stage: 'layout', file: path });
+    throw cliError('CPK_LIMIT_EXCEEDED', `入口文件超过 8 MiB：${path}`, {
+      stage: 'layout',
+      file: path,
+    });
   }
 }
 
 /** 结构校验（角色布局与根目录白名单，[插件包格式] §2.2、§三）。 */
-export function validateLayout(
-  members: ReadonlyMap<string, Uint8Array>,
-  role: string,
-): void {
+export function validateLayout(members: ReadonlyMap<string, Uint8Array>, role: string): void {
   const paths = [...members.keys()];
   const totalBytes = paths.reduce((sum, path) => sum + (members.get(path)?.length ?? 0), 0);
   if (totalBytes > CPK_LIMITS.totalBytes) {
@@ -259,7 +291,10 @@ export function validateLayout(
     assertNoHidden(path);
     assertNoNativePayload(path, data);
     if (data.length > CPK_LIMITS.singleFileBytes) {
-      throw cliError('CPK_LIMIT_EXCEEDED', `单个文件超过 16 MiB：${path}`, { stage: 'layout', file: path });
+      throw cliError('CPK_LIMIT_EXCEEDED', `单个文件超过 16 MiB：${path}`, {
+        stage: 'layout',
+        file: path,
+      });
     }
     const rootSegment = path.split('/')[0] ?? path;
     if (!ROOT_WHITELIST.includes(rootSegment)) {
@@ -270,7 +305,10 @@ export function validateLayout(
     }
     const extension = posix.extname(path).toLowerCase();
     if (extension === '.html' || extension === '.htm') {
-      throw cliError('CPK_LAYOUT_INVALID', `包内禁止 HTML 文档：${path}`, { stage: 'layout', file: path });
+      throw cliError('CPK_LAYOUT_INVALID', `包内禁止 HTML 文档：${path}`, {
+        stage: 'layout',
+        file: path,
+      });
     }
     if (path.startsWith('assets/')) {
       if (!ASSET_EXTENSIONS.includes(extension)) {
@@ -290,7 +328,10 @@ export function validateLayout(
   }
 
   if (!members.has('manifest.yaml')) {
-    throw cliError('CPK_MANIFEST_MISSING', '包根缺少 manifest.yaml', { stage: 'manifest', file: 'manifest.yaml' });
+    throw cliError('CPK_MANIFEST_MISSING', '包根缺少 manifest.yaml', {
+      stage: 'manifest',
+      file: 'manifest.yaml',
+    });
   }
   if (!members.has('dist/index.js')) {
     throw cliError('CPK_ENTRY_MISSING', '缺少插件模块入口 dist/index.js', {
@@ -301,7 +342,10 @@ export function validateLayout(
   const renderData = members.get('render.js');
   if (role === 'service') {
     if (renderData !== undefined) {
-      throw cliError('CPK_LAYOUT_INVALID', 'service 角色不得携带 render.js', { stage: 'layout', file: 'render.js' });
+      throw cliError('CPK_LAYOUT_INVALID', 'service 角色不得携带 render.js', {
+        stage: 'layout',
+        file: 'render.js',
+      });
     }
     for (const path of paths) {
       if (path.startsWith('assets/')) {
@@ -315,7 +359,10 @@ export function validateLayout(
       }
     }
   } else if (renderData === undefined) {
-    throw cliError('CPK_ENTRY_MISSING', `缺少渲染入口 render.js`, { stage: 'layout', file: 'render.js' });
+    throw cliError('CPK_ENTRY_MISSING', `缺少渲染入口 render.js`, {
+      stage: 'layout',
+      file: 'render.js',
+    });
   }
   assertEntryModule('dist/index.js', members.get('dist/index.js') ?? new Uint8Array());
   if (renderData !== undefined && role !== 'service') {
@@ -387,7 +434,9 @@ export function verifySignature(input: {
 
   let document: unknown;
   try {
-    document = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(signatureEntry.data)) as unknown;
+    document = JSON.parse(
+      new TextDecoder('utf-8', { fatal: true }).decode(signatureEntry.data)
+    ) as unknown;
   } catch {
     throw cliError('CPK_SIGNATURE_INVALID', 'signature.json 不是合法 JSON', { stage: 'signature' });
   }
@@ -413,7 +462,9 @@ export function verifySignature(input: {
     throw cliError('CPK_SIGNATURE_INVALID', 'signature.json 字段非法', { stage: 'signature' });
   }
 
-  const computed = computeContentHash(input.entries.filter((entry) => entry.path !== SIGNATURE_FILE));
+  const computed = computeContentHash(
+    input.entries.filter((entry) => entry.path !== SIGNATURE_FILE)
+  );
   if (computed !== contentHash) {
     throw cliError('CPK_SIGNATURE_INVALID', '包内容摘要与签名声明不一致', {
       stage: 'signature',
@@ -426,12 +477,20 @@ export function verifySignature(input: {
   }
   const publicKeyPem = input.trustRoots[keyId];
   if (publicKeyPem === undefined) {
-    throw cliError('CPK_SIGNATURE_INVALID', `信任根未注册的 keyId：${keyId}`, { stage: 'signature', keyId });
+    throw cliError('CPK_SIGNATURE_INVALID', `信任根未注册的 keyId：${keyId}`, {
+      stage: 'signature',
+      keyId,
+    });
   }
   let verified = false;
   try {
     const key = createPublicKey(publicKeyPem);
-    verified = verifySignatureValue(null, Buffer.from(contentHash, 'utf8'), key, Buffer.from(signature, 'base64'));
+    verified = verifySignatureValue(
+      null,
+      Buffer.from(contentHash, 'utf8'),
+      key,
+      Buffer.from(signature, 'base64')
+    );
   } catch (error) {
     throw cliError('CPK_SIGNATURE_INVALID', `签名校验失败：${normalizeError(error).message}`, {
       stage: 'signature',
@@ -450,9 +509,7 @@ export function computeContentHash(entries: readonly IZipEntry[]): string {
   const encoder = new TextEncoder();
   const chunks: Uint8Array[] = [];
   for (const entry of sorted) {
-    chunks.push(
-      encoder.encode(`${entry.path}\n${sha256Hex(entry.data)}\n`),
-    );
+    chunks.push(encoder.encode(`${entry.path}\n${sha256Hex(entry.data)}\n`));
   }
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const merged = new Uint8Array(total);
@@ -518,10 +575,12 @@ export function validateCpk(options: ICpkValidateOptions): ICliArtifactValidateR
         manifest: parsedManifest,
         members: new Set(members.keys()),
         catalog: options.catalog,
-        ...(options.platformVersion === undefined ? {} : { platformVersion: options.platformVersion }),
+        ...(options.platformVersion === undefined
+          ? {}
+          : { platformVersion: options.platformVersion }),
       },
-      options.fileSystem,
-    ),
+      options.fileSystem
+    )
   );
 
   run('layout', () => validateLayout(members, preliminary.role));
@@ -532,7 +591,9 @@ export function validateCpk(options: ICpkValidateOptions): ICliArtifactValidateR
     const packagePath = `${options.path.replace(/[/\\]+$/, '')}/package.json`;
     if (options.fileSystem.exists(packagePath)) {
       try {
-        const packageJson = JSON.parse(options.fileSystem.readText(packagePath)) as { version?: unknown };
+        const packageJson = JSON.parse(options.fileSystem.readText(packagePath)) as {
+          version?: unknown;
+        };
         if (typeof packageJson.version === 'string') {
           packageVersion = packageJson.version;
         }
@@ -545,19 +606,15 @@ export function validateCpk(options: ICpkValidateOptions): ICliArtifactValidateR
     throw cliError(
       'CPK_MANIFEST_INVALID',
       `manifest.version 与 package.json 的 version 不一致：${preliminary.version} / ${packageVersion}`,
-      { stage: 'manifest', pointer: 'version', stages },
+      { stage: 'manifest', pointer: 'version', stages }
     );
   }
   stages.push(
-    stage(
-      'manifest',
-      'passed',
-      `${preliminary.id}@${preliminary.version}（${preliminary.role}）`,
-    ),
+    stage('manifest', 'passed', `${preliminary.id}@${preliminary.version}（${preliminary.role}）`)
   );
 
   const signatureStage = run('signature', () =>
-    verifySignature({ entries, source: options.source, trustRoots }),
+    verifySignature({ entries, source: options.source, trustRoots })
   );
   stages.push(signatureStage);
   if (signatureStage.status === 'skipped' && options.source === 'user') {

@@ -6,7 +6,9 @@ import { FakeCliClient } from './support/fake-client.js';
 import { runUser } from './support/harness.js';
 import { MemoryFileSystem } from './support/memory-file-system.js';
 
-function view(overrides: Partial<ICliCommandView> & { readonly commandPath: readonly string[] }): ICliCommandView {
+function view(
+  overrides: Partial<ICliCommandView> & { readonly commandPath: readonly string[] }
+): ICliCommandView {
   const pluginId = overrides.pluginId ?? 'chips.official.office';
   return {
     entryId: `${pluginId}.cli.${overrides.commandPath.join('.')}`,
@@ -49,7 +51,14 @@ const officeOpen = view({
 
 describe('命令匹配与冲突消解（§2.3、§5.5）', () => {
   it('按最长命令路径前缀匹配，剩余 token 交参数解析', () => {
-    const office = view({ commandPath: ['office'], declaration: { commandPath: ['office'], title: '打开办公', target: { type: 'app', pluginId: 'chips.official.office' } } });
+    const office = view({
+      commandPath: ['office'],
+      declaration: {
+        commandPath: ['office'],
+        title: '打开办公',
+        target: { type: 'app', pluginId: 'chips.official.office' },
+      },
+    });
     const match = matchCommand([office, officeOpen], ['office', 'open', 'x.docx']);
     expect(match.command.commandPath).toEqual(['office', 'open']);
     expect(match.remaining).toEqual(['x.docx']);
@@ -59,12 +68,21 @@ describe('命令匹配与冲突消解（§2.3、§5.5）', () => {
     const left = view({
       commandPath: ['tool', 'run'],
       pluginId: 'chips.a',
-      declaration: { commandPath: ['tool', 'run'], title: 'A', target: { type: 'app', pluginId: 'chips.a' }, conflict: { priority: 1 } },
+      declaration: {
+        commandPath: ['tool', 'run'],
+        title: 'A',
+        target: { type: 'app', pluginId: 'chips.a' },
+        conflict: { priority: 1 },
+      },
     });
     const right = view({
       commandPath: ['tool', 'run'],
       pluginId: 'chips.b',
-      declaration: { commandPath: ['tool', 'run'], title: 'B', target: { type: 'app', pluginId: 'chips.b' } },
+      declaration: {
+        commandPath: ['tool', 'run'],
+        title: 'B',
+        target: { type: 'app', pluginId: 'chips.b' },
+      },
     });
     expect(matchCommand([left, right], ['tool', 'run']).command.pluginId).toBe('chips.a');
 
@@ -85,16 +103,28 @@ describe('命令匹配与冲突消解（§2.3、§5.5）', () => {
     const left = view({
       commandPath: ['tool', 'run'],
       pluginId: 'chips.a',
-      declaration: { commandPath: ['tool', 'run'], title: 'A', target: { type: 'app', pluginId: 'chips.a' } },
+      declaration: {
+        commandPath: ['tool', 'run'],
+        title: 'A',
+        target: { type: 'app', pluginId: 'chips.a' },
+      },
     });
     const right = view({
       commandPath: ['tool', 'run'],
       pluginId: 'chips.b',
-      declaration: { commandPath: ['tool', 'run'], title: 'B', target: { type: 'app', pluginId: 'chips.b' } },
+      declaration: {
+        commandPath: ['tool', 'run'],
+        title: 'B',
+        target: { type: 'app', pluginId: 'chips.b' },
+      },
     });
-    expect(matchCommand([left, right], ['tool', 'run'], { pluginId: 'chips.b' }).command.pluginId).toBe('chips.b');
+    expect(
+      matchCommand([left, right], ['tool', 'run'], { pluginId: 'chips.b' }).command.pluginId
+    ).toBe('chips.b');
     // 禁用命令只在治理视图（`includeDisabled: true`）里参与匹配（[CLI 完整参考] §5.5、§5.8）。
-    expect(matchCommand([{ ...left, enabled: false }], ['tool', 'run'], { includeDisabled: true })).toBeDefined();
+    expect(
+      matchCommand([{ ...left, enabled: false }], ['tool', 'run'], { includeDisabled: true })
+    ).toBeDefined();
     try {
       matchCommand([{ ...left, enabled: false }], ['tool', 'run']);
       throw new Error('expected not found');
@@ -114,9 +144,17 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
         declaration: {
           commandPath: ['txt', 'translate'],
           title: '翻译一段文本',
-          target: { type: 'service', pluginId: 'chips.service.translate', capability: 'translate:run' },
-          arguments: [{ name: 'text', position: 0, type: 'string', required: true, mapsTo: 'text' }],
-          options: [{ name: 'to', type: 'enum', choices: ['zh', 'en'], required: true, mapsTo: 'target' }],
+          target: {
+            type: 'service',
+            pluginId: 'chips.service.translate',
+            capability: 'translate:run',
+          },
+          arguments: [
+            { name: 'text', position: 0, type: 'string', required: true, mapsTo: 'text' },
+          ],
+          options: [
+            { name: 'to', type: 'enum', choices: ['zh', 'en'], required: true, mapsTo: 'target' },
+          ],
           output: { mode: 'human' },
         },
       }),
@@ -124,7 +162,9 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
     const outcome = await runUser(['txt', 'translate', 'Hello chips', '--to', 'zh'], { client });
     expect(outcome.exitCode).toBe(0);
     expect(client.calls).toContain('capabilities.invoke:translate:run');
-    expect(outcome.stdout).toContain('完成\n命令: txt translate\n目标: service chips.service.translate');
+    expect(outcome.stdout).toContain(
+      '完成\n命令: txt translate\n目标: service chips.service.translate'
+    );
     const envelope = outcome.json() as { ok: boolean; target: { type: string }; output: unknown };
     expect(envelope.ok).toBe(true);
     expect(envelope.target.type).toBe('service');
@@ -145,7 +185,11 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
     expect(client.calls).toContain('cliTask.bindInvocation:task-1');
     expect(outcome.stdout).toContain('任务: completed');
     expect(outcome.stdout).toContain('产物:\n- /work/报告.docx');
-    const envelope = outcome.json() as { artifacts: string[]; commandId: string; task: { status: string } };
+    const envelope = outcome.json() as {
+      artifacts: string[];
+      commandId: string;
+      task: { status: string };
+    };
     expect(envelope.artifacts).toEqual(['/work/报告.docx']);
     expect(envelope.commandId).toBe('office:open');
     expect(envelope.task.status).toBe('completed');
@@ -156,7 +200,10 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
     client.commandsIndex = [officeOpen];
     const fileSystem = new MemoryFileSystem();
     fileSystem.writeText('/work/报告.docx', 'doc');
-    const outcome = await runUser(['office', 'open', '报告.docx', '--json'], { client, fileSystem });
+    const outcome = await runUser(['office', 'open', '报告.docx', '--json'], {
+      client,
+      fileSystem,
+    });
     expect(outcome.stdout.trimStart().startsWith('{')).toBe(true);
     expect(outcome.json()).toBeDefined();
   });
@@ -247,7 +294,9 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
   it('command:invoke 失败时任务标记失败并以原错误码收口', async () => {
     const client = new FakeCliClient();
     client.commandsIndex = [officeOpen];
-    client.invokeError = Object.assign(new Error('命令执行失败'), { code: 'COMMAND_EXECUTION_FAILED' });
+    client.invokeError = Object.assign(new Error('命令执行失败'), {
+      code: 'COMMAND_EXECUTION_FAILED',
+    });
     const fileSystem = new MemoryFileSystem();
     fileSystem.writeText('/work/报告.docx', 'doc');
     const outcome = await runUser(['office', 'open', '报告.docx'], { client, fileSystem });
@@ -318,7 +367,13 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
           title: '导出',
           target: { type: 'app', pluginId: 'chips.official.office' },
           options: [
-            { name: 'out', type: 'path', required: true, mapsTo: 'out', path: { kind: 'file', role: 'output' } },
+            {
+              name: 'out',
+              type: 'path',
+              required: true,
+              mapsTo: 'out',
+              path: { kind: 'file', role: 'output' },
+            },
           ],
         },
       }),
@@ -327,7 +382,10 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
     fileSystem.writeText('/work/out.html', 'old');
     const blocked = await runUser(['export', '--out', '/work/out.html'], { client, fileSystem });
     expect(blocked.exitCode).toBe(5);
-    const overwritten = await runUser(['export', '--out', '/work/out.html', '--overwrite'], { client, fileSystem });
+    const overwritten = await runUser(['export', '--out', '/work/out.html', '--overwrite'], {
+      client,
+      fileSystem,
+    });
     expect(overwritten.exitCode).toBe(0);
   });
 

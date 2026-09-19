@@ -76,7 +76,9 @@ export function computeCandidates(buffer: string, paths: readonly string[]): rea
   const tokens = splitTokens(buffer);
   const endsWithSpace = buffer.endsWith(' ');
   const current = endsWithSpace ? '' : (tokens[tokens.length - 1] ?? '');
-  const preceding = (endsWithSpace ? tokens : tokens.slice(0, -1)).map((token) => token.toLowerCase());
+  const preceding = (endsWithSpace ? tokens : tokens.slice(0, -1)).map((token) =>
+    token.toLowerCase()
+  );
   const candidates = new Set<string>();
   for (const path of paths) {
     const segments = path.split(' ');
@@ -84,7 +86,9 @@ export function computeCandidates(buffer: string, paths: readonly string[]): rea
       continue;
     }
     // 已输入的段必须与路径对应段一致（大小写不敏感），与 §3.9 `__complete` 同语义。
-    const matches = preceding.every((token, index) => (segments[index] ?? '').toLowerCase() === token);
+    const matches = preceding.every(
+      (token, index) => (segments[index] ?? '').toLowerCase() === token
+    );
     if (!matches) {
       continue;
     }
@@ -150,7 +154,8 @@ function reduceCompose(state: ITuiState, key: ITuiKey, env: ITuiEnvironment): IT
     case 'down':
       return {
         ...state,
-        candidateIndex: state.candidates.length === 0 ? 0 : (state.candidateIndex + 1) % state.candidates.length,
+        candidateIndex:
+          state.candidates.length === 0 ? 0 : (state.candidateIndex + 1) % state.candidates.length,
       };
     case 'enter':
       return enterCompose(state, env);
@@ -174,12 +179,16 @@ function enterCompose(state: ITuiState, env: ITuiEnvironment): ITuiState {
   const endsWithSpace = state.buffer.endsWith(' ');
   const currentSegment = endsWithSpace ? '' : (tokens[tokens.length - 1] ?? '');
   const segmentMatchesPath =
-    target !== undefined && target.commandPath.length === tokens.length && currentSegment.length > 0;
+    target !== undefined &&
+    target.commandPath.length === tokens.length &&
+    currentSegment.length > 0;
 
   if (target === undefined && state.candidates.length > 0) {
     const candidate = state.candidates[state.candidateIndex] ?? state.candidates[0];
     if (candidate !== undefined) {
-      const base = endsWithSpace ? state.buffer : state.buffer.slice(0, state.buffer.length - currentSegment.length);
+      const base = endsWithSpace
+        ? state.buffer
+        : state.buffer.slice(0, state.buffer.length - currentSegment.length);
       const buffer = `${base}${candidate}`;
       return withBuffer(state, buffer, buffer.length, env);
     }
@@ -188,7 +197,9 @@ function enterCompose(state: ITuiState, env: ITuiEnvironment): ITuiState {
   if (!segmentMatchesPath && state.candidates.length > 0 && target !== undefined) {
     const candidate = state.candidates[state.candidateIndex] ?? state.candidates[0];
     if (candidate !== undefined) {
-      const base = endsWithSpace ? state.buffer : state.buffer.slice(0, state.buffer.length - currentSegment.length);
+      const base = endsWithSpace
+        ? state.buffer
+        : state.buffer.slice(0, state.buffer.length - currentSegment.length);
       const buffer = `${base}${candidate}`;
       return withBuffer(state, buffer, buffer.length, env);
     }
@@ -199,9 +210,21 @@ function enterCompose(state: ITuiState, env: ITuiEnvironment): ITuiState {
   }
   const fields = createFields(target);
   if (fields.length === 0) {
-    return { ...state, panel: 'form', commandPath: target.commandPath.join(' '), fields: [], fieldIndex: 0 };
+    return {
+      ...state,
+      panel: 'form',
+      commandPath: target.commandPath.join(' '),
+      fields: [],
+      fieldIndex: 0,
+    };
   }
-  return { ...state, panel: 'form', commandPath: target.commandPath.join(' '), fields, fieldIndex: 0 };
+  return {
+    ...state,
+    panel: 'form',
+    commandPath: target.commandPath.join(' '),
+    fields,
+    fieldIndex: 0,
+  };
 }
 
 function reduceForm(state: ITuiState, key: ITuiKey, env: ITuiEnvironment): ITuiState {
@@ -224,7 +247,15 @@ function reduceForm(state: ITuiState, key: ITuiKey, env: ITuiEnvironment): ITuiS
       return state;
     case 'escape':
     case 'ctrl-c':
-      return { ...withBuffer(state, state.commandPath ?? state.buffer, (state.commandPath ?? state.buffer).length, env), panel: 'compose' };
+      return {
+        ...withBuffer(
+          state,
+          state.commandPath ?? state.buffer,
+          (state.commandPath ?? state.buffer).length,
+          env
+        ),
+        panel: 'compose',
+      };
     case 'ctrl-backslash':
       return state;
     default:
@@ -248,7 +279,12 @@ function reduceResult(state: ITuiState, key: ITuiKey): ITuiState {
 export function createFields(target: ITuiTarget): readonly ITuiField[] {
   const fields: ITuiField[] = [];
   for (const declaration of target.argumentsList) {
-    fields.push({ declaration, kind: 'argument', value: defaultValue(declaration), choiceIndex: 0 });
+    fields.push({
+      declaration,
+      kind: 'argument',
+      value: defaultValue(declaration),
+      choiceIndex: 0,
+    });
   }
   for (const declaration of target.optionsList) {
     fields.push({ declaration, kind: 'option', value: defaultValue(declaration), choiceIndex: 0 });
@@ -258,12 +294,18 @@ export function createFields(target: ITuiTarget): readonly ITuiField[] {
 
 function defaultValue(declaration: IParameterDeclaration): string {
   if (declaration.default !== undefined) {
-    return typeof declaration.default === 'string' ? declaration.default : JSON.stringify(declaration.default);
+    return typeof declaration.default === 'string'
+      ? declaration.default
+      : JSON.stringify(declaration.default);
   }
   if (declaration.type === 'boolean') {
     return 'false';
   }
-  if (declaration.type === 'enum' && declaration.choices !== undefined && declaration.choices.length > 0) {
+  if (
+    declaration.type === 'enum' &&
+    declaration.choices !== undefined &&
+    declaration.choices.length > 0
+  ) {
     return choiceText(declaration.choices[0]);
   }
   return '';
@@ -284,7 +326,12 @@ function choiceText(value: unknown): string {
   return '';
 }
 
-function withBuffer(state: ITuiState, buffer: string, cursor: number, env: ITuiEnvironment): ITuiState {
+function withBuffer(
+  state: ITuiState,
+  buffer: string,
+  cursor: number,
+  env: ITuiEnvironment
+): ITuiState {
   return {
     ...state,
     buffer,
@@ -320,9 +367,18 @@ function adjustChoice(state: ITuiState, delta: number): ITuiState {
       return state;
     }
     const next = (field.choiceIndex + delta + choices.length) % choices.length;
-    return updateField(state, index, { ...field, choiceIndex: next, value: choiceText(choices[next]) });
+    return updateField(state, index, {
+      ...field,
+      choiceIndex: next,
+      value: choiceText(choices[next]),
+    });
   }
-  if (control === 'stepper' || control === 'slider' || field.declaration.type === 'number' || field.declaration.type === 'integer') {
+  if (
+    control === 'stepper' ||
+    control === 'slider' ||
+    field.declaration.type === 'number' ||
+    field.declaration.type === 'integer'
+  ) {
     const step = field.declaration.ui?.step ?? 1;
     const numeric = Number(field.value.length === 0 ? '0' : field.value);
     const base = Number.isFinite(numeric) ? numeric : 0;
@@ -351,10 +407,16 @@ function toggleField(state: ITuiState): ITuiState {
     return updateField(state, index, { ...field, value: [...selected].join(',') });
   }
   if (field.declaration.type === 'boolean') {
-    return updateField(state, index, { ...field, value: field.value === 'true' ? 'false' : 'true' });
+    return updateField(state, index, {
+      ...field,
+      value: field.value === 'true' ? 'false' : 'true',
+    });
   }
   if (control === 'toggle' || field.declaration.type === 'stringList') {
-    return updateField(state, index, { ...field, value: field.value === '' ? 'true' : `${field.value},true` });
+    return updateField(state, index, {
+      ...field,
+      value: field.value === '' ? 'true' : `${field.value},true`,
+    });
   }
   return state;
 }

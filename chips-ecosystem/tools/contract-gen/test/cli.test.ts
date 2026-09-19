@@ -22,14 +22,18 @@ interface ConsoleCapture {
 function captureConsole(): ConsoleCapture {
   let stdout = '';
   let stderr = '';
-  const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array): boolean => {
-    stdout += chunk.toString();
-    return true;
-  });
-  const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: string | Uint8Array): boolean => {
-    stderr += chunk.toString();
-    return true;
-  });
+  const stdoutWrite = vi
+    .spyOn(process.stdout, 'write')
+    .mockImplementation((chunk: string | Uint8Array): boolean => {
+      stdout += chunk.toString();
+      return true;
+    });
+  const stderrWrite = vi
+    .spyOn(process.stderr, 'write')
+    .mockImplementation((chunk: string | Uint8Array): boolean => {
+      stderr += chunk.toString();
+      return true;
+    });
   return {
     stdout: () => stdout,
     stderr: () => stderr,

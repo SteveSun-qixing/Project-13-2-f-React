@@ -141,7 +141,7 @@ export interface ICreateBridgeErrorOptions {
 /** 按错误码构造 `ChipsError`，缺省使用错误码表文案与 `retryable` 口径。 */
 export function createBridgeError(
   code: BridgeErrorCode,
-  options: ICreateBridgeErrorOptions = {},
+  options: ICreateBridgeErrorOptions = {}
 ): ChipsError {
   return new ChipsError({
     code,

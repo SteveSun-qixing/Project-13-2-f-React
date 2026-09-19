@@ -80,12 +80,7 @@ describe('PLATFORM_VERSION（02-SDK-API规范 §10.1）', () => {
       names.push(manifest.name);
       expect(manifest.version, manifest.name).toBe(PLATFORM_VERSION);
     }
-    expect(names.sort()).toEqual([
-      '@chips/bridge',
-      '@chips/host',
-      '@chips/sdk',
-      '@chips/ui',
-    ]);
+    expect(names.sort()).toEqual(['@chips/bridge', '@chips/host', '@chips/sdk', '@chips/ui']);
   });
 
   it('与 Rust 工作区声明版本同值，全部 crate 继承同一 workspace 版本', () => {
@@ -95,7 +90,7 @@ describe('PLATFORM_VERSION（02-SDK-API规范 §10.1）', () => {
 
   it('内部依赖一律使用 workspace 协议，不写死版本号', () => {
     const manifest: unknown = JSON.parse(
-      readFileSync(`${REPO_ROOT}packages/sdk/package.json`, 'utf8'),
+      readFileSync(`${REPO_ROOT}packages/sdk/package.json`, 'utf8')
     );
     if (typeof manifest !== 'object' || manifest === null || !('dependencies' in manifest)) {
       throw new Error('packages/sdk/package.json 缺少 dependencies');

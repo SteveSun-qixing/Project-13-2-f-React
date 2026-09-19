@@ -26,7 +26,10 @@ const TYPE_LABEL: Readonly<Record<string, string>> = {
   textFile: '文本文件',
 };
 
-function renderDeclaration(declaration: IParameterDeclaration, kind: 'argument' | 'option'): string {
+function renderDeclaration(
+  declaration: IParameterDeclaration,
+  kind: 'argument' | 'option'
+): string {
   const short = declaration.short === undefined ? '' : `-${declaration.short}, `;
   const name = kind === 'argument' ? `<${declaration.name}>` : `${short}--${declaration.name}`;
   const parts: string[] = [`${name}`, `（${TYPE_LABEL[declaration.type] ?? declaration.type}`];
@@ -105,7 +108,7 @@ function renderCommandHelp(definition: ICliCommandDefinition): readonly string[]
 
 /** 创建帮助命令（注入固定命令定义，避免模块环）。 */
 export function createHelpCommand(
-  definitions: readonly ICliCommandDefinition[],
+  definitions: readonly ICliCommandDefinition[]
 ): ICliCommandDefinition {
   return {
     path: ['help'],
@@ -124,15 +127,23 @@ export function createHelpCommand(
         try {
           const result = await context.client.cliCommand.list();
           const paths = result.commands.map((command) => command.commandPath.join(' ')).sort();
-          lines.push(...(paths.length > 0 ? paths.map((path) => `  ${path}`) : ['  （当前工作区无已启用插件命令）']));
+          lines.push(
+            ...(paths.length > 0
+              ? paths.map((path) => `  ${path}`)
+              : ['  （当前工作区无已启用插件命令）'])
+          );
         } catch {
           lines.push('  （命令索引不可用）');
         }
-        return { json: { commands: definitions.map((definition) => definition.path.join(' ')) }, human: lines };
+        return {
+          json: { commands: definitions.map((definition) => definition.path.join(' ')) },
+          human: lines,
+        };
       }
 
       const builtin = definitions.find(
-        (definition) => definition.path.join(' ').toLowerCase() === requested.join(' ').toLowerCase(),
+        (definition) =>
+          definition.path.join(' ').toLowerCase() === requested.join(' ').toLowerCase()
       );
       if (builtin !== undefined) {
         return {

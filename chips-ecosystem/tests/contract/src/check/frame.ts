@@ -40,7 +40,7 @@ export function checkFrameProtocol(input: FrameCheckInput): ContractViolation[] 
     violations.push(
       violation('CONTRACT_FRAME_PROTOCOL_GRAMMAR', frame.protocol, '帧协议版本常量文法非法', {
         expected: 'chips-frame/<版本号>',
-      }),
+      })
     );
   }
 
@@ -50,7 +50,7 @@ export function checkFrameProtocol(input: FrameCheckInput): ContractViolation[] 
         violation('CONTRACT_FRAME_ENVELOPE', `FrameEnvelope.${member}`, '帧消息封套缺少必需字段', {
           expected: '字段存在',
           actual: '缺失',
-        }),
+        })
       );
     }
   }
@@ -59,7 +59,7 @@ export function checkFrameProtocol(input: FrameCheckInput): ContractViolation[] 
   for (const message of frame.messages) {
     if (declaredByType.has(message.type)) {
       violations.push(
-        violation('CONTRACT_FRAME_MESSAGE_DUPLICATE', message.type, '帧消息类型在代码块中重复声明'),
+        violation('CONTRACT_FRAME_MESSAGE_DUPLICATE', message.type, '帧消息类型在代码块中重复声明')
       );
     }
     declaredByType.set(message.type, [message.direction]);
@@ -72,23 +72,32 @@ export function checkFrameProtocol(input: FrameCheckInput): ContractViolation[] 
       violations.push(
         violation('CONTRACT_FRAME_DIRECTION_UNKNOWN', row.direction, '消息清单表方向列无法归一', {
           actual: row.direction,
-        }),
+        })
       );
     }
     for (const messageType of row.messageTypes) {
       if (tableTypes.has(messageType)) {
         violations.push(
-          violation('CONTRACT_FRAME_MESSAGE_DUPLICATE', messageType, '消息清单表重复收录同一消息类型'),
+          violation(
+            'CONTRACT_FRAME_MESSAGE_DUPLICATE',
+            messageType,
+            '消息清单表重复收录同一消息类型'
+          )
         );
       }
       tableTypes.add(messageType);
       const declared = declaredByType.get(messageType);
       if (declared === undefined) {
         violations.push(
-          violation('CONTRACT_FRAME_MESSAGE_UNDECLARED', messageType, '消息清单表收录了代码块未声明的消息', {
-            expected: '代码块声明该消息',
-            actual: '缺失',
-          }),
+          violation(
+            'CONTRACT_FRAME_MESSAGE_UNDECLARED',
+            messageType,
+            '消息清单表收录了代码块未声明的消息',
+            {
+              expected: '代码块声明该消息',
+              actual: '缺失',
+            }
+          )
         );
         continue;
       }
@@ -98,7 +107,7 @@ export function checkFrameProtocol(input: FrameCheckInput): ContractViolation[] 
           violation('CONTRACT_FRAME_DIRECTION', messageType, '消息方向与清单表不一致', {
             expected: expected.join(' / '),
             actual: direction,
-          }),
+          })
         );
       }
     }
@@ -106,10 +115,15 @@ export function checkFrameProtocol(input: FrameCheckInput): ContractViolation[] 
   for (const [messageType] of declaredByType) {
     if (!tableTypes.has(messageType)) {
       violations.push(
-        violation('CONTRACT_FRAME_MESSAGE_TABLE_MISSING', messageType, '代码块声明的消息未收录进清单表', {
-          expected: '清单表包含该消息',
-          actual: '缺失',
-        }),
+        violation(
+          'CONTRACT_FRAME_MESSAGE_TABLE_MISSING',
+          messageType,
+          '代码块声明的消息未收录进清单表',
+          {
+            expected: '清单表包含该消息',
+            actual: '缺失',
+          }
+        )
       );
     }
   }
@@ -122,7 +136,9 @@ export function checkFrameProtocol(input: FrameCheckInput): ContractViolation[] 
     .filter((message) => message.direction === 'parent-to-child')
     .map((message) => message.name)
     .sort();
-  const unionByName = new Map(frame.outboundUnions.map((union) => [union.name, [...union.members].sort()]));
+  const unionByName = new Map(
+    frame.outboundUnions.map((union) => [union.name, [...union.members].sort()])
+  );
   const expectedUnions: readonly (readonly [string, readonly string[]])[] = [
     ['FrameOutboundMessage', childNames],
     ['HostOutboundMessage', parentNames],
@@ -131,16 +147,21 @@ export function checkFrameProtocol(input: FrameCheckInput): ContractViolation[] 
     const actual = unionByName.get(unionName);
     if (actual === undefined) {
       violations.push(
-        violation('CONTRACT_FRAME_UNION_MISSING', unionName, '帧协议缺少出站消息联合类型声明'),
+        violation('CONTRACT_FRAME_UNION_MISSING', unionName, '帧协议缺少出站消息联合类型声明')
       );
       continue;
     }
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
       violations.push(
-        violation('CONTRACT_FRAME_UNION_MISMATCH', unionName, '出站消息联合类型与消息声明集合不一致', {
-          expected: expected.join(', '),
-          actual: actual.join(', '),
-        }),
+        violation(
+          'CONTRACT_FRAME_UNION_MISMATCH',
+          unionName,
+          '出站消息联合类型与消息声明集合不一致',
+          {
+            expected: expected.join(', '),
+            actual: actual.join(', '),
+          }
+        )
       );
     }
   }

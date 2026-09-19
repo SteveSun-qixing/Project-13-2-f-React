@@ -176,7 +176,8 @@ export function normalizeError(value: unknown): ChipsError {
     };
     const options: IChipsErrorOptions = {
       code: record.code,
-      message: typeof record.message === 'string' ? record.message : CLI_ERROR_MESSAGES.CLI_COMMAND_FAILED,
+      message:
+        typeof record.message === 'string' ? record.message : CLI_ERROR_MESSAGES.CLI_COMMAND_FAILED,
     };
     if (record.details !== undefined) {
       (options as { details?: unknown }).details = record.details;
@@ -199,7 +200,7 @@ export function cliError(
   code: string,
   message?: string,
   details?: unknown,
-  retryable?: boolean,
+  retryable?: boolean
 ): ChipsError {
   return cliErrorWithExitCode(code, undefined, message, details, retryable);
 }
@@ -213,7 +214,7 @@ export function cliErrorWithExitCode(
   exitCode: CliExitCode | undefined,
   message?: string,
   details?: unknown,
-  retryable?: boolean,
+  retryable?: boolean
 ): ChipsError {
   const options: IChipsErrorOptions = {
     code,

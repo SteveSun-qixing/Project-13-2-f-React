@@ -8,7 +8,11 @@
 
 import { CliInterruptedError, exitCodeForError, normalizeError } from './errors.js';
 import { createNodeFileSystem, type IFileSystemPort } from './args/filesystem.js';
-import { parseGlobalOptions, type CliEntryKind, type IGlobalOptions } from './args/global-options.js';
+import {
+  parseGlobalOptions,
+  type CliEntryKind,
+  type IGlobalOptions,
+} from './args/global-options.js';
 import type { IOutputSink } from './output/io.js';
 import type { ICommandResult } from './output/result.js';
 import { renderError, renderResult } from './output/result.js';
@@ -16,7 +20,11 @@ import type { ICliClient } from './client/types.js';
 import { createOperationLogger, type IOperationLogger } from './logging/operations.js';
 import { CLI_VERSION } from './version.js';
 import { listCommands, matchBuiltinCommand } from './commands/registry.js';
-import type { ICliCommandDefinition, ICommandContext, IWorkspaceAccessor } from './commands/types.js';
+import type {
+  ICliCommandDefinition,
+  ICommandContext,
+  IWorkspaceAccessor,
+} from './commands/types.js';
 import { createHelpCommand } from './commands/help.js';
 import { executePluginCommand } from './plugin-cli/execute.js';
 import { matchCommand } from './plugin-cli/index.js';
@@ -56,7 +64,10 @@ export async function runCli(argv: readonly string[], deps: ICliRunDependencies)
 }
 
 /** 运行开发侧入口。 */
-export async function runDevCli(argv: readonly string[], deps: ICliRunDependencies): Promise<number> {
+export async function runDevCli(
+  argv: readonly string[],
+  deps: ICliRunDependencies
+): Promise<number> {
   return runEntry(argv, deps, 'dev');
 }
 
@@ -64,7 +75,7 @@ export async function runDevCli(argv: readonly string[], deps: ICliRunDependenci
 export async function runEntry(
   argv: readonly string[],
   deps: ICliRunDependencies,
-  entry: CliEntryKind,
+  entry: CliEntryKind
 ): Promise<number> {
   const startedAt = (deps.now ?? Date.now)();
   const base: ICommandBase = {
@@ -88,7 +99,11 @@ export async function runEntry(
     globals = parsed.options;
     rest = parsed.rest;
   } catch (error) {
-    return reportFailure(createContext(base, defaultGlobals(), argv.join(' '), []), error, startedAt);
+    return reportFailure(
+      createContext(base, defaultGlobals(), argv.join(' '), []),
+      error,
+      startedAt
+    );
   }
 
   if (globals.version) {
@@ -99,7 +114,10 @@ export async function runEntry(
 
   if (rest.length === 0) {
     if (isInteractive(deps)) {
-      return runTui({ context: createContext(base, globals, '', []), execute: createTuiExecutor(deps, entry, base) });
+      return runTui({
+        context: createContext(base, globals, '', []),
+        execute: createTuiExecutor(deps, entry, base),
+      });
     }
     base.io.writeErr('当前环境不支持交互式界面，请使用 chips help 查看命令\n');
     return 0;
@@ -142,7 +160,7 @@ export async function runEntry(
         createHelpCommand(definitions),
         [...match.command.commandPath],
         globals,
-        startedAt,
+        startedAt
       );
     }
     const context = createContext(base, globals, commandPath, match.remaining);
@@ -156,7 +174,7 @@ export async function runEntry(
       createContext(base, globals, pluginFields?.commandPath ?? rest.join(' '), []),
       error,
       startedAt,
-      pluginFields,
+      pluginFields
     );
   }
 }
@@ -165,7 +183,7 @@ function createContext(
   base: ICommandBase,
   globals: IGlobalOptions,
   commandPath: string,
-  args: readonly string[],
+  args: readonly string[]
 ): ICommandContext {
   const workspace = resolveWorkspaceAccessor(base.client, base.entry, globals, base.env, base.cwd);
   let versionPromise: Promise<string | undefined> | undefined;
@@ -191,7 +209,7 @@ async function runFixedCommand(
   definition: ICliCommandDefinition,
   args: readonly string[],
   globals: IGlobalOptions,
-  startedAt: number,
+  startedAt: number
 ): Promise<number> {
   const commandPath = definition.path.join(' ');
   const context = createContext(base, globals, commandPath, args);
@@ -212,7 +230,7 @@ async function runFixedCommand(
  */
 function withDeclaredOutputMode(
   result: ICommandResult,
-  definition: ICliCommandDefinition,
+  definition: ICliCommandDefinition
 ): ICommandResult {
   if (result.mode !== undefined) {
     return result;
@@ -246,7 +264,7 @@ async function reportFailure(
   context: ICommandContext,
   cause: unknown,
   startedAt: number,
-  pluginFields?: IOperationFields,
+  pluginFields?: IOperationFields
 ): Promise<number> {
   const detail: IOperationFields = pluginFields ?? {
     exitCode: 0,
@@ -268,7 +286,7 @@ async function reportFailure(
 async function reportVersion(
   base: ICommandBase,
   globals: IGlobalOptions,
-  startedAt: number,
+  startedAt: number
 ): Promise<number> {
   const context = createContext(base, globals, '--version', []);
   const platformVersion = await context.resolvePlatformVersion();
@@ -284,7 +302,7 @@ export function resolveWorkspaceAccessor(
   entry: CliEntryKind,
   globals: IGlobalOptions,
   env: Readonly<Record<string, string | undefined>>,
-  cwd: string,
+  cwd: string
 ): IWorkspaceAccessor {
   let cached: Promise<{ readonly path: string; readonly kind: CliEntryKind }> | undefined;
   return {
@@ -296,7 +314,10 @@ export function resolveWorkspaceAccessor(
           const platformDefault = await client.platform.defaultWorkspacePath('dev');
           const explicit = globals.workspace ?? env.CHIPS_WORKSPACE;
           if (explicit !== undefined && explicit.length > 0) {
-            return { path: isAbsolutePath(explicit) ? explicit : `${cwd}/${explicit}`, kind: 'dev' as const };
+            return {
+              path: isAbsolutePath(explicit) ? explicit : `${cwd}/${explicit}`,
+              kind: 'dev' as const,
+            };
           }
           return { path: platformDefault, kind: 'dev' as const };
         }
@@ -319,7 +340,7 @@ function isInteractive(deps: ICliRunDependencies): boolean {
 function createTuiExecutor(
   deps: ICliRunDependencies,
   entry: CliEntryKind,
-  base: ICommandBase,
+  base: ICommandBase
 ): (tokens: readonly string[], sink: IOutputSink, signal: AbortSignal) => Promise<number> {
   return (tokens, sink, signal) =>
     runEntry(tokens, { ...deps, io: sink, signal, logger: base.logger }, entry);

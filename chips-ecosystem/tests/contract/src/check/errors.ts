@@ -33,23 +33,33 @@ function checkDomainExact(
   violations: ContractViolation[],
   label: string,
   expected: readonly string[],
-  actual: readonly string[],
+  actual: readonly string[]
 ): void {
   const diff = diffSets(expected, actual);
   for (const code of diff.missing) {
     violations.push(
-      violation('CONTRACT_ERROR_DOMAIN_MISSING', `${label}:${code}`, '文档登记的错误码未在实现侧登记', {
-        expected: '实现侧登记表包含该错误码',
-        actual: '缺失',
-      }),
+      violation(
+        'CONTRACT_ERROR_DOMAIN_MISSING',
+        `${label}:${code}`,
+        '文档登记的错误码未在实现侧登记',
+        {
+          expected: '实现侧登记表包含该错误码',
+          actual: '缺失',
+        }
+      )
     );
   }
   for (const code of diff.extra) {
     violations.push(
-      violation('CONTRACT_ERROR_DOMAIN_EXTRA', `${label}:${code}`, '实现侧登记了文档未登记的错误码', {
-        expected: '文档错误码表包含该错误码',
-        actual: '未登记',
-      }),
+      violation(
+        'CONTRACT_ERROR_DOMAIN_EXTRA',
+        `${label}:${code}`,
+        '实现侧登记了文档未登记的错误码',
+        {
+          expected: '文档错误码表包含该错误码',
+          actual: '未登记',
+        }
+      )
     );
   }
 }
@@ -58,23 +68,33 @@ function checkSubset(
   violations: ContractViolation[],
   label: string,
   codes: readonly string[],
-  allowed: readonly string[],
+  allowed: readonly string[]
 ): void {
   const allowedSet = new Set(allowed);
   for (const code of codes) {
     if (!allowedSet.has(code)) {
       violations.push(
-        violation('CONTRACT_ERROR_DOMAIN_EXTRA', `${label}:${code}`, '实现侧登记了该域文档未登记的错误码'),
+        violation(
+          'CONTRACT_ERROR_DOMAIN_EXTRA',
+          `${label}:${code}`,
+          '实现侧登记了该域文档未登记的错误码'
+        )
       );
     }
   }
 }
 
-function checkDuplicates(violations: ContractViolation[], label: string, codes: readonly string[]): void {
+function checkDuplicates(
+  violations: ContractViolation[],
+  label: string,
+  codes: readonly string[]
+): void {
   const seen = new Set<string>();
   for (const code of codes) {
     if (seen.has(code)) {
-      violations.push(violation('CONTRACT_ERROR_DUPLICATE', `${label}:${code}`, '实现侧登记表存在重复错误码'));
+      violations.push(
+        violation('CONTRACT_ERROR_DUPLICATE', `${label}:${code}`, '实现侧登记表存在重复错误码')
+      );
     }
     seen.add(code);
   }
@@ -118,8 +138,8 @@ export function checkErrors(input: ErrorCheckInput): ContractViolation[] {
           'CONTRACT_ERROR_REGISTRATION_MISSING',
           entry,
           '能力注册与契约错误码未在任何已实现登记表出现',
-          { expected: 'Bridge 通道或权限登记表包含该错误码' },
-        ),
+          { expected: 'Bridge 通道或权限登记表包含该错误码' }
+        )
       );
     }
   }
@@ -138,7 +158,11 @@ export function checkErrors(input: ErrorCheckInput): ContractViolation[] {
     for (const entry of codes) {
       if (!registry.has(entry)) {
         violations.push(
-          violation('CONTRACT_ERROR_UNREGISTERED', `${label}:${entry}`, '实现侧错误码未在文档错误码注册表登记（禁止自造错误码）'),
+          violation(
+            'CONTRACT_ERROR_UNREGISTERED',
+            `${label}:${entry}`,
+            '实现侧错误码未在文档错误码注册表登记（禁止自造错误码）'
+          )
         );
       }
     }
@@ -154,10 +178,15 @@ export function checkErrors(input: ErrorCheckInput): ContractViolation[] {
     const actual = code.channelRetryable[entry];
     if (actual !== expected) {
       violations.push(
-        violation('CONTRACT_ERROR_RETRYABLE', `Bridge 通道错误码:${entry}`, '错误码 retryable 与文档表不一致', {
-          expected: String(expected),
-          actual: String(actual),
-        }),
+        violation(
+          'CONTRACT_ERROR_RETRYABLE',
+          `Bridge 通道错误码:${entry}`,
+          '错误码 retryable 与文档表不一致',
+          {
+            expected: String(expected),
+            actual: String(actual),
+          }
+        )
       );
     }
   }

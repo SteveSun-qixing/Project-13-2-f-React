@@ -7,7 +7,14 @@
  * 注册表按「来源」保留分域视图，另给出全库去重并集用于「不得自造错误码」检查。
  */
 
-import { collapse, findSection, findTable, inlineCodeTokens, parseTables, stripMarkdownInline } from '../markdown.js';
+import {
+  collapse,
+  findSection,
+  findTable,
+  inlineCodeTokens,
+  parseTables,
+  stripMarkdownInline,
+} from '../markdown.js';
 import type { DocReader, DocRef } from './reader.js';
 import { ERROR_SOURCES, type ErrorSourceSelector } from './sources.js';
 
@@ -122,7 +129,7 @@ export function parseErrorRegistry(reader: DocReader): DocErrorRegistry {
  */
 export function parseErrorRetryable(
   reader: DocReader,
-  source: ErrorSourceSelector,
+  source: ErrorSourceSelector
 ): ReadonlyMap<string, boolean> {
   const text = reader.read(source.file);
   const body = findSection(text, source.level, source.heading);
@@ -154,9 +161,12 @@ export function parseErrorRetryable(
 }
 
 /** 按来源取错误码集合；来源不存在时抛错（来源清单即契约，禁止静默缺省）。 */
-export function domainCodes(registry: DocErrorRegistry, source: ErrorSourceSelector): readonly string[] {
+export function domainCodes(
+  registry: DocErrorRegistry,
+  source: ErrorSourceSelector
+): readonly string[] {
   const domain = registry.domains.find(
-    (entry) => entry.source.file === source.file && entry.source.heading === source.heading,
+    (entry) => entry.source.file === source.file && entry.source.heading === source.heading
   );
   if (domain === undefined) {
     throw new Error(`错误码注册表缺少来源：${source.file} §${source.heading}`);

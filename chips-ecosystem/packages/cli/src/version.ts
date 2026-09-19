@@ -9,7 +9,11 @@ const require = createRequire(import.meta.url);
 function readVersion(): string {
   try {
     const pkg = require('../../package.json') as unknown;
-    if (typeof pkg === 'object' && pkg !== null && typeof (pkg as { version?: unknown }).version === 'string') {
+    if (
+      typeof pkg === 'object' &&
+      pkg !== null &&
+      typeof (pkg as { version?: unknown }).version === 'string'
+    ) {
       return (pkg as { version: string }).version;
     }
   } catch {

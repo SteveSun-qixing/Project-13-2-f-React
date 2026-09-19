@@ -1,8 +1,4 @@
-export {
-  createCallContext,
-  type ICallContext,
-  type ICallContextOptions,
-} from './call-context.js';
+export { createCallContext, type ICallContext, type ICallContextOptions } from './call-context.js';
 export {
   createCapabilityRegistry,
   type ICapabilityContractRecord,

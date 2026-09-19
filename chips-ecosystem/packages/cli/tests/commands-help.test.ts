@@ -58,7 +58,9 @@ const OPTION_TAGS: IParameterDeclaration = {
   multiple: true,
 };
 
-function commandView(overrides: Partial<ICliCommandView['declaration']> & { pluginId?: string } = {}): ICliCommandView {
+function commandView(
+  overrides: Partial<ICliCommandView['declaration']> & { pluginId?: string } = {}
+): ICliCommandView {
   const { pluginId = 'chips.official.office', ...declaration } = overrides;
   return {
     entryId: 'chips.official.office.cli.office.open',
@@ -103,14 +105,21 @@ describe('renderParameterHelp（§5.2 参数标签）', () => {
   });
 
   it('输入角色路径不产出输出冲突策略，未声明 default 不产出默认值', () => {
-    const inputOnly: IParameterDeclaration = { name: 'out', type: 'path', path: { kind: 'file', role: 'input' } };
+    const inputOnly: IParameterDeclaration = {
+      name: 'out',
+      type: 'path',
+      path: { kind: 'file', role: 'input' },
+    };
     expect(renderParameterHelp({ options: [inputOnly] })).toEqual(['选项:', '  --out （路径 ）']);
     const outputWithoutPolicy: IParameterDeclaration = {
       name: 'out',
       type: 'path',
       path: { kind: 'file', role: 'output' },
     };
-    expect(renderParameterHelp({ options: [outputWithoutPolicy] })).toEqual(['选项:', '  --out （路径 ）']);
+    expect(renderParameterHelp({ options: [outputWithoutPolicy] })).toEqual([
+      '选项:',
+      '  --out （路径 ）',
+    ]);
   });
 });
 
@@ -122,7 +131,7 @@ describe('renderPluginHelp（§3.1.1、§5.1）', () => {
         arguments: [ARGUMENT_PATH, ARGUMENT_CHAPTER],
         options: [OPTION_FORCE],
         examples: ['chips office open ~/a.doc', 'chips office open ~/a.doc --chapter 3'],
-      }),
+      })
     );
     expect(lines).toEqual([
       '命令: office open',
@@ -191,8 +200,12 @@ describe('chips help 命令（§3.1.1）', () => {
   it('内建命令帮助输出用法、说明与子命令段', async () => {
     const outcome = await runUser(['help', 'plugin'], { client: new FakeCliClient() });
     expect(outcome.exitCode).toBe(0);
-    expect(outcome.stdout).toContain('用法: chips plugin <create|pack|validate|install|uninstall|list|info|enable|disable>');
-    expect(outcome.stdout).toContain('子命令: create | pack | validate | install | uninstall | list | info | enable | disable');
+    expect(outcome.stdout).toContain(
+      '用法: chips plugin <create|pack|validate|install|uninstall|list|info|enable|disable>'
+    );
+    expect(outcome.stdout).toContain(
+      '子命令: create | pack | validate | install | uninstall | list | info | enable | disable'
+    );
     expect(outcome.stdout).toContain('说明: 插件安装、启停与打包校验');
     // 组命令没有参数声明：只输出用法、说明与子命令三行。
     expect(outcome.stdout.trim().split('\n')).toHaveLength(3);
@@ -212,8 +225,18 @@ describe('chips help 命令（§3.1.1）', () => {
     const client = new FakeCliClient();
     client.resolveResult = {
       conflicts: [
-        { entryId: 'a.cli.office.open', commandPath: ['office', 'open'], pluginId: 'chips.a', priority: 10 },
-        { entryId: 'b.cli.office.open', commandPath: ['office', 'open'], pluginId: 'chips.b', priority: 10 },
+        {
+          entryId: 'a.cli.office.open',
+          commandPath: ['office', 'open'],
+          pluginId: 'chips.a',
+          priority: 10,
+        },
+        {
+          entryId: 'b.cli.office.open',
+          commandPath: ['office', 'open'],
+          pluginId: 'chips.b',
+          priority: 10,
+        },
       ],
     };
     const outcome = await runUser(['help', 'office', 'open'], { client });

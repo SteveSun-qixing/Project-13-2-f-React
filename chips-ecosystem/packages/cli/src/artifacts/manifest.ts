@@ -13,7 +13,11 @@ import type { CliPluginRole } from '../client/types.js';
 import type { IFileSystemPort } from '../args/filesystem.js';
 import { FIXED_COMMAND_ROOTS, COMMAND_PATH_SEGMENT_PATTERN } from '../plugin-cli/index.js';
 import { isValidRange, parseSemver, satisfiesRange, parseRange } from './semver.js';
-import { allPluginRoles, validatePermissionRequest, type IPermissionCatalog } from './permission-catalog.js';
+import {
+  allPluginRoles,
+  validatePermissionRequest,
+  type IPermissionCatalog,
+} from './permission-catalog.js';
 
 const PLUGIN_ID_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 const CARD_TYPE_ID_PATTERN = /^[A-Za-z][A-Za-z0-9]*(\.[a-z][a-z0-9-]*)*$/;
@@ -23,7 +27,15 @@ const CAPABILITY_ID_PATTERN = /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/;
 const MAPS_TO_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
 const PARAMETER_NAME_PATTERN = /^[a-z][a-z0-9-]*$/i;
 const DURATION_PATTERN = /^(\d+)(ms|s|m)$/;
-const RESERVED_DEEP_LINK_SCHEMES = new Set(['http', 'https', 'file', 'mailto', 'tel', 'data', 'javascript']);
+const RESERVED_DEEP_LINK_SCHEMES = new Set([
+  'http',
+  'https',
+  'file',
+  'mailto',
+  'tel',
+  'data',
+  'javascript',
+]);
 const PARAMETER_TYPES = new Set([
   'string',
   'stringList',
@@ -91,7 +103,11 @@ function expectArray(value: unknown, pointer: string): readonly unknown[] {
   return value;
 }
 
-function expectString(value: unknown, pointer: string, options?: { readonly allowEmpty?: boolean }): string {
+function expectString(
+  value: unknown,
+  pointer: string,
+  options?: { readonly allowEmpty?: boolean }
+): string {
   if (typeof value !== 'string') {
     fail(`应为字符串：${pointer}`, pointer);
   }
@@ -121,7 +137,12 @@ function expectNonNegativeInteger(value: unknown, pointer: string): number {
  * 不做 `String(value)` 隐式字符串化——清单里写成对象/数组的取值会被字符串化成
  * `[object Object]` 这类伪值，必须先按字符串收紧再比对候选。
  */
-function expectEnum(value: unknown, allowed: ReadonlySet<string>, pointer: string, message: string): string {
+function expectEnum(
+  value: unknown,
+  allowed: ReadonlySet<string>,
+  pointer: string,
+  message: string
+): string {
   const text = expectString(value, pointer);
   if (!allowed.has(text)) {
     fail(message, pointer);
@@ -134,10 +155,17 @@ function isUnknownArray(value: unknown): value is readonly unknown[] {
   return Array.isArray(value);
 }
 
-function rejectUnknownKeys(object: Record<string, unknown>, allowed: readonly string[], pointer: string): void {
+function rejectUnknownKeys(
+  object: Record<string, unknown>,
+  allowed: readonly string[],
+  pointer: string
+): void {
   for (const key of Object.keys(object)) {
     if (!allowed.includes(key)) {
-      fail(`出现未登记字段：${pointer === '' ? key : `${pointer}.${key}`}`, pointer === '' ? key : `${pointer}.${key}`);
+      fail(
+        `出现未登记字段：${pointer === '' ? key : `${pointer}.${key}`}`,
+        pointer === '' ? key : `${pointer}.${key}`
+      );
     }
   }
 }
@@ -159,7 +187,10 @@ export function parseManifestText(text: string): unknown {
 }
 
 /** 读取目录态清单的插件角色（`manifest.yaml` 缺失返回 undefined）。 */
-export function readManifestRole(fileSystem: IFileSystemPort, dir: string): CliPluginRole | undefined {
+export function readManifestRole(
+  fileSystem: IFileSystemPort,
+  dir: string
+): CliPluginRole | undefined {
   const path = `${dir.replace(/\/+$/, '')}/manifest.yaml`;
   if (!fileSystem.exists(path)) {
     return undefined;
@@ -176,7 +207,7 @@ function validateAssetRef(
   value: string,
   pointer: string,
   members: ReadonlySet<string>,
-  options?: { readonly imageOnly?: boolean },
+  options?: { readonly imageOnly?: boolean }
 ): void {
   if (value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value) || value.includes('\\')) {
     fail(`清单路径必须为包内相对 POSIX 路径：${value}`, pointer);
@@ -203,7 +234,7 @@ function validateJsonSchemaRef(
   value: string,
   pointer: string,
   members: ReadonlySet<string>,
-  contents?: ReadonlyMap<string, Uint8Array>,
+  contents?: ReadonlyMap<string, Uint8Array>
 ): void {
   validateAssetRef(value, pointer, members);
   validateJsonSchemaDocument(fileSystem, value, pointer, contents);
@@ -213,7 +244,7 @@ function validateJsonSchemaDocument(
   fileSystem: IFileSystemPort | undefined,
   path: string,
   pointer: string,
-  contents?: ReadonlyMap<string, Uint8Array>,
+  contents?: ReadonlyMap<string, Uint8Array>
 ): void {
   const bytes = contents?.get(path);
   const text =
@@ -229,7 +260,10 @@ function validateJsonSchemaDocument(
   try {
     schema = JSON.parse(text) as unknown;
   } catch (error) {
-    fail(`configSchema 不是合法 JSON：${path}（${error instanceof Error ? error.message : String(error)}）`, pointer);
+    fail(
+      `configSchema 不是合法 JSON：${path}（${error instanceof Error ? error.message : String(error)}）`,
+      pointer
+    );
   }
   const object = expectObject(schema, pointer);
   if (object.type !== 'object') {
@@ -260,13 +294,27 @@ function validateParameter(
   kind: 'argument' | 'option',
   seenNames: Set<string>,
   seenShorts: Set<string>,
-  seenPositions: Set<number>,
+  seenPositions: Set<number>
 ): void {
   const parameter = expectObject(value, pointer);
   rejectUnknownKeys(
     parameter,
-    ['name', 'short', 'position', 'type', 'required', 'default', 'mapsTo', 'choices', 'multiple', 'validation', 'path', 'batch', 'ui'],
-    pointer,
+    [
+      'name',
+      'short',
+      'position',
+      'type',
+      'required',
+      'default',
+      'mapsTo',
+      'choices',
+      'multiple',
+      'validation',
+      'path',
+      'batch',
+      'ui',
+    ],
+    pointer
   );
   const name = expectString(parameter.name, `${pointer}.name`);
   if (!PARAMETER_NAME_PATTERN.test(name)) {
@@ -313,7 +361,11 @@ function validateParameter(
   }
   if (parameter.validation !== undefined) {
     const validation = expectObject(parameter.validation, `${pointer}.validation`);
-    rejectUnknownKeys(validation, ['min', 'max', 'minLength', 'maxLength', 'pattern'], `${pointer}.validation`);
+    rejectUnknownKeys(
+      validation,
+      ['min', 'max', 'minLength', 'maxLength', 'pattern'],
+      `${pointer}.validation`
+    );
     if (validation.pattern !== undefined) {
       const pattern = expectString(validation.pattern, `${pointer}.validation.pattern`);
       try {
@@ -325,7 +377,11 @@ function validateParameter(
   }
   if (parameter.path !== undefined) {
     const path = expectObject(parameter.path, `${pointer}.path`);
-    rejectUnknownKeys(path, ['kind', 'role', 'exists', 'create', 'extensions', 'overwrite'], `${pointer}.path`);
+    rejectUnknownKeys(
+      path,
+      ['kind', 'role', 'exists', 'create', 'extensions', 'overwrite'],
+      `${pointer}.path`
+    );
     if (path.role !== undefined && path.role !== 'input' && path.role !== 'output') {
       fail('path.role 只能为 input 或 output', `${pointer}.path.role`);
     }
@@ -333,7 +389,12 @@ function validateParameter(
       if (path.role !== 'output') {
         fail('path.overwrite 只允许 path.role: output', `${pointer}.path.overwrite`);
       }
-      expectEnum(path.overwrite, PATH_OVERWRITE_POLICIES, `${pointer}.path.overwrite`, 'path.overwrite 取值非法');
+      expectEnum(
+        path.overwrite,
+        PATH_OVERWRITE_POLICIES,
+        `${pointer}.path.overwrite`,
+        'path.overwrite 取值非法'
+      );
     }
     if (path.role === 'output' && type !== 'path') {
       fail('path.role: output 只允许 type: path', `${pointer}.path.role`);
@@ -359,7 +420,11 @@ function validateParameter(
   }
   if (parameter.ui !== undefined) {
     const ui = expectObject(parameter.ui, `${pointer}.ui`);
-    rejectUnknownKeys(ui, ['control', 'choices', 'min', 'max', 'step', 'placeholder'], `${pointer}.ui`);
+    rejectUnknownKeys(
+      ui,
+      ['control', 'choices', 'min', 'max', 'step', 'placeholder'],
+      `${pointer}.ui`
+    );
     if (ui.control !== undefined) {
       const control = expectString(ui.control, `${pointer}.ui.control`);
       if (!UI_CONTROLS.has(control)) {
@@ -374,7 +439,7 @@ function validateCliCommands(
   role: CliPluginRole,
   pluginId: string,
   pointer: string,
-  catalog: IPermissionCatalog,
+  catalog: IPermissionCatalog
 ): void {
   const cli = expectObject(value, pointer);
   rejectUnknownKeys(cli, ['commands'], pointer);
@@ -388,8 +453,21 @@ function validateCliCommands(
     const command = expectObject(item, commandPointer);
     rejectUnknownKeys(
       command,
-      ['commandPath', 'commandId', 'title', 'description', 'examples', 'permissions', 'target', 'arguments', 'options', 'output', 'job', 'conflict'],
-      commandPointer,
+      [
+        'commandPath',
+        'commandId',
+        'title',
+        'description',
+        'examples',
+        'permissions',
+        'target',
+        'arguments',
+        'options',
+        'output',
+        'job',
+        'conflict',
+      ],
+      commandPointer
     );
     const rawPath = command.commandPath;
     if (typeof rawPath !== 'string' && !Array.isArray(rawPath)) {
@@ -438,7 +516,11 @@ function validateCliCommands(
     }
 
     const target = expectObject(command.target, `${commandPointer}.target`);
-    rejectUnknownKeys(target, ['type', 'pluginId', 'capability', 'surface'], `${commandPointer}.target`);
+    rejectUnknownKeys(
+      target,
+      ['type', 'pluginId', 'capability', 'surface'],
+      `${commandPointer}.target`
+    );
     const targetType = expectString(target.type, `${commandPointer}.target.type`);
     if (targetType !== role) {
       fail(`target.type 必须等于插件角色：${role}`, `${commandPointer}.target.type`);
@@ -468,7 +550,12 @@ function validateCliCommands(
           expectBoolean(surface.focus, `${commandPointer}.target.surface.focus`);
         }
         if (surface.reuse !== undefined) {
-          expectEnum(surface.reuse, SURFACE_REUSE_POLICIES, `${commandPointer}.target.surface.reuse`, 'surface.reuse 取值非法');
+          expectEnum(
+            surface.reuse,
+            SURFACE_REUSE_POLICIES,
+            `${commandPointer}.target.surface.reuse`,
+            'surface.reuse 取值非法'
+          );
         }
       }
     } else {
@@ -481,7 +568,10 @@ function validateCliCommands(
       if (command.job !== undefined) {
         fail('service 目标禁止声明 job', `${commandPointer}.job`);
       }
-      const capability = expectString(target.capability ?? '', `${commandPointer}.target.capability`);
+      const capability = expectString(
+        target.capability ?? '',
+        `${commandPointer}.target.capability`
+      );
       if (!CAPABILITY_ID_PATTERN.test(capability)) {
         fail(`capability 文法非法：${capability}`, `${commandPointer}.target.capability`);
       }
@@ -502,7 +592,7 @@ function validateCliCommands(
           'argument',
           seenNames,
           seenShorts,
-          seenPositions,
+          seenPositions
         );
       });
     }
@@ -515,7 +605,7 @@ function validateCliCommands(
           'option',
           seenNames,
           seenShorts,
-          new Set<number>(),
+          new Set<number>()
         );
       });
     }
@@ -527,7 +617,12 @@ function validateCliCommands(
         fail('output.mode 取值非法', `${commandPointer}.output.mode`);
       }
       if (output.json !== undefined) {
-        expectEnum(output.json, OUTPUT_JSON_POLICIES, `${commandPointer}.output.json`, 'output.json 取值非法');
+        expectEnum(
+          output.json,
+          OUTPUT_JSON_POLICIES,
+          `${commandPointer}.output.json`,
+          'output.json 取值非法'
+        );
       }
       if (output.artifacts !== undefined) {
         expectArray(output.artifacts, `${commandPointer}.output.artifacts`);
@@ -587,7 +682,7 @@ function validateCardTypes(
   members: ReadonlySet<string>,
   catalog: IPermissionCatalog,
   fileSystem: IFileSystemPort | undefined,
-  contents: ReadonlyMap<string, Uint8Array> | undefined,
+  contents: ReadonlyMap<string, Uint8Array> | undefined
 ): void {
   const cardTypes = expectArray(capabilities.cardTypes ?? [], `${pointer}.cardTypes`);
   if (cardTypes.length === 0) {
@@ -599,8 +694,17 @@ function validateCardTypes(
     const card = expectObject(item, cardPointer);
     rejectUnknownKeys(
       card,
-      ['id', 'name', 'description', 'icon', 'extensions', 'configSchema', 'aliases', 'exportFormats'],
-      cardPointer,
+      [
+        'id',
+        'name',
+        'description',
+        'icon',
+        'extensions',
+        'configSchema',
+        'aliases',
+        'exportFormats',
+      ],
+      cardPointer
     );
     const id = expectString(card.id, `${cardPointer}.id`);
     if (!CARD_TYPE_ID_PATTERN.test(id)) {
@@ -618,7 +722,12 @@ function validateCardTypes(
       expectString(card.description, `${cardPointer}.description`);
     }
     if (card.icon !== undefined) {
-      validateAssetRef(expectString(card.icon, `${cardPointer}.icon`), `${cardPointer}.icon`, members, { imageOnly: true });
+      validateAssetRef(
+        expectString(card.icon, `${cardPointer}.icon`),
+        `${cardPointer}.icon`,
+        members,
+        { imageOnly: true }
+      );
     }
     if (card.configSchema !== undefined) {
       validateJsonSchemaRef(
@@ -626,7 +735,7 @@ function validateCardTypes(
         expectString(card.configSchema, `${cardPointer}.configSchema`),
         `${cardPointer}.configSchema`,
         members,
-        contents,
+        contents
       );
     }
     if (card.extensions !== undefined) {
@@ -648,7 +757,11 @@ function validateCardTypes(
     if (card.exportFormats !== undefined) {
       for (const format of expectArray(card.exportFormats, `${cardPointer}.exportFormats`)) {
         const formatObject = expectObject(format, `${cardPointer}.exportFormats[]`);
-        rejectUnknownKeys(formatObject, ['id', 'name', 'extension', 'mimeType'], `${cardPointer}.exportFormats[]`);
+        rejectUnknownKeys(
+          formatObject,
+          ['id', 'name', 'extension', 'mimeType'],
+          `${cardPointer}.exportFormats[]`
+        );
         expectString(formatObject.id, `${cardPointer}.exportFormats[].id`);
         expectString(formatObject.name, `${cardPointer}.exportFormats[].name`);
         expectString(formatObject.extension, `${cardPointer}.exportFormats[].extension`);
@@ -664,7 +777,7 @@ function validateLayouts(
   members: ReadonlySet<string>,
   catalog: IPermissionCatalog,
   fileSystem: IFileSystemPort | undefined,
-  contents: ReadonlyMap<string, Uint8Array> | undefined,
+  contents: ReadonlyMap<string, Uint8Array> | undefined
 ): void {
   const layouts = expectArray(capabilities.layouts ?? [], `${pointer}.layouts`);
   if (layouts.length === 0) {
@@ -674,7 +787,11 @@ function validateLayouts(
   layouts.forEach((item, index) => {
     const layoutPointer = `${pointer}.layouts[${index}]`;
     const layout = expectObject(item, layoutPointer);
-    rejectUnknownKeys(layout, ['id', 'name', 'icon', 'description', 'configSchema', 'schemaVersions'], layoutPointer);
+    rejectUnknownKeys(
+      layout,
+      ['id', 'name', 'icon', 'description', 'configSchema', 'schemaVersions'],
+      layoutPointer
+    );
     const id = expectString(layout.id, `${layoutPointer}.id`);
     if (!LAYOUT_TYPE_ID_PATTERN.test(id)) {
       fail(`布局类型 ID 必须为 chips.layout.<name>：${id}`, `${layoutPointer}.id`);
@@ -688,18 +805,26 @@ function validateLayouts(
     }
     expectString(layout.name, `${layoutPointer}.name`);
     if (layout.icon !== undefined) {
-      validateAssetRef(expectString(layout.icon, `${layoutPointer}.icon`), `${layoutPointer}.icon`, members, {
-        imageOnly: true,
-      });
+      validateAssetRef(
+        expectString(layout.icon, `${layoutPointer}.icon`),
+        `${layoutPointer}.icon`,
+        members,
+        {
+          imageOnly: true,
+        }
+      );
     }
     validateJsonSchemaRef(
       fileSystem,
       expectString(layout.configSchema ?? '', `${layoutPointer}.configSchema`),
       `${layoutPointer}.configSchema`,
       members,
-      contents,
+      contents
     );
-    const schemaVersions = expectString(layout.schemaVersions ?? '', `${layoutPointer}.schemaVersions`);
+    const schemaVersions = expectString(
+      layout.schemaVersions ?? '',
+      `${layoutPointer}.schemaVersions`
+    );
     if (!isValidRange(schemaVersions)) {
       fail(`schemaVersions 版本范围非法：${schemaVersions}`, `${layoutPointer}.schemaVersions`);
     }
@@ -711,37 +836,56 @@ function validateFileAssociations(value: unknown, pointer: string): void {
   associations.forEach((item, index) => {
     const associationPointer = `${pointer}[${index}]`;
     const association = expectObject(item, associationPointer);
-    rejectUnknownKeys(association, ['extensions', 'mimeTypes', 'tier', 'action'], associationPointer);
+    rejectUnknownKeys(
+      association,
+      ['extensions', 'mimeTypes', 'tier', 'action'],
+      associationPointer
+    );
     const extensions = expectArray(association.extensions, `${associationPointer}.extensions`);
     const seen = new Set<string>();
     let hasExtension = false;
     extensions.forEach((extension, extensionIndex) => {
-      const text = expectString(extension, `${associationPointer}.extensions[${extensionIndex}]`, { allowEmpty: true });
+      const text = expectString(extension, `${associationPointer}.extensions[${extensionIndex}]`, {
+        allowEmpty: true,
+      });
       if (text.length === 0) {
         return;
       }
       hasExtension = true;
       if (!/^\.[a-z0-9]+$/.test(text)) {
-        fail(`扩展名必须含点且小写：${text}`, `${associationPointer}.extensions[${extensionIndex}]`);
+        fail(
+          `扩展名必须含点且小写：${text}`,
+          `${associationPointer}.extensions[${extensionIndex}]`
+        );
       }
       if (seen.has(text)) {
         fail(`扩展名重复：${text}`, `${associationPointer}.extensions[${extensionIndex}]`);
       }
       seen.add(text);
     });
-    const mimeTypes = association.mimeTypes === undefined ? [] : expectArray(association.mimeTypes, `${associationPointer}.mimeTypes`);
+    const mimeTypes =
+      association.mimeTypes === undefined
+        ? []
+        : expectArray(association.mimeTypes, `${associationPointer}.mimeTypes`);
     let hasMime = false;
     mimeTypes.forEach((mime, mimeIndex) => {
       const text = expectString(mime, `${associationPointer}.mimeTypes[${mimeIndex}]`);
       hasMime = true;
-      if (text === '*/*' || (!/^[a-z0-9.+-]+\/[a-z0-9.+*-]+$/.test(text) && !/^[a-z0-9.+-]+\/\*$/.test(text))) {
+      if (
+        text === '*/*' ||
+        (!/^[a-z0-9.+-]+\/[a-z0-9.+*-]+$/.test(text) && !/^[a-z0-9.+-]+\/\*$/.test(text))
+      ) {
         fail(`MIME 声明非法：${text}`, `${associationPointer}.mimeTypes[${mimeIndex}]`);
       }
     });
     if (!hasExtension && !hasMime) {
       fail('extensions 与 mimeTypes 至少一项非空', associationPointer);
     }
-    if (association.tier !== undefined && association.tier !== 'primary' && association.tier !== 'fallback') {
+    if (
+      association.tier !== undefined &&
+      association.tier !== 'primary' &&
+      association.tier !== 'fallback'
+    ) {
       fail('tier 只能为 primary 或 fallback', `${associationPointer}.tier`);
     }
     if (association.action !== 'open') {
@@ -777,8 +921,14 @@ function validateDeepLinks(value: unknown, pointer: string): void {
 function validateHealthCheck(value: unknown, pointer: string): void {
   const healthCheck = expectObject(value, pointer);
   rejectUnknownKeys(healthCheck, ['interval', 'timeout'], pointer);
-  const intervalText = healthCheck.interval === undefined ? '30s' : expectString(healthCheck.interval, `${pointer}.interval`);
-  const timeoutText = healthCheck.timeout === undefined ? '5s' : expectString(healthCheck.timeout, `${pointer}.timeout`);
+  const intervalText =
+    healthCheck.interval === undefined
+      ? '30s'
+      : expectString(healthCheck.interval, `${pointer}.interval`);
+  const timeoutText =
+    healthCheck.timeout === undefined
+      ? '5s'
+      : expectString(healthCheck.timeout, `${pointer}.timeout`);
   const interval = parseDuration(intervalText);
   const timeout = parseDuration(timeoutText);
   if (interval === undefined) {
@@ -822,9 +972,14 @@ function validateUi(value: unknown, pointer: string, members: ReadonlySet<string
     const launcher = expectObject(ui.launcher, `${pointer}.launcher`);
     rejectUnknownKeys(launcher, ['icon', 'name', 'description'], `${pointer}.launcher`);
     if (launcher.icon !== undefined) {
-      validateAssetRef(expectString(launcher.icon, `${pointer}.launcher.icon`), `${pointer}.launcher.icon`, members, {
-        imageOnly: true,
-      });
+      validateAssetRef(
+        expectString(launcher.icon, `${pointer}.launcher.icon`),
+        `${pointer}.launcher.icon`,
+        members,
+        {
+          imageOnly: true,
+        }
+      );
     }
     if (launcher.name !== undefined) {
       expectString(launcher.name, `${pointer}.launcher.name`);
@@ -836,7 +991,10 @@ function validateUi(value: unknown, pointer: string, members: ReadonlySet<string
 }
 
 /** 校验清单。 */
-export function validateManifest(input: IManifestValidationInput, fileSystem?: IFileSystemPort): IManifestValidationResult {
+export function validateManifest(
+  input: IManifestValidationInput,
+  fileSystem?: IFileSystemPort
+): IManifestValidationResult {
   const members = input.members;
   const contents: ReadonlyMap<string, Uint8Array> | undefined = undefined;
   const root = expectObject(input.manifest, '');
@@ -861,7 +1019,7 @@ export function validateManifest(input: IManifestValidationInput, fileSystem?: I
       'healthCheck',
       'cli',
     ],
-    '',
+    ''
   );
 
   const id = expectString(root.id, 'id');
@@ -891,7 +1049,7 @@ export function validateManifest(input: IManifestValidationInput, fileSystem?: I
   if (input.packageVersion !== undefined && input.packageVersion !== versionText) {
     fail(
       `manifest.version 与 package.json 的 version 不一致：${versionText} / ${input.packageVersion}`,
-      'version',
+      'version'
     );
   }
 
@@ -911,7 +1069,7 @@ export function validateManifest(input: IManifestValidationInput, fileSystem?: I
         fail(
           `engines.chips 不满足当前平台版本：需要 ${chips}，当前 ${input.platformVersion}`,
           'engines.chips',
-          'CPK_ENGINE_UNSUPPORTED',
+          'CPK_ENGINE_UNSUPPORTED'
         );
       }
     }

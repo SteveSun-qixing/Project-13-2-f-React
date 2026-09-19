@@ -72,10 +72,12 @@ export interface IMatchCommandOptions {
 export function matchCommand(
   commands: readonly ICliCommandView[],
   argv: readonly string[],
-  options: IMatchCommandOptions = {},
+  options: IMatchCommandOptions = {}
 ): ICommandMatch {
   const candidates = commands.filter(
-    (command) => (options.includeDisabled === true || command.enabled) && matchesPlugin(command, options.pluginId),
+    (command) =>
+      (options.includeDisabled === true || command.enabled) &&
+      matchesPlugin(command, options.pluginId)
   );
   const lowered = argv.map((token) => token.toLowerCase());
 
@@ -120,7 +122,8 @@ function resolveConflict(commands: readonly ICliCommandView[]): ICliCommandView 
     }
     return only;
   }
-  const priorityOf = (command: ICliCommandView): number => command.declaration.conflict?.priority ?? 0;
+  const priorityOf = (command: ICliCommandView): number =>
+    command.declaration.conflict?.priority ?? 0;
   const highest = Math.max(...commands.map(priorityOf));
   const top = commands.filter((command) => priorityOf(command) === highest);
   if (top.length === 1) {
@@ -151,6 +154,6 @@ function resolveConflict(commands: readonly ICliCommandView[]): ICliCommandView 
   throw cliError(
     'CLI_COMMAND_CONFLICT',
     `命令路径存在冲突：${conflicts[0]?.commandPath.join(' ') ?? ''}`,
-    { conflicts },
+    { conflicts }
   );
 }

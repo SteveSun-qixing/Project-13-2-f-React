@@ -31,7 +31,10 @@ import { RESOURCE_ERROR_CODES } from '../../../../packages/bridge/src/protocol/r
 export interface CodeCapability {
   readonly id: string;
   readonly permissions: readonly string[];
-  readonly targets: readonly { readonly permission: string; readonly targetFields: readonly string[] }[];
+  readonly targets: readonly {
+    readonly permission: string;
+    readonly targetFields: readonly string[];
+  }[];
   readonly ownerBound: boolean;
 }
 
@@ -89,11 +92,11 @@ function toCodeEvent(definition: IStandardEventDefinition): CodeEvent {
 
 export function loadBridgeCodeModel(): BridgeCodeModel {
   return {
-    capabilities: BUILTIN_CAPABILITIES.map((contract) => toCodeCapability(contract)).sort((left, right) =>
-      left.id.localeCompare(right.id),
+    capabilities: BUILTIN_CAPABILITIES.map((contract) => toCodeCapability(contract)).sort(
+      (left, right) => left.id.localeCompare(right.id)
     ),
     permissionIds: [...BUILTIN_PERMISSIONS.map((definition) => definition.id)].sort((left, right) =>
-      left.localeCompare(right),
+      left.localeCompare(right)
     ),
     permissions: [...BUILTIN_PERMISSIONS],
     events: STANDARD_EVENTS.map((definition) => toCodeEvent(definition)),

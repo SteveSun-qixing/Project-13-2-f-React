@@ -56,7 +56,12 @@ export class FakeCliClient implements ICliClient {
   ];
 
   public followEntries: readonly ICliLogEntry[] = [
-    { timestamp: '2026-09-19T00:00:01.000Z', level: 'warn', namespace: 'bridge', message: '慢调用' },
+    {
+      timestamp: '2026-09-19T00:00:01.000Z',
+      level: 'warn',
+      namespace: 'bridge',
+      message: '慢调用',
+    },
   ];
 
   public pluginRecords: readonly ICliPluginRecord[] = [];
@@ -99,7 +104,9 @@ export class FakeCliClient implements ICliClient {
 
   public doctorResult: ICliDoctorReport = {
     workspace: { path: '/tmp/chips-user', kind: 'user' },
-    checks: [{ id: 'workspace.marker', status: 'ok', detail: '标记与保留目录有效', fixable: false }],
+    checks: [
+      { id: 'workspace.marker', status: 'ok', detail: '标记与保留目录有效', fixable: false },
+    ],
   };
 
   public commandsIndex: readonly ICliCommandView[] = [];
@@ -112,7 +119,10 @@ export class FakeCliClient implements ICliClient {
 
   public taskStatus: ICliTaskRecord['status'] = 'completed';
 
-  public taskErrorMessage: { code: string; message: string } = { code: 'CLI_TASK_FAILED', message: '任务失败' };
+  public taskErrorMessage: { code: string; message: string } = {
+    code: 'CLI_TASK_FAILED',
+    message: '任务失败',
+  };
 
   public taskOutput: unknown = undefined;
 
@@ -215,7 +225,7 @@ export class FakeCliClient implements ICliClient {
     logsFollow: (
       options: { level?: string },
       onEntry: (entry: ICliLogEntry) => void,
-      _signal: AbortSignal,
+      _signal: AbortSignal
     ): Promise<void> => {
       this.calls.push(`platform.logsFollow:${options.level ?? 'all'}`);
       for (const entry of this.followEntries) {
@@ -223,7 +233,10 @@ export class FakeCliClient implements ICliClient {
       }
       return Promise.resolve();
     },
-    pluginList: (filter: { role?: string; source?: string }): Promise<readonly ICliPluginRecord[]> => {
+    pluginList: (filter: {
+      role?: string;
+      source?: string;
+    }): Promise<readonly ICliPluginRecord[]> => {
       this.calls.push(`platform.pluginList:${filter.role ?? 'all'}:${filter.source ?? 'all'}`);
       return Promise.resolve(this.pluginRecords);
     },
@@ -231,7 +244,11 @@ export class FakeCliClient implements ICliClient {
       this.calls.push(`platform.pluginInfo:${pluginId}`);
       return Promise.resolve(this.pluginDetail);
     },
-    pluginInstall: (input: { path: string; source: string; yes: boolean }): Promise<ICliPluginRecord> => {
+    pluginInstall: (input: {
+      path: string;
+      source: string;
+      yes: boolean;
+    }): Promise<ICliPluginRecord> => {
       this.calls.push(`platform.pluginInstall:${input.path}:${input.source}:${String(input.yes)}`);
       return Promise.resolve(this.installResult);
     },
@@ -285,7 +302,9 @@ export class FakeCliClient implements ICliClient {
   };
 
   public readonly commands = {
-    invoke: (input: { commandId: string }): Promise<{
+    invoke: (input: {
+      commandId: string;
+    }): Promise<{
       invocationId: string;
       commandId: string;
       target: 'main';
@@ -377,7 +396,11 @@ export class FakeCliClient implements ICliClient {
       if (this.createError !== undefined) {
         return Promise.reject(this.createError);
       }
-      return Promise.resolve({ ...this.createResult, pluginId: input.pluginId, targetDir: input.dir });
+      return Promise.resolve({
+        ...this.createResult,
+        pluginId: input.pluginId,
+        targetDir: input.dir,
+      });
     },
     pack: (input: { dir: string; sign: boolean }): Promise<ICliArtifactPackResult> => {
       this.calls.push(`artifacts.pack:${input.dir}:${String(input.sign)}`);

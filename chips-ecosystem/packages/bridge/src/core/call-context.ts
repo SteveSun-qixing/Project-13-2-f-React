@@ -38,7 +38,9 @@ export function createCallContext(options: ICallContextOptions): ICallContext {
 
   const timeoutError = createBridgeError(BRIDGE_ERROR_CODES.timeout, { retryable: true });
   const sessionAbortListener = (): void => {
-    controller.abort(options.sessionSignal?.reason ?? createBridgeError(BRIDGE_ERROR_CODES.cancelled));
+    controller.abort(
+      options.sessionSignal?.reason ?? createBridgeError(BRIDGE_ERROR_CODES.cancelled)
+    );
   };
 
   if (options.sessionSignal !== undefined) {

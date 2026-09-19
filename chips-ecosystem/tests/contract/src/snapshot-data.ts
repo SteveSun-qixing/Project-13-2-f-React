@@ -78,7 +78,12 @@ export interface SdkSnapshotData {
 }
 
 export function buildSdkSnapshotData(model: SdkExportModel): SdkSnapshotData {
-  return { entries: model.entries, values: model.values, types: model.types, testing: model.testing };
+  return {
+    entries: model.entries,
+    values: model.values,
+    types: model.types,
+    testing: model.testing,
+  };
 }
 
 export interface FrameSnapshotData {

@@ -87,10 +87,13 @@ export function parseParameters(request: IParseRequest): IParseResult {
       continue;
     }
     const isLast = index === argumentDeclarations.length - 1;
-    const acceptsRest = isLast && (declaration.multiple === true || declaration.type === 'stringList');
+    const acceptsRest =
+      isLast && (declaration.multiple === true || declaration.type === 'stringList');
     const rawValues = acceptsRest
       ? positionals.slice(consumedPositionals)
-      : positionals.slice(consumedPositionals, consumedPositionals + 1).filter((value) => value !== undefined);
+      : positionals
+          .slice(consumedPositionals, consumedPositionals + 1)
+          .filter((value) => value !== undefined);
     if (!acceptsRest) {
       consumedPositionals += rawValues.length;
     } else {
@@ -108,7 +111,12 @@ export function parseParameters(request: IParseRequest): IParseResult {
         });
       }
     } else {
-      const outcome = convertValues(declaration, rawValues, request, `arguments.${declaration.name}`);
+      const outcome = convertValues(
+        declaration,
+        rawValues,
+        request,
+        `arguments.${declaration.name}`
+      );
       if (outcome.skipped) {
         skipped = true;
       }
@@ -117,9 +125,13 @@ export function parseParameters(request: IParseRequest): IParseResult {
     }
   }
   if (consumedPositionals < positionals.length) {
-    throw cliError('CLI_ARGUMENT_INVALID', `存在多余的位置参数：${positionals[consumedPositionals] ?? ''}`, {
-      token: positionals[consumedPositionals],
-    });
+    throw cliError(
+      'CLI_ARGUMENT_INVALID',
+      `存在多余的位置参数：${positionals[consumedPositionals] ?? ''}`,
+      {
+        token: positionals[consumedPositionals],
+      }
+    );
   }
 
   for (const declaration of optionDeclarations) {
@@ -149,7 +161,9 @@ export function parseParameters(request: IParseRequest): IParseResult {
 }
 
 /** 声明序：位置参数按 `position` 升序（缺省按声明顺序）。 */
-function prepareArguments(declarations: readonly IParameterDeclaration[]): readonly IParameterDeclaration[] {
+function prepareArguments(
+  declarations: readonly IParameterDeclaration[]
+): readonly IParameterDeclaration[] {
   return declarations
     .map((declaration, index) => ({ declaration, index }))
     .sort((left, right) => {
@@ -170,7 +184,10 @@ function validateDeclaration(declaration: IParameterDeclaration): void {
   if (declaration.mapsTo !== undefined && !MAPS_TO_PATTERN.test(declaration.mapsTo)) {
     throw declarationError(`mapsTo 不是合法点分路径：${declaration.mapsTo}`, declaration.name);
   }
-  if (declaration.type === 'enum' && (declaration.choices === undefined || declaration.choices.length === 0)) {
+  if (
+    declaration.type === 'enum' &&
+    (declaration.choices === undefined || declaration.choices.length === 0)
+  ) {
     throw declarationError(`enum 参数必须声明 choices：${declaration.name}`, declaration.name);
   }
 }
@@ -183,7 +200,7 @@ function declarationError(message: string, param: string): ReturnType<typeof cli
 function tokenize(
   argv: readonly string[],
   byName: ReadonlyMap<string, IParameterDeclaration>,
-  byShort: ReadonlyMap<string, IParameterDeclaration>,
+  byShort: ReadonlyMap<string, IParameterDeclaration>
 ): IRawArguments {
   const positionals: string[] = [];
   const named = new Map<string, string[]>();
@@ -255,7 +272,10 @@ function tokenize(
   return { positionals, named };
 }
 
-function applyDefault(declaration: IParameterDeclaration): { readonly present: boolean; readonly value?: unknown } {
+function applyDefault(declaration: IParameterDeclaration): {
+  readonly present: boolean;
+  readonly value?: unknown;
+} {
   if (declaration.default === undefined) {
     return { present: false };
   }
@@ -271,12 +291,10 @@ function convertValues(
   declaration: IParameterDeclaration,
   rawValues: readonly string[],
   request: IParseRequest,
-  pointer: string,
+  pointer: string
 ): IConversionOutcome {
   if (declaration.type === 'stringList') {
-    const value = rawValues
-      .flatMap((raw) => raw.split(','))
-      .filter((item) => item.length > 0);
+    const value = rawValues.flatMap((raw) => raw.split(',')).filter((item) => item.length > 0);
     validateValue(declaration, value, pointer);
     return { value, skipped: false };
   }
@@ -310,7 +328,7 @@ function convertOne(
   declaration: IParameterDeclaration,
   raw: string,
   request: IParseRequest,
-  pointer: string,
+  pointer: string
 ): unknown {
   switch (declaration.type) {
     case 'string':
@@ -343,10 +361,14 @@ function convertOne(
       if (raw === 'false') {
         return false;
       }
-      throw cliError('CLI_ARGUMENT_INVALID', `布尔选项 --${declaration.name} 的取值必须为 true 或 false`, {
-        param: declaration.name,
-        value: raw,
-      });
+      throw cliError(
+        'CLI_ARGUMENT_INVALID',
+        `布尔选项 --${declaration.name} 的取值必须为 true 或 false`,
+        {
+          param: declaration.name,
+          value: raw,
+        }
+      );
     }
     case 'enum': {
       return convertEnum(declaration, raw);
@@ -369,10 +391,14 @@ function convertOne(
       try {
         return JSON.parse(text) as unknown;
       } catch (error) {
-        throw cliError('CLI_ARGUMENT_INVALID', `选项 --${declaration.name} 的文件内容不是合法 JSON`, {
-          param: declaration.name,
-          cause: error instanceof Error ? error.message : String(error),
-        });
+        throw cliError(
+          'CLI_ARGUMENT_INVALID',
+          `选项 --${declaration.name} 的文件内容不是合法 JSON`,
+          {
+            param: declaration.name,
+            cause: error instanceof Error ? error.message : String(error),
+          }
+        );
       }
     }
     case 'textFile': {
@@ -408,7 +434,7 @@ function readParameterFile(
   declaration: IParameterDeclaration,
   raw: string,
   request: IParseRequest,
-  pointer: string,
+  pointer: string
 ): string {
   const absolute = resolvePathValue(raw, request.cwd);
   if (!request.fileSystem.exists(absolute)) {
@@ -433,7 +459,7 @@ function applyBatch(
   batch: IBatchRules,
   text: string,
   request: IParseRequest,
-  pointer: string,
+  pointer: string
 ): readonly unknown[] {
   const format = batch.format ?? 'lines';
   let items: unknown[];
@@ -447,17 +473,25 @@ function applyBatch(
     try {
       parsed = JSON.parse(text) as unknown;
     } catch (error) {
-      throw cliError('CLI_BATCH_INVALID', `批量文件不是合法 JSON 数组：${declarationName(declaration)}`, {
-        param: declaration.name,
-        pointer,
-        cause: error instanceof Error ? error.message : String(error),
-      });
+      throw cliError(
+        'CLI_BATCH_INVALID',
+        `批量文件不是合法 JSON 数组：${declarationName(declaration)}`,
+        {
+          param: declaration.name,
+          pointer,
+          cause: error instanceof Error ? error.message : String(error),
+        }
+      );
     }
     if (!Array.isArray(parsed)) {
-      throw cliError('CLI_BATCH_INVALID', `批量文件顶层必须是 JSON 数组：${declarationName(declaration)}`, {
-        param: declaration.name,
-        pointer,
-      });
+      throw cliError(
+        'CLI_BATCH_INVALID',
+        `批量文件顶层必须是 JSON 数组：${declarationName(declaration)}`,
+        {
+          param: declaration.name,
+          pointer,
+        }
+      );
     }
     items = parsed;
   }
@@ -480,7 +514,7 @@ function applyBatch(
       item,
       request,
       `${pointer}[${index}]`,
-      index,
+      index
     );
     return resolved;
   });
@@ -499,11 +533,14 @@ function applyPathRules(
   absolute: string,
   raw: string,
   request: IParseRequest,
-  pointer: string,
+  pointer: string
 ): { readonly value: string; readonly skipped: boolean } {
   const rules = declaration.path ?? {};
   if ((rules.role ?? 'input') === 'input') {
-    return { value: applyInputPathRules(declaration, absolute, raw, request, pointer), skipped: false };
+    return {
+      value: applyInputPathRules(declaration, absolute, raw, request, pointer),
+      skipped: false,
+    };
   }
   const policy = effectivePolicy(rules, request.overwriteOverride === true);
   if (rules.create === true) {
@@ -561,7 +598,7 @@ function applyInputPathRules(
   raw: string,
   request: IParseRequest,
   pointer: string,
-  index?: number,
+  index?: number
 ): string {
   const rules = declaration.path ?? {};
   const detail: { param: string; pointer: string; path: string; index?: number } = {
@@ -581,7 +618,7 @@ function applyInputPathRules(
     const extension = extname(absolute).slice(1).toLowerCase();
     const allowed = extensions.map((item) => item.replace(/^\./, '').toLowerCase());
     if (!allowed.includes(extension)) {
-      fail('CLI_PATH_INVALID', `路径扩展名不在允许集合内：${raw}`, );
+      fail('CLI_PATH_INVALID', `路径扩展名不在允许集合内：${raw}`);
     }
   }
   if (!exists) {
@@ -593,7 +630,10 @@ function applyInputPathRules(
   const kind = request.fileSystem.kind(absolute);
   const expected = rules.kind ?? 'any';
   if (expected !== 'any' && kind !== expected) {
-    fail('CLI_PATH_INVALID', expected === 'file' ? `不是文件：${absolute}` : `不是目录：${absolute}`);
+    fail(
+      'CLI_PATH_INVALID',
+      expected === 'file' ? `不是文件：${absolute}` : `不是目录：${absolute}`
+    );
   }
   return absolute;
 }
@@ -639,7 +679,7 @@ function validateValue(declaration: IParameterDeclaration, value: unknown, point
       } catch (error) {
         throw declarationError(
           `pattern 不是合法正则：${rules.pattern}（${error instanceof Error ? error.message : String(error)}）`,
-          name,
+          name
         );
       }
       if (!pattern.test(value)) {
@@ -668,7 +708,11 @@ function validateValue(declaration: IParameterDeclaration, value: unknown, point
   }
 }
 
-function writeMapped(payload: Record<string, unknown>, declaration: IParameterDeclaration, value: unknown): void {
+function writeMapped(
+  payload: Record<string, unknown>,
+  declaration: IParameterDeclaration,
+  value: unknown
+): void {
   const path = declaration.mapsTo ?? declaration.name;
   const segments = path.split('.');
   let current = payload;

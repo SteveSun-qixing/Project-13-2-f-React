@@ -86,7 +86,9 @@ export function allPluginRoles(): readonly CliPluginRole[] {
 }
 
 /** 解析权限申请串为 `{ base, qualifier }`；段数非法返回 undefined。 */
-export function splitPermissionRequest(request: string): { readonly base: string; readonly qualifier?: string } | undefined {
+export function splitPermissionRequest(
+  request: string
+): { readonly base: string; readonly qualifier?: string } | undefined {
   const first = request.indexOf(':');
   if (first === -1) {
     return undefined;

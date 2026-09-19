@@ -126,7 +126,7 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
     () => {
       throw new Error('预期调用被拒绝');
     },
-    (error: unknown) => error,
+    (error: unknown) => error
   );
 }
 
@@ -194,7 +194,7 @@ describe('主入口客户端与 testing 入口 Mock 的端到端路径（§7.3�
     const bridge = installMock();
     bridge.handle('file:read', () => ({ content: 'name: 示例卡片', encoding: 'utf-8' }));
     await expect(pluginUnderTest.readMetadata('.card/metadata.yaml')).resolves.toBe(
-      'name: 示例卡片',
+      'name: 示例卡片'
     );
     const calls: readonly IMockCall[] = bridge.calls;
     expect(calls).toEqual([
@@ -293,14 +293,16 @@ describe('主入口客户端与 testing 入口 Mock 的端到端路径（§7.3�
     }
     assertChipsError(caught, 'RESOURCE_INVALID_URI');
     expect(caught).toBeInstanceOf(ChipsError);
-    expect(caught.details).toMatchObject({ uri: 'chips-resource://card-7f3a/images/photo.jpg?v=2' });
+    expect(caught.details).toMatchObject({
+      uri: 'chips-resource://card-7f3a/images/photo.jpg?v=2',
+    });
   });
 
   it('§7.3 的 afterEach reset 惯用法：清空桩与记录后同一调用按未登记拒绝', async () => {
     const bridge = installMock();
     bridge.handle('file:read', () => ({ content: 'name: 示例卡片', encoding: 'utf-8' }));
     await expect(pluginUnderTest.readMetadata('.card/metadata.yaml')).resolves.toBe(
-      'name: 示例卡片',
+      'name: 示例卡片'
     );
     bridge.reset();
     expect(bridge.calls).toEqual([]);
@@ -313,9 +315,10 @@ describe('主入口客户端与 testing 入口 Mock 的端到端路径（§7.3�
     const mock = createMockBridge(RESOURCE_OPTIONS);
     mock.handle('file:read', () => ({ content: '注入客户端', encoding: 'utf-8' }));
     const client = createClient({ bridge: mock });
-    await expect(client.request<IFileReadOutput>('file:read', { path: 'a.txt' })).resolves.toEqual(
-      { content: '注入客户端', encoding: 'utf-8' },
-    );
+    await expect(client.request<IFileReadOutput>('file:read', { path: 'a.txt' })).resolves.toEqual({
+      content: '注入客户端',
+      encoding: 'utf-8',
+    });
     expect(client.resource(COVER_URI).state).toBe('open');
     const received: unknown[] = [];
     client.subscribe('document:changed', (payload) => received.push(payload)).dispose();

@@ -31,7 +31,7 @@ describe('deepDiff', () => {
   it('检出新增、删除与修改，并给出可定位路径', () => {
     const diffs = deepDiff(
       { roles: { app: { members: [{ name: 'launch' }] } }, count: 1 },
-      { roles: { app: { members: [{ name: 'launch' }, { name: 'handleCommand' }] } }, extra: true },
+      { roles: { app: { members: [{ name: 'launch' }, { name: 'handleCommand' }] } }, extra: true }
     );
     const paths = diffs.map((diff) => `${diff.kind}:${diff.path}`);
     expect(paths).toContain('added:roles.app.members[1]');

@@ -41,7 +41,10 @@ const BOOLEAN_FLAGS = new Set(['json', 'yes', 'help', 'version']);
 const VALUE_FLAGS = new Set(['plugin', 'workspace']);
 
 /** 解析并剥离全局选项。 */
-export function parseGlobalOptions(argv: readonly string[], entry: CliEntryKind): IGlobalParseResult {
+export function parseGlobalOptions(
+  argv: readonly string[],
+  entry: CliEntryKind
+): IGlobalParseResult {
   const options: IMutableGlobals = {
     json: false,
     pluginId: undefined,
@@ -116,11 +119,13 @@ export function parseGlobalOptions(argv: readonly string[], entry: CliEntryKind)
         throw cliError(
           'CLI_ARGUMENT_INVALID',
           '用户侧命令不接受 --workspace：工作区由平台设置面板选择',
-          { option: 'workspace', hint: '请在生态设置面板中切换用户工作区' },
+          { option: 'workspace', hint: '请在生态设置面板中切换用户工作区' }
         );
       }
       if (options.workspace !== undefined) {
-        throw cliError('CLI_ARGUMENT_INVALID', '选项 --workspace 重复传入', { option: 'workspace' });
+        throw cliError('CLI_ARGUMENT_INVALID', '选项 --workspace 重复传入', {
+          option: 'workspace',
+        });
       }
       options.workspace = value;
       continue;

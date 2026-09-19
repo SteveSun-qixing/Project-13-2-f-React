@@ -36,7 +36,7 @@ function contract(
   id: string,
   permissions: readonly string[],
   targets: readonly IPermissionTargetRule[] = [],
-  ownerBound = false,
+  ownerBound = false
 ): IBuiltinCapabilityContract {
   return ownerBound ? { id, permissions, targets, ownerBound } : { id, permissions, targets };
 }
@@ -54,10 +54,11 @@ export const BUILTIN_CAPABILITIES: readonly IBuiltinCapabilityContract[] = [
   contract('file:mkdir', ['filesystem:write'], [target('filesystem:write', 'path')]),
   contract('file:delete', ['filesystem:delete'], [target('filesystem:delete', 'path')]),
   contract('file:move', ['filesystem:write'], [target('filesystem:write', 'source', 'target')]),
-  contract('file:copy', ['filesystem:read', 'filesystem:write'], [
-    target('filesystem:read', 'source'),
-    target('filesystem:write', 'target'),
-  ]),
+  contract(
+    'file:copy',
+    ['filesystem:read', 'filesystem:write'],
+    [target('filesystem:read', 'source'), target('filesystem:write', 'target')]
+  ),
   contract('resource:read', ['resources:read'], [target('resources:read', 'uri')]),
   contract('resource:write', ['resources:write'], [target('resources:write', 'uri')]),
   contract('resource:open', ['resources:read'], [target('resources:read', 'resource.uri')]),
@@ -67,9 +68,11 @@ export const BUILTIN_CAPABILITIES: readonly IBuiltinCapabilityContract[] = [
   contract('document:read', ['resources:read']),
   contract('document:write', ['resources:write']),
   contract('document:save', ['resources:write']),
-  contract('document:export', ['resources:read', 'filesystem:write'], [
-    target('filesystem:write', 'target'),
-  ]),
+  contract(
+    'document:export',
+    ['resources:read', 'filesystem:write'],
+    [target('filesystem:write', 'target')]
+  ),
   contract('window:create', ['window:control']),
   contract('window:list', ['window:control']),
   contract('window:focus', ['window:control'], [target('window:control', 'windowId')]),
@@ -85,10 +88,11 @@ export const BUILTIN_CAPABILITIES: readonly IBuiltinCapabilityContract[] = [
   contract('system:info', ['system:read']),
   contract('power:query', ['power:read']),
   contract('power:prevent-sleep', ['power:manage']),
-  contract('transfer:download', ['transfer:manage', 'filesystem:write', 'network:http'], [
-    target('filesystem:write', 'target'),
-    target('network:http', 'url'),
-  ]),
+  contract(
+    'transfer:download',
+    ['transfer:manage', 'filesystem:write', 'network:http'],
+    [target('filesystem:write', 'target'), target('network:http', 'url')]
+  ),
   contract('transfer:cancel', ['transfer:manage', 'filesystem:write', 'network:http']),
   contract('notification:send', ['notifications:send']),
   contract('clipboard:read', ['clipboard:access']),
@@ -118,7 +122,7 @@ export const BUILTIN_CAPABILITIES: readonly IBuiltinCapabilityContract[] = [
 ];
 
 const CONTRACT_BY_ID: ReadonlyMap<string, IBuiltinCapabilityContract> = new Map(
-  BUILTIN_CAPABILITIES.map((entry) => [entry.id, entry]),
+  BUILTIN_CAPABILITIES.map((entry) => [entry.id, entry])
 );
 
 export function findBuiltinCapability(id: string): IBuiltinCapabilityContract | undefined {

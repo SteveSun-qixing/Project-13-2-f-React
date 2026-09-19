@@ -85,7 +85,7 @@ export function fixedPathsForEntry(entry: 'user' | 'dev'): readonly (readonly st
  */
 export async function completeCandidates(
   context: ICommandContext,
-  tokens: readonly string[],
+  tokens: readonly string[]
 ): Promise<readonly string[]> {
   const paths: (readonly string[])[] = [...fixedPathsForEntry(context.entry)];
   try {
@@ -98,7 +98,9 @@ export async function completeCandidates(
   }
 
   const current = tokens.length === 0 ? '' : (tokens[tokens.length - 1] ?? '');
-  const preceding = tokens.slice(0, Math.max(0, tokens.length - 1)).map((token) => token.toLowerCase());
+  const preceding = tokens
+    .slice(0, Math.max(0, tokens.length - 1))
+    .map((token) => token.toLowerCase());
   const candidates = new Set<string>();
   for (const path of paths) {
     if (path.length <= preceding.length) {

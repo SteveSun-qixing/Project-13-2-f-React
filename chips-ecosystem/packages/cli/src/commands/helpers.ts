@@ -9,7 +9,7 @@ import type { ICommandContext } from './types.js';
 /** 解析命令参数（与插件命令同一引擎）。 */
 export function parseCommandOptions(
   context: ICommandContext,
-  declarations: IParameterSet,
+  declarations: IParameterSet
 ): IParseResult {
   const request: IParseRequest = {
     argv: context.args,
@@ -49,7 +49,7 @@ export function providedOptionNames(argv: readonly string[]): ReadonlySet<string
 
 /** 解析工作区（懒解析；本地命令不触发承载链路）。 */
 export async function requireWorkspace(
-  context: ICommandContext,
+  context: ICommandContext
 ): Promise<{ readonly path: string; readonly kind: 'user' | 'dev' }> {
   return context.workspace.resolve();
 }
@@ -67,7 +67,10 @@ export function readNumber(values: ReadonlyMap<string, unknown>, name: string): 
 }
 
 /** 读取布尔取值。 */
-export function readBoolean(values: ReadonlyMap<string, unknown>, name: string): boolean | undefined {
+export function readBoolean(
+  values: ReadonlyMap<string, unknown>,
+  name: string
+): boolean | undefined {
   const value = values.get(name);
   return typeof value === 'boolean' ? value : undefined;
 }

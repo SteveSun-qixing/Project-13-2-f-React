@@ -107,11 +107,14 @@ function isBroadlyCovered(grants: readonly IPermissionGrant[], required: string)
     (grant) =>
       grant.state === 'granted' &&
       baseMatchesGrant(grant.base, required) &&
-      (grant.qualifier === undefined || definition?.kind === 'none'),
+      (grant.qualifier === undefined || definition?.kind === 'none')
   );
 }
 
-function describeReason(grants: readonly IPermissionGrant[], required: string): PermissionDenyReason {
+function describeReason(
+  grants: readonly IPermissionGrant[],
+  required: string
+): PermissionDenyReason {
   const sameBase = grants.filter((grant) => baseMatchesGrant(grant.base, required));
   if (sameBase.length === 0) {
     return 'not_granted';
@@ -126,7 +129,7 @@ function describeReason(grants: readonly IPermissionGrant[], required: string): 
 function isPluginDataPath(
   targets: readonly string[],
   request: IPermissionEvaluationInput,
-  env: IPermissionEnvironment,
+  env: IPermissionEnvironment
 ): boolean {
   const root = env.pluginDataRoot?.(request.session.pluginId);
   if (root === undefined) {
@@ -144,7 +147,7 @@ function isOwnConfigNamespace(targets: readonly string[], pluginId: string): boo
 function isSelfOrPlatformResource(
   targets: readonly string[],
   request: IPermissionEvaluationInput,
-  env: IPermissionEnvironment,
+  env: IPermissionEnvironment
 ): boolean {
   return targets.every((target) => {
     try {
@@ -163,7 +166,7 @@ function isSelfScoped(
   required: string,
   targets: readonly string[] | undefined,
   request: IPermissionEvaluationInput,
-  env: IPermissionEnvironment,
+  env: IPermissionEnvironment
 ): boolean {
   const definition = findPermissionDefinition(required);
   if (definition === undefined || targets === undefined || targets.length === 0) {
@@ -197,7 +200,7 @@ function isOpenedDocumentRead(request: IPermissionEvaluationInput, required: str
 
 export function evaluatePermissions(
   request: IPermissionEvaluationInput,
-  env: IPermissionEnvironment,
+  env: IPermissionEnvironment
 ): IPermissionEvaluationResult {
   const grantedBases: string[] = [];
   for (const grant of request.scope.grants) {
@@ -285,7 +288,7 @@ export interface IPermissionAuditRecord {
 
 export function toAuditRecord(
   request: IPermissionEvaluationInput,
-  result: IPermissionEvaluationResult,
+  result: IPermissionEvaluationResult
 ): IPermissionAuditRecord {
   const details = (result.error?.details ?? undefined) as IPermissionDeniedDetails | undefined;
   return {

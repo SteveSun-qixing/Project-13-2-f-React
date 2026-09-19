@@ -49,12 +49,18 @@ describe('detectEntry（§2.1 入口识别）', () => {
   it('空 argv 与首个非选项 token 决定入口', () => {
     expect(detectEntry([])).toEqual({ entry: 'user', argv: [] });
     expect(detectEntry(['status'])).toEqual({ entry: 'user', argv: ['status'] });
-    expect(detectEntry(['--json', 'status'])).toEqual({ entry: 'user', argv: ['--json', 'status'] });
+    expect(detectEntry(['--json', 'status'])).toEqual({
+      entry: 'user',
+      argv: ['--json', 'status'],
+    });
   });
 
   it('dev token 命中时被剥离，其前后的全局选项保留', () => {
     expect(detectEntry(['dev', 'run'])).toEqual({ entry: 'dev', argv: ['run'] });
-    expect(detectEntry(['--json', 'dev', 'run'])).toEqual({ entry: 'dev', argv: ['--json', 'run'] });
+    expect(detectEntry(['--json', 'dev', 'run'])).toEqual({
+      entry: 'dev',
+      argv: ['--json', 'run'],
+    });
     expect(detectEntry(['-y', 'dev'])).toEqual({ entry: 'dev', argv: ['-y'] });
   });
 
@@ -222,7 +228,12 @@ describe('main（§2.5 进程入口）', () => {
       },
     };
     const capture = captureSink();
-    const exitCode = await main(['office', 'open'], { client, io: capture.sink, env: {}, cwd: '/work' });
+    const exitCode = await main(['office', 'open'], {
+      client,
+      io: capture.sink,
+      env: {},
+      cwd: '/work',
+    });
     expect(exitCode).toBe(1);
     expect(process.listenerCount('SIGINT')).toBe(baseline);
     const error = JSON.parse(capture.stdout()) as { code: string; message: string };

@@ -38,7 +38,9 @@ const followOption: IParameterDeclaration = {
 };
 
 function readLevel(level: string | undefined): CliLogLevel | undefined {
-  return level === 'error' || level === 'warn' || level === 'info' || level === 'debug' ? level : undefined;
+  return level === 'error' || level === 'warn' || level === 'info' || level === 'debug'
+    ? level
+    : undefined;
 }
 
 /** `chips logs`。 */
@@ -71,7 +73,7 @@ export const logsCommand: ICliCommandDefinition = {
         // 增量行按 JSON Lines 紧凑写出（§3.4：`--follow` 输出增量行，非交互环境无动画控制字符）。
         context.io.writeOut(serializeJsonLine(entry));
       },
-      context.signal,
+      context.signal
     );
     // 跟踪模式的最终结果就是已流式写出的增量行，不再追加结果文档（§2.4.1）。
     return { json: { ok: true, followed }, streamed: true };

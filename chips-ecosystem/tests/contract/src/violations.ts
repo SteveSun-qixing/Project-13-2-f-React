@@ -23,11 +23,15 @@ export function violation(
   code: string,
   subject: string,
   message: string,
-  options: ViolationOptions = {},
+  options: ViolationOptions = {}
 ): ContractViolation {
   const result: ContractViolation = { code, subject, message };
   if (options.expected !== undefined) {
-    return { ...result, expected: options.expected, ...(options.actual !== undefined ? { actual: options.actual } : {}) };
+    return {
+      ...result,
+      expected: options.expected,
+      ...(options.actual !== undefined ? { actual: options.actual } : {}),
+    };
   }
   return options.actual !== undefined ? { ...result, actual: options.actual } : result;
 }

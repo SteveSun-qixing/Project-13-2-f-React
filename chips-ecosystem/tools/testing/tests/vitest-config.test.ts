@@ -100,8 +100,6 @@ describe('defineChipsProject', () => {
     expect(setupFiles).toHaveLength(2);
     expect(setupFiles[1]).toBe('tests/setup.ts');
     expect(setupFiles).not.toBe(custom);
-    expect(defineChipsProject().test?.exclude).not.toBe(
-      defineChipsProject().test?.exclude
-    );
+    expect(defineChipsProject().test?.exclude).not.toBe(defineChipsProject().test?.exclude);
   });
 });

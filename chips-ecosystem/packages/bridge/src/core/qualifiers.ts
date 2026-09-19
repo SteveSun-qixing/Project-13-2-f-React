@@ -88,7 +88,7 @@ function normalizePath(value: string, platform: PlatformId): string {
 export function matchPathQualifier(
   qualifier: string,
   target: string,
-  env: IPermissionEnvironment,
+  env: IPermissionEnvironment
 ): boolean {
   const expandedQualifier = env.expandDirectoryVariable(qualifier);
   const expandedTarget = env.expandDirectoryVariable(target);
@@ -228,7 +228,7 @@ export function matchResourceQualifier(qualifier: string, target: string): boole
   let composite: string;
   try {
     const parsed = parseResourceUri(
-      target.startsWith('chips-resource://') ? target : normalizeBareHttp(target),
+      target.startsWith('chips-resource://') ? target : normalizeBareHttp(target)
     );
     composite =
       parsed.external !== undefined
@@ -273,7 +273,7 @@ export function matchesQualifier(
   basePermission: string,
   qualifier: string | undefined,
   target: string | undefined,
-  env: IPermissionEnvironment,
+  env: IPermissionEnvironment
 ): boolean {
   const definition = findPermissionDefinition(basePermission);
   const kind: PermissionQualifierKind = definition?.kind ?? 'none';
@@ -305,7 +305,9 @@ export function matchesQualifier(
 }
 
 /** 构造权限判定环境。 */
-export function createPermissionEnvironment(options: IPermissionEnvironmentOptions): IPermissionEnvironment {
+export function createPermissionEnvironment(
+  options: IPermissionEnvironmentOptions
+): IPermissionEnvironment {
   const environment: IPermissionEnvironment = {
     platform: options.platform,
     expandDirectoryVariable(value: string): string | undefined {
@@ -337,7 +339,7 @@ export function grantCovers(
   grants: readonly IPermissionGrant[],
   basePermission: string,
   target: string | undefined,
-  env: IPermissionEnvironment,
+  env: IPermissionEnvironment
 ): boolean {
   for (const grant of grants) {
     if (grant.state !== 'granted') {

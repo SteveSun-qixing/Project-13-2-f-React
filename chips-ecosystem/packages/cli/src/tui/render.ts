@@ -45,7 +45,7 @@ function renderPanel(state: ITuiState, width: number): readonly string[] {
         const control = field.declaration.ui?.control ?? field.declaration.type;
         const required = field.declaration.required === true ? '必填' : '可选';
         lines.push(
-          `  ${marker} ${field.declaration.name} [${control}/${required}]: ${field.value.length === 0 ? '（空）' : field.value}`,
+          `  ${marker} ${field.declaration.name} [${control}/${required}]: ${field.value.length === 0 ? '（空）' : field.value}`
         );
       });
       return lines;

@@ -74,7 +74,10 @@ function eventError(code: string, message: string): ChipsError {
   return new ChipsError({ code, message, retryable: false });
 }
 
-function narrowEventEnvelope(raw: unknown, expectedEventId: string): { payload: unknown } | undefined {
+function narrowEventEnvelope(
+  raw: unknown,
+  expectedEventId: string
+): { payload: unknown } | undefined {
   if (typeof raw !== 'object' || raw === null) {
     return undefined;
   }
@@ -86,7 +89,7 @@ function narrowEventEnvelope(raw: unknown, expectedEventId: string): { payload: 
 }
 
 function narrowInvalidatedPayload(
-  payload: unknown,
+  payload: unknown
 ): { uri: string; reason: ResourceInvalidateReason } | undefined {
   if (typeof payload !== 'object' || payload === null) {
     return undefined;
@@ -231,7 +234,10 @@ export function createBridgeClient(options: IBridgeClientOptions): IBridgeClient
       if (parsed === undefined || parsed.domain !== 'resources' || parsed.scope !== 'read') {
         continue;
       }
-      if (parsed.qualifier !== undefined && matchResourceQualifier(parsed.qualifier, normalized.uri)) {
+      if (
+        parsed.qualifier !== undefined &&
+        matchResourceQualifier(parsed.qualifier, normalized.uri)
+      ) {
         return true;
       }
     }
@@ -283,7 +289,7 @@ export function createBridgeClient(options: IBridgeClientOptions): IBridgeClient
       if (update !== undefined) {
         applyPermissionsUpdate(update);
       }
-    },
+    }
   );
 
   const applyPermissionsUpdate = (update: ISessionPermissionsUpdate): void => {
@@ -308,7 +314,7 @@ export function createBridgeClient(options: IBridgeClientOptions): IBridgeClient
       } catch (error) {
         throw normalizeError(
           error,
-          options.onDiagnostic !== undefined ? { onDiagnostic: options.onDiagnostic } : {},
+          options.onDiagnostic !== undefined ? { onDiagnostic: options.onDiagnostic } : {}
         );
       }
       const response = decodeBridgeResponse(raw);

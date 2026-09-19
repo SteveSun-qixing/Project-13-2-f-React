@@ -47,8 +47,7 @@ function stripComments(text: string): string {
 /** 取文件里的全部模块说明符，并标注是否为运行时依赖。 */
 function specifiersOf(text: string): Specifier[] {
   const cleaned = stripComments(text);
-  const pattern =
-    /\b(import|export)\b([^;]*?)from\s*['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]/g;
+  const pattern = /\b(import|export)\b([^;]*?)from\s*['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]/g;
   const found: Specifier[] = [];
   for (const match of cleaned.matchAll(pattern)) {
     const bare = match[4];

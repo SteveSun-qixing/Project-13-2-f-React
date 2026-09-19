@@ -33,7 +33,12 @@ const LIST_TARGET: ITuiTarget = {
   commandPath: ['plugin', 'list'],
   argumentsList: [],
   optionsList: [
-    { name: 'role', type: 'enum', choices: ['app', 'service', 'basecard'], ui: { control: 'select' } },
+    {
+      name: 'role',
+      type: 'enum',
+      choices: ['app', 'service', 'basecard'],
+      ui: { control: 'select' },
+    },
     { name: 'enabled', type: 'boolean' },
   ],
 };
@@ -41,11 +46,21 @@ const LIST_TARGET: ITuiTarget = {
 const PACK_TARGET: ITuiTarget = {
   commandPath: ['plugin', 'pack'],
   argumentsList: [
-    { name: 'dir', type: 'path', required: true, position: 0, path: { kind: 'directory', role: 'input' } },
+    {
+      name: 'dir',
+      type: 'path',
+      required: true,
+      position: 0,
+      path: { kind: 'directory', role: 'input' },
+    },
     { name: 'count', type: 'integer', default: 3, ui: { control: 'stepper', step: 2 } },
   ],
   optionsList: [
-    { name: 'tags', type: 'stringList', ui: { control: 'multiSelect', choices: ['beta', 'signed'] } },
+    {
+      name: 'tags',
+      type: 'stringList',
+      ui: { control: 'multiSelect', choices: ['beta', 'signed'] },
+    },
     { name: 'note', type: 'text' },
   ],
 };
@@ -72,10 +87,14 @@ function environment(overrides: Partial<ITuiEnvironment> = {}): ITuiEnvironment 
   };
 }
 
-const key = (name: ITuiKey['name'], char?: string): ITuiKey => (char === undefined ? { name } : { name, char });
+const key = (name: ITuiKey['name'], char?: string): ITuiKey =>
+  char === undefined ? { name } : { name, char };
 
 function composeWith(buffer: string): ITuiState {
-  const state: ITuiState = { ...initialState(), candidates: computeCandidates(buffer, COMMAND_PATHS) };
+  const state: ITuiState = {
+    ...initialState(),
+    candidates: computeCandidates(buffer, COMMAND_PATHS),
+  };
   return { ...state, buffer, cursor: buffer.length };
 }
 
@@ -131,7 +150,9 @@ describe('候选计算（§3.1.1 动态交互区）', () => {
   });
 
   it('重复段去重并保持排序', () => {
-    expect(computeCandidates('', ['plugin list', 'plugin pack', 'plugin list'])).toEqual(['plugin']);
+    expect(computeCandidates('', ['plugin list', 'plugin pack', 'plugin list'])).toEqual([
+      'plugin',
+    ]);
   });
 
   it('splitTokens 按任意空白切分并丢弃空串', () => {
@@ -239,10 +260,25 @@ describe('form 面板与参数控件', () => {
       { name: 'plain', type: 'string' },
       { name: 'emptyEnum', type: 'enum', choices: [] },
     ];
-    const fields = createFields({ commandPath: ['cmd'], argumentsList: declarations, optionsList: [] });
+    const fields = createFields({
+      commandPath: ['cmd'],
+      argumentsList: declarations,
+      optionsList: [],
+    });
     expect(fields.map((field) => field.value)).toEqual(['x', '3', 'false', 'a', '', '']);
-    expect(fields.map((field) => field.kind)).toEqual(['argument', 'argument', 'argument', 'argument', 'argument', 'argument']);
-    expect(createFields({ commandPath: ['cmd'], argumentsList: [], optionsList: declarations }).every((f) => f.kind === 'option')).toBe(true);
+    expect(fields.map((field) => field.kind)).toEqual([
+      'argument',
+      'argument',
+      'argument',
+      'argument',
+      'argument',
+      'argument',
+    ]);
+    expect(
+      createFields({ commandPath: ['cmd'], argumentsList: [], optionsList: declarations }).every(
+        (f) => f.kind === 'option'
+      )
+    ).toBe(true);
   });
 
   it('上下键移动字段指针并按边界收敛', () => {
@@ -269,18 +305,32 @@ describe('form 面板与参数控件', () => {
     expect(fieldOf(onCount, 'count').value).toBe('3');
     expect(fieldOf(reduceKey(onCount, key('right'), environment()), 'count').value).toBe('5');
     expect(fieldOf(reduceKey(onCount, key('left'), environment()), 'count').value).toBe('1');
-    const blank = { ...onCount, fields: onCount.fields.map((item) => (item.declaration.name === 'count' ? { ...item, value: '' } : item)) };
+    const blank = {
+      ...onCount,
+      fields: onCount.fields.map((item) =>
+        item.declaration.name === 'count' ? { ...item, value: '' } : item
+      ),
+    };
     expect(fieldOf(reduceKey(blank, key('right'), environment()), 'count').value).toBe('2');
   });
 
   it('左右键对无候选枚举与文本字段为无操作', () => {
     const state = formOf({
       commandPath: ['cmd'],
-      argumentsList: [{ name: 'text', type: 'string' }, { name: 'bare', type: 'enum', choices: [] }],
+      argumentsList: [
+        { name: 'text', type: 'string' },
+        { name: 'bare', type: 'enum', choices: [] },
+      ],
       optionsList: [],
     });
-    expect(reduceKey({ ...state, fieldIndex: 0 }, key('right'), environment())).toEqual({ ...state, fieldIndex: 0 });
-    expect(reduceKey({ ...state, fieldIndex: 1 }, key('right'), environment())).toEqual({ ...state, fieldIndex: 1 });
+    expect(reduceKey({ ...state, fieldIndex: 0 }, key('right'), environment())).toEqual({
+      ...state,
+      fieldIndex: 0,
+    });
+    expect(reduceKey({ ...state, fieldIndex: 1 }, key('right'), environment())).toEqual({
+      ...state,
+      fieldIndex: 1,
+    });
   });
 
   it('Space 在 multiSelect 上增删逗号连接项', () => {
@@ -289,7 +339,16 @@ describe('form 面板与参数控件', () => {
     const onTags = { ...state, fieldIndex: tagsIndex };
     const first = reduceKey(onTags, key('space'), environment());
     expect(fieldOf(first, 'tags').value).toBe('beta');
-    const second = reduceKey({ ...first, fields: first.fields.map((item) => (item.declaration.name === 'tags' ? { ...item, choiceIndex: 1 } : item)) }, key('space'), environment());
+    const second = reduceKey(
+      {
+        ...first,
+        fields: first.fields.map((item) =>
+          item.declaration.name === 'tags' ? { ...item, choiceIndex: 1 } : item
+        ),
+      },
+      key('space'),
+      environment()
+    );
     expect(fieldOf(second, 'tags').value).toBe('beta,signed');
     const third = reduceKey(second, key('space'), environment());
     expect(fieldOf(third, 'tags').value).toBe('beta');
@@ -300,18 +359,32 @@ describe('form 面板与参数控件', () => {
     const flagIndex = state.fields.findIndex((item) => item.declaration.name === 'enabled');
     const onFlag = { ...state, fieldIndex: flagIndex };
     expect(fieldOf(reduceKey(onFlag, key('space'), environment()), 'enabled').value).toBe('true');
-    expect(fieldOf(reduceKey(reduceKey(onFlag, key('space'), environment()), key('space'), environment()), 'enabled').value).toBe('false');
+    expect(
+      fieldOf(
+        reduceKey(reduceKey(onFlag, key('space'), environment()), key('space'), environment()),
+        'enabled'
+      ).value
+    ).toBe('false');
     const toggled = formOf({
       commandPath: ['cmd'],
       argumentsList: [{ name: 'switch', type: 'string', ui: { control: 'toggle' } }],
       optionsList: [],
     });
     expect(fieldOf(reduceKey(toggled, key('space'), environment()), 'switch').value).toBe('true');
-    expect(fieldOf(reduceKey(reduceKey(toggled, key('space'), environment()), key('space'), environment()), 'switch').value).toBe('true,true');
+    expect(
+      fieldOf(
+        reduceKey(reduceKey(toggled, key('space'), environment()), key('space'), environment()),
+        'switch'
+      ).value
+    ).toBe('true,true');
   });
 
   it('Space 对无多选语义的字段为无操作', () => {
-    const state = formOf({ commandPath: ['cmd'], argumentsList: [{ name: 'plain', type: 'string' }], optionsList: [] });
+    const state = formOf({
+      commandPath: ['cmd'],
+      argumentsList: [{ name: 'plain', type: 'string' }],
+      optionsList: [],
+    });
     expect(reduceKey(state, key('space'), environment())).toEqual(state);
   });
 
@@ -319,14 +392,23 @@ describe('form 面板与参数控件', () => {
     const state = formOf(PACK_TARGET);
     const noteIndex = state.fields.findIndex((item) => item.declaration.name === 'note');
     const onNote = { ...state, fieldIndex: noteIndex };
-    const typed = reduceKey(reduceKey(onNote, key('char', 'a'), environment()), key('char', 'b'), environment());
+    const typed = reduceKey(
+      reduceKey(onNote, key('char', 'a'), environment()),
+      key('char', 'b'),
+      environment()
+    );
     expect(fieldOf(typed, 'note').value).toBe('ab');
     expect(fieldOf(reduceKey(typed, key('backspace'), environment()), 'note').value).toBe('a');
     const dirIndex = state.fields.findIndex((item) => item.declaration.name === 'dir');
-    expect(fieldOf(reduceKey({ ...state, fieldIndex: dirIndex }, key('char', 'z'), environment()), 'dir').value).toBe('z');
+    expect(
+      fieldOf(reduceKey({ ...state, fieldIndex: dirIndex }, key('char', 'z'), environment()), 'dir')
+        .value
+    ).toBe('z');
     const flagIndex = state.fields.findIndex((item) => item.declaration.name === 'enabled');
     const listState = formOf(LIST_TARGET);
-    expect(reduceKey({ ...listState, fieldIndex: flagIndex }, key('char', 'z'), environment())).toEqual({
+    expect(
+      reduceKey({ ...listState, fieldIndex: flagIndex }, key('char', 'z'), environment())
+    ).toEqual({
       ...listState,
       fieldIndex: flagIndex,
     });
@@ -422,7 +504,7 @@ describe('buildTokens：表单结果交回同一执行器', () => {
     const enabled: ITuiState = {
       ...state,
       fields: state.fields.map((field) =>
-        field.declaration.name === 'enabled' ? { ...field, value: 'true' } : { ...field, value: '' },
+        field.declaration.name === 'enabled' ? { ...field, value: 'true' } : { ...field, value: '' }
       ),
     };
     expect(buildTokens(enabled)).toEqual(['plugin', 'list', '--enabled']);
@@ -445,7 +527,9 @@ describe('renderFrame 三段式帧', () => {
     expect(lines[0]).toBe('chips > plugin ');
     expect(lines[1]).toBe('─'.repeat(120));
     expect(lines.at(-2)).toBe('─'.repeat(120));
-    expect(lines.at(-1)).toBe('↑/↓ 移动 · ←/→ 光标或调节 · Space 多选 · Enter 确认或执行 · Backspace 删除 · Ctrl+C 清空或取消 · Ctrl+\\ 退出');
+    expect(lines.at(-1)).toBe(
+      '↑/↓ 移动 · ←/→ 光标或调节 · Space 多选 · Enter 确认或执行 · Backspace 删除 · Ctrl+C 清空或取消 · Ctrl+\\ 退出'
+    );
   });
 
   it('列宽小于 40 时按最小宽度渲染，超长行被截断', () => {
@@ -477,7 +561,9 @@ describe('renderFrame 三段式帧', () => {
   });
 
   it('running 面板展示执行中的命令路径', () => {
-    expect(hint(renderFrame({ ...formOf(LIST_TARGET), panel: 'running' }, 60))).toContain('执行中：plugin list');
+    expect(hint(renderFrame({ ...formOf(LIST_TARGET), panel: 'running' }, 60))).toContain(
+      '执行中：plugin list'
+    );
   });
 
   it('result 面板展示退出码、耗时、错误摘要与输出前 12 行', () => {

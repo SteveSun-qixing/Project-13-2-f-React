@@ -8,13 +8,7 @@
 
 /** 限定值文法种类；匹配算法见 `core/qualifiers.ts`。 */
 export type PermissionQualifierKind =
-  | 'path'
-  | 'domain'
-  | 'url'
-  | 'window'
-  | 'resource'
-  | 'config'
-  | 'none';
+  'path' | 'domain' | 'url' | 'window' | 'resource' | 'config' | 'none';
 
 /** 限定值要求：必需 / 可选 / 禁止。 */
 export type PermissionQualifierRequirement = 'required' | 'optional' | 'forbidden';
@@ -30,35 +24,113 @@ export interface IPermissionDefinition {
 
 /** 内置权限清单（08-权限系统设计 §4.1 与 §6.1 命令域权限）。 */
 export const BUILTIN_PERMISSIONS: readonly IPermissionDefinition[] = [
-  { id: 'filesystem:read', domain: 'filesystem', scope: 'read', qualifier: 'required', kind: 'path' },
-  { id: 'filesystem:write', domain: 'filesystem', scope: 'write', qualifier: 'required', kind: 'path' },
-  { id: 'filesystem:delete', domain: 'filesystem', scope: 'delete', qualifier: 'required', kind: 'path' },
+  {
+    id: 'filesystem:read',
+    domain: 'filesystem',
+    scope: 'read',
+    qualifier: 'required',
+    kind: 'path',
+  },
+  {
+    id: 'filesystem:write',
+    domain: 'filesystem',
+    scope: 'write',
+    qualifier: 'required',
+    kind: 'path',
+  },
+  {
+    id: 'filesystem:delete',
+    domain: 'filesystem',
+    scope: 'delete',
+    qualifier: 'required',
+    kind: 'path',
+  },
   { id: 'network:http', domain: 'network', scope: 'http', qualifier: 'required', kind: 'domain' },
-  { id: 'window:control', domain: 'window', scope: 'control', qualifier: 'optional', kind: 'window' },
+  {
+    id: 'window:control',
+    domain: 'window',
+    scope: 'control',
+    qualifier: 'optional',
+    kind: 'window',
+  },
   { id: 'menu:manage', domain: 'menu', scope: 'manage', qualifier: 'forbidden', kind: 'none' },
   { id: 'tray:manage', domain: 'tray', scope: 'manage', qualifier: 'forbidden', kind: 'none' },
-  { id: 'shortcut:manage', domain: 'shortcut', scope: 'manage', qualifier: 'forbidden', kind: 'none' },
+  {
+    id: 'shortcut:manage',
+    domain: 'shortcut',
+    scope: 'manage',
+    qualifier: 'forbidden',
+    kind: 'none',
+  },
   { id: 'system:read', domain: 'system', scope: 'read', qualifier: 'forbidden', kind: 'none' },
   { id: 'power:read', domain: 'power', scope: 'read', qualifier: 'forbidden', kind: 'none' },
   { id: 'power:manage', domain: 'power', scope: 'manage', qualifier: 'forbidden', kind: 'none' },
-  { id: 'transfer:manage', domain: 'transfer', scope: 'manage', qualifier: 'forbidden', kind: 'none' },
-  { id: 'notifications:send', domain: 'notifications', scope: 'send', qualifier: 'forbidden', kind: 'none' },
-  { id: 'clipboard:access', domain: 'clipboard', scope: 'access', qualifier: 'forbidden', kind: 'none' },
+  {
+    id: 'transfer:manage',
+    domain: 'transfer',
+    scope: 'manage',
+    qualifier: 'forbidden',
+    kind: 'none',
+  },
+  {
+    id: 'notifications:send',
+    domain: 'notifications',
+    scope: 'send',
+    qualifier: 'forbidden',
+    kind: 'none',
+  },
+  {
+    id: 'clipboard:access',
+    domain: 'clipboard',
+    scope: 'access',
+    qualifier: 'forbidden',
+    kind: 'none',
+  },
   { id: 'dialogs:use', domain: 'dialogs', scope: 'use', qualifier: 'forbidden', kind: 'none' },
   { id: 'shell:external', domain: 'shell', scope: 'external', qualifier: 'required', kind: 'url' },
-  { id: 'resources:read', domain: 'resources', scope: 'read', qualifier: 'optional', kind: 'resource' },
-  { id: 'resources:write', domain: 'resources', scope: 'write', qualifier: 'optional', kind: 'resource' },
+  {
+    id: 'resources:read',
+    domain: 'resources',
+    scope: 'read',
+    qualifier: 'optional',
+    kind: 'resource',
+  },
+  {
+    id: 'resources:write',
+    domain: 'resources',
+    scope: 'write',
+    qualifier: 'optional',
+    kind: 'resource',
+  },
   { id: 'config:read', domain: 'config', scope: 'read', qualifier: 'required', kind: 'config' },
   { id: 'config:write', domain: 'config', scope: 'write', qualifier: 'required', kind: 'config' },
-  { id: 'credential:manage', domain: 'credential', scope: 'manage', qualifier: 'forbidden', kind: 'none' },
-  { id: 'events:publish', domain: 'events', scope: 'publish', qualifier: 'forbidden', kind: 'none' },
+  {
+    id: 'credential:manage',
+    domain: 'credential',
+    scope: 'manage',
+    qualifier: 'forbidden',
+    kind: 'none',
+  },
+  {
+    id: 'events:publish',
+    domain: 'events',
+    scope: 'publish',
+    qualifier: 'forbidden',
+    kind: 'none',
+  },
   { id: 'command:read', domain: 'command', scope: 'read', qualifier: 'forbidden', kind: 'none' },
   { id: 'command:write', domain: 'command', scope: 'write', qualifier: 'forbidden', kind: 'none' },
-  { id: 'command:execute', domain: 'command', scope: 'execute', qualifier: 'forbidden', kind: 'none' },
+  {
+    id: 'command:execute',
+    domain: 'command',
+    scope: 'execute',
+    qualifier: 'forbidden',
+    kind: 'none',
+  },
 ];
 
 const PERMISSION_BY_ID: ReadonlyMap<string, IPermissionDefinition> = new Map(
-  BUILTIN_PERMISSIONS.map((definition) => [definition.id, definition]),
+  BUILTIN_PERMISSIONS.map((definition) => [definition.id, definition])
 );
 
 /** 已注册的基础权限 ID 集合。 */
@@ -84,7 +156,9 @@ export function parsePermissionId(value: string): IParsedPermissionId | undefine
   const secondSeparator = value.indexOf(':', firstSeparator + 1);
   const domain = value.slice(0, firstSeparator);
   const scope =
-    secondSeparator < 0 ? value.slice(firstSeparator + 1) : value.slice(firstSeparator + 1, secondSeparator);
+    secondSeparator < 0
+      ? value.slice(firstSeparator + 1)
+      : value.slice(firstSeparator + 1, secondSeparator);
   const qualifier = secondSeparator < 0 ? undefined : value.slice(secondSeparator + 1);
   if (!DOMAIN_SCOPE_PATTERN.test(domain) || !DOMAIN_SCOPE_PATTERN.test(scope)) {
     return undefined;
@@ -109,10 +183,7 @@ export function findPermissionDefinition(value: string): IPermissionDefinition |
  * 基础权限匹配（02-Bridge三层设计 §5.2）：精确匹配，或授权集合中存在 `domain:*` 通配。
  * 仅用于字符串快照形态；结构化授权记录由 `core/permission-evaluator.ts` 判定。
  */
-export function matchesBasePermission(
-  required: string,
-  granted: ReadonlySet<string>,
-): boolean {
+export function matchesBasePermission(required: string, granted: ReadonlySet<string>): boolean {
   if (granted.has(required)) {
     return true;
   }

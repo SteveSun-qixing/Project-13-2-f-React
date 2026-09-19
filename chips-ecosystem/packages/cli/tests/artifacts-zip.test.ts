@@ -7,7 +7,12 @@ import { describe, expect, it } from 'vitest';
 
 import { ChipsError } from '../src/errors.js';
 import { crc32 } from '../src/artifacts/crc32.js';
-import { compareZipPathBytes, readZipStore, writeZipStore, type IZipEntry } from '../src/artifacts/zip.js';
+import {
+  compareZipPathBytes,
+  readZipStore,
+  writeZipStore,
+  type IZipEntry,
+} from '../src/artifacts/zip.js';
 
 const encoder = new TextEncoder();
 
@@ -92,15 +97,31 @@ describe('成员路径字节序比较', () => {
 
 describe('ZIP Store 写入（确定性）', () => {
   it('同一输入两次写入字节完全一致', () => {
-    const entries = [entry('render.js', 'export default {};'), entry('manifest.yaml', 'id: x\n'), entry('dist/index.js', 'export const a = 1;')];
+    const entries = [
+      entry('render.js', 'export default {};'),
+      entry('manifest.yaml', 'id: x\n'),
+      entry('dist/index.js', 'export const a = 1;'),
+    ];
     expect(writeZipStore(entries)).toEqual(writeZipStore(entries));
   });
 
   it('成员声明顺序无关：按路径字节序升序落盘', () => {
-    const forward = writeZipStore([entry('assets/a.svg', 'a'), entry('dist/index.js', 'b'), entry('manifest.yaml', 'c')]);
-    const backward = writeZipStore([entry('manifest.yaml', 'c'), entry('dist/index.js', 'b'), entry('assets/a.svg', 'a')]);
+    const forward = writeZipStore([
+      entry('assets/a.svg', 'a'),
+      entry('dist/index.js', 'b'),
+      entry('manifest.yaml', 'c'),
+    ]);
+    const backward = writeZipStore([
+      entry('manifest.yaml', 'c'),
+      entry('dist/index.js', 'b'),
+      entry('assets/a.svg', 'a'),
+    ]);
     expect(forward).toEqual(backward);
-    expect(readZipStore(forward).map((item) => item.path)).toEqual(['assets/a.svg', 'dist/index.js', 'manifest.yaml']);
+    expect(readZipStore(forward).map((item) => item.path)).toEqual([
+      'assets/a.svg',
+      'dist/index.js',
+      'manifest.yaml',
+    ]);
   });
 
   it('空归档仍是合法 ZIP：只有中央目录结束记录', () => {
@@ -146,7 +167,10 @@ describe('ZIP Store 写入（确定性）', () => {
 });
 
 describe('ZIP Store 读取与拒绝项（§2.1）', () => {
-  const archive = writeZipStore([entry('manifest.yaml', 'id: chips.example.hello\n'), entry('dist/index.js', 'export default {};')]);
+  const archive = writeZipStore([
+    entry('manifest.yaml', 'id: chips.example.hello\n'),
+    entry('dist/index.js', 'export default {};'),
+  ]);
 
   it('读回成员路径与字节内容', () => {
     const entries = readZipStore(archive);
@@ -155,7 +179,9 @@ describe('ZIP Store 读取与拒绝项（§2.1）', () => {
   });
 
   it('缺失中央目录结束记录：不是合法 ZIP', () => {
-    expect(expectArchiveInvalid(encoder.encode('这不是归档文件'))).toContain('未找到中央目录结束记录');
+    expect(expectArchiveInvalid(encoder.encode('这不是归档文件'))).toContain(
+      '未找到中央目录结束记录'
+    );
   });
 
   it('ZIP64 归档拒绝', () => {
@@ -164,35 +190,51 @@ describe('ZIP Store 读取与拒绝项（§2.1）', () => {
   });
 
   it('多卷归档拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, eocdOffset(archive) + 4, 1, 2))).toContain('不支持多卷');
+    expect(expectArchiveInvalid(patch(archive, eocdOffset(archive) + 4, 1, 2))).toContain(
+      '不支持多卷'
+    );
   });
 
   it('中央目录越界拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, eocdOffset(archive) + 16, archive.length + 10, 4))).toContain('中央目录越界');
+    expect(
+      expectArchiveInvalid(patch(archive, eocdOffset(archive) + 16, archive.length + 10, 4))
+    ).toContain('中央目录越界');
   });
 
   it('中央目录不完整拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, eocdOffset(archive) + 10, 5, 2))).toContain('中央目录不完整');
+    expect(expectArchiveInvalid(patch(archive, eocdOffset(archive) + 10, 5, 2))).toContain(
+      '中央目录不完整'
+    );
   });
 
   it('中央目录签名非法拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, centralOffset(archive), 0x08064b50, 4))).toContain('中央目录签名非法');
+    expect(expectArchiveInvalid(patch(archive, centralOffset(archive), 0x08064b50, 4))).toContain(
+      '中央目录签名非法'
+    );
   });
 
   it('加密成员拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 8, 0x0001, 2))).toContain('成员被加密');
+    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 8, 0x0001, 2))).toContain(
+      '成员被加密'
+    );
   });
 
   it('非 Store 压缩方法拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 10, 8, 2))).toContain('未使用 Store 方法');
+    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 10, 8, 2))).toContain(
+      '未使用 Store 方法'
+    );
   });
 
   it('Store 成员压缩前后尺寸不一致拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 20, 3, 2))).toContain('压缩前后尺寸不一致');
+    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 20, 3, 2))).toContain(
+      '压缩前后尺寸不一致'
+    );
   });
 
   it('非标准扩展字段拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 30, 2, 2))).toContain('非标准扩展字段');
+    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 30, 2, 2))).toContain(
+      '非标准扩展字段'
+    );
   });
 
   it('重复路径拒绝', () => {
@@ -206,20 +248,31 @@ describe('ZIP Store 读取与拒绝项（§2.1）', () => {
   });
 
   it('成员本地头越界拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 42, archive.length + 1, 4))).toContain('本地头越界');
+    expect(
+      expectArchiveInvalid(patch(archive, centralOffset(archive) + 42, archive.length + 1, 4))
+    ).toContain('本地头越界');
   });
 
   it('成员本地头签名非法拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, localOffset(archive), 0x02014b50, 4))).toContain('本地头签名非法');
+    expect(expectArchiveInvalid(patch(archive, localOffset(archive), 0x02014b50, 4))).toContain(
+      '本地头签名非法'
+    );
   });
 
   it('成员数据越界拒绝', () => {
-    const broken = patch(patch(archive, centralOffset(archive) + 20, 9999, 4), centralOffset(archive) + 24, 9999, 4);
+    const broken = patch(
+      patch(archive, centralOffset(archive) + 20, 9999, 4),
+      centralOffset(archive) + 24,
+      9999,
+      4
+    );
     expect(expectArchiveInvalid(broken)).toContain('成员数据越界');
   });
 
   it('成员 CRC 校验失败拒绝', () => {
-    expect(expectArchiveInvalid(patch(archive, centralOffset(archive) + 16, 0x12345678, 4))).toContain('CRC 校验失败');
+    expect(
+      expectArchiveInvalid(patch(archive, centralOffset(archive) + 16, 0x12345678, 4))
+    ).toContain('CRC 校验失败');
   });
 
   it('读取结果为副本，不与原归档共享字节', () => {

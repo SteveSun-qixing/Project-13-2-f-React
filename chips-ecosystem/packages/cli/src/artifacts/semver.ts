@@ -23,7 +23,8 @@ export interface ISemverVersion {
   readonly prerelease: readonly string[];
 }
 
-const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+const VERSION_PATTERN =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 
 /** 解析版本字符串；非法返回 undefined。 */
 export function parseSemver(text: string): ISemverVersion | undefined {
@@ -113,7 +114,10 @@ export function parseRange(text: string): readonly IGroup[] | undefined {
   const groups: IGroup[] = [];
   for (const groupText of trimmed.split('||')) {
     const comparators: IComparator[] = [];
-    const tokens = groupText.trim().split(/\s+/).filter((token) => token.length > 0);
+    const tokens = groupText
+      .trim()
+      .split(/\s+/)
+      .filter((token) => token.length > 0);
     if (tokens.length === 0) {
       return undefined;
     }
@@ -168,7 +172,10 @@ function parseComparator(token: string): IComparator | undefined {
           matches: (candidate) => compareSemver(candidate, version) === 0,
         };
       }
-      const upper = precision === 1 ? { major: version.major + 1, minor: 0, patch: 0, prerelease: [] } : { major: version.major, minor: version.minor + 1, patch: 0, prerelease: [] };
+      const upper =
+        precision === 1
+          ? { major: version.major + 1, minor: 0, patch: 0, prerelease: [] }
+          : { major: version.major, minor: version.minor + 1, patch: 0, prerelease: [] };
       return {
         version,
         hasPrerelease,
@@ -177,13 +184,29 @@ function parseComparator(token: string): IComparator | undefined {
       };
     }
     case '>':
-      return { version, hasPrerelease, matches: (candidate) => compareSemver(candidate, version) > 0 };
+      return {
+        version,
+        hasPrerelease,
+        matches: (candidate) => compareSemver(candidate, version) > 0,
+      };
     case '>=':
-      return { version, hasPrerelease, matches: (candidate) => compareSemver(candidate, version) >= 0 };
+      return {
+        version,
+        hasPrerelease,
+        matches: (candidate) => compareSemver(candidate, version) >= 0,
+      };
     case '<':
-      return { version, hasPrerelease, matches: (candidate) => compareSemver(candidate, version) < 0 };
+      return {
+        version,
+        hasPrerelease,
+        matches: (candidate) => compareSemver(candidate, version) < 0,
+      };
     case '<=':
-      return { version, hasPrerelease, matches: (candidate) => compareSemver(candidate, version) <= 0 };
+      return {
+        version,
+        hasPrerelease,
+        matches: (candidate) => compareSemver(candidate, version) <= 0,
+      };
     case '^': {
       const upper = caretUpper(version);
       return {
@@ -220,9 +243,13 @@ function caretUpper(version: ISemverVersion): ISemverVersion {
   return { major: 0, minor: 0, patch: version.patch + 1, prerelease: [] };
 }
 
-function parseCore(
-  core: string,
-): { readonly version: ISemverVersion; readonly precision: 1 | 2 | 3; readonly prerelease: readonly string[] } | undefined {
+function parseCore(core: string):
+  | {
+      readonly version: ISemverVersion;
+      readonly precision: 1 | 2 | 3;
+      readonly prerelease: readonly string[];
+    }
+  | undefined {
   const parts = core.split('.');
   if (parts.length > 3) {
     return undefined;
@@ -259,7 +286,7 @@ export function satisfiesRange(version: ISemverVersion, groups: readonly IGroup[
         comparator.hasPrerelease &&
         comparator.version.major === version.major &&
         comparator.version.minor === version.minor &&
-        comparator.version.patch === version.patch,
+        comparator.version.patch === version.patch
     );
     if (explicitlyIncluded) {
       return true;
@@ -281,6 +308,9 @@ export function satisfies(text: string, range: string): boolean {
 /** 校验版本范围语法，非法抛 `CPK_MANIFEST_INVALID`。 */
 export function assertValidRange(range: string, pointer: string): void {
   if (!isValidRange(range)) {
-    throw cliError('CPK_MANIFEST_INVALID', `版本范围语法非法：${range}`, { stage: 'manifest', pointer });
+    throw cliError('CPK_MANIFEST_INVALID', `版本范围语法非法：${range}`, {
+      stage: 'manifest',
+      pointer,
+    });
   }
 }

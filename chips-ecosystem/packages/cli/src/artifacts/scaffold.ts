@@ -71,7 +71,12 @@ function expectScaffoldPlan(value: unknown): IScaffoldPlan {
     }
     files.push({ path: file.path, content: file.content });
   }
-  const manifest = record.manifest as { id?: unknown; version?: unknown; type?: unknown; name?: unknown };
+  const manifest = record.manifest as {
+    id?: unknown;
+    version?: unknown;
+    type?: unknown;
+    name?: unknown;
+  };
   return {
     targetDir: record.targetDir,
     files,
@@ -79,7 +84,10 @@ function expectScaffoldPlan(value: unknown): IScaffoldPlan {
       id: typeof manifest?.id === 'string' ? manifest.id : '',
       version: typeof manifest?.version === 'string' ? manifest.version : '',
       type:
-        manifest?.type === 'app' || manifest?.type === 'basecard' || manifest?.type === 'boxlayout' || manifest?.type === 'service'
+        manifest?.type === 'app' ||
+        manifest?.type === 'basecard' ||
+        manifest?.type === 'boxlayout' ||
+        manifest?.type === 'service'
           ? manifest.type
           : 'app',
       name: typeof manifest?.name === 'string' ? manifest.name : '',
@@ -90,7 +98,7 @@ function expectScaffoldPlan(value: unknown): IScaffoldPlan {
 /** 落盘脚手架计划：目标目录非空或目标文件已存在时拒绝（[CLI 完整参考] §3.5.1）。 */
 export function writeScaffoldPlan(
   fileSystem: IFileSystemPort,
-  plan: IScaffoldPlan,
+  plan: IScaffoldPlan
 ): { readonly targetDir: string; readonly files: readonly string[] } {
   const targetDir = plan.targetDir;
   if (fileSystem.exists(targetDir) && fileSystem.kind(targetDir) !== 'directory') {

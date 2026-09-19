@@ -36,8 +36,8 @@ export function checkRoles(input: RoleCheckInput): ContractViolation[] {
             'CONTRACT_ROLE_DECLARATION_CONFLICT',
             `${role.role}:${declaration.declaration.name}`,
             '同一角色内存在同名但内容不同的声明（单一事实源破坏）',
-            { expected: previous, actual: serialized },
-          ),
+            { expected: previous, actual: serialized }
+          )
         );
       }
       if (previous === undefined) {
@@ -47,10 +47,15 @@ export function checkRoles(input: RoleCheckInput): ContractViolation[] {
 
     if (!declarationsByName.has(entry)) {
       violations.push(
-        violation('CONTRACT_ROLE_ENTRY_MISSING', `${role.role}:${entry}`, '角色文档未声明入口接口', {
-          expected: `声明 ${entry}`,
-          actual: '缺失',
-        }),
+        violation(
+          'CONTRACT_ROLE_ENTRY_MISSING',
+          `${role.role}:${entry}`,
+          '角色文档未声明入口接口',
+          {
+            expected: `声明 ${entry}`,
+            actual: '缺失',
+          }
+        )
       );
     }
     if (!sdkRoleTypes.has(entry)) {
@@ -59,8 +64,8 @@ export function checkRoles(input: RoleCheckInput): ContractViolation[] {
           'CONTRACT_SDK_ROLE_ENTRY_MISSING',
           `${role.role}:${entry}`,
           'SDK 导出清单的「插件角色」行缺少该角色入口接口',
-          { expected: `类型列表包含 ${entry}`, actual: '缺失' },
-        ),
+          { expected: `类型列表包含 ${entry}`, actual: '缺失' }
+        )
       );
     }
 
@@ -75,8 +80,8 @@ export function checkRoles(input: RoleCheckInput): ContractViolation[] {
               'CONTRACT_ROLE_CLAIM_UNDEFINED',
               `${role.role}:${name}`,
               '角色文档声明导出的类型在该角色接口文档中未定义',
-              { expected: '角色文档包含该声明', actual: '缺失' },
-            ),
+              { expected: '角色文档包含该声明', actual: '缺失' }
+            )
           );
         }
       }

@@ -23,7 +23,7 @@ function groupCommand(
   path: readonly string[],
   summary: string,
   usage: string,
-  subcommands: readonly string[],
+  subcommands: readonly string[]
 ): ICliCommandDefinition {
   return {
     path,
@@ -35,7 +35,7 @@ function groupCommand(
         cliError('CLI_COMMAND_NOT_FOUND', `命令 ${context.commandPath} 缺少子命令`, {
           commandPath: context.commandPath,
           subcommands: [...subcommands],
-        }),
+        })
       ),
   };
 }
@@ -55,7 +55,7 @@ const sharedCommands: readonly ICliCommandDefinition[] = [
     ['plugin'],
     '插件安装、启停与打包校验',
     'chips plugin <create|pack|validate|install|uninstall|list|info|enable|disable>',
-    PLUGIN_SUBCOMMANDS,
+    PLUGIN_SUBCOMMANDS
   ),
   ...pluginCommands,
   openCommand,
@@ -74,7 +74,12 @@ userDefinitions.unshift(createHelpCommand(userDefinitions));
 
 /** 开发侧固定命令（含开发宿主与服务联调，不含平台更新）。 */
 const devDefinitions: ICliCommandDefinition[] = [
-  groupCommand(['service'], '开发宿主服务能力联调', 'chips dev service <invoke>', DEV_SERVICE_SUBCOMMANDS),
+  groupCommand(
+    ['service'],
+    '开发宿主服务能力联调',
+    'chips dev service <invoke>',
+    DEV_SERVICE_SUBCOMMANDS
+  ),
   ...devCommands,
   ...sharedCommands,
 ];
@@ -98,8 +103,10 @@ export function listCommands(entry: 'user' | 'dev'): readonly ICliCommandDefinit
 /** 最长命令路径前缀匹配（固定命令树）。 */
 export function matchBuiltinCommand(
   definitions: readonly ICliCommandDefinition[],
-  tokens: readonly string[],
-): { readonly definition: ICliCommandDefinition; readonly remaining: readonly string[] } | undefined {
+  tokens: readonly string[]
+):
+  | { readonly definition: ICliCommandDefinition; readonly remaining: readonly string[] }
+  | undefined {
   let best: ICliCommandDefinition | undefined;
   for (const definition of definitions) {
     if (definition.path.length > tokens.length) {
@@ -109,7 +116,7 @@ export function matchBuiltinCommand(
       continue;
     }
     const matches = definition.path.every(
-      (segment, index) => segment.toLowerCase() === (tokens[index] ?? '').toLowerCase(),
+      (segment, index) => segment.toLowerCase() === (tokens[index] ?? '').toLowerCase()
     );
     if (matches) {
       best = definition;

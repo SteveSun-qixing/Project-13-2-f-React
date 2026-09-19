@@ -48,7 +48,7 @@ function snapshotOf(
   grantedPermissions: ReadonlySet<string>,
   openedDocuments: ReadonlySet<string>,
   state: 'active' | 'closed',
-  permissionVersion: number,
+  permissionVersion: number
 ): ISessionSnapshot {
   return Object.freeze({
     sessionId,
@@ -62,7 +62,10 @@ function snapshotOf(
   });
 }
 
-function requireSession(sessions: ReadonlyMap<string, IInternalSession>, sessionId: string): IInternalSession {
+function requireSession(
+  sessions: ReadonlyMap<string, IInternalSession>,
+  sessionId: string
+): IInternalSession {
   const session = sessions.get(sessionId);
   if (session === undefined || session.snapshot.state === 'closed') {
     throw createBridgeError(BRIDGE_ERROR_CODES.sessionUnknown, {
@@ -102,7 +105,7 @@ export function createSessionRegistry(): ISessionRegistry {
         new Set(input.grantedPermissions ?? []),
         new Set(input.openedDocuments ?? []),
         'active',
-        0,
+        0
       );
       sessions.set(input.sessionId, {
         snapshot,
@@ -138,7 +141,7 @@ export function createSessionRegistry(): ISessionRegistry {
         new Set(grantedPermissions),
         session.snapshot.openedDocuments,
         'active',
-        session.snapshot.permissionVersion + 1,
+        session.snapshot.permissionVersion + 1
       );
       return session.snapshot;
     },
@@ -152,7 +155,7 @@ export function createSessionRegistry(): ISessionRegistry {
         session.snapshot.grantedPermissions,
         new Set(documentIds),
         'active',
-        session.snapshot.permissionVersion,
+        session.snapshot.permissionVersion
       );
       return session.snapshot;
     },
@@ -168,7 +171,7 @@ export function createSessionRegistry(): ISessionRegistry {
         session.snapshot.grantedPermissions,
         opened,
         'active',
-        session.snapshot.permissionVersion,
+        session.snapshot.permissionVersion
       );
       return session.snapshot;
     },
@@ -186,7 +189,7 @@ export function createSessionRegistry(): ISessionRegistry {
           session.snapshot.grantedPermissions,
           session.snapshot.openedDocuments,
           'closed',
-          session.snapshot.permissionVersion,
+          session.snapshot.permissionVersion
         ),
         controller: session.controller,
         sourceKey: session.sourceKey,

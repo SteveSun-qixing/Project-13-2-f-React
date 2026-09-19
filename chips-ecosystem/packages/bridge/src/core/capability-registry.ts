@@ -98,13 +98,15 @@ function conflict(message: string, details: Record<string, unknown>): ChipsError
   });
 }
 
-function permissionError(code: string, message: string, details: Record<string, unknown>): ChipsError {
+function permissionError(
+  code: string,
+  message: string,
+  details: Record<string, unknown>
+): ChipsError {
   return new ChipsError({ code, message, details, retryable: false });
 }
 
-function normalizeRegistration(
-  registration: ICapabilityRegistration,
-): {
+function normalizeRegistration(registration: ICapabilityRegistration): {
   timeoutMs: number;
   concurrency: CapabilityConcurrency;
   maxQueue: number;
@@ -163,15 +165,19 @@ function assertCapabilityShape(registration: ICapabilityRegistration): void {
   }
 }
 
-export function createCapabilityRegistry(options: ICapabilityRegistryOptions): ICapabilityRegistryCore {
+export function createCapabilityRegistry(
+  options: ICapabilityRegistryOptions
+): ICapabilityRegistryCore {
   const builtinOwner = options.builtinOwner ?? PLATFORM_CAPABILITY_OWNER;
   const entries = new Map<string, IRegisteredCapability>();
   const ownerBindings = new Map<string, string>();
   const thirdPartyContracts = new Map<string, ICapabilityContractRecord>(
-    (options.contracts ?? []).map((record) => [record.id, record]),
+    (options.contracts ?? []).map((record) => [record.id, record])
   );
 
-  const contractFor = (capabilityId: string): IBuiltinCapabilityContract | ICapabilityContractRecord | undefined =>
+  const contractFor = (
+    capabilityId: string
+  ): IBuiltinCapabilityContract | ICapabilityContractRecord | undefined =>
     findBuiltinCapability(capabilityId) ?? thirdPartyContracts.get(capabilityId);
 
   const contractOwner = (capabilityId: string): string | undefined => {

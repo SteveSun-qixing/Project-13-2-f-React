@@ -40,13 +40,15 @@ describe('createSchemaCompiler 基础编译', () => {
       properties: { other: { type: 'string' } },
     });
     expect(compiler.size).toBe(1);
-    expect(() => createSchemaCompiler({ maxCacheEntries: 0 })).toThrowError('maxCacheEntries 必须为正整数');
+    expect(() => createSchemaCompiler({ maxCacheEntries: 0 })).toThrowError(
+      'maxCacheEntries 必须为正整数'
+    );
   });
 
   it('顶层必须是 object 且显式 additionalProperties: false', () => {
     expectInvalidSchema(() => createSchemaCompiler().compile({ type: 'string' }));
     expectInvalidSchema(() =>
-      createSchemaCompiler().compile({ type: 'object', additionalProperties: true }),
+      createSchemaCompiler().compile({ type: 'object', additionalProperties: true })
     );
     expectInvalidSchema(() => createSchemaCompiler().compile([]));
     expectInvalidSchema(() => createSchemaCompiler().compile('x'));
@@ -68,7 +70,7 @@ describe('关键字白名单与禁令', () => {
           type: 'object',
           additionalProperties: false,
           [keyword]: keyword === '$schema' ? 'https://json-schema.org/draft/2020-12/schema' : {},
-        }),
+        })
       );
     }
   });
@@ -79,7 +81,7 @@ describe('关键字白名单与禁令', () => {
         type: 'object',
         additionalProperties: false,
         customScript: 'return true',
-      }),
+      })
     );
   });
 
@@ -92,7 +94,7 @@ describe('关键字白名单与禁令', () => {
         description: '说明',
         deprecated: false,
         properties: { path: { type: 'string', default: 'a' } },
-      }),
+      })
     ).not.toThrow();
   });
 });
@@ -116,7 +118,7 @@ describe('$defs 与 $ref', () => {
         type: 'object',
         additionalProperties: false,
         properties: { a: { $ref: 'https://example.com/schema.json' } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
@@ -124,14 +126,14 @@ describe('$defs 与 $ref', () => {
         additionalProperties: false,
         $defs: { a: { type: 'string' } },
         properties: { a: { $ref: '#/$defs/a', minLength: 1 } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { a: { $ref: '#/$defs/missing' } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
@@ -139,14 +141,14 @@ describe('$defs 与 $ref', () => {
         additionalProperties: false,
         $defs: { node: { type: 'object', properties: { child: { $ref: '#/$defs/node' } } } },
         properties: { root: { $ref: '#/$defs/node' } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { a: { $ref: '#/$defs/a/b' } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
@@ -154,7 +156,7 @@ describe('$defs 与 $ref', () => {
         additionalProperties: false,
         $defs: 'bad',
         properties: {},
-      }),
+      })
     );
   });
 
@@ -165,7 +167,7 @@ describe('$defs 与 $ref', () => {
         additionalProperties: false,
         $defs: { bad: { type: 'unknown' } },
         properties: {},
-      }),
+      })
     );
   });
 });
@@ -177,28 +179,28 @@ describe('type 与结构关键字', () => {
         type: 'object',
         additionalProperties: false,
         properties: { a: { type: 'any' } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { a: { type: [] } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { a: { type: ['string', 'string'] } },
-      }),
+      })
     );
     expect(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { a: { type: ['string', 'null'] } },
-      }),
+      })
     ).not.toThrow();
   });
 
@@ -209,7 +211,7 @@ describe('type 与结构关键字', () => {
         additionalProperties: false,
         required: 'path',
         properties: {},
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
@@ -217,19 +219,26 @@ describe('type 与结构关键字', () => {
         additionalProperties: false,
         required: ['a', 'a'],
         properties: {},
-      }),
+      })
     );
   });
 
   it('长度关键字必须为非负整数且 min ≤ max', () => {
-    for (const keyword of ['minItems', 'maxItems', 'minProperties', 'maxProperties', 'minLength', 'maxLength']) {
+    for (const keyword of [
+      'minItems',
+      'maxItems',
+      'minProperties',
+      'maxProperties',
+      'minLength',
+      'maxLength',
+    ]) {
       expectInvalidSchema(() =>
         createSchemaCompiler().compile({
           type: 'object',
           additionalProperties: false,
           [keyword]: -1,
           properties: {},
-        }),
+        })
       );
       expectInvalidSchema(() =>
         createSchemaCompiler().compile({
@@ -237,7 +246,7 @@ describe('type 与结构关键字', () => {
           additionalProperties: false,
           [keyword]: 1.5,
           properties: {},
-        }),
+        })
       );
     }
     expectInvalidSchema(() =>
@@ -247,7 +256,7 @@ describe('type 与结构关键字', () => {
         minItems: 2,
         maxItems: 1,
         properties: {},
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
@@ -256,7 +265,7 @@ describe('type 与结构关键字', () => {
         minProperties: 2,
         maxProperties: 1,
         properties: {},
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
@@ -265,7 +274,7 @@ describe('type 与结构关键字', () => {
         minLength: 2,
         maxLength: 1,
         properties: {},
-      }),
+      })
     );
   });
 
@@ -275,7 +284,7 @@ describe('type 与结构关键字', () => {
         type: 'object',
         additionalProperties: false,
         properties: { list: { type: 'array', uniqueItems: 'yes' } },
-      }),
+      })
     );
   });
 
@@ -286,7 +295,7 @@ describe('type 与结构关键字', () => {
           type: 'object',
           additionalProperties: false,
           properties: { value: { type: 'number', [keyword]: Number.NaN } },
-        }),
+        })
       );
     }
     expectInvalidSchema(() =>
@@ -294,7 +303,7 @@ describe('type 与结构关键字', () => {
         type: 'object',
         additionalProperties: false,
         properties: { value: { type: 'number', multipleOf: 0 } },
-      }),
+      })
     );
   });
 
@@ -304,21 +313,21 @@ describe('type 与结构关键字', () => {
         type: 'object',
         additionalProperties: false,
         properties: { value: { type: 'string', pattern: '(' } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { value: { type: 'string', format: 'email' } },
-      }),
+      })
     );
     expect(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { value: { type: 'string', format: 'date-time' } },
-      }),
+      })
     ).not.toThrow();
   });
 
@@ -328,21 +337,21 @@ describe('type 与结构关键字', () => {
         type: 'object',
         additionalProperties: false,
         properties: { value: { enum: [] } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { value: { enum: 'a' } },
-      }),
+      })
     );
     expect(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { value: { const: null } },
-      }),
+      })
     ).not.toThrow();
   });
 
@@ -360,7 +369,7 @@ describe('type 与结构关键字', () => {
           },
           loose: { type: 'object', additionalProperties: true },
         },
-      }),
+      })
     ).not.toThrow();
   });
 
@@ -371,21 +380,21 @@ describe('type 与结构关键字', () => {
           type: 'object',
           additionalProperties: false,
           [keyword]: [],
-        }),
+        })
       );
       expectInvalidSchema(() =>
         createSchemaCompiler().compile({
           type: 'object',
           additionalProperties: false,
           [keyword]: {},
-        }),
+        })
       );
       expect(() =>
         createSchemaCompiler().compile({
           type: 'object',
           additionalProperties: false,
           [keyword]: [{ type: 'object' }],
-        }),
+        })
       ).not.toThrow();
     }
   });
@@ -399,28 +408,28 @@ describe('x-chips-binary', () => {
         additionalProperties: false,
         'x-chips-binary': 1024,
         properties: {},
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { data: { type: 'string', 'x-chips-binary': 1024 } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { data: { 'x-chips-binary': -1 } },
-      }),
+      })
     );
     expectInvalidSchema(() =>
       createSchemaCompiler().compile({
         type: 'object',
         additionalProperties: false,
         properties: { list: { type: 'array', items: { 'x-chips-binary': 16 } } },
-      }),
+      })
     );
   });
 

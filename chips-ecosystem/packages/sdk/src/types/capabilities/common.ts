@@ -15,8 +15,4 @@ export type DocumentPart = 'metadata' | 'structure' | 'content' | 'entries';
 
 /** 文档模型切片联合：`document:read` / `document:write` 的 `value` 取值域。 */
 export type DocumentModel =
-  | CardMetadata
-  | BoxMetadata
-  | StructureModel
-  | ContentNode
-  | readonly Entry[];
+  CardMetadata | BoxMetadata | StructureModel | ContentNode | readonly Entry[];

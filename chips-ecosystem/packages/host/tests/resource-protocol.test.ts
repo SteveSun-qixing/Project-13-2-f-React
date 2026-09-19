@@ -149,14 +149,13 @@ describe('handleResourceRequest', () => {
   });
 
   it('成功读取附加安全头并在需要时附加 CORS', async () => {
-    const scriptBackend = backendOf(
-      async () =>
-        Promise.resolve(
-          new Response(new Uint8Array([1]), {
-            status: 200,
-            headers: { 'Content-Type': 'text/javascript; charset=utf-8' },
-          }),
-        ),
+    const scriptBackend = backendOf(async () =>
+      Promise.resolve(
+        new Response(new Uint8Array([1]), {
+          status: 200,
+          headers: { 'Content-Type': 'text/javascript; charset=utf-8' },
+        }),
+      ),
     );
     const response = await handleResourceRequest(new Request('chips-resource://platform/shell-window.js'), session, {
       backend: scriptBackend,
@@ -203,19 +202,18 @@ describe('handleResourceRequest', () => {
   });
 
   it('流式响应原样透传', async () => {
-    const streaming = backendOf(
-      async () =>
-        Promise.resolve(
-          new Response(
-            new ReadableStream<Uint8Array>({
-              start(controller): void {
-                controller.enqueue(new Uint8Array([7, 8]));
-                controller.close();
-              },
-            }),
-            { status: 206, headers: { 'Content-Type': 'application/octet-stream' } },
-          ),
+    const streaming = backendOf(async () =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller): void {
+              controller.enqueue(new Uint8Array([7, 8]));
+              controller.close();
+            },
+          }),
+          { status: 206, headers: { 'Content-Type': 'application/octet-stream' } },
         ),
+      ),
     );
     const response = await handleResourceRequest(new Request('chips-resource://platform/a.bin'), session, {
       backend: streaming,

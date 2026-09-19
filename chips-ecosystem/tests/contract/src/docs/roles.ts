@@ -34,7 +34,11 @@ export interface DocRoleModel {
 
 const EXPORT_CLAIM_PATTERN = /本文全部接口与类型（([^）]+)）均从 `@chips\/sdk` 主入口导出/;
 
-function parseRole(reader: DocReader, role: RoleName, selectors: readonly SectionSelector[]): DocRole {
+function parseRole(
+  reader: DocReader,
+  role: RoleName,
+  selectors: readonly SectionSelector[]
+): DocRole {
   const declarations: DocRoleDeclaration[] = [];
   const refs: DocRef[] = [];
   for (const selector of selectors) {
@@ -87,7 +91,9 @@ function parseExportClaims(reader: DocReader): readonly DocExportClaim[] {
 
 export function parseRoleModel(reader: DocReader): DocRoleModel {
   return {
-    roles: ROLE_SOURCES.map((roleSource) => parseRole(reader, roleSource.role, roleSource.selectors)),
+    roles: ROLE_SOURCES.map((roleSource) =>
+      parseRole(reader, roleSource.role, roleSource.selectors)
+    ),
     claims: parseExportClaims(reader),
   };
 }

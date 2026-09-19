@@ -28,11 +28,7 @@ export {
   type IGlobalParseResult,
 } from './args/global-options.js';
 
-export {
-  parseParameters,
-  type IParseRequest,
-  type IParseResult,
-} from './args/parse.js';
+export { parseParameters, type IParseRequest, type IParseResult } from './args/parse.js';
 
 export {
   createNodeFileSystem,
@@ -52,12 +48,7 @@ export type {
 } from './args/types.js';
 
 export { createNodeOutputSink, type IOutputSink } from './output/io.js';
-export {
-  renderError,
-  renderResult,
-  serializeJson,
-  type ICommandResult,
-} from './output/result.js';
+export { renderError, renderResult, serializeJson, type ICommandResult } from './output/result.js';
 export {
   createProgressWriter,
   formatProgress,
@@ -119,7 +110,13 @@ export type {
   IScaffoldPlan,
 } from './client/types.js';
 
-export { createOperationLogger, redactArgv, type IOperationLogger, type ICliOperationInput, type CliOperationSource } from './logging/operations.js';
+export {
+  createOperationLogger,
+  redactArgv,
+  type IOperationLogger,
+  type ICliOperationInput,
+  type CliOperationSource,
+} from './logging/operations.js';
 
 export {
   commandPathKey,
@@ -140,21 +137,63 @@ export {
   type IResultEnvelope,
 } from './plugin-cli/execute.js';
 
-export { listCommands, listDevCommands, listUserCommands, matchBuiltinCommand } from './commands/registry.js';
+export {
+  listCommands,
+  listDevCommands,
+  listUserCommands,
+  matchBuiltinCommand,
+} from './commands/registry.js';
 export { FIXED_COMMAND_PATHS } from './commands/fixed-paths.js';
-export type { ICliCommandDefinition, ICommandContext, IWorkspaceAccessor } from './commands/types.js';
+export type {
+  ICliCommandDefinition,
+  ICommandContext,
+  IWorkspaceAccessor,
+} from './commands/types.js';
 
 export { createLocalArtifacts, type ILocalArtifactsOptions } from './artifacts/index.js';
-export { createDocumentedPermissionCatalog, validatePermissionRequest, type IPermissionCatalog, type IPermissionRule } from './artifacts/permission-catalog.js';
-export { computeContentHash, sha256Hex, validateCpk, CPK_LIMITS } from './artifacts/cpk-validate.js';
+export {
+  createDocumentedPermissionCatalog,
+  validatePermissionRequest,
+  type IPermissionCatalog,
+  type IPermissionRule,
+} from './artifacts/permission-catalog.js';
+export {
+  computeContentHash,
+  sha256Hex,
+  validateCpk,
+  CPK_LIMITS,
+} from './artifacts/cpk-validate.js';
 export { packCpk, type ICpkPackOptions } from './artifacts/cpk-pack.js';
-export { parseManifestText, readManifestRole, validateManifest, type IManifestValidationInput, type IManifestValidationResult } from './artifacts/manifest.js';
-export { compareSemver, isValidRange, parseRange, parseSemver, satisfies, satisfiesRange } from './artifacts/semver.js';
+export {
+  parseManifestText,
+  readManifestRole,
+  validateManifest,
+  type IManifestValidationInput,
+  type IManifestValidationResult,
+} from './artifacts/manifest.js';
+export {
+  compareSemver,
+  isValidRange,
+  parseRange,
+  parseSemver,
+  satisfies,
+  satisfiesRange,
+} from './artifacts/semver.js';
 export { crc32 } from './artifacts/crc32.js';
 export { readZipStore, writeZipStore, type IZipEntry } from './artifacts/zip.js';
-export { resolveScaffoldProvider, writeScaffoldPlan, type IScaffoldProvider } from './artifacts/scaffold.js';
+export {
+  resolveScaffoldProvider,
+  writeScaffoldPlan,
+  type IScaffoldProvider,
+} from './artifacts/scaffold.js';
 
 export { createLocalClient, type ILocalClientOptions } from './runtime/local-client.js';
 export { main, detectEntry, type ICliMainOptions } from './main.js';
-export { runCli, runDevCli, runEntry, resolveWorkspaceAccessor, type ICliRunDependencies } from './run.js';
+export {
+  runCli,
+  runDevCli,
+  runEntry,
+  resolveWorkspaceAccessor,
+  type ICliRunDependencies,
+} from './run.js';
 export { CLI_VERSION } from './version.js';

@@ -27,9 +27,19 @@ describe('版本解析（§3.1 版本格式）', () => {
   it('三段式与预发布、构建元数据', () => {
     expect(parseSemver('1.2.3')).toEqual({ major: 1, minor: 2, patch: 3, prerelease: [] });
     expect(parseSemver('0.0.0')).toEqual({ major: 0, minor: 0, patch: 0, prerelease: [] });
-    expect(parseSemver('1.2.3-alpha.1')).toEqual({ major: 1, minor: 2, patch: 3, prerelease: ['alpha', '1'] });
+    expect(parseSemver('1.2.3-alpha.1')).toEqual({
+      major: 1,
+      minor: 2,
+      patch: 3,
+      prerelease: ['alpha', '1'],
+    });
     expect(parseSemver('1.2.3+build.5')).toEqual({ major: 1, minor: 2, patch: 3, prerelease: [] });
-    expect(parseSemver('1.2.3-rc.2+build.5')).toEqual({ major: 1, minor: 2, patch: 3, prerelease: ['rc', '2'] });
+    expect(parseSemver('1.2.3-rc.2+build.5')).toEqual({
+      major: 1,
+      minor: 2,
+      patch: 3,
+      prerelease: ['rc', '2'],
+    });
   });
 
   it('两侧空白忽略', () => {
@@ -135,7 +145,9 @@ describe('范围文法（§4.1）', () => {
   it('空格分隔的多个比较项参与同一组', () => {
     const groups = parseRange('>=1.0.0 <2.0.0');
     const candidate = version('1.4.3');
-    expect(groups?.[0]?.comparators.every((comparator) => comparator.matches(candidate))).toBe(true);
+    expect(groups?.[0]?.comparators.every((comparator) => comparator.matches(candidate))).toBe(
+      true
+    );
   });
 });
 

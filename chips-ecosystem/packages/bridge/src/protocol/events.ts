@@ -80,7 +80,7 @@ export const STANDARD_EVENTS: readonly IStandardEventDefinition[] = [
 ];
 
 const EVENT_BY_ID: ReadonlyMap<string, IStandardEventDefinition> = new Map(
-  STANDARD_EVENTS.map((definition) => [definition.id, definition]),
+  STANDARD_EVENTS.map((definition) => [definition.id, definition])
 );
 
 export function findStandardEvent(eventId: string): IStandardEventDefinition | undefined {
@@ -122,5 +122,4 @@ export interface IEventControlRequest {
 }
 
 export type IEventControlResponse =
-  | { controlId: string; ok: true }
-  | { controlId: string; ok: false; error: IChipsError };
+  { controlId: string; ok: true } | { controlId: string; ok: false; error: IChipsError };

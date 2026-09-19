@@ -5,9 +5,20 @@
  * 快照锁定消息类型、方向与载荷签名，检查模块核对代码块与清单表逐项一致。
  */
 
-import { collapse, findSection, findTable, fencedCodeBlocks, inlineCodeTokens } from '../markdown.js';
+import {
+  collapse,
+  findSection,
+  findTable,
+  fencedCodeBlocks,
+  inlineCodeTokens,
+} from '../markdown.js';
 import type { DocReader, DocRef } from './reader.js';
-import { FRAME_DIRECTION_MARKERS, FRAME_ENVELOPE_SECTION, FRAME_MESSAGE_TABLE_SECTION, FRAME_PROTOCOL_SOURCE } from './sources.js';
+import {
+  FRAME_DIRECTION_MARKERS,
+  FRAME_ENVELOPE_SECTION,
+  FRAME_MESSAGE_TABLE_SECTION,
+  FRAME_PROTOCOL_SOURCE,
+} from './sources.js';
 import {
   normalizeCodeBlock,
   stringLiteralMember,
@@ -40,7 +51,10 @@ export interface FrameProtocolModel {
   readonly protocol: string;
   readonly envelope: NormalizedInterface;
   readonly messages: readonly FrameMessageDeclaration[];
-  readonly outboundUnions: readonly { readonly name: string; readonly members: readonly string[] }[];
+  readonly outboundUnions: readonly {
+    readonly name: string;
+    readonly members: readonly string[];
+  }[];
   readonly payloadTypes: readonly NormalizedTypeAlias[];
   readonly table: readonly FrameTableRow[];
   readonly ref: DocRef;
@@ -58,7 +72,9 @@ function splitDirectionSegments(body: string): DirectionSegments {
   const childIndex = body.indexOf(childMarker);
   const parentIndex = body.indexOf(parentMarker);
   if (childIndex < 0 || parentIndex < 0 || parentIndex < childIndex) {
-    throw new Error(`帧协议章节缺少方向标记：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_PROTOCOL_SOURCE.section}`);
+    throw new Error(
+      `帧协议章节缺少方向标记：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_PROTOCOL_SOURCE.section}`
+    );
   }
   return {
     head: body.slice(0, childIndex),
@@ -81,7 +97,11 @@ interface DirectionParse {
   readonly typeAliases: readonly NormalizedTypeAlias[];
 }
 
-function parseDirectionSegment(segment: string, direction: FrameDirection, ref: DocRef): DirectionParse {
+function parseDirectionSegment(
+  segment: string,
+  direction: FrameDirection,
+  ref: DocRef
+): DirectionParse {
   const messages: FrameMessageDeclaration[] = [];
   const unions: { name: string; members: readonly string[] }[] = [];
   const typeAliases: NormalizedTypeAlias[] = [];
@@ -115,30 +135,40 @@ export function parseFrameProtocolModel(reader: DocReader): FrameProtocolModel {
   const text = reader.read(FRAME_PROTOCOL_SOURCE.file);
   const body = findSection(text, FRAME_PROTOCOL_SOURCE.level, FRAME_PROTOCOL_SOURCE.heading);
   if (body === null) {
-    throw new Error(`未找到帧协议章节：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_PROTOCOL_SOURCE.section}`);
+    throw new Error(
+      `未找到帧协议章节：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_PROTOCOL_SOURCE.section}`
+    );
   }
   const envelopeBody = findSection(body, 3, FRAME_ENVELOPE_SECTION);
   if (envelopeBody === null) {
-    throw new Error(`未找到帧消息封套章节：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_ENVELOPE_SECTION}`);
+    throw new Error(
+      `未找到帧消息封套章节：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_ENVELOPE_SECTION}`
+    );
   }
   const segments = splitDirectionSegments(envelopeBody);
   const headBlocks = fencedCodeBlocks(segments.head, ['typescript', 'ts']);
   if (headBlocks.length !== 1) {
     throw new Error(
-      `帧消息封套章节应恰有一个代码块，实际 ${headBlocks.length} 个：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_ENVELOPE_SECTION}`,
+      `帧消息封套章节应恰有一个代码块，实际 ${headBlocks.length} 个：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_ENVELOPE_SECTION}`
     );
   }
   const head = normalizeCodeBlock(headBlocks[0]?.content ?? '');
-  const protocol = head.stringConstants.find((constant) => constant.name === 'FRAME_PROTOCOL')?.value;
+  const protocol = head.stringConstants.find(
+    (constant) => constant.name === 'FRAME_PROTOCOL'
+  )?.value;
   if (protocol === undefined) {
-    throw new Error(`帧消息封套缺少 FRAME_PROTOCOL 常量：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_ENVELOPE_SECTION}`);
+    throw new Error(
+      `帧消息封套缺少 FRAME_PROTOCOL 常量：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_ENVELOPE_SECTION}`
+    );
   }
   const envelope = head.declarations.find(
     (declaration): declaration is NormalizedInterface =>
-      declaration.kind === 'interface' && declaration.name === 'FrameEnvelope',
+      declaration.kind === 'interface' && declaration.name === 'FrameEnvelope'
   );
   if (envelope === undefined) {
-    throw new Error(`帧消息封套缺少 FrameEnvelope 接口：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_ENVELOPE_SECTION}`);
+    throw new Error(
+      `帧消息封套缺少 FrameEnvelope 接口：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_ENVELOPE_SECTION}`
+    );
   }
   const ref: DocRef = { file: FRAME_PROTOCOL_SOURCE.file, section: FRAME_PROTOCOL_SOURCE.section };
   const child = parseDirectionSegment(segments.child, 'child-to-parent', ref);
@@ -149,11 +179,15 @@ export function parseFrameProtocolModel(reader: DocReader): FrameProtocolModel {
 
   const tableBody = findSection(body, 3, FRAME_MESSAGE_TABLE_SECTION);
   if (tableBody === null) {
-    throw new Error(`未找到帧消息清单表：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_MESSAGE_TABLE_SECTION}`);
+    throw new Error(
+      `未找到帧消息清单表：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_MESSAGE_TABLE_SECTION}`
+    );
   }
   const table = findTable(tableBody, '消息');
   if (table === null) {
-    throw new Error(`帧消息清单表缺少「消息」表：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_MESSAGE_TABLE_SECTION}`);
+    throw new Error(
+      `帧消息清单表缺少「消息」表：${FRAME_PROTOCOL_SOURCE.file} §${FRAME_MESSAGE_TABLE_SECTION}`
+    );
   }
   const rows: FrameTableRow[] = table.rows.map((row) => ({
     messageTypes: inlineCodeTokens(row[0] ?? '').filter((token) => token.includes(':')),

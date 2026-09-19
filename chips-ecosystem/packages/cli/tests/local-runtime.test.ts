@@ -44,7 +44,10 @@ function stageSource(root = '/src/hello', manifest: string = BASECARD_MANIFEST):
   fileSystem.writeBinary(`${root}/manifest.yaml`, text(manifest));
   fileSystem.writeBinary(`${root}/dist/index.js`, text('export default { activate() {} };\n'));
   fileSystem.writeBinary(`${root}/render.js`, text('export function render() { return null; }\n'));
-  fileSystem.writeBinary(`${root}/assets/icons/hello.svg`, text('<svg xmlns="http://www.w3.org/2000/svg"></svg>'));
+  fileSystem.writeBinary(
+    `${root}/assets/icons/hello.svg`,
+    text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+  );
   return fileSystem;
 }
 
@@ -82,7 +85,11 @@ describe('脚手架落盘（§3.5.1）', () => {
   });
 
   it('目标目录非空、目标不是目录与目标文件已存在均返回 CLI_PATH_INVALID', () => {
-    function expectPathInvalid(fileSystem: IFileSystemPort, plan: IScaffoldPlan, message: RegExp): void {
+    function expectPathInvalid(
+      fileSystem: IFileSystemPort,
+      plan: IScaffoldPlan,
+      message: RegExp
+    ): void {
       try {
         writeScaffoldPlan(fileSystem, plan);
         throw new Error('预期拒绝落盘');
@@ -105,7 +112,7 @@ describe('脚手架落盘（§3.5.1）', () => {
     expectPathInvalid(
       escaping,
       { ...PLAN, files: [{ path: '../other.yaml', content: 'x' }] },
-      /目标文件已存在：\/out\/other\.yaml/,
+      /目标文件已存在：\/out\/other\.yaml/
     );
   });
 });
@@ -115,9 +122,22 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
     const provider = providerOf(PLAN);
     const fileSystem = new MemoryFileSystem();
     const artifacts = createLocalArtifacts({ scaffoldProvider: provider });
-    const result = await artifacts.create({ role: 'app', pluginId: 'chips.demo.app', name: '示例', dir: '/out/demo', fileSystem });
-    expect(result).toEqual({ pluginId: 'chips.demo.app', role: 'app', targetDir: '/out/demo', files: ['manifest.yaml', 'src/index.tsx'] });
-    expect(provider.inputs).toEqual([{ role: 'app', pluginId: 'chips.demo.app', name: '示例', targetDir: '/out/demo' }]);
+    const result = await artifacts.create({
+      role: 'app',
+      pluginId: 'chips.demo.app',
+      name: '示例',
+      dir: '/out/demo',
+      fileSystem,
+    });
+    expect(result).toEqual({
+      pluginId: 'chips.demo.app',
+      role: 'app',
+      targetDir: '/out/demo',
+      files: ['manifest.yaml', 'src/index.tsx'],
+    });
+    expect(provider.inputs).toEqual([
+      { role: 'app', pluginId: 'chips.demo.app', name: '示例', targetDir: '/out/demo' },
+    ]);
     expect(fileSystem.kind('/out/demo/src')).toBe('directory');
   });
 
@@ -127,7 +147,13 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
     expect(await resolveScaffoldProvider()).toBeUndefined();
     const artifacts = createLocalArtifacts();
     await expect(
-      artifacts.create({ role: 'app', pluginId: 'chips.demo.app', name: '示例', dir: '/out/demo', fileSystem: new MemoryFileSystem() }),
+      artifacts.create({
+        role: 'app',
+        pluginId: 'chips.demo.app',
+        name: '示例',
+        dir: '/out/demo',
+        fileSystem: new MemoryFileSystem(),
+      })
     ).rejects.toMatchObject({ code: 'CLI_TARGET_UNAVAILABLE' });
   });
 
@@ -139,7 +165,11 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
     expect(packed.memberCount).toBe(4);
     expect(packed.signed).toBe(false);
     expect(packed.archivePath).toBe('/src/hello/dist/hello-1.0.0.cpk');
-    const validated = await artifacts.validate({ path: packed.archivePath, source: 'user', fileSystem });
+    const validated = await artifacts.validate({
+      path: packed.archivePath,
+      source: 'user',
+      fileSystem,
+    });
     expect(validated.valid).toBe(true);
     expect(validated.stages.map((stage) => [stage.stage, stage.status])).toEqual([
       ['archive', 'passed'],
@@ -153,12 +183,19 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
   it('pack 指定输出目录与缺失源码目录时按引擎语义返回', async () => {
     const fileSystem = stageSource();
     const artifacts = createLocalArtifacts();
-    const packed = await artifacts.pack({ dir: '/src/hello', out: '/release', sign: false, fileSystem });
+    const packed = await artifacts.pack({
+      dir: '/src/hello',
+      out: '/release',
+      sign: false,
+      fileSystem,
+    });
     expect(packed.archivePath).toBe('/release/hello-1.0.0.cpk');
     expect(fileSystem.kind('/release')).toBe('directory');
     expect(fileSystem.exists('/release/hello-1.0.0.cpk')).toBe(true);
     const missing = new MemoryFileSystem();
-    await expect(artifacts.pack({ dir: '/src/nothing', sign: false, fileSystem: missing })).rejects.toMatchObject({
+    await expect(
+      artifacts.pack({ dir: '/src/nothing', sign: false, fileSystem: missing })
+    ).rejects.toMatchObject({
       code: 'CLI_PATH_INVALID',
     });
   });
@@ -176,7 +213,11 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
     });
     expect(packed.signed).toBe(true);
     expect(packed.memberCount).toBe(5);
-    const validated = await artifacts.validate({ path: packed.archivePath, source: 'builtin', fileSystem });
+    const validated = await artifacts.validate({
+      path: packed.archivePath,
+      source: 'builtin',
+      fileSystem,
+    });
     expect(validated.stages.map((stage) => `${stage.stage}:${stage.status}`)).toEqual([
       'archive:passed',
       'layout:passed',
@@ -188,14 +229,30 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
 
   it('validate 透传 platformVersion 使 engines.chips 门禁生效', async () => {
     const gated = '>=2.0.0';
-    const fileSystem = stageSource('/src/gated', BASECARD_MANIFEST.replace('runtime:', `engines:\n  chips: "${gated}"\nruntime:`));
+    const fileSystem = stageSource(
+      '/src/gated',
+      BASECARD_MANIFEST.replace('runtime:', `engines:\n  chips: "${gated}"\nruntime:`)
+    );
     const artifacts = createLocalArtifacts();
     const packed = await artifacts.pack({ dir: '/src/gated', sign: false, fileSystem });
     await expect(
-      artifacts.validate({ path: packed.archivePath, source: 'user', platformVersion: '1.0.0', fileSystem }),
-    ).rejects.toMatchObject({ code: 'CPK_ENGINE_UNSUPPORTED', details: { pointer: 'engines.chips' } });
+      artifacts.validate({
+        path: packed.archivePath,
+        source: 'user',
+        platformVersion: '1.0.0',
+        fileSystem,
+      })
+    ).rejects.toMatchObject({
+      code: 'CPK_ENGINE_UNSUPPORTED',
+      details: { pointer: 'engines.chips' },
+    });
     await expect(
-      artifacts.validate({ path: packed.archivePath, source: 'user', platformVersion: '2.1.0', fileSystem }),
+      artifacts.validate({
+        path: packed.archivePath,
+        source: 'user',
+        platformVersion: '2.1.0',
+        fileSystem,
+      })
     ).resolves.toMatchObject({ valid: true });
   });
 });
@@ -210,7 +267,9 @@ describe('本地客户端组装（§2.5 无承载环境）', () => {
     await expect(client.commands.invoke({ commandId: 'demo.open' })).rejects.toMatchObject({
       code: 'CLI_TARGET_UNAVAILABLE',
     });
-    await expect(client.platform.version()).rejects.toMatchObject({ code: 'CLI_TARGET_UNAVAILABLE' });
+    await expect(client.platform.version()).rejects.toMatchObject({
+      code: 'CLI_TARGET_UNAVAILABLE',
+    });
     await expect(client.apps.ensureRunning({ pluginId: 'chips.demo.app' })).rejects.toMatchObject({
       code: 'CLI_TARGET_UNAVAILABLE',
     });
@@ -221,7 +280,9 @@ describe('本地客户端组装（§2.5 无承载环境）', () => {
     const client = createLocalClient();
     const packed = await client.artifacts.pack({ dir: '/src/hello', sign: false, fileSystem });
     expect(packed.digest).toMatch(/^sha256:/);
-    await expect(client.artifacts.validate({ path: packed.archivePath, source: 'user', fileSystem })).resolves.toMatchObject({
+    await expect(
+      client.artifacts.validate({ path: packed.archivePath, source: 'user', fileSystem })
+    ).resolves.toMatchObject({
       valid: true,
     });
   });
@@ -251,7 +312,9 @@ describe('本地客户端组装（§2.5 无承载环境）', () => {
     });
     await expect(client.cliCommand.list()).resolves.toEqual({ index: {}, commands: [] });
     await client.apps.ensureRunning({ pluginId: 'chips.demo.app' });
-    await expect(client.devHost.runPlugin({ dir: '/p', workspace: '/ws' })).resolves.toEqual({ started: true });
+    await expect(client.devHost.runPlugin({ dir: '/p', workspace: '/ws' })).resolves.toEqual({
+      started: true,
+    });
     expect(seen).toEqual([
       'cli.command.list',
       'apps.ensureRunning:chips.demo.app',
@@ -263,7 +326,13 @@ describe('本地客户端组装（§2.5 无承载环境）', () => {
       details: { method: 'platform.version' },
     });
     await expect(
-      client.artifacts.create({ role: 'app', pluginId: 'chips.demo.app', name: '示例', dir: '/out/demo', fileSystem: new MemoryFileSystem() }),
+      client.artifacts.create({
+        role: 'app',
+        pluginId: 'chips.demo.app',
+        name: '示例',
+        dir: '/out/demo',
+        fileSystem: new MemoryFileSystem(),
+      })
     ).resolves.toMatchObject({ targetDir: '/out/demo' });
   });
 });

@@ -5,7 +5,14 @@
  * 与 Bridge 的 `STANDARD_EVENTS` 比对 ID 与可见性，payload/触发时机进入快照评审。
  */
 
-import { collapse, findLabelledLine, findSection, findTable, inlineCodeTokens, splitHeadingSections } from '../markdown.js';
+import {
+  collapse,
+  findLabelledLine,
+  findSection,
+  findTable,
+  inlineCodeTokens,
+  splitHeadingSections,
+} from '../markdown.js';
 import type { DocReader, DocRef } from './reader.js';
 import { EVENT_DECLARATION_FILES, EVENT_RESERVED_DOMAIN_SOURCE } from './sources.js';
 
@@ -80,16 +87,20 @@ export function classifyVisibility(text: string): DocVisibilityKind {
 
 function parseReservedDomains(reader: DocReader): readonly DocReservedDomain[] {
   const text = reader.read(EVENT_RESERVED_DOMAIN_SOURCE.file);
-  const body = findSection(text, EVENT_RESERVED_DOMAIN_SOURCE.level, EVENT_RESERVED_DOMAIN_SOURCE.heading);
+  const body = findSection(
+    text,
+    EVENT_RESERVED_DOMAIN_SOURCE.level,
+    EVENT_RESERVED_DOMAIN_SOURCE.heading
+  );
   if (body === null) {
     throw new Error(
-      `未找到事件保留域章节：${EVENT_RESERVED_DOMAIN_SOURCE.file} §${EVENT_RESERVED_DOMAIN_SOURCE.heading}`,
+      `未找到事件保留域章节：${EVENT_RESERVED_DOMAIN_SOURCE.file} §${EVENT_RESERVED_DOMAIN_SOURCE.heading}`
     );
   }
   const table = findTable(body, '域');
   if (table === null) {
     throw new Error(
-      `事件保留域章节缺少「域」表：${EVENT_RESERVED_DOMAIN_SOURCE.file} §${EVENT_RESERVED_DOMAIN_SOURCE.heading}`,
+      `事件保留域章节缺少「域」表：${EVENT_RESERVED_DOMAIN_SOURCE.file} §${EVENT_RESERVED_DOMAIN_SOURCE.heading}`
     );
   }
   const domains: DocReservedDomain[] = [];
@@ -97,13 +108,16 @@ function parseReservedDomains(reader: DocReader): readonly DocReservedDomain[] {
     const token = inlineCodeTokens(row[0] ?? '').find((value) => /^[a-z][a-z0-9-]*$/.test(value));
     if (token === undefined) {
       throw new Error(
-        `保留域行未解析出域名：${row[0] ?? ''}（${EVENT_RESERVED_DOMAIN_SOURCE.file} §${EVENT_RESERVED_DOMAIN_SOURCE.heading}）`,
+        `保留域行未解析出域名：${row[0] ?? ''}（${EVENT_RESERVED_DOMAIN_SOURCE.file} §${EVENT_RESERVED_DOMAIN_SOURCE.heading}）`
       );
     }
     const countMatch = /(\d+)\s*个/.exec(collapse(row[row.length - 1] ?? ''));
     domains.push({
       domain: token,
-      declaredCount: countMatch === null || countMatch[1] === undefined ? null : Number.parseInt(countMatch[1], 10),
+      declaredCount:
+        countMatch === null || countMatch[1] === undefined
+          ? null
+          : Number.parseInt(countMatch[1], 10),
     });
   }
   return domains;

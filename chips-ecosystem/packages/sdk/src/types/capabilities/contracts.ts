@@ -23,7 +23,11 @@ import type {
   ICommandRegisterOutput,
   ICommandUnregisterInput,
 } from '../commands.js';
-import type { IListHandlersOutput, IResourceOpenRequest, IResourceOpenResult } from '../resource-open.js';
+import type {
+  IListHandlersOutput,
+  IResourceOpenRequest,
+  IResourceOpenResult,
+} from '../resource-open.js';
 import type { VoidInput } from './common.js';
 import type {
   IDocumentCreateInput,

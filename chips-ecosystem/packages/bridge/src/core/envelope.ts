@@ -39,7 +39,7 @@ function descriptorMap(compiled: ICompiledSchema): ReadonlyMap<string, IBinaryFi
  * 数组元素下标段（`/0`、`/12`）在描述符中以 `*` 记录，故存在数字段时回退到通配形式。
  */
 function createDescriptorLookup(
-  compiled: ICompiledSchema,
+  compiled: ICompiledSchema
 ): (pointer: string) => IBinaryFieldDescriptor | undefined {
   const descriptors = descriptorMap(compiled);
   if (descriptors.size === 0) {
@@ -61,7 +61,7 @@ function splitValue(
   value: unknown,
   pointer: string,
   lookup: (pointer: string) => IBinaryFieldDescriptor | undefined,
-  bin: Record<string, Uint8Array>,
+  bin: Record<string, Uint8Array>
 ): unknown {
   const descriptor = lookup(pointer);
   if (descriptor !== undefined) {
@@ -83,9 +83,7 @@ function splitValue(
     return pointer;
   }
   if (Array.isArray(value)) {
-    return value.map((item, index) =>
-      splitValue(item, `${pointer}/${String(index)}`, lookup, bin),
-    );
+    return value.map((item, index) => splitValue(item, `${pointer}/${String(index)}`, lookup, bin));
   }
   if (isPlainObject(value)) {
     const result: Record<string, unknown> = {};
@@ -109,7 +107,7 @@ function mergeValue(
   pointer: string,
   lookup: (pointer: string) => IBinaryFieldDescriptor | undefined,
   bin: Record<string, Uint8Array>,
-  referenced: Set<string>,
+  referenced: Set<string>
 ): unknown {
   const descriptor = lookup(pointer);
   if (descriptor !== undefined) {
@@ -125,13 +123,19 @@ function mergeValue(
   }
   if (Array.isArray(value)) {
     return value.map((item, index) =>
-      mergeValue(item, `${pointer}/${String(index)}`, lookup, bin, referenced),
+      mergeValue(item, `${pointer}/${String(index)}`, lookup, bin, referenced)
     );
   }
   if (isPlainObject(value)) {
     const result: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(value)) {
-      result[key] = mergeValue(child, `${pointer}/${escapePointerSegment(key)}`, lookup, bin, referenced);
+      result[key] = mergeValue(
+        child,
+        `${pointer}/${escapePointerSegment(key)}`,
+        lookup,
+        bin,
+        referenced
+      );
     }
     return result;
   }

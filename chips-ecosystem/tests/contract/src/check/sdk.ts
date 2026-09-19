@@ -16,7 +16,11 @@ export interface SdkCheckInput {
   readonly sdk: SdkExportModel;
 }
 
-const EXPECTED_ENTRIES: readonly string[] = ['@chips/sdk', '@chips/sdk/testing', '@chips/sdk/scaffold'];
+const EXPECTED_ENTRIES: readonly string[] = [
+  '@chips/sdk',
+  '@chips/sdk/testing',
+  '@chips/sdk/scaffold',
+];
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function checkSdkExports(input: SdkCheckInput): ContractViolation[] {
@@ -30,7 +34,7 @@ export function checkSdkExports(input: SdkCheckInput): ContractViolation[] {
       violation('CONTRACT_SDK_ENTRY_SET', sdk.ref.file, 'SDK 公开入口集合与规范不一致', {
         expected: expectedSorted.join(', '),
         actual: actualSorted.join(', '),
-      }),
+      })
     );
   }
 
@@ -38,11 +42,13 @@ export function checkSdkExports(input: SdkCheckInput): ContractViolation[] {
   for (const value of sdk.values) {
     if (!IDENTIFIER.test(value.name)) {
       violations.push(
-        violation('CONTRACT_SDK_VALUE_NAME', value.name, 'SDK 值导出名称不是合法标识符'),
+        violation('CONTRACT_SDK_VALUE_NAME', value.name, 'SDK 值导出名称不是合法标识符')
       );
     }
     if (valueNames.has(value.name)) {
-      violations.push(violation('CONTRACT_SDK_VALUE_DUPLICATE', value.name, 'SDK 值导出清单存在重复名称'));
+      violations.push(
+        violation('CONTRACT_SDK_VALUE_DUPLICATE', value.name, 'SDK 值导出清单存在重复名称')
+      );
     }
     valueNames.add(value.name);
   }
@@ -52,7 +58,11 @@ export function checkSdkExports(input: SdkCheckInput): ContractViolation[] {
     for (const name of typeEntry.names) {
       if (!IDENTIFIER.test(name)) {
         violations.push(
-          violation('CONTRACT_SDK_TYPE_NAME', `${typeEntry.category}:${name}`, 'SDK 类型导出名称不是合法标识符'),
+          violation(
+            'CONTRACT_SDK_TYPE_NAME',
+            `${typeEntry.category}:${name}`,
+            'SDK 类型导出名称不是合法标识符'
+          )
         );
       }
       if (seen.has(name)) {
@@ -60,8 +70,8 @@ export function checkSdkExports(input: SdkCheckInput): ContractViolation[] {
           violation(
             'CONTRACT_SDK_TYPE_DUPLICATE',
             `${typeEntry.category}:${name}`,
-            '同一类型分类内存在重复类型名',
-          ),
+            '同一类型分类内存在重复类型名'
+          )
         );
       }
       seen.add(name);
@@ -72,25 +82,27 @@ export function checkSdkExports(input: SdkCheckInput): ContractViolation[] {
   for (const name of sdk.testing) {
     if (!IDENTIFIER.test(name)) {
       violations.push(
-        violation('CONTRACT_SDK_TESTING_NAME', name, '@chips/sdk/testing 导出名称不是合法标识符'),
+        violation('CONTRACT_SDK_TESTING_NAME', name, '@chips/sdk/testing 导出名称不是合法标识符')
       );
     }
     if (testingSeen.has(name)) {
       violations.push(
-        violation('CONTRACT_SDK_TESTING_DUPLICATE', name, '@chips/sdk/testing 导出清单存在重复名称'),
+        violation('CONTRACT_SDK_TESTING_DUPLICATE', name, '@chips/sdk/testing 导出清单存在重复名称')
       );
     }
     testingSeen.add(name);
   }
 
-  const roleTypes = new Set(sdk.types.find((entry) => entry.category.includes('插件角色'))?.names ?? []);
+  const roleTypes = new Set(
+    sdk.types.find((entry) => entry.category.includes('插件角色'))?.names ?? []
+  );
   for (const entry of Object.values(ROLE_ENTRY_INTERFACES)) {
     if (!roleTypes.has(entry)) {
       violations.push(
         violation('CONTRACT_SDK_ROLE_ENTRY_MISSING', entry, 'SDK 导出清单缺少角色入口接口', {
           expected: '「插件角色」行包含该类型',
           actual: '缺失',
-        }),
+        })
       );
     }
   }

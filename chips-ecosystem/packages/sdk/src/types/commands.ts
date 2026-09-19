@@ -9,14 +9,7 @@
 
 /** 命令触发来源：由消费入口在调用时声明。 */
 export type CommandSource =
-  | 'palette'
-  | 'menu'
-  | 'context-menu'
-  | 'tray'
-  | 'toolbar'
-  | 'shortcut'
-  | 'api'
-  | 'cli';
+  'palette' | 'menu' | 'context-menu' | 'tray' | 'toolbar' | 'shortcut' | 'api' | 'cli';
 
 /** 作用域种类。 */
 export type CommandScopeKind = 'global' | 'app' | 'surface' | 'document';

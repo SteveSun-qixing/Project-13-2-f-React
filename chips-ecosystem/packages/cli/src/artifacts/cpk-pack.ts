@@ -47,10 +47,12 @@ export function packCpk(options: ICpkPackOptions): ICliArtifactPackResult {
       manifest: parseManifestText(new TextDecoder('utf-8', { fatal: false }).decode(manifestEntry)),
       members: new Set(members.keys()),
       catalog: options.catalog,
-      ...(options.platformVersion === undefined ? {} : { platformVersion: options.platformVersion }),
+      ...(options.platformVersion === undefined
+        ? {}
+        : { platformVersion: options.platformVersion }),
       ...(packageVersion === undefined ? {} : { packageVersion }),
     },
-    fileSystem,
+    fileSystem
   );
 
   validateLayout(members, manifest.role);
@@ -110,11 +112,18 @@ function readPackageVersion(fileSystem: IFileSystemPort, dir: string): string | 
     const parsed = JSON.parse(fileSystem.readText(path)) as { version?: unknown };
     return typeof parsed.version === 'string' ? parsed.version : undefined;
   } catch {
-    throw cliError('CPK_MANIFEST_INVALID', 'package.json 不是合法 JSON', { stage: 'manifest', file: 'package.json' });
+    throw cliError('CPK_MANIFEST_INVALID', 'package.json 不是合法 JSON', {
+      stage: 'manifest',
+      file: 'package.json',
+    });
   }
 }
 
-function signContentHash(contentHash: string, signingKeyFile: string, fileSystem: IFileSystemPort): string {
+function signContentHash(
+  contentHash: string,
+  signingKeyFile: string,
+  fileSystem: IFileSystemPort
+): string {
   try {
     const pem = fileSystem.readText(signingKeyFile);
     const key = createPrivateKey(pem);

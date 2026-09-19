@@ -13,13 +13,7 @@ import { ChipsError } from './errors.js';
 import { RESOURCE_ERROR_CODES } from './resource.js';
 
 export type ResourceUriCategory =
-  | 'workspace'
-  | 'document'
-  | 'plugin'
-  | 'platform'
-  | 'temporary'
-  | 'memory'
-  | 'external';
+  'workspace' | 'document' | 'plugin' | 'platform' | 'temporary' | 'memory' | 'external';
 
 export interface IExternalOrigin {
   readonly scheme: string;
@@ -190,13 +184,18 @@ function encodeHostForUri(origin: IExternalOrigin): string {
 
 function normalizeExternalOrigin(
   schemeInput: string,
-  hostInput: string,
+  hostInput: string
 ): { origin: IExternalOrigin; authoritySegment: string } {
   const scheme = schemeInput.toLowerCase();
   if (!SCHEME_PATTERN.test(scheme)) {
     throw invalidUri('invalid_origin', '外部资源 origin 不合法');
   }
-  if (hostInput.includes('@') || hostInput.includes('/') || hostInput.includes('?') || hostInput === '') {
+  if (
+    hostInput.includes('@') ||
+    hostInput.includes('/') ||
+    hostInput.includes('?') ||
+    hostInput === ''
+  ) {
     throw invalidUri('invalid_origin', '外部资源 origin 不合法');
   }
   let url: URL;
@@ -330,7 +329,10 @@ export function parseResourceUri(input: string, options: IResourceUriOptions = {
  * 资源入口归一：`chips-resource://` 原样解析；裸 `http(s)://` 归一为 External URI；
  * 其余 scheme（含 `file://`、`webdav://`）返回 `RESOURCE_UNSUPPORTED_SCHEME`。
  */
-export function normalizeResourceInput(input: string, options: IResourceUriOptions = {}): IResourceUri {
+export function normalizeResourceInput(
+  input: string,
+  options: IResourceUriOptions = {}
+): IResourceUri {
   const schemeMatch = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(input);
   if (schemeMatch === null) {
     throw invalidUri('scheme', '资源地址缺少协议前缀');

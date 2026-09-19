@@ -6,7 +6,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { createNodeOutputSink, type IOutputSink } from '../src/output/io.js';
-import { createProgressWriter, formatProgress, type IProgressReport } from '../src/output/progress.js';
+import {
+  createProgressWriter,
+  formatProgress,
+  type IProgressReport,
+} from '../src/output/progress.js';
 
 interface IFakeStream {
   readonly chunks: string[];
@@ -26,11 +30,7 @@ function fakeStream(isTTY: boolean | undefined): IFakeStream {
 }
 
 /** 在假 stdout/stderr 下执行断言体，结束后还原进程流。 */
-function withProcessStreams(
-  stdout: IFakeStream,
-  stderr: IFakeStream,
-  action: () => void,
-): void {
+function withProcessStreams(stdout: IFakeStream, stderr: IFakeStream, action: () => void): void {
   const originalOut = process.stdout;
   const originalErr = process.stderr;
   Object.defineProperty(process, 'stdout', { value: stdout, configurable: true });

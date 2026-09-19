@@ -38,7 +38,7 @@ function describeValue(value: unknown): string {
  */
 export function assertChipsError(
   error: unknown,
-  expectedCode?: string,
+  expectedCode?: string
 ): asserts error is ChipsError {
   if (!isChipsError(error)) {
     throw new Error(`断言失败：期望 ChipsError，实际为 ${describeValue(error)}`);

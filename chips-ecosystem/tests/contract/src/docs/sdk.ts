@@ -5,7 +5,13 @@
  * （见 `check/roles.ts` 的交叉核对），快照锁定清单本身。
  */
 
-import { collapse, findSection, findTable, inlineCodeTokens, stripMarkdownInline } from '../markdown.js';
+import {
+  collapse,
+  findSection,
+  findTable,
+  inlineCodeTokens,
+  stripMarkdownInline,
+} from '../markdown.js';
 import type { DocReader, DocRef } from './reader.js';
 import { SDK_EXPORT_SOURCE, SDK_PACKAGE_ENTRY_SOURCE } from './sources.js';
 
@@ -46,7 +52,9 @@ function parseEntries(reader: DocReader): readonly SdkPackageEntry[] {
   const text = reader.read(SDK_PACKAGE_ENTRY_SOURCE.file);
   const body = findSection(text, SDK_PACKAGE_ENTRY_SOURCE.level, SDK_PACKAGE_ENTRY_SOURCE.heading);
   if (body === null) {
-    throw new Error(`未找到 SDK 包入口章节：${SDK_PACKAGE_ENTRY_SOURCE.file} §${SDK_PACKAGE_ENTRY_SOURCE.heading}`);
+    throw new Error(
+      `未找到 SDK 包入口章节：${SDK_PACKAGE_ENTRY_SOURCE.file} §${SDK_PACKAGE_ENTRY_SOURCE.heading}`
+    );
   }
   const table = findTable(body, '入口');
   if (table === null) {
@@ -66,12 +74,16 @@ function parseExportTables(reader: DocReader): {
   const text = reader.read(SDK_EXPORT_SOURCE.file);
   const body = findSection(text, SDK_EXPORT_SOURCE.level, SDK_EXPORT_SOURCE.heading);
   if (body === null) {
-    throw new Error(`未找到 SDK 导出清单章节：${SDK_EXPORT_SOURCE.file} §${SDK_EXPORT_SOURCE.heading}`);
+    throw new Error(
+      `未找到 SDK 导出清单章节：${SDK_EXPORT_SOURCE.file} §${SDK_EXPORT_SOURCE.heading}`
+    );
   }
   const values: SdkValueExport[] = [];
   const valueTable = findTable(body, '种类');
   if (valueTable === null) {
-    throw new Error(`SDK 导出清单缺少值导出表：${SDK_EXPORT_SOURCE.file} §${SDK_EXPORT_SOURCE.heading}`);
+    throw new Error(
+      `SDK 导出清单缺少值导出表：${SDK_EXPORT_SOURCE.file} §${SDK_EXPORT_SOURCE.heading}`
+    );
   }
   for (const row of valueTable.rows) {
     const name = inlineCodeTokens(row[0] ?? '')[0];
@@ -83,7 +95,9 @@ function parseExportTables(reader: DocReader): {
   const types: SdkTypeExport[] = [];
   const typeTable = findTable(body, '分类');
   if (typeTable === null) {
-    throw new Error(`SDK 导出清单缺少类型导出表：${SDK_EXPORT_SOURCE.file} §${SDK_EXPORT_SOURCE.heading}`);
+    throw new Error(
+      `SDK 导出清单缺少类型导出表：${SDK_EXPORT_SOURCE.file} §${SDK_EXPORT_SOURCE.heading}`
+    );
   }
   for (const row of typeTable.rows) {
     const tokens = inlineCodeTokens(row[1] ?? '');
@@ -130,7 +144,7 @@ export function parseSdkExportModel(reader: DocReader): SdkExportModel {
 /** 全部具体类型名（跨分类去重升序）。 */
 export function sdkConcreteTypeNames(model: SdkExportModel): readonly string[] {
   return [...new Set(model.types.flatMap((entry) => entry.names))].sort((left, right) =>
-    left.localeCompare(right),
+    left.localeCompare(right)
   );
 }
 
@@ -140,6 +154,8 @@ export function isTypeExported(model: SdkExportModel, name: string): boolean {
     return true;
   }
   return model.types.some((entry) =>
-    entry.patterns.some((pattern) => new RegExp(`^${pattern.split('*').join('[A-Za-z0-9]*')}$`).test(name)),
+    entry.patterns.some((pattern) =>
+      new RegExp(`^${pattern.split('*').join('[A-Za-z0-9]*')}$`).test(name)
+    )
   );
 }

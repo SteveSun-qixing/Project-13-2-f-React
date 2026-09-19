@@ -6,13 +6,7 @@ import type { ISubscription } from './bridge.js';
 import type { IChipsError } from './errors.js';
 
 export type ResourceScope =
-  | 'workspace'
-  | 'document'
-  | 'plugin'
-  | 'platform'
-  | 'external'
-  | 'temporary'
-  | 'memory';
+  'workspace' | 'document' | 'plugin' | 'platform' | 'external' | 'temporary' | 'memory';
 
 export type ResourceState = 'open' | 'invalidated' | 'released';
 

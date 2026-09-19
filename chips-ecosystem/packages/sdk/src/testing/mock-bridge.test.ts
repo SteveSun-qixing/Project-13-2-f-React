@@ -11,7 +11,7 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
     () => {
       throw new Error('预期调用被拒绝');
     },
-    (error: unknown) => error,
+    (error: unknown) => error
   );
 }
 
@@ -37,7 +37,7 @@ describe('createMockBridge 能力通道', () => {
     const bridge = createMockBridge();
     const seen: unknown[] = [];
     bridge.handle('document:open', (input: { documentId: string }) =>
-      Promise.resolve({ documentId: input.documentId, kind: 'card' }),
+      Promise.resolve({ documentId: input.documentId, kind: 'card' })
     );
     await expect(bridge.request('document:open', { documentId: 'a1B2c3D4e5' })).resolves.toEqual({
       documentId: 'a1B2c3D4e5',
@@ -128,7 +128,9 @@ describe('createMockBridge 调用记录', () => {
   });
 
   it('resource 不经能力通道，不进入 calls', () => {
-    const bridge = createMockBridge({ resources: { 'chips-resource://workspace/a.card': { data: 'x' } } });
+    const bridge = createMockBridge({
+      resources: { 'chips-resource://workspace/a.card': { data: 'x' } },
+    });
     bridge.resource('chips-resource://workspace/a.card');
     expect(bridge.calls).toEqual([]);
   });
@@ -266,21 +268,21 @@ describe('createMockBridge reset', () => {
       scope: 'memory',
     };
     await expect(bridge.resource('chips-resource://workspace/a.card').metadata()).resolves.toEqual(
-      expected,
+      expected
     );
     // 构造时已登记为内部快照：之后追加 / 覆盖夹具都不改变 Mock 提供的资源
     fixtures['chips-resource://workspace/b.card'] = { data: '后加内容' };
     fixtures['chips-resource://workspace/a.card'] = { data: '改写内容' };
     await expect(bridge.resource('chips-resource://workspace/a.card').read()).resolves.toEqual(
-      new TextEncoder().encode('初始内容'),
+      new TextEncoder().encode('初始内容')
     );
     expect(
       ((await rejection(bridge.resource('chips-resource://workspace/b.card').read())) as ChipsError)
-        .code,
+        .code
     ).toBe(MOCK_ERROR_CODES.notFound);
     bridge.reset();
     await expect(bridge.resource('chips-resource://workspace/a.card').metadata()).resolves.toEqual(
-      expected,
+      expected
     );
   });
 

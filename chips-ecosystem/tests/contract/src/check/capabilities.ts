@@ -33,8 +33,8 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
         {
           expected: String(docs.declaredCount),
           actual: String(docs.capabilities.length),
-        },
-      ),
+        }
+      )
     );
   }
 
@@ -46,20 +46,29 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
       violation('CONTRACT_CAPABILITY_MISSING', id, '文档登记的内置能力未出现在 Bridge 注册表', {
         expected: 'Bridge BUILTIN_CAPABILITIES 包含该 ID',
         actual: '缺失',
-      }),
+      })
     );
   }
   for (const id of capabilityDiff.extra) {
     violations.push(
-      violation('CONTRACT_CAPABILITY_EXTRA', id, 'Bridge 注册表登记了文档未登记的能力（禁止自造能力 ID）', {
-        expected: 'R19 总表包含该 ID',
-        actual: '未登记',
-      }),
+      violation(
+        'CONTRACT_CAPABILITY_EXTRA',
+        id,
+        'Bridge 注册表登记了文档未登记的能力（禁止自造能力 ID）',
+        {
+          expected: 'R19 总表包含该 ID',
+          actual: '未登记',
+        }
+      )
     );
   }
 
-  const codeCapabilityById = new Map(code.capabilities.map((capability) => [capability.id, capability]));
-  const docCapabilityById = new Map(docs.capabilities.map((capability) => [capability.id, capability]));
+  const codeCapabilityById = new Map(
+    code.capabilities.map((capability) => [capability.id, capability])
+  );
+  const docCapabilityById = new Map(
+    docs.capabilities.map((capability) => [capability.id, capability])
+  );
   for (const [id, docCapability] of docCapabilityById) {
     const codeCapability = codeCapabilityById.get(id);
     if (codeCapability === undefined) {
@@ -72,7 +81,7 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
         violation('CONTRACT_CAPABILITY_PERMISSIONS', id, '能力→权限映射与 R19 总表不一致', {
           expected,
           actual,
-        }),
+        })
       );
     }
   }
@@ -84,7 +93,7 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
       violations.push(
         violation('CONTRACT_CAPABILITY_ID_GRAMMAR', capability.id, 'Bridge 能力 ID 文法非法', {
           expected: '^[a-z][a-z0-9-]*:[a-z][A-Za-z0-9-]*$',
-        }),
+        })
       );
     }
     for (const permission of capability.permissions) {
@@ -93,8 +102,8 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
           violation(
             'CONTRACT_CAPABILITY_PERMISSION_UNKNOWN',
             `${capability.id} → ${permission}`,
-            '能力声明的权限不在 Bridge 权限词表内',
-          ),
+            '能力声明的权限不在 Bridge 权限词表内'
+          )
         );
       }
     }
@@ -104,8 +113,8 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
           violation(
             'CONTRACT_CAPABILITY_TARGET_PERMISSION',
             `${capability.id} → ${target.permission}`,
-            '限定值匹配目标引用了能力未声明的权限',
-          ),
+            '限定值匹配目标引用了能力未声明的权限'
+          )
         );
       }
     }
@@ -117,15 +126,20 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
       violation('CONTRACT_PERMISSION_MISSING', id, '文档登记的权限未出现在 Bridge 权限词表', {
         expected: 'BUILTIN_PERMISSIONS 包含该 ID',
         actual: '缺失',
-      }),
+      })
     );
   }
   for (const id of permissionDiff.extra) {
     violations.push(
-      violation('CONTRACT_PERMISSION_EXTRA', id, 'Bridge 权限词表登记了文档未登记的权限（禁止自造权限 ID）', {
-        expected: '权限清单总表包含该 ID',
-        actual: '未登记',
-      }),
+      violation(
+        'CONTRACT_PERMISSION_EXTRA',
+        id,
+        'Bridge 权限词表登记了文档未登记的权限（禁止自造权限 ID）',
+        {
+          expected: '权限清单总表包含该 ID',
+          actual: '未登记',
+        }
+      )
     );
   }
 
@@ -137,8 +151,8 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
           violation(
             'CONTRACT_PERMISSION_UNREGISTERED',
             `${capability.id} → ${permission}`,
-            '能力声明的权限未在权限清单总表登记',
-          ),
+            '能力声明的权限未在权限清单总表登记'
+          )
         );
       }
     }
@@ -150,8 +164,8 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
           violation(
             'CONTRACT_DOC_PERMISSION_UNREGISTERED',
             `${capability.id} → ${permission}`,
-            'R19 总表引用了权限清单总表之外的权限',
-          ),
+            'R19 总表引用了权限清单总表之外的权限'
+          )
         );
       }
     }
@@ -160,14 +174,22 @@ export function checkCapabilities(input: CapabilityCheckInput): ContractViolatio
   for (const id of codeCapabilityIds) {
     if (docPermissionSet.has(id)) {
       violations.push(
-        violation('CONTRACT_NAMESPACE_OVERLAP', id, '能力 ID 与权限 ID 重叠（违反 R3 命名空间隔离）'),
+        violation(
+          'CONTRACT_NAMESPACE_OVERLAP',
+          id,
+          '能力 ID 与权限 ID 重叠（违反 R3 命名空间隔离）'
+        )
       );
     }
   }
   for (const id of docCapabilityIds) {
     if (docPermissionSet.has(id)) {
       violations.push(
-        violation('CONTRACT_NAMESPACE_OVERLAP', id, '文档能力 ID 与权限 ID 重叠（违反 R3 命名空间隔离）'),
+        violation(
+          'CONTRACT_NAMESPACE_OVERLAP',
+          id,
+          '文档能力 ID 与权限 ID 重叠（违反 R3 命名空间隔离）'
+        )
       );
     }
   }

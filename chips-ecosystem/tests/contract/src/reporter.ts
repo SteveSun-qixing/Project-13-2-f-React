@@ -5,10 +5,21 @@
  * 进程未捕获错误都能进入报告；报告器不修改退出码，门禁判定仍由 vitest 退出码承担。
  */
 
-import type { Reporter, SerializedError, TestCase, TestModule, TestRunEndReason } from 'vitest/node';
+import type {
+  Reporter,
+  SerializedError,
+  TestCase,
+  TestModule,
+  TestRunEndReason,
+} from 'vitest/node';
 
 import { workspaceRelative } from './paths.js';
-import { buildContractReport, writeContractReport, type ContractTestEntry, type ContractTestFile } from './report.js';
+import {
+  buildContractReport,
+  writeContractReport,
+  type ContractTestEntry,
+  type ContractTestFile,
+} from './report.js';
 import { isSnapshotUpdateMode } from './snapshot.js';
 
 function toEntry(test: TestCase): ContractTestEntry {
@@ -46,7 +57,7 @@ export default class ContractReporter implements Reporter {
   onTestRunEnd(
     testModules: ReadonlyArray<TestModule>,
     unhandledErrors: ReadonlyArray<SerializedError>,
-    _reason: TestRunEndReason,
+    _reason: TestRunEndReason
   ): void {
     const files = collectFiles(testModules);
     const report = buildContractReport({
@@ -58,11 +69,11 @@ export default class ContractReporter implements Reporter {
     const written = writeContractReport(report);
     if (report.status === 'failed') {
       console.error(
-        `[contract] 失败 ${report.summary.failed} 项；报告：${workspaceRelative(written.markdownPath)}`,
+        `[contract] 失败 ${report.summary.failed} 项；报告：${workspaceRelative(written.markdownPath)}`
       );
     } else {
       console.warn(
-        `[contract] 通过 ${report.summary.passed} 项；报告：${workspaceRelative(written.markdownPath)}`,
+        `[contract] 通过 ${report.summary.passed} 项；报告：${workspaceRelative(written.markdownPath)}`
       );
     }
   }

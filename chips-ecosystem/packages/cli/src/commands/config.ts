@@ -96,7 +96,11 @@ const resetCommand: ICliCommandDefinition = {
 };
 
 /** `config` 命令组。 */
-export const configCommands: readonly ICliCommandDefinition[] = [listCommand, setCommand, resetCommand];
+export const configCommands: readonly ICliCommandDefinition[] = [
+  listCommand,
+  setCommand,
+  resetCommand,
+];
 
 /** 供帮助展示的参数声明集合。 */
 export const configParameterSets: Readonly<Record<string, IParameterSet>> = {

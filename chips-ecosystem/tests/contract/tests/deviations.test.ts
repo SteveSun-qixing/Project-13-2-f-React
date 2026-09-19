@@ -11,7 +11,20 @@
 
 import { describe, it } from 'vitest';
 
-import { appendUnknownCapability, appendUnknownErrorCode, appendUnknownPalCode, createDeviatedReader, loadDeviatedDocModels, removeHeadingSection, removeLineContaining, replaceOnce, driftCodeCapabilityPermissions, driftEventVisibility, appendUnknownEvent, removeCodeCapability } from '../src/fixtures/deviations.js';
+import {
+  appendUnknownCapability,
+  appendUnknownErrorCode,
+  appendUnknownPalCode,
+  createDeviatedReader,
+  loadDeviatedDocModels,
+  removeHeadingSection,
+  removeLineContaining,
+  replaceOnce,
+  driftCodeCapabilityPermissions,
+  driftEventVisibility,
+  appendUnknownEvent,
+  removeCodeCapability,
+} from '../src/fixtures/deviations.js';
 import { checkCapabilities } from '../src/check/capabilities.js';
 import { checkErrors } from '../src/check/errors.js';
 import { checkEvents } from '../src/check/events.js';
@@ -34,19 +47,22 @@ const EVENT_DOC_DOCUMENT = '05-接口与契约/05.06-05-事件契约规范-四�
 const BRIDGE_ERROR_DOC = '01-架构设计/01-子系统设计/02.09-02-Bridge三层设计-九、错误归一.md';
 const ROLE_APP_DOC = '05-接口与契约/07.02-07-应用插件接口-二、接口总览.md';
 const SDK_EXPORT_DOC = '05-接口与契约/02.02-02-SDK-API规范-二、导出入口.md';
-const FRAME_DOC = '01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md';
+const FRAME_DOC =
+  '01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md';
 
 function expectViolation(
   violations: readonly ContractViolation[],
   code: string,
-  subjectIncludes?: string,
+  subjectIncludes?: string
 ): void {
   const matched = violations.filter(
-    (item) => item.code === code && (subjectIncludes === undefined || item.subject.includes(subjectIncludes)),
+    (item) =>
+      item.code === code &&
+      (subjectIncludes === undefined || item.subject.includes(subjectIncludes))
   );
   if (matched.length === 0) {
     throw new Error(
-      `注入偏差未被检出：预期 ${code}${subjectIncludes === undefined ? '' : `（subject 含 ${subjectIncludes}）`}\n实际偏差：\n${formatViolations(violations)}`,
+      `注入偏差未被检出：预期 ${code}${subjectIncludes === undefined ? '' : `（subject 含 ${subjectIncludes}）`}\n实际偏差：\n${formatViolations(violations)}`
     );
   }
 }
@@ -57,7 +73,8 @@ describe('能力表偏差注入', () => {
       {
         file: CAPABILITY_SOURCE.file,
         description: '删除 file:read 登记行',
-        mutate: (text) => removeLineContaining(text, '| `file:read` / `file:list` / `file:watch` |'),
+        mutate: (text) =>
+          removeLineContaining(text, '| `file:read` / `file:list` / `file:watch` |'),
       },
     ]);
     const violations = checkCapabilities({
@@ -78,7 +95,7 @@ describe('能力表偏差注入', () => {
           replaceOnce(
             text,
             '| `file:read` / `file:list` / `file:watch` | `filesystem:read` |',
-            '| `file:read` / `file:list` / `file:watch` | `filesystem:write` |',
+            '| `file:read` / `file:list` / `file:watch` | `filesystem:write` |'
           ),
       },
     ]);
@@ -157,7 +174,7 @@ describe('事件表偏差注入', () => {
           replaceOnce(
             text,
             '可见性：`platform` 命名空间的事件对持有 `config:read:platform` 的插件可见；`plugins.<pluginId>` 命名空间的事件只对该插件与平台可见。',
-            '可见性：公开；`platform` 命名空间的事件对持有 `config:read:platform` 的插件可见；`plugins.<pluginId>` 命名空间的事件只对该插件与平台可见。',
+            '可见性：公开；`platform` 命名空间的事件对持有 `config:read:platform` 的插件可见；`plugins.<pluginId>` 命名空间的事件只对该插件与平台可见。'
           ),
       },
     ]);
@@ -174,7 +191,7 @@ describe('事件表偏差注入', () => {
           replaceOnce(
             text,
             '可见性：`platform` 命名空间的事件对持有 `config:read:platform` 的插件可见；`plugins.<pluginId>` 命名空间的事件只对该插件与平台可见。',
-            '可见性：按订阅关系决定。',
+            '可见性：按订阅关系决定。'
           ),
       },
     ]);
@@ -220,7 +237,7 @@ describe('事件表偏差注入', () => {
           replaceOnce(
             text,
             '| `title` | string | 是 | 文档标题（metadata 声明） |',
-            '| `title` | number | 是 | 文档标题（metadata 声明） |',
+            '| `title` | number | 是 | 文档标题（metadata 声明） |'
           ),
       },
     ]);
@@ -278,7 +295,8 @@ describe('角色接口与 SDK 导出偏差注入', () => {
       {
         file: ROLE_APP_DOC,
         description: '删除 IAppPlugin.handleCommand',
-        mutate: (text) => removeLineContaining(text, 'handleCommand?(command: string, args: unknown)'),
+        mutate: (text) =>
+          removeLineContaining(text, 'handleCommand?(command: string, args: unknown)'),
       },
     ]);
     const actual = buildRoleSnapshotData(deviated.roles);
@@ -306,7 +324,8 @@ describe('帧协议偏差注入', () => {
       {
         file: FRAME_DOC,
         description: 'frame:height 方向改为父 → 子',
-        mutate: (text) => replaceOnce(text, '| `frame:height` | 子 → 父 |', '| `frame:height` | 父 → 子 |'),
+        mutate: (text) =>
+          replaceOnce(text, '| `frame:height` | 子 → 父 |', '| `frame:height` | 父 → 子 |'),
       },
     ]);
     const violations = checkFrameProtocol({ frame: deviated.frame });
@@ -319,7 +338,12 @@ describe('帧协议偏差注入', () => {
       {
         file: FRAME_DOC,
         description: 'FRAME_PROTOCOL 版本改为 chips-frame/2',
-        mutate: (text) => replaceOnce(text, "const FRAME_PROTOCOL = 'chips-frame/1';", "const FRAME_PROTOCOL = 'chips-frame/2';"),
+        mutate: (text) =>
+          replaceOnce(
+            text,
+            "const FRAME_PROTOCOL = 'chips-frame/1';",
+            "const FRAME_PROTOCOL = 'chips-frame/2';"
+          ),
       },
     ]);
     const actual = buildFrameSnapshotData(deviated.frame);

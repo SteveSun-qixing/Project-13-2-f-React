@@ -9,7 +9,11 @@ describe('用户侧工作区命令（§3.2）', () => {
     const client = new FakeCliClient();
     const start = await runUser(['start'], { client });
     expect(start.exitCode).toBe(0);
-    expect(start.json()).toEqual({ running: true, pid: 4242, startedAt: '2026-09-19T00:00:00.000Z' });
+    expect(start.json()).toEqual({
+      running: true,
+      pid: 4242,
+      startedAt: '2026-09-19T00:00:00.000Z',
+    });
 
     const stop = await runUser(['stop'], { client });
     expect(stop.json()).toEqual({ running: false });
@@ -31,9 +35,13 @@ describe('配置命令（§3.3）', () => {
     expect(client.calls).toContain('platform.configList:user');
 
     await runUser(['config', 'set', 'plugins.chips.a.autoSaveDebounceMs', '800'], { client });
-    expect(client.calls).toContain('platform.configSet:plugins.chips.a.autoSaveDebounceMs:800:default');
+    expect(client.calls).toContain(
+      'platform.configSet:plugins.chips.a.autoSaveDebounceMs:800:default'
+    );
 
-    await runUser(['config', 'set', 'platform.log.level', 'debug', '--layer', 'workspace'], { client });
+    await runUser(['config', 'set', 'platform.log.level', 'debug', '--layer', 'workspace'], {
+      client,
+    });
     expect(client.calls).toContain('platform.configSet:platform.log.level:"debug":workspace');
 
     const reset = await runUser(['config', 'reset', 'platform.log.level'], { client });
@@ -65,7 +73,12 @@ describe('日志命令（§3.4）', () => {
     expect(outcome.exitCode).toBe(0);
     expect(client.calls).toContain('platform.logsRead:200:warn');
     expect(outcome.json()).toEqual([
-      { timestamp: '2026-09-19T00:00:00.000Z', level: 'info', namespace: 'kernel', message: '就绪' },
+      {
+        timestamp: '2026-09-19T00:00:00.000Z',
+        level: 'info',
+        namespace: 'kernel',
+        message: '就绪',
+      },
     ]);
   });
 
@@ -223,7 +236,11 @@ describe('帮助与补全（§3.1、§3.9）', () => {
     const client = new FakeCliClient();
     await runUser(['status'], { client });
     expect(client.operationsRecords).toHaveLength(1);
-    const record = client.operationsRecords[0] as { namespace: string; action: string; metadata: { exitCode: number } };
+    const record = client.operationsRecords[0] as {
+      namespace: string;
+      action: string;
+      metadata: { exitCode: number };
+    };
     expect(record.namespace).toBe('cli');
     expect(record.action).toBe('operation.execute');
     expect(record.metadata.exitCode).toBe(0);

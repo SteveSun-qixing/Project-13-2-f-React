@@ -10,7 +10,7 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
     () => {
       throw new Error('预期调用被拒绝');
     },
-    (error: unknown) => error,
+    (error: unknown) => error
   );
 }
 
@@ -27,7 +27,7 @@ function thrownCode(run: () => unknown): string | undefined {
 /** 以夹具建桥并取句柄。 */
 function handleWithFixture(
   data: Uint8Array | string,
-  uri = 'chips-resource://workspace/a.card',
+  uri = 'chips-resource://workspace/a.card'
 ): { bridge: ReturnType<typeof createMockBridge>; handle: IResourceHandle } {
   const bridge = createMockBridge({ resources: { [uri]: { data } } });
   return { bridge, handle: bridge.resource(uri) };
@@ -43,7 +43,10 @@ describe('Mock 资源 URI 语法校验', () => {
   it('协议前缀不合法时同步抛 RESOURCE_INVALID_URI', () => {
     const bridge = createMockBridge();
     for (const uri of ['file:///tmp/a.card', 'http://host/a', 'workspace/a.card', '']) {
-      expect(thrownCode(() => bridge.resource(uri)), uri).toBe(MOCK_ERROR_CODES.invalidUri);
+      expect(
+        thrownCode(() => bridge.resource(uri)),
+        uri
+      ).toBe(MOCK_ERROR_CODES.invalidUri);
     }
   });
 
@@ -65,14 +68,17 @@ describe('Mock 资源 URI 语法校验', () => {
       'chips-resource://workspace/a%2F../b.card',
     ];
     for (const uri of invalid) {
-      expect(thrownCode(() => bridge.resource(uri)), uri).toBe(MOCK_ERROR_CODES.invalidUri);
+      expect(
+        thrownCode(() => bridge.resource(uri)),
+        uri
+      ).toBe(MOCK_ERROR_CODES.invalidUri);
     }
   });
 
   it('控制字符按语法非法处理', () => {
     const bridge = createMockBridge();
     expect(thrownCode(() => bridge.resource('chips-resource://workspace/a\ncard'))).toBe(
-      MOCK_ERROR_CODES.invalidUri,
+      MOCK_ERROR_CODES.invalidUri
     );
   });
 
@@ -89,7 +95,7 @@ describe('Mock 资源 URI 语法校验', () => {
     }
     // 受管作用域出现裸 `?` 即 RESOURCE_INVALID_URI（2.5 节），字面 `?` 须写成 `%3F`
     expect(() =>
-      createMockBridge().resource('chips-resource://card-7f3a/images/photo.jpg?v=2'),
+      createMockBridge().resource('chips-resource://card-7f3a/images/photo.jpg?v=2')
     ).toThrowError(ChipsError);
     const handle = createMockBridge({
       resources: { 'chips-resource://card-7f3a/images/a%3Fb.png': { data: 'x' } },
@@ -117,7 +123,7 @@ describe('Mock 资源 URI 语法校验', () => {
       reason: '查询串为空',
     });
     expect(
-      thrownCode(() => bridge.resource('chips-resource://external/https/example.com/a.json?')),
+      thrownCode(() => bridge.resource('chips-resource://external/https/example.com/a.json?'))
     ).toBe(MOCK_ERROR_CODES.invalidUri);
   });
 
@@ -228,7 +234,7 @@ describe('Mock 资源元数据与字节读取', () => {
     const reader = bridge.resource('chips-resource://workspace/none.card').stream().getReader();
     const caught: unknown = await reader.read().then(
       () => undefined,
-      (error: unknown) => error,
+      (error: unknown) => error
     );
     expect((caught as ChipsError).code).toBe(MOCK_ERROR_CODES.notFound);
   });
@@ -246,7 +252,7 @@ describe('Mock 资源句柄生命周期', () => {
     }
     // stream() 与平台一致地同步返回流对象，终态以流的错误端呈现（06-资源协议规范 6.2）
     expect(((await rejection(handle.stream().getReader().read())) as ChipsError).code).toBe(
-      MOCK_ERROR_CODES.handleReleased,
+      MOCK_ERROR_CODES.handleReleased
     );
     expect(() => handle.onInvalidate(() => undefined)).toThrowError(ChipsError);
   });
@@ -259,10 +265,10 @@ describe('Mock 资源句柄生命周期', () => {
     expect(handle.state).toBe('invalidated');
     expect(reasons).toEqual(['source-changed']);
     expect(((await rejection(handle.metadata())) as ChipsError).code).toBe(
-      MOCK_ERROR_CODES.handleInvalidated,
+      MOCK_ERROR_CODES.handleInvalidated
     );
     expect(((await rejection(handle.read())) as ChipsError).code).toBe(
-      MOCK_ERROR_CODES.handleInvalidated,
+      MOCK_ERROR_CODES.handleInvalidated
     );
   });
 
@@ -334,11 +340,11 @@ describe('Mock 资源句柄生命周期', () => {
       resources: { 'chips-resource://workspace/a.card': { data: 'a' } },
     });
     expect(() =>
-      bridge.invalidate('chips-resource://workspace/none.card', 'source-changed'),
+      bridge.invalidate('chips-resource://workspace/none.card', 'source-changed')
     ).not.toThrow();
     // 无句柄可失效不影响资源本身仍可读
     await expect(bridge.resource('chips-resource://workspace/a.card').read()).resolves.toEqual(
-      new TextEncoder().encode('a'),
+      new TextEncoder().encode('a')
     );
   });
 
@@ -381,7 +387,7 @@ describe('Mock 资源句柄生命周期', () => {
     bridge.reset();
     expect(handle.state).toBe('released');
     expect(((await rejection(handle.metadata())) as ChipsError).code).toBe(
-      MOCK_ERROR_CODES.handleReleased,
+      MOCK_ERROR_CODES.handleReleased
     );
   });
 });

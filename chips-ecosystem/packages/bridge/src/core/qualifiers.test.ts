@@ -14,7 +14,7 @@ import {
 } from './qualifiers.js';
 
 function createEnv(
-  overrides: Partial<Parameters<typeof createPermissionEnvironment>[0]> = {},
+  overrides: Partial<Parameters<typeof createPermissionEnvironment>[0]> = {}
 ): ReturnType<typeof createPermissionEnvironment> {
   return createPermissionEnvironment({
     platform: 'linux',
@@ -70,20 +70,30 @@ describe('matchPathQualifier', () => {
 
   it('折叠 `.` 与 `..` 后越界即拒绝', () => {
     const env = createEnv();
-    expect(matchPathQualifier('${userDocuments}/chips', '${userDocuments}/chips/./a', env)).toBe(true);
-    expect(matchPathQualifier('${userDocuments}/chips', '${userDocuments}/chips/../secret', env)).toBe(
-      false,
+    expect(matchPathQualifier('${userDocuments}/chips', '${userDocuments}/chips/./a', env)).toBe(
+      true
     );
+    expect(
+      matchPathQualifier('${userDocuments}/chips', '${userDocuments}/chips/../secret', env)
+    ).toBe(false);
   });
 
   it('macOS / Windows 大小写不敏感，Linux 敏感；变量缺失拒绝', () => {
-    const mac = createEnv({ platform: 'darwin', directories: { userDocuments: '/Users/U/Documents' } });
+    const mac = createEnv({
+      platform: 'darwin',
+      directories: { userDocuments: '/Users/U/Documents' },
+    });
     expect(matchPathQualifier('${userDocuments}', '/users/u/documents/a', mac)).toBe(true);
-    const win = createEnv({ platform: 'win32', directories: { userDocuments: 'C:\\Users\\U\\Documents' } });
+    const win = createEnv({
+      platform: 'win32',
+      directories: { userDocuments: 'C:\\Users\\U\\Documents' },
+    });
     expect(matchPathQualifier('${userDocuments}', 'c:\\users\\u\\documents\\a', win)).toBe(true);
     const linux = createEnv();
     expect(matchPathQualifier('${userDocuments}', '/home/u/documents/a', linux)).toBe(false);
-    expect(matchPathQualifier('${userHome}', '/home/u/a', createEnv({ directories: {} }))).toBe(false);
+    expect(matchPathQualifier('${userHome}', '/home/u/a', createEnv({ directories: {} }))).toBe(
+      false
+    );
   });
 });
 
@@ -145,14 +155,20 @@ describe('matchUrlQualifier / matchWindowQualifier / matchConfigQualifier', () =
 describe('matchResourceQualifier', () => {
   it('按作用域与前缀匹配，支持 external 与裸 http 目标', () => {
     expect(matchResourceQualifier('card-1', 'chips-resource://card-1/a.png')).toBe(true);
-    expect(matchResourceQualifier('card-1/images', 'chips-resource://card-1/images/a.png')).toBe(true);
-    expect(matchResourceQualifier('card-1/images', 'chips-resource://card-1/videos/a.mp4')).toBe(false);
+    expect(matchResourceQualifier('card-1/images', 'chips-resource://card-1/images/a.png')).toBe(
+      true
+    );
+    expect(matchResourceQualifier('card-1/images', 'chips-resource://card-1/videos/a.mp4')).toBe(
+      false
+    );
     expect(matchResourceQualifier('card-2', 'chips-resource://card-1/a.png')).toBe(false);
     expect(matchResourceQualifier('card-1/', 'chips-resource://card-1/a.png')).toBe(true);
-    expect(matchResourceQualifier('external/https/example.com', 'https://example.com/a.png')).toBe(true);
-    expect(matchResourceQualifier('external/https/example.com', 'chips-resource://card-1/a.png')).toBe(
-      false,
+    expect(matchResourceQualifier('external/https/example.com', 'https://example.com/a.png')).toBe(
+      true
     );
+    expect(
+      matchResourceQualifier('external/https/example.com', 'chips-resource://card-1/a.png')
+    ).toBe(false);
     expect(matchResourceQualifier('card-1', 'invalid-uri')).toBe(false);
   });
 });
@@ -181,9 +197,15 @@ describe('grantCovers', () => {
   const env = createEnv();
 
   it('必需限定值权限的无限定值授权不覆盖具体目标；可选限定值权限可覆盖', () => {
-    expect(grantCovers([grant('filesystem:read')], 'filesystem:read', '/anywhere', env)).toBe(false);
-    expect(grantCovers([grant('window:control')], 'window:control', 'other-window', env)).toBe(true);
-    expect(grantCovers([grant('filesystem:read')], 'filesystem:write', '/anywhere', env)).toBe(false);
+    expect(grantCovers([grant('filesystem:read')], 'filesystem:read', '/anywhere', env)).toBe(
+      false
+    );
+    expect(grantCovers([grant('window:control')], 'window:control', 'other-window', env)).toBe(
+      true
+    );
+    expect(grantCovers([grant('filesystem:read')], 'filesystem:write', '/anywhere', env)).toBe(
+      false
+    );
   });
 
   it('限定值授权按目标匹配', () => {

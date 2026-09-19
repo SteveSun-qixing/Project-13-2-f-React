@@ -6,7 +6,10 @@
 import { cliError } from '../errors.js';
 import type { ICliArtifactsApi } from '../client/types.js';
 import type { IFileSystemPort } from '../args/filesystem.js';
-import { createDocumentedPermissionCatalog, type IPermissionCatalog } from './permission-catalog.js';
+import {
+  createDocumentedPermissionCatalog,
+  type IPermissionCatalog,
+} from './permission-catalog.js';
 import { packCpk } from './cpk-pack.js';
 import { validateCpk } from './cpk-validate.js';
 import { resolveScaffoldProvider, writeScaffoldPlan, type IScaffoldProvider } from './scaffold.js';
@@ -28,10 +31,14 @@ export function createLocalArtifacts(options: ILocalArtifactsOptions = {}): ICli
     async create(input) {
       const provider = options.scaffoldProvider ?? (await resolveScaffoldProvider());
       if (provider === undefined) {
-        throw cliError('CLI_TARGET_UNAVAILABLE', 'SDK 脚手架不可用：@chips/sdk/scaffold 未构建或未安装', {
-          method: 'artifacts.create',
-          hint: '请先构建 @chips/sdk，或通过 createLocalArtifacts 注入 scaffoldProvider',
-        });
+        throw cliError(
+          'CLI_TARGET_UNAVAILABLE',
+          'SDK 脚手架不可用：@chips/sdk/scaffold 未构建或未安装',
+          {
+            method: 'artifacts.create',
+            hint: '请先构建 @chips/sdk，或通过 createLocalArtifacts 注入 scaffoldProvider',
+          }
+        );
       }
       const plan = provider.createPlan({
         role: input.role,
@@ -57,7 +64,7 @@ export function createLocalArtifacts(options: ILocalArtifactsOptions = {}): ICli
           ...(input.keyId === undefined ? {} : { keyId: input.keyId }),
           ...(input.signingKeyFile === undefined ? {} : { signingKeyFile: input.signingKeyFile }),
           catalog,
-        }),
+        })
       ),
     validate: (input) =>
       toPortTask(() =>
@@ -66,9 +73,11 @@ export function createLocalArtifacts(options: ILocalArtifactsOptions = {}): ICli
           path: input.path,
           source: input.source,
           catalog,
-          ...(input.platformVersion === undefined ? {} : { platformVersion: input.platformVersion }),
+          ...(input.platformVersion === undefined
+            ? {}
+            : { platformVersion: input.platformVersion }),
           ...(options.trustRoots === undefined ? {} : { trustRoots: options.trustRoots }),
-        }),
+        })
       ),
   };
 }

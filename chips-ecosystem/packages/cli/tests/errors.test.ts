@@ -40,7 +40,12 @@ describe('错误模型与退出码', () => {
   });
 
   it('归一化平台边界错误对象与未知异常', () => {
-    const normalized = normalizeError({ code: 'CPK_ARCHIVE_INVALID', message: '归档损坏', details: { stage: 'archive' }, retryable: false });
+    const normalized = normalizeError({
+      code: 'CPK_ARCHIVE_INVALID',
+      message: '归档损坏',
+      details: { stage: 'archive' },
+      retryable: false,
+    });
     expect(normalized).toBeInstanceOf(ChipsError);
     expect(normalized.code).toBe('CPK_ARCHIVE_INVALID');
     expect(normalized.retryable).toBe(false);
@@ -55,7 +60,12 @@ describe('错误模型与退出码', () => {
   });
 
   it('错误对象只包含四字段（§2.6）', () => {
-    const error = cliError('CLI_OUTPUT_EXISTS', '输出目录已存在：/tmp/out', { path: '/tmp/out' }, false);
+    const error = cliError(
+      'CLI_OUTPUT_EXISTS',
+      '输出目录已存在：/tmp/out',
+      { path: '/tmp/out' },
+      false
+    );
     expect(toErrorObject(error)).toEqual({
       code: 'CLI_OUTPUT_EXISTS',
       message: '输出目录已存在：/tmp/out',
@@ -71,7 +81,19 @@ describe('错误模型与退出码', () => {
 
 describe('操作日志脱敏', () => {
   it('脱敏键名大小写与 -/_ 变体归一（§2.8）', () => {
-    expect(redactArgv(['chips', 'login', '--token=abc', '--Api-Key', 'xyz', '--secret', 's', '--name', 'n'])).toEqual([
+    expect(
+      redactArgv([
+        'chips',
+        'login',
+        '--token=abc',
+        '--Api-Key',
+        'xyz',
+        '--secret',
+        's',
+        '--name',
+        'n',
+      ])
+    ).toEqual([
       'chips',
       'login',
       '--token=<redacted>',

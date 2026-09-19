@@ -34,7 +34,10 @@ export interface IRunOptions {
   readonly signal?: AbortSignal;
 }
 
-function createCaptureSink(tty: boolean): { sink: IOutputSink; outcome: () => { stdout: string; stderr: string } } {
+function createCaptureSink(tty: boolean): {
+  sink: IOutputSink;
+  outcome: () => { stdout: string; stderr: string };
+} {
   let stdout = '';
   let stderr = '';
   return {
@@ -75,7 +78,10 @@ function parseResultDocument(stdout: string): unknown {
   return JSON.parse(trimmed) as unknown;
 }
 
-function toOutcome(exitCode: number, capture: () => { stdout: string; stderr: string }): IRunOutcome {
+function toOutcome(
+  exitCode: number,
+  capture: () => { stdout: string; stderr: string }
+): IRunOutcome {
   const { stdout, stderr } = capture();
   return {
     exitCode,
@@ -93,7 +99,10 @@ function toOutcome(exitCode: number, capture: () => { stdout: string; stderr: st
   };
 }
 
-function buildDeps(options: IRunOptions, capture: ReturnType<typeof createCaptureSink>): ICliRunDependencies {
+function buildDeps(
+  options: IRunOptions,
+  capture: ReturnType<typeof createCaptureSink>
+): ICliRunDependencies {
   const client = options.client ?? new FakeCliClient();
   const deps: ICliRunDependencies = {
     client,
@@ -109,7 +118,10 @@ function buildDeps(options: IRunOptions, capture: ReturnType<typeof createCaptur
 }
 
 /** 运行用户侧入口。 */
-export async function runUser(argv: readonly string[], options: IRunOptions = {}): Promise<IRunOutcome> {
+export async function runUser(
+  argv: readonly string[],
+  options: IRunOptions = {}
+): Promise<IRunOutcome> {
   const capture = createCaptureSink(options.tty === true);
   const deps = buildDeps(options, capture);
   const exitCode = await runCli(argv, deps);
@@ -117,7 +129,10 @@ export async function runUser(argv: readonly string[], options: IRunOptions = {}
 }
 
 /** 运行开发侧入口。 */
-export async function runDev(argv: readonly string[], options: IRunOptions = {}): Promise<IRunOutcome> {
+export async function runDev(
+  argv: readonly string[],
+  options: IRunOptions = {}
+): Promise<IRunOutcome> {
   const capture = createCaptureSink(options.tty === true);
   const deps = buildDeps(options, capture);
   const exitCode = await runDevCli(argv, deps);

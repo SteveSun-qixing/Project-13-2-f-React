@@ -46,7 +46,9 @@ export interface IResultEnvelope {
 }
 
 /** 执行插件命令。 */
-export async function executePluginCommand(input: IPluginCommandExecutionInput): Promise<ICommandResult> {
+export async function executePluginCommand(
+  input: IPluginCommandExecutionInput
+): Promise<ICommandResult> {
   const { context, match } = input;
   const command = match.command;
   const declaration = command.declaration;
@@ -98,7 +100,7 @@ export async function executePluginCommand(input: IPluginCommandExecutionInput):
 /** 剥离 CLI 级 `--overwrite`（仅当命令未声明同名选项时生效，§5.2）。 */
 export function extractOverwrite(
   argv: readonly string[],
-  declaration: ICliCommandDeclaration,
+  declaration: ICliCommandDeclaration
 ): { readonly argv: readonly string[]; readonly overwriteOverride: boolean } {
   const declared = (declaration.options ?? []).some((option) => option.name === 'overwrite');
   if (declared) {
@@ -122,7 +124,7 @@ export function extractOverwrite(
 function resolveOutputMode(
   declaration: ICliCommandDeclaration,
   jsonFlag: boolean,
-  jsonPolicy: 'supported' | 'required' | 'unsupported',
+  jsonPolicy: 'supported' | 'required' | 'unsupported'
 ): 'json' | 'human' {
   if (jsonFlag || jsonPolicy === 'required') {
     return 'json';
@@ -131,7 +133,10 @@ function resolveOutputMode(
 }
 
 /** 权限预检：声明权限必须已授权（§5.1、§六.5）。 */
-async function assertPermissions(context: ICommandContext, command: ICliCommandView): Promise<void> {
+async function assertPermissions(
+  context: ICommandContext,
+  command: ICliCommandView
+): Promise<void> {
   const required = command.declaration.permissions ?? [];
   if (required.length === 0) {
     return;
@@ -156,7 +161,7 @@ export function isGranted(granted: readonly string[], required: string): boolean
 async function dispatch(
   context: ICommandContext,
   command: ICliCommandView,
-  payload: Readonly<Record<string, unknown>>,
+  payload: Readonly<Record<string, unknown>>
 ): Promise<IResultEnvelope> {
   const declaration = command.declaration;
   const target = declaration.target;
@@ -184,7 +189,7 @@ async function dispatch(
       context.client.apps.ensureRunning({
         pluginId: command.pluginId,
         ...(target.surface === undefined ? {} : { surface: target.surface }),
-      }),
+      })
     );
     return buildEnvelope(command, { launched: true });
   }
@@ -218,7 +223,7 @@ async function dispatch(
       context.client.apps.ensureRunning({
         pluginId: command.pluginId,
         ...(target.surface === undefined ? {} : { surface: target.surface }),
-      }),
+      })
     );
 
     let invokeResult: { readonly invocationId: string; readonly status: string };
@@ -239,7 +244,8 @@ async function dispatch(
       // 任务失败终态固定以退出码 7 收口；错误码保留应用上报的原样（§2.5、§2.6）。
       const error = settled.error;
       const code = error !== undefined && error.code.length > 0 ? error.code : 'CLI_TASK_FAILED';
-      const message = error !== undefined && error.message.length > 0 ? error.message : '任务执行失败';
+      const message =
+        error !== undefined && error.message.length > 0 ? error.message : '任务执行失败';
       throw cliErrorWithExitCode(code, 7, message, { task: settled }, error?.retryable);
     }
     if (settled.status === 'cancelled') {
@@ -262,7 +268,7 @@ async function dispatch(
 async function settleTask(
   context: ICommandContext,
   initial: ICliTaskRecord,
-  cancelOnInterrupt: boolean,
+  cancelOnInterrupt: boolean
 ): Promise<ICliTaskRecord> {
   let task = initial;
   while (task.status === 'running') {
@@ -278,7 +284,7 @@ async function settleTask(
 async function handleInterrupt(
   context: ICommandContext,
   task: ICliTaskRecord,
-  cancelOnInterrupt: boolean,
+  cancelOnInterrupt: boolean
 ): Promise<ICliTaskRecord> {
   if (!cancelOnInterrupt) {
     // 未声明 cancelOnInterrupt 的命令不进入取消链路，直接中断（退出码 130，§2.5）。
@@ -295,7 +301,11 @@ async function handleInterrupt(
     // 取消请求失败按未上报任务处理，直接以取消终态收口（§5.7.5）。
     throw cliError('CLI_TASK_CANCELLED', '任务已取消', { task });
   }
-  for (let attempt = 0; attempt < CANCEL_CONFIRM_POLL_LIMIT && current.status === 'running'; attempt += 1) {
+  for (
+    let attempt = 0;
+    attempt < CANCEL_CONFIRM_POLL_LIMIT && current.status === 'running';
+    attempt += 1
+  ) {
     await context.sleep(CANCEL_CONFIRM_POLL_INTERVAL_MS, context.signal);
     current = await context.client.cliTask.get(task.taskId);
   }
@@ -314,7 +324,7 @@ async function withStartupTimeout<T>(pluginId: string, action: () => Promise<T>)
         cliError('CLI_TIMEOUT', '等待应用实例启动与命令注册超时', {
           pluginId,
           timeoutMs: LIFECYCLE_APPLY_TIMEOUT_MS,
-        }),
+        })
       );
     }, LIFECYCLE_APPLY_TIMEOUT_MS);
   });
@@ -336,7 +346,7 @@ function buildEnvelope(
     readonly artifacts?: readonly string[];
     readonly skipped?: boolean;
     readonly launched?: boolean;
-  },
+  }
 ): IResultEnvelope {
   const envelope: {
     ok: true;
@@ -382,7 +392,7 @@ function buildEnvelope(
 function attachArtifacts(
   envelope: IResultEnvelope,
   declaration: ICliCommandDeclaration,
-  output: unknown,
+  output: unknown
 ): IResultEnvelope {
   const paths = declaration.output?.artifacts;
   if (paths === undefined || paths.length === 0 || output === undefined) {
@@ -440,7 +450,7 @@ export function renderHuman(envelope: IResultEnvelope): readonly string[] {
     lines.push(`目标: service ${envelope.target.pluginId}`);
   } else {
     lines.push(
-      `目标: app ${envelope.target.pluginId}${envelope.commandId === undefined ? '' : ` ${envelope.commandId}`}`,
+      `目标: app ${envelope.target.pluginId}${envelope.commandId === undefined ? '' : ` ${envelope.commandId}`}`
     );
   }
   if (envelope.task !== undefined) {

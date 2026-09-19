@@ -57,7 +57,7 @@ describe('isChipsError', () => {
     expect(isChipsError(new ChipsError({ code: 'A_B', message: '文案' }))).toBe(true);
     expect(isChipsError({ code: 'A_B', message: '文案' })).toBe(true);
     expect(isChipsError({ code: 'A_B', message: '文案', retryable: true, details: null })).toBe(
-      true,
+      true
     );
   });
 

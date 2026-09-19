@@ -4,8 +4,7 @@
 
 import { normalizeResourceInput } from '../protocol/resource-uri.js';
 
-const DATE_TIME_PATTERN =
-  /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
+const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
 
 const ABSOLUTE_URI_PATTERN = /^[A-Za-z][A-Za-z0-9+.-]*:[^\s]*$/;
 

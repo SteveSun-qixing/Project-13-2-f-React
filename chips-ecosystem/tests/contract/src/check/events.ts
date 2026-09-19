@@ -30,7 +30,7 @@ export function checkEvents(input: EventCheckInput): ContractViolation[] {
       violation('CONTRACT_EVENT_MISSING', id, '文档登记的标准事件未出现在 Bridge 事件登记表', {
         expected: 'STANDARD_EVENTS 包含该 ID',
         actual: '缺失',
-      }),
+      })
     );
   }
   for (const id of diff.extra) {
@@ -38,7 +38,7 @@ export function checkEvents(input: EventCheckInput): ContractViolation[] {
       violation('CONTRACT_EVENT_EXTRA', id, 'Bridge 登记了文档未登记的事件（禁止自造事件 ID）', {
         expected: '标准事件登记表包含该 ID',
         actual: '未登记',
-      }),
+      })
     );
   }
 
@@ -46,9 +46,14 @@ export function checkEvents(input: EventCheckInput): ContractViolation[] {
   for (const event of docs.events) {
     if (event.visibilityKind === 'unknown') {
       violations.push(
-        violation('CONTRACT_EVENT_VISIBILITY_UNKNOWN', event.id, '文档可见性表述无法归一为已知判定键', {
-          actual: event.visibilityText,
-        }),
+        violation(
+          'CONTRACT_EVENT_VISIBILITY_UNKNOWN',
+          event.id,
+          '文档可见性表述无法归一为已知判定键',
+          {
+            actual: event.visibilityText,
+          }
+        )
       );
     }
     const codeEvent = codeById.get(event.id);
@@ -60,7 +65,7 @@ export function checkEvents(input: EventCheckInput): ContractViolation[] {
         violation('CONTRACT_EVENT_VISIBILITY', event.id, '事件可见性与 Bridge 登记不一致', {
           expected: event.visibilityKind,
           actual: codeEvent.visibility,
-        }),
+        })
       );
     }
   }
@@ -71,11 +76,13 @@ export function checkEvents(input: EventCheckInput): ContractViolation[] {
       violations.push(
         violation('CONTRACT_EVENT_ID_GRAMMAR', event.id, 'Bridge 事件 ID 文法非法', {
           expected: '^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$',
-        }),
+        })
       );
     }
     if (codeSeen.has(event.id)) {
-      violations.push(violation('CONTRACT_EVENT_DUPLICATE', event.id, 'Bridge 事件登记表存在重复事件 ID'));
+      violations.push(
+        violation('CONTRACT_EVENT_DUPLICATE', event.id, 'Bridge 事件登记表存在重复事件 ID')
+      );
     }
     codeSeen.add(event.id);
   }
@@ -86,12 +93,16 @@ export function checkEvents(input: EventCheckInput): ContractViolation[] {
     counts.set(event.domain, (counts.get(event.domain) ?? 0) + 1);
     if (reservedDomains.get(event.domain) === undefined) {
       violations.push(
-        violation('CONTRACT_EVENT_DOMAIN_UNKNOWN', event.id, '标准事件使用了未在保留域表中的域名'),
+        violation('CONTRACT_EVENT_DOMAIN_UNKNOWN', event.id, '标准事件使用了未在保留域表中的域名')
       );
     }
     if (event.domain === 'internal') {
       violations.push(
-        violation('CONTRACT_EVENT_INTERNAL_LEAK', event.id, '内核内部事件不得进入标准事件登记（不公开契约）'),
+        violation(
+          'CONTRACT_EVENT_INTERNAL_LEAK',
+          event.id,
+          '内核内部事件不得进入标准事件登记（不公开契约）'
+        )
       );
     }
   }
@@ -106,8 +117,8 @@ export function checkEvents(input: EventCheckInput): ContractViolation[] {
           'CONTRACT_EVENT_DOMAIN_COUNT',
           reserved.domain,
           '保留域声明的事件数与实际声明数不一致',
-          { expected: String(reserved.declaredCount), actual: String(actual) },
-        ),
+          { expected: String(reserved.declaredCount), actual: String(actual) }
+        )
       );
     }
   }
