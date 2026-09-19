@@ -143,9 +143,7 @@ describe('registerIpcChannels', () => {
   it('核心抛出的已登记错误码原样透传', async () => {
     const { ipcMain } = createFakeElectron();
     const fake = createFakeRuntime({
-      handleRequest: async () => {
-        throw { code: 'FILE_NOT_FOUND', message: '目标文件或目录不存在', retryable: false };
-      },
+      handleRequest: async () => Promise.reject(createWireError('FILE_NOT_FOUND', '目标文件或目录不存在')),
     });
     registerIpcChannels({
       ipcMain,
