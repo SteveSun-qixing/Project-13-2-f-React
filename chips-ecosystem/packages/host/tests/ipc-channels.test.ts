@@ -7,13 +7,18 @@ import {
   EVENT_CONTROL_CHANNEL,
   RENDERER_TO_MAIN_CHANNELS,
 } from '../src/protocol/channels.js';
-import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 import type { ShellIpcInvokeEvent } from '../src/main/shell-api.js';
 import { createFakeElectron } from './helpers/shell-electron.js';
 import { createFakeRuntime } from './helpers/fake-runtime.js';
 import { createWireError } from './helpers/wire-error.js';
 
-function createDiagnostics(): DiagnosticsSink & { warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> } {
+/** 诊断口替身：属性式函数签名，便于断言时直接引用替身本身。 */
+interface SpyDiagnostics {
+  warn: ReturnType<typeof vi.fn>;
+  error: ReturnType<typeof vi.fn>;
+}
+
+function createDiagnostics(): SpyDiagnostics {
   return { warn: vi.fn(), error: vi.fn() };
 }
 
@@ -28,11 +33,12 @@ describe('registerIpcChannels', () => {
   it('注册三个渲染 → 主通道并转发已解析会话', async () => {
     const { ipcMain } = createFakeElectron();
     const fake = createFakeRuntime({
-      handleRequest: async (session, received) => ({
-        requestId: received.requestId,
-        ok: true,
-        result: { windowId: session.windowId, frameId: session.frameId },
-      }),
+      handleRequest: async (session, received) =>
+        Promise.resolve({
+          requestId: received.requestId,
+          ok: true,
+          result: { windowId: session.windowId, frameId: session.frameId },
+        }),
     });
     const dispose = registerIpcChannels({
       ipcMain,
@@ -117,9 +123,7 @@ describe('registerIpcChannels', () => {
     const { ipcMain } = createFakeElectron();
     const diagnostics = createDiagnostics();
     const fake = createFakeRuntime({
-      handleRequest: async () => {
-        throw new Error('核心内部细节');
-      },
+      handleRequest: async () => Promise.reject(new Error('核心内部细节')),
     });
     registerIpcChannels({
       ipcMain,
