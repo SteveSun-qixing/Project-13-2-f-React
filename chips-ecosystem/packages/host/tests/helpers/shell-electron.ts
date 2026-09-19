@@ -191,14 +191,14 @@ export class FakeIpcMain {
   }
 
   /** 模拟渲染进程 `invoke`。 */
-  async invoke(
+  invoke(
     channel: string,
     event: { sender: { id: number }; senderFrame: { routingId: number } | null },
     ...args: readonly unknown[]
   ): Promise<unknown> {
     const handler = this.handlers.get(channel);
     if (handler === undefined) {
-      throw new Error(`通道未注册：${channel}`);
+      return Promise.reject(new Error(`通道未注册：${channel}`));
     }
     return Promise.resolve(handler(event, ...args));
   }

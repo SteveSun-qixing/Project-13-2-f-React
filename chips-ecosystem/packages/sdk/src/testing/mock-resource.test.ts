@@ -25,7 +25,10 @@ function thrownCode(run: () => unknown): string | undefined {
 }
 
 /** 以夹具建桥并取句柄。 */
-function handleWithFixture(data: Uint8Array | string, uri = 'chips-resource://workspace/a.card') {
+function handleWithFixture(
+  data: Uint8Array | string,
+  uri = 'chips-resource://workspace/a.card',
+): { bridge: ReturnType<typeof createMockBridge>; handle: IResourceHandle } {
   const bridge = createMockBridge({ resources: { [uri]: { data } } });
   return { bridge, handle: bridge.resource(uri) };
 }

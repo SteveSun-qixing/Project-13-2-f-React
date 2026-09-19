@@ -32,13 +32,14 @@ type SpiedTarget = IChipsBridge & TargetSpies;
  * @returns 只读替身
  */
 function createHandleStub(uri: string): IResourceHandle {
-  const unavailable = async (): Promise<never> => {
-    throw new ChipsError({
-      code: SDK_BRIDGE_UNAVAILABLE,
-      message: '替身句柄不提供真实读取',
-      retryable: false,
-    });
-  };
+  const unavailable = (): Promise<never> =>
+    Promise.reject(
+      new ChipsError({
+        code: SDK_BRIDGE_UNAVAILABLE,
+        message: '替身句柄不提供真实读取',
+        retryable: false,
+      }),
+    );
   return {
     uri,
     state: 'open',
@@ -59,11 +60,11 @@ function createHandleStub(uri: string): IResourceHandle {
 /** 构造一个记录调用参数的 Bridge 目标。 */
 function createTarget(overrides: Partial<TargetSpies> = {}): SpiedTarget {
   return {
-    request: vi.fn(async (): Promise<unknown> => ({ ok: true })),
+    request: vi.fn((): Promise<unknown> => Promise.resolve({ ok: true })),
     subscribe: vi.fn((): ISubscription => ({ dispose: vi.fn() })),
     resource: vi.fn((): IResourceHandle => createHandleStub('chips-resource://workspace/a.card')),
     ...overrides,
-  } as unknown as SpiedTarget;
+  };
 }
 
 describe('ChipsBridge 注入目标转发', () => {
@@ -71,7 +72,7 @@ describe('ChipsBridge 注入目标转发', () => {
     const target = createTarget();
     const client = new ChipsBridge(target);
     await expect(client.request('file:read', { path: 'a.txt' })).resolves.toEqual({ ok: true });
-    expect(target.request).toHaveBeenCalledTimes(1);
+    expect((target as TargetSpies).request).toHaveBeenCalledTimes(1);
     expect(target.request.mock.calls[0]).toEqual(['file:read', { path: 'a.txt' }]);
   });
 
@@ -119,9 +120,7 @@ describe('ChipsBridge 注入目标转发', () => {
     });
     const client = new ChipsBridge(
       createTarget({
-        request: vi.fn(async (): Promise<unknown> => {
-          throw platformError;
-        }),
+        request: vi.fn((): Promise<unknown> => Promise.reject(platformError)),
       }),
     );
     const caught: unknown = await client.request('file:read').catch((error: unknown) => error);
@@ -144,9 +143,13 @@ describe('ChipsBridge 注入目标转发', () => {
     };
     const client = new ChipsBridge(
       createTarget({
-        request: vi.fn(async (): Promise<unknown> => {
-          throw plain;
-        }),
+        // 以在 then 回调中抛出未知值的方式构造以同构普通对象拒绝的 Promise，
+        // 保持 `expect(caught).toBe(plain)` 断言的实例恒等，同时避免把非 Error 值交给 Promise.reject
+        request: vi.fn((): Promise<unknown> =>
+          Promise.resolve().then((): never => {
+            throw plain;
+          }),
+        ),
       }),
     );
     const caught: unknown = await client.request('file:read').catch((error: unknown) => error);
@@ -216,7 +219,7 @@ describe('ChipsBridge 目标解析', () => {
       host.chips = target;
     }
     await expect(client.request('file:read', { path: 'b.txt' })).resolves.toEqual({ ok: true });
-    expect(target.request).toHaveBeenCalledTimes(1);
+    expect((target as TargetSpies).request).toHaveBeenCalledTimes(1);
     restoreWindow();
   });
 
@@ -234,7 +237,7 @@ describe('ChipsBridge 目标解析', () => {
     host.chips = second;
     await client.request('system:info');
     expect(host.chips).toBe(second);
-    expect(second.request).toHaveBeenCalledTimes(1);
+    expect((second as TargetSpies).request).toHaveBeenCalledTimes(1);
     restoreWindow();
   });
 
@@ -248,8 +251,8 @@ describe('ChipsBridge 目标解析', () => {
     host.chips = windowTarget;
     const injected = createTarget();
     await new ChipsBridge(injected).request('file:read');
-    expect(injected.request).toHaveBeenCalledTimes(1);
-    expect(windowTarget.request).not.toHaveBeenCalled();
+    expect((injected as TargetSpies).request).toHaveBeenCalledTimes(1);
+    expect((windowTarget as TargetSpies).request).not.toHaveBeenCalled();
     restoreWindow();
   });
 });
@@ -269,7 +272,7 @@ describe('createClient 与默认客户端', () => {
     const target = createTarget();
     const client = createClient({ bridge: target });
     await expect(client.request('file:list', { path: '.' })).resolves.toEqual({ ok: true });
-    expect(target.request).toHaveBeenCalledTimes(1);
+    expect((target as TargetSpies).request).toHaveBeenCalledTimes(1);
   });
 
   it('默认客户端 chips 按调用解析，测试安装目标后无需重建单例', async () => {
@@ -284,7 +287,7 @@ describe('createClient 与默认客户端', () => {
     expect(target.request.mock.calls[0]).toEqual(['file:read', { path: 'c.txt' }]);
     const subscription = chips.subscribe('document:opened', () => undefined);
     expect(subscription).toBeDefined();
-    expect(target.subscribe).toHaveBeenCalledTimes(1);
+    expect((target as TargetSpies).subscribe).toHaveBeenCalledTimes(1);
     restoreWindow();
   });
 });

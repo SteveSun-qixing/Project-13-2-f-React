@@ -829,7 +829,9 @@ mod tests {
             other => panic!("应返回非法迁移错误：{other:?}"),
         }
         assert_eq!(
-            manager.record("chips.test.a").map(|r| r.version.to_string()),
+            manager
+                .record("chips.test.a")
+                .map(|r| r.version.to_string()),
             Some("1.0.0".to_owned()),
             "被拒绝的登记不得改写已登记版本"
         );
@@ -843,7 +845,9 @@ mod tests {
             .register(request("chips.test.a", "2.0.0", Vec::new()))
             .expect("同版本重复登记为幂等");
         assert_eq!(
-            manager.record("chips.test.a").map(|r| r.version.to_string()),
+            manager
+                .record("chips.test.a")
+                .map(|r| r.version.to_string()),
             Some("2.0.0".to_owned())
         );
     }
@@ -852,9 +856,10 @@ mod tests {
     fn test_mark_rejects_illegal_transition() {
         // §6.2 迁移表：`Installed` 只能进入 `Resolving` 或 `Removed`。
         let mut manager = PluginManager::default();
-        manager
-            .records
-            .insert("chips.test.a".to_owned(), record("1.0.0", &["1.0.0"], Vec::new(), PluginState::Installed));
+        manager.records.insert(
+            "chips.test.a".to_owned(),
+            record("1.0.0", &["1.0.0"], Vec::new(), PluginState::Installed),
+        );
         let error = manager
             .mark("chips.test.a", PluginState::Stopping)
             .expect_err("Installed 不得直接进入 Stopping");
@@ -871,7 +876,10 @@ mod tests {
         manager
             .mark("chips.test.a", PluginState::Resolving)
             .expect("Installed → Resolving 合法");
-        assert_eq!(manager.state_of("chips.test.a"), Some(PluginState::Resolving));
+        assert_eq!(
+            manager.state_of("chips.test.a"),
+            Some(PluginState::Resolving)
+        );
     }
 
     #[test]
@@ -903,7 +911,10 @@ mod tests {
         let graph = manager.graph();
         assert!(graph.get("chips.test.a").is_some(), "未移除节点应入图");
         assert!(graph.get("chips.test.b").is_some());
-        assert!(graph.get("chips.test.gone").is_none(), "Removed 节点必须排除");
+        assert!(
+            graph.get("chips.test.gone").is_none(),
+            "Removed 节点必须排除"
+        );
         assert!(graph.get("chips.test.unknown").is_none());
         assert_eq!(
             graph
@@ -926,10 +937,7 @@ mod tests {
         );
         assert!(manager.transitive_dependents("chips.test.gone").is_empty());
         assert_eq!(
-            manager
-                .graph()
-                .dependencies_of("chips.test.unknown")
-                .len(),
+            manager.graph().dependencies_of("chips.test.unknown").len(),
             0,
             "未知节点的依赖声明为空"
         );
@@ -962,7 +970,10 @@ mod tests {
             record("1.0.0", &["1.0.0"], Vec::new(), PluginState::Removed),
         );
         let order = manager.topological_order();
-        assert_eq!(order, vec!["chips.test.a".to_owned(), "chips.test.b".to_owned()]);
+        assert_eq!(
+            order,
+            vec!["chips.test.a".to_owned(), "chips.test.b".to_owned()]
+        );
         assert_eq!(manager.dependents_of("chips.test.a").len(), 1);
         assert_eq!(
             manager.transitive_dependents("chips.test.a"),
@@ -1118,10 +1129,7 @@ mod tests {
             ),
         );
         manager.queued.insert("chips.test.base".to_owned());
-        let error = blocked(
-            manager.plan_load("chips.test.top"),
-            "依赖在队列中时应阻塞",
-        );
+        let error = blocked(manager.plan_load("chips.test.top"), "依赖在队列中时应阻塞");
         assert_eq!(error.code(), "KERNEL_DEPENDENCY_MISSING");
         assert_eq!(
             error_details(&error).and_then(|v| v["missing"].as_str().map(str::to_owned)),
@@ -1150,10 +1158,7 @@ mod tests {
                 PluginState::Installed,
             ),
         );
-        let error = rejected(
-            manager.plan_load("chips.test.self"),
-            "自依赖应返回单节点环",
-        );
+        let error = rejected(manager.plan_load("chips.test.self"), "自依赖应返回单节点环");
         match error {
             KernelError::DependencyCycle { path } => {
                 assert_eq!(path, vec!["chips.test.self".to_owned()])

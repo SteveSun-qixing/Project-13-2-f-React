@@ -552,12 +552,19 @@ impl Kernel {
             Effect::Listener { name: _, token } => self.remove_listener(token),
             Effect::Task { abort } => {
                 abort.cancel();
+                // §10.4：撤销只负责"触发取消 + 等待退出"。任务自身的结果（协作
+                // 取消归一的 `KERNEL_CONTEXT_DISPOSED`、失败、panic）由
+                // `TaskHandle::join` 归因给调用方（§4.2），不得当作撤销失败上抛，
+                // 否则任何持有存活任务的子作用域销毁都会误报失败。
+                // 撤销链只在超过强撤上限仍未退出（或内核锁被污染）时出错。
                 match abort.wait_timeout(self.inner.options.force_dispose_timeout) {
-                    Ok(_) => Ok(()),
-                    Err(timeout) => {
+                    Ok(()) => Ok(()),
+                    Err(error @ KernelError::LockPoisoned) => Err(error),
+                    Err(error @ KernelError::LifecycleTimeout { .. }) => {
                         abort.force_abort();
-                        Err(timeout)
+                        Err(error)
                     }
+                    Err(_) => Ok(()),
                 }
             }
         }
@@ -1327,9 +1334,7 @@ mod tests {
                     .on("document:late", |_context, _payload| Ok(()))
                     .expect_err("撤销期间不得订阅事件");
                 assert_eq!(error.code(), "KERNEL_CONTEXT_DISPOSED");
-                let error = window
-                    .effect(|| {})
-                    .expect_err("撤销期间不得登记清理逻辑");
+                let error = window.effect(|| {}).expect_err("撤销期间不得登记清理逻辑");
                 assert_eq!(error.code(), "KERNEL_CONTEXT_DISPOSED");
                 witness.fetch_add(1, Ordering::SeqCst);
             })
@@ -1369,7 +1374,10 @@ mod tests {
             kernel.dispose_fork(root_fork).is_ok(),
             "已撤销 Fork 的重复撤销必须是幂等空操作"
         );
-        assert!(kernel.dispose_fork(999_999).is_ok(), "未知 Fork 撤销应为空操作");
+        assert!(
+            kernel.dispose_fork(999_999).is_ok(),
+            "未知 Fork 撤销应为空操作"
+        );
     }
 
     #[tokio::test]
@@ -1381,7 +1389,8 @@ mod tests {
         let runtime = tokio::runtime::Handle::current();
         let kernel = Kernel::new(runtime).expect("内核应可创建");
         let root = kernel.root_context();
-        root.provide("probe".to_owned(), 1_u64).expect("服务应可登记");
+        root.provide("probe".to_owned(), 1_u64)
+            .expect("服务应可登记");
         let child = root.create_child().expect("子 Context 应可创建");
         let disposed_children = kernel.context_count();
 
@@ -1395,9 +1404,7 @@ mod tests {
                 // 复核（§10.2 的 `contexts` 快照只在销毁完成时发布，读路径不在窗口内
                 // 中途发布，因此 `Context::state()` 仍返回撤销前的 `Active`）。
                 let live = {
-                    let state = witness
-                        .lock_state()
-                        .expect("撤销窗口内不得持有内核状态锁");
+                    let state = witness.lock_state().expect("撤销窗口内不得持有内核状态锁");
                     state
                         .contexts
                         .node(witness_id)
@@ -1480,11 +1487,12 @@ mod tests {
         let child = parent.create_child().expect("孙子 Context");
 
         let reentrant = parent.clone();
-        child.effect(move || {
-            // 在孙节点撤销途中撤销父 Context：同一 Fork 的重入被吞掉。
-            reentrant.dispose().expect("重入撤销应为空操作");
-        })
-        .expect("清理逻辑应可登记");
+        child
+            .effect(move || {
+                // 在孙节点撤销途中撤销父 Context：同一 Fork 的重入被吞掉。
+                reentrant.dispose().expect("重入撤销应为空操作");
+            })
+            .expect("清理逻辑应可登记");
 
         parent.dispose().expect("父 Context 销毁应成功");
         assert_eq!(parent.state(), ContextState::Disposed);
@@ -1527,9 +1535,7 @@ mod tests {
             })
             .expect("清理逻辑应可登记");
 
-        let error = parent
-            .dispose()
-            .expect_err("子 Context 撤销失败必须上报");
+        let error = parent.dispose().expect_err("子 Context 撤销失败必须上报");
         assert_eq!(error.code(), "KERNEL_DISPOSE_FAILED");
         assert!(
             cleaned.load(std::sync::atomic::Ordering::SeqCst),
@@ -1556,11 +1562,7 @@ mod tests {
         let child = root.create_child().expect("子 Context 应可创建");
         {
             let mut state = kernel.lock_state().expect("状态锁可用");
-            state
-                .contexts
-                .node_mut(child.id())
-                .expect("节点存在")
-                .state = ContextState::Disposing;
+            state.contexts.node_mut(child.id()).expect("节点存在").state = ContextState::Disposing;
         }
         assert_eq!(
             kernel
@@ -1606,7 +1608,8 @@ mod tests {
         let runtime = tokio::runtime::Handle::current();
         let kernel = Kernel::new(runtime).expect("内核应可创建");
         let root = kernel.root_context();
-        root.provide("probe".to_owned(), 7_u64).expect("服务应可登记");
+        root.provide("probe".to_owned(), 7_u64)
+            .expect("服务应可登记");
         assert_eq!(
             *root
                 .get_typed::<u64>("probe")
@@ -1643,7 +1646,9 @@ mod tests {
         );
 
         let scoped = root.create_child().expect("子 Context 应可创建");
-        scoped.provide("scoped".to_owned(), 1_u32).expect("作用域服务应可登记");
+        scoped
+            .provide("scoped".to_owned(), 1_u32)
+            .expect("作用域服务应可登记");
         assert_eq!(
             root.get("scoped")
                 .expect_err("子作用域服务对父不可见")

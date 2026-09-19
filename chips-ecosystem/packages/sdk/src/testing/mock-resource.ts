@@ -6,6 +6,7 @@
  * `released` 之后除 `uri`、`state` 与 `release()` 外一律以 `RESOURCE_HANDLE_RELEASED` 失败。
  */
 
+import { toChipsError } from '../errors.js';
 import type {
   IResourceHandle,
   IResourceMetadata,
@@ -37,6 +38,23 @@ const DEFAULT_VERSION = '1';
 
 /** Mock 夹具的作用域口径：内容全部驻留内存，不参与真实作用域解析。 */
 const MOCK_RESOURCE_SCOPE = 'memory' as const;
+
+/**
+ * 以 Promise 形式承载「同步求值、可能抛出 `ChipsError`」的结果。
+ *
+ * 与 `async` 方法的错误语义完全等价：正常求值返回 fulfilled，抛出经 `toChipsError` 归一后返回
+ * rejected（同一实例原样透传）；区别只在于不在无 `await` 的方法上声明 `async`。
+ *
+ * @param evaluate - 同步求值函数；失败时抛出 `ChipsError`
+ * @returns fulfilled 或 rejected 的 Promise
+ */
+function resolvedFrom<T>(evaluate: () => T): Promise<T> {
+  try {
+    return Promise.resolve(evaluate());
+  } catch (error) {
+    return Promise.reject(toChipsError(error));
+  }
+}
 
 /**
  * 计算夹具的字节长度。
@@ -172,15 +190,17 @@ export class MockResourceHandle implements IResourceHandle {
    *
    * @returns 元数据；句柄终态或未登记资源时以对应错误码拒绝
    */
-  async metadata(): Promise<IResourceMetadata> {
-    const fixture = this.#requireFixture();
-    return {
-      uri: this.uri,
-      size: byteLength(fixture.data),
-      mimeType: fixture.mimeType ?? DEFAULT_MIME_TYPE,
-      version: fixture.version ?? DEFAULT_VERSION,
-      scope: MOCK_RESOURCE_SCOPE,
-    };
+  metadata(): Promise<IResourceMetadata> {
+    return resolvedFrom((): IResourceMetadata => {
+      const fixture = this.#requireFixture();
+      return {
+        uri: this.uri,
+        size: byteLength(fixture.data),
+        mimeType: fixture.mimeType ?? DEFAULT_MIME_TYPE,
+        version: fixture.version ?? DEFAULT_VERSION,
+        scope: MOCK_RESOURCE_SCOPE,
+      };
+    });
   }
 
   /**
@@ -188,8 +208,8 @@ export class MockResourceHandle implements IResourceHandle {
    *
    * @returns 不与夹具共享内存的字节数组；句柄终态或未登记资源时以对应错误码拒绝
    */
-  async read(): Promise<Uint8Array> {
-    return toBytes(this.#requireFixture().data);
+  read(): Promise<Uint8Array> {
+    return resolvedFrom((): Uint8Array => toBytes(this.#requireFixture().data));
   }
 
   /**
@@ -199,24 +219,26 @@ export class MockResourceHandle implements IResourceHandle {
    * @param length - 读取长度，至少为 1
    * @returns 片段字节；越界以 `BRIDGE_INVALID_INPUT` 拒绝
    */
-  async readRange(offset: number, length: number): Promise<Uint8Array> {
-    const bytes = toBytes(this.#requireFixture().data);
-    if (!Number.isInteger(offset) || !Number.isInteger(length) || offset < 0 || length < 1) {
-      throw mockError(MOCK_ERROR_CODES.invalidInput, '资源读取范围不合法', {
-        uri: this.uri,
-        offset,
-        length,
-      });
-    }
-    if (offset + length > bytes.byteLength) {
-      throw mockError(MOCK_ERROR_CODES.invalidInput, '资源读取范围超出资源长度', {
-        uri: this.uri,
-        offset,
-        length,
-        size: bytes.byteLength,
-      });
-    }
-    return bytes.subarray(offset, offset + length);
+  readRange(offset: number, length: number): Promise<Uint8Array> {
+    return resolvedFrom((): Uint8Array => {
+      const bytes = toBytes(this.#requireFixture().data);
+      if (!Number.isInteger(offset) || !Number.isInteger(length) || offset < 0 || length < 1) {
+        throw mockError(MOCK_ERROR_CODES.invalidInput, '资源读取范围不合法', {
+          uri: this.uri,
+          offset,
+          length,
+        });
+      }
+      if (offset + length > bytes.byteLength) {
+        throw mockError(MOCK_ERROR_CODES.invalidInput, '资源读取范围超出资源长度', {
+          uri: this.uri,
+          offset,
+          length,
+          size: bytes.byteLength,
+        });
+      }
+      return bytes.subarray(offset, offset + length);
+    });
   }
 
   /**

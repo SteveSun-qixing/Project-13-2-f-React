@@ -24,7 +24,9 @@ function describeValue(value: unknown): string {
     const message = 'message' in record ? String(record['message']) : '缺失';
     return `结构不完整的对象（code=${code}，message=${message}）`;
   }
-  return `${typeof value}（${String(value)}）`;
+  // 走到这里 value 一定是原始类型；以 unknown 视角文本化，规避对可能被对象化的静态判定的误报
+  const primitive: unknown = value;
+  return `${typeof value}（${String(primitive)}）`;
 }
 
 /**

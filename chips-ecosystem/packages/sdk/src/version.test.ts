@@ -100,7 +100,7 @@ describe('PLATFORM_VERSION（02-SDK-API规范 §10.1）', () => {
     if (typeof manifest !== 'object' || manifest === null || !('dependencies' in manifest)) {
       throw new Error('packages/sdk/package.json 缺少 dependencies');
     }
-    const dependencies = (manifest as { dependencies: unknown }).dependencies;
+    const dependencies = manifest.dependencies;
     if (typeof dependencies !== 'object' || dependencies === null) {
       throw new Error('packages/sdk/package.json 的 dependencies 形状不合法');
     }

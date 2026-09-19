@@ -595,7 +595,13 @@ impl Kernel {
 mod tests {
     use super::*;
 
-    fn entry(name: &str, provider: &str, fork: ForkId, generation: u64, global: bool) -> ServiceEntry {
+    fn entry(
+        name: &str,
+        provider: &str,
+        fork: ForkId,
+        generation: u64,
+        global: bool,
+    ) -> ServiceEntry {
         ServiceEntry {
             name: name.to_owned(),
             value: Arc::new(generation) as ServiceValue,
@@ -631,7 +637,9 @@ mod tests {
         assert!(table.get(1, "file").is_none());
         assert!(table.find_global("file").is_none());
 
-        assert!(table.insert(1, entry("file", "chips.a", 10, 1, true)).is_none());
+        assert!(table
+            .insert(1, entry("file", "chips.a", 10, 1, true))
+            .is_none());
         table.insert(2, entry("file", "chips.b", 20, 1, true));
         table.insert(3, entry("file-scope", "chips.c", 30, 1, false));
         assert_eq!(table.len(), 3);
@@ -678,7 +686,10 @@ mod tests {
             Some(20),
             "摘除后不得留下旧代际"
         );
-        assert_eq!(table.remove(3, "file-scope").map(|item| item.fork), Some(30));
+        assert_eq!(
+            table.remove(3, "file-scope").map(|item| item.fork),
+            Some(30)
+        );
         assert_eq!(
             table.remove(4, "file").map(|item| item.provider),
             Some("chips.z".to_owned())
@@ -700,11 +711,9 @@ mod tests {
             table.remove_by_fork("file", 11, 2).is_none(),
             "Fork 不匹配不得摘除"
         );
-        assert!(
-            table
-                .remove_by_fork("other", 20, 2)
-                .is_some_and(|item| item.provider == "chips.b")
-        );
+        assert!(table
+            .remove_by_fork("other", 20, 2)
+            .is_some_and(|item| item.provider == "chips.b"));
         assert_eq!(table.len(), 1);
     }
 

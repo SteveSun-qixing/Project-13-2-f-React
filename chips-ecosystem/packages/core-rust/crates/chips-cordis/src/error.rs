@@ -420,11 +420,15 @@ mod tests {
                 "KERNEL_DEPENDENCY_CONFLICT",
             ),
             (
-                KernelError::ServiceNotFound { name: "file".into() },
+                KernelError::ServiceNotFound {
+                    name: "file".into(),
+                },
                 "KERNEL_SERVICE_NOT_FOUND",
             ),
             (
-                KernelError::ServiceTypeMismatch { name: "file".into() },
+                KernelError::ServiceTypeMismatch {
+                    name: "file".into(),
+                },
                 "KERNEL_SERVICE_TYPE_MISMATCH",
             ),
             (
@@ -434,7 +438,9 @@ mod tests {
                 "KERNEL_INJECT_FAILED",
             ),
             (
-                KernelError::RebuildOverflow { root: "file".into() },
+                KernelError::RebuildOverflow {
+                    root: "file".into(),
+                },
                 "KERNEL_REBUILD_OVERFLOW",
             ),
             (
@@ -475,10 +481,7 @@ mod tests {
             plugin: "chips.a".into(),
             dependents: vec!["chips.b".into(), "chips.c".into()],
         });
-        let details = conflict
-            .details()
-            .cloned()
-            .expect("依赖冲突应携带诊断字段");
+        let details = conflict.details().cloned().expect("依赖冲突应携带诊断字段");
         assert_eq!(details["plugin"], serde_json::json!("chips.a"));
         assert_eq!(
             details["dependents"],
@@ -495,7 +498,10 @@ mod tests {
                 id: "chips.a".into(),
                 quota,
             });
-            let details = normalized.details().cloned().expect("配额错误应携带诊断字段");
+            let details = normalized
+                .details()
+                .cloned()
+                .expect("配额错误应携带诊断字段");
             assert_eq!(details["pluginId"], serde_json::json!("chips.a"));
             assert_eq!(details["quota"], serde_json::json!(label));
             assert!(!normalized.retryable(), "软配额超限不由重试解决");
@@ -511,7 +517,10 @@ mod tests {
                 kind,
                 name: "Bad_Name".into(),
             });
-            let details = normalized.details().cloned().expect("名称非法应携带诊断字段");
+            let details = normalized
+                .details()
+                .cloned()
+                .expect("名称非法应携带诊断字段");
             assert_eq!(details["kind"], serde_json::json!(format!("{kind:?}")));
             assert_eq!(details["name"], serde_json::json!("Bad_Name"));
         }

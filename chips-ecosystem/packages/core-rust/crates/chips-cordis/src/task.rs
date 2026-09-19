@@ -470,10 +470,12 @@ mod tests {
 
         item.complete(Ok(()));
         let done = Arc::clone(&item);
-        assert!(std::thread::spawn(move || done.wait_timeout(Duration::from_millis(60)))
-            .join()
-            .expect("等待线程不应 panic")
-            .is_ok());
+        assert!(
+            std::thread::spawn(move || done.wait_timeout(Duration::from_millis(60)))
+                .join()
+                .expect("等待线程不应 panic")
+                .is_ok()
+        );
 
         // 无归属插件时超时诊断使用空插件位。
         let orphan = control(None, None);
@@ -568,10 +570,7 @@ mod tests {
         let kernel = Kernel::new(tokio::runtime::Handle::current()).expect("内核应可创建");
         let root = kernel.root_context();
         let handle = root
-            .task(
-                async { panic!("任务内部故障") },
-                TaskOptions::default(),
-            )
+            .task(async { panic!("任务内部故障") }, TaskOptions::default())
             .expect("任务应登记成功");
         let outcome = tokio::time::timeout(Duration::from_millis(2_000), handle.join())
             .await

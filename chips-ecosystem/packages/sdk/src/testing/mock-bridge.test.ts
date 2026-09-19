@@ -82,8 +82,14 @@ describe('createMockBridge 能力通道', () => {
 
   it('桩抛同构普通对象时还原为同码 ChipsError 实例', async () => {
     const bridge = createMockBridge();
+    // 刻意抛出跨 Bridge 传回的同构普通对象（非 Error 实例），验证 Mock 走 toChipsError 归一口径
+    const plainError: unknown = {
+      code: 'RESOURCE_PERMISSION_DENIED',
+      message: '无权写入该位置',
+      retryable: false,
+    };
     bridge.handle('file:write', () => {
-      throw { code: 'RESOURCE_PERMISSION_DENIED', message: '无权写入该位置', retryable: false };
+      throw plainError;
     });
     const error = (await rejection(bridge.request('file:write'))) as ChipsError;
     expect(error).toBeInstanceOf(ChipsError);

@@ -19,7 +19,7 @@
  * `SDK_BRIDGE_UNAVAILABLE`。
  */
 
-import { bridgeUnavailableError } from '../errors.js';
+import { bridgeUnavailableError, toChipsError } from '../errors.js';
 import type { IChipsBridge, IResourceHandle, ISubscription } from '../types/bridge.js';
 
 /**
@@ -89,7 +89,7 @@ export class ChipsBridge implements IChipsBridge {
     try {
       target = this.#target();
     } catch (error) {
-      return Promise.reject(error);
+      return Promise.reject(toChipsError(error));
     }
     return target.request<TOutput>(capabilityId, input);
   }
