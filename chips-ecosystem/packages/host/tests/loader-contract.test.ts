@@ -12,8 +12,8 @@
  * @remarks
  * - `@chips/host` 对 `@chips/{sdk,cli}` 零运行时依赖：本套件读取其**源文件文本**做结构
  *   解析比对，不建立 import 依赖边——这正是"双源不漂移"的锁。
- * - 生命周期事件（`plugin:*`）ID/payload 面漂移锁随 `lifecycle.ts`（阶段五）在本套件
- *   补齐；当前装载器交付面尚无宿主侧事件常量源可比对（裁决登记开发日志）。
+ * - 生命周期事件（`plugin:*`）ID 表与 payload 字段面漂移锁（权威《05-宿主桥接协议》
+ *   §4.1；常量源落 `lifecycle.ts` 的 `PLUGIN_LIFECYCLE_EVENTS` 与 payload 接口）。
  */
 
 import { readFileSync } from 'node:fs';
@@ -31,6 +31,14 @@ import {
   type LoaderErrorCode,
 } from '../src/loader/codes.js';
 import { CPK_LIMITS, LIFECYCLE_TIMEOUTS } from '../src/loader/limits.js';
+import {
+  PLUGIN_LIFECYCLE_EVENTS,
+  type IPluginFailedPayload,
+  type IPluginInstalledPayload,
+  type IPluginLoadedPayload,
+  type IPluginStatePayload,
+  type IPluginUninstalledPayload,
+} from '../src/loader/lifecycle.js';
 
 /** 读取工作区源文件原文（不建立包依赖边）。 */
 function readWorkspaceSource(relativeFromTests: string): string {
@@ -156,5 +164,64 @@ describe('CPK_LIMITS 与超时常量漂移锁', () => {
   it('生命周期超时常量与《01-薯片内核设计》§6.7 文档值一致', () => {
     expect(LIFECYCLE_TIMEOUTS.applyMs).toBe(30_000);
     expect(LIFECYCLE_TIMEOUTS.stopMs).toBe(10_000);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* plugin:* 生命周期事件漂移锁（《05-宿主桥接协议》§4.1）               */
+/* ------------------------------------------------------------------ */
+
+/** 编译期恒等断言助手（漂移时 tsc 闸红）。 */
+type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
+  ? true
+  : false;
+type Expect<T extends true> = T;
+
+/** 编译期锁：各事件 payload 字段面与 05.05 §4.1 文档一致（导出以免 no-unused-vars）。 */
+export type DriftLockInstalledPayload = Expect<
+  Equal<keyof IPluginInstalledPayload, 'pluginId' | 'version'>
+>;
+export type DriftLockUninstalledPayload = Expect<Equal<keyof IPluginUninstalledPayload, 'pluginId'>>;
+export type DriftLockLoadedPayload = Expect<
+  Equal<keyof IPluginLoadedPayload, 'pluginId' | 'version' | 'role'>
+>;
+export type DriftLockStatePayload = Expect<Equal<keyof IPluginStatePayload, 'pluginId'>>;
+export type DriftLockFailedPayload = Expect<Equal<keyof IPluginFailedPayload, 'pluginId' | 'error'>>;
+
+describe('plugin:* 生命周期事件漂移锁（lifecycle.ts ↔ 《05-宿主桥接协议》§4.1）', () => {
+  it('事件 ID 表全恰 7 键且逐项与 §4.1 文档值一致', () => {
+    expect(PLUGIN_LIFECYCLE_EVENTS).toEqual({
+      installed: 'plugin:installed',
+      uninstalled: 'plugin:uninstalled',
+      loaded: 'plugin:loaded',
+      enabled: 'plugin:enabled',
+      disabled: 'plugin:disabled',
+      unloaded: 'plugin:unloaded',
+      failed: 'plugin:failed',
+    });
+    expect(Object.keys(PLUGIN_LIFECYCLE_EVENTS)).toHaveLength(7);
+    for (const eventId of Object.values(PLUGIN_LIFECYCLE_EVENTS)) {
+      expect(eventId, '事件 ID 必须以 plugin: 前缀命名').toMatch(/^plugin:[a-z]+$/);
+    }
+  });
+
+  it('payload 字段面运行态抽检（样例对象逐一满足对应接口，键序与文档一致）', () => {
+    const installed: IPluginInstalledPayload = { pluginId: 'chips.demo', version: '0.1.0' };
+    const uninstalled: IPluginUninstalledPayload = { pluginId: 'chips.demo' };
+    const loaded: IPluginLoadedPayload = {
+      pluginId: 'chips.demo',
+      version: '0.1.0',
+      role: 'service',
+    };
+    const state: IPluginStatePayload = { pluginId: 'chips.demo' };
+    const failed: IPluginFailedPayload = {
+      pluginId: 'chips.demo',
+      error: { code: 'KERNEL_APPLY_FAILED', message: '激活失败', retryable: true },
+    };
+    expect(Object.keys(installed)).toEqual(['pluginId', 'version']);
+    expect(Object.keys(uninstalled)).toEqual(['pluginId']);
+    expect(Object.keys(loaded)).toEqual(['pluginId', 'version', 'role']);
+    expect(Object.keys(state)).toEqual(['pluginId']);
+    expect(Object.keys(failed)).toEqual(['pluginId', 'error']);
   });
 });
