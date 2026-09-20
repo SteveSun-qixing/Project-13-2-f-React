@@ -4,21 +4,22 @@
 //! 工程约束（《W2 金链路》工单015 裁决）：不引入 `zip` / `memmap2` 第三方
 //! crate，按发布侧 Store 无压缩口径手写解析；「映射」为进程内只读字节
 //! 缓冲（`#![forbid(unsafe_code)]` 下不做 mmap），对外 `ByteStream::Mapped`
-//! 形状与设计稿一致。加密条目、Deflate 与损坏的中央目录返回
-//! `DOCUMENT_ARCHIVE_INVALID`；ZIP64 归档只读支持。
+//! 形状与设计稿一致。加密条目、未知压缩方法与损坏的中央目录返回
+//! `DOCUMENT_ARCHIVE_INVALID`；Deflate 成员在限额内现场解压读取；ZIP64 归档
+//! 只读支持。
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::error::{DocumentError, Fatal, DOCUMENT_ARCHIVE_INVALID};
-use crate::parser::ParseLimits;
-use crate::source::{
-    ByteStream, DocumentSource, Mapping, MemberFingerprint, MemberMeta, MemberMethod, PackagePath,
-    SourceFingerprint, SourceKind,
-};
+use crate::error::{DocumentError, Fatal};
 use crate::digest::crc32;
+use crate::model::ParseLimits;
+use crate::source::{
+    inflate, ByteStream, DocumentSource, Mapping, MemberFingerprint, MemberMeta, MemberMethod,
+    PackagePath, SourceFingerprint, SourceKind,
+};
 
 /// ZIP 中央目录条目签名。
 const CENTRAL_SIGNATURE: u32 = 0x0201_4b50;
@@ -43,7 +44,8 @@ const LOCAL_FIXED_SIZE: usize = 30;
 const EOCD_MAX_BACKSCAN: usize = 0xFFFF + EOCD_FIXED_SIZE;
 /// Store 压缩方法编号。
 const METHOD_STORE: u16 = 0;
-/// Deflate 压缩方法编号（本读取端按 Store 口径交付，Deflate 拒绝并见开发计划）。
+/// Deflate 压缩方法编号（发布侧不产生；读取端在限额内接受并现场解压，
+/// 设计稿 §3.3「读取端不得因 Deflate 而拒绝本可正常打开的文档」）。
 const METHOD_DEFLATE: u16 = 8;
 
 /// 中央目录条目派生的成员定位信息。
@@ -56,11 +58,22 @@ struct ArchivedMember {
     compressed_size: u64,
 }
 
+/// 中央目录单条解析产物（§3.3 索引行）。
+struct ParsedCentralEntry {
+    /// 文件成员的路径与元数据；目录条目（尾部 `/`）为 `None`，只计数不入索引。
+    file: Option<(PackagePath, MemberMeta)>,
+    /// 本地文件头偏移。
+    header_offset: u64,
+    /// 压缩数据长度。
+    compressed_size: u64,
+}
+
 /// 压缩态数据源。
 #[derive(Debug)]
 pub struct ArchiveSource {
     mapping: Arc<Mapping>,
     index: BTreeMap<PackagePath, ArchivedMember>,
+    limits: ParseLimits,
 }
 
 impl ArchiveSource {
@@ -82,7 +95,7 @@ impl ArchiveSource {
         }
         let mapping = Arc::new(Mapping::new(data));
         let index = Self::build_index(&mapping, limits)?;
-        Ok(Self { mapping, index })
+        Ok(Self { mapping, index, limits: *limits })
     }
 
     /// 阶段 1 使用的归档签名检查：普通归档 `PK\x03\x04` 或空归档 `PK\x05\x06`。
@@ -123,8 +136,10 @@ impl ArchiveSource {
         while (cursor as u64) < central_end - central_offset {
             let entry = Self::parse_central_entry(central_bytes, &mut cursor)?;
             parsed_count += 1;
-            let package_path = entry.package_path;
-            let meta = entry.meta;
+            let Some((package_path, meta)) = entry.file else {
+                // 目录条目：仅计数（设计稿 §3.3）。
+                continue;
+            };
             total_uncompressed = total_uncompressed.checked_add(meta.size).ok_or_else(|| {
                 DocumentError::LimitExceeded {
                     limit: "max_uncompressed_bytes",
@@ -226,14 +241,6 @@ impl ArchiveSource {
         Ok((entry_count, central_offset, central_size))
     }
 
-    /// 中央目录条目结构（解析产物）。
-    struct ParsedCentralEntry {
-        package_path: PackagePath,
-        meta: MemberMeta,
-        header_offset: u64,
-        compressed_size: u64,
-    }
-
     fn parse_central_entry(
         central_bytes: &[u8],
         cursor: &mut usize,
@@ -279,22 +286,20 @@ impl ArchiveSource {
         let extra = rest.get(name_end..extra_end).unwrap_or(&[]);
         Self::apply_zip64_extra(extra, &mut uncompressed_size, &mut compressed_size, &mut header_offset)?;
         match method {
-            METHOD_STORE => {}
-            METHOD_DEFLATE | _ => {
-                let method_name = match method {
-                    METHOD_DEFLATE => "Deflate".to_owned(),
-                    other => format!("编号 {other}"),
-                };
+            METHOD_STORE | METHOD_DEFLATE => {}
+            other => {
                 return Err(DocumentError::ArchiveInvalid {
-                    message: format!("压缩方法 {method_name} 不被接受：.card / .box 读取按 Store 口径交付"),
+                    message: format!("压缩方法编号 {other} 不被接受：只允许 Store 与 Deflate"),
                 });
             }
         }
-        // 目录条目（尾部 `/`）不纳入索引。
+        // 目录条目（尾部 `/`）不纳入索引，但计入中央目录条目数以核对 EOCD。
         if name.ends_with('/') {
             *cursor = entry_end;
-            return Err(DocumentError::ArchiveInvalid {
-                message: "__placeholder__".to_owned(),
+            return Ok(ParsedCentralEntry {
+                file: None,
+                header_offset,
+                compressed_size,
             });
         }
         if method == METHOD_STORE && uncompressed_size != compressed_size {
@@ -306,14 +311,19 @@ impl ArchiveSource {
         let modified = dos_date_time_to_system(dos_date, dos_time);
         *cursor = entry_end;
         Ok(ParsedCentralEntry {
-            package_path: package_path.clone(),
-            meta: MemberMeta {
-                path: package_path,
-                size: uncompressed_size,
-                modified,
-                crc32: Some(stored_crc),
-                method: MemberMethod::Store,
-            },
+            file: Some((
+                package_path.clone(),
+                MemberMeta {
+                    path: package_path,
+                    size: uncompressed_size,
+                    modified,
+                    crc32: Some(stored_crc),
+                    method: match method {
+                        METHOD_STORE => MemberMethod::Store,
+                        _ => MemberMethod::Deflate,
+                    },
+                },
+            )),
             header_offset,
             compressed_size,
         })
@@ -399,29 +409,43 @@ impl ArchiveSource {
         Ok(data_start)
     }
 
-    /// 读取成员原始字节（内部共享路径）。
-    fn member_bytes(&self, path: &PackagePath) -> Fatal<&[u8]> {
-        let member = self
-            .index
-            .get(path)
-            .ok_or_else(|| DocumentError::NotFound { path: path.to_string() })?;
+    /// 取成员数据区的原始存储字节（Store 为解压字节，Deflate 为压缩字节）。
+    fn stored_bytes(&self, member: &ArchivedMember, path: &PackagePath) -> Fatal<&[u8]> {
         let data_start = self.data_start(member, path)?;
-        self.mapping.slice(data_start, member.meta.size).ok_or_else(|| {
-            DocumentError::ArchiveInvalid { message: format!("成员数据区越界：{path}") }
+        self.mapping
+            .slice(data_start, member.compressed_size)
+            .ok_or_else(|| DocumentError::ArchiveInvalid {
+                message: format!("成员数据区越界：{path}"),
+            })
+    }
+
+    /// 读取成员的解压字节：Store 直接切片，Deflate 现场解压。
+    fn decompressed(&self, member: &ArchivedMember, path: &PackagePath) -> Fatal<Vec<u8>> {
+        let stored = self.stored_bytes(member, path)?;
+        match member.meta.method {
+            MemberMethod::Store => Ok(stored.to_vec()),
+            MemberMethod::Deflate => inflate::inflate(
+                stored,
+                member.meta.size,
+                self.limits.max_single_member_bytes(),
+            ),
+        }
+    }
+
+    fn archived(&self, path: &PackagePath) -> Fatal<&ArchivedMember> {
+        self.index.get(path).ok_or_else(|| DocumentError::NotFound {
+            path: path.to_string(),
         })
     }
 
-    /// 校验单个 Store 成员的 CRC32（`verify_hashes` 或 `validate` 路径）。
+    /// 校验单个成员的 CRC32（`verify_hashes` 或 `validate` 路径）。
     pub(crate) fn verify_member_crc(&self, path: &PackagePath) -> Fatal<()> {
-        let bytes = self.member_bytes(path)?;
-        let expected = self
-            .index
-            .get(path)
-            .and_then(|member| member.meta.crc32)
-            .ok_or_else(|| DocumentError::ArchiveInvalid {
-                message: format!("成员缺少 CRC32：{path}"),
-            })?;
-        if crc32(bytes) != expected {
+        let member = self.archived(path)?;
+        let bytes = self.decompressed(member, path)?;
+        let expected = member.meta.crc32.ok_or_else(|| DocumentError::ArchiveInvalid {
+            message: format!("成员缺少 CRC32：{path}"),
+        })?;
+        if crc32(&bytes) != expected {
             return Err(DocumentError::ArchiveInvalid {
                 message: format!("CRC32 校验失败：{path}"),
             });
@@ -483,9 +507,9 @@ fn days_from_1980(year: u32, month: u32, day: u32) -> u32 {
     for candidate_year in 1980..year {
         days += if is_leap(candidate_year) { 366 } else { 365 };
     }
-    for candidate_month in 0..month - 1 {
-        days += MONTH_DAYS[usize::try_from(candidate_month).ok()?];
-        if candidate_month == 1 && is_leap(year) {
+    for candidate_month in 1..month {
+        days += MONTH_DAYS[usize::try_from(candidate_month - 1).unwrap_or(0)];
+        if candidate_month == 2 && is_leap(year) {
             days += 1;
         }
     }
@@ -523,17 +547,28 @@ impl DocumentSource for ArchiveSource {
     }
 
     fn read(&self, path: &PackagePath) -> Result<Vec<u8>, DocumentError> {
-        Ok(self.member_bytes(path)?.to_vec())
+        let member = self.archived(path)?;
+        self.decompressed(member, path)
     }
 
     fn open_stream(&self, path: &PackagePath) -> Result<ByteStream, DocumentError> {
-        let member = self
-            .index
-            .get(path)
-            .ok_or_else(|| DocumentError::NotFound { path: path.to_string() })?;
-        let data_start = self.data_start(member, path)?;
-        // 压缩态 Store 成员直接返回映射切片（零解压、零拷贝语义）。
-        Ok(ByteStream::Mapped { source: Arc::clone(&self.mapping), offset: data_start, length: member.meta.size })
+        let member = self.archived(path)?;
+        match member.meta.method {
+            // 压缩态 Store 成员直接返回映射切片（零解压、零拷贝语义）。
+            MemberMethod::Store => {
+                let data_start = self.data_start(member, path)?;
+                Ok(ByteStream::Mapped {
+                    source: Arc::clone(&self.mapping),
+                    offset: data_start,
+                    length: member.meta.size,
+                })
+            }
+            // Deflate 成员在限额内现场解压，以内存游标呈现为解码流。
+            MemberMethod::Deflate => {
+                let bytes = self.decompressed(member, path)?;
+                Ok(ByteStream::Decoded(Box::new(std::io::Cursor::new(bytes))))
+            }
+        }
     }
 }
 
@@ -646,17 +681,41 @@ mod tests {
     }
 
     #[test]
-    fn test_rejects_deflate_and_unknown_methods() {
+    fn test_rejects_unknown_methods() {
         let archive = build_zip(&[("a.yaml", b"x: 1\n")]);
-        for method in [METHOD_DEFLATE, 12u16, 99] {
+        for method in [12u16, 99] {
             let mut tampered = archive.clone();
             let eocd = find_signature(&tampered, EOCD_SIGNATURE);
             let central_offset = usize::try_from(read_u32_le(&tampered[eocd + 16..])).expect("偏移可读");
             tampered[central_offset + 10..central_offset + 12].copy_from_slice(&method.to_le_bytes());
             let error = ArchiveSource::from_bytes(tampered, &ParseLimits::default())
-                .expect_err("非 Store 方法必须拒绝");
+                .expect_err("未知压缩方法必须拒绝");
             assert_eq!(error.code(), DOCUMENT_ARCHIVE_INVALID);
         }
+    }
+
+    #[test]
+    fn test_directory_entries_are_skipped_not_fatal() {
+        // 真实 `zip -r` 会把目录本身写入中央目录（尾部 `/`）；索引必须跳过而非报错。
+        let archive = build_zip_with_directory();
+        let source = ArchiveSource::from_bytes(archive, &ParseLimits::default())
+            .expect("含目录条目的归档必须可打开");
+        let file = PackagePath::new(".card/metadata.yaml").expect("合法");
+        assert_eq!(source.read(&file).expect("读取文件成员"), b"ok: true\n");
+        assert!(source.member(&PackagePath::new(".card").expect("合法")).is_none(), "目录条目不入索引");
+    }
+
+    #[test]
+    fn test_deflate_member_inflates_on_read() {
+        // 用合法 raw-deflate「非压缩块」构造一个 Deflate 成员，验证读取端现场解压。
+        let archive = build_zip_deflate("note.txt", b"abc");
+        let source = ArchiveSource::from_bytes(archive, &ParseLimits::default())
+            .expect("Deflate 归档可打开");
+        let path = PackagePath::new("note.txt").expect("合法");
+        assert_eq!(source.read(&path).expect("Deflate 成员读取"), b"abc");
+        let mut stream = source.open_stream(&path).expect("打开流");
+        assert_eq!(stream.read_to_vec().expect("流解码一致"), b"abc");
+        source.verify_member_crc(&path).expect("Deflate CRC 校验通过");
     }
 
     #[test]

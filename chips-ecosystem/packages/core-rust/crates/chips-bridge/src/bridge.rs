@@ -91,10 +91,15 @@ struct ProviderEntry {
     permissions: BTreeSet<String>,
 }
 
-/// 串行调度状态：FIFO 队列 + 在执标记。
+/// 串行调度状态：槽位持有者序号 + FIFO 等待队列。
+///
+/// `holder` 精确钉住「当前哪一个在途调用持有槽位」（《核心接口规范》§5.1：
+/// `Serial` 为「同一能力 ID 全局串行」）：仅持有者自身释放才发生移交或置空；
+/// 排队者提前收口（超时/取消/弃权）只移除自己的排队项，不得清掉在执持有者
+/// 的槽位状态——否则持有者仍在前台执行时新调用即可插队并发执行。
 #[derive(Default)]
 struct SerialState {
-    busy: bool,
+    holder: Option<u64>,
     waiters: VecDeque<(u64, mpsc::UnboundedSender<()>)>,
 }
 
@@ -208,17 +213,23 @@ fn release_invocation(state: &mut CoreState, seq: u64) {
     }
     if entry.holds_serial {
         if let Some(serial) = state.serial.get_mut(&entry.capability_id) {
-            // 先清除本序号的等待槽（若仍在排队），再把槽位移交给下一个存活等待者。
+            // 先清除本序号的等待槽（若仍在排队）；排队者收口到此为止，
+            // 槽位状态属于持有者，不随排队者释放而变化。
             serial.waiters.retain(|(other, _)| *other != seq);
-            while let Some((_, sender)) = serial.waiters.pop_front() {
-                if sender.is_closed() {
-                    continue;
+            // 仅持有者离位才把槽位移交队列中的下一个存活等待者；
+            // 队列清空后置为空闲。
+            if serial.holder == Some(seq) {
+                while let Some((next, sender)) = serial.waiters.pop_front() {
+                    if sender.is_closed() {
+                        continue;
+                    }
+                    if sender.send(()).is_ok() {
+                        serial.holder = Some(next);
+                        return;
+                    }
                 }
-                if sender.send(()).is_ok() {
-                    return;
-                }
+                serial.holder = None;
             }
-            serial.busy = false;
         }
     }
 }
@@ -798,7 +809,7 @@ impl Bridge {
                 .serial
                 .entry(request.capability_id.clone())
                 .or_default();
-            if serial.busy {
+            if serial.holder.is_some() {
                 if serial.waiters.len() >= registration.max_queue {
                     return Err(ChipsError::new(
                         BRIDGE_QUEUE_OVERFLOW,
@@ -810,7 +821,7 @@ impl Bridge {
                 serial.waiters.push_back((seq, sender));
                 permit_rx = Some(receiver);
             } else {
-                serial.busy = true;
+                serial.holder = Some(seq);
             }
         }
 

@@ -395,21 +395,40 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * 判断值是否可承载可调用成员。
+ *
+ * @remarks
+ * 两种合法宿主：非数组对象（`app` / `dialog` / `clipboard` 等单例模块），
+ * 以及函数 / 类构造器（Electron 的 `Menu` 为 class，静态方法挂载在构造器自身）。
+ * 原始值、数组与 `null` 一律非法。
+ */
+function isCallableHost(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'function' || isRecord(value);
+}
+
 /** 读取对象上的函数属性。 */
 function readFunction(target: Record<string, unknown>, key: string): ((...args: never[]) => unknown) | null {
   const value = target[key];
   return typeof value === 'function' ? (value as (...args: never[]) => unknown) : null;
 }
 
-/** 判断对象是否具备全部指定函数。 */
+/** 判断对象或类构造器是否具备全部指定可调用成员（含继承链上的成员）。 */
 function hasFunctions(value: unknown, keys: readonly string[]): boolean {
-  if (!isRecord(value)) {
+  if (!isCallableHost(value)) {
     return false;
   }
   return keys.every((key) => readFunction(value, key) !== null);
 }
 
-/** 已提供可选模块的形状校验表。 */
+/**
+ * 已提供可选模块的形状校验表。
+ *
+ * @remarks
+ * 构造器类模块（`Notification` / `Tray` / `BrowserWindow`）按 `typeof === "function"` 判定；
+ * 其余模块按期望形状逐成员判定可调用性，宿主为对象或类构造器均可（如 Electron 真实
+ * `Menu` 为 class，静态方法 `buildFromTemplate` / `setApplicationMenu` 挂在构造器上）。
+ */
 const OPTIONAL_MODULE_VALIDATORS: ReadonlyArray<{
   readonly key: keyof IElectronApi;
   readonly validate: (value: unknown) => boolean;

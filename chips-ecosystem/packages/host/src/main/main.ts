@@ -10,6 +10,7 @@
  * - 本模块不装配平台核心：装配经 {@link HostAssembly} 由组合根注入（见 `runtime-provider.ts`）。
  */
 
+import { isPalBootstrapError } from '../platform/errors.js';
 import type { IPalHost } from '../platform/contracts/index.js';
 import type { IPlatformRuntime, IPlatformStartupInput } from '../runtime/contracts.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
@@ -167,7 +168,21 @@ interface HostRuntimeContextHolder {
   readonly application: HostApplication;
 }
 
-/** 读取启动错误阶段（仅用于诊断）。 */
+/**
+ * 读取启动错误阶段（仅用于诊断）。
+ *
+ * @remarks
+ * - `HostStartupError` 自带阶段，直接归因；
+ * - `PalBootstrapError` 由 PAL 构造 / 装配自检抛出（`createPalHost` 与 `createRuntime`
+ *   的平台层失败），归因到 `pal-host`；
+ * - 其余未识别异常保持 `unknown`。
+ */
 function stageOf(error: unknown): string {
-  return error instanceof HostStartupError ? error.stage : 'unknown';
+  if (error instanceof HostStartupError) {
+    return error.stage;
+  }
+  if (isPalBootstrapError(error)) {
+    return 'pal-host';
+  }
+  return 'unknown';
 }

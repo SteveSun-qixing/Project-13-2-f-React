@@ -198,7 +198,13 @@ export interface IDocumentServiceDependencies {
   readonly diagnostics?: DiagnosticsSink;
 }
 
-/** 能力执行器签名（与 `@chips/bridge` `ICapability.execute` 同构）。 */
+/**
+ * 能力执行器签名（与 `@chips/bridge` `ICapability.execute` 同构）。
+ *
+ * @remarks `TInput` 一律为 `unknown`：运行时（壳侧路由 / Bridge 内核）交付的输入在类型上是未定型的，
+ * 能力入口守卫负责类型恢复与业务校验（`04-能力契约规范` §5.2 规则 8），契约声明的输入形状
+ * （`IDocumentOpenInput` 等）是守卫产出的结构视图，不是入参的类型保证。
+ */
 export type DocumentCapabilityExecutor<TInput, TOutput> = (
   input: TInput,
   ctx: IDocumentCapabilityContext

@@ -5,9 +5,12 @@
  * - 值导出固定为 `chips`、`createClient`、`ChipsBridge`、`ChipsError`、`isChipsError`、
  *   `toChipsError` 六项；`testing` 与 `scaffold` 两组开发期工具不从本入口导出（§2.2 末段）。
  * - 类型导出按 §2.2 的分类组织：Bridge 协议与能力类型转发 `@chips/bridge`（§2.3、§11 约束 5），
- *   能力契约、命令、资源打开、内核上下文、插件角色、文档模型、渲染视图与客户端选项等类型由
- *   SDK 定义，形状权威在对应接口文档，本入口不复制其内容（§1.3）。§2.2 清单中的 manifest 与
- *   CLI 扩展类型尚未随本入口落地，缺口登记见包内说明与波次报告。
+ *   能力契约、命令、资源打开、内核上下文、插件角色、文档模型、渲染视图、manifest 与 CLI 扩展等类型
+ *   由 SDK 定义或以既有单点定义再导出，本入口不复制其内容（§1.3）。manifest 类型经
+ *   `./scaffold/index.js` 的既有转发以 `export type` 再导出：编译期可达、运行时完全擦除，
+ *   插件运行时依赖图里不出现 `@chips/sdk/scaffold` 与 `@chips/scaffold`（§2.1 规则）。
+ * - `cliCommand` / `cliTask` 不是模块级值导出，而是 `ChipsBridge` 实例上的只读扩展命名空间
+ *   （§2.2 末段、§3.5）；本入口导出其类型供 `import type` 消费。
  * - 附带 `Window.chips` 全局声明（§4、§9.2），插件不得重复声明。
  * - 三个入口均无默认导出（§2.1）。
  */
@@ -155,6 +158,21 @@ export type {
   ICliTaskProgressOutput,
 } from './types/capabilities/cli-task.js';
 
+/* CLI 扩展类型：`ChipsBridge.cliCommand` / `cliTask` 两个只读命名空间的形状与结果类型，
+   方法与语义权威见 07-CLI完整参考 §5.6、§5.8，命名空间本身见 02-SDK-API规范 §3.5。
+   `CliTaskStatus` 与 `CliTaskRecord` 由上方「CLI 任务」段导出，此处不重复导出。 */
+export type {
+  CliCommandApi,
+  CliCommandConflict,
+  CliCommandIndex,
+  CliCommandListResult,
+  CliCommandQueryOptions,
+  CliCommandResolveResult,
+  CliCommandTargetType,
+  CliCommandView,
+} from './types/cli/command.js';
+export type { CliTaskApi } from './types/cli/task.js';
+
 /* 命令类型：权威见 13-命令系统契约 §2、§3.2。 */
 export type {
   CommandScopeKind,
@@ -283,3 +301,26 @@ export type {
   EntryView,
   TagView,
 } from './types/views.js';
+
+/* manifest 类型：字段语义见 03-插件开发/02-插件清单规范，§2.2 把它们登记为主入口类型导出。
+   单点定义在 `@chips/scaffold`，经 `./scaffold/index.js` 的既有转发以 `export type` 再导出：
+   本入口不复制形状（§11 约束 5），运行时也不引入 scaffold 依赖（§2.1 规则）。
+   脚手架开发期类型（`IScaffoldOptions` / `IScaffoldPlan` / `IScaffoldTemplate` / `IScaffoldFile`）
+   不在 §2.2 主入口清单内，仍只从 `@chips/sdk/scaffold` 导出（§8.3）。 */
+export type {
+  IPluginCapabilities,
+  IPluginCardType,
+  IPluginDeepLink,
+  IPluginDependency,
+  IPluginEngines,
+  IPluginExportFormat,
+  IPluginFileAssociation,
+  IPluginHealthCheck,
+  IPluginLayoutType,
+  IPluginManifest,
+  IPluginRuntime,
+  IPluginUi,
+  PluginRole,
+  PluginSurface,
+  PluginTarget,
+} from './scaffold/index.js';

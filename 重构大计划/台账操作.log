@@ -3549,3 +3549,7 @@
 2026-09-20 18:46:48	cmd=dispose-batch  owner=ledger-host-scaffold     rows=4      disposition=保留设计 status=已裁决 target=chips-ecosystem/tools/scaffold/tests notes=批次判定（四个子包 技术文档/05-测试策略与质量门禁设计，共 4 件：app 208 行 / basecard 199 目录组=4 跳过=0
 2026-09-20 18:46:48	cmd=dispose-batch  owner=ledger-host-scaffold     rows=2      disposition=保留设计 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/service.ts notes=批次判定（chips-scaffold-module/README.md「模板矩阵」章 + 技术文档/02-模板目录与文 目录组=2 跳过=0
 2026-09-20 18:46:48	cmd=dispose-batch  owner=ledger-host-scaffold     rows=4      disposition=归档 status=已裁决 target=计划归属：Chips-Scaffold/归档/（待主代理执行移动，旧仓保持只读） notes=批次判定（Chips-Scaffold 仓库级与三个子包的 AGENTS.md，共 4 件）：旧仓内部开发规则（角色定位 目录组=4 跳过=0
+2026-09-20 18:56:49	cmd=claim          owner=ledger-media-viewers     rows=116    仓库分布=Chips-CardViewer=116 命中=116 跳过=0
+2026-09-20 18:56:49	cmd=claim          owner=ledger-media-viewers     rows=105    仓库分布=Chips-UniversalFileViewer=105 命中=105 跳过=0
+2026-09-20 18:56:49	cmd=claim          owner=ledger-media-viewers     rows=64     仓库分布=Chips-PhotoViewer=64 命中=64 跳过=0
+2026-09-20 18:56:49	cmd=claim          owner=ledger-media-viewers     rows=92     仓库分布=Chips-VideoPlayer=92 命中=92 跳过=0

@@ -9,6 +9,7 @@
 
 pub mod archive;
 pub mod directory;
+pub(crate) mod inflate;
 mod path;
 
 use std::time::{SystemTime, UNIX_EPOCH};

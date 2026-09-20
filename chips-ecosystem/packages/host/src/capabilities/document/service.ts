@@ -28,17 +28,13 @@ import type {
   DocumentKind,
   DocumentPart,
   DocumentValue,
+  IDocumentCapabilityContext,
   IDocumentDiagnostic,
-  IDocumentOpenInput,
   IDocumentOpenOutput,
-  IDocumentReadInput,
   IDocumentReadOutput,
-  IDocumentSaveInput,
   IDocumentSaveOutput,
-  IDocumentWriteInput,
   IDocumentWriteOutput,
 } from './contract.js';
-import type { IDocumentCapabilityContext } from './contract.js';
 import {
   DOCUMENT_BUSINESS_ERROR_CODES,
   DOCUMENT_CHANNEL_ERROR_CODES,
@@ -56,6 +52,7 @@ import {
 } from './digest.js';
 import type { ISourceFingerprint } from './digest.js';
 import type {
+  DocumentCapabilityExecutor,
   IDocumentParseOutcome,
   IDocumentSerializeRequest,
   IDocumentSerializedMember,
@@ -81,10 +78,10 @@ import {
 
 /** 文档服务对外执行面（组合根把执行器包装进能力注册项，见 `descriptors.ts`）。 */
 export interface IDocumentService {
-  executeOpen(input: IDocumentOpenInput, ctx: IDocumentCapabilityContext): Promise<IDocumentOpenOutput>;
-  executeRead(input: IDocumentReadInput, ctx: IDocumentCapabilityContext): Promise<IDocumentReadOutput>;
-  executeWrite(input: IDocumentWriteInput, ctx: IDocumentCapabilityContext): Promise<IDocumentWriteOutput>;
-  executeSave(input: IDocumentSaveInput, ctx: IDocumentCapabilityContext): Promise<IDocumentSaveOutput>;
+  executeOpen: DocumentCapabilityExecutor<unknown, IDocumentOpenOutput>;
+  executeRead: DocumentCapabilityExecutor<unknown, IDocumentReadOutput>;
+  executeWrite: DocumentCapabilityExecutor<unknown, IDocumentWriteOutput>;
+  executeSave: DocumentCapabilityExecutor<unknown, IDocumentSaveOutput>;
   /** Bridge 会话释放联动：移除该会话的全部文档会话与身份声明（§4.6 释放语义的宿主入口）。 */
   releaseSessions(sessionId: string): Promise<void>;
   /** 观察面：当前活动文档记录数（诊断与测试）。 */
@@ -409,7 +406,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     }
   }
 
-  async function executeOpen(input: IDocumentOpenInput, ctx: IDocumentCapabilityContext): Promise<IDocumentOpenOutput> {
+  async function executeOpen(input: unknown, ctx: IDocumentCapabilityContext): Promise<IDocumentOpenOutput> {
     const checked = assertOpenInput(input);
     await authorize(DOCUMENT_CAPABILITY_IDS.open, ctx);
     const resolved = await deps.scope.normalizeSource(checked.source, ctx);
@@ -457,7 +454,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     });
   }
 
-  async function executeRead(input: IDocumentReadInput, ctx: IDocumentCapabilityContext): Promise<IDocumentReadOutput> {
+  async function executeRead(input: unknown, ctx: IDocumentCapabilityContext): Promise<IDocumentReadOutput> {
     const checked = assertReadInput(input);
     await authorize(DOCUMENT_CAPABILITY_IDS.read, ctx);
     const { record, session } = locateSession(DOCUMENT_CAPABILITY_IDS.read, checked.documentId, ctx);
@@ -552,7 +549,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     }
   }
 
-  async function executeWrite(input: IDocumentWriteInput, ctx: IDocumentCapabilityContext): Promise<IDocumentWriteOutput> {
+  async function executeWrite(input: unknown, ctx: IDocumentCapabilityContext): Promise<IDocumentWriteOutput> {
     const checked = assertWriteInput(input);
     await authorize(DOCUMENT_CAPABILITY_IDS.write, ctx);
     const { record, session } = locateSession(DOCUMENT_CAPABILITY_IDS.write, checked.documentId, ctx);
@@ -671,7 +668,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     }
   }
 
-  async function executeSave(input: IDocumentSaveInput, ctx: IDocumentCapabilityContext): Promise<IDocumentSaveOutput> {
+  async function executeSave(input: unknown, ctx: IDocumentCapabilityContext): Promise<IDocumentSaveOutput> {
     const documentId = requireDocumentId(DOCUMENT_CAPABILITY_IDS.save, input);
     await authorize(DOCUMENT_CAPABILITY_IDS.save, ctx);
     const { record, session } = locateSession(DOCUMENT_CAPABILITY_IDS.save, documentId, ctx);

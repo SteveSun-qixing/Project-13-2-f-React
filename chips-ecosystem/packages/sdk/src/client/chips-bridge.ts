@@ -1,9 +1,10 @@
 /**
- * SDK 类型化客户端（02-SDK-API规范 §3.2、§11 约束 1、3、8）。
+ * SDK 类型化客户端（02-SDK-API规范 §3.2、§3.5、§11 约束 1、3、8、12）。
  *
  * `ChipsBridge` 实现 `IChipsBridge` 的完整形状，方法面冻结为 `request` / `subscribe` /
  * `resource` 三个方法，不含任何平台逻辑：会话、权限、schema 校验与路由全部由目标 Bridge
- * 承担，SDK 只做转发（§1.2）。
+ * 承担，SDK 只做转发（§1.2）。方法面之外只有 §3.5 规定的两个只读扩展命名空间
+ * `cliCommand` / `cliTask`（约束 3 的显式豁免面），二者共用同一目标解析链路，不新增通道。
  *
  * 目标解析规则（§3.2、§11 约束 8）：
  *
@@ -11,7 +12,7 @@
  * |---|---|
  * | 构造时传入 `target` | 全部调用直接转发给 `target` |
  * | 未传入且 `window.chips` 已注入 | 转发给 `window.chips` |
- * | 未传入且 `window.chips` 不存在 | `request` 异步拒绝、`subscribe` 与 `resource` 同步抛出 `SDK_BRIDGE_UNAVAILABLE` |
+ * | 未传入且 `window.chips` 不存在 | `request` 与两个扩展命名空间的方法异步拒绝、`subscribe` 与 `resource` 同步抛出 `SDK_BRIDGE_UNAVAILABLE` |
  * | 未传入、构造后 `window.chips` 才注入 | 后续调用自动使用新注入的 Bridge（解析发生在每次调用） |
  *
  * 错误口径（§6.4、§11 约束 6）：目标 Bridge 返回的错误已由平台完成归一，客户端原样透传，
@@ -19,8 +20,13 @@
  * `SDK_BRIDGE_UNAVAILABLE`。
  */
 
-import { bridgeUnavailableError, toChipsError } from '../errors.js';
+import { bridgeUnavailableError } from '../errors.js';
+import type { CliCommandApi } from '../types/cli/command.js';
+import type { CliTaskApi } from '../types/cli/task.js';
 import type { IChipsBridge, IResourceHandle, ISubscription } from '../types/bridge.js';
+import { createCliCommandApi } from './cli-command-api.js';
+import { createCliTaskApi } from './cli-task-api.js';
+import { invokeTarget } from './target-invocation.js';
 
 /**
  * `window` 与 `window.chips` 的结构视图。
@@ -50,11 +56,27 @@ export interface ICreateClientOptions {
 /**
  * SDK 客户端：实现 `IChipsBridge`，把调用转发给目标 Bridge。
  *
- * 未显式注入目标时，每次调用解析一次 `window.chips`：目标不可用时 `request` 异步拒绝，
- * `subscribe` 与 `resource` 同步抛出 `ChipsError`（`SDK_BRIDGE_UNAVAILABLE`）。
+ * 未显式注入目标时，每次调用解析一次 `window.chips`：目标不可用时 `request` 与两个扩展
+ * 命名空间的方法异步拒绝，`subscribe` 与 `resource` 同步抛出 `ChipsError`
+ * （`SDK_BRIDGE_UNAVAILABLE`）。
  */
 export class ChipsBridge implements IChipsBridge {
   readonly #injected: IChipsBridge | undefined;
+
+  /**
+   * CLI 命令发现扩展命名空间（§3.5）。
+   *
+   * 只读实例成员，不是模块级值导出（§2.2 末段）；与三个方法面共用同一目标解析链路。
+   */
+  readonly cliCommand: CliCommandApi = createCliCommandApi(() => this.#target());
+
+  /**
+   * CLI 任务生命周期扩展命名空间（§3.5）。
+   *
+   * 只读实例成员；插件侧五方法经 `cli:task-active` 至 `cli:task-fail` 能力转发，
+   * CLI 调度侧三方法经平台服务路由转发（§5.6、§5.8）。
+   */
+  readonly cliTask: CliTaskApi = createCliTaskApi(() => this.#target());
 
   constructor(target?: IChipsBridge) {
     this.#injected = target;
@@ -85,13 +107,7 @@ export class ChipsBridge implements IChipsBridge {
    * @returns 能力输出；目标不可用或平台调用失败时以 `ChipsError` 拒绝
    */
   request<TOutput>(capabilityId: string, input?: unknown): Promise<TOutput> {
-    let target: IChipsBridge;
-    try {
-      target = this.#target();
-    } catch (error) {
-      return Promise.reject(toChipsError(error));
-    }
-    return target.request<TOutput>(capabilityId, input);
+    return invokeTarget<TOutput>(() => this.#target(), capabilityId, input);
   }
 
   /**

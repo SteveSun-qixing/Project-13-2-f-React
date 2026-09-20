@@ -298,9 +298,43 @@ describe('ChipsBridge 方法面冻结', () => {
     expect(names).toEqual(['request', 'resource', 'subscribe']);
   });
 
-  it('实例不携带任何自有可枚举成员，注入目标不可被外部读取', () => {
-    const client = new ChipsBridge(createTarget());
-    expect(Object.getOwnPropertyNames(client)).toEqual([]);
-    expect(Object.keys(client)).toEqual([]);
+  it('实例自有成员恰为 §3.5 的两个只读扩展命名空间，注入目标不可被外部读取', () => {
+    const target = createTarget();
+    const client = new ChipsBridge(target);
+    expect(Object.getOwnPropertyNames(client).sort()).toEqual(['cliCommand', 'cliTask']);
+    expect(Object.keys(client).sort()).toEqual(['cliCommand', 'cliTask']);
+    // 只读扩展命名空间按实例引用稳定，且两个命名空间即 §5.6 的方法面
+    expect(client.cliCommand).toBe(client.cliCommand);
+    expect(client.cliTask).toBe(client.cliTask);
+    expect(typeof client.cliCommand.list).toBe('function');
+    expect(typeof client.cliTask.bindInvocation).toBe('function');
+    // 注入目标以私有字段承载：实例上不出现任何可读的目标成员
+    const record = client as unknown as Record<string, unknown>;
+    expect(record['bridge']).toBeUndefined();
+    expect(record['target']).toBeUndefined();
+    expect(record['injected']).toBeUndefined();
+  });
+
+  it('未注入目标时扩展命名空间也即时解析 window.chips，且无目标时异步拒绝', async () => {
+    const restoreWindow = mountWindow();
+    const client = new ChipsBridge();
+    const target = createTarget({
+      request: vi.fn((): Promise<unknown> => Promise.resolve({ task: { taskId: 't1' } })),
+    });
+    const host = windowHost();
+    expect(host).toBeDefined();
+    if (host === undefined) {
+      restoreWindow();
+      throw new Error('window 夹具挂载失败');
+    }
+    host.chips = target;
+    await expect(client.cliTask.get('t1')).resolves.toEqual({ taskId: 't1' });
+    expect(target.request.mock.calls[0]).toEqual(['cli:task-get', { taskId: 't1' }]);
+    restoreWindow();
+    const caught: unknown = await client.cliCommand
+      .list()
+      .catch((error: unknown): unknown => error);
+    expect(caught).toBeInstanceOf(ChipsError);
+    expect((caught as ChipsError).code).toBe(SDK_BRIDGE_UNAVAILABLE);
   });
 });
