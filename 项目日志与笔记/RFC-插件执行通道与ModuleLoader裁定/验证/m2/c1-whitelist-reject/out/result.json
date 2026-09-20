@@ -1,0 +1,82 @@
+{
+  "harness": "M2-C1-whitelist-reject",
+  "pass": true,
+  "assertions": [
+    {
+      "name": "node-specifier-rejected-in-resolve-hook",
+      "pass": true,
+      "note": "W0_WHITELIST_REJECT node:fs (reason=not-in-whitelist)"
+    },
+    {
+      "name": "electron-specifier-rejected-in-resolve-hook",
+      "pass": true,
+      "note": "W0_WHITELIST_REJECT electron (reason=not-in-whitelist)"
+    },
+    {
+      "name": "scope-escape-abs-rejected-in-resolve-hook",
+      "pass": true,
+      "note": "W0_WHITELIST_REJECT ../outside-scope/probe-outside.mjs (reason=scope-escape)"
+    },
+    {
+      "name": "bare-path-rejected-in-resolve-hook",
+      "pass": true,
+      "note": "W0_WHITELIST_REJECT fs (reason=not-in-whitelist)"
+    },
+    {
+      "name": "probe-module-never-evaluated",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "plugin-bodies-never-executed",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "outside-scope-probe-never-evaluated",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "good-control-imported-and-evaluated",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "resolve-reject-events-count-4",
+      "pass": true,
+      "note": "[\"not-in-whitelist:node:fs\",\"not-in-whitelist:electron\",\"scope-escape:../outside-scope/probe-outside.mjs\",\"not-in-whitelist:fs\"]"
+    },
+    {
+      "name": "hooks-ran-in-worker-thread",
+      "pass": true,
+      "note": "{\"ev\":\"init\",\"wtIsMainThread\":false,\"threadId\":1,\"processIsMainThread\":null,\"versions\":{\"node\":\"24.14.0\",\"electron\":\"40.8.0\"}}"
+    },
+    {
+      "name": "register-return-value-documented",
+      "pass": true,
+      "note": "register() returned undefined (Electron quirk: MessagePort unavailable); portMessages=0"
+    }
+  ],
+  "importResults": {
+    "node": {
+      "ok": false,
+      "err": "W0_WHITELIST_REJECT node:fs (reason=not-in-whitelist)"
+    },
+    "electron": {
+      "ok": false,
+      "err": "W0_WHITELIST_REJECT electron (reason=not-in-whitelist)"
+    },
+    "abs": {
+      "ok": false,
+      "err": "W0_WHITELIST_REJECT ../outside-scope/probe-outside.mjs (reason=scope-escape)"
+    },
+    "bare": {
+      "ok": false,
+      "err": "W0_WHITELIST_REJECT fs (reason=not-in-whitelist)"
+    },
+    "good": {
+      "ok": true
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "harness": "M1-smoke",
+  "pass": true,
+  "assertions": [
+    {
+      "name": "svm-available-in-electron-main-via-node-options",
+      "pass": true,
+      "note": "NODE_OPTIONS 注入实测（flags/ 探针 f4 为唯一生效面）；process.type=browser"
+    },
+    {
+      "name": "m1-linker-whitelist-rejects-all-3",
+      "pass": true,
+      "note": "{\"plugin:bad-node\":{\"threw\":true,\"msg\":\"W0_M1_WHITELIST_REJECT node:fs\"},\"plugin:bad-electron\":{\"threw\":true,\"msg\":\"W0_M1_WHITELIST_REJECT electron\"},\"plugin:bad-bare\":{\"threw\":true,\"msg\":\"W0_M1_WHITELIST_REJECT fs\"}}"
+    },
+    {
+      "name": "m1-zero-exec-on-reject",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "m1-hash-gate-rejects-tampered",
+      "pass": true,
+      "note": "{\"threw\":true,\"stage\":\"entry-hash\",\"errs\":[\"hash-mismatch\"]}"
+    },
+    {
+      "name": "m1-clean-control-evaluated",
+      "pass": true,
+      "note": "v1=m1-ok-rerun-1 v2=m1-ok-rerun-2"
+    },
+    {
+      "name": "m1-reload-reruns-gate-and-body",
+      "pass": true,
+      "note": "每次激活独立 linker 门禁日志计数相等"
+    }
+  ],
+  "badResults": {
+    "plugin:bad-node": {
+      "threw": true,
+      "msg": "W0_M1_WHITELIST_REJECT node:fs"
+    },
+    "plugin:bad-electron": {
+      "threw": true,
+      "msg": "W0_M1_WHITELIST_REJECT electron"
+    },
+    "plugin:bad-bare": {
+      "threw": true,
+      "msg": "W0_M1_WHITELIST_REJECT fs"
+    }
+  },
+  "tamper": {
+    "threw": true,
+    "stage": "entry-hash",
+    "errs": [
+      "hash-mismatch"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "harness": "E1-main-support",
+  "pass": true,
+  "assertions": [
+    {
+      "name": "main-process-is-browser",
+      "pass": true,
+      "note": "process.type=browser"
+    },
+    {
+      "name": "register-callable-in-main",
+      "pass": true,
+      "note": "register() returned undefined (Electron 40.8 实测返回 undefined，MessagePort 面不可用；钩子本身生效)"
+    },
+    {
+      "name": "esm-eval-through-hooks-in-main",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "hooks-run-on-node-worker-thread",
+      "pass": true,
+      "note": "{\"ev\":\"init\",\"wtIsMainThread\":false,\"threadId\":1,\"execArgv\":[],\"mainArgvNull\":false}"
+    },
+    {
+      "name": "resolve-and-load-hooks-fired",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "renderer-page-loaded",
+      "pass": true,
+      "note": "{\"typeofRequire\":\"undefined\",\"typeofModule\":\"undefined\",\"typeofProcess\":\"undefined\",\"chipsExposed\":\"undefined\",\"e1FlagLeak\":\"undefined\",\"title\":\"w0-e1-sandbox-page\"}"
+    },
+    {
+      "name": "renderer-main-world-no-node-access",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "renderer-main-world-no-loader-leak",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "sandbox-preload-boundary",
+      "pass": true,
+      "note": "{\"hasProcess\":true,\"processType\":\"renderer\",\"hasRequireGlobal\":true,\"canRequireElectron\":true,\"canRequireNodeFs\":false,\"hasModuleGlobal\":true}"
+    }
+  ],
+  "hookEvents": [
+    {
+      "ev": "init",
+      "wtIsMainThread": false,
+      "threadId": 1,
+      "execArgv": [],
+      "mainArgvNull": false
+    },
+    {
+      "ev": "resolve",
+      "specifier": "file:///Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f-React/%E9%A1%B9%E7%9B%AE%E6%97%A5%E5%BF%97%E4%B8%8E%",
+      "parentTail": "%AF%81/electron/e1-main-support/main.cjs"
+    },
+    {
+      "ev": "load",
+      "url": "file:///Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f-React/%E9%A1%B9%E7%9B%AE%E6%97%A5%E5%BF%97%E4%B8%8E%"
+    }
+  ],
+  "mainWorld": {
+    "typeofRequire": "undefined",
+    "typeofModule": "undefined",
+    "typeofProcess": "undefined",
+    "chipsExposed": "undefined",
+    "e1FlagLeak": "undefined",
+    "title": "w0-e1-sandbox-page"
+  },
+  "preloadEvidence": {
+    "hasProcess": true,
+    "processType": "renderer",
+    "hasRequireGlobal": true,
+    "canRequireElectron": true,
+    "canRequireNodeFs": false,
+    "hasModuleGlobal": true
+  }
+}

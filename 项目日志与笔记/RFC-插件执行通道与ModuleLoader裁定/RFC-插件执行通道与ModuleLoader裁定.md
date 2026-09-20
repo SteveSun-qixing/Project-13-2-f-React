@@ -155,10 +155,13 @@
 ## 十、开放问题（留主智能体/用户裁决，本 RFC 不臆断）
 
 1. **O1**：加载门禁/完整性失败是否专设码（如 `PLUGIN_LOAD_DENIED` 域或《01-薯片内核设计》§9.1 码表扩充）；本轮以在册 `KERNEL_APPLY_FAILED` 兜底，`retryable: true` 对确定性拒装存在语义钝差（登记于 §5.1，实现波不得自造）。
+   - 暂定裁定（2026-09-21，主智能体，登记于《W2-开工波次计划》）：实施波错误码只准使用在册 `LIFECYCLE_ERROR_CODES`，不发明新码（承装载器段二 05d31981「不发明码」先例）；专设码与否并入波 1 落地时随 §9.1 码表统筹再裁。
 2. **O2**：ESM 求值机制 M1/M2 终局——波 0 Electron 真进程实测后签认；若取 M1，`--experimental-vm-modules` 进入生产启动面须显式接受。
+   - 已裁定（2026-09-21，主智能体签注，依据任务 #104《验证/波0-机制实测终局报告.md》）：**取 M2（`module.register` resolve/load 双钩）为实现面**——Electron 40.8（内嵌 Node 24.14.0，实测修正原「Node 22 系」表述）真主进程三口径全绿（白名单越界 resolve 钩真抛且插件体零执行、load 复算 sha256 篡改拒装无半执行、nonce 穿透 ESM 缓存每次重过门禁）；M1 仅作降级路径留档（`app.commandLine.appendSwitch` 对 vm-modules 确认不生效、argv flag 不转交，唯一生效面为进程启动前 `NODE_OPTIONS` 外置注入——启用须用户显式接受 experimental flag 条款束）。硬约束随裁定生效：波 1 实现**不得依赖 `register()` 返回端口**做宿主↔钩子通信（Electron 主进程实测返回 `undefined`），以 `initialize(data)` 投递+侧信道为准。
 3. **O3**：暂存代际/能力发布权威（壳侧 `hostCapabilityRegistry` ↔ 内核 §6.3[d]）与 sessionId `string`↔`u64` 漂移（RFC-026 §4.3 备注 3）的归属收敛，随剩余项①③ 集成单与波 4 立项统筹。
    - 已裁定（2026-09-21，任务 #103 落文）：sessionId `string`↔`u64` 漂移部分裁定「归宿主主进程适配层单点归一」——宿主 wire `string` 为对外唯一身份（Bridge/事件/审计面），backing `u64` 为主进程内部细节，映射单点落 resolver/适配层所在处（`packages/host/src/renderer/document-view-builder.ts` 会话解析器域），§6.4 backing 冻结签名 `buildDocumentView(handle, session: number)` 不动；落文面《03-核心接口规范》§5.6、§6.4 注记与《05-渲染引擎设计》§2.6（工单035 任务说明 §八同步）。暂存代际/能力发布权威部分仍随波 4 立项（O4）统筹，不在本次裁定覆盖内。
 4. **O4**：波 4（内核运行时接线 + `kernel`/`plugin` 前缀导出 + §6.8 熔断 + 工具进程服务隔离）是否立项与排期。
+   - 暂定裁定（2026-09-21，主智能体）：波 4 维持独立立项、排在 W2 之后，本波次不扩面；波 0-3 按既有冻结推进。
 5. **O5**：§8.6 规则 3 / §8.7 的口径修订文本（§7.2）在波 3 后落共用文档前，是否需按 AGENTS 文档边界先行评审。
 
 ## 十一、实施与验证（本轮）

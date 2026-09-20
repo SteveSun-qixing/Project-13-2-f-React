@@ -1,0 +1,40 @@
+{
+  "harness": "M2-C2-hash-tamper",
+  "pass": true,
+  "assertions": [
+    {
+      "name": "clean-control-loaded",
+      "pass": true,
+      "note": "{\"ok\":true}"
+    },
+    {
+      "name": "tampered-import-rejected-hash",
+      "pass": true,
+      "note": "W0_HASH_REJECT file:///Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f-React/%E9%A1%B9%E7%9B%AE%E6%97%A5%E5%BF%97%E4%B8%8E%E7%AC%94%E8%AE%B0/RFC-%E6%8F%92%E4%BB%B6%E6%89%A7%E8%A1%8C%E9%80%9A%E9%81%93%E4%B8%8EModuleLoader%E8%A3%81%E5%AE%9A/%E9%AA%8C%E8%AF%81/m2/c2-hash-tamper/fixtures/plugin-root/entry-tampered.mjs?nonce=1789933053853-0.5650023261489096 (expected=sha256-89f3014d12fbf770e9a7c4298367e3086fb1fef27692c58df0961f2e7516f84b actual=sha256-31c1b678256893271e38e959111be8ea5e4e49b9785e5e6cd341ec933692f81c)"
+    },
+    {
+      "name": "load-hook-hash-reject-event",
+      "pass": true,
+      "note": "[{\"ev\":\"load\",\"kind\":\"reject\",\"reason\":\"hash-mismatch\",\"url\":\"file:///Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f-React/%E9%A1%B9%E7%9B%AE%E6%97%A5%E5%BF%97%E4%B8%8E%E7%AC%94%E8%AE%B0/RFC-%E6%8F%92%E4%BB%B6%E6%89%A7%E8%A1%8C%E9%80%9A%E9%81%93%E4%B8%8EModuleLoader%E8%A3%81%E5%AE%9A/%E9%AA%8C%E8%AF%81/m2/c2-hash-tamper/fixtures/plugin-root/entry-tampered.mjs?nonce=1789933053853-0.5650023261489096\",\"expected\":\"sha256-89f3014d12fbf770e9a7c4298367e3086fb1fef27692c58df0961f2e7516f84b\",\"actual\":\"sha256-31c1b678256893271e38e959111be8ea5e4e49b9785e5e6cd341ec933692f81c\"}]"
+    },
+    {
+      "name": "no-half-execution-state",
+      "pass": true,
+      "note": null
+    },
+    {
+      "name": "hooks-worker-evidence",
+      "pass": true,
+      "note": "{\"ev\":\"init\",\"wtIsMainThread\":false,\"threadId\":1,\"versions\":{\"node\":\"24.14.0\",\"electron\":\"40.8.0\"}}"
+    }
+  ],
+  "importResults": {
+    "clean": {
+      "ok": true
+    },
+    "tampered": {
+      "ok": false,
+      "err": "W0_HASH_REJECT file:///Users/sevenstars/Documents/ChipsCard/Develop/Project-13-2-f-React/%E9%A1%B9%E7%9B%AE%E6%97%A5%E5%BF%97%E4%B8%8E%E7%AC%94%E8%AE%B0/RFC-%E6%8F%92%E4%BB%B6%E6%89%A7%E8%A1%8C%E9%80%9A%E9%81%93%E4%B8%8EModuleLoader%E8%A3%81%E5%AE%9A/%E9%AA%8C%E8%AF%81/m2/c2-hash-tamper/fixtures/plugin-root/entry-tampered.mjs?nonce=1789933053853-0.5650023261489096 (expected=sha256-89f3014d12fbf770e9a7c4298367e3086fb1fef27692c58df0961f2e7516f84b actual=sha256-31c1b678256893271e38e959111be8ea5e4e49b9785e5e6cd341ec933692f81c)"
+    }
+  }
+}
