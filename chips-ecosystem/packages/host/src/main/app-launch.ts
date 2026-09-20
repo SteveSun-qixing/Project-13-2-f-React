@@ -16,6 +16,7 @@
  *   `document:*` 能力接线在途（#99），本模块不伪造数据链路。
  */
 
+import type { IDocumentCapabilityWiringOptions } from '../capabilities/document/adapters/production-wiring.js';
 import { createMacPalHost } from '../platform/mac/index.js';
 import type { IPalHost } from '../platform/contracts/index.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
@@ -37,6 +38,14 @@ export interface HostAppLaunchOptions {
   readonly platformRoot: string;
   /** 已解析的卡片窗口来源引用（`parseAppLaunchArgs` 产物）。 */
   readonly openCards?: readonly string[];
+  /**
+   * 文档能力装载段注入项（金链路刀7 / 任务 #114 段B）：透传给组合根
+   * `createProductionAssembly` 的同名注入位（工单 036 §六 tests/ 注入面口径）。
+   *
+   * @remarks 缺位即真实生产判据——`document:*` 诚实回退不注册（正式入口 `app.ts` 恒不传，
+   * 行为逐字不变）；仅供 E2E 入口 `e2e-app.ts` 装载测试侧接线模块时透传。
+   */
+  readonly documentWiring?: IDocumentCapabilityWiringOptions;
   /** 诊断口；默认写 `process.stderr`。 */
   readonly diagnostics?: DiagnosticsSink;
 }
@@ -100,7 +109,10 @@ export function createAppPalHost(electronModule: unknown, context: PalHostContex
  */
 export async function launchHostApplication(options: HostAppLaunchOptions): Promise<HostMainHandle | null> {
   const diagnostics = options.diagnostics ?? createStderrDiagnostics();
-  const assembly = createProductionAssembly({ createPalHost: createAppPalHost });
+  const assembly = createProductionAssembly({
+    createPalHost: createAppPalHost,
+    ...(options.documentWiring === undefined ? {} : { documentWiring: options.documentWiring }),
+  });
   const handle = await startHostMain({
     electronModule: options.electronModule,
     assembly,
