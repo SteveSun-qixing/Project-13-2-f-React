@@ -82,3 +82,28 @@ test('CLI：--no-report 不产生报告目录', () => {
   ]);
   assert.equal(fs.status, 0);
 });
+
+// 工单 021 收口：入口门禁角色感知的 CLI 退出码路径。
+
+test('CLI：check-entries service 正例退出码 0、渲染类缺 render 退出码 1', () => {
+  const service = run('check-entries.mjs', [fixture('entries-service-good'), '--no-report']);
+  assert.equal(service.status, 0, service.stdout + service.stderr);
+  const noRender = run('check-entries.mjs', [fixture('entries-app-no-render'), '--no-report']);
+  assert.equal(noRender.status, 1, noRender.stdout + noRender.stderr);
+  assert.match(noRender.stdout, /ENTRY001/);
+  const serviceRender = run('check-entries.mjs', [
+    fixture('entries-service-render'),
+    '--no-report',
+  ]);
+  assert.equal(serviceRender.status, 1, serviceRender.stdout + serviceRender.stderr);
+  assert.match(serviceRender.stdout, /ENTRY004/);
+});
+
+test('CLI：check-entries 角色不可判定退出码 2（未知角色 / 缺 manifest.yaml）', () => {
+  const unknown = run('check-entries.mjs', [fixture('entries-unknown-role'), '--no-report']);
+  assert.equal(unknown.status, 2, unknown.stdout + unknown.stderr);
+  assert.match(unknown.stderr, /未知插件角色/);
+  const noManifest = run('check-entries.mjs', [fixture('entries-no-manifest'), '--no-report']);
+  assert.equal(noManifest.status, 2, noManifest.stdout + noManifest.stderr);
+  assert.match(noManifest.stderr, /manifest\.yaml/);
+});

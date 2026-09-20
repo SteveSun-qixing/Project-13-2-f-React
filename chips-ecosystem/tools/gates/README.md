@@ -1,7 +1,7 @@
 # 薯片生态质量门禁脚本集
 
-> 版本：v1.0.0
-> 日期：2026-09-19
+> 版本：v1.1.0
+> 日期：2026-09-20
 > 状态：正式版
 > 适用范围：`chips-ecosystem/tools/gates/` 门禁脚本集的使用方法、退出码契约、配置参考、检查项代码、报告产物与自测方式；不覆盖门禁数值基线与豁免流程本身（以《CI/CD 与质量门禁》为准）。
 
@@ -17,9 +17,9 @@
 | `check-contracts.mjs`  | G8 契约一致性  | 同上 §3.4、`05-接口与契约/04-能力契约规范.md` §6.2、`05-事件契约规范.md` §4、`08-权限系统设计.md` §4.1 |
 | `check-boundaries.mjs` | G9 架构红线    | 同上 §3.5、《02-开发规范/01-代码组织规范.md》§4 依赖矩阵                                               |
 | `check-coverage.mjs`   | G6 覆盖率      | 同上 §3.2、《02-开发规范/05-测试规范.md》§10.2（总体 > 80%，共享层与 Rust 核心 > 90%）                 |
-| `check-entries.mjs`    | 构建期入口校验 | `06-开发与运维/02-构建与打包.md` §5.5-§5.6（插件包双入口）                                             |
+| `check-entries.mjs`    | 构建期入口校验 | `06-开发与运维/02-构建与打包.md` §5.5-§5.6 ×《03-插件包格式》§2.4（按角色区分必需入口）                |
 
-统一入口 `gates-all.mjs` 串行执行前四项门禁（`gates:all`）；`check-entries.mjs` 由插件构建脚本按插件目录调用，不参与工作区级聚合。
+统一入口 `gates-all.mjs` 串行执行前四项门禁（`gates:all`）；`check-entries.mjs` 由插件构建脚本按插件目录调用，不参与工作区级聚合。入口门禁的角色来自插件目录包根 `manifest.yaml` 顶层 `type`（与 `chips plugin validate`、安装校验同一事实源）；角色不可判定（manifest 缺失、`type` 缺失或不在四角色）为用法错误（退出码 2），不做目录名嗅探与任何猜测。
 
 约束：不引入任何第三方依赖；Node.js 18+（仓库基线 22）；全部脚本为 ESM（`.mjs`）；报告默认写入 `<workspaceRoot>/reports/<gate>/`。
 
@@ -162,14 +162,19 @@ Rust 侧两条独立判定（《05-测试规范》10.2 与《CICD与质量门禁
 cargo-tarpaulin 只产出行覆盖（不产函数、语句维度，也不产逐文件分支计数），因此 Rust 侧只按 `lines` 单维判定；
 `branches` 维度仅在工作区总量层出现（`branches-valid > 0` 时）。扩大 `coreMatch` 之外的排除、更换测量口径均属豁免，须按《CICD与质量门禁》6.3 登记。
 
-### 4.5 入口门禁（构建与打包 §5.6）
+### 4.5 入口门禁（构建与打包 §5.6 ×《03-插件包格式》§2.4）
+
+必需入口集合由**角色**决定，判定表唯一事实源为 `lib/plugin-entries.mjs` → `ROLE_RENDER_ENTRY_REQUIREMENTS`：`dist/index.js` 全部角色必需；`render.js` 对 `basecard` / `boxlayout` / `app` 必需、对 `service` 禁止（出现即违规）。该表与 `packages/cli/src/artifacts/cpk-validate.ts` 的 `validateLayout` 角色分支、`tools/scaffold/src/templates/` 的 `RENDER_ENTRY_BY_ROLE` 三消费面同源，规范权威为《03-插件包格式》§2.3-§2.4；角色取值来源为插件目录包根 `manifest.yaml` 顶层 `type`。
 
 | 代码     | 检查项                                                                                             |
 | -------- | -------------------------------------------------------------------------------------------------- |
-| ENTRY001 | 缺少入口文件                                                                                       |
+| ENTRY001 | 缺少角色必需的入口文件（`service` 不因缺 `render.js` 报 001）                                      |
 | ENTRY002 | 入口超过字节上限（默认 8 MiB）                                                                     |
 | ENTRY003 | 入口不是 UTF-8 文本                                                                                |
+| ENTRY004 | `service` 角色携带 `render.js`（与 `chips plugin validate` 的 `CPK_LAYOUT_INVALID` 同一口径）      |
 | ENTRY010 | 非法模块引用（`dist/index.js` 必须零引用；`render.js` 仅允许 `chips-resource://platform/vendor/`） |
+
+角色不可判定（`manifest.yaml` 缺失、缺顶层 `type` 或 `type` 不在四角色清单）抛 `UsageError`：CLI 退出码 2、`runCheck` 以拒绝态抛出（fail-closed，禁止猜测回退）。`summary` 输出 `role`、`renderRequirement`（`required` / `forbidden`）与 `mainSpecifiers` / `renderSpecifiers`（`service` 时后者为 `null`，表示不校验）。
 
 ## 五、报告与自测
 

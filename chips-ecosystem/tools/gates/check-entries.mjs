@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   EXIT,
+  UsageError,
   addViolation,
   finalizeReport,
   flagValue,
@@ -11,6 +12,12 @@ import {
   printReport,
   writeReportFile,
 } from './lib/cli.mjs';
+import {
+  MAIN_ENTRY_PATH,
+  RENDER_ENTRY_PATH,
+  ROLE_RENDER_ENTRY_REQUIREMENTS,
+  resolvePluginRole,
+} from './lib/plugin-entries.mjs';
 
 const GATE_ID = 'entries';
 const TITLE = '插件入口校验（构建与打包 §5.6）';
@@ -28,12 +35,15 @@ const USAGE = `用法：node tools/gates/check-entries.mjs [插件目录] [选�
   --no-report       不写入报告文件
   --help            显示本帮助
 
-判定（构建与打包 §5.6）：
-  - dist/index.js 与 render.js 必须存在、为 UTF-8 文本且不超过入口上限；
-  - dist/index.js 不得含任何模块引用（完全自包含）；
-  - render.js 只允许 ${VENDOR_PREFIX} 绝对 URL。
+判定（构建与打包 §5.6 ×《插件包格式》§2.4，按角色区分）：
+  - 角色来源：插件目录包根 manifest.yaml 顶层 type 字段（缺失、非法或取值
+    不在 basecard / boxlayout / app / service 即为用法错误，退出码 2）；
+  - dist/index.js 全部角色必须存在、为 UTF-8 文本且不超过入口上限，
+    且不得含任何模块引用（完全自包含）；
+  - render.js 对 basecard / boxlayout / app 必须存在且只允许 ${VENDOR_PREFIX} 绝对 URL；
+  - render.js 对 service 禁止出现（与 chips plugin validate 同一口径）。
 
-退出码：0 通过；1 校验失败；2 用法错误；3 工具内部错误。`;
+退出码：0 通过；1 校验失败；2 用法错误（含无法确定角色）；3 工具内部错误。`;
 
 function collectSpecifiers(source) {
   const specifiers = [];
@@ -81,13 +91,26 @@ function checkEntry(report, file, relative, isRenderEntry, maxBytes) {
 
 export async function runCheck({ pluginDir, maxBytes = DEFAULT_MAX_BYTES }) {
   const report = makeReport(GATE_ID, TITLE);
+  const role = resolvePluginRole(pluginDir);
+  const renderRequirement = ROLE_RENDER_ENTRY_REQUIREMENTS[role];
   const mainEntry = path.join(pluginDir, 'dist', 'index.js');
-  const renderEntry = path.join(pluginDir, 'render.js');
-  const mainSpecifiers = checkEntry(report, mainEntry, 'dist/index.js', false, maxBytes);
-  const renderSpecifiers = checkEntry(report, renderEntry, 'render.js', true, maxBytes);
+  const renderEntry = path.join(pluginDir, RENDER_ENTRY_PATH);
+  const mainSpecifiers = checkEntry(report, mainEntry, MAIN_ENTRY_PATH, false, maxBytes);
+  let renderSpecifiers = null;
+  if (renderRequirement === 'required') {
+    renderSpecifiers = checkEntry(report, renderEntry, RENDER_ENTRY_PATH, true, maxBytes);
+  } else if (fs.existsSync(renderEntry)) {
+    addViolation(
+      report,
+      'ENTRY004',
+      `service 角色不得携带 render.js（渲染入口按《插件包格式》§2.4 禁止；与 chips plugin validate 同一口径）`
+    );
+  }
   return finalizeReport(report, {
     pluginDir,
     maxBytes,
+    role,
+    renderRequirement,
     mainSpecifiers,
     renderSpecifiers,
   });
@@ -127,6 +150,10 @@ async function main() {
     }
     return report.status === 'pass' ? EXIT.PASS : EXIT.FAIL;
   } catch (error) {
+    if (error instanceof UsageError) {
+      console.error(`[${GATE_ID}] 配置或用法错误：${error.message}`);
+      return EXIT.USAGE;
+    }
     console.error(`[${GATE_ID}] 内部错误：${error?.stack ?? error}`);
     return EXIT.ERROR;
   }

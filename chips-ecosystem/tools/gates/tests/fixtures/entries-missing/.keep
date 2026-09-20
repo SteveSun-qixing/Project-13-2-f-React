@@ -1,1 +1,1 @@
-夹具占位文件：entries-missing 故意不含 dist/index.js 与 render.js。
+夹具占位文件：entries-missing 故意不含 dist/index.js 与 render.js（manifest.yaml type: app 在位，双入口均缺 → 2 条 ENTRY001）。

@@ -1,0 +1,1 @@
+夹具占位：entries-app-no-render 故意只含 manifest.yaml（type: app）与 dist/index.js，缺 render.js。

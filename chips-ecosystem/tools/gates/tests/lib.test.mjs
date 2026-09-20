@@ -17,6 +17,7 @@ import {
   stripDocumentFooter,
 } from '../lib/markdown.mjs';
 import { classify, matchGlob } from '../lib/walk.mjs';
+import { extractManifestType } from '../lib/plugin-entries.mjs';
 
 test('parseArgv：长选项、等号、否定与位置参数', () => {
   const { flags, positionals } = parseArgv([
@@ -117,4 +118,17 @@ test('walk：glob 与规则分类', () => {
   assert.equal(classify('plugins/apps/editor', rules).id, 'plugins');
   assert.equal(classify('unknown/dir', rules), null);
   assert.equal(classify('packages/a/src/x.ts', rules), null);
+});
+
+test('extractManifestType：顶层 type 提取、引号剥离与嵌套键不误匹配（工单 021）', () => {
+  assert.equal(extractManifestType('id: chips.app.demo\ntype: app\nname: 示例\n'), 'app');
+  assert.equal(extractManifestType('type: "service"\n'), 'service');
+  assert.equal(extractManifestType("type: 'basecard'\n"), 'basecard');
+  assert.equal(
+    extractManifestType('runtime:\n  type: not-a-role\ntargets: [host]\ntype: boxlayout\n'),
+    'boxlayout'
+  );
+  assert.equal(extractManifestType('id: chips.app.demo\nname: 示例\n'), undefined);
+  assert.equal(extractManifestType('type:\nname: 示例\n'), undefined);
+  assert.equal(extractManifestType('type:   \n'), undefined);
 });
