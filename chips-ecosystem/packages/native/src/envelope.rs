@@ -19,7 +19,9 @@ use neon::prelude::*;
 use neon::types::buffer::TypedArray;
 use serde_json::{Map, Value};
 
-use crate::convert::{escape_pointer_segment, is_plain_object, json_to_js, js_to_json, ConvertIssue};
+use crate::convert::{
+    escape_pointer_segment, is_plain_object, js_to_json, json_to_js, ConvertIssue,
+};
 
 /// 信封结构错误统一使用的错误码（缺键、多余键、指针非法）。
 pub const ENVELOPE_INVALID_INPUT_CODE: &str = "BRIDGE_INVALID_INPUT";
@@ -154,55 +156,58 @@ fn walk_with_bin<'a, 'v, C: Context<'a>>(
         return Ok(Value::String(pointer.to_owned()));
     }
     if value.is_a::<JsArray, _>(cx) {
-        let array = value
-            .downcast::<JsArray, _>(cx)
-            .map_err(|_| ConvertIssue::TypeUnsupported {
-                pointer: pointer.to_owned(),
-                detail: "数组读取失败",
-            })?;
+        let array =
+            value
+                .downcast::<JsArray, _>(cx)
+                .map_err(|_| ConvertIssue::TypeUnsupported {
+                    pointer: pointer.to_owned(),
+                    detail: "数组读取失败",
+                })?;
         let length = array.len(cx) as usize;
         let mut items = Vec::with_capacity(length);
         for index in 0..length {
-            let item = array
-                .get::<JsValue, _, _>(cx, index as u32)
-                .map_err(|_| ConvertIssue::TypeUnsupported {
+            let item = array.get::<JsValue, _, _>(cx, index as u32).map_err(|_| {
+                ConvertIssue::TypeUnsupported {
                     pointer: pointer.to_owned(),
                     detail: "数组元素读取失败",
-                })?;
+                }
+            })?;
             let item_pointer = format!("{pointer}/{index}");
             items.push(walk_with_bin(cx, &item, &item_pointer, bin)?);
         }
         return Ok(Value::Array(items));
     }
     if value.is_a::<JsObject, _>(cx) {
-        let object = value
-            .downcast::<JsObject, _>(cx)
-            .map_err(|_| ConvertIssue::TypeUnsupported {
-                pointer: pointer.to_owned(),
-                detail: "对象读取失败",
-            })?;
-        if is_plain_object(cx, &object).unwrap_or(false) {
-            let names = object
-                .get_own_property_names(cx)
+        let object =
+            value
+                .downcast::<JsObject, _>(cx)
                 .map_err(|_| ConvertIssue::TypeUnsupported {
                     pointer: pointer.to_owned(),
-                    detail: "对象属性枚举失败",
+                    detail: "对象读取失败",
                 })?;
+        if is_plain_object(cx, &object).unwrap_or(false) {
+            let names =
+                object
+                    .get_own_property_names(cx)
+                    .map_err(|_| ConvertIssue::TypeUnsupported {
+                        pointer: pointer.to_owned(),
+                        detail: "对象属性枚举失败",
+                    })?;
             let mut entries = Map::new();
             for index in 0..names.len(cx) {
-                let name = names
-                    .get::<JsString, _, _>(cx, index)
-                    .map_err(|_| ConvertIssue::TypeUnsupported {
+                let name = names.get::<JsString, _, _>(cx, index).map_err(|_| {
+                    ConvertIssue::TypeUnsupported {
                         pointer: pointer.to_owned(),
                         detail: "对象键读取失败",
-                    })?;
+                    }
+                })?;
                 let key = name.value(cx);
-                let entry = object
-                    .get::<JsValue, _, _>(cx, name)
-                    .map_err(|_| ConvertIssue::TypeUnsupported {
+                let entry = object.get::<JsValue, _, _>(cx, name).map_err(|_| {
+                    ConvertIssue::TypeUnsupported {
                         pointer: pointer.to_owned(),
                         detail: "对象属性读取失败",
-                    })?;
+                    }
+                })?;
                 // 与 `js_to_json` 同口径：对象自身的 `undefined` 属性视为缺省。
                 if entry.is_a::<JsUndefined, _>(cx) {
                     continue;

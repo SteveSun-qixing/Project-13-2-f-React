@@ -1,7 +1,7 @@
 # chips-native（Neon 绑定）
 
 > 版本：v0.1.0
-> 日期：2026-09-19
+> 日期：2026-09-20
 > 状态：进行中
 > 适用范围：`packages/native/` 的 Rust crate `chips-native`、ABI 导出面、类型映射与错误归一、构建脚本、契约检查与 JS 侧类型检查。
 
@@ -23,7 +23,7 @@
 
 ```
 packages/native/
-├── Cargo.toml                     # crate-type = ["cdylib"]；path 依赖 chips-core / chips-cordis
+├── Cargo.toml                     # crate-type = ["cdylib"]；path 依赖 chips-core / chips-cordis / chips-bridge
 ├── package.json                   # build / copy-native / test / typecheck / lint / clean
 ├── src/
 │   ├── lib.rs                     # #[neon::main] 唯一入口；模块声明与线程约束说明
@@ -32,6 +32,7 @@ packages/native/
 │   ├── envelope.rs                # { json, bin } 二进制信封（一次拷贝、JSON Pointer 键）
 │   ├── error.rs                   # ChipsError → JS Error、JS 异常 → ChipsError、NATIVE_* 码
 │   ├── runtime.rs                 # 绑定层 tokio 运行时与 Promise settle 助手
+│   ├── bridge.rs                  # Bridge 域四导出 + TS 能力执行器（Channel 回投 + AbortSignal）
 │   ├── handles.rs                 # Root 持有：服务值、回调、Context 句柄载体
 │   ├── cancel.rs                  # createCancelToken / cancelTokenCancel
 │   └── context.rs                 # context* 导出与监听令牌翻译表
@@ -50,11 +51,14 @@ packages/native/
 | 元信息           | `coreVersion`、`coreAbiVersion`                                                                                    |
 | Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect` |
 | 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                           |
+| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`                                       |
 
-阻塞中：`bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`
-（能力内核 `chips-bridge` 未交付，见《问题工单》工单005；绑定层不得承载
-Bridge 业务逻辑）。清单的 `blocked` 段引用工单目录，`scripts/check-abi.mjs`
-强制校验引用真实性。
+四个 Bridge 导出全部转发 `chips-bridge` 内核（工单005，《问题工单》）：
+绑定层只做参数解析、`{ json, bin }` 信封编解码、错误归一与线程回投；
+注册表、权限判定、Schema 校验、并发准入与超时取消语义在内核侧。
+`bridgeRequest` 为异步导出（`Promise`），JS 线程不 `block_on`；TS 能力的
+`handler` 由 `Root` 持有、经 `Channel` 回投 JS 线程执行（§8.3、§8.4）。
+清单的 `blocked` 段当前为空，`scripts/check-abi.mjs` 强制校验三方一致。
 
 ## 四、命令
 

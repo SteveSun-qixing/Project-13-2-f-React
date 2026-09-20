@@ -368,10 +368,7 @@ pub(crate) fn is_plain_object<'a, 'v, C: Context<'a>>(
 }
 
 /// 除 `Uint8Array` 外的 TypedArray（`Float32Array` 等）判定。
-fn is_other_typed_array<'a, 'v, C: Context<'a>>(
-    cx: &mut C,
-    value: &Handle<'v, JsValue>,
-) -> bool {
+fn is_other_typed_array<'a, 'v, C: Context<'a>>(cx: &mut C, value: &Handle<'v, JsValue>) -> bool {
     value.is_a::<JsInt8Array, _>(cx)
         || value.is_a::<JsUint16Array, _>(cx)
         || value.is_a::<JsInt16Array, _>(cx)

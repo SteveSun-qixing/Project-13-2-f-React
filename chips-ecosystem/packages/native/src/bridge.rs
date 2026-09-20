@@ -13,7 +13,7 @@
 //! [`crate::error::chips_error_from_js`] 按 §8.5 反向归一为 `ChipsError`。
 
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use chips_bridge::{
@@ -131,9 +131,9 @@ impl CapabilityExecutor for TsCapabilityExecutor {
         let channel = handler.channel.clone();
         let deadline = ctx.deadline;
         // JS 线程只做「构造参数 + 发起调用 + 订阅 Promise」；不占用其等待结果。
-        let join = match channel.try_send(move |mut cx| {
-            Ok(dispatch_handler(&mut cx, &handler, &input, deadline))
-        }) {
+        let join = match channel
+            .try_send(move |mut cx| Ok(dispatch_handler(&mut cx, &handler, &input, deadline)))
+        {
             Ok(join) => join,
             Err(_) => {
                 return Err(internal_error(
@@ -154,7 +154,10 @@ impl CapabilityExecutor for TsCapabilityExecutor {
                 let outcome = tokio::select! {
                     biased;
                     result = &mut future => {
-                        result.map_err(|_| internal_error("JS 能力 handler 结果回收异常"))
+                        match result {
+                            Ok(outcome) => outcome,
+                            Err(_) => Err(internal_error("JS 能力 handler 结果回收异常")),
+                        }
                     }
                     () = ctx.signal.cancelled() => {
                         // 协作式取消：触发 JS 侧 `AbortSignal.abort()` 通知插件收口，
@@ -202,7 +205,7 @@ fn dispatch_handler(
         Ok(controller) => controller,
         Err(error) => return DispatchedCall::Completed(Err(error)),
     };
-    let controller_root = Root::new(cx, &controller);
+    let controller_root: Root<JsObject> = Root::new(cx, &controller);
     match invoke_handler(cx, &function, &controller, input, deadline) {
         Ok(future) => DispatchedCall::Pending {
             future,
@@ -275,11 +278,7 @@ fn invoke_handler<'a>(
         Ok(outcome)
     }) {
         Ok(future) => future,
-        Err(_) => {
-            return Err(Err(internal_error(
-                "订阅 JS 能力 handler 的 Promise 失败",
-            )))
-        }
+        Err(_) => return Err(Err(internal_error("订阅 JS 能力 handler 的 Promise 失败"))),
     };
     Ok(future)
 }
@@ -408,10 +407,8 @@ fn parse_registration<'a, C: Context<'a>>(
     let schema_value: Handle<JsValue> = descriptor
         .get(cx, "schema")
         .map_err(|_| type_unsupported("/descriptor/schema", "字段缺失"))?;
-    let schema = js_to_json(cx, &schema_value)
-        .map_err(|issue| issue.into_error())?;
-    let permissions =
-        string_list_field(cx, &descriptor, "permissions", "/descriptor/permissions")?;
+    let schema = js_to_json(cx, &schema_value).map_err(|issue| issue.into_error())?;
+    let permissions = string_list_field(cx, &descriptor, "permissions", "/descriptor/permissions")?;
     let owner = string_field(cx, registration, "owner", "/owner")?;
     let timeout_ms = u64_field(cx, registration, "timeoutMs", "/timeoutMs")?;
     let concurrency_raw = string_field(cx, registration, "concurrency", "/concurrency")?;
@@ -454,22 +451,17 @@ fn parse_request<'a, C: Context<'a>>(
     let bin_value: Handle<JsValue> = request
         .get(cx, "bin")
         .map_err(|_| ChipsError::new(ENVELOPE_INVALID_INPUT_CODE, "二进制表读取失败"))?;
-    let bin_object: Option<Handle<'a, JsObject>> = if bin_value.is_a::<JsUndefined, _>(cx)
-        || bin_value.is_a::<JsNull, _>(cx)
-    {
-        None
-    } else {
-        Some(
-            bin_value
-                .downcast::<JsObject, _>(cx)
-                .map_err(|_| {
-                    ChipsError::new(
-                        ENVELOPE_INVALID_INPUT_CODE,
-                        "二进制表必须是键与 Uint8Array 的普通对象",
-                    )
-                })?,
-        )
-    };
+    let bin_object: Option<Handle<'a, JsObject>> =
+        if bin_value.is_a::<JsUndefined, _>(cx) || bin_value.is_a::<JsNull, _>(cx) {
+            None
+        } else {
+            Some(bin_value.downcast::<JsObject, _>(cx).map_err(|_| {
+                ChipsError::new(
+                    ENVELOPE_INVALID_INPUT_CODE,
+                    "二进制表必须是键与 Uint8Array 的普通对象",
+                )
+            })?)
+        };
     let bin = bin_from_js(cx, bin_object)?;
     validate_bin_table(&json, &bin)?;
     Ok(BridgeRequest {
@@ -504,6 +496,13 @@ pub(crate) fn js_bridge_unregister(mut cx: FunctionContext) -> JsResult<JsUndefi
     }
 }
 
+/// `bridgeRequest` 的 settle 入口：输出信封 `{ json, bin }` 合并为单个 JS 值
+/// （`bin` 位置以 `Uint8Array` 嵌回）；具名函数以满足 `spawn_result` 的
+/// 高阶 `for<'a>` 约束。
+fn output_settle<'a>(cx: &mut Cx<'a>, output: CapabilityOutput) -> JsResult<'a, JsValue> {
+    json_with_bin_to_js(cx, &output.json, &output.bin, "")
+}
+
 /// `bridgeRequest(request)`：发起一次能力调用；JS 线程完成参数解析与信封
 /// 编码，内核调用提交到绑定层运行时，结果经 `Channel` 回投 settle Promise，
 /// 输出信封的 `bin` 位置以 `Uint8Array` 嵌回。
@@ -521,12 +520,9 @@ pub(crate) fn js_bridge_request(mut cx: FunctionContext) -> JsResult<JsPromise> 
     let (deferred, promise) = cx.promise();
     let channel = cx.channel();
     let future = async move { kernel.request(request).await };
-    let settle = |cx: &mut Cx<'_>, output: CapabilityOutput| {
-        json_with_bin_to_js(cx, &output.json, &output.bin, "")
-    };
     // 运行时已就绪，`spawn_result` 不会失败；若意外失败，`Deferred` 由
     // N-API 6+ 自动拒绝（§8.3 规则 8），Promise 以 rejection 收口。
-    let _ = crate::runtime::spawn_result(deferred, channel, future, settle);
+    let _ = crate::runtime::spawn_result(deferred, channel, future, output_settle);
     Ok(promise)
 }
 
@@ -549,6 +545,7 @@ mod tests {
     use super::*;
     use chips_bridge::{ProviderKind, ProviderRegistration};
     use serde_json::json;
+    use std::time::Duration;
 
     /// 回声执行器（Rust 侧）：验证内核调用链与信封透传。
     struct Echo;
@@ -591,7 +588,10 @@ mod tests {
         assert_eq!(normalize_u64_field(1.5), None);
         assert_eq!(normalize_u64_field(f64::NAN), None);
         assert_eq!(normalize_u64_field(f64::INFINITY), None);
-        assert_eq!(normalize_u64_field(crate::convert::MAX_SAFE_INTEGER as f64), None);
+        assert_eq!(
+            normalize_u64_field(crate::convert::MAX_SAFE_INTEGER as f64),
+            None
+        );
     }
 
     #[test]
@@ -620,7 +620,7 @@ mod tests {
         one.register(CapabilityRegistration {
             descriptor: CapabilityDescriptor {
                 id: "file:read".to_owned(),
-                schema: json!({"type": "object"}),
+                schema: json!({"type": "object", "additionalProperties": false}),
                 permissions: Vec::new(),
             },
             owner: "chips.official.host".to_owned(),
@@ -642,7 +642,7 @@ mod tests {
             .register(CapabilityRegistration {
                 descriptor: CapabilityDescriptor {
                     id: "file:read".to_owned(),
-                    schema: json!({"type": "object"}),
+                    schema: json!({"type": "object", "additionalProperties": false}),
                     permissions: Vec::new(),
                 },
                 owner: "chips.official.missing".to_owned(),
