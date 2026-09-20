@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{
     Diagnostic, DocumentError, Fatal, Severity, DOCUMENT_GENERATED_FILE_IGNORED,
-    DOCUMENT_LIMIT_EXCEEDED, DOCUMENT_SYMLINK_IGNORED,
+    DOCUMENT_SYMLINK_IGNORED,
 };
 use crate::source::{
     ByteStream, DocumentSource, MemberFingerprint, MemberMeta, MemberMethod, PackagePath,
@@ -89,7 +89,7 @@ impl DirectorySource {
                         format!("符号链接不跟随、不纳入索引：{normalized}"),
                     )
                     .in_file(&package_path)
-                    .with_hint("删除符号链接后重新打包，或改为复制真实文件".into()),
+                    .with_hint("删除符号链接后重新打包，或改为复制真实文件"),
                 );
                 continue;
             }
@@ -197,7 +197,7 @@ impl DocumentSource for DirectorySource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::DOCUMENT_NOT_FOUND;
+    use crate::error::{DOCUMENT_LIMIT_EXCEEDED, DOCUMENT_NOT_FOUND};
 
     /// 在临时目录开辟一棵独立小树；返回根路径。
     fn temp_root(tag: &str) -> PathBuf {
@@ -207,7 +207,7 @@ mod tests {
             std::thread::current().id()
         ));
         let _ = std::fs::remove_dir_all(&base);
-        std::fs::create_dir_all(base).expect("创建夹具根目录");
+        std::fs::create_dir_all(&base).expect("创建夹具根目录");
         base
     }
 

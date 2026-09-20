@@ -576,38 +576,67 @@ impl DocumentSource for ArchiveSource {
 mod tests {
     use super::*;
     use crate::error::{
-        DOCUMENT_LIMIT_EXCEEDED, DOCUMENT_PATH_UNSAFE,
+        DOCUMENT_ARCHIVE_INVALID, DOCUMENT_LIMIT_EXCEEDED, DOCUMENT_PATH_UNSAFE,
     };
 
-    /// 构造一个 Store 条目：返回 (本地头+数据, 中央目录条目)。
-    fn build_store_pair(name: &str, data: &[u8], offset: u32) -> (Vec<u8>, Vec<u8>) {
-        let name_bytes = name.as_bytes();
-        let checksum = crc32(data);
+    /// 测试归档条目描述。
+    struct TestEntry<'a> {
+        /// 成员名（目录条目以 `/` 结尾）。
+        name: &'a str,
+        /// 解压后内容（CRC32 与解压尺寸依据）。
+        data: &'a [u8],
+        /// 数据区实际字节（Deflate 为压缩字节）。
+        stored: &'a [u8],
+        /// 压缩方法编号。
+        method: u16,
+    }
+
+    impl<'a> TestEntry<'a> {
+        /// Store 条目。
+        fn store(name: &'a str, data: &'a [u8]) -> Self {
+            Self { name, data, stored: data, method: METHOD_STORE }
+        }
+
+        /// Deflate 条目：`stored` 为压缩字节。
+        fn deflate(name: &'a str, data: &'a [u8], stored: &'a [u8]) -> Self {
+            Self { name, data, stored, method: METHOD_DEFLATE }
+        }
+
+        /// 目录条目（零尺寸、尾部 `/`）。
+        fn directory(name: &'a str) -> Self {
+            Self { name, data: &[], stored: &[], method: METHOD_STORE }
+        }
+    }
+
+    /// 构造单个条目：返回 (本地头 + 数据区, 中央目录条目)。
+    fn build_pair(entry: &TestEntry<'_>, offset: u32) -> (Vec<u8>, Vec<u8>) {
+        let name_bytes = entry.name.as_bytes();
+        let checksum = crc32(entry.data);
         let mut local = Vec::new();
         local.extend_from_slice(&LOCAL_SIGNATURE.to_le_bytes());
         local.extend_from_slice(&20u16.to_le_bytes());
         local.extend_from_slice(&0x0800u16.to_le_bytes());
-        local.extend_from_slice(&METHOD_STORE.to_le_bytes());
+        local.extend_from_slice(&entry.method.to_le_bytes());
         local.extend_from_slice(&0u16.to_le_bytes());
         local.extend_from_slice(&0x0021u16.to_le_bytes());
         local.extend_from_slice(&checksum.to_le_bytes());
-        local.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        local.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        local.extend_from_slice(&(entry.stored.len() as u32).to_le_bytes());
+        local.extend_from_slice(&(entry.data.len() as u32).to_le_bytes());
         local.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
         local.extend_from_slice(&0u16.to_le_bytes());
         local.extend_from_slice(name_bytes);
-        local.extend_from_slice(data);
+        local.extend_from_slice(entry.stored);
         let mut central = Vec::new();
         central.extend_from_slice(&CENTRAL_SIGNATURE.to_le_bytes());
         central.extend_from_slice(&20u16.to_le_bytes());
         central.extend_from_slice(&20u16.to_le_bytes());
         central.extend_from_slice(&0x0800u16.to_le_bytes());
-        central.extend_from_slice(&METHOD_STORE.to_le_bytes());
+        central.extend_from_slice(&entry.method.to_le_bytes());
         central.extend_from_slice(&0u16.to_le_bytes());
         central.extend_from_slice(&0x0021u16.to_le_bytes());
         central.extend_from_slice(&checksum.to_le_bytes());
-        central.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        central.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        central.extend_from_slice(&(entry.stored.len() as u32).to_le_bytes());
+        central.extend_from_slice(&(entry.data.len() as u32).to_le_bytes());
         central.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
         central.extend_from_slice(&0u16.to_le_bytes());
         central.extend_from_slice(&0u16.to_le_bytes());
@@ -619,13 +648,28 @@ mod tests {
         (local, central)
     }
 
-    /// 构造完整归档：members 为 (name, data)。
+    /// 构造一个 Store 条目：返回 (本地头+数据, 中央目录条目)。
+    fn build_store_pair(name: &str, data: &[u8], offset: u32) -> (Vec<u8>, Vec<u8>) {
+        build_pair(&TestEntry::store(name, data), offset)
+    }
+
+    /// 构造完整归档（Store 口径）：members 为 (name, data)。
     fn build_zip(members: &[(&str, &[u8])]) -> Vec<u8> {
+        let entries: Vec<TestEntry<'_>> = members
+            .iter()
+            .copied()
+            .map(|(name, data)| TestEntry::store(name, data))
+            .collect();
+        zip_entries(&entries)
+    }
+
+    /// 构造完整归档：条目由 [`TestEntry`] 描述（支持 Deflate 与目录条目）。
+    fn zip_entries(entries: &[TestEntry<'_>]) -> Vec<u8> {
         let mut locals = Vec::new();
         let mut centrals = Vec::new();
         let mut offset = 0u32;
-        for (name, data) in members {
-            let (local, central) = build_store_pair(name, data, offset);
+        for entry in entries {
+            let (local, central) = build_pair(entry, offset);
             offset += local.len() as u32;
             locals.push(local);
             centrals.push(central);
@@ -642,17 +686,39 @@ mod tests {
         archive.extend_from_slice(&EOCD_SIGNATURE.to_le_bytes());
         archive.extend_from_slice(&0u16.to_le_bytes());
         archive.extend_from_slice(&0u16.to_le_bytes());
-        archive.extend_from_slice(&(members.len() as u16).to_le_bytes());
-        archive.extend_from_slice(&(members.len() as u16).to_le_bytes());
+        archive.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+        archive.extend_from_slice(&(entries.len() as u16).to_le_bytes());
         archive.extend_from_slice(&central_size.to_le_bytes());
         archive.extend_from_slice(&central_offset.to_le_bytes());
         archive.extend_from_slice(&0u16.to_le_bytes());
         archive
     }
 
+    /// 构造含目录条目（尾部 `/`）的归档。
+    fn build_zip_with_directory() -> Vec<u8> {
+        zip_entries(&[
+            TestEntry::directory(".card/"),
+            TestEntry::store(".card/metadata.yaml", b"ok: true\n"),
+            TestEntry::directory("content/"),
+        ])
+    }
+
+    /// 构造含单个 Deflate 成员的归档：数据区为合法 raw-deflate 非压缩块。
+    fn build_zip_deflate(name: &str, plain: &[u8]) -> Vec<u8> {
+        let plain_len = u16::try_from(plain.len()).expect("测试数据长度受限");
+        let mut compressed = vec![0x01u8];
+        compressed.extend_from_slice(&plain_len.to_le_bytes());
+        compressed.extend_from_slice(&(!plain_len).to_le_bytes());
+        compressed.extend_from_slice(plain);
+        zip_entries(&[TestEntry::deflate(name, plain, &compressed)])
+    }
+
     #[test]
     fn test_open_reads_members_in_store_mode() {
-        let archive = build_zip(&[(".card/metadata.yaml", b"ok: true\n"), ("video.mp4", b"\0\1\2")]);
+        let archive = build_zip(&[
+            (".card/metadata.yaml", b"ok: true\n"),
+            ("video.mp4", b"\0\x01\x02"),
+        ]);
         let source = ArchiveSource::from_bytes(archive, &ParseLimits::default()).expect("打开归档");
         assert_eq!(source.kind(), SourceKind::Archive);
         let path = PackagePath::new("video.mp4").expect("合法路径");
@@ -840,7 +906,7 @@ mod tests {
         central.extend_from_slice(&zip64_extra);
         let mut archive = local;
         let central_offset = archive.len() as u32;
-        archive.extend_from_slice(central);
+        archive.extend_from_slice(&central);
         let central_size = archive.len() as u32 - central_offset;
         // ZIP64 EOCD + locator + 经典 EOCD（全 0xFFFF 哨兵）。
         let zip64_offset = archive.len() as u64;

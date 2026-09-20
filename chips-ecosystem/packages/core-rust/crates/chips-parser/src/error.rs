@@ -465,7 +465,7 @@ mod tests {
             diagnostics: vec![Diagnostic::new(
                 Severity::Error,
                 SCHEMA_REQUIRED_MISSING,
-                "缺少必填字段 name".into(),
+                "缺少必填字段 name",
             )
             .at(&path(".card/metadata.yaml"), "/name")],
         };
@@ -483,13 +483,13 @@ mod tests {
         let file_b = path("content/bbbbbbbbbb.yaml");
         let file_a = path("content/aaaaaaaaaa.yaml");
         let diagnostics = sort_diagnostics(vec![
-            Diagnostic::new(Severity::Warning, SCHEMA_UNKNOWN_FIELD, "乙".into())
+            Diagnostic::new(Severity::Warning, SCHEMA_UNKNOWN_FIELD, "乙")
                 .in_file(&file_b)
                 .with_location(Some(3), Some(1)),
-            Diagnostic::new(Severity::Info, SCHEMA_DEFAULT_APPLIED, "甲".into())
+            Diagnostic::new(Severity::Info, SCHEMA_DEFAULT_APPLIED, "甲")
                 .in_file(&file_a)
                 .with_location(Some(1), Some(1)),
-            Diagnostic::new(Severity::Info, SCHEMA_DEFAULT_APPLIED, "甲".into())
+            Diagnostic::new(Severity::Info, SCHEMA_DEFAULT_APPLIED, "甲")
                 .in_file(&file_a)
                 .with_location(Some(1), Some(1)),
         ]);
@@ -500,11 +500,11 @@ mod tests {
 
     #[test]
     fn test_strict_escalation() {
-        let warning = Diagnostic::new(Severity::Warning, SCHEMA_UNKNOWN_FIELD, "未知字段".into());
+        let warning = Diagnostic::new(Severity::Warning, SCHEMA_UNKNOWN_FIELD, "未知字段");
         let escalated = warning.clone().escalated(true);
         assert_eq!(escalated.severity, Severity::Error);
         // 未标注「严格：错误」的警告码不升级。
-        let kept = Diagnostic::new(Severity::Warning, ENTRY_TARGET_MISSING, "目标缺失".into())
+        let kept = Diagnostic::new(Severity::Warning, ENTRY_TARGET_MISSING, "目标缺失")
             .escalated(true);
         assert_eq!(kept.severity, Severity::Warning);
         assert_eq!(warning.escalated(false).severity, Severity::Warning);
@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn test_diagnostic_serialization_shape() {
         // TS 侧 IDiagnostic 口径：severity 小写字面量、缺省字段省略。
-        let diagnostic = Diagnostic::new(Severity::Error, YAML_SYNTAX_ERROR, "语法错误".into())
+        let diagnostic = Diagnostic::new(Severity::Error, YAML_SYNTAX_ERROR, "语法错误")
             .with_location(Some(2), Some(5));
         let json = serde_json::to_value(&diagnostic).expect("诊断必须可序列化");
         assert_eq!(json["severity"], "error");

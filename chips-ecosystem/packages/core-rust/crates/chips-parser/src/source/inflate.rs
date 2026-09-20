@@ -366,7 +366,6 @@ fn read_distance(reader: &mut BitReader<'_>, symbol: u16) -> Fatal<u64> {
 /// LZ77 回溯复制：逐字节复制以覆盖重叠区间（RLE 式扩展）。
 fn copy_back(output: &mut Vec<u8>, length: u64, distance: u64, max_output: u64) -> Fatal<()> {
     let current = u64::try_from(output.len()).unwrap_or(u64::MAX);
-    let distance = usize::try_from(distance).map_err(|_| invalid("回溯距离超出地址空间"))?;
     let Some(start) = current.checked_sub(distance) else {
         return Err(invalid("回溯距离超出已解码窗口"));
     };

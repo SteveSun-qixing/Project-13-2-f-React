@@ -10,7 +10,7 @@
 
 use std::fmt;
 
-use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
+use serde::de::{DeserializeSeed, Deserializer, Error as _, MapAccess, SeqAccess, Visitor};
 
 use crate::model::{DocumentValue, ScanLimits};
 
@@ -171,7 +171,7 @@ impl<'a> ValueVisitor<'a> {
 impl<'de, 'a> Visitor<'de> for ValueVisitor<'a> {
     type Value = DocumentValue;
 
-    fn expecting(formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("YAML 1.2 核心 schema 的标量、序列或映射")
     }
 

@@ -347,7 +347,7 @@ impl SpanIndex {
                         frame.item_pointer()
                     }
                     other => {
-                        let base = other.map_or_else(String::new, Frame::item_pointer);
+                        let base = other.map_or_else(String::new, |frame| frame.item_pointer());
                         stack.push(Frame {
                             indent,
                             base,

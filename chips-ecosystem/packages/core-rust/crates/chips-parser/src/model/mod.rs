@@ -7,12 +7,14 @@
 use std::fmt;
 use std::sync::Arc;
 
+use serde::de::Error as _;
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::error::Diagnostic;
-use crate::source::{PackagePath, SourceFingerprint};
-use crate::yaml;
+use crate::source::PackagePath;
+pub use crate::source::SourceFingerprint;
+use crate::yaml::value::ValueScan;
 
 mod card;
 #[path = "box.rs"]
@@ -93,7 +95,7 @@ pub const BOX_LAYOUT_CONFIG_FILE: &str = ".box/content.yaml";
 /// 「单成员解压尺寸」两类限额，但 §9.1 未给出对应字段名；本实现按语义
 /// 由已声明字段推导（见 [`ParseLimits::max_uncompressed_members_guard`] 与
 /// [`ParseLimits::max_single_member_bytes`]），不引入第二套硬编码上限。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ParseLimits {
     /// 单 YAML 文件字节上限（默认 8 MiB）。
     pub max_yaml_bytes: u64,
@@ -478,7 +480,7 @@ impl ContentNode {
 }
 
 /// 全量内容索引（`CardParser::parse` 的输出，§11.2）。
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ContentIndex {
     nodes: Vec<(NodeId, Arc<ContentNode>)>,
 }
@@ -514,6 +516,23 @@ impl ContentIndex {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
+    }
+
+    /// 底层节点列表（保持结构顺序）。
+    #[must_use]
+    pub fn as_slice(&self) -> &[(NodeId, Arc<ContentNode>)] {
+        &self.nodes
+    }
+}
+
+/// 内容索引序列化：按结构顺序输出节点数组（顺序即渲染顺序，见 §3.5）。
+impl Serialize for ContentIndex {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut sequence = serializer.serialize_seq(Some(self.nodes.len()))?;
+        for (_, node) in &self.nodes {
+            sequence.serialize_element(node.as_ref())?;
+        }
+        sequence.end()
     }
 }
 
@@ -899,7 +918,8 @@ impl Serialize for DocumentValue {
 impl<'de> Deserialize<'de> for DocumentValue {
     /// 以文档默认限额反序列化（解析流水线使用配置限额，见 `yaml` 模块）。
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        yaml::value::from_deserializer(deserializer, ScanLimits::default())
+        let mut scan = ValueScan::new(ScanLimits::default());
+        crate::yaml::value::from_deserializer(deserializer, &mut scan)
     }
 }
 
