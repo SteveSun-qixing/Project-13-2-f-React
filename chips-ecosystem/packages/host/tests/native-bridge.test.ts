@@ -62,7 +62,7 @@ describe('native-bridge：§8.6 导出名消费镜像三方锁（宿主视图 �
     expect(readNativeManifest().abiVersion).toBe(NATIVE_BRIDGE_ABI_VERSION);
   });
 
-  it('宿主必备消费面（元信息 2 + Bridge 域 4）逐项登记于 ABI 清单', () => {
+  it('宿主必备消费面逐项登记于 ABI 清单，Bridge 域全表精确锁定（基础 4 + 工单031/#83 扩展 6 共 10）', () => {
     const names = readNativeManifest().exports.map((entry) => entry.name);
     expect(names).toEqual(expect.arrayContaining([...NATIVE_BRIDGE_REQUIRED_EXPORTS]));
     expect(names.filter((name) => name.startsWith('bridge'))).toEqual([
@@ -70,6 +70,12 @@ describe('native-bridge：§8.6 导出名消费镜像三方锁（宿主视图 �
       'bridgeUnregister',
       'bridgeRequest',
       'bridgeCancelSession',
+      'bridgeActivateProvider',
+      'bridgeDeactivateProvider',
+      'bridgeGrantCapabilityId',
+      'bridgeOpenSession',
+      'bridgeCloseSession',
+      'bridgeShutdown',
     ]);
   });
 
