@@ -3,8 +3,9 @@
  * （《核心接口规范》§6.4、§8.6；《06-文档解析器设计》§12.1、§12.2；工单034）。
  *
  * 权威：`05-接口与契约/03.06-核心接口规范-六、文档解析入口` §6.4「Neon 导出」表
- * （13 项冻结名，含 §6.6 的 `buildDocumentView`）与《06-文档解析器设计》§12.1 十二项
- * 表（§6.4 去掉 `buildDocumentView` 的同一张面的机械投影）；调用约定与错误形状以
+ * （13 项冻结名含 §6.6 的 `buildDocumentView`，加工单034 两项正式化名共 15 行）与
+ * 《06-文档解析器设计》§12.1 十四项表（§6.4 去掉 `buildDocumentView` 的同一张面的机械投影）；
+ * 调用约定与错误形状以
  * §12.2 为准（异步导出、`ChipsError` 同构 `Error`、`JsBox` 不透明句柄、GC 终结器兜底）。
  *
  * @remarks
@@ -15,8 +16,13 @@
  * - 注入面 = 13 项 §6.4 冻结名 + 工单034 两项正式化名（`documentRevision`、
  *   `documentLayoutConfig`，按 §12.1「访问器与 Rust 方法一一对应、命名 camelCase」规则
  *   自 `DocumentHandle::revision()` / `layout_config()` 机械导出，主智能体裁决②修正后
- *   已落 `packages/native` 第 33/34 项导出；文档三面 §12.1 / §6.4 / §8.6 逐行随动归文档路
- *   欠账）。`IDocumentParserPort` 的源指纹臂与箱子布局臂没有这两项即
+ *   已落 `packages/native` 第 33/34 项导出；文档三面逐行落文在册——§12.1 表（06.12 分件
+ *   v1.0.1）、§6.4 表（03.06 分件 v1.0.3，`documentReadResource` 返回类型已随任务 #101
+ *   核正为 `Promise<Uint8Array>`）、§8.6 总表（03.08 分件 v1.0.1，四行合计 34 项与
+ *   `export-surface.json` 逐项一致），三表各补两行随任务 #98（提交 f84ad1b23）落文，
+ *   表解析锁随跨单合缝（提交 06aa8b576）收紧为全集面比对（§6.4 表 15 项、
+ *   §12.1 表 14 项）。
+ *   `IDocumentParserPort` 的源指纹臂与箱子布局臂没有这两项即
  *   无原生载体（宿主侧自行做 `.card`/`.box` 字节解析违反工单015 红线，且「快速指纹
  *   不读取资源字节」（《11-文档服务设计》§5.5）禁止宿主读字节复算），故装载闸把两项与
  *   13 项冻结名同口径要求全部在位（fail-closed）：任何按旧表（13 项或 33 项产物）构建、
@@ -65,7 +71,10 @@ export const NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS = [
  * `DocumentHandle::revision()` / `layout_config()` 机械导出名。主智能体裁决
  * （工单034 期望行为三项，①②）已裁定正式化，`packages/native` 已落第 33/34 项
  * 导出（`CORE_ABI_VERSION` 不 bump，新增不破坏）；本清单与 13 项冻结名同口径
- * 进入装载闸，文档三面（§12.1 / §6.4 / §8.6）补行为文档路欠账。
+ * 进入装载闸。文档三面（§12.1 / §6.4 / §8.6）补行已在册落文：任务 #98（提交
+ * f84ad1b23）三表各补两行（06.12 分件 v1.0.1 / 03.06 分件 v1.0.3 / 03.08 分件
+ * v1.0.1），本文件面的表解析锁随跨单合缝（提交 06aa8b576）收紧为全集面比对
+ * （§6.4 表 15 项、§12.1 表 14 项）。
  */
 export const NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS = [
   'documentRevision',
