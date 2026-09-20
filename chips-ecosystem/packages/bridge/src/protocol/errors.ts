@@ -13,26 +13,32 @@ export interface IChipsError {
   retryable?: boolean;
 }
 
-export interface IChipsErrorOptions {
-  code: string;
-  message: string;
-  details?: unknown;
-  retryable?: boolean;
+/** 唯一构造入参类型（01-Bridge-API规范 §2.5、02-SDK-API规范 §6.2，全生态唯一命名）。 */
+export interface IChipsErrorInit {
+  readonly code: string;
+  readonly message: string;
+  readonly details?: unknown;
+  readonly retryable?: boolean;
 }
 
+/**
+ * 全生态唯一错误类，源码级定义仅此一份（工单024 裁定，《RFC-ChipsError统一裁定》§3.2）。
+ *
+ * `@chips/sdk` 主入口、`@chips/cli` 与宿主 preload 一律消费本定义，不得自定义同形错误类。
+ */
 export class ChipsError extends Error implements IChipsError {
   readonly code: string;
 
-  readonly details: unknown;
+  readonly details?: unknown;
 
   readonly retryable: boolean;
 
-  constructor(options: IChipsErrorOptions) {
-    super(options.message);
+  constructor(init: IChipsErrorInit) {
+    super(init.message);
     this.name = 'ChipsError';
-    this.code = options.code;
-    this.details = options.details;
-    this.retryable = options.retryable ?? false;
+    this.code = init.code;
+    this.details = init.details;
+    this.retryable = init.retryable ?? false;
   }
 
   /** 归一为结构化克隆兼容的普通对象，用于跨 IPC / Neon 传输。 */
@@ -48,10 +54,6 @@ export class ChipsError extends Error implements IChipsError {
     return plain;
   }
 
-  static isChipsError(value: unknown): value is ChipsError {
-    return value instanceof ChipsError;
-  }
-
   static fromPlain(value: IChipsError): ChipsError {
     return new ChipsError({
       code: value.code,
@@ -62,8 +64,14 @@ export class ChipsError extends Error implements IChipsError {
   }
 }
 
-/** 结构判定：接收方（preload / Host 适配层）无需依赖原型链即可识别普通对象形态的 `ChipsError`。 */
-export function isPlainChipsError(value: unknown): value is IChipsError {
+/**
+ * 全生态唯一权威结构守卫（《RFC-ChipsError统一裁定》§4.2，01-Bridge-API规范 §2.5）：
+ * 判据三条合取——`code` 为非空字符串、`message` 为字符串、`retryable` 缺省或为 boolean；不读取原型链。
+ *
+ * 语义「入口宽、出口严」：本类实例永远通过判定；跨边界还原的同构普通对象同样通过。
+ * `instanceof ChipsError` 仅在同一打包副本的 Realm 内有效，禁止用于守卫实现与跨边界判定。
+ */
+export function isChipsError(value: unknown): value is ChipsError {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -183,7 +191,7 @@ export function normalizeError(error: unknown, options: INormalizeErrorOptions =
   if (error instanceof ChipsError) {
     return error;
   }
-  if (isPlainChipsError(error)) {
+  if (isChipsError(error)) {
     return ChipsError.fromPlain(error);
   }
   if (isAbortError(error)) {

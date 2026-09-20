@@ -8,19 +8,20 @@
  * 测试侧以 `expect(thrownErrorCode(action)).toBe(code)` 做等价且类型安全的断言。
  */
 
-import { ChipsError } from '../../src/protocol/errors.js';
+import { isChipsError } from '../../src/protocol/errors.js';
 
 /**
  * 执行动作并返回其同步抛出的 `ChipsError` 错误码。
  *
  * 动作正常完成或抛出非 `ChipsError` 异常时，测试直接失败（等价于原
  * `toThrowError(expect.objectContaining({ code }))` 在未抛出/形状不符时的判定）。
+ * 判定走全生态唯一权威结构守卫 `isChipsError`（《RFC-ChipsError统一裁定》§4.2），不使用 `instanceof`。
  */
 export function thrownErrorCode(action: () => unknown): string {
   try {
     action();
   } catch (error) {
-    if (ChipsError.isChipsError(error)) {
+    if (isChipsError(error)) {
       return error.code;
     }
     throw error;

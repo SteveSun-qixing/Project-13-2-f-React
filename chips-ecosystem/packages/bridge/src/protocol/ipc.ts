@@ -8,7 +8,7 @@ import {
   BRIDGE_ERROR_CODES,
   ChipsError,
   createBridgeError,
-  isPlainChipsError,
+  isChipsError,
   type IChipsError,
 } from './errors.js';
 import {
@@ -181,7 +181,7 @@ function toPlainError(error: unknown, fallbackMessage: string): IChipsError {
   if (error instanceof ChipsError) {
     return error.toPlain();
   }
-  if (isPlainChipsError(error)) {
+  if (isChipsError(error)) {
     return ChipsError.fromPlain(error).toPlain();
   }
   return new ChipsError({ code: BRIDGE_ERROR_CODES.internal, message: fallbackMessage }).toPlain();
@@ -204,7 +204,7 @@ export function encodeBridgeResponse(response: IBridgeResponse): IBridgeResponse
     assertStructuredCloneable(response.result);
     return response;
   }
-  const error = isPlainChipsError(response.error)
+  const error = isChipsError(response.error)
     ? response.error
     : ChipsError.fromPlain(response.error).toPlain();
   return { requestId: response.requestId, ok: false, error };
@@ -234,7 +234,7 @@ export function decodeBridgeResponse(raw: unknown): IBridgeResponse {
     return { requestId, ok: true, result: raw.result };
   }
   if (raw.ok === false) {
-    if (!isPlainChipsError(raw.error)) {
+    if (!isChipsError(raw.error)) {
       throw malformed('IPC 响应错误结构非法');
     }
     return { requestId, ok: false, error: raw.error };
@@ -263,7 +263,7 @@ export function decodeResourceControlResponse(raw: unknown): IResourceControlRes
     return { requestId, ok: true, metadata: raw.metadata };
   }
   if (raw.ok === false) {
-    if (!isPlainChipsError(raw.error)) {
+    if (!isChipsError(raw.error)) {
       throw malformed('资源控制响应错误结构非法');
     }
     return { requestId, ok: false, error: raw.error };
@@ -357,7 +357,7 @@ export function decodeEventControlResponse(raw: unknown): IEventControlResponse 
     return { controlId: raw.controlId, ok: true };
   }
   if (raw.ok === false) {
-    if (!isPlainChipsError(raw.error)) {
+    if (!isChipsError(raw.error)) {
       throw malformed('事件控制响应错误结构非法');
     }
     return { controlId: raw.controlId, ok: false, error: raw.error };

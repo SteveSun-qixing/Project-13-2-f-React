@@ -5,10 +5,11 @@ import {
   BRIDGE_ERROR_RETRYABLE,
   ChipsError,
   createBridgeError,
-  isPlainChipsError,
+  isChipsError,
   KERNEL_INVALID_TRANSITION,
   normalizeError,
   PERMISSION_ERROR_CODES,
+  type IChipsErrorInit,
 } from './errors.js';
 
 describe('ChipsError', () => {
@@ -42,20 +43,88 @@ describe('ChipsError', () => {
     const restored = ChipsError.fromPlain({ code: 'FILE_NOT_FOUND', message: '文件不存在' });
     expect(restored).toBeInstanceOf(ChipsError);
     expect(restored.retryable).toBe(false);
-    expect(ChipsError.isChipsError(restored)).toBe(true);
-    expect(ChipsError.isChipsError(new Error('x'))).toBe(false);
+    expect(isChipsError(restored)).toBe(true);
+    expect(isChipsError(new Error('x'))).toBe(false);
+  });
+
+  it('fromPlain(toPlain()) 往返保真（跨边界还原语义，原 host 面测试点）', () => {
+    const original = new ChipsError({
+      code: 'A_B',
+      message: '文案',
+      details: { path: '/a' },
+      retryable: true,
+    });
+    const restored = ChipsError.fromPlain(original.toPlain());
+    expect(restored).toBeInstanceOf(ChipsError);
+    expect(restored.name).toBe('ChipsError');
+    expect(restored.code).toBe('A_B');
+    expect(restored.message).toBe('文案');
+    expect(restored.retryable).toBe(true);
+    expect(restored.details).toEqual({ path: '/a' });
+    expect(restored.toPlain()).toEqual(original.toPlain());
+  });
+
+  it('toPlain() 恒输出 code/message/retryable 三键，details 仅在非 undefined 时输出', () => {
+    const bare = new ChipsError({ code: 'A_B', message: '文案' }).toPlain();
+    expect(Object.keys(bare).sort()).toEqual(['code', 'message', 'retryable']);
+    const withDetails = new ChipsError({
+      code: 'A_B',
+      message: '文案',
+      details: { uri: 'chips-resource://x' },
+    }).toPlain();
+    expect(Object.keys(withDetails).sort()).toEqual(['code', 'details', 'message', 'retryable']);
+  });
+
+  it('构造只接受初始化对象，位置参数不填充错误字段（§6.2 禁位置参数）', () => {
+    const init: IChipsErrorInit = { code: 'A_B', message: '文案' };
+    expect(new ChipsError(init).code).toBe('A_B');
+    // @ts-expect-error 位置参数形式不被类型系统接受（构造入参唯一为 IChipsErrorInit）。
+    const misplaced = new ChipsError('A_B', '文案');
+    expect(misplaced.code).toBeUndefined();
+    expect(misplaced.message).toBe('');
+    expect(misplaced.retryable).toBe(false);
   });
 });
 
-describe('isPlainChipsError', () => {
+describe('isChipsError（唯一权威结构守卫）', () => {
   it('识别普通对象形态，拒绝缺字段或类型非法', () => {
-    expect(isPlainChipsError({ code: 'A_B', message: '文案' })).toBe(true);
-    expect(isPlainChipsError({ code: 'A_B', message: '文案', retryable: true })).toBe(true);
-    expect(isPlainChipsError(null)).toBe(false);
-    expect(isPlainChipsError('A_B')).toBe(false);
-    expect(isPlainChipsError({ code: '', message: '文案' })).toBe(false);
-    expect(isPlainChipsError({ code: 'A_B', message: 1 })).toBe(false);
-    expect(isPlainChipsError({ code: 'A_B', message: '文案', retryable: 'yes' })).toBe(false);
+    expect(isChipsError({ code: 'A_B', message: '文案' })).toBe(true);
+    expect(isChipsError({ code: 'A_B', message: '文案', retryable: true })).toBe(true);
+    expect(isChipsError(null)).toBe(false);
+    expect(isChipsError('A_B')).toBe(false);
+    expect(isChipsError({ code: '', message: '文案' })).toBe(false);
+    expect(isChipsError({ code: 'A_B', message: 1 })).toBe(false);
+    expect(isChipsError({ code: 'A_B', message: '文案', retryable: 'yes' })).toBe(false);
+  });
+
+  it('本类实例永远通过判定（入口宽、出口严）', () => {
+    const error = new ChipsError({ code: 'A_B', message: '文案' });
+    expect(isChipsError(error)).toBe(true);
+    expect(isChipsError(error.toPlain())).toBe(true);
+  });
+
+  it('message 为空字符串仍通过判定（输入端不设内容门槛，§4.2 条 2）', () => {
+    expect(isChipsError({ code: 'A_B', message: '' })).toBe(true);
+  });
+
+  it('跨 Realm：不挂原型链、经克隆/序列化同构还原的普通对象通过判定', () => {
+    const foreignRealm = JSON.parse(
+      JSON.stringify({ code: 'FILE_NOT_FOUND', message: '文件不存在', retryable: false })
+    ) as unknown;
+    expect(foreignRealm instanceof ChipsError).toBe(false);
+    expect(isChipsError(foreignRealm)).toBe(true);
+    const nullPrototype = Object.assign(Object.create(null), {
+      code: 'FILE_NOT_FOUND',
+      message: '文件不存在',
+    }) as unknown;
+    expect(isChipsError(nullPrototype)).toBe(true);
+  });
+
+  it('不读取原型链：getter 暴露合法字段的对象也通过判定', () => {
+    const withGetters = {} as Record<string, unknown>;
+    Object.defineProperty(withGetters, 'code', { get: () => 'A_B' });
+    Object.defineProperty(withGetters, 'message', { get: () => '文案' });
+    expect(isChipsError(withGetters)).toBe(true);
   });
 });
 
