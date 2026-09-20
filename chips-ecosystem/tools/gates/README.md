@@ -131,6 +131,8 @@ node tools/gates/check-entries.mjs examples/plugins/hello
 
 测试文件（`tests/`、`*.test.*`、`*.spec.*`、`*.stories.*`）不参与源码导入检查；子路径导入（如 `@chips/testing/vitest`）按包名归一判定。
 
+依赖允许集的事实源是 `gates.config.json` → `boundaries.rules`。其中 `packages/sdk → @chips/scaffold` 为 RFC 裁决放行的唯一脚手架转发有向边（《05-接口与契约/02-SDK-API规范》§8.2 规则 9：模板事实源在 `tools/scaffold/src/templates/`，`@chips/sdk/scaffold` 是薄转发层；见 `项目日志与笔记/RFC-G9边界表放行sdk转发边/`），放行面仅此一条边（依赖 + 源码 import），不放宽任何其他跨包边，也不引入豁免字段。
+
 ### 4.4 覆盖率门禁（G6）
 
 | 代码              | 检查项                                                                  |

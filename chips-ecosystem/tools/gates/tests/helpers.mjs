@@ -90,6 +90,33 @@ export function boundariesConfig({ allowAnyInternal = false } = {}) {
   };
 }
 
+// scaffold 转发边专用配置（02-SDK-API规范 §8.2 规则 9 / G9 边界表放行裁决）：
+// 与 boundariesConfig 分面，互不影响既有用例；仅 packages/sdk 一条规则放行
+// @chips/scaffold，其余包（如 packages/ui）指向 @chips/scaffold 的边一律仍拒。
+export function scaffoldBoundariesConfig() {
+  return {
+    boundaries: {
+      internalScope: '@chips/',
+      sourceExtensions: ['.ts'],
+      ignoredDirs: ['node_modules', 'dist', 'fixtures'],
+      testFilePatterns: ['\\.test\\.'],
+      workspaceProtocol: 'workspace:',
+      forbiddenProtocolPrefixes: ['file:', 'link:'],
+      rules: [
+        { id: 'root', match: '.', kind: 'root' },
+        {
+          id: 'packages/sdk',
+          match: 'packages/sdk',
+          allowedInternal: ['@chips/bridge', '@chips/scaffold'],
+          typeOnlyInternal: ['@chips/bridge'],
+        },
+        { id: 'packages/scaffold', match: 'packages/scaffold', allowedInternal: [] },
+        { id: 'packages/ui', match: 'packages/ui', allowedInternal: ['@chips/antd'] },
+      ],
+    },
+  };
+}
+
 export function coverageConfig({
   rustRequired = true,
   rustSurface = false,
