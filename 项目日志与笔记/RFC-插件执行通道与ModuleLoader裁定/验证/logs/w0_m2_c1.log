@@ -1,0 +1,16 @@
+[w0][c1] register() returned: undefined
+[w0][c1] main process type=browser pid=8364 node=24.14.0 electron=40.8.0
+[w0][probe] probe.mjs EVALUATED (marker set)
+[w0][good] plugin-good.mjs evaluated with probe
+[w0][c1] ASSERT PASS node-specifier-rejected-in-resolve-hook | W0_WHITELIST_REJECT node:fs (reason=not-in-whitelist)
+[w0][c1] ASSERT PASS electron-specifier-rejected-in-resolve-hook | W0_WHITELIST_REJECT electron (reason=not-in-whitelist)
+[w0][c1] ASSERT PASS scope-escape-abs-rejected-in-resolve-hook | W0_WHITELIST_REJECT ../outside-scope/probe-outside.mjs (reason=scope-escape)
+[w0][c1] ASSERT PASS bare-path-rejected-in-resolve-hook | W0_WHITELIST_REJECT fs (reason=not-in-whitelist)
+[w0][c1] ASSERT PASS probe-module-never-evaluated
+[w0][c1] ASSERT PASS plugin-bodies-never-executed
+[w0][c1] ASSERT PASS outside-scope-probe-never-evaluated
+[w0][c1] ASSERT PASS good-control-imported-and-evaluated
+[w0][c1] ASSERT PASS resolve-reject-events-count-4 | ["not-in-whitelist:node:fs","not-in-whitelist:electron","scope-escape:../outside-scope/probe-outside.mjs","not-in-whitelist:fs"]
+[w0][c1] ASSERT PASS hooks-ran-in-worker-thread | {"ev":"init","wtIsMainThread":false,"threadId":1,"processIsMainThread":null,"versions":{"node":"24.14.0","electron":"40.8.0"}}
+[w0][c1] ASSERT PASS register-return-value-documented | register() returned undefined (Electron quirk: MessagePort unavailable); portMessages=0
+[w0][c1] W0_SUMMARY pass=true

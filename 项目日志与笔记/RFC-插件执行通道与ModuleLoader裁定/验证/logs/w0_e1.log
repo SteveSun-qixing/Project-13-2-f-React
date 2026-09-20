@@ -1,0 +1,10 @@
+[w0][e1] ASSERT PASS main-process-is-browser | process.type=browser
+[w0][e1] ASSERT PASS register-callable-in-main | register() returned undefined (Electron 40.8 实测返回 undefined，MessagePort 面不可用；钩子本身生效)
+[w0][e1] ASSERT PASS esm-eval-through-hooks-in-main
+[w0][e1] ASSERT PASS hooks-run-on-node-worker-thread | {"ev":"init","wtIsMainThread":false,"threadId":1,"execArgv":[],"mainArgvNull":false}
+[w0][e1] ASSERT PASS resolve-and-load-hooks-fired
+[w0][e1] ASSERT PASS renderer-page-loaded | {"typeofRequire":"undefined","typeofModule":"undefined","typeofProcess":"undefined","chipsExposed":"undefined","e1FlagLeak":"undefined","title":"w0-e1-sandbox-page"}
+[w0][e1] ASSERT PASS renderer-main-world-no-node-access
+[w0][e1] ASSERT PASS renderer-main-world-no-loader-leak
+[w0][e1] ASSERT PASS sandbox-preload-boundary | {"hasProcess":true,"processType":"renderer","hasRequireGlobal":true,"canRequireElectron":true,"canRequireNodeFs":false,"hasModuleGlobal":true}
+[w0][e1] W0_SUMMARY pass=true

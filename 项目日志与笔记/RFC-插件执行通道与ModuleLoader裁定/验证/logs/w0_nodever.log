@@ -1,0 +1,2 @@
+node 24.14.0 electron 40.8.0 modules.register: function
+register fn: function

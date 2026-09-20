@@ -1,0 +1,9 @@
+[w0][m1] ASSERT PASS svm-available-in-electron-main-via-node-options | NODE_OPTIONS 注入实测（flags/ 探针 f4 为唯一生效面）；process.type=browser
+[w0][m1] ASSERT PASS m1-linker-whitelist-rejects-all-3 | {"plugin:bad-node":{"threw":true,"msg":"W0_M1_WHITELIST_REJECT node:fs"},"plugin:bad-electron":{"threw":true,"msg":"W0_M1_WHITELIST_REJECT electron"},"plugin:bad-bare":{"threw":true,"msg":"W0_M1_WHITELIST_REJECT fs"}}
+[w0][m1] ASSERT PASS m1-zero-exec-on-reject
+[w0][m1] ASSERT PASS m1-hash-gate-rejects-tampered | {"threw":true,"stage":"entry-hash","errs":["hash-mismatch"]}
+[w0][m1] ASSERT PASS m1-clean-control-evaluated | v1=m1-ok-rerun-1 v2=m1-ok-rerun-2
+[w0][m1] ASSERT PASS m1-reload-reruns-gate-and-body | 每次激活独立 linker 门禁日志计数相等
+[w0][m1] W0_SUMMARY pass=true
+(node:17638) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `Electron --trace-warnings ...` to show where the warning was created)
