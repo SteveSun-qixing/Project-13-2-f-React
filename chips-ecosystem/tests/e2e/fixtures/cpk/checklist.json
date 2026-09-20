@@ -23,13 +23,13 @@
       "file": "packages/hello-0.1.0.cpk",
       "kind": "positive-signed",
       "summary": "真实 Ed25519 签名正夹具：信任根内 keyId，五阶段全部通过",
-      "archiveSha256": "sha256:2321588df27cdcc9a57e0d89593ed76e98a8555960948fdc9a6488fba52aae2e",
-      "archiveBytes": 12094,
+      "archiveSha256": "sha256:3070caa606ec09db534cb1ca498d5a33aae28fc4c4103601f193584b5f017f56",
+      "archiveBytes": 14118,
       "memberCount": 6,
       "signature": {
         "keyId": "chips-fixture-2026",
         "algorithm": "ed25519",
-        "contentHash": "sha256:917054ccc5ff50830dbd8cc5bb3b7971f82765563a619be1c6fcad91e8d6b430"
+        "contentHash": "sha256:794e34395bb122bb62a500037591c371474f0dfc75a23ca70a752390f3bcb955"
       },
       "expected": {
         "valid": true,
@@ -40,13 +40,13 @@
       "file": "packages/hello-0.1.0-wrong-signature.cpk",
       "kind": "negative-signature",
       "summary": "伪造私钥签名、keyId 冒用信任根内标识：Ed25519 验签失败",
-      "archiveSha256": "sha256:d356bb48af1217290d06598ce375145561b487988662d15bf9fe772cca7ace8f",
-      "archiveBytes": 12094,
+      "archiveSha256": "sha256:cd0134db7bc560747f721c46ea07532b775eea9b492c2a75a8f676a7608fa40e",
+      "archiveBytes": 14118,
       "memberCount": 6,
       "signature": {
         "keyId": "chips-fixture-2026",
         "algorithm": "ed25519",
-        "contentHash": "sha256:917054ccc5ff50830dbd8cc5bb3b7971f82765563a619be1c6fcad91e8d6b430"
+        "contentHash": "sha256:794e34395bb122bb62a500037591c371474f0dfc75a23ca70a752390f3bcb955"
       },
       "expected": {
         "valid": false,
@@ -58,13 +58,13 @@
       "file": "packages/hello-0.1.0-bad-manifest.cpk",
       "kind": "negative-manifest",
       "summary": "manifest.yaml 的 id 违反反向域名约束：清单阶段失败",
-      "archiveSha256": "sha256:478274be8c62da16bb8c0fa8465da0c58dd7282b52c65a1be7dc75d631e33add",
-      "archiveBytes": 12084,
+      "archiveSha256": "sha256:82c2b08037fa003d5bc2b8f11671f1f077312fff867d628266055986bd857187",
+      "archiveBytes": 14108,
       "memberCount": 6,
       "signature": {
         "keyId": "chips-fixture-2026",
         "algorithm": "ed25519",
-        "contentHash": "sha256:917054ccc5ff50830dbd8cc5bb3b7971f82765563a619be1c6fcad91e8d6b430"
+        "contentHash": "sha256:794e34395bb122bb62a500037591c371474f0dfc75a23ca70a752390f3bcb955"
       },
       "expected": {
         "valid": false,
@@ -76,8 +76,8 @@
       "file": "packages/hello-0.1.0-crc-tampered.cpk",
       "kind": "negative-crc",
       "summary": "签名单未动、成员数据被篡改：归档阶段 CRC 校验失败",
-      "archiveSha256": "sha256:34e5b8090574a6bbb82d1b4ceb89a9507cf2f407deef3ebbb07f2b38e385d924",
-      "archiveBytes": 12094,
+      "archiveSha256": "sha256:a18025da04c3997268d66cc78f6d97f146898b5990c79447b555b426a7081334",
+      "archiveBytes": 14118,
       "memberCount": null,
       "signature": null,
       "expected": {
