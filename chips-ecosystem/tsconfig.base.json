@@ -27,7 +27,10 @@
       "@chips/ui": ["./packages/ui/dist/index", "./packages/ui/src/index"],
       "@chips/antd": ["./packages/antd/dist/index", "./packages/antd/src/index"],
       "@chips/sdk": ["./packages/sdk/dist/index", "./packages/sdk/src/index"],
-      "@chips/sdk/testing": ["./packages/sdk/dist/testing/index", "./packages/sdk/src/testing/index"],
+      "@chips/sdk/testing": [
+        "./packages/sdk/dist/testing/index",
+        "./packages/sdk/src/testing/index"
+      ],
       "@chips/bridge": ["./packages/bridge/dist/index", "./packages/bridge/src/index"],
       "@chips/cli": ["./packages/cli/dist/index", "./packages/cli/src/index"],
       "@chips/host": ["./packages/host/dist/types/index", "./packages/host/src/index"],
