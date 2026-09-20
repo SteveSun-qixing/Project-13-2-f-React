@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint . --max-warnings 0 && prettier --check --ignore-path ../../.prettierignore .",
+    "lint": "eslint . --max-warnings 0 && prettier --check .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "node -e \"require('node:fs').rmSync('reports', { recursive: true, force: true }); require('node:fs').rmSync('coverage', { recursive: true, force: true })\"",
     "list": "tsx src/cli.ts list",

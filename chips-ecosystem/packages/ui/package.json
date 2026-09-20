@@ -25,7 +25,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run --configLoader runner",
     "test:coverage": "vitest run --coverage --configLoader runner",
-    "lint": "eslint . && prettier --check --ignore-path ../../.prettierignore .",
+    "lint": "eslint . && prettier --check .",
     "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['dist', 'coverage', 'tsconfig.tsbuildinfo']) fs.rmSync(p, { recursive: true, force: true }); })\""
   },
   "dependencies": {
