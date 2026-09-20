@@ -9,16 +9,17 @@ export {
   ChipsError,
   CLI_ERROR_MESSAGES,
   cliError,
+  cliErrorWithExitCode,
   CliInterruptedError,
   exitCodeForCode,
   exitCodeForError,
-  hasErrorCode,
-  normalizeError,
-  toErrorObject,
+  isChipsError,
+  registerExitCodeHint,
+  toCliError,
   type CliErrorCode,
   type CliExitCode,
-  type IChipsErrorOptions,
-  type IChipsErrorShape,
+  type IChipsError,
+  type IChipsErrorInit,
 } from './errors.js';
 
 export {

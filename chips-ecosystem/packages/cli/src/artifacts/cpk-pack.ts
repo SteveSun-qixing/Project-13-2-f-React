@@ -8,7 +8,7 @@
 import { createPrivateKey, sign as signValue } from 'node:crypto';
 import { basename, join } from 'node:path';
 
-import { cliError, normalizeError } from '../errors.js';
+import { cliError } from '../errors.js';
 import type { ICliArtifactPackResult } from '../client/types.js';
 import type { IFileSystemPort } from '../args/filesystem.js';
 import { parseManifestText, validateManifest } from './manifest.js';
@@ -181,9 +181,11 @@ function signContentHash(
     const signature = signValue(null, Buffer.from(contentHash, 'utf8'), key);
     return signature.toString('base64');
   } catch (error) {
-    throw cliError('CPK_SIGNATURE_INVALID', `签名失败：${normalizeError(error).message}`, {
+    // 原始异常文本只进 `details.cause`，不拼进 `message`（《RFC-ChipsError统一裁定》§4.5 条 3）。
+    throw cliError('CPK_SIGNATURE_INVALID', '签名失败', {
       stage: 'signature',
       keyFile: signingKeyFile,
+      cause: error instanceof Error ? error.message : String(error),
     });
   }
 }

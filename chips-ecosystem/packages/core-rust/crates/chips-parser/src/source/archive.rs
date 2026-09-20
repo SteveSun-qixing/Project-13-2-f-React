@@ -575,6 +575,11 @@ impl DocumentSource for ArchiveSource {
             }
         }
     }
+
+    /// 压缩态提供真实 CRC32 校验（§4.3）；委托给同名固有方法。
+    fn verify_member_crc(&self, path: &PackagePath) -> Fatal<()> {
+        ArchiveSource::verify_member_crc(self, path)
+    }
 }
 
 #[cfg(test)]

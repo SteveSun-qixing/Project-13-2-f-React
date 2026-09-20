@@ -8,7 +8,7 @@
 import { createHash, createPublicKey, verify as verifySignatureValue } from 'node:crypto';
 import { join, posix } from 'node:path';
 
-import { cliError, normalizeError } from '../errors.js';
+import { cliError, toCliError } from '../errors.js';
 import type {
   CliPluginSource,
   ICliArtifactStageResult,
@@ -492,9 +492,11 @@ export function verifySignature(input: {
       Buffer.from(signature, 'base64')
     );
   } catch (error) {
-    throw cliError('CPK_SIGNATURE_INVALID', `签名校验失败：${normalizeError(error).message}`, {
+    // 原始异常文本只进 `details.cause`，不拼进 `message`（《RFC-ChipsError统一裁定》§4.5 条 3）。
+    throw cliError('CPK_SIGNATURE_INVALID', '签名校验失败', {
       stage: 'signature',
       keyId,
+      cause: error instanceof Error ? error.message : String(error),
     });
   }
   if (!verified) {
@@ -536,7 +538,7 @@ export function validateCpk(options: ICpkValidateOptions): ICliArtifactValidateR
     try {
       return action();
     } catch (error) {
-      const normalized = normalizeError(error);
+      const normalized = toCliError(error);
       throw cliError(normalized.code, normalized.message, {
         ...(typeof normalized.details === 'object' && normalized.details !== null
           ? normalized.details

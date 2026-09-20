@@ -208,6 +208,13 @@ pub trait DocumentSource: Send + Sync {
 
     /// 打开成员字节流（资源成员；Store 返回映射切片）。
     fn open_stream(&self, path: &PackagePath) -> Result<ByteStream, DocumentError>;
+
+    /// 校验成员 CRC32（设计稿 §4.3：`verify_hashes` 开启或 `validate` 时
+    /// 执行；普通解析只信任中央目录并校验尺寸）。目录态不提供 CRC32
+    /// （§4.2），默认实现恒通过；压缩态覆盖为真实校验。
+    fn verify_member_crc(&self, _path: &PackagePath) -> Fatal<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]

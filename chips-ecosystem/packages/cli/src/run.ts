@@ -6,7 +6,7 @@
  * 错误统一归一为 `ChipsError` 并按 §2.5 映射退出码。
  */
 
-import { CliInterruptedError, exitCodeForError, normalizeError } from './errors.js';
+import { CliInterruptedError, exitCodeForError, toCliError } from './errors.js';
 import { createNodeFileSystem, type IFileSystemPort } from './args/filesystem.js';
 import {
   parseGlobalOptions,
@@ -276,7 +276,7 @@ async function reportFailure(
     await recordOperation(context, { ...detail, exitCode: 130 });
     return 130;
   }
-  const error = normalizeError(cause);
+  const error = toCliError(cause);
   renderError(context.io, error);
   const exitCode = exitCodeForError(error);
   await recordOperation(context, { ...detail, exitCode });

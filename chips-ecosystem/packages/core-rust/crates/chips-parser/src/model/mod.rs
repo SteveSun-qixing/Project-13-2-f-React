@@ -20,7 +20,7 @@ mod card;
 #[path = "box.rs"]
 mod box_model;
 
-pub use card::CardMetadata;
+pub use card::{AgeRating, CardMetadata, Visibility};
 pub use box_model::BoxMetadata;
 
 /// 文档格式类别（《核心接口规范》§6.1）。

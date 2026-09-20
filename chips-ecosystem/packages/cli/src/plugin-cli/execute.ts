@@ -10,7 +10,7 @@
  * `app` 目标只启动实例并立即返回（§5.3.2）。
  */
 
-import { cliError, cliErrorWithExitCode, CliInterruptedError, normalizeError } from '../errors.js';
+import { cliError, cliErrorWithExitCode, CliInterruptedError, toCliError } from '../errors.js';
 import type { ICliCommandDeclaration, ICliCommandView, ICliTaskRecord } from '../client/types.js';
 import type { ICommandContext } from '../commands/types.js';
 import { createProgressWriter } from '../output/progress.js';
@@ -230,7 +230,7 @@ async function dispatch(
     try {
       invokeResult = await context.client.commands.invoke({ commandId, payload });
     } catch (error) {
-      const normalized = normalizeError(error);
+      const normalized = toCliError(error);
       await context.client.cliTask.fail(task.taskId, normalized).catch(() => undefined);
       throw normalized;
     }
@@ -241,7 +241,9 @@ async function dispatch(
 
     const settled = await settleTask(context, task, job.cancelOnInterrupt === true);
     if (settled.status === 'failed') {
-      // 任务失败终态固定以退出码 7 收口；错误码保留应用上报的原样（§2.5、§2.6）。
+      // 任务失败终态固定以退出码 7 收口（失败类别优先于码值映射）：`cliErrorWithExitCode` 把提示
+      // 登记到进程内旁表，退出码不进错误对象与输出；错误码保留应用上报的原样（§2.5、§2.6，
+      // 《RFC-ChipsError统一裁定》§4.6）。
       const error = settled.error;
       const code = error !== undefined && error.code.length > 0 ? error.code : 'CLI_TASK_FAILED';
       const message =

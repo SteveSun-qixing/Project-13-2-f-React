@@ -4,7 +4,6 @@
  */
 
 import type { ChipsError } from '../errors.js';
-import { toErrorObject } from '../errors.js';
 import type { IOutputSink } from './io.js';
 
 /**
@@ -58,7 +57,30 @@ export function renderResult(sink: IOutputSink, result: ICommandResult, forceJso
   sink.writeOut(serializeJson(result.json));
 }
 
+/**
+ * stdout 错误信封（[CLI 完整参考] §2.6）：唯一序列化出口是统一类的 `toPlain()`
+ * （《RFC-ChipsError统一裁定》§4.3），CLI 域只做信封键名映射 `message` → `error`。
+ *
+ * `retryable` 恒带（缺省 `false`），`code` 是脚本唯一判定依据；`exitCode` 不是错误对象成员，
+ * 只由进程内旁表映射为真实退出码，永不出现在输出里（§4.6）。
+ */
+function toErrorEnvelope(error: ChipsError): {
+  error: string;
+  code: string;
+  details?: unknown;
+  retryable: boolean;
+} {
+  const plain = error.toPlain();
+  return {
+    error: plain.message,
+    code: plain.code,
+    ...(plain.details === undefined ? {} : { details: plain.details }),
+    // `toPlain()` 恒输出已归一的 boolean；`IChipsError.retryable` 的可选性只服务跨边界输入端。
+    retryable: plain.retryable ?? false,
+  };
+}
+
 /** 渲染错误对象到 stdout（任何模式下失败都输出单个错误对象）。 */
 export function renderError(sink: IOutputSink, error: ChipsError): void {
-  sink.writeOut(serializeJson(toErrorObject(error)));
+  sink.writeOut(serializeJson(toErrorEnvelope(error)));
 }

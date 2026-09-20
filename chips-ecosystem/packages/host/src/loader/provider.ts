@@ -16,7 +16,6 @@ import { CPK_ERROR_CODES } from './codes.js';
 import { throwCpkError } from './errors.js';
 import { CPK_LIMITS } from './limits.js';
 import { readZipStore, type IZipMember } from './zip.js';
-import { sha256Hex } from './signature.js';
 
 /** 包内容（解包后的成员表与安装哈希来源）。 */
 export interface ICpkPackage {

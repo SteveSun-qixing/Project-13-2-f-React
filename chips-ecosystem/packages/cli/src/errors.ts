@@ -2,16 +2,25 @@
  * CLI 错误模型与退出码映射。
  *
  * 单一事实源：
+ * - 错误类与结构守卫：全生态唯一实现定义在 `@chips/bridge`（《RFC-ChipsError统一裁定》§3.2），
+ *   本包只消费该定义并以薄再导出保持 `@chips/cli` 公开面（《CLI完整参考》§2.6）；
  * - 错误码表、退出码表、错误对象形状：[CLI 完整参考] §2.5、§2.6；
  * - 其他领域错误码（`CPK_*` / `CONFIG_*` / `UPDATE_*` / `PLUGIN_*` / `BRIDGE_*`）保留原样，
  *   CLI 只负责映射退出码。
  */
 
+import { ChipsError, isChipsError } from '@chips/bridge';
+
+/**
+ * 全生态唯一错误类与结构守卫（`@chips/bridge` 定义的薄再导出）：CLI 不再有本地类定义，
+ * `import { ChipsError } from '@chips/cli'` 与 `import { ChipsError } from '@chips/bridge'`
+ * 取到同一个构造函数。
+ */
+export { ChipsError, isChipsError };
+export type { IChipsError, IChipsErrorInit } from '@chips/bridge';
+
 /** 进程退出码（[CLI 完整参考] §2.5）。 */
 export type CliExitCode = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 130;
-
-/** 合法退出码集合（跨进程传入的 `exitCode` 提示按此白名单采信）。 */
-const EXIT_CODE_SET: ReadonlySet<number> = new Set<number>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 130]);
 
 /** CLI 自有错误码（`cli-command` / `cli-task` 契约登记，[CLI 完整参考] §2.6）。 */
 export type CliErrorCode =
@@ -86,63 +95,27 @@ export const CLI_ERROR_MESSAGES: Readonly<Record<CliErrorCode, string>> = {
   CLI_COMMAND_FAILED: '命令执行失败',
 };
 
-/** 错误对象形状（[CLI 完整参考] §2.6）；跨进程消费的稳定接口。 */
-export interface IChipsErrorShape {
-  readonly code: string;
-  readonly message: string;
-  readonly details?: unknown;
-  readonly retryable?: boolean;
-}
-
-/** 构造选项。 */
-export interface IChipsErrorOptions {
-  readonly code: string;
-  readonly message: string;
-  readonly details?: unknown;
-  readonly retryable?: boolean;
-  /**
-   * 显式退出码：错误码来自其他领域（`CPK_*` / `PLUGIN_*` / 插件自定义码）时，退出码由
-   * **失败类别**决定而非码值，例如任务失败终态固定为 7（[CLI 完整参考] §2.5）。
-   * 缺省按 §2.5、§2.6 的码值映射。
-   */
-  readonly exitCode?: CliExitCode;
-}
+/**
+ * 退出码提示旁表（《RFC-ChipsError统一裁定》§4.6）：`exitCode` **不是**错误对象成员，
+ * 而是 CLI 进程内的输出事实。错误码来自其他领域、退出码由**失败类别**决定（而非码值映射）时，
+ * 构造点用 {@link registerExitCodeHint} 登记提示；`exitCodeForError` 读旁表。
+ *
+ * 旁表以 `WeakMap` 承载：错误对象在本进程 catch 链上身份不变（{@link toCliError} 对本类实例
+ * 原样返回），因此无提示丢失路径；提示永不跨进程、永不进入输出。
+ */
+const EXIT_CODE_HINTS = new WeakMap<ChipsError, CliExitCode>();
 
 /**
- * CLI 进程侧错误类：与全生态 `ChipsError` 同形状、同语义（`code` / `message` / `details` / `retryable`）。
- *
- * 平台边界传入的错误对象经 {@link normalizeError} 归一为本类；跨进程输出只使用
- * {@link toErrorObject} 的四字段形状（[CLI 完整参考] §2.6）。`exitCode` 是 CLI 内部的退出码
- * 提示（失败类别优先于码值映射），不进入输出形状。
+ * 登记退出码提示（[CLI 完整参考] §2.5 的「失败类别优先于码值」例外，如任务失败终态固定 7）。
+ * 仅限本进程内使用；不修改错误对象，也不进入任何输出形状。
  */
-export class ChipsError extends Error {
-  public readonly code: string;
-
-  public readonly details: unknown;
-
-  public readonly retryable: boolean | undefined;
-
-  public readonly exitCode: CliExitCode | undefined;
-
-  public constructor(options: IChipsErrorOptions) {
-    super(options.message);
-    this.name = 'ChipsError';
-    this.code = options.code;
-    if (options.details !== undefined) {
-      this.details = options.details;
-    }
-    if (options.retryable !== undefined) {
-      this.retryable = options.retryable;
-    }
-    if (options.exitCode !== undefined) {
-      this.exitCode = options.exitCode;
-    }
-  }
+export function registerExitCodeHint(error: ChipsError, code: CliExitCode): void {
+  EXIT_CODE_HINTS.set(error, code);
 }
 
 /**
  * 用户中断（`Ctrl+C`）内部控制流：退出码 130 没有错误码（[CLI 完整参考] §2.5），
- * 因此不进入 `ChipsError` 输出链路，由入口编排直接以 130 结束。
+ * 因此不进入 `ChipsError` 输出链路，由入口编排直接以 130 结束（《RFC-ChipsError统一裁定》§4.6）。
  */
 export class CliInterruptedError extends Error {
   public constructor() {
@@ -151,105 +124,71 @@ export class CliInterruptedError extends Error {
   }
 }
 
-/** 判断任意值是否携带字符串 `code`（错误对象形状预检）。 */
-export function hasErrorCode(value: unknown): value is { code: string } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'code' in value &&
-    typeof (value as { code?: unknown }).code === 'string'
-  );
-}
-
-/** 把平台边界或未知异常归一为 `ChipsError`。 */
-export function normalizeError(value: unknown): ChipsError {
+/**
+ * 把平台边界或未知异常归一为 `ChipsError`（《RFC-ChipsError统一裁定》§4.5 条 3/4）：
+ *
+ * - 本类实例原样返回（保持抛出值身份，退出码旁表不丢失）；
+ * - 通过统一结构守卫 {@link isChipsError} 的同构普通对象（宿主上报、跨边界还原）按四字段还原，
+ *   错误码原样保留；守卫之外的附带字段（如历史 `exitCode`）一律不采信；
+ * - 其余未识别异常归一为 `CLI_COMMAND_FAILED`：`message` 取该码的通用中文文案，
+ *   **原始异常文本不进入 `message`**，只作结构化诊断落 `details`（`{ name?, cause }`，不含堆栈）。
+ */
+export function toCliError(value: unknown): ChipsError {
   if (value instanceof ChipsError) {
     return value;
   }
-  if (hasErrorCode(value)) {
-    const record = value as {
-      code: string;
-      message?: unknown;
-      details?: unknown;
-      retryable?: unknown;
-      exitCode?: unknown;
-    };
-    const options: IChipsErrorOptions = {
-      code: record.code,
-      message:
-        typeof record.message === 'string' ? record.message : CLI_ERROR_MESSAGES.CLI_COMMAND_FAILED,
-    };
-    if (record.details !== undefined) {
-      (options as { details?: unknown }).details = record.details;
-    }
-    if (typeof record.retryable === 'boolean') {
-      (options as { retryable?: boolean }).retryable = record.retryable;
-    }
-    const carried = record.exitCode;
-    if (typeof carried === 'number' && EXIT_CODE_SET.has(carried)) {
-      (options as { exitCode?: CliExitCode }).exitCode = carried as CliExitCode;
-    }
-    return new ChipsError(options);
+  if (isChipsError(value)) {
+    return ChipsError.fromPlain(value);
   }
-  const message = value instanceof Error ? value.message : String(value);
-  return new ChipsError({ code: 'CLI_COMMAND_FAILED', message });
+  if (value instanceof Error) {
+    return new ChipsError({
+      code: 'CLI_COMMAND_FAILED',
+      message: CLI_ERROR_MESSAGES.CLI_COMMAND_FAILED,
+      details: { name: value.name, cause: value.message },
+    });
+  }
+  return new ChipsError({
+    code: 'CLI_COMMAND_FAILED',
+    message: CLI_ERROR_MESSAGES.CLI_COMMAND_FAILED,
+    details: { cause: String(value) },
+  });
 }
 
-/** 构造带缺省文案的 CLI 错误。 */
+/**
+ * 构造带缺省文案的 CLI 错误。
+ *
+ * `message` 一律简体中文、面向用户；原始异常文本经 {@link toCliError} 落 `details.cause`，
+ * 不拼进 `message`（[CLI 完整参考] §2.6、《RFC-ChipsError统一裁定》§4.5）。
+ */
 export function cliError(
   code: string,
   message?: string,
   details?: unknown,
   retryable?: boolean
 ): ChipsError {
-  return cliErrorWithExitCode(code, undefined, message, details, retryable);
+  return new ChipsError({
+    code,
+    message: message ?? CLI_ERROR_MESSAGES[code as CliErrorCode] ?? code,
+    ...(details === undefined ? {} : { details }),
+    ...(retryable === undefined ? {} : { retryable }),
+  });
 }
 
 /**
- * 构造携带显式退出码的 CLI 错误：错误码保留原样（可能是插件自定义码），退出码由失败类别决定
- * （[CLI 完整参考] §2.5，如任务失败终态固定为 7）。
+ * 构造带显式退出码提示的 CLI 错误：错误码保留原样（可能是插件自定义码），退出码由失败类别决定
+ * （[CLI 完整参考] §2.5，如任务失败终态固定为 7）。提示写入进程内旁表（{@link registerExitCodeHint}），
+ * 不进入错误对象与输出形状。
  */
 export function cliErrorWithExitCode(
   code: string,
-  exitCode: CliExitCode | undefined,
+  exitCode: CliExitCode,
   message?: string,
   details?: unknown,
   retryable?: boolean
 ): ChipsError {
-  const options: IChipsErrorOptions = {
-    code,
-    message: message ?? CLI_ERROR_MESSAGES[code as CliErrorCode] ?? code,
-  };
-  if (details !== undefined) {
-    (options as { details?: unknown }).details = details;
-  }
-  if (retryable !== undefined) {
-    (options as { retryable?: boolean }).retryable = retryable;
-  }
-  if (exitCode !== undefined) {
-    (options as { exitCode?: CliExitCode }).exitCode = exitCode;
-  }
-  return new ChipsError(options);
-}
-
-/** 错误对象（stdout 单一对象，[CLI 完整参考] §2.6）。 */
-export function toErrorObject(error: ChipsError): IChipsErrorShape {
-  const object: {
-    code: string;
-    message: string;
-    details?: unknown;
-    retryable?: boolean;
-  } = {
-    code: error.code,
-    message: error.message,
-  };
-  if (error.details !== undefined) {
-    object.details = error.details;
-  }
-  if (error.retryable !== undefined) {
-    object.retryable = error.retryable;
-  }
-  return object;
+  const error = cliError(code, message, details, retryable);
+  registerExitCodeHint(error, exitCode);
+  return error;
 }
 
 /** 错误码 → 退出码（[CLI 完整参考] §2.5）。 */
@@ -265,7 +204,10 @@ export function exitCodeForCode(code: string): CliExitCode {
   return 1;
 }
 
-/** 错误 → 退出码：显式提示优先，其次码值映射（[CLI 完整参考] §2.5）。 */
+/**
+ * 错误 → 退出码：旁表提示（失败类别）优先，其次 §2.5 码值映射，最后一般失败 1
+ * （《RFC-ChipsError统一裁定》§4.6）。
+ */
 export function exitCodeForError(error: ChipsError): CliExitCode {
-  return error.exitCode ?? exitCodeForCode(error.code);
+  return EXIT_CODE_HINTS.get(error) ?? exitCodeForCode(error.code);
 }

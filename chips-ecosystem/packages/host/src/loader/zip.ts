@@ -21,7 +21,6 @@ export interface IZipMember {
 
 const LOCAL_HEADER_SIGNATURE = 0x04034b50;
 const CENTRAL_HEADER_SIGNATURE = 0x02014b50;
-const EOCD_SIGNATURE = 0x06054b50;
 
 const textDecoder = new TextDecoder('utf-8', { fatal: false });
 
