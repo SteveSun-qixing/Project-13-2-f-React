@@ -194,6 +194,26 @@ export interface IHostSessionView {
   readonly state: 'active' | 'closed';
 }
 
+/**
+ * 预留槽位诊断视图（组合根"已预留、待接线"面）。
+ *
+ * @remarks
+ * - 来源是 `runtime/capabilities/reserved.ts` 的声明清单，与注册表实态逐条比对后得出 `wired`。
+ * - `wired === false` 表示该能力 ID 尚未有真实提供方注册：调用得到注册表未命中的
+ *   `BRIDGE_CAPABILITY_NOT_FOUND`（04 §4.2 查询语义），而不是空壳统一占位。
+ * - 本视图只出现在壳侧诊断快照（`IHostRuntimeReport`），不经 `window.chips` 暴露（02 §4.3）。
+ */
+export interface IHostReservedCapabilityView {
+  /** 预留能力 ID。 */
+  readonly id: string;
+  /** 声明所需基础权限。 */
+  readonly permissions: readonly string[];
+  /** 预期接线方。 */
+  readonly provider: string;
+  /** 真实实现是否已注册（含 `draining` 代际）。 */
+  readonly wired: boolean;
+}
+
 /** 运行时组合诊断快照。 */
 export interface IHostRuntimeReport {
   readonly state: 'idle' | 'running' | 'stopped';
@@ -203,4 +223,6 @@ export interface IHostRuntimeReport {
   readonly inFlight: number;
   readonly eventSubscriptions: number;
   readonly resourceHandles: number;
+  /** 预留槽位面（"已预留、待接线"）。 */
+  readonly reserved: readonly IHostReservedCapabilityView[];
 }

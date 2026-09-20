@@ -17,7 +17,7 @@ import type { IPalHost } from '../platform/contracts/index.js';
 import type { IHostCapabilityDescriptor } from '../runtime/capability/contracts.js';
 import type { IHostCapabilityRegistryOptions } from '../runtime/capability/registry.js';
 import type { IHostSessionProvisioner } from '../runtime/capability/session.js';
-import { createHostRuntime, type HostRuntimeOptions, type IHostRuntime } from '../runtime/host-runtime.js';
+import { createHostRuntime, type IHostRuntime } from '../runtime/host-runtime.js';
 import { createBuiltinCapabilities } from '../runtime/capabilities/system-info.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import {
@@ -27,7 +27,7 @@ import {
   type PalHostContext,
 } from './runtime-provider.js';
 
-/** 生产运行时装配选项（在 {@link HostRuntimeOptions} 之上的组合根视图）。 */
+/** 生产运行时装配选项（在 `runtime/host-runtime.ts` 的 `HostRuntimeOptions` 之上的组合根视图）。 */
 export interface ProductionRuntimeOptions {
   /**
    * 外部能力提供方清单：每个提供方产出一组 {@link IHostCapabilityDescriptor}。
@@ -91,7 +91,7 @@ export function createProductionRuntime(
  *
  * @param options 装配选项（含 PAL 宿主工厂与外部能力提供方）。
  */
-export function createProductionAssembly(options: ProductionAssemblyOptions): HostAssembly {
+export function createProductionAssembly(options: ProductionAssemblyOptions): HostAssembly<IHostRuntime> {
   const { createPalHost, capabilityProviders, sessionProvisioner, registryOptions, diagnostics } = options;
   return createHostAssembly({
     createPalHost,

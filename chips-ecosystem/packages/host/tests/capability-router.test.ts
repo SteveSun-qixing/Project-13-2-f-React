@@ -27,7 +27,10 @@ interface Harness {
   publishEvent: ReturnType<typeof vi.fn>;
   sessionSignal: AbortController;
   route: (request: IBridgeRequest) => Promise<import('../src/protocol/wire.js').IBridgeResponse>;
-  routeWith: (session: IHostSession, request: IBridgeRequest) => Promise<import('../src/protocol/wire.js').IBridgeResponse>;
+  routeWith: (
+    session: IHostSession,
+    request: IBridgeRequest,
+  ) => Promise<import('../src/protocol/wire.js').IBridgeResponse>;
 }
 
 function harness(extra?: { readonly now?: () => number }): Harness {
@@ -53,8 +56,8 @@ function harness(extra?: { readonly now?: () => number }): Harness {
   };
 }
 
-function descriptor(overrides: Partial<IHostCapabilityDescriptor>): IHostCapabilityDescriptor {
-  return { id: 'test:action', permissions: [], handler: async () => null, ...overrides };
+function descriptor(overrides: Partial<IHostCapabilityDescriptor> = {}): IHostCapabilityDescriptor {
+  return { id: 'test:action', permissions: [], handler: () => Promise.resolve(null), ...overrides };
 }
 
 const req = (capabilityId: string, input?: unknown): IBridgeRequest => ({ requestId: 'r-1', capabilityId, input });
@@ -62,7 +65,7 @@ const req = (capabilityId: string, input?: unknown): IBridgeRequest => ({ reques
 describe('能力路由管线（02 §5.2）', () => {
   it('注册命中：返回 handler 结果', async () => {
     const h = harness();
-    h.registry.register(descriptor({ handler: async (input) => ({ echoed: input }) }));
+    h.registry.register(descriptor({ handler: (input) => Promise.resolve({ echoed: input }) }));
     const response = await h.route(req('test:action', { a: 1 }));
     expect(response).toEqual({ requestId: 'r-1', ok: true, result: { echoed: { a: 1 } } });
   });
@@ -87,7 +90,7 @@ describe('能力路由管线（02 §5.2）', () => {
 
   it('权限不足：BRIDGE_PERMISSION_DENIED 且携带缺失权限', async () => {
     const h = harness();
-    h.registry.register(descriptor({ permissions: ['resources:write'], handler: async () => 'nope' }));
+    h.registry.register(descriptor({ permissions: ['resources:write'], handler: () => Promise.resolve('nope') }));
     const response = await h.routeWith(makeSession([]), req('test:action'));
     expect(response.ok).toBe(false);
     if (!response.ok) {
@@ -111,9 +114,8 @@ describe('能力路由管线（02 §5.2）', () => {
     const h = harness();
     h.registry.register(
       descriptor({
-        handler: async () => {
-          throw Object.assign(new Error('资源缺失'), { code: 'RESOURCE_NOT_FOUND', retryable: false });
-        },
+        handler: () =>
+          Promise.reject(Object.assign(new Error('资源缺失'), { code: 'RESOURCE_NOT_FOUND', retryable: false })),
       }),
     );
     const response = await h.route(req('test:action'));
@@ -154,7 +156,9 @@ describe('能力路由管线（02 §5.2）', () => {
         timeoutMs: 5000,
         handler: (_input, ctx) =>
           new Promise((_resolve, reject) => {
-            ctx.signal.addEventListener('abort', () => reject(Object.assign(new Error('取消'), { code: 'BRIDGE_CANCELLED' })));
+            ctx.signal.addEventListener('abort', () =>
+              reject(Object.assign(new Error('取消'), { code: 'BRIDGE_CANCELLED' })),
+            );
           }),
       }),
     );
@@ -171,9 +175,9 @@ describe('能力路由管线（02 §5.2）', () => {
     const h = harness();
     h.registry.register(
       descriptor({
-        handler: async (_input, ctx) => {
+        handler: (_input, ctx) => {
           ctx.emit('document:changed', { id: 'd1' });
-          return 'done';
+          return Promise.resolve('done');
         },
       }),
     );
@@ -188,9 +192,9 @@ describe('能力路由管线（02 §5.2）', () => {
     h.registry.register(
       descriptor({
         timeoutMs: 2500,
-        handler: async (_input, ctx) => {
+        handler: (_input, ctx) => {
           seenDeadline = ctx.deadline;
-          return null;
+          return Promise.resolve(null);
         },
       }),
     );

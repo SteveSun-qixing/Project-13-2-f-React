@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  createHostCapabilityRegistry,
-  HostCapabilityRegistrationError,
-} from '../src/runtime/capability/registry.js';
+import { createHostCapabilityRegistry, HostCapabilityRegistrationError } from '../src/runtime/capability/registry.js';
 import type { IHostCapabilityDescriptor } from '../src/runtime/capability/contracts.js';
 
-const noopHandler = async (): Promise<unknown> => ({ ok: true });
+const noopHandler = (): Promise<unknown> => Promise.resolve({ ok: true });
 
 function descriptor(overrides: Partial<IHostCapabilityDescriptor> = {}): IHostCapabilityDescriptor {
   return {
@@ -64,9 +61,9 @@ describe('壳侧能力注册表：装配与校验', () => {
 
   it('缺少 handler 拒绝', () => {
     const registry = createHostCapabilityRegistry();
-    expect(() => registry.register({ ...descriptor(), handler: undefined as unknown as IHostCapabilityDescriptor['handler'] })).toThrow(
-      HostCapabilityRegistrationError,
-    );
+    expect(() =>
+      registry.register({ ...descriptor(), handler: undefined as unknown as IHostCapabilityDescriptor['handler'] }),
+    ).toThrow(HostCapabilityRegistrationError);
   });
 
   it('未登记权限拒绝（PERMISSION_UNKNOWN）', () => {
@@ -102,6 +99,19 @@ describe('壳侧能力注册表：装配与校验', () => {
     }
   });
 
+  it('能力 ID 与权限 ID 同值拒绝（04 §4.2 第 4 项 / R3 命名空间隔离）', () => {
+    const registry = createHostCapabilityRegistry();
+    try {
+      registry.register(descriptor({ id: 'resources:read', permissions: ['resources:read'] }));
+      expect.unreachable();
+    } catch (error) {
+      const failure = error as HostCapabilityRegistrationError;
+      expect(failure.wire.code).toBe('BRIDGE_CAPABILITY_CONFLICT');
+      expect(failure.wire.details).toMatchObject({ capabilityId: 'resources:read', permission: 'resources:read' });
+    }
+    expect(registry.size).toBe(0);
+  });
+
   it('同 owner 不同定义冲突拒绝，draining 可再注册', () => {
     const registry = createHostCapabilityRegistry();
     registry.register(descriptor());
@@ -109,7 +119,7 @@ describe('壳侧能力注册表：装配与校验', () => {
     registry.markDraining('test:action');
     expect(registry.get('test:action')).toBeUndefined();
     expect(registry.getRegistered('test:action')?.state).toBe('draining');
-    expect(() => registry.register(descriptor({ handler: async () => 1 }))).not.toThrow();
+    expect(() => registry.register(descriptor({ handler: () => Promise.resolve(1) }))).not.toThrow();
   });
 
   it('注销幂等；未注册注销不抛', () => {

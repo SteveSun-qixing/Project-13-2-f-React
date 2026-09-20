@@ -1,14 +1,18 @@
 /**
  * 壳侧能力注册表（04-能力契约规范 §4.2、02-Bridge三层设计 §4）。
  *
- * 权威：`04-能力契约规范` §4.2（注册校验顺序：ID 文法 → 契约登记 → 占用 → 权限词表 → manifest 声明）、
+ * 权威：`04-能力契约规范` §4.2（注册校验 1~7 项：ID 文法 → 契约登记绑定 → 占用 → R3 权限同值 →
+ * Schema 可编译 → 权限词表与 manifest 声明 → owner 激活态）、
  * `02-Bridge三层设计` §4.1（注册项与默认值）、§4.3（只读编目）。
  *
  * @remarks
- * - 每次注册写入前完成全部校验，任一失败原子拒绝，不产生部分注册（`HostCapabilityRegistrationError` 携带线协议码）。
+ * - 每次注册写入前完成本层可判定的全部校验（§4.2 第 1、3、4、6 项），任一失败原子拒绝，
+ *   不产生部分注册（`HostCapabilityRegistrationError` 携带线协议码）。
+ * - §4.2 第 2、5、7 项（能力契约登记目录、Schema 离线编译、owner 生命周期激活态）的权威实例在
+ *   Bridge 内核与 Cordis 内核，属内核交付面；本表在组合根缺位期不做伪实现，口径见开发日志集成缺口。
  * - 注销幂等；注销后可由同 owner 重新注册。蓝绿更新经 `markDraining` 停新调用、保留编目。
- * - `knownPermissions` / `isOwnerAuthorized` 为接线注入点：组合根据宿主 manifest 提供，缺省时不拦（平台内置
- *   能力恒授权，见 08 §4.4 平台自身免权限）。
+ * - `knownPermissions` / `declaredPermissions` 为接线注入点：组合根据宿主 manifest 提供，缺省时不拦
+ *   （平台内置能力恒授权，见 08 §4.4 平台自身免权限）。
  */
 
 import { BRIDGE_ERROR_CODES, PERMISSION_ERROR_CODES, bridgeWireError } from '../../protocol/error-codes.js';
@@ -74,7 +78,21 @@ function conflict(message: string, details: Record<string, unknown>): HostCapabi
   );
 }
 
-function permissionFailure(code: string, message: string, details: Record<string, unknown>): HostCapabilityRegistrationError {
+/**
+ * 权限声明的运行时形态校验。
+ *
+ * @remarks 描述符类型已是 `readonly string[]`，本守卫只防御非 TypeScript 调用方（跨语言注入 / 手工构造）；
+ * 以类型谓词形式收敛，避免 `Array.isArray` 把已声明类型窄化成 `any[]` 而污染下游取值。
+ */
+function isStringList(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item: unknown): boolean => typeof item === 'string');
+}
+
+function permissionFailure(
+  code: string,
+  message: string,
+  details: Record<string, unknown>,
+): HostCapabilityRegistrationError {
   return new HostCapabilityRegistrationError({
     code,
     message,
@@ -122,9 +140,7 @@ function viewOf(entry: IRegisteredHostCapability): IHostCapabilityDescriptorView
 }
 
 /** 创建壳侧能力注册表。 */
-export function createHostCapabilityRegistry(
-  options: IHostCapabilityRegistryOptions = {},
-): IHostCapabilityRegistry {
+export function createHostCapabilityRegistry(options: IHostCapabilityRegistryOptions = {}): IHostCapabilityRegistry {
   const defaultOwner = options.defaultOwner ?? HOST_CAPABILITY_OWNER;
   const entries = new Map<string, IRegisteredHostCapability>();
 
@@ -145,35 +161,30 @@ export function createHostCapabilityRegistry(
     if (typeof descriptor.handler !== 'function') {
       throw conflict('能力缺少 handler 实现', { capabilityId: id });
     }
-    if (!Array.isArray(descriptor.permissions) || descriptor.permissions.some((item) => typeof item !== 'string')) {
+    if (!isStringList(descriptor.permissions)) {
       throw conflict('能力 permissions 必须为字符串数组', { capabilityId: id });
+    }
+    if (descriptor.permissions.includes(id)) {
+      throw conflict('能力 ID 与权限 ID 同值，违反命名空间隔离（R3）', { capabilityId: id, permission: id });
     }
     const owner = descriptor.owner ?? defaultOwner;
 
     for (const permission of descriptor.permissions) {
       if (!isHostPermissionId(permission)) {
-        throw permissionFailure(
-          PERMISSION_ERROR_CODES.invalid,
-          '权限 ID 文法非法',
-          { capabilityId: id, permission },
-        );
+        throw permissionFailure(PERMISSION_ERROR_CODES.invalid, '权限 ID 文法非法', { capabilityId: id, permission });
       }
       if (options.knownPermissions !== undefined && !options.knownPermissions.has(permission)) {
-        throw permissionFailure(
-          PERMISSION_ERROR_CODES.unknown,
-          '能力声明了未注册的权限',
-          { capabilityId: id, permission },
-        );
+        throw permissionFailure(PERMISSION_ERROR_CODES.unknown, '能力声明了未注册的权限', {
+          capabilityId: id,
+          permission,
+        });
       }
-      if (
-        options.declaredPermissions !== undefined &&
-        !options.declaredPermissions(owner).has(permission)
-      ) {
-        throw permissionFailure(
-          PERMISSION_ERROR_CODES.notDeclared,
-          '能力所需权限未在提供方清单声明',
-          { capabilityId: id, permission, owner },
-        );
+      if (options.declaredPermissions !== undefined && !options.declaredPermissions(owner).has(permission)) {
+        throw permissionFailure(PERMISSION_ERROR_CODES.notDeclared, '能力所需权限未在提供方清单声明', {
+          capabilityId: id,
+          permission,
+          owner,
+        });
       }
     }
 

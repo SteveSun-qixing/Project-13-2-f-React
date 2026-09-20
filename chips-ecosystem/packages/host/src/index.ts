@@ -132,6 +132,7 @@ export type {
   IHostSession,
   IHostSessionCreateInput,
   IHostSessionView,
+  IHostReservedCapabilityView,
   IHostRuntimeReport,
 } from './runtime/capability/contracts.js';
 export { createHostCapabilityRegistry, HostCapabilityRegistrationError } from './runtime/capability/registry.js';
@@ -153,7 +154,11 @@ export type { IHostCallScheduler, IHostCallGate, IHostCallPermit } from './runti
 export { createHostCapabilityRouter } from './runtime/capability/router.js';
 export type { IHostCapabilityRouter, IHostCapabilityRouterDeps } from './runtime/capability/router.js';
 
-export { SYSTEM_INFO_CAPABILITY_ID, createSystemInfoCapability, createBuiltinCapabilities } from './runtime/capabilities/system-info.js';
+export {
+  SYSTEM_INFO_CAPABILITY_ID,
+  createSystemInfoCapability,
+  createBuiltinCapabilities,
+} from './runtime/capabilities/system-info.js';
 export { RESERVED_DOCUMENT_CAPABILITIES, RESERVED_CAPABILITIES } from './runtime/capabilities/reserved.js';
 export type { IReservedCapabilityDeclaration } from './runtime/capabilities/reserved.js';
 

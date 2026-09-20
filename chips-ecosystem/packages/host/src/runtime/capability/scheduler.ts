@@ -50,7 +50,10 @@ interface ISerialState {
   readonly waiting: Array<{ resolve: () => void; reject: (error: unknown) => void }>;
 }
 
-function gateError(code: (typeof BRIDGE_ERROR_CODES)[keyof typeof BRIDGE_ERROR_CODES], details: Record<string, unknown>): Error {
+function gateError(
+  code: (typeof BRIDGE_ERROR_CODES)[keyof typeof BRIDGE_ERROR_CODES],
+  details: Record<string, unknown>,
+): Error {
   return Object.assign(new Error(''), bridgeWireError(code, { details }));
 }
 

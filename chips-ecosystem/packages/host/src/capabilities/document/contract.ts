@@ -27,11 +27,12 @@ export const DOCUMENT_CAPABILITY_IDS = {
 /** 文档能力 ID 联合。 */
 export type DocumentCapabilityId = (typeof DOCUMENT_CAPABILITY_IDS)[keyof typeof DOCUMENT_CAPABILITY_IDS];
 
-/** 本模块发布的事件 ID（口径：`05-事件契约规范` §4.2；`event-ids.ts` 生成常量镜像）。 */
+/** 本模块发布的事件 ID（口径：`05-事件契约规范` §4.2、`11-文档服务设计` §7.3；`event-ids.ts` 生成常量镜像）。 */
 export const DOCUMENT_EVENT_IDS = {
   opened: 'document:opened',
   changed: 'document:changed',
   saved: 'document:saved',
+  closed: 'document:closed',
 } as const;
 
 /** 文档事件 ID 联合。 */
@@ -52,6 +53,28 @@ export const DOCUMENT_CAPABILITY_PERMISSIONS: Readonly<Record<DocumentCapability
   'document:read': [DOCUMENT_PERMISSION_IDS.resourcesRead],
   'document:write': [DOCUMENT_PERMISSION_IDS.resourcesWrite],
   'document:save': [DOCUMENT_PERMISSION_IDS.resourcesWrite],
+};
+
+/** 权限限定值目标规则（与 `@chips/bridge` `IPermissionTargetRule`、`IHostPermissionTargetRule` 同构）。 */
+export interface IDocumentPermissionTargetRule {
+  /** 基础权限 ID。 */
+  readonly permission: string;
+  /** 输入中的限定值目标字段路径（点分）；空数组表示该权限无调用目标（纯基础权限判定）。 */
+  readonly targetFields: readonly string[];
+}
+
+/**
+ * 四能力的限定值目标（R19 §6.2 全表镜像；与 `@chips/bridge` `BUILTIN_CAPABILITIES` 的 `targets`
+ * 逐项一致，契约测试锁定）。
+ *
+ * @remarks 只有 `document:open` 的 `resources:read` 需要与输入 `source` 比对限定值；
+ * `read` / `write` / `save` 以 `documentId` 定位既有会话，作用域归属在打开时已经判定。
+ */
+export const DOCUMENT_CAPABILITY_TARGETS: Readonly<Record<DocumentCapabilityId, readonly IDocumentPermissionTargetRule[]>> = {
+  'document:open': [{ permission: DOCUMENT_PERMISSION_IDS.resourcesRead, targetFields: ['source'] }],
+  'document:read': [],
+  'document:write': [],
+  'document:save': [],
 };
 
 /** 内置能力提供方标识（与 `@chips/bridge` `PLATFORM_CAPABILITY_OWNER` 同值；契约测试锁定）。 */

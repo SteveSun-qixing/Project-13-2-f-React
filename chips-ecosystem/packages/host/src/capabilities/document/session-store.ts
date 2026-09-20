@@ -10,10 +10,12 @@
  * - 单文档单写者：写租约在文档记录上（首次成功 `document:write` 时获得，保存成功时归还，
  *   §3.6）；同一文档的 `write` / `save` 经记录内串行队列执行（§7.5），不同文档互不阻塞。
  * - 会话释放（拥有者窗口关闭 / Fork 撤销）由组合根在 Bridge 会话清理链路调用
- *   {@link IDocumentSessionStore.releaseSessionsOf}；R19 不提供显式关闭能力（§4.6）。
+ *   {@link IDocumentSessionStore.releaseSessionsOf}；R19 不提供显式关闭能力（§4.6），
+ *   释放即 `close`，被移除的记录由能力层发布 `document:closed`（§7.3）。
  */
 
 import type { DocumentForm, DocumentKind, DocumentPart, DocumentValue, IDocumentDiagnostic } from './contract.js';
+import { DOCUMENT_CHANNEL_ERROR_CODES, documentError } from './errors.js';
 import type { IDocumentHandle } from './ports.js';
 import type { ISourceFingerprint } from './digest.js';
 
@@ -113,11 +115,19 @@ export interface IDocumentSessionStore {
    * 同会话同来源复用；同会话不同来源声明同一标识时冲突。
    */
   claimSessionIdentity(sessionId: string, documentId: string, managedUri: string): SessionIdentityClaim;
+  /** 撤回一次身份声明（打开流程后续步骤失败时的回收，保证不留下半开状态，§4.2）。 */
+  withdrawSessionIdentity(sessionId: string, documentId: string, managedUri: string): void;
+  /**
+   * 移除刚建立、尚无任何会话的文档记录（打开流程在记录建立后失败时的回收）。
+   * 存在会话时不做移除（其他会话仍在使用同一记录）。
+   */
+  discardRecord(record: IDocumentRecord): boolean;
   /** 同一文档的 `write` / `save` 串行执行入口；失败不阻断后续任务。 */
   enqueueRecordTask<T>(record: IDocumentRecord, task: () => Promise<T>): Promise<T>;
   /**
-   * 拥有者会话释放：拒绝后续请求前等待该文档在途任务收口，随后移除其全部会话与身份声明；
-   * 记录无会话且无租约时释放解析句柄并移除记录。返回被移除的记录（供上层做作用域清理）。
+   * 拥有者会话释放（§4.6）：标记 `closing`（期间拒绝新请求与查找）→ 等待该文档在途任务收口
+   * → 丢弃未保存模型与写租约 → 移除会话与身份声明 → 记录无会话时移除记录并释放解析句柄。
+   * 返回被移除的记录，由能力层按其发布 `document:closed`（§7.3）。
    */
   releaseSessionsOf(sessionId: string): Promise<readonly IDocumentRecord[]>;
   /** 观察面：当前文档记录数（诊断与测试）。 */
@@ -142,6 +152,8 @@ export function createDocumentSessionStore(
   const recordsByUri = new Map<string, IDocumentRecord>();
   /** 会话 → 文档标识 → 受管 URI（§3.1 冲突判定索引）。 */
   const sessionIdentity = new Map<string, Map<string, string>>();
+  /** 正在释放的拥有者会话：§4.6 的 `closing` 标记，期间一律拒绝新的文档会话查找。 */
+  const releasingSessions = new Set<string>();
   /** 文档记录 → 串行队列尾。 */
   const queues = new WeakMap<IDocumentRecord, Promise<unknown>>();
 
@@ -174,6 +186,10 @@ export function createDocumentSessionStore(
       return record;
     },
     getOrCreateSession(record, sessionId) {
+      if (releasingSessions.has(sessionId)) {
+        // §4.6：`closing` 期间拒绝新请求；会话已不可用按 `BRIDGE_SESSION_UNKNOWN` 返回。
+        throw documentError(DOCUMENT_CHANNEL_ERROR_CODES.sessionUnknown, { details: { documentId: record.documentId } });
+      }
       const existing = record.sessions.get(sessionId);
       if (existing !== undefined) {
         return existing;
@@ -194,6 +210,9 @@ export function createDocumentSessionStore(
       return session;
     },
     findSession(callerSessionId, documentId) {
+      if (releasingSessions.has(callerSessionId)) {
+        return undefined;
+      }
       for (const record of recordsByUri.values()) {
         const session = record.sessions.get(callerSessionId);
         if (session !== undefined && session.documentId === documentId) {
@@ -216,6 +235,25 @@ export function createDocumentSessionStore(
       sessionIdentity.set(sessionId, next);
       return 'ok';
     },
+    withdrawSessionIdentity(sessionId, documentId, managedUri) {
+      const identities = sessionIdentity.get(sessionId);
+      if (identities?.get(documentId) === managedUri) {
+        identities.delete(documentId);
+        if (identities.size === 0) {
+          sessionIdentity.delete(sessionId);
+        }
+      }
+    },
+    discardRecord(record) {
+      if (record.sessions.size > 0) {
+        return false;
+      }
+      if (recordsByUri.get(record.managedUri) !== record) {
+        return false;
+      }
+      recordsByUri.delete(record.managedUri);
+      return true;
+    },
     enqueueRecordTask<T>(record: IDocumentRecord, task: () => Promise<T>): Promise<T> {
       const previous = queues.get(record) ?? Promise.resolve();
       const run = (): Promise<T> => task();
@@ -231,31 +269,42 @@ export function createDocumentSessionStore(
       return next;
     },
     async releaseSessionsOf(sessionId) {
-      const released: IDocumentRecord[] = [];
-      const drained: Promise<unknown>[] = [];
-      for (const record of [...recordsByUri.values()]) {
-        if (!record.sessions.has(sessionId)) {
-          continue;
-        }
-        record.sessions.delete(sessionId);
-        if (record.leaseHolderSessionId === sessionId) {
-          record.leaseHolderSessionId = null;
-        }
-        const pending = queues.get(record);
-        if (pending !== undefined) {
-          drained.push(pending.catch(() => undefined));
-        }
-        if (record.sessions.size === 0) {
-          recordsByUri.delete(record.managedUri);
-          released.push(record);
+      const affected: IDocumentRecord[] = [];
+      for (const record of recordsByUri.values()) {
+        if (record.sessions.has(sessionId)) {
+          affected.push(record);
         }
       }
-      sessionIdentity.delete(sessionId);
-      await Promise.all(drained);
-      for (const record of released) {
-        await releaseHandle(record.handle);
+      // §4.6 释放顺序：标记 closing（拒绝新请求）→ 排空在途任务 → 丢弃未保存模型与租约
+      // → 移除记录与会话 → 释放解析句柄。
+      releasingSessions.add(sessionId);
+      try {
+        for (const record of affected) {
+          const pending = queues.get(record);
+          if (pending !== undefined) {
+            await pending.catch(() => undefined);
+          }
+        }
+        const released: IDocumentRecord[] = [];
+        for (const record of affected) {
+          record.sessions.delete(sessionId);
+          if (record.leaseHolderSessionId === sessionId) {
+            record.leaseHolderSessionId = null;
+          }
+          if (record.sessions.size === 0 && recordsByUri.get(record.managedUri) === record) {
+            recordsByUri.delete(record.managedUri);
+            queues.delete(record);
+            released.push(record);
+          }
+        }
+        sessionIdentity.delete(sessionId);
+        for (const record of released) {
+          await releaseHandle(record.handle);
+        }
+        return released;
+      } finally {
+        releasingSessions.delete(sessionId);
       }
-      return released;
     },
     recordCount() {
       return recordsByUri.size;

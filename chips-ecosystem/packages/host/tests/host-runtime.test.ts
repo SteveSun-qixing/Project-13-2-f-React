@@ -57,7 +57,7 @@ function palHost(): IPalHost {
     },
     ports: {
       storage: {},
-      system: { getInfo: async () => SYSTEM_SNAPSHOT },
+      system: { getInfo: (): Promise<SystemInfo> => Promise.resolve(SYSTEM_SNAPSHOT) },
     } as IPalHost['ports'],
   };
 }
@@ -91,7 +91,10 @@ describe('生产运行时：能力清单装配与路由', () => {
     expect(report.state).toBe('running');
     expect(report.capabilities.byDomain).toMatchObject({ system: 1 });
 
-    const response = await runtime.ipc.handleRequest({ windowId: 1, frameId: null }, { requestId: 'r1', capabilityId: 'system:info' });
+    const response = await runtime.ipc.handleRequest(
+      { windowId: 1, frameId: null },
+      { requestId: 'r1', capabilityId: 'system:info' },
+    );
     expect(response).toEqual({ requestId: 'r1', ok: true, result: SYSTEM_SNAPSHOT });
     await runtime.shutdown();
   });
@@ -99,7 +102,10 @@ describe('生产运行时：能力清单装配与路由', () => {
   it('未注册能力：真实 BRIDGE_CAPABILITY_NOT_FOUND（非空壳统一）', async () => {
     const runtime = createHostRuntime({ capabilities: builtins });
     await runtime.start(host, channel());
-    const response = await runtime.ipc.handleRequest({ windowId: 1, frameId: null }, { requestId: 'r2', capabilityId: 'document:open' });
+    const response = await runtime.ipc.handleRequest(
+      { windowId: 1, frameId: null },
+      { requestId: 'r2', capabilityId: 'document:open' },
+    );
     expect(response.ok).toBe(false);
     if (!response.ok) {
       expect(response.error.code).toBe('BRIDGE_CAPABILITY_NOT_FOUND');
@@ -110,7 +116,10 @@ describe('生产运行时：能力清单装配与路由', () => {
   it('会话来源无法授权：BRIDGE_SESSION_UNKNOWN', async () => {
     const runtime = createHostRuntime({ capabilities: builtins, sessionProvisioner: provisioner(() => null) });
     await runtime.start(host, channel());
-    const response = await runtime.ipc.handleRequest({ windowId: 9, frameId: null }, { requestId: 'r3', capabilityId: 'system:info' });
+    const response = await runtime.ipc.handleRequest(
+      { windowId: 9, frameId: null },
+      { requestId: 'r3', capabilityId: 'system:info' },
+    );
     expect(response.ok).toBe(false);
     if (!response.ok) {
       expect(response.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
@@ -135,14 +144,17 @@ describe('生产运行时：能力清单装配与路由', () => {
     const guarded: IHostCapabilityDescriptor = {
       id: 'doc:write',
       permissions: ['resources:write'],
-      handler: async () => 'should-not-run',
+      handler: () => Promise.resolve('should-not-run'),
     };
     const runtime = createHostRuntime({
       capabilities: [guarded],
       sessionProvisioner: provisioner(() => ({ pluginId: 'demo', grantedPermissions: [] })),
     });
     await runtime.start(host, channel());
-    const response = await runtime.ipc.handleRequest({ windowId: 1, frameId: null }, { requestId: 'r5', capabilityId: 'doc:write' });
+    const response = await runtime.ipc.handleRequest(
+      { windowId: 1, frameId: null },
+      { requestId: 'r5', capabilityId: 'doc:write' },
+    );
     expect(response.ok).toBe(false);
     if (!response.ok) {
       expect(response.error.code).toBe('BRIDGE_PERMISSION_DENIED');
@@ -154,12 +166,15 @@ describe('生产运行时：能力清单装配与路由', () => {
     const emitter: IHostCapabilityDescriptor = {
       id: 'demo:emit',
       permissions: [],
-      handler: async (_input, ctx) => {
+      handler: (_input, ctx) => {
         ctx.emit('document:saved', { id: 'd1' });
-        return 'emitted';
+        return Promise.resolve('emitted');
       },
     };
-    const runtime = createHostRuntime({ capabilities: [emitter], sessionProvisioner: provisioner(() => platformGrant) });
+    const runtime = createHostRuntime({
+      capabilities: [emitter],
+      sessionProvisioner: provisioner(() => platformGrant),
+    });
     await runtime.start(host, channel());
     const deliver = vi.fn();
     const sink: IEventSink = { deliver };
@@ -169,7 +184,10 @@ describe('生产运行时：能力清单装配与路由', () => {
     await runtime.ipc.handleRequest({ windowId: 5, frameId: null }, { requestId: 'a', capabilityId: 'demo:emit' });
     expect(deliver).not.toHaveBeenCalled();
 
-    await runtime.ipc.handleEventControl({ windowId: 5, frameId: null }, { controlId: 'c1', action: 'subscribe', eventId: 'document:saved' });
+    await runtime.ipc.handleEventControl(
+      { windowId: 5, frameId: null },
+      { controlId: 'c1', action: 'subscribe', eventId: 'document:saved' },
+    );
     await runtime.ipc.handleRequest({ windowId: 5, frameId: null }, { requestId: 'b', capabilityId: 'demo:emit' });
     expect(deliver).toHaveBeenCalledTimes(1);
     expect(deliver.mock.calls[0]?.[1]).toMatchObject({ eventId: 'document:saved', payload: { id: 'd1' } });
@@ -196,7 +214,11 @@ describe('生产运行时：资源句柄控制', () => {
   });
 
   it('platform 作用域 open 返回元数据并登记句柄', async () => {
-    const runtime = createHostRuntime({ capabilities: [], platformRoot: root, sessionProvisioner: provisioner(() => platformGrant) });
+    const runtime = createHostRuntime({
+      capabilities: [],
+      platformRoot: root,
+      sessionProvisioner: provisioner(() => platformGrant),
+    });
     await runtime.start(host, channel());
     const response = await runtime.ipc.handleResourceControl(
       { windowId: 1, frameId: null },

@@ -12,11 +12,7 @@
  */
 
 import type { ISessionSource } from '../contracts.js';
-import type {
-  IHostSession,
-  IHostSessionCreateInput,
-  IHostSessionView,
-} from './contracts.js';
+import type { IHostSession, IHostSessionCreateInput, IHostSessionView } from './contracts.js';
 
 /** 会话打开时的授权来源；返回 `null` 表示无法为来源建立会话（拒绝 `BRIDGE_SESSION_UNKNOWN`）。 */
 export interface IHostSessionGrant {

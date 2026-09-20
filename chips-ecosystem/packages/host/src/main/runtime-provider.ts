@@ -37,14 +37,18 @@ export interface PalHostContext {
 /**
  * 平台装配契约；由组合根实现。
  *
+ * @typeParam TRuntime 组合根产出的运行时端口形态；默认取壳消费的 `IPlatformRuntime`。
+ * 生产组合根产出的是附带诊断快照的 `IHostRuntime`（`runtime/host-runtime.ts`），以类型参数如实暴露；
+ * 壳启动链（`main.ts`）仍按 `IPlatformRuntime` 端口消费，不因此感知诊断面。
+ *
  * @remarks `createRuntime` 内部完成内核 → 解析器 / 资源管理器 / 文档服务 → Bridge 能力注册；
  * 注册校验失败时必须抛出，壳据此终止启动（17 §2.4 第 3 步）。
  */
-export interface HostAssembly {
+export interface HostAssembly<TRuntime extends IPlatformRuntime = IPlatformRuntime> {
   /** 构造 PAL 宿主（壳自检前的平台差异实现）。 */
   createPalHost(electronModule: unknown, context: PalHostContext): IPalHost;
   /** 启动并返回平台运行时端口。 */
-  createRuntime(context: HostRuntimeContext): IPlatformRuntime | Promise<IPlatformRuntime>;
+  createRuntime(context: HostRuntimeContext): TRuntime | Promise<TRuntime>;
 }
 
 /**
@@ -54,7 +58,9 @@ export interface HostAssembly {
  * @returns 原装配对象。
  * @throws {HostStartupError} 缺少构造方法时抛出。
  */
-export function createHostAssembly(assembly: HostAssembly): HostAssembly {
+export function createHostAssembly<TRuntime extends IPlatformRuntime = IPlatformRuntime>(
+  assembly: HostAssembly<TRuntime>,
+): HostAssembly<TRuntime> {
   if (typeof assembly.createPalHost !== 'function' || typeof assembly.createRuntime !== 'function') {
     throw new HostStartupError('HOST_STARTUP_FAILED', 'pal-host', '平台装配缺少 createPalHost / createRuntime');
   }

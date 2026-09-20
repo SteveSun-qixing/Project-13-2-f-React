@@ -8,6 +8,9 @@
  * @remarks
  * - 组合根职责：注册显式能力清单（不再一律返回 `BRIDGE_CAPABILITY_NOT_FOUND`）、按 IPC 来源解析并
  *   **懒建会话**、以权限快照来源判定授权、投递事件下行、管理资源句柄与事件订阅、提供诊断快照。
+ * - 诊断快照含"已预留、待接线"面（`report().reserved`）：`document:*` 等槽位由
+ *   `capabilities/reserved.ts` 声明、由本运行时与注册表实态比对呈现，不参与注册；未接线的槽位被调用时
+ *   返回真实的注册表未命中错误（`BRIDGE_CAPABILITY_NOT_FOUND`）。
  * - 与旧空壳运行时的分工：`self-check-runtime.ts` 仍是"核心未装配"的诚实回退；本运行时装配真实清单，
  *   自检入口经它返回真实响应（P0-1 交付点 1）。
  * - 权限判定与会话口径对齐 `02`/`08`，但深度 Schema 校验、限定值细粒度匹配、插件拓扑恢复在 Rust Bridge
@@ -47,8 +50,11 @@ import { createHostCallScheduler } from './capability/scheduler.js';
 import { createHostCapabilityRouter } from './capability/router.js';
 import { createEventSubscriptionCenter, createResourceHandleCenter } from './capability/subscription.js';
 import { createPlatformResourceBackend } from './platform-resource.js';
+import { RESERVED_CAPABILITIES } from './capabilities/reserved.js';
+import type { IReservedCapabilityDeclaration } from './capabilities/reserved.js';
 import type {
   IHostCapabilityDescriptor,
+  IHostReservedCapabilityView,
   IHostRuntimeReport,
   IHostSession,
 } from './capability/contracts.js';
@@ -57,6 +63,12 @@ import type {
 export interface HostRuntimeOptions {
   /** 能力清单（显式注册单元，含内置与外部提供方）。 */
   readonly capabilities?: readonly IHostCapabilityDescriptor[];
+  /**
+   * 预留槽位声明（诊断面）；缺省取 `capabilities/reserved.ts` 的组合根默认清单。
+   *
+   * @remarks 预留清单**不参与注册**，只用于诊断面呈现"已预留、待接线"；传空数组即关闭该面。
+   */
+  readonly reservedCapabilities?: readonly IReservedCapabilityDeclaration[];
   /** 会话授权来源（权限快照）；缺省见 {@link createPlatformSessionProvisioner}。 */
   readonly sessionProvisioner?: IHostSessionProvisioner;
   /** 注册表注入项（已知权限词表 / 清单声明）。 */
@@ -105,7 +117,8 @@ function metadataFromHeaders(
   headers: Readonly<Record<string, string>>,
 ): IWireResourceMetadata {
   const rawType = headers['Content-Type'];
-  const mimeType = rawType === undefined ? 'application/octet-stream' : rawType.split(';')[0] ?? 'application/octet-stream';
+  const mimeType =
+    rawType === undefined ? 'application/octet-stream' : (rawType.split(';')[0] ?? 'application/octet-stream');
   const rawLength = headers['Content-Length'];
   const size = rawLength === undefined ? 0 : Number.parseInt(rawLength, 10) || 0;
   return { uri, size, mimeType, version: '0', scope };
@@ -131,10 +144,14 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
     (options.platformRoot !== undefined
       ? createPlatformResourceBackend(options.platformRoot)
       : {
-          async read(): Promise<never> {
-            throw Object.assign(new Error('资源管理器未装配'), { code: BRIDGE_ERROR_CODES.internal, retryable: false });
+          // 组合根未提供平台根也未注入后端：如实报内部错误，不伪造空结果。
+          read(): Promise<never> {
+            return Promise.reject(
+              Object.assign(new Error('资源管理器未装配'), { code: BRIDGE_ERROR_CODES.internal, retryable: false }),
+            );
           },
         });
+  const reservedDeclarations = options.reservedCapabilities ?? RESERVED_CAPABILITIES;
 
   const sinks = new Set<IEventSink>();
   let channel: IPlatformHostChannel | null = null;
@@ -215,7 +232,10 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       return router.route(session, request);
     },
 
-    async handleResourceControl(source: ISessionSource, request: IResourceControlRequest): Promise<IResourceControlResponse> {
+    async handleResourceControl(
+      source: ISessionSource,
+      request: IResourceControlRequest,
+    ): Promise<IResourceControlResponse> {
       const session = resolveSession(source);
       if (session === null) {
         return { requestId: request.requestId, ok: false, error: bridgeWireError(BRIDGE_ERROR_CODES.sessionUnknown) };
@@ -261,17 +281,21 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       }
     },
 
-    async handleEventControl(source: ISessionSource, request: IEventControlRequest): Promise<IEventControlResponse> {
+    handleEventControl(source: ISessionSource, request: IEventControlRequest): Promise<IEventControlResponse> {
       const session = resolveSession(source);
       if (session === null) {
-        return { controlId: request.controlId, ok: false, error: bridgeWireError(BRIDGE_ERROR_CODES.sessionUnknown) };
+        return Promise.resolve({
+          controlId: request.controlId,
+          ok: false,
+          error: bridgeWireError(BRIDGE_ERROR_CODES.sessionUnknown),
+        });
       }
       if (request.action === 'subscribe') {
         events.subscribe(session.sessionId, request.eventId);
       } else {
         events.unsubscribe(session.sessionId, request.eventId);
       }
-      return { controlId: request.controlId, ok: true };
+      return Promise.resolve({ controlId: request.controlId, ok: true });
     },
 
     handleWindowClosed(windowId: number): void {
@@ -280,11 +304,11 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
   };
 
   return {
-    async start(host: IPalHost, runtimeChannel: IPlatformHostChannel): Promise<void> {
-      void host;
+    start(_host: IPalHost, runtimeChannel: IPlatformHostChannel): Promise<void> {
       registry.registerAll(options.capabilities ?? []);
       channel = runtimeChannel;
       state = 'running';
+      return Promise.resolve();
     },
     async restorePlugins(): Promise<void> {
       // 插件拓扑恢复属平台核心职责（Rust Bridge 内核交付后接管）；组合根缺位期为无操作。
@@ -328,6 +352,15 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       };
     },
     report(): IHostRuntimeReport {
+      const reserved: IHostReservedCapabilityView[] = [];
+      for (const declaration of reservedDeclarations) {
+        reserved.push({
+          id: declaration.id,
+          permissions: declaration.permissions,
+          provider: declaration.provider,
+          wired: registry.getRegistered(declaration.id) !== undefined,
+        });
+      }
       return {
         state,
         capabilities: registry.report(),
@@ -336,6 +369,7 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
         inFlight: scheduler.inFlight,
         eventSubscriptions: events.size,
         resourceHandles: handles.size,
+        reserved,
       };
     },
   };

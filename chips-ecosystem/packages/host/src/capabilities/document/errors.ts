@@ -38,10 +38,20 @@ export const DOCUMENT_BUSINESS_ERROR_CODES = {
   structureInvalid: 'DOCUMENT_STRUCTURE_INVALID',
 } as const;
 
+/**
+ * 解析域复用码（`06-文档解析器设计` §8.2）：语义权威在解析器错误表，端口抛出的同码经
+ * {@link asDocumentCapabilityError} 原样透传；服务只在无需解析即可确定性判定的场景
+ * 复用解析器的既有码，不另立新码（`11-文档服务设计` §10.3：同一场景不得两码并用）。
+ */
+export const DOCUMENT_PARSER_ERROR_CODES = {
+  formatUnknown: 'DOCUMENT_FORMAT_UNKNOWN',
+} as const;
+
 /** 本模块直接构造的全部错误码。 */
 export type DocumentCapabilityErrorCode =
   | (typeof DOCUMENT_CHANNEL_ERROR_CODES)[keyof typeof DOCUMENT_CHANNEL_ERROR_CODES]
-  | (typeof DOCUMENT_BUSINESS_ERROR_CODES)[keyof typeof DOCUMENT_BUSINESS_ERROR_CODES];
+  | (typeof DOCUMENT_BUSINESS_ERROR_CODES)[keyof typeof DOCUMENT_BUSINESS_ERROR_CODES]
+  | (typeof DOCUMENT_PARSER_ERROR_CODES)[keyof typeof DOCUMENT_PARSER_ERROR_CODES];
 
 /** 已登记错误码的 `retryable` 口径（`02-Bridge三层设计` §9.2 + `11-文档服务设计` §10.2）。 */
 export const DOCUMENT_ERROR_RETRYABLE: Readonly<Record<DocumentCapabilityErrorCode, boolean>> = {
@@ -59,6 +69,7 @@ export const DOCUMENT_ERROR_RETRYABLE: Readonly<Record<DocumentCapabilityErrorCo
   DOCUMENT_ID_CONFLICT: false,
   DOCUMENT_METADATA_INVALID: false,
   DOCUMENT_STRUCTURE_INVALID: false,
+  DOCUMENT_FORMAT_UNKNOWN: false,
 };
 
 /** 已登记错误码的默认简体中文文案（面向用户，不暴露堆栈与内部路径）。 */
@@ -77,6 +88,7 @@ export const DOCUMENT_ERROR_MESSAGES: Readonly<Record<DocumentCapabilityErrorCod
   DOCUMENT_ID_CONFLICT: '不同来源解析出相同文档标识，已拒绝打开',
   DOCUMENT_METADATA_INVALID: '文档元数据不符合格式要求',
   DOCUMENT_STRUCTURE_INVALID: '文档结构不符合格式要求',
+  DOCUMENT_FORMAT_UNKNOWN: '文档与声明的格式不符，无法打开',
 };
 
 /** 结构化诊断载荷：只允许登记字段，不含输入原文与文件内容。 */
@@ -127,7 +139,8 @@ export class DocumentCapabilityError extends Error {
     this.name = 'ChipsError';
     this.code = code;
     this.details = options.details;
-    this.retryable = options.retryable ?? DOCUMENT_ERROR_RETRYABLE[code];
+    this.retryable =
+      options.retryable ?? (isDocumentCapabilityErrorCode(code) ? DOCUMENT_ERROR_RETRYABLE[code] : false);
   }
 
   /** 归一为结构化克隆兼容的普通对象（跨 IPC 传输形态）。 */

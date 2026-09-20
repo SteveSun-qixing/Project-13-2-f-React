@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createHostSessionRegistry, evaluateHostPermissions } from '../src/runtime/capability/session.js';
 
-function session(granted: readonly string[]) {
+function session(granted: readonly string[]): ReadonlySet<string> {
   return new Set(granted);
 }
 
