@@ -11,3 +11,6 @@ fixtures/
 *.cpk
 pnpm-lock.yaml
 **/归档/**
+# hello 示例的 render.js 是 vite 构建产物（入库为 check-entries/G4 与 cpk 链的在用输入）；
+# 每次 `pnpm -r build` 都会以压缩形态重写它，格式检查不适用（工单 010 同类配置缺口）。
+examples/plugins/hello/render.js
