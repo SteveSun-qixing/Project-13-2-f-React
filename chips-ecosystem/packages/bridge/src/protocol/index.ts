@@ -35,6 +35,7 @@ export {
   type IChipsErrorOptions,
   type ICreateBridgeErrorOptions,
   type INormalizeErrorOptions,
+  type PermissionErrorCode,
 } from './errors.js';
 export {
   EVENT_ERROR_CODES,

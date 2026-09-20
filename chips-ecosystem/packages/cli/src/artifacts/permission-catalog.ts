@@ -6,6 +6,7 @@
  * 卡片类型 / 布局类型登记表由平台目录注入，未注入时按文法校验。
  */
 
+import { PERMISSION_ERROR_CODES } from '@chips/bridge';
 import { cliError } from '../errors.js';
 import type { CliPluginRole } from '../client/types.js';
 
@@ -152,33 +153,37 @@ export function validatePermissionRequest(input: {
 }): string {
   const parsed = splitPermissionRequest(input.request);
   if (parsed === undefined) {
-    throw cliError('PERMISSION_UNKNOWN', `权限 ID 非法：${input.request}`, {
+    throw cliError(PERMISSION_ERROR_CODES.unknown, `权限 ID 非法：${input.request}`, {
       stage: 'manifest',
       pointer: input.pointer,
     });
   }
   const rule = input.catalog.find(parsed.base);
   if (rule === undefined) {
-    throw cliError('PERMISSION_UNKNOWN', `未登记的权限 ID：${input.request}`, {
+    throw cliError(PERMISSION_ERROR_CODES.unknown, `未登记的权限 ID：${input.request}`, {
       stage: 'manifest',
       pointer: input.pointer,
     });
   }
   if (rule.roles !== 'all' && !rule.roles.includes(input.role)) {
-    throw cliError('PERMISSION_ROLE_NOT_ALLOWED', `${input.role} 角色不得申请权限：${rule.id}`, {
-      stage: 'manifest',
-      pointer: input.pointer,
-    });
+    throw cliError(
+      PERMISSION_ERROR_CODES.roleNotAllowed,
+      `${input.role} 角色不得申请权限：${rule.id}`,
+      {
+        stage: 'manifest',
+        pointer: input.pointer,
+      }
+    );
   }
   const qualifier = parsed.qualifier;
   if (rule.qualifier === 'required' && (qualifier === undefined || qualifier.length === 0)) {
-    throw cliError('PERMISSION_INVALID', `权限 ${rule.id} 必须携带限定值`, {
+    throw cliError(PERMISSION_ERROR_CODES.invalid, `权限 ${rule.id} 必须携带限定值`, {
       stage: 'manifest',
       pointer: input.pointer,
     });
   }
   if (rule.qualifier === 'forbidden' && qualifier !== undefined) {
-    throw cliError('PERMISSION_INVALID', `权限 ${rule.id} 禁止携带限定值`, {
+    throw cliError(PERMISSION_ERROR_CODES.invalid, `权限 ${rule.id} 禁止携带限定值`, {
       stage: 'manifest',
       pointer: input.pointer,
     });
@@ -186,7 +191,7 @@ export function validatePermissionRequest(input: {
   if (qualifier !== undefined) {
     const domain = parsed.base.split(':')[0] ?? '';
     if (qualifierInvalid(domain, qualifier)) {
-      throw cliError('PERMISSION_INVALID', `权限 ${rule.id} 的限定值非法：${qualifier}`, {
+      throw cliError(PERMISSION_ERROR_CODES.invalid, `权限 ${rule.id} 的限定值非法：${qualifier}`, {
         stage: 'manifest',
         pointer: input.pointer,
       });

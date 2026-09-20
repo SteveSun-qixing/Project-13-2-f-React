@@ -94,7 +94,7 @@
 
 | 壳 | 代码归属 | 进程结构 |
 |---|---|---|
-| 桌面壳 | `packages/host-electron/`（`@chips/host`）：主进程、preload、窗口渲染进程、PAL 适配 | Rust 核心以 `chips-native.node` 经 Neon 运行在主进程内；窗口渲染进程运行 React 壳与 RenderHost；需隔离的服务由工具进程承载 |
+| 桌面壳 | `packages/host/`（`@chips/host`）：主进程、preload、窗口渲染进程、PAL 适配 | Rust 核心以 `chips-native.node` 经 Neon 运行在主进程内；窗口渲染进程运行 React 壳与 RenderHost；需隔离的服务由工具进程承载 |
 | 无头壳 | 平台核心的无头入口与无头 PAL 适配；不加载 Electron | 单 Node.js 进程运行核心与插件；渲染需求由离屏帧宿主提供（第七节） |
 | 移动壳 | Phase 5 引入的移动宿主包与移动 PAL 适配（Kotlin / Swift） | Tauri 2 宿主进程 + 系统 WebView；Rust 核心经移动绑定（JNI / Swift FFI，Phase 5 架构预留） |
 
@@ -227,18 +227,18 @@ interface IPalHost {
 }
 ```
 
-端口方法即对应能力动作的唯一下沉实现位置，以窗口端口为例：
+端口方法即对应能力动作的唯一下沉实现位置，以窗口端口为例（`windowId` 统一为 `number`，即 Electron `webContents.id`，权威口径见 [04-能力契约规范](../../05-接口与契约/04-能力契约规范.md) §7.4）：
 
 ```typescript
 interface IPalWindowPort {
-  create(options: WindowCreateOptions): Promise<{ windowId: string }>;
+  create(options: WindowCreateOptions): Promise<{ windowId: number }>;
   list(): Promise<readonly WindowSummary[]>;
-  focus(windowId: string): Promise<void>;
-  close(windowId: string): Promise<void>;
-  resize(windowId: string, size: WindowSize): Promise<void>;
-  move(windowId: string, position: WindowPosition): Promise<void>;
-  setTitle(windowId: string, title: string): Promise<void>;
-  setState(windowId: string, state: WindowState): Promise<void>;
+  focus(windowId: number): Promise<void>;
+  close(windowId: number): Promise<void>;
+  resize(windowId: number, size: WindowSize): Promise<void>;
+  move(windowId: number, position: WindowPosition): Promise<void>;
+  setTitle(windowId: number, title: string): Promise<void>;
+  setState(windowId: number, state: WindowState): Promise<void>;
 }
 ```
 

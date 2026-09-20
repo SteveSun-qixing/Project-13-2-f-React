@@ -1,5 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  "//paths": "工单003-B 解析锚定：全部 @chips/* 工作区包的类型解析必须终结于本工作区内部。候选顺序 = 官方产物入口（exports.types 对应的 dist）优先、工作区内已提交源码入口兜底，二者皆在 chips-ecosystem 内命中即止，杜绝 TS 在 paths 失配后回退 ancestor node_modules 时命中旧仓库同名包（旧根 node_modules/@chips 与本工作区嵌套，属只读外部目录）。尾项 '@chips/*' 通配为未来新增 packages/*、tools/* 包提供自动锚定（目录名须与包短名一致；不一致或新增子路径导出时在上方补精确条目，机制详见 项目日志与笔记/工单003-新工作区解析回退旧仓库同名包/RFC-解析锚定.md）。",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
@@ -21,6 +22,26 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "@chips/ui": ["./packages/ui/dist/index", "./packages/ui/src/index"],
+      "@chips/antd": ["./packages/antd/dist/index", "./packages/antd/src/index"],
+      "@chips/sdk": ["./packages/sdk/dist/index", "./packages/sdk/src/index"],
+      "@chips/sdk/testing": ["./packages/sdk/dist/testing/index", "./packages/sdk/src/testing/index"],
+      "@chips/bridge": ["./packages/bridge/dist/index", "./packages/bridge/src/index"],
+      "@chips/cli": ["./packages/cli/dist/index", "./packages/cli/src/index"],
+      "@chips/host": ["./packages/host/dist/types/index", "./packages/host/src/index"],
+      "@chips/native": ["./packages/native/types/chips-native"],
+      "@chips/scaffold": ["./tools/scaffold/dist/index", "./tools/scaffold/src/index"],
+      "@chips/contract-gen": ["./tools/contract-gen/dist/index", "./tools/contract-gen/src/index"],
+      "@chips/testing/vitest": ["./tools/testing/src/vitest"],
+      "@chips/testing/thresholds": ["./tools/testing/src/thresholds"],
+      "@chips/*": [
+        "./packages/*/dist/index",
+        "./packages/*/src/index",
+        "./tools/*/dist/index",
+        "./tools/*/src/index"
+      ]
+    }
   }
 }

@@ -122,4 +122,15 @@ describe('注册期错误码常量', () => {
     expect(PERMISSION_ERROR_CODES.unknown).toBe('PERMISSION_UNKNOWN');
     expect(KERNEL_INVALID_TRANSITION).toBe('KERNEL_INVALID_TRANSITION');
   });
+
+  it('权限拒绝码常量表覆盖 §9.1 PERMISSION_* 域全部四码（工单013 收口）', () => {
+    expect(PERMISSION_ERROR_CODES.invalid).toBe('PERMISSION_INVALID');
+    expect(PERMISSION_ERROR_CODES.roleNotAllowed).toBe('PERMISSION_ROLE_NOT_ALLOWED');
+    expect([...Object.values(PERMISSION_ERROR_CODES)].sort()).toEqual([
+      'PERMISSION_INVALID',
+      'PERMISSION_NOT_DECLARED',
+      'PERMISSION_ROLE_NOT_ALLOWED',
+      'PERMISSION_UNKNOWN',
+    ]);
+  });
 });

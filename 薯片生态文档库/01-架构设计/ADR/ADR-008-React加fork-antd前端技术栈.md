@@ -45,7 +45,7 @@ React 18+
 
 ```
 packages/
-├── antd-fork/              # fork 的 antd
+├── antd/                   # fork 的 antd
 │   ├── components/         # 所有组件
 │   ├── style/              # 样式系统
 │   └── package.json        # @chips/antd
@@ -61,8 +61,8 @@ packages/
 
 ```bash
 # Fork antd 仓库
-git clone https://github.com/ant-design/ant-design.git antd-fork
-cd antd-fork
+git clone https://github.com/ant-design/ant-design.git antd
+cd antd
 git checkout -b chips-fork
 
 # 修改 package.json

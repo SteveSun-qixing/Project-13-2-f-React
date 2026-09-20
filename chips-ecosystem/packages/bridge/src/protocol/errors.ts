@@ -123,11 +123,21 @@ export const BRIDGE_ERROR_MESSAGES: Readonly<Record<BridgeErrorCode, string>> = 
   BRIDGE_INTERNAL: '平台内部错误',
 };
 
-/** 能力注册期使用的权限错误码（04-能力契约规范 §4.2、第十一节）。 */
+/**
+ * 权限拒绝错误码运行时常量表（08-权限系统设计 §9.1 的 `PERMISSION_*` 域；注册期两码另见 04-能力契约规范 §4.2、第十一节）。
+ *
+ * 与 §9.1 总表、`@chips/sdk` 生成契约三方逐项一致由 `@chips/contract-tests` 契约用例锁定
+ * （`tests/contract/src/check/permission-errors.ts`），任一事实源漂移即红；消费方禁止字符串硬编码。
+ */
 export const PERMISSION_ERROR_CODES = {
   notDeclared: 'PERMISSION_NOT_DECLARED',
   unknown: 'PERMISSION_UNKNOWN',
+  invalid: 'PERMISSION_INVALID',
+  roleNotAllowed: 'PERMISSION_ROLE_NOT_ALLOWED',
 } as const;
+
+export type PermissionErrorCode =
+  (typeof PERMISSION_ERROR_CODES)[keyof typeof PERMISSION_ERROR_CODES];
 
 /** 注册上下文 owner 未处于激活状态的内核生命周期错误码（04-能力契约规范 §4.2 校验 7）。 */
 export const KERNEL_INVALID_TRANSITION = 'KERNEL_INVALID_TRANSITION';

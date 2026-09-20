@@ -71,19 +71,22 @@ Project-13-2-f-React/
 │   │   └── 01-子系统设计/
 │   └── 02-开发规范/
 │
-├── packages/                   # 📦 Monorepo 包（待创建）
-│   ├── core-rust/              # Rust 核心
-│   ├── host-electron/          # Electron 主进程
-│   ├── bridge/                 # Bridge 层
-│   ├── runtime/                # Cordis 运行时
-│   ├── antd-fork/              # fork 的 antd
-│   └── ui/                     # @chips/ui 共享组件
-│
-├── plugins/                    # 🔌 官方插件（待创建）
-│   ├── basecard-text/          # 文本卡片
-│   ├── basecard-image/         # 图片卡片
-│   ├── boxlayout-grid/         # 网格布局
-│   └── app-file-manager/       # 文件管理器
+├── chips-ecosystem/            # 📦 新实现工作区（Monorepo，正式开发主战场）
+│   ├── packages/               # 平台包
+│   │   ├── core-rust/          # Rust 核心
+│   │   ├── native/             # Neon 绑定（chips-native.node）
+│   │   ├── bridge/             # Bridge 层
+│   │   ├── host/               # @chips/host Electron 壳
+│   │   ├── sdk/                # @chips/sdk
+│   │   ├── ui/                 # @chips/ui 共享组件
+│   │   ├── antd/               # @chips/antd（fork 的 antd）
+│   │   └── cli/                # @chips/cli
+│   ├── plugins/                # 🔌 官方插件
+│   │   ├── basecards/          # 基础卡片插件族（W4）
+│   │   ├── layouts/            # 箱子布局插件族（W4）
+│   │   ├── services/           # 服务/模块插件族（W4）
+│   │   └── apps/               # 官方应用（W5）
+│   └── tools/                  # 工具链（scaffold / contract-gen / testing / gates）
 │
 ├── 旧版-生态设计原稿/           # 🗄️ 旧版文档（已归档）
 ├── 旧版-生态共用技术文档/

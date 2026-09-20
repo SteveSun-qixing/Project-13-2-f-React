@@ -5,8 +5,8 @@
  * 用法：node scripts/build-native.mjs [--debug]
  *
  * 产物落位：`packages/host/native/chips-native.node`
- * （《代码组织规范》§7.1 写 `packages/host-electron/native/`；现行工作区
- * 目录为 `packages/host`，差异已由 W1-HOST 登记，构建脚本按现行目录落位）。
+ * （与《代码组织规范》§7.1 一致——工单007 已把旧口径 `packages/host-electron/native/`
+ * 统一修订为现行工作区目录 `packages/host`，构建脚本按该口径落位）。
  *
  * 产物不入库（`.gitignore` 覆盖 `*.node`）。
  */

@@ -6,6 +6,7 @@
 
 import { loadBridgeCodeModel, type BridgeCodeModel } from '../src/code/bridge.js';
 import { loadHostCodeModel, type HostCodeModel } from '../src/code/host.js';
+import { loadSdkGeneratedCodeModel, type SdkGeneratedCodeModel } from '../src/code/sdk.js';
 import { parseErrorRetryable } from '../src/docs/errors.js';
 import { loadDocModels, type DocModels } from '../src/docs/index.js';
 import { createFileReader } from '../src/docs/reader.js';
@@ -15,6 +16,7 @@ import { DOCS_ROOT } from '../src/paths.js';
 let docsCache: DocModels | undefined;
 let bridgeCache: BridgeCodeModel | undefined;
 let hostCache: HostCodeModel | undefined;
+let sdkCache: SdkGeneratedCodeModel | undefined;
 let retryableCache: ReadonlyMap<string, boolean> | undefined;
 
 export function docs(): DocModels {
@@ -30,6 +32,11 @@ export function bridgeCode(): BridgeCodeModel {
 export function hostCode(): HostCodeModel {
   hostCache ??= loadHostCodeModel();
   return hostCache;
+}
+
+export function sdkCode(): SdkGeneratedCodeModel {
+  sdkCache ??= loadSdkGeneratedCodeModel();
+  return sdkCache;
 }
 
 export function bridgeRetryable(): ReadonlyMap<string, boolean> {
