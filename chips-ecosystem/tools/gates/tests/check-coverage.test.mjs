@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { runCheck } from '../check-coverage.mjs';
-import { coverageConfig, fixture, noFlags, violationCodes } from './helpers.mjs';
+import { loadGateExemptions } from '../lib/exemption.mjs';
+import {
+  coverageConfig,
+  fixture,
+  gatesDir,
+  noFlags,
+  violationCodes,
+  warningCodes,
+} from './helpers.mjs';
 
 test('coverage：达标报告通过（TS 分组 + Rust）', async () => {
   const report = await runCheck({
@@ -112,4 +121,100 @@ test('coverage：核心面路径前缀内无行条目时报 COVERAGE011 而非�
   assert.equal(missing.length, 1);
   assert.ok(missing[0].message.includes('rust-core'));
   assert.ok(report.summary.groups.includes('rust-overall=pass'));
+});
+
+// —— 豁免消费挂点（§6.3 / 工单 017）三态：命中留痕放行 / 过期维持失败 / 要素缺失维持失败。
+
+const exemptConfig = (registry) =>
+  coverageConfig({ rustSurface: true, exemption: { gateId: 'G6', registry } });
+
+const runExempt = (registry) =>
+  runCheck({
+    workspaceRoot: fixture('coverage-exempt'),
+    config: exemptConfig(registry),
+    flags: noFlags,
+  });
+
+test('coverage：命中有效豁免时 rust-core 转 COVERAGE030 留痕放行，数字照常呈现', async () => {
+  const report = await runExempt('debt-active.md');
+  assert.equal(report.status, 'pass');
+  assert.deepEqual(
+    report.violations.filter((item) => item.code === 'COVERAGE010'),
+    []
+  );
+  const trace = report.warnings.filter((item) => item.code === 'COVERAGE030');
+  assert.equal(trace.length, 1);
+  assert.ok(trace[0].message.includes('TD-TEST'));
+  assert.ok(trace[0].message.includes('70.00%'));
+  assert.ok(report.summary.groups.includes('rust-core=pass(TD-TEST)'));
+  const core = report.summary.coverage.find((group) => group.id === 'rust-core');
+  assert.equal(core.pass, true);
+  assert.deepEqual(core.exempted, ['TD-TEST']);
+  // 数字照常呈现：留痕不改测量。
+  assert.equal(core.metrics.lines.pct, 70);
+  assert.equal(core.metrics.lines.covered, 14);
+  assert.equal(core.metrics.lines.total, 20);
+});
+
+test('coverage：豁免过期时维持 COVERAGE010 失败并留 COVERAGE031 痕', async () => {
+  const report = await runExempt('debt-expired.md');
+  assert.equal(report.status, 'fail');
+  assert.ok(violationCodes(report).includes('COVERAGE010'));
+  assert.ok(
+    report.warnings.some((item) => item.code === 'COVERAGE031' && item.message.includes('期限已过'))
+  );
+  assert.ok(report.summary.groups.includes('rust-core=fail'));
+});
+
+test('coverage：豁免要素缺失时不构成豁免，判定维持失败', async () => {
+  const report = await runExempt('debt-missing-elements.md');
+  assert.equal(report.status, 'fail');
+  assert.ok(violationCodes(report).includes('COVERAGE010'));
+  assert.ok(
+    report.warnings.some((item) => item.code === 'COVERAGE031' && item.message.includes('要素缺失'))
+  );
+});
+
+test('coverage：豁免状态非 active（已清偿）时维持失败', async () => {
+  const report = await runExempt('debt-repaid.md');
+  assert.equal(report.status, 'fail');
+  assert.ok(violationCodes(report).includes('COVERAGE010'));
+  assert.ok(
+    report.warnings.some(
+      (item) => item.code === 'COVERAGE031' && item.message.includes('非 active')
+    )
+  );
+});
+
+test('coverage：登记文件无机读块时按无豁免处理并留痕', async () => {
+  const report = await runExempt('debt-noblock.md');
+  assert.equal(report.status, 'fail');
+  assert.ok(violationCodes(report).includes('COVERAGE010'));
+  assert.ok(warningCodes(report).includes('COVERAGE031'));
+  assert.ok(report.warnings.some((item) => item.message.includes('GATE-EXEMPTIONS')));
+});
+
+test('coverage：未配置 exemption 时行为与合并前一致（既有用例即证据，此处验证挂点缺省）', async () => {
+  const report = await runCheck({
+    workspaceRoot: fixture('coverage-rust-surface'),
+    config: coverageConfig({ rustSurface: true }),
+    flags: noFlags,
+  });
+  assert.equal(report.status, 'fail');
+  assert.deepEqual(warningCodes(report), []);
+});
+
+test('coverage：真实《技术债务清单》机读块可解析且 TD-001 为有效 active 登记', () => {
+  const workspaceRoot = path.resolve(gatesDir, '..', '..');
+  const ctx = loadGateExemptions({
+    workspaceRoot,
+    registryPath: '../项目日志与笔记/技术债务清单.md',
+    gateId: 'G6',
+  });
+  assert.deepEqual(ctx.notices, []);
+  const td001 = ctx.valid.find((item) => item.id === 'TD-001');
+  assert.ok(td001, `有效登记：${JSON.stringify(ctx.valid.map((item) => item.id))}`);
+  assert.equal(td001.group, 'rust-core');
+  assert.equal(td001.metric, 'lines');
+  assert.equal(td001.status, 'active');
 });

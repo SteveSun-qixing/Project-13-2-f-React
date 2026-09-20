@@ -90,7 +90,11 @@ export function boundariesConfig({ allowAnyInternal = false } = {}) {
   };
 }
 
-export function coverageConfig({ rustRequired = true, rustSurface = false } = {}) {
+export function coverageConfig({
+  rustRequired = true,
+  rustSurface = false,
+  exemption = null,
+} = {}) {
   return {
     coverage: {
       inputs: {
@@ -117,6 +121,8 @@ export function coverageConfig({ rustRequired = true, rustSurface = false } = {}
             },
           }
         : {}),
+      // 豁免消费挂点（§6.3 / 工单 017）：exemption 传入时按登记块消费。
+      ...(exemption ? { exemption } : {}),
     },
   };
 }

@@ -132,21 +132,28 @@ node tools/gates/check-entries.mjs examples/plugins/hello
 
 ### 4.4 覆盖率门禁（G6）
 
-| 代码              | 检查项                                                                 |
-| ----------------- | ---------------------------------------------------------------------- |
-| COVERAGE001 / 002 | 覆盖报告缺失 / 格式或结构非法                                          |
-| COVERAGE010       | 组内某维度覆盖率未严格大于阈值                                         |
-| COVERAGE011       | 必需组无数据（TS `total` 与 `required` 组、Rust 核心面前缀内无行条目） |
-| COVERAGE020       | 覆盖率报告不含任何文件条目                                             |
+| 代码              | 检查项                                                                  |
+| ----------------- | ----------------------------------------------------------------------- |
+| COVERAGE001 / 002 | 覆盖报告缺失 / 格式或结构非法                                           |
+| COVERAGE010       | 组内某维度覆盖率未严格大于阈值                                          |
+| COVERAGE011       | 必需组无数据（TS `total` 与 `required` 组、Rust 核心面前缀内无行条目）  |
+| COVERAGE020       | 覆盖率报告不含任何文件条目                                              |
+| COVERAGE030       | §6.3 豁免命中：未达标判定转留痕放行（数字照常呈现，期限随消息登记）     |
+| COVERAGE031       | 豁免登记不可消费（文件缺失、机读块缺失、要素缺失、过期、状态非 active） |
 
 输入：TS 为 vitest + v8 `json-summary`（`coverage/ts/coverage-summary.json`，按 `coverage.groups` 分总体与共享层两个统计面，判定 `metrics` 四项）；Rust 为 cargo-tarpaulin 的 Cobertura 报告（`coverage/rust/cobertura.xml`）。
+
+本门禁是全生态覆盖率判定的**唯一执行面**（工单 011/017 裁决）：`@chips/testing` 覆盖率脚本只做测量与报告渲染，判定通过子进程委托本脚本（`--json`）获得，两侧不再各自判定。
+
+豁免消费挂点（《CICD与质量门禁》§6.3，工单 017）：分组判定失败时，按 `coverage.exemption.registry` 指向的《技术债务清单》机读块（`GATE-EXEMPTIONS-BEGIN/END` 围栏 JSON）咨询登记；命中 `status=active` 且未过 `deadline` 的同组同维度登记 → 违规转为 COVERAGE030 留痕警告并放行该判定；过期、要素缺失、状态非 active、登记不可读一律维持 COVERAGE010 失败（另出 COVERAGE031 警告留痕）。豁免不改变阈值、分组、统计面与测量口径（《CICD与质量门禁》6.4）。
 
 Rust 侧两条独立判定（《05-测试规范》10.2 与《CICD与质量门禁》3.2：总体 > 80%、核心 > 90%，数值权威为《架构原则》附录 R18）：
 
 - `rust-overall`：工作区全部行数据，阈值取 `defaultThreshold`（80）。
 - `rust-core`：只聚合 `<class filename="…">` 中命中 `coverage.rust.coreMatch` 前缀的行条目（逐 `<line hits="n">`，`hits > 0` 计已覆盖），
   阈值取 `coverage.rust.coreThreshold`（90）。`coreMatch` 按 **crate 名 `chips-*`** 划定，故 Neon 绑定 crate `chips-native`
-  （当前目录 `packages/native/`，见工单 007）属于核心面，不设豁免、不另计统计面；核心面前缀内无行条目时报 COVERAGE011，不回退为工作区总量。
+  （当前目录 `packages/native/`，见工单 007）属于核心面，统计面不另计、不缩小；判定层的豁免只按 §6.3 登记消费（见上）。
+  核心面前缀内无行条目时报 COVERAGE011，不回退为工作区总量。
   未声明 `coreMatch` 时核心面退化为工作区总量（当前工作区全部为 `chips-*` 包，两者同值）。
 
 cargo-tarpaulin 只产出行覆盖（不产函数、语句维度，也不产逐文件分支计数），因此 Rust 侧只按 `lines` 单维判定；

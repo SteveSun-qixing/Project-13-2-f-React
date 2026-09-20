@@ -1,0 +1,6 @@
+<?xml version="1.0" ?>
+<coverage version="0.27.1" timestamp="1758260000" line-rate="0.93" branch-rate="0.91" lines-covered="93" lines-valid="100" branches-covered="182" branches-valid="200" complexity="0">
+  <sources>
+    <source>packages/core-rust/crates</source>
+  </sources>
+</coverage>

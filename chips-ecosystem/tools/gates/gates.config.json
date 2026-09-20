@@ -145,7 +145,11 @@
   "coverage": {
     "inputs": {
       "ts": { "path": "coverage/ts/coverage-summary.json", "required": true },
-      "rust": { "path": "coverage/rust/cobertura.xml", "required": true }
+      "rust": {
+        "path": "coverage/rust/cobertura.xml",
+        "json": "coverage/rust/tarpaulin-report.json",
+        "required": true
+      }
     },
     "metrics": ["lines", "functions", "branches", "statements"],
     "defaultThreshold": 80,
@@ -160,6 +164,10 @@
     "rust": {
       "coreThreshold": 90,
       "coreMatch": ["packages/core-rust/crates/chips-", "packages/native/"]
+    },
+    "exemption": {
+      "gateId": "G6",
+      "registry": "../项目日志与笔记/技术债务清单.md"
     }
   }
 }

@@ -11,6 +11,7 @@ import {
   isMainModule,
 } from './lib/cli.mjs';
 import { readText, toPosix } from './lib/walk.mjs';
+import { loadGateExemptions, matchExemption } from './lib/exemption.mjs';
 
 const GATE_ID = 'coverage';
 const TITLE = '覆盖率门禁（G6）';
@@ -23,8 +24,13 @@ const USAGE = `用法：node tools/gates/check-coverage.mjs [选项]
   - Rust：rust-overall（工作区总量，判 defaultThreshold）与 rust-core
     （coverage.rust.coreMatch 声明的 chips-* crate 统计面，判 coreThreshold）两条判定；
     Neon 绑定 crate chips-native（当前目录 packages/native/）按 crate 命名属于核心面，
-    不设豁免、不另计。配置未声明 coreMatch 时，核心面退化为工作区总量
+    统计面不设豁免、不另计。配置未声明 coreMatch 时，核心面退化为工作区总量
     （当前 Rust workspace 成员全部为 chips-* crate）。
+  - 判定唯一归属本门禁（工单 017）；@chips/testing 覆盖率面只做测量与报告。
+  - 豁免：未达标分组按《CI/CD 与质量门禁》§6.3 咨询《技术债务清单》机读豁免登记
+    （coverage.exemption.registry）：命中有效豁免 → COVERAGE030 留痕放行、数字照常呈现；
+    过期/要素缺失/已清偿 → 维持 COVERAGE010 失败并出 COVERAGE031 警告。
+    豁免不改变阈值、统计面与测量口径。
 
 选项：
   --workspace-root <dir>  工作区根目录（默认取配置文件上级两级）
@@ -188,18 +194,51 @@ function aggregateCoreLines(classes, coreMatch) {
   return { lines: { pct: (covered / total) * 100, covered, total } };
 }
 
-function judgeGroup(report, group, threshold, metrics) {
-  const result = { id: group, threshold, metrics: {}, pass: true };
+function judgeGroup(report, group, threshold, metrics, exemptionCtx, now) {
+  const result = { id: group, threshold, metrics: {}, pass: true, exempted: [] };
   for (const [metric, value] of Object.entries(metrics)) {
     const pct = value.pct ?? metricPct(value);
-    const pass = pct > threshold;
-    result.metrics[metric] = {
+    let pass = pct > threshold;
+    const metricResult = {
       pct: Number(pct.toFixed(2)),
       covered: value.covered,
       total: value.total,
       threshold,
       pass,
     };
+    if (!pass) {
+      const matched = matchExemption(exemptionCtx, group, metric, now);
+      if (matched.kind === 'active') {
+        metricResult.exemption = {
+          id: matched.entry.id,
+          deadline: matched.entry.deadline,
+          approver: matched.entry.approver,
+        };
+        result.exempted.push(matched.entry.id);
+        pass = true;
+        addWarning(
+          report,
+          'COVERAGE030',
+          `${group} 覆盖率 ${metric} ${pct.toFixed(2)}% 未达标（要求 > ${threshold}%），` +
+            `依《CI/CD 与质量门禁》§6.3 豁免 ${matched.entry.id} 留痕放行` +
+            `（期限至 ${matched.entry.deadline}，数字照常呈现，到期未清偿自动失效）`
+        );
+      } else if (matched.kind === 'expired') {
+        addWarning(
+          report,
+          'COVERAGE031',
+          `豁免 ${matched.entry.id} 期限已过（${matched.entry.deadline}），按 §6.3 第 4 条维持失败`
+        );
+      } else if (matched.kind === 'inactive') {
+        addWarning(
+          report,
+          'COVERAGE031',
+          `豁免 ${matched.entry.id} 状态为 ${matched.entry.status}（非 active），不构成豁免`
+        );
+      }
+    }
+    metricResult.pass = pass;
+    result.metrics[metric] = metricResult;
     if (!pass) {
       result.pass = false;
       addViolation(
@@ -209,10 +248,13 @@ function judgeGroup(report, group, threshold, metrics) {
       );
     }
   }
+  if (result.exempted.length === 0) {
+    delete result.exempted;
+  }
   return result;
 }
 
-export async function runCheck({ workspaceRoot, config, flags }) {
+export async function runCheck({ workspaceRoot, config, flags, now = new Date() }) {
   const report = makeReport(GATE_ID, TITLE);
   const coverage = config.coverage ?? {};
   const inputs = coverage.inputs ?? {};
@@ -222,6 +264,23 @@ export async function runCheck({ workspaceRoot, config, flags }) {
     ...group,
     threshold: group.threshold ?? defaultThreshold,
   }));
+
+  // 豁免消费挂点（§6.3 / 工单 017）：仅咨询登记，不改变阈值、统计面与测量口径；
+  // 登记不可读/缺块/要素缺失一律按无豁免处理（fail-closed），并以 COVERAGE031 留痕。
+  let exemptionCtx = null;
+  const exemptionConfig = coverage.exemption;
+  if (exemptionConfig?.registry) {
+    exemptionCtx = loadGateExemptions({
+      workspaceRoot,
+      registryPath: exemptionConfig.registry,
+      gateId: exemptionConfig.gateId ?? 'G6',
+    });
+    for (const notice of exemptionCtx.notices) {
+      addWarning(report, notice.code, notice.message);
+    }
+  }
+  const judge = (group, threshold, groupMetrics) =>
+    judgeGroup(report, group, threshold, groupMetrics, exemptionCtx, now);
   const summaryPath = path.resolve(
     workspaceRoot,
     flagValue(flags, 'ts-report', inputs.ts?.path ?? 'coverage/coverage-summary.json')
@@ -281,7 +340,7 @@ export async function runCheck({ workspaceRoot, config, flags }) {
           results.push({ id: aggregate.id, threshold, skipped: true, pass: true });
           continue;
         }
-        results.push(judgeGroup(report, aggregate.id, threshold, aggregate.metrics));
+        results.push(judge(aggregate.id, threshold, aggregate.metrics));
       }
     }
   }
@@ -309,7 +368,7 @@ export async function runCheck({ workspaceRoot, config, flags }) {
         `Rust 覆盖率报告格式非法：${path.relative(workspaceRoot, rustPath)}`
       );
     } else {
-      results.push(judgeGroup(report, 'rust-overall', defaultThreshold, rustMetrics));
+      results.push(judge('rust-overall', defaultThreshold, rustMetrics));
       const coreMetrics =
         rustCoreMatch.length > 0
           ? aggregateCoreLines(parseTarpaulinClasses(rustXml), rustCoreMatch)
@@ -322,14 +381,23 @@ export async function runCheck({ workspaceRoot, config, flags }) {
         );
         results.push({ id: 'rust-core', threshold: rustCoreThreshold, skipped: true, pass: true });
       } else {
-        results.push(judgeGroup(report, 'rust-core', rustCoreThreshold, coreMetrics));
+        results.push(judge('rust-core', rustCoreThreshold, coreMetrics));
       }
     }
   }
 
   return finalizeReport(report, {
     tsFiles,
-    groups: results.map((group) => `${group.id}=${group.pass ? 'pass' : 'fail'}`).join(' '),
+    groups: results
+      .map(
+        (group) =>
+          `${group.id}=${group.pass ? 'pass' : 'fail'}${
+            group.exempted ? `(${group.exempted.join('+')})` : ''
+          }`
+      )
+      .join(' '),
+    // 结构化判定明细：@chips/testing 覆盖率面据此渲染人读报告（工单 017 委托链）。
+    coverage: results,
   });
 }
 

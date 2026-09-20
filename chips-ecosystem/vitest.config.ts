@@ -3,8 +3,9 @@
  *
  * - `projects` 只发现“带 vitest 配置的包”，新增包只要提供 `vitest.config.ts`
  *   即自动纳入全仓测试与合并覆盖率；
- * - 合并覆盖率口径与门禁见 `tools/testing/src/thresholds.ts`（单一事实源），
- *   共享层按 glob 单独判定（与 `@chips/testing` 门禁一致）；
+ * - 合并覆盖率口径单一事实源为 `tools/gates/gates.config.json` 的 `coverage` 段
+ *   （G6 为唯一判定面，工单 017），`tools/testing/src/thresholds.ts` 是其装载器；
+ *   共享层按 glob 单独设置 vitest 门禁（与 G6 分组同源）；
  * - 报告输出：`coverage/ts/`（text/html/lcov/json-summary）、
  *   `reports/test/vitest.junit.xml`（CI 归档）；
  * - 运行时必须带 `--configLoader runner`（标准脚本已包含）：继承

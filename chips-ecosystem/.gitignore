@@ -1,8 +1,10 @@
 node_modules/
 dist/
-coverage/
+# entries-* 夹具的 dist/index.js 是 check-entries 门禁的在用测试输入（工单 018）
+!tools/gates/tests/fixtures/**/dist
+!tools/gates/tests/fixtures/**/dist/**
+/coverage/
 release/
-render.js
 reports/
 test-results/
 playwright-report/

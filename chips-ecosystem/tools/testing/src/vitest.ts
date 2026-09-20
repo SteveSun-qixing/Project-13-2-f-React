@@ -22,8 +22,9 @@
  * { "test": "vitest run --configLoader runner" }
  * ```
  *
- * 覆盖率阈值来自 {@link ../thresholds}（单一事实源）；包内 `test:coverage`
- * 使用 tier 对应的阈值，根工作区合并覆盖率由根配置与 `@chips/testing` 门禁判定。
+ * 覆盖率阈值装载自 `./thresholds`（单一事实源为 `tools/gates/gates.config.json`，
+ * G6 为唯一判定面，工单 017）；包内 `test:coverage` 使用 tier 对应的阈值作为
+ * vitest 本地守卫，权威判定仍以根脚本 `pnpm gates:coverage`（G6）为准。
  */
 
 import { fileURLToPath } from 'node:url';

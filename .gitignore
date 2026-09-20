@@ -20,10 +20,19 @@ Desktop.ini
 **/.cache/
 .vite/
 **/.vite/
-coverage/
 **/coverage/
+# 在用源码与门禁测试输入不是覆盖率产物（工单 018）
+# git 不进入被排除的目录，因此逐级取反：目录本身 + 目录内条目。
+!chips-ecosystem/tools/testing/src/coverage
+!chips-ecosystem/tools/testing/src/coverage/**
+!chips-ecosystem/tools/gates/tests/fixtures
+!chips-ecosystem/tools/gates/tests/fixtures/**
+# entries-* 夹具的 dist/index.js 是 check-entries 门禁的在用测试输入
+!chips-ecosystem/tools/gates/tests/fixtures/**/dist
+!chips-ecosystem/tools/gates/tests/fixtures/**/dist/**
 .playwright-cli/
-output/
+# 仅根目录的 playwright 产物目录不入库；源码目录 src/output 不受影响（工单 018）
+/output/
 .chips-host-dev/
 **/node_modules/
 **/dist/
