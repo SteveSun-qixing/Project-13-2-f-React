@@ -1,27 +1,21 @@
 /**
- * 统一错误模型（02-SDK-API规范 §6）。
+ * 统一错误模型（02-SDK-API规范 §5.1、§6）。
  *
- * 全生态只有一个错误类 `ChipsError`；`IChipsError` 仅作结构别名。
+ * 全生态只有一个错误类 `ChipsError`，源码级定义归属 `@chips/bridge` 协议层
+ * （工单024 裁定，《RFC-ChipsError统一裁定》§3.2）；本模块只做薄再导出并补齐
+ * SDK 域自有成员。运行时从 `@chips/bridge` 导入的面仅限错误模型（统一类与
+ * 结构守卫），其余 bridge 成员一律以 `import type` 消费（同 RFC §3.3 条 3）。
+ *
  * SDK 自身只产生 `SDK_BRIDGE_UNAVAILABLE`、`SDK_INVALID_SCAFFOLD_OPTIONS` 与
  * `SDK_UNKNOWN_ERROR` 三个错误码（§6.3、§8.4），
  * 平台错误码由 Bridge、资源、权限、事件等权威文档维护，本模块不复制清单。
  */
 
-/** 构造 `ChipsError` 的初始化结构。 */
-export interface IChipsErrorInit {
-  readonly code: string;
-  readonly message: string;
-  readonly details?: unknown;
-  readonly retryable?: boolean;
-}
+import { ChipsError, isChipsError } from '@chips/bridge';
+import type { IChipsError, IChipsErrorInit } from '@chips/bridge';
 
-/** `ChipsError` 的结构别名；跨 Bridge 传输的始终是普通对象。 */
-export interface IChipsError {
-  code: string;
-  message: string;
-  details?: unknown;
-  retryable?: boolean;
-}
+export { ChipsError, isChipsError };
+export type { IChipsError, IChipsErrorInit };
 
 /** SDK 自身错误码：客户端未绑定任何 Bridge。 */
 export const SDK_BRIDGE_UNAVAILABLE = 'SDK_BRIDGE_UNAVAILABLE';
@@ -33,39 +27,6 @@ export const SDK_INVALID_SCAFFOLD_OPTIONS = 'SDK_INVALID_SCAFFOLD_OPTIONS';
 export const SDK_UNKNOWN_ERROR = 'SDK_UNKNOWN_ERROR';
 
 const UNKNOWN_ERROR_MESSAGE = '发生未知错误';
-
-/** 统一错误类：`instanceof` 判定与类型收窄的唯一入口。 */
-export class ChipsError extends Error implements IChipsError {
-  readonly code: string;
-
-  readonly details?: unknown;
-
-  readonly retryable: boolean;
-
-  constructor(init: IChipsErrorInit) {
-    super(init.message);
-    this.name = 'ChipsError';
-    this.code = init.code;
-    this.details = init.details;
-    this.retryable = init.retryable ?? false;
-  }
-}
-
-/**
- * 错误结构守卫：`code` 与 `message` 均为字符串即通过。
- *
- * 同时接受类实例与跨 Bridge 传输后的同构普通对象；不读取原型链。
- *
- * @param value - 待判定的值
- * @returns 是否为 `ChipsError` 结构
- */
-export function isChipsError(value: unknown): value is ChipsError {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  return typeof record['code'] === 'string' && typeof record['message'] === 'string';
-}
 
 function isErrorInstance(value: unknown): value is Error {
   return value instanceof Error;

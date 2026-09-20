@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ChipsError as BridgeChipsError, isChipsError as bridgeIsChipsError } from '@chips/bridge';
 import {
   bridgeUnavailableError,
   ChipsError,
@@ -11,6 +12,34 @@ import {
 
 /** 简体中文文案判据：至少含一个汉字（02-SDK-API规范 §6.2 规则、§11 约束 6）。 */
 const CHINESE_TEXT = /[\u4e00-\u9fff]/;
+
+describe('同源收敛（工单024《RFC-ChipsError统一裁定》§3.3 条 1）', () => {
+  it('类与结构守卫即 @chips/bridge 唯一实现本身（同一函数对象）', () => {
+    expect(ChipsError).toBe(BridgeChipsError);
+    expect(isChipsError).toBe(bridgeIsChipsError);
+  });
+
+  it('统一类携带 toPlain / fromPlain 序列化成员（§4.3 口径经 SDK 面生效）', () => {
+    const error = new ChipsError({
+      code: 'A_B',
+      message: '文案',
+      details: { documentId: 'a1B2c3D4e5' },
+      retryable: true,
+    });
+    expect(error.toPlain()).toEqual({
+      code: 'A_B',
+      message: '文案',
+      retryable: true,
+      details: { documentId: 'a1B2c3D4e5' },
+    });
+    const minimal = new ChipsError({ code: 'C_D', message: '文案' });
+    expect(minimal.toPlain()).toEqual({ code: 'C_D', message: '文案', retryable: false });
+    expect('details' in minimal.toPlain()).toBe(false);
+    const restored = ChipsError.fromPlain(error.toPlain());
+    expect(restored).toBeInstanceOf(ChipsError);
+    expect(toChipsError(restored)).toBe(restored);
+  });
+});
 
 describe('ChipsError 构造', () => {
   it('字段与初始化结构一致，缺省 retryable 为 false 且 name 固定', () => {
@@ -76,6 +105,14 @@ describe('isChipsError', () => {
     expect(isChipsError({})).toBe(false);
   });
 
+  it('三条合取判据补严面：空 code 与非 boolean 的 retryable 拒绝（§4.2 条 1）', () => {
+    expect(isChipsError({ code: '', message: '文案' })).toBe(false);
+    expect(isChipsError({ code: 'A_B', message: '文案', retryable: 'true' })).toBe(false);
+    expect(isChipsError({ code: 'A_B', message: '文案', retryable: 0 })).toBe(false);
+    expect(isChipsError({ code: 'A_B', message: '文案', retryable: undefined })).toBe(true);
+    expect(isChipsError({ code: 'A_B', message: '' })).toBe(true);
+  });
+
   it('非对象值一律拒绝', () => {
     for (const value of [null, undefined, 'A_B', 42, NaN, true, Symbol('S'), () => undefined]) {
       expect(isChipsError(value)).toBe(false);
@@ -119,6 +156,20 @@ describe('toChipsError 归一', () => {
     expect(minimal.details).toBeUndefined();
     const nullish = toChipsError({ code: 'A_B', message: '文案', retryable: undefined });
     expect(nullish.retryable).toBe(false);
+  });
+
+  it('守卫判据补严后不合规对象走兜底：只产出 SDK_UNKNOWN_ERROR，不传播原码（§4.2 条 1、§5.2）', () => {
+    for (const input of [
+      { code: '', message: '文案' },
+      { code: 'A_B', message: '文案', retryable: 'true' },
+      { code: 'A_B', message: 1 },
+    ]) {
+      const normalized = toChipsError(input);
+      expect(normalized.code).toBe(SDK_UNKNOWN_ERROR);
+      expect(normalized.retryable).toBe(false);
+      // 普通对象经 `String()` 归一即默认字面量（§5.2 非 Error 值规则的直写锚点）
+      expect(normalized.details).toEqual({ value: '[object Object]' });
+    }
   });
 
   it('其他 Error 实例归一为 SDK_UNKNOWN_ERROR 并保留 name 与消息为诊断', () => {

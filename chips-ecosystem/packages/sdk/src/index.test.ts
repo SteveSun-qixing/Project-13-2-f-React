@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import * as bridge from '@chips/bridge';
 import * as sdk from './index.js';
 import { ChipsBridge } from './client/chips-bridge.js';
 import { ChipsError } from './errors.js';
@@ -110,6 +111,11 @@ describe('@chips/sdk 主入口值导出面（02-SDK-API规范 §2.2）', () => {
     expect(sdk.toChipsError(error)).toBe(error);
   });
 
+  it('错误类与结构守卫同 @chips/bridge 唯一实现同源（工单024《RFC-ChipsError统一裁定》§3.3 条 1）', () => {
+    expect(sdk.ChipsError).toBe(bridge.ChipsError);
+    expect(sdk.isChipsError).toBe(bridge.isChipsError);
+  });
+
   it('开发期工具与契约常量不从主入口导出', () => {
     const entry = sdk as Record<string, unknown>;
     for (const name of [
@@ -130,11 +136,29 @@ describe('@chips/sdk 主入口值导出面（02-SDK-API规范 §2.2）', () => {
 describe('@chips/sdk 入口的依赖边界（§11 约束 2、§2.2 末段）', () => {
   const sources = shippedSources();
 
-  it('随包发布的源码文件非空，且不含 @chips/bridge 的运行时导入', () => {
+  it('随包发布的源码非空；@chips/bridge 运行时面仅 errors.ts 错误模型薄再导出（RFC §3.3 条 1/3）', () => {
     expect(sources.length).toBeGreaterThan(10);
+    // 除 errors.ts 外任何随包源码不得以运行时形态引入 @chips/bridge（其余 bridge 成员一律 import type）。
     for (const { path, text } of sources) {
+      if (path.endsWith('/errors.ts')) {
+        continue;
+      }
       expect(runtimeSpecifiers(text), path).not.toContain('@chips/bridge');
     }
+    // errors.ts 的运行时 bridge 导入名固定收敛为统一类与结构守卫两项，多一个即红。
+    const errorsRuntime = runtimeSpecifiers(readFileSync(`${SRC_DIR}errors.ts`, 'utf8'));
+    expect(errorsRuntime.filter((item) => item === '@chips/bridge')).toEqual(['@chips/bridge']);
+    const runtimeNames = [
+      ...readFileSync(`${SRC_DIR}errors.ts`, 'utf8').matchAll(
+        /\bimport\s*\{([^}]*)\}\s*from\s*['"]@chips\/bridge['"]/g
+      ),
+    ].flatMap((match) =>
+      (match[1] ?? '')
+        .split(',')
+        .map((name) => name.trim())
+        .filter((name) => name.length > 0 && !name.startsWith('type '))
+    );
+    expect(runtimeNames.sort()).toEqual(['ChipsError', 'isChipsError']);
     // 正向对照：类型层确实以 import type 从 @chips/bridge 取形状
     expect(specifiersOf(readFileSync(`${SRC_DIR}types/bridge.ts`, 'utf8'))).toEqual([
       { specifier: '@chips/bridge', runtime: false },
