@@ -55,7 +55,7 @@ tools/contract-gen/
 
 ## 六、口径说明
 
-- 能力 ID 动作段按 canonical R19 表拼写（含 `window:setTitle` 等驼峰形式）；`04.03` §3.1 全小写文法与该表的冲突登记为工单 003，门禁暂以警告 `CONTRACT091` 绕开。
+- 能力 ID 动作段按 canonical R19 表拼写（含 `window:setTitle` 等驼峰形式）；《能力契约规范》§3.1 已统一为「`domain`/`target` 全小写、`action` 段允许平台登记的驼峰」，与生成器 `CAPABILITY_ID_PATTERN` 一致（工单 003 收口，原 `CONTRACT091` 警告判定面已删除）。
 - `internal:*` 内核内部事件与通配族错误码（`RESOURCE_*` 等）不进入生成物；内容处理服务能力只收录代表性错误码，完整码随提供方契约发布。
 
 ---

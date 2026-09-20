@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   addViolation,
-  addWarning,
   finalizeReport,
   makeReport,
   runGateCli,
@@ -245,16 +244,6 @@ export async function runCheck({ workspaceRoot, config, flags }) {
         });
       }
     }
-  }
-  const lowerCaseConflicts = [...docCapabilities.keys()].filter(
-    (id) => !/^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/.test(id)
-  );
-  if (lowerCaseConflicts.length > 0) {
-    addWarning(
-      report,
-      'CONTRACT091',
-      `能力 ID 含大写字母（04.03 §3.1 全小写与 canonical R19 表冲突，已登记问题工单 003）：${lowerCaseConflicts.join(', ')}`
-    );
   }
 
   const generatedDir = path.resolve(

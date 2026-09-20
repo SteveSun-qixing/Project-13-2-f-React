@@ -95,20 +95,21 @@ node tools/gates/check-entries.mjs examples/plugins/hello
 
 ### 4.2 契约门禁（G8）
 
-| 代码              | 检查项                                                     |
-| ----------------- | ---------------------------------------------------------- |
-| CONTRACT001       | 生成物目录或文件缺失（先执行契约生成）                     |
-| CONTRACT002       | 生成物结构非法（缺少导出数组或映射常量）                   |
-| CONTRACT010 / 011 | 能力 ID 缺失 / 多余                                        |
-| CONTRACT012       | 能力 → 权限映射与 R19 表不一致                             |
-| CONTRACT013       | ID 文法非法、重复，或权限数组存在重复项                    |
-| CONTRACT020 / 021 | 权限 ID 缺失 / 多余                                        |
-| CONTRACT030 / 031 | 事件 ID 缺失 / 多余                                        |
-| CONTRACT040       | 能力 / 权限 / 事件三个命名空间互相冲突                     |
-| CONTRACT041       | 映射引用了权限词表之外的权限                               |
-| CONTRACT042       | 解析能力数与文档声明的计数不一致                           |
-| CONTRACT043       | 生成物映射缺少或多余能力键                                 |
-| CONTRACT091       | 能力 ID 含大写字母（04.03 §3.1 与 R19 canonical 冲突）警告 |
+| 代码              | 检查项                                   |
+| ----------------- | ---------------------------------------- |
+| CONTRACT001       | 生成物目录或文件缺失（先执行契约生成）   |
+| CONTRACT002       | 生成物结构非法（缺少导出数组或映射常量） |
+| CONTRACT010 / 011 | 能力 ID 缺失 / 多余                      |
+| CONTRACT012       | 能力 → 权限映射与 R19 表不一致           |
+| CONTRACT013       | ID 文法非法、重复，或权限数组存在重复项  |
+| CONTRACT020 / 021 | 权限 ID 缺失 / 多余                      |
+| CONTRACT030 / 031 | 事件 ID 缺失 / 多余                      |
+| CONTRACT040       | 能力 / 权限 / 事件三个命名空间互相冲突   |
+| CONTRACT041       | 映射引用了权限词表之外的权限             |
+| CONTRACT042       | 解析能力数与文档声明的计数不一致         |
+| CONTRACT043       | 生成物映射缺少或多余能力键               |
+
+能力 ID 文法以《能力契约规范》§3.1 为唯一权威：`domain`/`target` 全小写、`action` 段允许平台登记的 camelCase（`window:setTitle`、`window:setState`、`shell:openExternal`）。曾经的 CONTRACT091「含大写字母」警告因文档口径已统一而成为冗余判定面，随工单 003 收口第 1 条删除，门禁不再对合法 camelCase 动作段产生警告。
 
 生成物契约：`packages/sdk/src/generated/` 下由 `@chips/contract-gen` 生成的 TypeScript 常量（`CAPABILITY_IDS`、`PERMISSION_IDS`、`EVENT_IDS`、`CAPABILITY_PERMISSIONS`）；门禁只做独立比对与文法校验，不代行生成职责。
 
