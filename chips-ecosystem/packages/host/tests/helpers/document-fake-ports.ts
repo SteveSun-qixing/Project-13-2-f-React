@@ -332,6 +332,58 @@ export function createHarness(): IDocumentTestHarness {
     });
   }
 
+  /**
+   * 把同步实现包装为 Promise 语义的端口方法：失败按 rejection 交付（与真端口的异步失败一致），
+   * 不做同步抛出。
+   */
+  function toPortCall<T>(run: () => T): Promise<T> {
+    try {
+      return Promise.resolve(run());
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /** `readPart` 的同步实现体（磁盘视图纯内存读取；由端口方法包装为 Promise 语义）。 */
+  function readPartSync(handle: IDocumentHandle, request: IDocumentPartRequest): IDocumentPartOutcome {
+    const fake = handle as IFakeHandle;
+    const source = sources.get(fake.managedUri);
+    if (source === undefined) {
+      throw portFailure('DOCUMENT_NOT_FOUND', '句柄已失效');
+    }
+    readPartCalls.push({
+      managedUri: fake.managedUri,
+      part: request.part,
+      ...(request.nodeId === undefined ? {} : { nodeId: request.nodeId }),
+    });
+    const diagnosticsFor = (key: string): readonly IDocumentDiagnostic[] => source.partDiagnostics.get(key) ?? [];
+    switch (request.part) {
+      case 'structure':
+        return { value: parseMember(source, STRUCTURE_MEMBER), diagnostics: diagnosticsFor('structure') };
+      case 'entries': {
+        const structure = parseMember(source, STRUCTURE_MEMBER);
+        const entries = Array.isArray(structure.entries) ? structure.entries : [];
+        return { value: entries, diagnostics: diagnosticsFor('entries') };
+      }
+      case 'content': {
+        const nodeId = request.nodeId;
+        if (nodeId === undefined) {
+          return { value: parseMember(source, LAYOUT_MEMBER), diagnostics: diagnosticsFor('layout') };
+        }
+        const text = source.disk.get(contentMemberOf(nodeId));
+        if (text === undefined) {
+          throw portFailure('DOCUMENT_STRUCTURE_INVALID', '内容成员不存在');
+        }
+        return {
+          value: JSON.parse(text) as Record<string, unknown>,
+          diagnostics: diagnosticsFor(contentMemberOf(nodeId)),
+        };
+      }
+      case 'metadata':
+        return { value: parseMember(source, META_MEMBER), diagnostics: diagnosticsFor('metadata') };
+    }
+  }
+
   /** 解析/序列化端口替身。 */
   const parser = {
     async open(input: { localPath: string; kind: DocumentKind | null }): Promise<IDocumentParseOutcome> {
@@ -364,50 +416,17 @@ export function createHarness(): IDocumentTestHarness {
       };
     },
 
-    async readPart(handle: IDocumentHandle, request: IDocumentPartRequest): Promise<IDocumentPartOutcome> {
-      const fake = handle as IFakeHandle;
-      const source = sources.get(fake.managedUri);
-      if (source === undefined) {
-        throw portFailure('DOCUMENT_NOT_FOUND', '句柄已失效');
-      }
-      readPartCalls.push({
-        managedUri: fake.managedUri,
-        part: request.part,
-        ...(request.nodeId === undefined ? {} : { nodeId: request.nodeId }),
-      });
-      const diagnosticsFor = (key: string): readonly IDocumentDiagnostic[] => source.partDiagnostics.get(key) ?? [];
-      switch (request.part) {
-        case 'structure':
-          return { value: parseMember(source, STRUCTURE_MEMBER), diagnostics: diagnosticsFor('structure') };
-        case 'entries': {
-          const structure = parseMember(source, STRUCTURE_MEMBER);
-          const entries = Array.isArray(structure.entries) ? structure.entries : [];
-          return { value: entries, diagnostics: diagnosticsFor('entries') };
-        }
-        case 'content': {
-          const nodeId = request.nodeId;
-          if (nodeId === undefined) {
-            return { value: parseMember(source, LAYOUT_MEMBER), diagnostics: diagnosticsFor('layout') };
-          }
-          const text = source.disk.get(contentMemberOf(nodeId));
-          if (text === undefined) {
-            throw portFailure('DOCUMENT_STRUCTURE_INVALID', '内容成员不存在');
-          }
-          return {
-            value: JSON.parse(text) as Record<string, unknown>,
-            diagnostics: diagnosticsFor(contentMemberOf(nodeId)),
-          };
-        }
-        case 'metadata':
-          return { value: parseMember(source, META_MEMBER), diagnostics: diagnosticsFor('metadata') };
-      }
+    readPart(handle: IDocumentHandle, request: IDocumentPartRequest): Promise<IDocumentPartOutcome> {
+      return toPortCall(() => readPartSync(handle, request));
     },
 
-    async fingerprint(localPath: string): Promise<ISourceFingerprint> {
-      if (failures.fingerprint !== undefined) {
-        throw failures.fingerprint;
-      }
-      return fingerprintOfSource(requireSourceByPath(localPath));
+    fingerprint(localPath: string): Promise<ISourceFingerprint> {
+      return toPortCall(() => {
+        if (failures.fingerprint !== undefined) {
+          throw failures.fingerprint;
+        }
+        return fingerprintOfSource(requireSourceByPath(localPath));
+      });
     },
 
     async serialize(request: IDocumentSerializeRequest): Promise<readonly IDocumentSerializedMember[]> {
@@ -438,13 +457,15 @@ export function createHarness(): IDocumentTestHarness {
       return members;
     },
 
-    async release(handle: IDocumentHandle): Promise<void> {
-      if (failures.release !== undefined) {
-        throw failures.release;
-      }
-      const fake = handle as IFakeHandle;
-      releasedGenerations.push(fake.generation);
-      handles.delete(`${fake.managedUri}#${fake.generation}`);
+    release(handle: IDocumentHandle): Promise<void> {
+      return toPortCall(() => {
+        if (failures.release !== undefined) {
+          throw failures.release;
+        }
+        const fake = handle as IFakeHandle;
+        releasedGenerations.push(fake.generation);
+        handles.delete(`${fake.managedUri}#${fake.generation}`);
+      });
     },
   };
 
@@ -468,57 +489,67 @@ export function createHarness(): IDocumentTestHarness {
       commits.push(request);
     },
 
-    async listMembers(localPath: string): Promise<readonly IPackageMemberBytes[]> {
-      const source = requireSourceByPath(localPath);
-      return [...source.disk.entries()].map(([packagePath, text]) => ({ packagePath, bytes: ENCODER.encode(text) }));
+    listMembers(localPath: string): Promise<readonly IPackageMemberBytes[]> {
+      return toPortCall(() => {
+        const source = requireSourceByPath(localPath);
+        return [...source.disk.entries()].map(([packagePath, text]) => ({ packagePath, bytes: ENCODER.encode(text) }));
+      });
     },
 
-    async readFileBytes(localPath: string): Promise<Uint8Array> {
-      const source = requireSourceByPath(localPath);
-      const flattened = [...source.disk.entries()].sort((a, b) => comparePackagePath(a[0], b[0]));
-      return ENCODER.encode(flattened.map(([path, text]) => `${path}\u0000${text}`).join('\n'));
+    readFileBytes(localPath: string): Promise<Uint8Array> {
+      return toPortCall(() => {
+        const source = requireSourceByPath(localPath);
+        const flattened = [...source.disk.entries()].sort((a, b) => comparePackagePath(a[0], b[0]));
+        return ENCODER.encode(flattened.map(([path, text]) => `${path}\u0000${text}`).join('\n'));
+      });
     },
   };
 
   /** 资源作用域端口替身。 */
   const scope: IDocumentScopePort = {
-    async normalizeSource(source: string): Promise<IResolvedDocumentSource> {
-      if (failures.normalizeSource !== undefined) {
-        throw failures.normalizeSource;
-      }
-      const managedUri = aliases.get(source) ?? source;
-      const resolved = sources.get(managedUri)?.resolved;
-      if (resolved === undefined) {
-        throw portFailure('RESOURCE_NOT_FOUND', '资源不存在');
-      }
-      return resolved;
+    normalizeSource(source: string): Promise<IResolvedDocumentSource> {
+      return toPortCall(() => {
+        if (failures.normalizeSource !== undefined) {
+          throw failures.normalizeSource;
+        }
+        const managedUri = aliases.get(source) ?? source;
+        const resolved = sources.get(managedUri)?.resolved;
+        if (resolved === undefined) {
+          throw portFailure('RESOURCE_NOT_FOUND', '资源不存在');
+        }
+        return resolved;
+      });
     },
 
-    async registerScope(input: { documentId: string; managedUri: string; kind: DocumentKind }): Promise<void> {
-      if (failures.registerScope !== undefined) {
-        throw failures.registerScope;
-      }
-      scopeRegistrations.push(input);
+    registerScope(input: { documentId: string; managedUri: string; kind: DocumentKind }): Promise<void> {
+      return toPortCall(() => {
+        if (failures.registerScope !== undefined) {
+          throw failures.registerScope;
+        }
+        scopeRegistrations.push(input);
+      });
     },
   };
 
   const events = {
-    async publish(eventId: string, payload: Readonly<Record<string, unknown>>): Promise<void> {
-      if (failures.publish === true) {
-        throw new Error('事件总线不可用');
-      }
-      published.push({ eventId, payload });
+    publish(eventId: string, payload: Readonly<Record<string, unknown>>): Promise<void> {
+      return toPortCall(() => {
+        if (failures.publish === true) {
+          throw new Error('事件总线不可用');
+        }
+        published.push({ eventId, payload });
+      });
     },
   };
 
   const guard = {
-    async isSessionActive(sessionId: string): Promise<boolean> {
+    isSessionActive(sessionId: string): Promise<boolean> {
       activeQueries.push(sessionId);
-      return sessions.get(sessionId)?.active === true;
+      return Promise.resolve(sessions.get(sessionId)?.active === true);
     },
-    async hasPermission(sessionId: string, permission: string): Promise<boolean> {
+    hasPermission(sessionId: string, permission: string): Promise<boolean> {
       permissionQueries.push({ sessionId, permission });
-      return sessions.get(sessionId)?.permissions.has(permission) === true;
+      return Promise.resolve(sessions.get(sessionId)?.permissions.has(permission) === true);
     },
   };
 

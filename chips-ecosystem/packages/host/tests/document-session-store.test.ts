@@ -53,8 +53,9 @@ function createHarness(): { store: IDocumentSessionStore; released: IDocumentHan
   const released: IDocumentHandle[] = [];
   return {
     released,
-    store: createDocumentSessionStore(async (handle) => {
+    store: createDocumentSessionStore((handle) => {
       released.push(handle);
+      return Promise.resolve();
     }),
   };
 }
@@ -167,7 +168,7 @@ describe('同文档写任务串行队列（§7.5）', () => {
     const record = store.openRecord(recordInput(URI));
     const log: string[] = [];
     let running = 0;
-    const task = (label: string, delay: number) =>
+    const task = (label: string, delay: number): Promise<string> =>
       store.enqueueRecordTask(record, async () => {
         running += 1;
         expect(running).toBe(1);
@@ -187,12 +188,10 @@ describe('同文档写任务串行队列（§7.5）', () => {
     const { store } = createHarness();
     const record = store.openRecord(recordInput(URI));
     const failure = await store
-      .enqueueRecordTask(record, async () => {
-        throw new Error('写入失败');
-      })
+      .enqueueRecordTask(record, () => Promise.reject(new Error('写入失败')))
       .catch((error: unknown) => error);
     expect((failure as Error).message).toBe('写入失败');
-    await expect(store.enqueueRecordTask(record, async () => 'ok')).resolves.toBe('ok');
+    await expect(store.enqueueRecordTask(record, () => Promise.resolve('ok'))).resolves.toBe('ok');
   });
 
   it('不同文档的队列互不阻塞', async () => {
@@ -207,7 +206,7 @@ describe('同文档写任务串行队列（§7.5）', () => {
       await leftGate;
       return 'left';
     });
-    const rightDone = await store.enqueueRecordTask(right, async () => 'right');
+    const rightDone = await store.enqueueRecordTask(right, () => Promise.resolve('right'));
     expect(rightDone).toBe('right');
     resolveLeft();
     await expect(leftTask).resolves.toBe('left');
@@ -332,9 +331,9 @@ describe('拥有者会话释放（§4.6）', () => {
   });
 
   it('句柄释放失败不阻断记录移除（记录已从在册集合摘除）', async () => {
-    const store = createDocumentSessionStore(async () => {
-      throw Object.assign(new Error('句柄释放失败'), { code: 'DOCUMENT_IO' });
-    });
+    const store = createDocumentSessionStore(() =>
+      Promise.reject(Object.assign(new Error('句柄释放失败'), { code: 'DOCUMENT_IO' }))
+    );
     const record = store.openRecord(recordInput(URI));
     store.getOrCreateSession(record, 'session-a');
     await expect(store.releaseSessionsOf('session-a')).rejects.toMatchObject({ code: 'DOCUMENT_IO' });

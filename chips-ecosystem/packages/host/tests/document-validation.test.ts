@@ -432,7 +432,7 @@ describe('structure 切片校验', () => {
 
 describe('entries 切片校验与序列化产物路径', () => {
   it('entries 必须是数组并复用箱子结构规则', () => {
-    expect(captureError(() => validateEntriesSlice({} as never)).code).toBe(DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid);
+    expect(captureError(() => validateEntriesSlice({})).code).toBe(DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid);
     expect(() => validateEntriesSlice([{ entry_id: NODE_ID, url: 'x', enabled: false }])).not.toThrow();
   });
 
