@@ -277,6 +277,8 @@ describe('插件命令执行（§3.10、§5.3、§5.4、§5.7）', () => {
     const error = outcome.json() as { code: string; details: { task: { taskId: string } } };
     expect(error.code).toBe('DOCUMENT_VERSION_UNSUPPORTED');
     expect(error.details.task.taskId).toBe('task-1');
+    // 退出码只由进程内旁表映射为真实退出码，不进入 stdout 错误信封（《RFC-ChipsError统一裁定》§4.6）。
+    expect(outcome.stdout).not.toContain('exitCode');
   });
 
   it('任务未上报失败码时按 CLI_TASK_FAILED 收口', async () => {

@@ -228,9 +228,9 @@ describe('命令面真实夹具三态（正例注入 / 负例错误码 / 未注�
       fileSystem: fixtureFileSystem(),
     });
     expect(outcome.exitCode).toBe(1);
-    const payload = outcome.json() as { code: string; message: string };
+    const payload = outcome.json() as { code: string; error: string };
     expect(payload.code).toBe('CPK_SIGNATURE_INVALID');
-    expect(payload.message).toContain('信任根未注册的 keyId');
+    expect(payload.error).toContain('信任根未注册的 keyId');
   });
 
   it('注入文件缺失时 CLI_PATH_NOT_FOUND（EXIT=5），不静默放行', async () => {
@@ -276,10 +276,10 @@ describe('目录态包根口径（工单020 缺陷②，[插件包格式] §2.7�
       fileSystem,
     });
     expect(outcome.exitCode).toBe(1);
-    const payload = outcome.json() as { code: string; message: string };
+    const payload = outcome.json() as { code: string; error: string };
     expect(payload.code).toBe('CPK_LAYOUT_INVALID');
-    expect(payload.message).toContain('源码工程');
-    expect(payload.message).toContain('chips plugin pack');
+    expect(payload.error).toContain('源码工程');
+    expect(payload.error).toContain('chips plugin pack');
   });
 
   it('包根形态目录（无 package.json）目录态通过：归档/签名/摘要阶段按目录语义跳过', async () => {

@@ -444,7 +444,7 @@ describe('runTui（§3.1.1 键盘循环交回同一执行器）', () => {
       context: createContext(new FakeCliClient(), sink),
       execute: (_tokens, out) => {
         if (mode === 'throw') {
-          // 带 `code` 的普通 `Error`：走 `normalizeError` 的「非 ChipsError 但带错误码」归一分支。
+          // 带 `code` 的普通 `Error`：TUI 结果面板的防御性 catch 按 `code`/`message` 字段读取错误摘要。
           throw Object.assign(new Error('任务执行失败'), { code: 'CLI_TASK_FAILED' });
         }
         out.writeOut('{"code":"CLI_PLUGIN_FAILED","error":"插件返回失败"}');

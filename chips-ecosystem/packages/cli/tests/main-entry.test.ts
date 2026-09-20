@@ -236,8 +236,15 @@ describe('main（§2.5 进程入口）', () => {
     });
     expect(exitCode).toBe(1);
     expect(process.listenerCount('SIGINT')).toBe(baseline);
-    const error = JSON.parse(capture.stdout()) as { code: string; message: string };
+    // 错误信封键名映射 `message` → `error`（[CLI 完整参考] §2.6）；未识别异常按
+    // 《RFC-ChipsError统一裁定》§4.5 条 4 脱敏：`error` 为域兜底码通用文案，原文只落 `details.cause`。
+    const error = JSON.parse(capture.stdout()) as {
+      code: string;
+      error: string;
+      details?: { cause?: string };
+    };
     expect(error.code).toBe('CLI_COMMAND_FAILED');
-    expect(error.message).toBe('承载链路断开');
+    expect(error.error).toBe('命令执行失败');
+    expect(error.details?.cause).toBe('承载链路断开');
   });
 });
