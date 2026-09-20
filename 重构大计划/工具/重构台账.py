@@ -21,9 +21,15 @@
       --disposition 迁移 --target "chips-ecosystem/packages/host/src/x.ts"
   python3 重构大计划/工具/重构台账.py symbol-dispose --owner ledger-host-scaffold --symbol 88,89,90 \\
       --disposition 重写 --target "chips-ecosystem/packages/host/src/y.ts" --notes "按文档库权威设计"
-  python3 重构大计划/工具/重构台账.py verify            # 一致性体检（幻想 target/孤儿行 → 退出码 3）
+  python3 重构大计划/工具/重构台账.py verify            # 一致性体检（幻想 target/孤儿行/sweep 一致性 → 退出码 3）
   python3 重构大计划/工具/重构台账.py verify --strict    # 收口期：连“迁移/重写 规划落点未落地”一起清零
   python3 重构大计划/工具/重构台账.py release --owner tool-selftest   # 归还认领 / 返工复位
+
+符号波认领与继承批量面（symbols.wave_owner 模型，主智能体 W2 裁决口径）：
+  python3 重构大计划/工具/重构台账.py symbols-claim --owner sweep-host-expand --repo Chips-Host \\
+      --class expand -n 500        # 只对未裁决且未认领的符号置 wave_owner；按仓+类别保证并行路互斥
+  python3 重构大计划/工具/重构台账.py symbol-sweep --owner sweep-host-expand [--repo R]
+      # 本 owner 已认领的“继承类”符号批量镜像文件裁决落库；默认 dry-run，--write 才落库；展开类一律拒绝并计数报告
 
 退出码：0 成功；2 参数错误；3 verify 发现异常；4 数据库锁定重试失败；5 无匹配行 / 越权 / 安全闸口拒绝。
 过程留痕：所有写操作追加记录到 `重构大计划/台账操作.log`。
@@ -64,7 +70,8 @@ CREATE TABLE IF NOT EXISTS files (
 CREATE TABLE IF NOT EXISTS symbols (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   file_id INTEGER, kind TEXT, name TEXT, line INTEGER, exported INTEGER,
-  status TEXT DEFAULT '待评估', disposition TEXT, target TEXT, notes TEXT
+  status TEXT DEFAULT '待评估', disposition TEXT, target TEXT, notes TEXT,
+  wave_owner TEXT            -- 符号波认领标识（NULL=未认领）；W2 新增列，不改任何既有列语义
 );
 CREATE TABLE IF NOT EXISTS waves (
   id TEXT PRIMARY KEY, name TEXT, goal TEXT, status TEXT, started_at TEXT, finished_at TEXT
@@ -79,12 +86,21 @@ CREATE INDEX IF NOT EXISTS idx_files_repo ON files(repo_id);
 -- 以下为批量裁决/符号判定引入的**新增索引**（不改任何列语义，只加速认领与符号进度核算）
 CREATE INDEX IF NOT EXISTS idx_files_owner_status ON files(owner, status);
 CREATE INDEX IF NOT EXISTS idx_symbols_file ON symbols(file_id);
+CREATE INDEX IF NOT EXISTS idx_symbols_wave_owner ON symbols(wave_owner);
 """
 
-#: 供 `ensure_indexes()` 幂等补建的增量索引（`scan` 走整段 SCHEMA，其余命令走这里）
+#: 供 `ensure_indexes()` 幂等补建的增量列与增量索引（所有子命令执行前统一补建；
+#: `scan` 走整段 SCHEMA 建全新库，增量补建保证既有库缺列时索引可创建）
 INCREMENTAL_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_files_owner_status ON files(owner, status);",
     "CREATE INDEX IF NOT EXISTS idx_symbols_file ON symbols(file_id);",
+    "CREATE INDEX IF NOT EXISTS idx_symbols_wave_owner ON symbols(wave_owner);",
+)
+
+#: 符号波增量的**新增列**（与增量索引同纪律：只加列，不删列、不改任何既有列语义）；
+#: 对既有库由 `ensure_indexes()` 检测后 ALTER TABLE 补建。
+INCREMENTAL_COLUMNS = (
+    ("symbols", "wave_owner", "ALTER TABLE symbols ADD COLUMN wave_owner TEXT"),
 )
 
 TS_SYM = re.compile(
@@ -102,6 +118,20 @@ OP_LOG = os.path.join(BASE, "台账操作.log")
 VALID_DISPOSITIONS = ("迁移", "重写", "保留设计", "废弃", "归档")
 #: dispose-batch 允许回写的文件状态（schema `status` 枚举的裁决期子集）
 DISPOSE_STATUSES = ("已裁决", "进行中", "已完成", "已验证")
+
+#: 符号波口径（主智能体 W2 裁决）：展开类=迁移/重写文件的符号，须逐符号真判定；
+#: 继承类=其余已裁决文件的符号，disposition 镜像所属文件裁决。
+EXPAND_DISPOSITIONS = ("迁移", "重写")
+#: symbols-claim --class 到 SQL 条件片段的映射（作用于所属文件 f.disposition）
+SYMBOL_CLASS_COND = {
+    "expand": "f.disposition IN ('%s')" % "','".join(EXPAND_DISPOSITIONS),
+    "inherit": "f.disposition IS NOT NULL AND f.disposition NOT IN ('%s')" % "','".join(EXPAND_DISPOSITIONS),
+    "all": "f.disposition IS NOT NULL",
+}
+#: symbol-sweep 继承落库的 notes 固定句式
+SWEEP_NOTE_TMPL = "按文件裁决继承（symbol-sweep，源文件 disposition=%s）"
+#: 归档继承且文件无说明性 target 时的兜底写法（与既有文件级归档口径一致）
+SWEEP_ARCHIVE_FALLBACK_TARGET = "就近归档"
 
 #: verify 需要校验落盘存在性的 target 前缀（新工作区 / 权威文档库 / 本目录产物）
 TARGET_CHECK_PREFIXES = ("chips-ecosystem/", "薯片生态文档库/", "重构大计划/")
@@ -260,10 +290,18 @@ def connect(write=False):
 
 
 def ensure_indexes():
-    """幂等补建增量索引；库被并发写锁住时不阻断只读统计，静默跳过。"""
+    """幂等补建增量列/索引；库被并发写锁住时不阻断只读统计，静默跳过。
+
+    增量列（`INCREMENTAL_COLUMNS`）先于增量索引补建：`symbols.wave_owner`
+    缺失时 `idx_symbols_wave_owner` 无法创建，二者必须同批到位。
+    """
     try:
         conn = connect(write=True)
         try:
+            for table, col, ddl in INCREMENTAL_COLUMNS:
+                cols = {r[1] for r in conn.execute("PRAGMA table_info(%s)" % table)}
+                if cols and col not in cols:
+                    conn.execute(ddl)
             for ddl in INCREMENTAL_INDEXES:
                 conn.execute(ddl)
         finally:
@@ -543,6 +581,14 @@ def stats():
     ).fetchone()
     print("  有符号的文件: %d 个，符号全裁决: %d 个，部分裁决: %d 个"
           % (n_sym_files or 0, n_full or 0, n_partial or 0))
+    # 符号波认领维度（symbols.wave_owner）：认领总量与未裁决存量，一行机读
+    wo_total, wo_pending = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(CASE WHEN disposition IS NULL THEN 1 ELSE 0 END),0)"
+        " FROM symbols WHERE wave_owner IS NOT NULL").fetchone()
+    print("  wave_owner 认领: %d 个符号（其中未裁决 %d 个，未认领未裁决 %d 个）"
+          % (wo_total, wo_pending,
+             conn.execute("SELECT COUNT(*) FROM symbols"
+                          " WHERE disposition IS NULL AND wave_owner IS NULL").fetchone()[0]))
     print("== 认领分布（非“待评估”行）==")
     rows = conn.execute(
         "SELECT COALESCE(NULLIF(owner,''),'(无 owner)') o, COUNT(*) FROM files WHERE status <> '待评估' GROUP BY 1 ORDER BY 2 DESC"
@@ -734,8 +780,8 @@ def symbols_cmd(args):
     if not f:
         die("files.id=%s 不存在" % args.file)
     rows = conn.execute(
-        "SELECT id, kind, name, line, exported, status, disposition, target FROM symbols"
-        " WHERE file_id=? ORDER BY line, id",
+        "SELECT id, kind, name, line, exported, status, disposition, target, wave_owner"
+        " FROM symbols WHERE file_id=? ORDER BY line, id",
         (args.file,),
     ).fetchall()
     print("symbols: file_id=%d %s/%s owner=%s 文件裁决=%s"
@@ -744,20 +790,26 @@ def symbols_cmd(args):
         print("  (该文件无登记符号)")
         conn.close()
         return
-    print("  %-8s %-10s %-28s %-6s %-4s %-8s %-8s %s" % ("id", "kind", "name", "line", "导出", "状态", "裁决", "target"))
+    print("  %-8s %-10s %-28s %-6s %-4s %-8s %-8s %-22s %s"
+          % ("id", "kind", "name", "line", "导出", "状态", "裁决", "wave_owner", "target"))
     for s in rows:
-        print("  %-8d %-10s %-28s %-6d %-4s %-8s %-8s %s"
-              % (s[0], s[1], s[2][:28], s[3], "是" if s[4] else "否", s[5], s[6] or "-", s[7] or "-"))
+        print("  %-8d %-10s %-28s %-6d %-4s %-8s %-8s %-22s %s"
+              % (s[0], s[1], s[2][:28], s[3], "是" if s[4] else "否", s[5], s[6] or "-",
+                 s[8] or "-", s[7] or "-"))
     decided = sum(1 for s in rows if s[6])
     print("  合计 %d 个符号，已裁决 %d，未裁决 %d" % (len(rows), decided, len(rows) - decided))
     conn.close()
 
 
 def symbol_dispose(args):
-    """符号级裁决落库（只允许改自己认领文件的符号）。"""
+    """符号级裁决落库。
+
+    写权限两路（W2 符号波口径）：所属文件 `files.owner` == --owner（历史裁决路），
+    **或** 符号 `symbols.wave_owner` == --owner（符号波认领路）；其余一律跳过并计数报告。
+    """
     owner = (args.owner or "").strip()
     if not owner:
-        die("--owner 不能为空（只能裁决自己认领文件的符号）")
+        die("--owner 不能为空（只能裁决自己认领文件或认领的符号）")
     if args.disposition not in VALID_DISPOSITIONS:
         die("--disposition 取值非法：%r（可选：%s）" % (args.disposition, "/".join(VALID_DISPOSITIONS)))
     if bool(args.symbol) == (args.file is not None):
@@ -776,12 +828,14 @@ def symbol_dispose(args):
 
     def work(conn):
         rows = conn.execute(
-            "SELECT s.id, s.file_id, s.name, s.kind, s.line, f.owner, f.repo_id, f.rel_path"
+            "SELECT s.id, s.file_id, s.name, s.kind, s.line, f.owner, f.repo_id, f.rel_path,"
+            " s.wave_owner, s.disposition"
             " FROM symbols s JOIN files f ON f.id = s.file_id WHERE %s" % where,
             params,
         ).fetchall()
-        mine = [r for r in rows if r[5] == owner]
-        foreign = [r for r in rows if r[5] not in (None, "", owner)]
+        # r[8]=symbols.wave_owner：文件 owner 路或符号波路任一命中即可写
+        mine = [r for r in rows if r[5] == owner or r[8] == owner]
+        foreign = [r for r in rows if r[5] not in (None, "", owner) and r[8] not in (None, "", owner)]
         if args.dry_run:
             return rows, mine, foreign, [], 0
         if mine:
@@ -804,18 +858,19 @@ def symbol_dispose(args):
 
     rows, mine, foreign, progress, updated = run_write("symbol-dispose", work)
     if args.dry_run:
-        print("symbol-dispose(dry-run): 命中 %d 个符号，可裁决（owner=%s）%d 个，越权 %d 个"
+        print("symbol-dispose(dry-run): 命中 %d 个符号，可裁决（files.owner 或 wave_owner=%s）%d 个，越权 %d 个"
               % (len(rows), owner, len(mine), len(foreign)))
         return
     if not updated:
-        die("没有可裁决的符号：命中的 %d 个符号所属文件均非 owner=%s 认领（先 claim 该文件；越权改写被拒绝）"
-            % (len(rows), owner))
+        die("没有可裁决的符号：命中的 %d 个符号既非 owner=%s 认领文件的符号，也未被其 symbols-claim 认领"
+            "（先 claim 该文件或 symbols-claim 该符号；越权改写被拒绝）" % (len(rows), owner))
     for fid, total, done in progress:
         print("  file_id=%d 符号进度 %d/%d%s" % (fid, done, total, "（已清零）" if done == total else ""))
     if foreign:
-        print("  跳过：非本 owner 认领文件的符号 %d 个" % len(foreign))
+        print("  跳过：非本 owner（files.owner / wave_owner 两路均不命中）的符号 %d 个" % len(foreign))
         for r in foreign[:20]:
-            print("    symbol=%d\t%s/%s\towner=%s" % (r[0], r[6], r[7], r[5] or "(空)"))
+            print("    symbol=%d\t%s/%s\towner=%s\twave_owner=%s"
+                  % (r[0], r[6], r[7], r[5] or "(空)", r[8] or "(空)"))
     print("symbol-dispose: owner=%s 落库 %d 个符号 disposition=%s target=%s"
           % (owner, updated, args.disposition, args.target or "-"))
     log_operation("symbol-dispose", owner, updated,
@@ -824,8 +879,143 @@ def symbol_dispose(args):
                      ",".join(str(p[0]) for p in progress)[:80], len(foreign)))
 
 
+def symbols_claim(args):
+    """符号波认领：把命中仓+类别下 `disposition IS NULL AND wave_owner IS NULL` 的符号打上 wave_owner。
+
+    互斥由 SQL 条件在单事务内机器保证；重复认领（wave_owner 已有值）只报告、不改动。
+    """
+    owner = (args.owner or "").strip()
+    if not owner:
+        die("--owner 不能为空（符号波标识，如 sweep-host-expand）")
+    if not (args.repo or []):
+        die("symbols-claim 必须带 --repo <仓名>（按仓+类别划分保证并行路互斥）")
+    if args.limit is not None and args.limit <= 0:
+        die("--limit 必须是正整数")
+    class_cond = SYMBOL_CLASS_COND[args.class_]
+
+    def work(conn):
+        base = ("FROM symbols s JOIN files f ON f.id = s.file_id"
+                " WHERE f.repo_id " + in_clause(args.repo) +
+                " AND %s AND s.disposition IS NULL" % class_cond)
+        params = list(args.repo)
+        eligible = conn.execute("SELECT COUNT(*) " + base, params).fetchone()[0]
+        claimable = conn.execute(
+            "SELECT COUNT(*) " + base + " AND s.wave_owner IS NULL", params).fetchone()[0]
+        sql = ("SELECT s.id, f.repo_id, f.rel_path, s.name " + base +
+               " AND s.wave_owner IS NULL ORDER BY f.repo_id, f.rel_path, s.id")
+        cparams = list(params)
+        if args.limit is not None:
+            sql += " LIMIT ?"
+            cparams.append(args.limit)
+        rows = conn.execute(sql, cparams).fetchall()
+        ids = [r[0] for r in rows]
+        if ids:
+            conn.executemany(
+                "UPDATE symbols SET wave_owner=? WHERE id=? AND wave_owner IS NULL AND disposition IS NULL",
+                [(owner, i) for i in ids],
+            )
+        return eligible, claimable, rows
+
+    eligible, claimable, rows = run_write("symbols-claim", work)
+    already = eligible - claimable
+    if not rows:
+        die("没有可认领的符号：条件命中未裁决符号 %d 个，其中 %d 个已有 wave_owner（重复认领跳过，归该认领路处置）"
+            % (eligible, already))
+    dist = count_by(rows, lambda r: r[1])
+    print("symbols-claim: owner=%s class=%s 认领 %d 个符号；条件命中未裁决 %d 个，"
+          "重复认领跳过（wave_owner 已有值）%d 个%s"
+          % (owner, args.class_, len(rows), eligible, already,
+             "（--limit=%d 截断，剩余 %d 个可后续再领）" % (args.limit, claimable - len(rows))
+             if args.limit is not None and claimable > len(rows) else ""))
+    print("  按仓分布: %s" % fmt_dist(dist))
+    if args.print_ids:
+        for r in rows:
+            print("symbol=%d\t%s\t%s" % (r[0], r[1], r[3]))
+    log_operation("symbols-claim", owner, len(rows),
+                  "class=%s 仓库分布=%s 命中=%d 重复跳过=%d"
+                  % (args.class_, fmt_dist(dist), eligible, already))
+
+
+def _sweep_target(file_disposition, file_target):
+    """symbol-sweep 的继承 target 镜像口径（主智能体 W2 裁决）：
+    废弃→空 target；归档→说明性 target（按既有归档口径，文件无 target 时兜底“就近归档”）；
+    保留设计→按文件 target。
+    """
+    ft = (file_target or "").strip()
+    if file_disposition == "废弃":
+        return ""
+    if file_disposition == "归档":
+        return ft or SWEEP_ARCHIVE_FALLBACK_TARGET
+    return ft
+
+
+def symbol_sweep(args):
+    """继承类符号批量落裁决：镜像所属文件 disposition，防误吞展开类真判定。
+
+    只处理本 owner 已 `symbols-claim`（wave_owner 命中）且未裁决、且所属文件裁决 ∉ {迁移, 重写}
+    的符号；展开类符号一律拒绝落库并计数报告。默认 dry-run 预览，`--write` 才落库。
+    """
+    owner = (args.owner or "").strip()
+    if not owner:
+        die("--owner 不能为空（只 sweep 本 owner symbols-claim 认领的符号）")
+    repo_cond, repo_params = "", []
+    if args.repo:
+        repo_cond = " AND f.repo_id " + in_clause(args.repo)
+        repo_params = list(args.repo)
+    scope = ("FROM symbols s JOIN files f ON f.id = s.file_id"
+             " WHERE s.wave_owner = ? AND s.disposition IS NULL%s" % repo_cond)
+
+    def work(conn):
+        params = [owner] + repo_params
+        inherit_rows = conn.execute(
+            ("SELECT s.id, f.disposition, f.target_path, f.repo_id, f.rel_path, s.name " + scope +
+             " AND f.disposition NOT IN ('%s') ORDER BY f.repo_id, f.rel_path, s.id"
+             ) % "','".join(EXPAND_DISPOSITIONS), params).fetchall()
+        expand_pending = conn.execute(
+            ("SELECT COUNT(*) " + scope + " AND f.disposition IN ('%s')")
+            % "','".join(EXPAND_DISPOSITIONS), params).fetchone()[0]
+        claimed_total = conn.execute(
+            "SELECT COUNT(*) FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.wave_owner = ?%s"
+            % repo_cond, params).fetchone()[0]
+        updated = 0
+        if inherit_rows and args.write:
+            conn.executemany(
+                "UPDATE symbols SET disposition=?, target=?, notes=?, status='已裁决' WHERE id=?"
+                " AND disposition IS NULL AND wave_owner=?",
+                [(r[1], _sweep_target(r[1], r[2]), SWEEP_NOTE_TMPL % r[1], r[0], owner)
+                 for r in inherit_rows],
+            )
+            updated = len(inherit_rows)
+        return inherit_rows, expand_pending, claimed_total, updated
+
+    inherit_rows, expand_pending, claimed_total, updated = run_write("symbol-sweep", work)
+    dist = count_by(inherit_rows, lambda r: r[1])
+    print("symbol-sweep: owner=%s 认领面 %d 个符号（--repo 限定后）" % (owner, claimed_total))
+    print("  继承类可落库 %d 个（按文件裁决分布: %s）" % (len(inherit_rows), fmt_dist(dist) or "-"))
+    if expand_pending:
+        print("  展开类拒绝 %d 个：迁移/重写文件的符号必须逐符号真判定（symbol-dispose），sweep 不落库"
+              % expand_pending)
+    if not args.write:
+        if not inherit_rows:
+            print("  (dry-run 预览，未落库) 无继承类符号可落库")
+        else:
+            print("  (dry-run 预览，未落库；加 --write 落库) 示例:")
+            for r in inherit_rows[:10]:
+                print("    symbol=%d\t%s/%s\t镜像=%s\ttarget=%s"
+                      % (r[0], r[3], r[4], r[1], _sweep_target(r[1], r[2]) or "(空)"))
+        return
+    if not updated:
+        die("没有可落库的继承类符号（owner=%s 认领面内无 未裁决×非迁移/重写 的行；检查是否先 symbols-claim）"
+            % owner)
+    print("symbol-sweep: owner=%s 落库 %d 个继承类符号（disposition 镜像文件裁决，notes=%r）"
+          % (owner, updated, SWEEP_NOTE_TMPL % "<文件裁决>"))
+    log_operation("symbol-sweep", owner, updated,
+                  "镜像分布=%s 展开类拒绝=%d write=True" % (fmt_dist(dist), expand_pending))
+
+
 def verify(args):
-    """一致性体检：状态/裁决计数、认领分布、孤儿行、target 落盘存在性（防幻想 target）。"""
+    """一致性体检：状态/裁决计数、认领分布、孤儿行、target 落盘存在性（防幻想 target）、
+    符号波认领分布与 sweep 一致性（继承类符号 disposition 与所属文件一致性）。"""
     conn = connect()
     limit = args.show or 50
     problems = 0
@@ -859,6 +1049,35 @@ def verify(args):
              sum(1 for _, t, d in per_file if d == t),
              sum(1 for _, t, d in per_file if 0 < d < t),
              sum(1 for _, t, d in per_file if d == 0)))
+    # 机读终验口径（W2 主智能体裁决）：全部符号 status='已裁决'，即待评估清零
+    pending_status = conn.execute(
+        "SELECT COUNT(*) FROM symbols WHERE status <> '已裁决'").fetchone()[0]
+    print("  终验机读口径：status<>'已裁决'（待评估）的符号 %d 个（收口目标 0）" % pending_status)
+
+    print("== 符号波认领分布（symbols.wave_owner）==")
+    wo_rows = conn.execute(
+        "SELECT COALESCE(NULLIF(wave_owner,''),'(未认领)') o, COUNT(*),"
+        " COALESCE(SUM(CASE WHEN disposition IS NULL THEN 1 ELSE 0 END),0)"
+        " FROM symbols GROUP BY 1 ORDER BY 2 DESC").fetchall()
+    for o, n, pend in wo_rows:
+        print("  %-24s 认领 %d 个，其中未裁决 %d 个" % (o, n, pend))
+
+    print("== sweep 一致性（继承类符号 disposition 必须与所属文件一致）==")
+    sweep_mismatch = conn.execute(
+        "SELECT s.id, f.repo_id, f.rel_path, s.name, s.disposition, f.disposition"
+        " FROM symbols s JOIN files f ON f.id = s.file_id"
+        " WHERE s.disposition IS NOT NULL AND f.disposition IS NOT NULL"
+        " AND f.disposition NOT IN ('%s') AND s.disposition <> f.disposition"
+        " ORDER BY s.id" % "','".join(EXPAND_DISPOSITIONS)).fetchall()
+    if not sweep_mismatch:
+        print("  (无)")
+    else:
+        problems += len(sweep_mismatch)
+        for r in sweep_mismatch[:limit]:
+            print("  sweep 不一致\tsymbol=%d\t%s/%s\t%s\t符号=%s 文件=%s"
+                  % (r[0], r[1], r[2], r[3], r[4], r[5]))
+        if len(sweep_mismatch) > limit:
+            print("  …（共 %d 行，用 --show 放大）" % len(sweep_mismatch))
 
     print("== 孤儿行（disposition 非空但 status 仍为“待评估”）==")
     orphans = conn.execute(
@@ -1071,7 +1290,7 @@ def main():
     p_syms = sub.add_parser("symbols", help="列出某文件登记的符号及裁决状态")
     p_syms.add_argument("--file", type=int, required=True, help="files.id")
 
-    p_sd = sub.add_parser("symbol-dispose", help="符号级裁决落库（只允许改自己认领文件的符号）")
+    p_sd = sub.add_parser("symbol-dispose", help="符号级裁决落库（所属文件 files.owner 或符号 wave_owner 任一命中本 owner 即可写）")
     p_sd.add_argument("--owner", required=True)
     p_sd.add_argument("--symbol", help="symbols.id 列表，逗号或空格分隔")
     p_sd.add_argument("--file", type=int, help="files.id：裁决该文件全部符号")
@@ -1083,6 +1302,25 @@ def main():
                       help="符号全部清零时把所属文件 status 回写为“已裁决”")
     p_sd.add_argument("--wave", default="W2", help="随 auto-file-status 回写的波次标识")
     add_dry_run_arg(p_sd)
+
+    p_sc = sub.add_parser("symbols-claim",
+                          help="符号波认领：未裁决且未认领的符号打 wave_owner，按仓+类别保证并行路互斥")
+    p_sc.add_argument("--owner", required=True, help="符号波标识，如 sweep-host-expand")
+    p_sc.add_argument("--repo", action="append", required=True, metavar="REPO_ID",
+                      help="按仓库过滤，可重复传（必填：认领面按仓划分保证互斥）")
+    p_sc.add_argument("--class", dest="class_", choices=("expand", "inherit", "all"), default="all",
+                      help="符号类别：expand=迁移/重写文件的符号（逐符号真判定），"
+                           "inherit=其余已裁决文件的符号（symbol-sweep 继承面），all=两类都要（默认）")
+    p_sc.add_argument("-n", "--limit", type=int, default=None, help="最多认领多少个符号（默认不限）")
+    p_sc.add_argument("--print-ids", action="store_true", help="打印本次认领的 symbols.id 清单")
+
+    p_sw = sub.add_parser("symbol-sweep",
+                          help="继承类符号批量落裁决（镜像所属文件 disposition；展开类拒绝）")
+    p_sw.add_argument("--owner", required=True, help="本路 symbols-claim 使用的 owner 标识")
+    p_sw.add_argument("--repo", action="append", metavar="REPO_ID",
+                      help="按仓库过滤，可重复传（默认 sweep 本 owner 全部认领面）")
+    p_sw.add_argument("--write", action="store_true",
+                      help="真正落库（默认 dry-run 只预览计数与示例）")
 
     p_verify = sub.add_parser("verify", help="一致性体检（有异常时退出码 3）")
     p_verify.add_argument("--show", type=int, default=50, help="异常清单最多打印多少行（默认 50）")
@@ -1101,7 +1339,9 @@ def main():
 
     args = ap.parse_args()
     os.makedirs(os.path.dirname(DB), exist_ok=True)
-    if args.cmd and args.cmd != "scan":
+    # 增量列/索引统一由 ensure_indexes() 幂等补建（scan 也先补建：
+    # 既有库缺 symbols.wave_owner 时 SCHEMA 尾部的增量索引无法创建）
+    if args.cmd:
         ensure_indexes()
     if args.cmd == "scan":
         scan(args.force)
@@ -1125,6 +1365,10 @@ def main():
         symbols_cmd(args)
     elif args.cmd == "symbol-dispose":
         symbol_dispose(args)
+    elif args.cmd == "symbols-claim":
+        symbols_claim(args)
+    elif args.cmd == "symbol-sweep":
+        symbol_sweep(args)
     elif args.cmd == "verify":
         verify(args)
     elif args.cmd == "release":
