@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' chips-resource:; style-src 'self' 'unsafe-inline'; img-src 'self' data: chips-resource:; font-src 'self' chips-resource:; media-src 'self' chips-resource:; frame-src chips-resource:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>薯片 · 卡片</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+      }
+      #chips-card-root {
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="chips-card-root" aria-label="卡片渲染窗口"></main>
+    <script src="card.js" defer></script>
+  </body>
+</html>

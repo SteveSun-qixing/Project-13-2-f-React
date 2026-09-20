@@ -22,6 +22,7 @@ import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import { HostStartupError, type HostStartupStage } from '../shared/errors.js';
 import type { ShellElectronRuntime } from './electron-adapter.js';
 import { registerIpcChannels } from './ipc-channels.js';
+import { CardWindowOrchestrator } from './card-window-orchestrator.js';
 import { pushSessionPermissions } from './session-resolver.js';
 import { WindowBindings } from './window-bindings.js';
 import { WebContentsBinder } from './web-contents-binder.js';
@@ -72,6 +73,7 @@ export class HostApplication {
   private readonly bindings = new WindowBindings();
   private readonly binder: WebContentsBinder;
   private readonly windowManager: ShellWindowManager;
+  private readonly cardWindows: CardWindowOrchestrator;
   private detachIpc: (() => void) | null = null;
   private detachEvents: (() => void) | null = null;
   private coreStarted = false;
@@ -96,6 +98,11 @@ export class HostApplication {
       registry: this.registry,
       diagnostics: this.diagnostics,
     });
+    this.cardWindows = new CardWindowOrchestrator({
+      windowManager: this.windowManager,
+      registry: this.registry,
+      diagnostics: this.diagnostics,
+    });
   }
 
   /** 当前状态。 */
@@ -106,6 +113,11 @@ export class HostApplication {
   /** 窗口注册表（只读消费）。 */
   get windows(): WindowRegistry {
     return this.registry;
+  }
+
+  /** 卡片 / 帧窗口编排服务（窗口编排域唯一入口，消费见 `main/app.ts` 与文档链路接线波次）。 */
+  get cardWindowOrchestrator(): CardWindowOrchestrator {
+    return this.cardWindows;
   }
 
   /**

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' chips-resource:; style-src 'self' 'unsafe-inline'; img-src 'self' data: chips-resource:; font-src 'self' chips-resource:; media-src 'self' chips-resource:; frame-src chips-resource:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>薯片 · 渲染帧</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        overflow-x: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 节点容器由帧运行时按 host:init 的 FrameNodeInit 声明逐项创建（§6.2）。 -->
+    <div id="chips-frame-nodes"></div>
+    <script src="frame.js" defer></script>
+  </body>
+</html>
