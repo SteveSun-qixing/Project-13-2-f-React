@@ -10,9 +10,9 @@
  * - `requestId` 由 preload 生成并用于关联响应；迟到或格式非法的响应一律拒绝。
  */
 
+import { ChipsError, normalizeError } from '@chips/bridge';
 import { BRIDGE_REQUEST_CHANNEL, SESSION_PERMISSIONS_CHANNEL } from '../protocol/channels.js';
 import { isBridgeResponse, isSessionPermissionsUpdate } from '../protocol/wire.js';
-import { ChipsError, toChipsError } from './chips-error.js';
 import { SessionPermissionCache } from './permission-cache.js';
 import { createResourceHandle, ResourceInvalidationHub, type IResourceHandle } from './resource-handle.js';
 import { SubscriptionRegistry, type ISubscription } from './subscriptions.js';
@@ -89,13 +89,19 @@ export function createPreloadBridge(deps: PreloadBridgeDeps): IPreloadBridge {
       try {
         response = await deps.transport.invoke(BRIDGE_REQUEST_CHANNEL, request);
       } catch (error) {
-        throw toChipsError(error, 'BRIDGE_INTERNAL', '宿主通信失败');
+        throw normalizeError(error, {
+          onDiagnostic: (cause) => {
+            onDiagnostic('能力调用传输失败', {
+              reason: cause instanceof Error ? cause.message : typeof cause,
+            });
+          },
+        });
       }
       if (!isBridgeResponse(response) || response.requestId !== requestId) {
         throw new ChipsError({ code: 'BRIDGE_INTERNAL', message: '能力调用响应格式非法', retryable: false });
       }
       if (!response.ok) {
-        throw new ChipsError(response.error);
+        throw ChipsError.fromPlain(response.error);
       }
       return response.result as TOutput;
     },

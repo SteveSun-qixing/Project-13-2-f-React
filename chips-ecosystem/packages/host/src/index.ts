@@ -281,8 +281,6 @@ export type { HostMainHandle, HostMainOptions } from './main/main.js';
 export { createHostAssembly } from './main/runtime-provider.js';
 export type { HostAssembly, HostRuntimeContext, PalHostContext } from './main/runtime-provider.js';
 
-export { ChipsError, isChipsErrorShape, toChipsError } from './preload/chips-error.js';
-export type { IChipsErrorShape } from './preload/chips-error.js';
 export { createElectronPreloadTransport } from './preload/transport.js';
 export type { ElectronIpcRendererLike, IPreloadTransport } from './preload/transport.js';
 export { SubscriptionRegistry, MAX_PENDING_EVENTS } from './preload/subscriptions.js';

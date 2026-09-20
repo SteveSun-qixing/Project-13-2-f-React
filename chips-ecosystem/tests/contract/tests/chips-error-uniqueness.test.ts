@@ -8,11 +8,9 @@
  * `export class ChipsError` 的分叉（工单024 型漂移）都必须在契约测试面报红
  * （先例：工单013 三方漂移锚定）。
  *
- * host 面：`packages/host/src/preload/chips-error.ts` 仍持有待收口副本
- * （RFC §八 波 E：待 #56 装载器收口后执行）。本锚点按 RFC §八「E 可后置于
- * 本波，锚点先覆盖四包面再扩 host 主进程面」口径，将该文件登记为唯一待收口
- * 例外；波 E 落地删除该副本后，`HOST_PENDING_WAVE_E` 必须同步清空，断言即
- * 自然收敛为「全 packages 各包 src 源码面仅 bridge 一处」的全仓唯一断言。
+ * host 面：`packages/host/src/preload/chips-error.ts` 的本地错误类副本已随实施波 E
+ * 删除并改为 `@chips/bridge` 薄再导出（RFC §3.3 条 5、§5.4）。本锚点自此收敛为「全
+ * packages 各包 src 源码面仅 bridge 一处」的全仓唯一断言，不再有任何待收口例外。
  */
 
 import {
@@ -33,9 +31,6 @@ import { WORKSPACE_ROOT } from '../src/paths.js';
 
 /** 唯一权威定义（RFC §3.2、§4.1）。 */
 const BRIDGE_DEFINITION = 'packages/bridge/src/protocol/errors.ts';
-
-/** 波 E 待收口例外（RFC §八 波 E）：host-preload 副本，随波 E 删除后清空本常量。 */
-const HOST_PENDING_WAVE_E = 'packages/host/src/preload/chips-error.ts';
 
 /** 唯一权威定义的源码级标志（词边界匹配，`ChipsErrorFactory` 等派生名不误报）。 */
 const DEFINITION_PATTERN = /\bexport class ChipsError\b/;
@@ -90,7 +85,7 @@ function statDirSync(dir: string): boolean {
 }
 
 describe('ChipsError 唯一性锚点（工单024 波 F，RFC-ChipsError统一裁定）', () => {
-  it('唯一权威定义：全 packages/*/src 源码面 `export class ChipsError` 仅命中 bridge 定义处（host-preload 为波 E 待收口唯一登记例外）', () => {
+  it('唯一权威定义：全 packages/*/src 源码面 `export class ChipsError` 仅命中 bridge 定义处（全仓唯一，无任何待收口例外）', () => {
     const packages = packagesWithSrc();
     expect(packages.length).toBeGreaterThan(0);
 
@@ -102,16 +97,13 @@ describe('ChipsError 唯一性锚点（工单024 波 F，RFC-ChipsError统一裁
     // 权威定义必须在册且恰为 bridge 协议层一处（RFC §3.2）。
     expect(hits).toContain(BRIDGE_DEFINITION);
 
-    // 除 bridge 定义与波 E 待收口例外外，任何包（含 sdk、cli）不得出现第二份定义。
-    const allowed = new Set([BRIDGE_DEFINITION, HOST_PENDING_WAVE_E]);
-    const forks = hits.filter((file) => !allowed.has(file));
+    // 波 E 落地后 host-preload 副本已删除：全仓唯一断言生效，
+    // 除 bridge 定义外任何包（含 sdk、cli、host）不得出现第二份源码级定义。
+    const forks = hits.filter((file) => file !== BRIDGE_DEFINITION);
     expect(forks).toEqual([]);
 
-    // 待收口例外若仍存在，必须恰为登记路径本身（漂移到 host 其他面同样报红）。
-    const hostHits = hits.filter((file) => file.startsWith('packages/host/src/'));
-    for (const file of hostHits) {
-      expect(file).toBe(HOST_PENDING_WAVE_E);
-    }
+    // host 源码面（含 preload 薄再导出面）：零定义命中（RFC §3.3 条 5、§5.4）。
+    expect(hits.filter((file) => file.startsWith('packages/host/src/'))).toEqual([]);
 
     // sdk 与 cli 主消费面：零定义命中（薄再导出面，RFC §3.3 条 1/4）。
     expect(scanPackageSrc('sdk')).toEqual([]);

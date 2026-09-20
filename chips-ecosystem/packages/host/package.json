@@ -19,6 +19,7 @@
     "clean": "node ./scripts/clean.mjs"
   },
   "dependencies": {
+    "@chips/bridge": "workspace:*",
     "@chips/ui": "workspace:*",
     "yaml": "2.8.2"
   },

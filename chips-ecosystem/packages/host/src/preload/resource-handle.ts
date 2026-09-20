@@ -12,11 +12,11 @@
  * - `state` 为创建时快照 + 本地状态机推进（contextBridge 不支持动态 getter）。
  */
 
+import { ChipsError, normalizeError } from '@chips/bridge';
 import { BRIDGE_RESOURCE_CHANNEL } from '../protocol/channels.js';
 import { resourceErrorMessage } from '../protocol/resource-error.js';
 import { parseResourceUri } from '../protocol/resource-uri.js';
 import { isResourceControlResponse } from '../protocol/wire.js';
-import { ChipsError, toChipsError } from './chips-error.js';
 import type { SessionPermissionCache } from './permission-cache.js';
 import type { ISubscription } from './subscriptions.js';
 import type { IPreloadTransport } from './transport.js';
@@ -265,7 +265,7 @@ export function createResourceHandle(uri: string, deps: ResourceHandleDeps): IRe
           });
         }
         if (!response.ok) {
-          throw new ChipsError(response.error);
+          throw ChipsError.fromPlain(response.error);
         }
         if (response.metadata === null) {
           throw new ChipsError({
@@ -280,7 +280,14 @@ export function createResourceHandle(uri: string, deps: ResourceHandleDeps): IRe
         metadata = await openPromise;
       } catch (error) {
         openPromise = null;
-        throw toChipsError(error);
+        throw normalizeError(error, {
+          onDiagnostic: (cause) => {
+            deps.onDiagnostic('资源打开失败', {
+              uri,
+              reason: cause instanceof Error ? cause.message : typeof cause,
+            });
+          },
+        });
       }
     }
     return openPromise;
