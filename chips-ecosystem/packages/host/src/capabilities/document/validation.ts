@@ -19,7 +19,7 @@
 
 import type { DocumentKind, DocumentPart, DocumentValue, IDocumentReadRange } from './contract.js';
 import { DOCUMENT_CHANNEL_ERROR_CODES, DOCUMENT_BUSINESS_ERROR_CODES, documentError } from './errors.js';
-import type { IDocumentErrorDetails } from './errors.js';
+import type { DocumentCapabilityError, IDocumentErrorDetails } from './errors.js';
 import { isSafePackagePath } from './digest.js';
 
 /** 卡片结构节点 ID / 箱子条目 ID / 稳定文档标识：10 位 Base62（`05-ID生成规范` §一、`01-卡片文件格式` §5.3、`02-箱子文件格式` §5.3）。 */
@@ -88,14 +88,18 @@ function asInputRecord(capabilityId: string, input: unknown): Record<string, unk
   return input;
 }
 
-/** 读取并校验 `documentId` 字段。 */
-export function requireDocumentId(capabilityId: string, input: unknown): string {
-  const record = asInputRecord(capabilityId, input);
+/** 读取并校验 `documentId` 字段（对象形态与未声明字段已由 {@link asInputRecord} 把关）。 */
+function readDocumentIdField(capabilityId: string, record: Record<string, unknown>): string {
   const documentId = record.documentId;
   if (typeof documentId !== 'string' || documentId.length === 0) {
     throw invalidInput(capabilityId, 'documentId 必须是非空字符串');
   }
   return documentId;
+}
+
+/** 读取并校验 `documentId` 输入（`document:save` 的唯一必填字段；服务侧复用同一守卫）。 */
+export function requireDocumentId(capabilityId: string, input: unknown): string {
+  return readDocumentIdField(capabilityId, asInputRecord(capabilityId, input));
 }
 
 /** 读取可选 `nodeId` 字段（存在即须为非空字符串）。 */

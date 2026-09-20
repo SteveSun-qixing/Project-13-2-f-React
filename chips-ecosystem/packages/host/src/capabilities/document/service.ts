@@ -46,6 +46,7 @@ import {
   asDocumentCapabilityError,
   documentError,
 } from './errors.js';
+import type { DocumentCapabilityError } from './errors.js';
 import {
   comparePackagePath,
   computeFileDigest,
@@ -55,10 +56,11 @@ import {
 } from './digest.js';
 import type { ISourceFingerprint } from './digest.js';
 import type {
-  IDocumentHandle,
   IDocumentParseOutcome,
+  IDocumentSerializeRequest,
   IDocumentSerializedMember,
   IDocumentServiceDependencies,
+  IResolvedDocumentSource,
 } from './ports.js';
 import { createDocumentSessionStore } from './session-store.js';
 import type { IDocumentRecord, IDocumentSession } from './session-store.js';
@@ -69,6 +71,7 @@ import {
   assertSerializedMemberPaths,
   assertWriteInput,
   cardStructureNodeIds,
+  isPlainRecord,
   readArrayField,
   requireDocumentId,
   validateEntriesSlice,
@@ -332,64 +335,101 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     return { digest: computeFileDigest(bytes), size: bytes.byteLength };
   }
 
+  /** 声明会话身份：同会话内不同来源解析出同一稳定标识即冲突（§3.1 步骤 3）。 */
+  function claimSessionIdentityOrThrow(
+    ctx: IDocumentCapabilityContext,
+    documentId: string,
+    managedUri: string
+  ): void {
+    if (store.claimSessionIdentity(ctx.sessionId, documentId, managedUri) === 'conflict') {
+      throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.idConflict, {
+        details: { documentId, source: managedUri, capabilityId: DOCUMENT_CAPABILITY_IDS.open },
+      });
+    }
+  }
+
+  /**
+   * 建立文档记录（§3.1 步骤 2～5）：解析到 L0 → 声明身份 → 注册资源作用域 → 建立记录。
+   *
+   * @remarks 任一步失败都不得留下半开状态：身份声明后作用域注册失败即撤回声明并释放句柄；
+   * 显式 `kind` 与解析结果矛盾在建立记录前按解析器同码拒绝（§10.3 同场景单码）。
+   */
+  async function establishRecord(
+    resolved: IResolvedDocumentSource,
+    requestedKind: DocumentKind | null,
+    ctx: IDocumentCapabilityContext
+  ): Promise<IDocumentRecord> {
+    const parsed = await deps.parser.open({
+      localPath: resolved.localPath,
+      kind: requestedKind ?? kindHintFromManagedUri(resolved.managedUri),
+      signal: ctx.signal,
+    });
+    if (requestedKind !== null && requestedKind !== parsed.kind) {
+      await deps.parser.release(parsed.handle);
+      throw documentError(DOCUMENT_PARSER_ERROR_CODES.formatUnknown, {
+        details: { capabilityId: DOCUMENT_CAPABILITY_IDS.open, source: resolved.managedUri, kind: requestedKind },
+      });
+    }
+    claimSessionIdentityOrThrow(ctx, parsed.documentId, resolved.managedUri);
+    try {
+      await deps.scope.registerScope({
+        documentId: parsed.documentId,
+        managedUri: resolved.managedUri,
+        kind: parsed.kind,
+      });
+    } catch (error: unknown) {
+      store.withdrawSessionIdentity(ctx.sessionId, parsed.documentId, resolved.managedUri);
+      await deps.parser.release(parsed.handle);
+      throw asDocumentCapabilityError(error);
+    }
+    const record = store.openRecord({
+      managedUri: resolved.managedUri,
+      localPath: resolved.localPath,
+      form: resolved.form,
+      kind: parsed.kind,
+      documentId: parsed.documentId,
+      title: parsed.title,
+      handle: parsed.handle,
+      baselineMetadata: parsed.metadata,
+      baselineDiagnostics: parsed.diagnostics,
+      baselineFingerprint: parsed.fingerprint,
+    });
+    if (record.handle !== parsed.handle) {
+      // 并发打开同一来源：记录已由先到的调用建立，本调用的冗余句柄即刻回收（§3.5 单记录单句柄）。
+      await deps.parser.release(parsed.handle);
+    }
+    return record;
+  }
+
+  /** 记录建立后步骤失败时的回收：撤回身份声明、移除无会话记录并释放句柄（§4.2 不留半开状态）。 */
+  async function rollbackFreshRecord(record: IDocumentRecord, ctx: IDocumentCapabilityContext): Promise<void> {
+    store.withdrawSessionIdentity(ctx.sessionId, record.documentId, record.managedUri);
+    if (store.discardRecord(record)) {
+      await deps.parser.release(record.handle);
+    }
+  }
+
   async function executeOpen(input: IDocumentOpenInput, ctx: IDocumentCapabilityContext): Promise<IDocumentOpenOutput> {
     const checked = assertOpenInput(input);
     await authorize(DOCUMENT_CAPABILITY_IDS.open, ctx);
     const resolved = await deps.scope.normalizeSource(checked.source, ctx);
-    let record = store.findRecord(resolved.managedUri);
-    let created: IDocumentParseOutcome | null = null;
-    if (record === undefined) {
-      const parsed = await deps.parser.open({
-        localPath: resolved.localPath,
-        kind: checked.kind ?? kindHintFromManagedUri(resolved.managedUri),
-        signal: ctx.signal,
-      });
-      const claim = store.claimSessionIdentity(ctx.sessionId, parsed.documentId, resolved.managedUri);
-      if (claim === 'conflict') {
-        await deps.parser.release(parsed.handle);
-        throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.idConflict, {
-          details: { documentId: parsed.documentId, source: resolved.managedUri },
-        });
-      }
-      try {
-        await deps.scope.registerScope({
-          documentId: parsed.documentId,
-          managedUri: resolved.managedUri,
-          kind: parsed.kind,
-        });
-      } catch (error: unknown) {
-        store.withdrawSessionIdentity(ctx.sessionId, parsed.documentId, resolved.managedUri);
-        await deps.parser.release(parsed.handle);
-        throw asDocumentCapabilityError(error);
-      }
-      created = parsed;
-      record = store.openRecord({
-        managedUri: resolved.managedUri,
-        localPath: resolved.localPath,
-        form: resolved.form,
-        kind: parsed.kind,
-        documentId: parsed.documentId,
-        title: parsed.title,
-        handle: parsed.handle,
-        baselineMetadata: parsed.metadata,
-        baselineDiagnostics: parsed.diagnostics,
-        baselineFingerprint: parsed.fingerprint,
-      });
-    }
-    assertKindMatchesRequest(DOCUMENT_CAPABILITY_IDS.open, checked.kind, record);
-    const fingerprint = created !== null ? created.fingerprint : record.baselineFingerprint;
-    const identityClaim = store.claimSessionIdentity(ctx.sessionId, record.documentId, record.managedUri);
-    if (identityClaim === 'conflict') {
-      if (created !== null) {
-        store.discardRecord(record);
-        await deps.parser.release(created.handle);
-      }
-      throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.idConflict, {
-        details: { documentId: record.documentId, source: record.managedUri },
-      });
+    const existing = store.findRecord(resolved.managedUri);
+    const record = existing ?? (await establishRecord(resolved, checked.kind, ctx));
+    if (existing !== undefined) {
+      // 既有记录：显式 `kind` 与解析结果矛盾按解析器同码拒绝；随后声明本会话身份（§3.1）。
+      assertKindMatchesRequest(checked.kind, record);
+      claimSessionIdentityOrThrow(ctx, record.documentId, record.managedUri);
     }
     const isNewSession = !record.sessions.has(ctx.sessionId);
-    store.getOrCreateSession(record, ctx.sessionId);
+    try {
+      store.getOrCreateSession(record, ctx.sessionId);
+    } catch (error: unknown) {
+      // §4.6 `closing` 竞态：本次新建的记录不得留下半开状态。
+      if (existing === undefined) {
+        await rollbackFreshRecord(record, ctx);
+      }
+      throw asDocumentCapabilityError(error);
+    }
     if (isNewSession) {
       await publish(DOCUMENT_EVENT_IDS.opened, { uri: record.managedUri, kind: record.kind, title: record.title });
     }
@@ -398,17 +438,22 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       source: record.managedUri,
       kind: record.kind,
       title: record.title,
-      digest: computeQuickFingerprintDigest(fingerprint),
+      digest: computeQuickFingerprintDigest(record.baselineFingerprint),
     };
   }
 
   /** 显式 `kind` 与既有记录的解析结果矛盾时按解析器同码确定性拒绝（§3.1 步骤 2）。 */
-  function assertKindMatchesRequest(capabilityId: DocumentCapabilityId, requested: DocumentKind | null, record: IDocumentRecord): void {
+  function assertKindMatchesRequest(requested: DocumentKind | null, record: IDocumentRecord): void {
     if (requested === null || requested === record.kind) {
       return;
     }
     throw documentError(DOCUMENT_PARSER_ERROR_CODES.formatUnknown, {
-      details: { capabilityId, documentId: record.documentId, source: record.managedUri, kind: requested },
+      details: {
+        capabilityId: DOCUMENT_CAPABILITY_IDS.open,
+        documentId: record.documentId,
+        source: record.managedUri,
+        kind: requested,
+      },
     });
   }
 
@@ -432,7 +477,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
         return {
           part: 'structure',
           value,
-          diagnostics: overwritten ? (record.lazy.structureDiagnostics ?? []) : (record.lazy.structureDiagnostics ?? []),
+          // 会话覆盖层是模型自有的完整切片，不再附带解析器基线诊断（§4.3）。
+          diagnostics: overwritten ? [] : (record.lazy.structureDiagnostics ?? []),
         };
       }
       case 'content': {
@@ -491,15 +537,14 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   async function assertWritable(
     record: IDocumentRecord,
     session: IDocumentSession,
-    capabilityId: DocumentCapabilityId,
-    signal: AbortSignal
+    capabilityId: DocumentCapabilityId
   ): Promise<void> {
     if (record.leaseHolderSessionId !== null && record.leaseHolderSessionId !== session.sessionId) {
       throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.writeConflict, {
         details: { capabilityId, documentId: record.documentId, source: record.managedUri },
       });
     }
-    const currentFingerprint = await deps.parser.fingerprint(record.localPath, signal);
+    const currentFingerprint = await deps.parser.fingerprint(record.localPath);
     if (!sourceFingerprintsEqual(currentFingerprint, session.baselineFingerprint)) {
       throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.sourceChanged, {
         details: { capabilityId, documentId: record.documentId, source: record.managedUri },
@@ -513,8 +558,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     const { record, session } = locateSession(DOCUMENT_CAPABILITY_IDS.write, checked.documentId, ctx);
     return store.enqueueRecordTask(record, async () => {
       assertPartCombination(record.kind, checked.part, checked.nodeId, null, DOCUMENT_CAPABILITY_IDS.write);
-      await assertWritable(record, session, DOCUMENT_CAPABILITY_IDS.write, ctx.signal);
-      applyWrite(record, session, checked);
+      await assertWritable(record, session, DOCUMENT_CAPABILITY_IDS.write);
+      await applyWrite(record, session, checked, ctx.signal);
       // 写入只改内存模型：不落盘、不发布事件（§4.2）；`revision` 每次成功写入前进 1（§3.4）。
       session.revision += 1;
       session.dirty = true;
@@ -525,11 +570,12 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   }
 
   /** 把已校验的切片写入会话覆盖层（整体替换语义，§4.4）。 */
-  function applyWrite(
+  async function applyWrite(
     record: IDocumentRecord,
     session: IDocumentSession,
-    checked: { part: DocumentPart; nodeId: string | null; value: DocumentValue | null }
-  ): void {
+    checked: { part: DocumentPart; nodeId: string | null; value: DocumentValue | null },
+    signal: AbortSignal
+  ): Promise<void> {
     const { part, nodeId, value } = checked;
     switch (part) {
       case 'metadata': {
@@ -555,9 +601,12 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
           throw invalidSliceValue(part, 'entries 切片必须是数组');
         }
         validateEntriesSlice(value);
-        // entries 与 structure 同源（`.box/structure.yaml`）：整体替换 entries 并并入结构覆盖层。
-        const structure = session.overlays.structure ?? record.lazy.structure;
-        const merged: Record<string, unknown> = { ...(structure ?? {}), entries: value };
+        // entries 与 structure 同源（`.box/structure.yaml`）：整体替换 entries 并并入**当前有效**结构切片。
+        const structure = await ensureStructure(record, session, signal);
+        if (!isPlainRecord(structure)) {
+          throw invalidSliceValue('structure', '箱子结构切片必须是对象');
+        }
+        const merged: Record<string, unknown> = { ...structure, entries: value };
         validateStructureSlice('box', merged);
         session.overlays.structure = merged;
         session.dirtyParts.add('entries');
@@ -577,11 +626,11 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
         }
         if (nodeId === null) {
           throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.partUnsupported, {
-            details: { part: 'content', reason: '卡片 content 切片必须携带 nodeId' },
+            details: { capabilityId: DOCUMENT_CAPABILITY_IDS.write, part: 'content', reason: '卡片 content 切片必须携带 nodeId' },
           });
         }
         if (value === null) {
-          assertDeletableContentMember(record, session, nodeId);
+          await assertDeletableContentMember(record, session, nodeId, signal);
           session.overlays.contentNodes.set(nodeId, null);
           session.dirtyParts.add('content');
           return;
@@ -596,20 +645,25 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     }
   }
 
-  /** 切片值形态非法（契约 §7.3 的 `value` 取值约束）。 */
-  function invalidSliceValue(part: DocumentPart, reason: string): never {
-    throw documentError(DOCUMENT_CHANNEL_ERROR_CODES.invalidInput, {
+  /** 切片值形态非法（契约 §7.3 的 `value` 取值约束；调用点以 `throw invalidSliceValue(...)` 表达拒绝）。 */
+  function invalidSliceValue(part: DocumentPart, reason: string): DocumentCapabilityError {
+    return documentError(DOCUMENT_CHANNEL_ERROR_CODES.invalidInput, {
       details: { capabilityId: DOCUMENT_CAPABILITY_IDS.write, part, reason },
     });
   }
 
-  /** 删除成员的已知性核对（结构引用、基线缓存或覆盖层任一存在即可）。 */
-  function assertDeletableContentMember(record: IDocumentRecord, session: IDocumentSession, nodeId: string): void {
-    const structure = session.overlays.structure ?? record.lazy.structure;
+  /** 删除成员的已知性核对（当前有效结构引用、记录级缓存或覆盖层任一存在即可）。 */
+  async function assertDeletableContentMember(
+    record: IDocumentRecord,
+    session: IDocumentSession,
+    nodeId: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    const structure = await ensureStructure(record, session, signal);
     const known =
       record.lazy.contents.has(nodeId) ||
       session.overlays.contentNodes.get(nodeId) !== undefined ||
-      (structure !== undefined && cardStructureNodeIds(structure).includes(nodeId));
+      cardStructureNodeIds(structure).includes(nodeId);
     if (!known) {
       throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.partUnsupported, {
         details: { documentId: record.documentId, part: 'content', nodeId, reason: '删除目标不是已知内容成员' },
@@ -628,7 +682,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
         record.lastSavedDigest = recomputed.digest;
         return { source: record.managedUri, digest: recomputed.digest };
       }
-      await assertWritable(record, session, DOCUMENT_CAPABILITY_IDS.save, ctx.signal);
+      await assertWritable(record, session, DOCUMENT_CAPABILITY_IDS.save);
       const built = await buildSerializeRequest(record, session, [...session.dirtyParts], ctx.signal);
       let members: readonly IDocumentSerializedMember[];
       try {
@@ -649,7 +703,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       } catch (error: unknown) {
         throw saveFailed(record, error);
       }
-      const committedFingerprint = await rebuildAfterCommit(record, session, ctx.signal);
+      const committedFingerprint = await rebuildAfterCommit(record, ctx.signal);
       const recomputed = await recomputeDigestFromDisk(record);
       record.lastSavedDigest = recomputed.digest;
       finalizeSavedSession(record, session, committedFingerprint, recomputed.digest);
@@ -672,12 +726,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
    * 本次保存按 `DOCUMENT_SAVE_FAILED` 返回、`dirty` 保持（§4.2 失败语义），
    * 磁盘与基线指纹不一致由下一次写入/保存以 `DOCUMENT_SOURCE_CHANGED` 暴露（§7.2 恢复路径是重新打开）。
    */
-  async function rebuildAfterCommit(
-    record: IDocumentRecord,
-    session: IDocumentSession,
-    signal: AbortSignal
-  ): Promise<ISourceFingerprint> {
-    const newFingerprint = await deps.parser.fingerprint(record.localPath, signal);
+  async function rebuildAfterCommit(record: IDocumentRecord, signal: AbortSignal): Promise<ISourceFingerprint> {
+    const newFingerprint = await deps.parser.fingerprint(record.localPath);
     let reloaded: IDocumentParseOutcome;
     try {
       reloaded = await deps.parser.open({ localPath: record.localPath, kind: record.kind, signal });
@@ -728,7 +778,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   }
 
   /** 落盘链路失败统一归口 `DOCUMENT_SAVE_FAILED`，底层登记码写入 `details.cause`（§10.3）。 */
-  function saveFailed(record: IDocumentRecord, error: unknown): Error {
+  function saveFailed(record: IDocumentRecord, error: unknown): DocumentCapabilityError {
     const normalized = asDocumentCapabilityError(error);
     return documentError(DOCUMENT_BUSINESS_ERROR_CODES.saveFailed, {
       details: { documentId: record.documentId, source: record.managedUri, cause: normalized.code },
