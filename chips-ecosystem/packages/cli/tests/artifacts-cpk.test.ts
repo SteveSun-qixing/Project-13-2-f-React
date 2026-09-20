@@ -1056,14 +1056,66 @@ describe('packCpk（§7.1 打包）', () => {
     ]);
   });
 
-  it('打包输入含嵌套归档（旧产物未清理）时拒绝', () => {
+  it('打包输入含嵌套归档（非本包输出目录归属）时拒绝（[插件包格式] §2.6）', () => {
     expectCpkError(
       () =>
         pack(baseMembers(), {
+          extra: { '/plugins/hello-basecard/assets/bundle.zip': text('PK') },
+        }),
+      'CPK_ARCHIVE_INVALID',
+      '嵌套归档'
+    );
+    // 显式 `--out` 指向工程外时，`dist/` 内任何归档都不属本次输出，仍拒绝。
+    expectCpkError(
+      () =>
+        pack(baseMembers(), {
+          out: '/elsewhere/cpks',
           extra: { '/plugins/hello-basecard/dist/hello-basecard-1.0.0.cpk': text('PK') },
         }),
       'CPK_ARCHIVE_INVALID',
       '嵌套归档'
     );
+    // 输出目录内的非本包同族归档（外来产物）仍拒绝。
+    expectCpkError(
+      () =>
+        pack(baseMembers(), {
+          extra: { '/plugins/hello-basecard/dist/foreign-2.3.4.cpk': text('PK') },
+        }),
+      'CPK_ARCHIVE_INVALID',
+      '嵌套归档'
+    );
+  });
+
+  it('缺省 --out（<dir>/dist）连续两次打包：本包历史输出被排除且字节级一致（§3.5.2，工单033 缺陷③）', () => {
+    const fileSystem = packFixture(baseMembers());
+    const first = packCpk({
+      fileSystem,
+      dir: '/plugins/hello-basecard',
+      sign: false,
+      catalog: createDocumentedPermissionCatalog(),
+    });
+    expect(first.archivePath).toBe('/plugins/hello-basecard/dist/hello-basecard-1.0.0.cpk');
+    const second = packCpk({
+      fileSystem,
+      dir: '/plugins/hello-basecard',
+      sign: false,
+      catalog: createDocumentedPermissionCatalog(),
+    });
+    expect(second.memberCount).toBe(first.memberCount);
+    expect(second.digest).toBe(first.digest);
+    expect(
+      Buffer.from(fileSystem.readBinary(first.archivePath)).equals(
+        fileSystem.readBinary(second.archivePath)
+      )
+    ).toBe(true);
+    const paths = readZipStore(fileSystem.readBinary(second.archivePath)).map(
+      (entry) => entry.path
+    );
+    expect(paths).toEqual([
+      'assets/icons/hello.svg',
+      'dist/index.js',
+      'manifest.yaml',
+      'render.js',
+    ]);
   });
 });

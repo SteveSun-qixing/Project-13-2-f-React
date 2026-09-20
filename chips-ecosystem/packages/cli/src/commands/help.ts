@@ -6,9 +6,9 @@
  * - 未知命令返回 `CLI_COMMAND_NOT_FOUND`（退出码 3）。
  */
 
-import type { ICliCommandView } from '../client/types.js';
+import type { ICliCommandResolveResult, ICliCommandView } from '../client/types.js';
 import type { IParameterDeclaration, IParameterSet } from '../args/types.js';
-import { cliError } from '../errors.js';
+import { cliError, toCliError } from '../errors.js';
 import type { ICommandResult } from '../output/result.js';
 import type { ICliCommandDefinition, ICommandContext } from './types.js';
 
@@ -152,7 +152,20 @@ export function createHelpCommand(
         };
       }
 
-      const resolved = await context.client.cliCommand.resolve({ commandPath: requested });
+      let resolved: ICliCommandResolveResult;
+      try {
+        resolved = await context.client.cliCommand.resolve({ commandPath: requested });
+      } catch (error) {
+        // §3.1.1 未知命令帮助返回 `CLI_COMMAND_NOT_FOUND`（3）：无承载时索引不可用，
+        // 目标必非已注册插件命令——先行定性为未知命令（工单033 缺陷②），
+        // 其余失败（超时等真「目标不可用」之外的类别）原样透传。
+        if (toCliError(error).code === 'CLI_TARGET_UNAVAILABLE') {
+          throw cliError('CLI_COMMAND_NOT_FOUND', `未知命令：${requested.join(' ')}`, {
+            commandPath: [...requested],
+          });
+        }
+        throw error;
+      }
       if (resolved.command === undefined) {
         if (resolved.conflicts.length > 0) {
           throw cliError('CLI_COMMAND_CONFLICT', `命令路径存在冲突：${requested.join(' ')}`, {

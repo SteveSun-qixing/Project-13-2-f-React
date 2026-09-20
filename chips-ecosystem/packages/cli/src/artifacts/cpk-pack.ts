@@ -6,7 +6,7 @@
  */
 
 import { createPrivateKey, sign as signValue } from 'node:crypto';
-import { basename, join } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { cliError } from '../errors.js';
 import type { ICliArtifactPackResult } from '../client/types.js';
@@ -48,27 +48,69 @@ export interface ICpkPackOptions {
   readonly platformVersion?: string;
 }
 
+/**
+ * 本包历史输出的归属判定（工单033 缺陷③，[CLI 完整参考] §3.5.2 可复现承诺）：
+ * 输出目录位于包根白名单子树内时（缺省 `<dir>/dist` 即如此），其中与本包归档
+ * 命名同族（`<名称>-<版本>.cpk`）的顶层 `.cpk` 文件是本包上一次打包的输出，
+ * 不属于本次输入，收集时排除；其余嵌套归档仍按 [插件包格式] §2.6 拒绝。
+ *
+ * @returns 输出目录相对 `dir` 的 POSIX 目录前缀（如 `dist`）；输出目录不在
+ * `dir` 子树内（或与之重合到包根）时返回 `undefined`，不排除任何输入。
+ */
+function outputDirectoryPrefix(dir: string, outDirectory: string): string | undefined {
+  const rel = relative(resolve(dir), resolve(outDirectory));
+  if (rel.length === 0 || rel.startsWith('..') || isAbsolute(rel) || /^[A-Za-z]:/.test(rel)) {
+    return undefined;
+  }
+  return rel.split(sep).join('/');
+}
+
+/** 判定 `relativePath`（POSIX，相对 `dir`）是否为输出目录内的本包历史归档。 */
+function isHistoricalPackOutput(relativePath: string, prefix: string, name: string): boolean {
+  const lastSlash = relativePath.lastIndexOf('/');
+  if (relativePath.slice(0, lastSlash) !== prefix) {
+    return false;
+  }
+  const fileName = relativePath.slice(lastSlash + 1);
+  return (
+    fileName.startsWith(`${name}-`) &&
+    fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase() === 'cpk'
+  );
+}
+
 /** 按包根白名单收集打包输入（POSIX 相对路径 → 字节内容）。 */
-function collectPackInput(fileSystem: IFileSystemPort, dir: string): Map<string, Uint8Array> {
+function collectPackInput(
+  fileSystem: IFileSystemPort,
+  dir: string,
+  historicalOutputPrefix: string | undefined
+): Map<string, Uint8Array> {
   const members = new Map<string, Uint8Array>();
-  for (const name of PACK_ROOT_FILES) {
-    const path = `${dir}/${name}`;
+  const name = basename(dir);
+  for (const fileName of PACK_ROOT_FILES) {
+    const path = `${dir}/${fileName}`;
     if (fileSystem.kind(path) === 'file') {
-      members.set(name, fileSystem.readBinary(path));
+      members.set(fileName, fileSystem.readBinary(path));
     }
   }
-  for (const name of PACK_ROOT_DIRECTORIES) {
-    const path = `${dir}/${name}`;
+  for (const directoryName of PACK_ROOT_DIRECTORIES) {
+    const path = `${dir}/${directoryName}`;
     if (fileSystem.kind(path) !== 'directory') {
       continue;
     }
     for (const [relative, data] of collectDirectory(fileSystem, path)) {
-      members.set(`${name}/${relative}`, data);
+      members.set(`${directoryName}/${relative}`, data);
     }
   }
-  for (const path of members.keys()) {
+  for (const path of [...members.keys()]) {
     const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
     if (path.includes('.') && NESTED_ARCHIVE_EXTENSIONS.includes(`.${extension}`)) {
+      if (
+        historicalOutputPrefix !== undefined &&
+        isHistoricalPackOutput(path, historicalOutputPrefix, name)
+      ) {
+        members.delete(path);
+        continue;
+      }
       throw cliError(
         'CPK_ARCHIVE_INVALID',
         `打包输入包含嵌套归档（通常是未清理的旧产物）：${path}`,
@@ -86,7 +128,8 @@ export function packCpk(options: ICpkPackOptions): ICliArtifactPackResult {
   if (fileSystem.kind(dir) !== 'directory') {
     throw cliError('CLI_PATH_INVALID', `插件工程目录不存在或不是目录：${dir}`, { path: dir });
   }
-  const members = collectPackInput(fileSystem, dir);
+  const outDirectory = options.out ?? join(dir, 'dist');
+  const members = collectPackInput(fileSystem, dir, outputDirectoryPrefix(dir, outDirectory));
 
   const manifestEntry = members.get('manifest.yaml');
   if (manifestEntry === undefined) {
@@ -137,7 +180,6 @@ export function packCpk(options: ICpkPackOptions): ICliArtifactPackResult {
   }
 
   const archive = writeZipStore(entries);
-  const outDirectory = options.out ?? join(dir, 'dist');
   fileSystem.ensureDirectory(outDirectory);
   const name = basename(dir);
   const archivePath = join(outDirectory, `${name}-${manifest.version}.cpk`);

@@ -6,7 +6,8 @@
  * 错误统一归一为 `ChipsError` 并按 §2.5 映射退出码。
  */
 
-import { CliInterruptedError, exitCodeForError, toCliError } from './errors.js';
+import { CliInterruptedError, cliError, exitCodeForError, toCliError } from './errors.js';
+import type { ChipsError } from './errors.js';
 import { createNodeFileSystem, type IFileSystemPort } from './args/filesystem.js';
 import {
   parseGlobalOptions,
@@ -27,7 +28,7 @@ import type {
 } from './commands/types.js';
 import { createHelpCommand } from './commands/help.js';
 import { executePluginCommand } from './plugin-cli/execute.js';
-import { matchCommand } from './plugin-cli/index.js';
+import { FIXED_COMMAND_ROOTS, matchCommand } from './plugin-cli/index.js';
 import { runTui } from './tui/run.js';
 
 /** 运行依赖；命令级测试注入 `client` 与内存出口。 */
@@ -139,10 +140,31 @@ export async function runEntry(
     return runFixedCommand(base, builtin.definition, builtin.remaining, globals, startedAt);
   }
 
+  // §2.3 固定根先行定性（工单033 缺陷②）：插件命令路径首段不得命中固定根（含历史保留名
+  // `host`，判定不依赖任何索引），因此命中固定根又未匹配固定命令树的输入必然无插件命令
+  // 可匹配——先于插件分支定性为 `CLI_COMMAND_NOT_FOUND`（退出码 3），与承载环境无关。
+  if (FIXED_COMMAND_ROOTS.some((root) => root.toLowerCase() === (rest[0] ?? '').toLowerCase())) {
+    return reportFailure(
+      createContext(base, globals, rest.join(' '), []),
+      pluginPathNotFound(rest),
+      startedAt
+    );
+  }
+
   // 插件命令失败保留插件上下文（命令 ID、命令路径、目标类型），不追加无上下文的顶层失败记录（§2.8.2）。
   let pluginFields: IOperationFields | undefined;
   try {
-    const index = await deps.client.cliCommand.list();
+    let index: Awaited<ReturnType<ICliClient['cliCommand']['list']>>;
+    try {
+      index = await deps.client.cliCommand.list();
+    } catch (error) {
+      // 发现阶段的承载缺失即「无已启用插件命令」：无匹配可定性，按 §2.3 回 3；
+      // 真「目标不可用」（6）语义保留在匹配之后的执行链路上（目标触达失败等，§2.6）。
+      if (toCliError(error).code === 'CLI_TARGET_UNAVAILABLE') {
+        throw pluginPathNotFound(rest);
+      }
+      throw error;
+    }
     const match = matchCommand(index.commands, rest, {
       ...(globals.pluginId === undefined ? {} : { pluginId: globals.pluginId }),
     });
@@ -177,6 +199,16 @@ export async function runEntry(
       pluginFields
     );
   }
+}
+
+/**
+ * 插件命令路径不可发现的定性错误：命中固定根、或发现阶段无承载可用时，
+ * 无任何可匹配命令，按 §2.3「无匹配时返回 `CLI_COMMAND_NOT_FOUND`（退出码 3）」。
+ */
+function pluginPathNotFound(argv: readonly string[]): ChipsError {
+  return cliError('CLI_COMMAND_NOT_FOUND', `未找到匹配的命令路径：${argv.join(' ')}`, {
+    argv: [...argv],
+  });
 }
 
 function createContext(

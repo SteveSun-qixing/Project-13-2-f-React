@@ -7,8 +7,9 @@
  * 正负矩阵（§2.5 退出码 + §2.6 错误信封 + [插件包格式] §五 五阶段）。
  *
  * 口径说明：
- * - 打包确定性用两个工程外显式 `--out` 目录对比字节 sha（默认 `--out` 复读自身
- *   产物被打包的旧 `.cpk` 触发嵌套归档拒绝——工单033 缺陷③，不为该面写用例）；
+ * - 打包确定性双形覆盖：两个工程外显式 `--out` 目录对比字节 sha，另加「缺省
+ *   `--out`（`<dir>/dist`）连续两次 pack 字节级一致」用例（工单033 缺陷③收口，
+ *   §3.5.2 承诺形）；
  * - 安装链宿主驱动段：`plugin install` 在无承载进程返回 `CLI_TARGET_UNAVAILABLE / 6`
  *   为定性边界断言（依据《波E装载器收口》与波次规划「宿主驱动段随集成波」），
  *   真实装载-启用-运行闭环归集成波；
@@ -213,6 +214,25 @@ describe('金链路：生成 → 构建 → 签名打包 → 校验（正向面�
     expect(sha256File(path.join(dirA, 'chain-card-0.1.0.cpk'))).toBe(
       sha256File(path.join(dirB, 'chain-card-0.1.0.cpk'))
     );
+  });
+
+  it('缺省 --out（<dir>/dist）连续两次 pack：历史输出归属排除、字节级可复现（§3.5.2、§7.2，工单033 缺陷③收口）', () => {
+    const first = runChips(['--json', 'plugin', 'pack', '--dir', projectDir], {
+      cwd: workspace.root,
+    });
+    expect(first.exitCode, `首次缺省 pack 失败：${first.stdout}${first.stderr}`).toBe(0);
+    const firstResult = expectSuccessJson(first) as IPackJson;
+    expect(firstResult.archivePath).toBe(path.join(projectDir, 'dist', 'chain-card-0.1.0.cpk'));
+    const firstSha = sha256File(firstResult.archivePath);
+
+    const second = runChips(['--json', 'plugin', 'pack', '--dir', projectDir], {
+      cwd: workspace.root,
+    });
+    expect(second.exitCode, `第二次缺省 pack 失败：${second.stdout}${second.stderr}`).toBe(0);
+    const secondResult = expectSuccessJson(second) as IPackJson;
+    expect(secondResult.memberCount).toBe(firstResult.memberCount);
+    expect(secondResult.digest).toBe(firstResult.digest);
+    expect(sha256File(secondResult.archivePath)).toBe(firstSha);
   });
 });
 

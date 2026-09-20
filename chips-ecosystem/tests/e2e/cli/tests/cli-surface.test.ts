@@ -1,28 +1,39 @@
 /**
- * CLI 进程面与错误模型（《06-开发与运维/07-CLI完整参考》§2.1、§2.2、§2.6、§3.1、§3.9）。
+ * CLI 进程面与错误模型（《06-开发与运维/07-CLI完整参考》§2.1、§2.2、§2.3、§2.6、§3.1、§3.9）。
  *
  * 全部经真实子进程断言：退出码 + stdout 错误信封 `code` + `exitCode` 永不入输出。
- * 注：`chips host …`、任意未知命令与 `help <未注册>` 的「命令不存在 → 3」承诺在离线
- * 进程面不可达（实际 6，见工单033 缺陷②），本文件不为其写用例，该组断言随承载
- * 链路移交金链路集成波（归属详见《项目日志与笔记/CLI链E2E-开发日志.md》）。
+ * `chips host …`、任意未知命令与 `help <未注册>` 的「命令不存在 → 3」承诺按 §2.3/§3.1.1
+ * 先行定性、与承载环境无关（工单033 缺陷②收口，断言即文档承诺形）。
  */
+
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { expectFailure, resolveCliBin, runChips } from './support/harness';
+import { expectFailure, resolveCliBin, resolveEcosystemRoot, runChips } from './support/harness';
 
 const SPAWN_CWD = process.cwd();
+
+/** 包清单版本（`--version` 的唯一事实源，§2.1）。 */
+function cliManifestVersion(): string {
+  const file = path.join(resolveEcosystemRoot(), 'packages', 'cli', 'package.json');
+  const pkg = JSON.parse(readFileSync(file, 'utf8')) as unknown;
+  const version = (pkg as { version?: unknown }).version;
+  expect(typeof version).toBe('string');
+  return version as string;
+}
 
 describe('chips 进程面：版本、帮助与交互入口', () => {
   it('可执行入口为构建产物且存在', () => {
     expect(resolveCliBin().endsWith('dist/bin.js')).toBe(true);
   });
 
-  it('--version 退出 0，stdout 为 { chips, platform } 单 JSON（§2.1；版本值断言归工单033 缺陷①收口后补）', () => {
+  it('--version 退出 0，chips 字段即包清单版本、platform 字段在位（§2.1，工单033 缺陷①收口）', () => {
     const run = runChips(['--version'], { cwd: SPAWN_CWD });
     expect(run.exitCode).toBe(0);
     const parsed = JSON.parse(run.stdout) as { chips?: unknown; platform?: unknown };
-    expect(typeof parsed.chips).toBe('string');
+    expect(parsed.chips).toBe(cliManifestVersion());
     expect('platform' in parsed).toBe(true);
   });
 
@@ -76,6 +87,21 @@ describe('chips 进程面：全局选项与参数错误（§2.1、§2.2、§2.6�
       expect(Array.isArray(envelope.details?.subcommands)).toBe(true);
     }
   });
+});
+
+describe('chips 进程面：命令未找到定性（§2.3、§3.1.1，工单033 缺陷②收口）', () => {
+  const notFoundCases: readonly (readonly [string, readonly string[]])[] = [
+    ['chips host list（保留固定根先行定性，不依赖插件索引）', ['host', 'list']],
+    ['chips frobnicate xyz（任意未知命令：无承载即无匹配）', ['frobnicate', 'xyz']],
+    ['chips help nosuchcmd（未知命令帮助）', ['help', 'nosuchcmd']],
+  ];
+
+  for (const [label, args] of notFoundCases) {
+    it(`${label} → CLI_COMMAND_NOT_FOUND / 3`, () => {
+      const run = runChips([...args], { cwd: SPAWN_CWD });
+      expectFailure(run, 'CLI_COMMAND_NOT_FOUND', 3);
+    });
+  }
 });
 
 describe('chips 进程面：shell 补全（§3.9）', () => {

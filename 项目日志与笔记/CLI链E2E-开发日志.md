@@ -41,4 +41,42 @@
 2. **宿主驱动段**：`plugin install/uninstall/enable/…` 真实装载-启用-运行闭环与「命令不存在 → 3」的有承载回归，归金链路集成波（波次计划已登记，无占位）。
 3. **`packages/native/src/parser.rs` 工作树在途改动**：归 #93，本单未碰、未评判。
 
+## 任务 #96 工单033 收口段（W2 · 2026-09-21）
+
+### 一、三缺陷修复落点（修实现不改文档承诺）
+
+1. 缺陷①：`packages/cli/src/version.ts` 清单相对路径 `../../package.json` → `../package.json`
+   （`src`/`dist` 双布局同深解析到 `packages/cli/package.json`）+ 包名 `@chips/cli` 守卫；
+   进程级防回归锁 `packages/cli/tests/process-dist.test.ts`（对 `dist/bin.js` 与
+   `dist/version.js` 双面对象断言版本等于包清单）。
+2. 缺陷②：`packages/cli/src/run.ts` 插件分支前新增固定根（含保留名 `host`）先行定性
+   → `CLI_COMMAND_NOT_FOUND`（3，§2.3，不依赖索引）；发现阶段（`cli.command.list`）
+   承载缺失按「无匹配」归 3，匹配后执行链路真「目标不可用」保持 6 不被吞；
+   `src/commands/help.ts` 未注册目标在承载缺失时按 §3.1.1 定性 3。
+   单测 `tests/dispatch-command-not-found.test.ts`（6 用例，正反两向）。
+3. 缺陷③：`packages/cli/src/artifacts/cpk-pack.ts` 按**输出目录归属**排除本包历史输出
+   （`<dir>/<out>` 顶层、`<名称>-<版本>.cpk` 同族 `.cpk` 不入输入；其余嵌套归档仍拒），
+   §3.5.2「同一输入两次打包字节级可复现」在缺省 `--out <dir>/dist` 下成立；
+   单测翻转 1 + 净增 1（`tests/artifacts-cpk.test.ts`）。
+
+### 二、E2E 断言翻转（63 → 67，零回退）
+
+- `cli-surface.test.ts`：`--version` 由形状断言翻转为「`chips` == 包清单版本」；
+  新增「命令未找到定性」3 用例（`host list`/未知命令/`help <未注册>` → 3）。
+- `golden-chain.test.ts`：新增「缺省 `--out` 连续两次 pack 字节级一致」用例；
+  工程外双 `--out` 确定性用例保留。
+- 第四节移交观察项 1 至此闭环；移交观察项 2（宿主驱动段）归属不变。
+
+### 三、闸（真实退出码，volta PATH，日志留档 /tmp）
+
+| 闸 | 命令 | 退出码 |
+| --- | --- | --- |
+| cli 包全量单测 | `pnpm --filter @chips/cli run test`（22 文件 497 用例，基线 488 零回退 + 净增 9） | **0**（`/tmp/cli-test2.log`） |
+| cli 包 typecheck / lint | `pnpm --filter @chips/cli run typecheck` / `run lint` | **0 / 0** |
+| E2E CLI 链 | 根 `pnpm run test:e2e:cli`（4 文件 67 用例） | **0**（`/tmp/e2e-cli2.log`） |
+| E2E 目录 lint / tsc | `npx eslint .` / `npx tsc --noEmit`（tests/e2e/cli） | **0 / 0** |
+| 契约错误码旁表面 | `tests/contract` `npx vitest run tests/errors.test.ts` | **0**（`/tmp/contract-errors.log`） |
+
+工单033 状态随之改为**已收口**（任务说明第八节收口记录、`问题工单.md` 033 行同步）。
+
 **文档结束**
