@@ -20,7 +20,7 @@ use std::time::Duration;
 use chips_bridge::{
     Bridge, BridgeRequest, CapabilityContext, CapabilityDescriptor, CapabilityExecutor,
     CapabilityInput, CapabilityOutput, CapabilityRegistration, Concurrency, ProviderKind,
-    ProviderRegistration, BRIDGE_CANCELLED, BRIDGE_TIMEOUT, DEFAULT_MAX_QUEUE,
+    ProviderRegistration, BRIDGE_CANCELLED, DEFAULT_MAX_QUEUE,
 };
 use chips_core::ChipsError;
 use serde_json::json;

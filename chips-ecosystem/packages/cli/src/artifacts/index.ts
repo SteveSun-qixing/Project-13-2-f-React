@@ -12,6 +12,7 @@ import {
 } from './permission-catalog.js';
 import { packCpk } from './cpk-pack.js';
 import { validateCpk } from './cpk-validate.js';
+import { loadTrustRootsFile } from './trust-roots.js';
 import { resolveScaffoldProvider, writeScaffoldPlan, type IScaffoldProvider } from './scaffold.js';
 
 /** 构造选项。 */
@@ -76,7 +77,11 @@ export function createLocalArtifacts(options: ILocalArtifactsOptions = {}): ICli
           ...(input.platformVersion === undefined
             ? {}
             : { platformVersion: input.platformVersion }),
-          ...(options.trustRoots === undefined ? {} : { trustRoots: options.trustRoots }),
+          // 逐次注入的信任注册文件覆盖构造期信任根表（[CLI 完整参考] §2.7 注入面；判定实现唯一）。
+          trustRoots:
+            input.trustRootsFile === undefined
+              ? options.trustRoots ?? {}
+              : loadTrustRootsFile(input.fileSystem, input.trustRootsFile),
         })
       ),
   };

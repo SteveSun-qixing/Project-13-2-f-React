@@ -37,12 +37,20 @@ export function createCliCommandApi(resolveTarget: TargetResolver): CliCommandAp
   return {
     list(options?: CliCommandQueryOptions): Promise<CliCommandListResult> {
       // §5.8：`cli.command.list` 的输入即查询参数对象；省略参数按全量读取当前索引。
-      return invokeTarget<CliCommandListResult>(resolveTarget, CLI_COMMAND_LIST_ROUTE, options ?? {});
+      return invokeTarget<CliCommandListResult>(
+        resolveTarget,
+        CLI_COMMAND_LIST_ROUTE,
+        options ?? {}
+      );
     },
     get(options: CliCommandQueryOptions): Promise<CliCommandView | undefined> {
       // §5.8 的 `cli.command.get` 输出即 `CliCommandView` 本身（`{ command?, conflicts }` 信封
       // 只属于 `cli.command.resolve`）；无匹配即 undefined，SDK 不补默认值、不消解冲突。
-      return invokeTarget<CliCommandView | undefined>(resolveTarget, CLI_COMMAND_GET_ROUTE, options);
+      return invokeTarget<CliCommandView | undefined>(
+        resolveTarget,
+        CLI_COMMAND_GET_ROUTE,
+        options
+      );
     },
     resolve(options: CliCommandQueryOptions): Promise<CliCommandResolveResult> {
       return invokeTarget<CliCommandResolveResult>(

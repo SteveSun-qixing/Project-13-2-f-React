@@ -164,6 +164,7 @@ export {
   CPK_LIMITS,
 } from './artifacts/cpk-validate.js';
 export { packCpk, type ICpkPackOptions } from './artifacts/cpk-pack.js';
+export { loadTrustRootsFile, TRUST_ROOTS_ENV } from './artifacts/trust-roots.js';
 export {
   parseManifestText,
   readManifestRole,

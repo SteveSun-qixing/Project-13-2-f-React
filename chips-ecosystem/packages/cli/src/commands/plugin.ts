@@ -8,6 +8,7 @@
  */
 
 import { cliError } from '../errors.js';
+import { TRUST_ROOTS_ENV } from '../artifacts/trust-roots.js';
 import type {
   ICliArtifactStageResult,
   ICliPluginRecord,
@@ -231,10 +232,15 @@ const validateCommand: ICliCommandDefinition = {
     const path = readString(values, 'path') ?? '';
     const source: CliPluginSource = context.entry === 'dev' ? 'development' : 'user';
     const platformVersion = await context.resolvePlatformVersion();
+    // 信任根正式注入通道（[CLI 完整参考] §2.7）：空串按未设置，与 CHIPS_SIGNING_KEY_FILE 口径一致。
+    const trustRootsFile = context.env[TRUST_ROOTS_ENV];
     const result = await context.client.artifacts.validate({
       path,
       source,
       ...(platformVersion === undefined ? {} : { platformVersion }),
+      ...(trustRootsFile === undefined || trustRootsFile.length === 0
+        ? {}
+        : { trustRootsFile }),
       fileSystem: context.fileSystem,
     });
     const human = [

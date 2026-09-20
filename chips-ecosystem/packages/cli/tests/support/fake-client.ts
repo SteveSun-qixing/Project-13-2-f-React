@@ -409,8 +409,15 @@ export class FakeCliClient implements ICliClient {
       }
       return Promise.resolve(this.packResult);
     },
-    validate: (input: { path: string; source: string }): Promise<ICliArtifactValidateResult> => {
-      this.calls.push(`artifacts.validate:${input.path}:${input.source}`);
+    validate: (input: {
+      path: string;
+      source: string;
+      trustRootsFile?: string;
+    }): Promise<ICliArtifactValidateResult> => {
+      this.calls.push(
+        `artifacts.validate:${input.path}:${input.source}` +
+          (input.trustRootsFile === undefined ? '' : `:trust=${input.trustRootsFile}`)
+      );
       if (this.validateError !== undefined) {
         return Promise.reject(this.validateError);
       }

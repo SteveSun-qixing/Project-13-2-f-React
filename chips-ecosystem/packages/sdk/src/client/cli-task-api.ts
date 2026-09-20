@@ -50,11 +50,9 @@ type TaskRouteOutput = Pick<ICliTaskGetOutput, 'task'>;
 export function createCliTaskApi(resolveTarget: TargetResolver): CliTaskApi {
   return {
     create(input): Promise<CliTaskRecord> {
-      return invokeTarget<TaskRouteOutput>(
-        resolveTarget,
-        CLI_TASK_CREATE_ROUTE,
-        input
-      ).then((output) => output.task);
+      return invokeTarget<TaskRouteOutput>(resolveTarget, CLI_TASK_CREATE_ROUTE, input).then(
+        (output) => output.task
+      );
     },
     bindInvocation(input): Promise<CliTaskRecord> {
       return invokeTarget<TaskRouteOutput>(

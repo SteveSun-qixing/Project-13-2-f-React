@@ -7,7 +7,9 @@
  * 入口装配 Mock」这条 §7.3 规定的端到端路径，并覆盖 `@chips/sdk/scaffold` 入口（§8.3）的
  * 值导出面与计划消费路径。入口的类型面由本文件的 `import type` 消费点
  * 承担：`IMockBridge`、`IMockBridgeOptions`、`IMockResourceInit`、`IMockCall` 必须可从入口
- * 取到，否则包级 `typecheck` 失败。
+ * 取到，否则包级 `typecheck` 失败。§2.2「CLI 扩展」行的 11 个类型名与「manifest」行的
+ * 15 个类型名同样在本文件被消费并用于注解夹具：02-SDK-API规范 §3.5 与 07-CLI完整参考 §5.6
+ * 的权威示例按原文落地为可执行用例，导入路径缺失或形状不符时包级 `typecheck` 直接失败。
  *
  * 绕开的口径（工单 009 登记）：§3.2、§3.3 的 `CapabilityInput` / `CapabilityOutput` 编译期映射
  * 已由主入口导出；本文件的插件示例仍按显式契约接口 `IFileReadInput` / `IFileReadOutput`
@@ -35,10 +37,37 @@ import {
 } from '../src/testing/install-mock-bridge.js';
 import { ChipsError, chips, createClient, isChipsError } from '../src/index.js';
 import type {
+  CliCommandApi,
+  CliCommandConflict,
+  CliCommandIndex,
+  CliCommandListResult,
+  CliCommandQueryOptions,
+  CliCommandResolveResult,
+  CliCommandTargetType,
+  CliCommandView,
+  CliTaskApi,
+  CliTaskRecord,
+  CliTaskStatus,
+  IChipsBridge,
   IFileReadInput,
   IFileReadOutput,
+  IPluginCapabilities,
+  IPluginCardType,
+  IPluginDeepLink,
+  IPluginDependency,
+  IPluginEngines,
+  IPluginExportFormat,
+  IPluginFileAssociation,
+  IPluginHealthCheck,
+  IPluginLayoutType,
+  IPluginManifest,
+  IPluginRuntime,
+  IPluginUi,
   IResourceHandle,
   ISubscription,
+  PluginRole,
+  PluginSurface,
+  PluginTarget,
 } from '../src/index.js';
 import type {
   IMockBridge,
@@ -57,6 +86,148 @@ const COVER_FIXTURE: IMockResourceInit = {
   version: '1',
 };
 const RESOURCE_OPTIONS: IMockBridgeOptions = { resources: { [COVER_URI]: COVER_FIXTURE } };
+
+/* §2.2「CLI 扩展」行的 11 个类型名与「manifest」行的 15 个类型名的编译期消费点：
+   名字缺失或形状不符时包级 `typecheck` 直接失败。 */
+
+/** 发现查询的目标类型（§2.2 CLI 扩展行）。 */
+const CLI_TARGET_TYPE: CliCommandTargetType = 'app';
+/** 发现查询参数。 */
+const CLI_QUERY: CliCommandQueryOptions = {
+  targetType: CLI_TARGET_TYPE,
+  commandPath: ['office', 'open'],
+};
+/** 同键冲突条目。 */
+const CLI_CONFLICT: CliCommandConflict = {
+  entryId: 'chips.other.cli.office.open',
+  commandPath: ['office', 'open'],
+  owner: 'chips.other',
+  priority: 0,
+};
+/** 命令视图：CLI 侧标识 + 运行时命令引用（07-CLI完整参考 §5.6）。 */
+const CLI_VIEW: CliCommandView = {
+  entryId: 'chips.official.office.cli.office.open',
+  commandPath: ['office', 'open'],
+  commandId: 'office:open',
+  owner: 'chips.official.office',
+  enabled: true,
+  declaration: {
+    commandPath: ['office', 'open'],
+    commandId: 'office:open',
+    title: '打开办公文档',
+    target: { type: CLI_TARGET_TYPE, pluginId: 'chips.official.office' },
+  },
+  conflicts: [CLI_CONFLICT],
+};
+/** 发现索引：命令路径键 → entryId 列表。 */
+const CLI_INDEX: CliCommandIndex = { 'office open': [CLI_VIEW.entryId, CLI_CONFLICT.entryId] };
+/** `list` 结果。 */
+const CLI_LIST: CliCommandListResult = { index: CLI_INDEX, commands: [CLI_VIEW] };
+/** `resolve` 结果：唯一匹配时无冲突。 */
+const CLI_RESOLVE: CliCommandResolveResult = { command: CLI_VIEW, conflicts: [] };
+/** 任务状态。 */
+const TASK_RUNNING: CliTaskStatus = 'running';
+/** 任务记录。 */
+const TASK_RECORD: CliTaskRecord = {
+  taskId: 'task-01',
+  pluginId: 'chips.official.office',
+  commandId: 'office:open',
+  commandPath: ['office', 'open'],
+  status: TASK_RUNNING,
+  createdAt: 1_700_000_000_000,
+  updatedAt: 1_700_000_000_000,
+};
+
+/** manifest 角色 / 目标 / 表面三个联合类型。 */
+const ROLE: PluginRole = 'app';
+const TARGET: PluginTarget = 'host';
+const SURFACE: PluginSurface = 'window';
+/** manifest 导出格式条目。 */
+const EXPORT_FORMAT: IPluginExportFormat = {
+  id: 'pdf',
+  name: 'PDF',
+  extension: 'pdf',
+  mimeType: 'application/pdf',
+};
+/** manifest 卡片类型条目。 */
+const CARD_TYPE: IPluginCardType = {
+  id: 'viewer.card',
+  name: '查看卡片',
+  exportFormats: [EXPORT_FORMAT],
+};
+/** manifest 布局类型条目。 */
+const LAYOUT_TYPE: IPluginLayoutType = {
+  id: 'viewer.layout',
+  name: '查看布局',
+  configSchema: 'schemas/layout.json',
+  schemaVersions: '1',
+};
+/** manifest 角色能力声明。 */
+const CAPABILITIES: IPluginCapabilities = { cardTypes: [CARD_TYPE], layouts: [LAYOUT_TYPE] };
+/** manifest 运行时声明。 */
+const RUNTIME: IPluginRuntime = { targets: [TARGET], background: false };
+/** manifest 平台版本门禁。 */
+const ENGINES: IPluginEngines = { chips: '>=1.0.0 <2.0.0' };
+/** manifest 直接依赖条目。 */
+const DEPENDENCY: IPluginDependency = { id: 'chips.official.core', version: '^1.0.0' };
+/** manifest 应用界面声明。 */
+const UI: IPluginUi = { surface: SURFACE };
+/** manifest 文件关联条目。 */
+const FILE_ASSOCIATION: IPluginFileAssociation = { extensions: ['.card'], action: 'open' };
+/** manifest 深链接条目。 */
+const DEEP_LINK: IPluginDeepLink = { scheme: 'chips', host: 'viewer' };
+/** manifest 服务健康检查声明。 */
+const HEALTH_CHECK: IPluginHealthCheck = { interval: '30s', timeout: '2s' };
+/** 完整 manifest 夹具。 */
+const MANIFEST: IPluginManifest = {
+  id: 'chips.official.viewer',
+  version: '1.0.0',
+  type: ROLE,
+  name: '卡片查看器',
+  runtime: RUNTIME,
+  engines: ENGINES,
+  dependencies: [DEPENDENCY],
+  capabilities: CAPABILITIES,
+  ui: UI,
+  fileAssociations: [FILE_ASSOCIATION],
+  deepLinks: [DEEP_LINK],
+  healthCheck: HEALTH_CHECK,
+};
+
+/**
+ * §3.5 插件侧完整示例：在命令处理中上报当前 CLI 任务的进度与终态。
+ *
+ * 原文照抄文档示例，只依赖主入口的 `chips` 与 `cliTask` 命名空间。
+ *
+ * @param commandId - 运行时命令 ID
+ * @param outputPath - 产物路径
+ */
+async function reportCliTask(commandId: string, outputPath: string): Promise<void> {
+  const active: CliTaskRecord | undefined = await chips.cliTask.active(commandId);
+  if (active === undefined) {
+    return; // 命令未声明 job.wait，无 CLI 任务
+  }
+  await chips.cliTask.progress(active.taskId, { stage: 'writing', percent: 80 });
+  await chips.cliTask.complete(active.taskId, { files: [outputPath] });
+}
+
+/**
+ * §3.5 发现侧完整示例：读取命令索引并解析命令路径。
+ *
+ * @param bridge - `@chips/cli` 注入的服务路由目标
+ * @returns 命中唯一命令时的 `entryId` 与命令数；未命中或多匹配为 `undefined`
+ */
+async function discoverCliCommand(
+  bridge: IChipsBridge
+): Promise<readonly [string, number] | undefined> {
+  const client = createClient({ bridge });
+  const { commands } = await client.cliCommand.list({ targetType: 'app' });
+  const resolved = await client.cliCommand.resolve({ commandPath: 'office open' });
+  if (resolved.command !== undefined && resolved.conflicts.length === 0) {
+    return [resolved.command.entryId, commands.length];
+  }
+  return undefined;
+}
 
 /**
  * 被测插件代码：只从主入口取客户端与契约类型，运行期不感知 Mock（§2.1、§7.1）。
@@ -344,6 +515,105 @@ describe('主入口客户端与 testing 入口 Mock 的端到端路径（§7.3�
       content: '仍可读',
       encoding: 'utf-8',
     });
+  });
+});
+
+describe('主入口 CLI 扩展与 manifest 类型面（§2.2 CLI 扩展行、manifest 行）', () => {
+  it('两个扩展命名空间可从主入口类型标注，且实例即文档方法面', () => {
+    const client = createClient();
+    const cliCommand: CliCommandApi = client.cliCommand;
+    const cliTask: CliTaskApi = client.cliTask;
+    expect(Object.keys(cliCommand).sort()).toEqual(['get', 'list', 'resolve']);
+    expect(Object.keys(cliTask).sort()).toEqual([
+      'active',
+      'bindInvocation',
+      'cancel',
+      'complete',
+      'create',
+      'fail',
+      'get',
+      'progress',
+    ]);
+    expect(CLI_LIST.index).toBe(CLI_INDEX);
+    expect(CLI_VIEW.conflicts).toEqual([CLI_CONFLICT]);
+    expect(CLI_RESOLVE.command).toBe(CLI_VIEW);
+    expect(CLI_QUERY.commandPath).toEqual(['office', 'open']);
+    expect(TASK_RECORD.status).toBe(TASK_RUNNING);
+  });
+
+  it('manifest 类型从主入口可达，夹具形状与 scaffold 生成计划一致', () => {
+    const plan: IPluginManifest = scaffold.createScaffoldPlan({
+      role: ROLE,
+      pluginId: MANIFEST.id,
+      name: MANIFEST.name,
+      targetDir: 'plugins/viewer',
+    }).manifest;
+    expect(plan.type).toBe(ROLE);
+    expect(plan.runtime.targets).toEqual([TARGET]);
+    expect(MANIFEST.ui?.surface).toBe(SURFACE);
+    expect(MANIFEST.capabilities?.cardTypes?.[0]?.exportFormats).toEqual([EXPORT_FORMAT]);
+    expect(MANIFEST.capabilities?.layouts).toEqual([LAYOUT_TYPE]);
+    expect(MANIFEST.dependencies).toEqual([DEPENDENCY]);
+    expect(MANIFEST.fileAssociations).toEqual([FILE_ASSOCIATION]);
+    expect(MANIFEST.deepLinks).toEqual([DEEP_LINK]);
+    expect(MANIFEST.healthCheck).toEqual(HEALTH_CHECK);
+  });
+});
+
+describe('主入口 CLI 扩展命名空间的文档示例路径（§3.5 两个完整示例）', () => {
+  it('插件侧示例：active → progress → complete 经默认客户端命中三个 cli:task 能力', async () => {
+    const bridge = installMock();
+    bridge.handle('cli:task-active', () => ({ task: TASK_RECORD }));
+    bridge.handle('cli:task-progress', () => ({ task: TASK_RECORD }));
+    bridge.handle('cli:task-complete', () => ({
+      task: { ...TASK_RECORD, status: 'completed' as const },
+    }));
+    await expect(reportCliTask('office:open', '/tmp/报告.pdf')).resolves.toBeUndefined();
+    expect(bridge.calls).toEqual([
+      { capabilityId: 'cli:task-active', input: { commandId: 'office:open' } },
+      {
+        capabilityId: 'cli:task-progress',
+        input: { taskId: 'task-01', progress: { stage: 'writing', percent: 80 } },
+      },
+      {
+        capabilityId: 'cli:task-complete',
+        input: { taskId: 'task-01', output: { files: ['/tmp/报告.pdf'] } },
+      },
+    ]);
+  });
+
+  it('插件侧示例：active 返回 undefined 时按文档注释提前返回，不产生后续调用', async () => {
+    const bridge = installMock();
+    bridge.handle('cli:task-active', () => ({}));
+    await expect(reportCliTask('office:open', '/tmp/报告.pdf')).resolves.toBeUndefined();
+    expect(bridge.calls).toEqual([
+      { capabilityId: 'cli:task-active', input: { commandId: 'office:open' } },
+    ]);
+  });
+
+  it('发现侧示例：注入服务路由目标后 list → resolve 命中 cli.command.* 并透出唯一命令', async () => {
+    const bridge = createMockBridge();
+    bridge.handle('cli.command.list', (input: unknown) => {
+      expect(input).toEqual({ targetType: 'app' });
+      return CLI_LIST;
+    });
+    bridge.handle('cli.command.resolve', () => CLI_RESOLVE);
+    await expect(discoverCliCommand(bridge)).resolves.toEqual([CLI_VIEW.entryId, 1]);
+    expect(bridge.calls).toEqual([
+      { capabilityId: 'cli.command.list', input: { targetType: 'app' } },
+      { capabilityId: 'cli.command.resolve', input: { commandPath: 'office open' } },
+    ]);
+  });
+
+  it('发现侧示例：多匹配时 conflicts 非空，SDK 不做本地消解', async () => {
+    const bridge = createMockBridge();
+    bridge.handle('cli.command.list', () => ({ ...CLI_LIST, commands: [CLI_VIEW, CLI_VIEW] }));
+    bridge.handle('cli.command.resolve', () => ({
+      command: undefined,
+      conflicts: CLI_VIEW.conflicts,
+    }));
+    await expect(discoverCliCommand(bridge)).resolves.toBeUndefined();
+    expect(bridge.calls).toHaveLength(2);
   });
 });
 

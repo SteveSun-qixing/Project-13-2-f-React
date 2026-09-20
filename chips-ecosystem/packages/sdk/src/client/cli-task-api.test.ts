@@ -12,7 +12,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { Capability } from '../generated/capability-ids.js';
 import { ChipsBridge } from './chips-bridge.js';
 import { createCliTaskApi } from './cli-task-api.js';
-import { ChipsError, isChipsError, SDK_BRIDGE_UNAVAILABLE } from '../errors.js';
+import { ChipsError, SDK_BRIDGE_UNAVAILABLE } from '../errors.js';
+import { assertChipsError } from '../testing/assert-chips-error.js';
 import type { CliTaskRecord } from '../types/capabilities/cli-task.js';
 import type { IChipsBridge, IResourceHandle, ISubscription } from '../types/bridge.js';
 
@@ -64,7 +65,7 @@ function createTarget(...outputs: unknown[]): SpiedBridge {
  * 捕获调用的拒绝原因（§11 约束 6：断言只按 `code`，不碰 message 文本）。
  *
  * @param call - 被观察的调用
- * @returns 拒绝原因；调用意外成功时为 `undefined`，由用例的 `isChipsError` 断言判失败
+ * @returns 拒绝原因；调用意外成功时为 `undefined`，由用例的 `assertChipsError` 判失败
  */
 async function rejection(call: Promise<unknown>): Promise<unknown> {
   return await call.then(
@@ -108,7 +109,10 @@ describe('cliTask 的插件侧能力映射（§5.6 能力表 + §7.17 契约）'
       },
       {
         id: 'cli:task-fail',
-        input: { taskId: 'task-01', error: { code: 'APP_COMMAND_FAILED', message: '应用处理失败' } },
+        input: {
+          taskId: 'task-01',
+          error: { code: 'APP_COMMAND_FAILED', message: '应用处理失败' },
+        },
       },
     ]);
     expect(Capability.CLI_TASK_GET).toBe('cli:task-get');
@@ -137,9 +141,9 @@ describe('cliTask 的 CLI 调度侧路由映射（§5.8）', () => {
         commandPath: ['office', 'open'],
       })
     ).resolves.toBe(RUNNING);
-    await expect(
-      api.bindInvocation({ taskId: 'task-01', invocationId: 'inv-01' })
-    ).resolves.toBe(bound);
+    await expect(api.bindInvocation({ taskId: 'task-01', invocationId: 'inv-01' })).resolves.toBe(
+      bound
+    );
     await expect(api.cancel('task-01')).resolves.toBe(cancelled);
     expect(target.calls).toEqual([
       {
@@ -165,7 +169,7 @@ describe('cliTask 的错误与目标解析口径（§6.4、§3.2）', () => {
       retryable: false,
     });
     const target: IChipsBridge = {
-      request: vi.fn((): Promise<unknown> => Promise.reject(invalid)),
+      request: vi.fn((): Promise<never> => Promise.reject(invalid)),
       subscribe: (): ISubscription => ({ dispose: (): void => undefined }),
       resource: (): IResourceHandle => ({}) as IResourceHandle,
     };
@@ -181,15 +185,17 @@ describe('cliTask 的错误与目标解析口径（§6.4、§3.2）', () => {
       ['progress', rejection(api.progress('task-01', {}))],
       ['complete', rejection(api.complete('task-01'))],
       ['fail', rejection(api.fail('task-01', 'boom'))],
-      ['create', rejection(api.create({ pluginId: 'chips.official.office', commandId: 'office:open' }))],
+      [
+        'create',
+        rejection(api.create({ pluginId: 'chips.official.office', commandId: 'office:open' })),
+      ],
       ['bindInvocation', rejection(api.bindInvocation({ taskId: 'task-01' }))],
       ['cancel', rejection(api.cancel('task-01'))],
     ];
     for (const [method, outcome] of cases) {
       const caught: unknown = await outcome;
-      expect(isChipsError(caught), method).toBe(true);
-      expect(caught.code).toBe(SDK_BRIDGE_UNAVAILABLE);
-      expect(caught.retryable).toBe(false);
+      assertChipsError(caught, SDK_BRIDGE_UNAVAILABLE);
+      expect(caught.retryable, method).toBe(false);
     }
   });
 });

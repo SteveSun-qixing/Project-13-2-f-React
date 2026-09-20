@@ -6,7 +6,8 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ChipsError, isChipsError, SDK_BRIDGE_UNAVAILABLE } from '../errors.js';
+import { ChipsError, SDK_BRIDGE_UNAVAILABLE } from '../errors.js';
+import { assertChipsError } from '../testing/assert-chips-error.js';
 import { ChipsBridge } from './chips-bridge.js';
 import { createCliCommandApi } from './cli-command-api.js';
 import type {
@@ -71,7 +72,7 @@ function createTarget(...outputs: unknown[]): SpiedBridge {
  * 捕获调用的拒绝原因（§11 约束 6：断言只按 `code`，不碰 message 文本）。
  *
  * @param call - 被观察的调用
- * @returns 拒绝原因；调用意外成功时为 `undefined`，由用例的 `isChipsError` 断言判失败
+ * @returns 拒绝原因；调用意外成功时为 `undefined`，由用例的 `assertChipsError` 判失败
  */
 async function rejection(call: Promise<unknown>): Promise<unknown> {
   return await call.then(
@@ -107,7 +108,10 @@ afterEach(() => {
 
 describe('cliCommand 的服务路由映射（§5.8 路由名 + §5.6 形状）', () => {
   it('list 省略查询参数时按空对象转发 cli.command.list', async () => {
-    const result: CliCommandListResult = { index: { 'office open': [VIEW.entryId] }, commands: [VIEW] };
+    const result: CliCommandListResult = {
+      index: { 'office open': [VIEW.entryId] },
+      commands: [VIEW],
+    };
     const target = createTarget(result);
     const api = createCliCommandApi(() => target);
     await expect(api.list()).resolves.toBe(result);
@@ -162,9 +166,7 @@ describe('cliCommand 的服务路由映射（§5.8 路由名 + §5.6 形状）',
     const second = createTarget({});
     host.chips = second;
     await client.cliCommand.get({ entryId: VIEW.entryId });
-    expect(second.calls).toEqual([
-      { id: 'cli.command.get', input: { entryId: VIEW.entryId } },
-    ]);
+    expect(second.calls).toEqual([{ id: 'cli.command.get', input: { entryId: VIEW.entryId } }]);
   });
 });
 
@@ -177,7 +179,7 @@ describe('cliCommand 的错误口径（§6.4、§11 约束 6）', () => {
       retryable: false,
     });
     const target: IChipsBridge = {
-      request: vi.fn((): Promise<unknown> => Promise.reject(conflict)),
+      request: vi.fn((): Promise<never> => Promise.reject(conflict)),
       subscribe: (): ISubscription => ({ dispose: (): void => undefined }),
       resource: (): IResourceHandle => ({}) as IResourceHandle,
     };
@@ -196,9 +198,8 @@ describe('cliCommand 的错误口径（§6.4、§11 约束 6）', () => {
     ];
     for (const [method, outcome] of cases) {
       const caught: unknown = await outcome;
-      expect(isChipsError(caught), method).toBe(true);
-      expect(caught.code).toBe(SDK_BRIDGE_UNAVAILABLE);
-      expect(caught.retryable).toBe(false);
+      assertChipsError(caught, SDK_BRIDGE_UNAVAILABLE);
+      expect(caught.retryable, method).toBe(false);
     }
   });
 });

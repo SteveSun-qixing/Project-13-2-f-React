@@ -546,18 +546,32 @@ export function validateCpk(options: ICpkValidateOptions): ICliArtifactValidateR
     }
   };
 
-  const kind = options.fileSystem.kind(options.path);
+  // 目标路径口径归一：尾部分隔符与真实文件系统语义对齐（`dir/` 与 `dir` 同解），
+  // 避免目录态因分隔符差异产生假性 `CLI_PATH_NOT_FOUND`。
+  const targetPath = options.path.replace(/[/\\]+$/, '') || options.path;
+  const kind = options.fileSystem.kind(targetPath);
   if (kind === null) {
-    throw cliError('CLI_PATH_NOT_FOUND', `路径不存在：${options.path}`, { path: options.path });
+    throw cliError('CLI_PATH_NOT_FOUND', `路径不存在：${targetPath}`, { path: targetPath });
   }
 
   let entries: readonly IZipEntry[];
   if (kind === 'directory') {
-    const members = run('archive', () => collectDirectory(options.fileSystem, options.path));
+    // 目录态要求包根形态（[插件包格式] §2.7：目录根布局与 `.cpk` 解包后的包根完全一致）。
+    // 源码工程目录（根级 `package.json`）先行拒绝并给出打包指引，替代白名单泛化报错。
+    const packageJsonPath = `${targetPath}/package.json`;
+    if (options.fileSystem.kind(packageJsonPath) === 'file') {
+      throw cliError(
+        'CPK_LAYOUT_INVALID',
+        '目录态校验要求包根形态：检测到 package.json，该目录是源码工程而非解包后的包根（[插件包格式] §2.7）；' +
+          '请先执行 chips plugin pack 生成 .cpk 后校验产物，或改用与包根布局一致的暂存目录',
+        { stage: 'layout', file: 'package.json', path: targetPath }
+      );
+    }
+    const members = run('archive', () => collectDirectory(options.fileSystem, targetPath));
     entries = [...members.entries()].map(([path, data]) => ({ path, data }));
     stages.push(stage('archive', 'skipped', '目录态跳过归档校验'));
   } else {
-    const bytes = options.fileSystem.readBinary(options.path);
+    const bytes = options.fileSystem.readBinary(targetPath);
     entries = run('archive', () => archiveStage(new Uint8Array(bytes)));
     stages.push(stage('archive', 'passed', '全部成员 Stored'));
   }
@@ -586,29 +600,8 @@ export function validateCpk(options: ICpkValidateOptions): ICliArtifactValidateR
   run('layout', () => validateLayout(members, preliminary.role));
   stages.push(stage('layout', 'passed', `${preliminary.role} 布局`));
 
-  let packageVersion: string | undefined;
-  if (kind === 'directory') {
-    const packagePath = `${options.path.replace(/[/\\]+$/, '')}/package.json`;
-    if (options.fileSystem.exists(packagePath)) {
-      try {
-        const packageJson = JSON.parse(options.fileSystem.readText(packagePath)) as {
-          version?: unknown;
-        };
-        if (typeof packageJson.version === 'string') {
-          packageVersion = packageJson.version;
-        }
-      } catch {
-        warnings.push('package.json 不是合法 JSON，跳过版本一致性校验');
-      }
-    }
-  }
-  if (packageVersion !== undefined && packageVersion !== preliminary.version) {
-    throw cliError(
-      'CPK_MANIFEST_INVALID',
-      `manifest.version 与 package.json 的 version 不一致：${preliminary.version} / ${packageVersion}`,
-      { stage: 'manifest', pointer: 'version', stages }
-    );
-  }
+  // 目录态的源码工程判别（根级 package.json）已在收集前置诊断（§2.7）；包根形态下
+  // `package.json` 属白名单外条目，由 `validateLayout` 直接拒绝，无版本比对可达路径。
   stages.push(
     stage('manifest', 'passed', `${preliminary.id}@${preliminary.version}（${preliminary.role}）`)
   );

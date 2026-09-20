@@ -348,6 +348,11 @@ export interface ICliArtifactsApi {
     readonly source: CliPluginSource;
     /** 平台版本；承载环境不可用时缺省，`engines.chips` 仅校验语法（以告警呈现）。 */
     readonly platformVersion?: string;
+    /**
+     * 信任注册文件路径（`CHIPS_TRUST_ROOTS_FILE`，[CLI 完整参考] §2.7）；
+     * 只以文件路径注入，给出时覆盖构造期 `trustRoots`（[插件包格式] §6.3）。
+     */
+    readonly trustRootsFile?: string;
     readonly fileSystem: IFileSystemPort;
   }): Promise<ICliArtifactValidateResult>;
 }

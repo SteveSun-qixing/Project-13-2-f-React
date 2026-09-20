@@ -148,6 +148,20 @@ describe('@chips/sdk 入口的依赖边界（§11 约束 2、§2.2 末段）', (
     expect(text).not.toContain('./testing');
   });
 
+  it('CLI 扩展与 manifest 类型以 export type 进入主入口，不新增运行时依赖（§2.2、§2.1 规则）', () => {
+    const text = readFileSync(`${SRC_DIR}index.ts`, 'utf8');
+    const typeOnly = specifiersOf(text)
+      .filter((item) => !item.runtime)
+      .map((item) => item.specifier);
+    // CLI 扩展的 8 个命令类型、CliTaskApi 与 15 个 manifest 类型全部走编译期说明符
+    expect(typeOnly).toContain('./types/cli/command.js');
+    expect(typeOnly).toContain('./types/cli/task.js');
+    expect(typeOnly).toContain('./scaffold/index.js');
+    // manifest 的单点定义在 @chips/scaffold：主入口既不以运行时、也不以值形式引入该包
+    expect(typeOnly).not.toContain('@chips/scaffold');
+    expect(runtimeSpecifiers(text)).not.toContain('./scaffold/index.js');
+  });
+
   it('内部说明符一律写成带 .js 后缀的 ESM 形式（代码组织规范 §7）', () => {
     for (const { path, text } of sources) {
       for (const { specifier } of specifiersOf(text)) {
