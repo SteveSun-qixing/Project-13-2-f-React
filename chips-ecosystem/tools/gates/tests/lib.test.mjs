@@ -18,6 +18,7 @@ import {
 } from '../lib/markdown.mjs';
 import { classify, matchGlob } from '../lib/walk.mjs';
 import { extractManifestType } from '../lib/plugin-entries.mjs';
+import { coversScopeMember, matchExemptions } from '../lib/exemption.mjs';
 
 test('parseArgv：长选项、等号、否定与位置参数', () => {
   const { flags, positionals } = parseArgv([
@@ -131,4 +132,51 @@ test('extractManifestType：顶层 type 提取、引号剥离与嵌套键不误�
   assert.equal(extractManifestType('id: chips.app.demo\nname: 示例\n'), undefined);
   assert.equal(extractManifestType('type:\nname: 示例\n'), undefined);
   assert.equal(extractManifestType('type:   \n'), undefined);
+});
+
+test('matchExemptions：返回同组同维度全部命中并按期限/状态分级（工单 027）', () => {
+  const entry = (over) => ({
+    id: 'TD-X',
+    gate: 'G6',
+    group: 'rust-core',
+    metric: 'lines',
+    deadline: '2099-12-31',
+    status: 'active',
+    approver: 'A',
+    reason: 'R',
+    scope: 'S',
+    scopePaths: ['packages/native/'],
+    evidence: 'E',
+    repaymentTask: 'T',
+    ...over,
+  });
+  const ctx = {
+    valid: [
+      entry({ id: 'TD-A' }),
+      entry({ id: 'TD-B', group: 'rust-overall' }),
+      entry({ id: 'TD-C', metric: 'branches' }),
+      entry({ id: 'TD-D', status: 'repaid' }),
+      entry({ id: 'TD-E', deadline: '2000-01-01' }),
+    ],
+  };
+  const now = new Date('2026-09-20T12:00:00Z');
+  const kinds = Object.fromEntries(
+    matchExemptions(ctx, 'rust-core', 'lines', now).map((item) => [item.entry.id, item.kind])
+  );
+  assert.deepEqual(kinds, { 'TD-A': 'active', 'TD-D': 'inactive', 'TD-E': 'expired' });
+  assert.deepEqual(matchExemptions(null, 'rust-core', 'lines', now), []);
+});
+
+test('coversScopeMember：路径段对齐，兄弟前缀不搭便车（工单 027）', () => {
+  assert.ok(coversScopeMember(['packages/native/'], 'packages/native'));
+  assert.ok(coversScopeMember(['packages/native/'], 'packages/native/src'));
+  assert.ok(!coversScopeMember(['packages/native/'], 'packages/native-x'));
+  assert.ok(!coversScopeMember(['packages/native/'], 'packages/native-x/src'));
+  assert.ok(
+    coversScopeMember(
+      ['packages/core-rust/crates/chips-newcrate/'],
+      'packages/core-rust/crates/chips-newcrate'
+    )
+  );
+  assert.ok(!coversScopeMember(['packages/native/'], 'packages/core-rust/crates/chips-newcrate'));
 });

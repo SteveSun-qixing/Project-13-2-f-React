@@ -204,7 +204,7 @@ test('coverage：未配置 exemption 时行为与合并前一致（既有用例�
   assert.deepEqual(warningCodes(report), []);
 });
 
-test('coverage：真实《技术债务清单》机读块可解析且 TD-001 为有效 active 登记', () => {
+test('coverage：真实《技术债务清单》机读块可解析且 TD-001 为有效 active 登记（含 scope 机读字段）', () => {
   const workspaceRoot = path.resolve(gatesDir, '..', '..');
   const ctx = loadGateExemptions({
     workspaceRoot,
@@ -217,4 +217,89 @@ test('coverage：真实《技术债务清单》机读块可解析且 TD-001 为�
   assert.equal(td001.group, 'rust-core');
   assert.equal(td001.metric, 'lines');
   assert.equal(td001.status, 'active');
+  // 工单 027：scope 承诺必须机读化，TD-001 只绑定 chips-native。
+  assert.deepEqual(td001.scopePaths, ['packages/native/']);
+});
+
+// —— 工单 027：匹配粒度收紧到 scope 级（成因绑定归因）。
+// 夹具 coverage-exempt-piggyback 复刻工单推演口径：健康存量 chips-core 100/100、
+// TD-001 成因 native 4/10、零测试新成员 chips-newcrate 0/10、核心面外 other-rust 100/100；
+// rust-core 聚合 104/120 = 86.67% < 90%（组失败），rust-overall 204/220 = 92.73% > 80%。
+
+const piggybackConfig = (registry) =>
+  coverageConfig({
+    rustSurface: true,
+    exemption: registry === null ? null : { gateId: 'G6', registry },
+  });
+
+const runPiggyback = (registry) =>
+  runCheck({
+    workspaceRoot: fixture('coverage-exempt-piggyback'),
+    config: piggybackConfig(registry),
+    flags: noFlags,
+  });
+
+test('coverage（工单027 状态①）：无豁免配置时 piggyback 组聚合失败即红', async () => {
+  const report = await runPiggyback(null);
+  assert.equal(report.status, 'fail');
+  assert.ok(
+    report.violations.some(
+      (item) =>
+        item.code === 'COVERAGE010' && item.message.includes('rust-core 覆盖率 lines 86.67%')
+    ),
+    `实际违规：${JSON.stringify(report.violations.map((item) => item.message))}`
+  );
+  assert.deepEqual(warningCodes(report), []);
+  assert.ok(report.summary.groups.includes('rust-core=fail'));
+});
+
+test('coverage（工单027 状态②）：未登记新成员搭组时组级豁免不放行，维持红', async () => {
+  const report = await runPiggyback('debt-scoped-native.md');
+  assert.equal(report.status, 'fail');
+  assert.ok(
+    report.violations.some(
+      (item) =>
+        item.code === 'COVERAGE010' && item.message.includes('rust-core 覆盖率 lines 86.67%')
+    )
+  );
+  const traces = report.warnings.filter((item) => item.code === 'COVERAGE031');
+  assert.equal(traces.length, 1);
+  assert.ok(traces[0].message.includes('TD-TEST'));
+  assert.ok(traces[0].message.includes('packages/core-rust/crates/chips-newcrate'));
+  assert.ok(traces[0].message.includes('不成立'));
+  assert.ok(!report.warnings.some((item) => item.code === 'COVERAGE030'));
+  assert.ok(report.summary.groups.includes('rust-core=fail'));
+});
+
+test('coverage（工单027 状态③）：全部未达标成员均有 scope 登记时转 COVERAGE030 留痕放行', async () => {
+  const report = await runPiggyback('debt-scoped-both.md');
+  assert.equal(report.status, 'pass');
+  assert.deepEqual(
+    report.violations.filter((item) => item.code === 'COVERAGE010'),
+    []
+  );
+  const trace = report.warnings.filter((item) => item.code === 'COVERAGE030');
+  assert.equal(trace.length, 1);
+  assert.ok(trace[0].message.includes('TD-TEST'));
+  assert.ok(trace[0].message.includes('TD-TEST2'));
+  assert.ok(trace[0].message.includes('86.67%'));
+  assert.ok(report.summary.groups.includes('rust-core=pass(TD-TEST+TD-TEST2)'));
+  const core = report.summary.coverage.find((group) => group.id === 'rust-core');
+  assert.equal(core.pass, true);
+  assert.deepEqual(core.exempted, ['TD-TEST', 'TD-TEST2']);
+  // 数字照常呈现：留痕不改测量。
+  assert.equal(core.metrics.lines.pct, 86.67);
+  assert.equal(core.metrics.lines.covered, 104);
+  assert.equal(core.metrics.lines.total, 120);
+});
+
+test('coverage（工单027）：登记缺 scopePaths（v1 旧形态）按要素缺失维持失败', async () => {
+  const report = await runExempt('debt-noscope.md');
+  assert.equal(report.status, 'fail');
+  assert.ok(violationCodes(report).includes('COVERAGE010'));
+  assert.ok(
+    report.warnings.some(
+      (item) => item.code === 'COVERAGE031' && item.message.includes('scopePaths')
+    )
+  );
 });

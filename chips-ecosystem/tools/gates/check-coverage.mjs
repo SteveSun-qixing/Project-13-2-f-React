@@ -11,7 +11,7 @@ import {
   isMainModule,
 } from './lib/cli.mjs';
 import { readText, toPosix } from './lib/walk.mjs';
-import { loadGateExemptions, matchExemption } from './lib/exemption.mjs';
+import { loadGateExemptions, matchExemptions, coversScopeMember } from './lib/exemption.mjs';
 
 const GATE_ID = 'coverage';
 const TITLE = '覆盖率门禁（G6）';
@@ -28,8 +28,11 @@ const USAGE = `用法：node tools/gates/check-coverage.mjs [选项]
     （当前 Rust workspace 成员全部为 chips-* crate）。
   - 判定唯一归属本门禁（工单 017）；@chips/testing 覆盖率面只做测量与报告。
   - 豁免：未达标分组按《CI/CD 与质量门禁》§6.3 咨询《技术债务清单》机读豁免登记
-    （coverage.exemption.registry）：命中有效豁免 → COVERAGE030 留痕放行、数字照常呈现；
-    过期/要素缺失/已清偿 → 维持 COVERAGE010 失败并出 COVERAGE031 警告。
+    （coverage.exemption.registry），登记必须携带 scopePaths（生效范围的仓库相对路径前缀，
+    工单 027 收紧匹配粒度）：组判定失败仅在「组内全部未达标成员都被有效登记的 scopePaths
+    覆盖」时放行（成因绑定归因），未登记新成员搭组一律维持失败；
+    命中 → COVERAGE030 留痕放行、数字照常呈现；
+    过期/要素缺失/已清偿/归因不成立 → 维持 COVERAGE010 失败并出 COVERAGE031 警告。
     豁免不改变阈值、统计面与测量口径。
 
 选项：
@@ -69,6 +72,27 @@ function classifyFile(filePath, groups) {
   return 'total';
 }
 
+/**
+ * 文件路径 → 组内成员 id（工单 027：豁免成因归因的最小判定单元）。
+ *
+ * 成员粒度取「crate/包目录」：优先截取首个 `src` 段之前的目录
+ * （`packages/native/src/bridge.rs` → `packages/native`），
+ * 无 `src` 段时回退 `crates/<name>` 段（tests-only 布局），再回退文件所在目录。
+ */
+function memberKeyOf(filePath) {
+  const normalized = toPosix(filePath);
+  const segments = normalized.split('/');
+  const srcIndex = segments.indexOf('src');
+  if (srcIndex > 0) {
+    return segments.slice(0, srcIndex).join('/');
+  }
+  const cratesIndex = segments.indexOf('crates');
+  if (cratesIndex >= 0 && cratesIndex + 1 < segments.length - 1) {
+    return segments.slice(0, cratesIndex + 2).join('/');
+  }
+  return segments.length > 1 ? segments.slice(0, -1).join('/') : normalized;
+}
+
 function aggregateSummary(summary, metrics, groups) {
   const aggregates = new Map();
   const ensure = (id) => {
@@ -78,9 +102,22 @@ function aggregateSummary(summary, metrics, groups) {
         id,
         threshold: group ? group.threshold : null,
         metrics: Object.fromEntries(metrics.map((metric) => [metric, emptyMetric()])),
+        members: new Map(),
       });
     }
     return aggregates.get(id);
+  };
+  const addToMember = (aggregate, filePath, metric, entry) => {
+    const memberId = memberKeyOf(filePath);
+    let member = aggregate.members.get(memberId);
+    if (!member) {
+      member = { id: memberId, metrics: {} };
+      aggregate.members.set(memberId, member);
+    }
+    if (!member.metrics[metric]) {
+      member.metrics[metric] = emptyMetric();
+    }
+    addMetric(member.metrics, metric, entry);
   };
   ensure('total');
   for (const group of groups) {
@@ -96,7 +133,9 @@ function aggregateSummary(summary, metrics, groups) {
     for (const metric of metrics) {
       if (entry[metric]) {
         addMetric(ensure('total').metrics, metric, entry[metric]);
+        addToMember(ensure('total'), filePath, metric, entry[metric]);
         addMetric(ensure(groupId).metrics, metric, entry[metric]);
+        addToMember(ensure(groupId), filePath, metric, entry[metric]);
       }
     }
   }
@@ -109,7 +148,13 @@ function aggregateSummary(summary, metrics, groups) {
       }
     }
   }
-  return { aggregates: [...aggregates.values()], files };
+  return {
+    aggregates: [...aggregates.values()].map((aggregate) => ({
+      ...aggregate,
+      members: [...aggregate.members.values()],
+    })),
+    files,
+  };
 }
 
 /** 读取 XML 开标签上的 `key="value"` 属性对。 */
@@ -178,23 +223,81 @@ function parseTarpaulinClasses(xml) {
   return classes;
 }
 
-/** 按核心面路径前缀聚合逐文件行数据；核心面内无行时返回 `null`。 */
+/** 把逐文件行数据按 `memberKeyOf` 聚合为组内成员（crate/包目录）行覆盖明细。 */
+function aggregateClassesMembers(classes, accept) {
+  const members = new Map();
+  for (const item of classes) {
+    if (!accept(item.filename)) {
+      continue;
+    }
+    const memberId = memberKeyOf(item.filename);
+    let member = members.get(memberId);
+    if (!member) {
+      member = { id: memberId, metrics: { lines: { total: 0, covered: 0 } } };
+      members.set(memberId, member);
+    }
+    member.metrics.lines.total += item.total;
+    member.metrics.lines.covered += item.covered;
+  }
+  return [...members.values()];
+}
+
+/**
+ * 按核心面路径前缀聚合逐文件行数据（含逐成员明细）；核心面内无行时返回 `null`。
+ */
 function aggregateCoreLines(classes, coreMatch) {
+  const members = aggregateClassesMembers(classes, (filename) =>
+    coreMatch.some((prefix) => filename.startsWith(toPosix(prefix)))
+  );
   let covered = 0;
   let total = 0;
-  for (const item of classes) {
-    if (coreMatch.some((prefix) => item.filename.startsWith(toPosix(prefix)))) {
-      covered += item.covered;
-      total += item.total;
-    }
+  for (const member of members) {
+    covered += member.metrics.lines.covered;
+    total += member.metrics.lines.total;
   }
   if (total <= 0) {
     return null;
   }
-  return { lines: { pct: (covered / total) * 100, covered, total } };
+  return { metrics: { lines: { pct: (covered / total) * 100, covered, total } }, members };
 }
 
-function judgeGroup(report, group, threshold, metrics, exemptionCtx, now) {
+/**
+ * 豁免成因归因（工单 027）：判定组内全部未达标成员是否都被有效登记的 `scopePaths` 覆盖。
+ *
+ * 返回 `kind`：
+ * - `pass`：未达标成员全部落在有效登记范围内 → 放行，`credited` 为实际覆盖到未达标成员的登记；
+ * - `unattributed`：存在未登记成员未达标 → 维持失败（组级聚合不得吞并未登记成员）；
+ * - `no-data`：组内无可归因的未达标成员数据（无成员明细，或总量层与成员层数字不一致）
+ *   → 维持失败（fail-closed：无法建立放行决策与债务成因的绑定关系即不放行）。
+ */
+function attributeExemption(members, metric, threshold, activeEntries) {
+  const failing = [];
+  for (const member of members) {
+    const value = member.metrics[metric];
+    if (!value || Number(value.total ?? 0) <= 0) {
+      continue;
+    }
+    const pct = value.pct ?? metricPct(value);
+    if (!(pct > threshold)) {
+      failing.push(member.id);
+    }
+  }
+  if (failing.length === 0) {
+    return { kind: 'no-data' };
+  }
+  const unattributed = failing.filter(
+    (memberId) => !activeEntries.some((entry) => coversScopeMember(entry.scopePaths, memberId))
+  );
+  if (unattributed.length > 0) {
+    return { kind: 'unattributed', unattributed, failing };
+  }
+  const credited = activeEntries.filter((entry) =>
+    failing.some((memberId) => coversScopeMember(entry.scopePaths, memberId))
+  );
+  return { kind: 'pass', credited, failing };
+}
+
+function judgeGroup(report, group, threshold, metrics, exemptionCtx, now, members = []) {
   const result = { id: group, threshold, metrics: {}, pass: true, exempted: [] };
   for (const [metric, value] of Object.entries(metrics)) {
     const pct = value.pct ?? metricPct(value);
@@ -207,34 +310,65 @@ function judgeGroup(report, group, threshold, metrics, exemptionCtx, now) {
       pass,
     };
     if (!pass) {
-      const matched = matchExemption(exemptionCtx, group, metric, now);
-      if (matched.kind === 'active') {
-        metricResult.exemption = {
-          id: matched.entry.id,
-          deadline: matched.entry.deadline,
-          approver: matched.entry.approver,
-        };
-        result.exempted.push(matched.entry.id);
-        pass = true;
-        addWarning(
-          report,
-          'COVERAGE030',
-          `${group} 覆盖率 ${metric} ${pct.toFixed(2)}% 未达标（要求 > ${threshold}%），` +
-            `依《CI/CD 与质量门禁》§6.3 豁免 ${matched.entry.id} 留痕放行` +
-            `（期限至 ${matched.entry.deadline}，数字照常呈现，到期未清偿自动失效）`
-        );
-      } else if (matched.kind === 'expired') {
-        addWarning(
-          report,
-          'COVERAGE031',
-          `豁免 ${matched.entry.id} 期限已过（${matched.entry.deadline}），按 §6.3 第 4 条维持失败`
-        );
-      } else if (matched.kind === 'inactive') {
-        addWarning(
-          report,
-          'COVERAGE031',
-          `豁免 ${matched.entry.id} 状态为 ${matched.entry.status}（非 active），不构成豁免`
-        );
+      const matches = matchExemptions(exemptionCtx, group, metric, now);
+      for (const { entry, kind } of matches) {
+        if (kind === 'expired') {
+          addWarning(
+            report,
+            'COVERAGE031',
+            `豁免 ${entry.id} 期限已过（${entry.deadline}），按 §6.3 第 4 条维持失败`
+          );
+        } else if (kind === 'inactive') {
+          addWarning(
+            report,
+            'COVERAGE031',
+            `豁免 ${entry.id} 状态为 ${entry.status}（非 active），不构成豁免`
+          );
+        }
+      }
+      const activeEntries = matches
+        .filter((item) => item.kind === 'active')
+        .map((item) => item.entry);
+      if (activeEntries.length > 0) {
+        const activeIds = activeEntries.map((entry) => entry.id).join('、');
+        const outcome = attributeExemption(members, metric, threshold, activeEntries);
+        if (outcome.kind === 'pass') {
+          // 不变量：failing 非空且全部被覆盖 ⇒ credited 至少一条登记。
+          const credited = outcome.credited;
+          metricResult.exemption = {
+            id: credited.map((entry) => entry.id).join('、'),
+            deadline: credited.map((entry) => entry.deadline).sort()[0],
+            approver: [...new Set(credited.map((entry) => entry.approver))].join('、'),
+          };
+          for (const entry of credited) {
+            if (!result.exempted.includes(entry.id)) {
+              result.exempted.push(entry.id);
+            }
+          }
+          pass = true;
+          addWarning(
+            report,
+            'COVERAGE030',
+            `${group} 覆盖率 ${metric} ${pct.toFixed(2)}% 未达标（要求 > ${threshold}%），` +
+              `依《CI/CD 与质量门禁》§6.3 豁免 ${metricResult.exemption.id} 留痕放行` +
+              `（期限至 ${metricResult.exemption.deadline}，数字照常呈现，到期未清偿自动失效；` +
+              `成因归因：未达标成员 ${outcome.failing.join('、')} 均在登记 scopePaths 范围内）`
+          );
+        } else if (outcome.kind === 'unattributed') {
+          addWarning(
+            report,
+            'COVERAGE031',
+            `豁免 ${activeIds} 对 ${group} 的 ${metric} 判定不成立（工单 027 成因绑定）：` +
+              `未登记成员 ${outcome.unattributed.join('、')} 未达标，组级豁免不得吞并范围外成员，维持失败`
+          );
+        } else {
+          addWarning(
+            report,
+            'COVERAGE031',
+            `豁免 ${activeIds} 对 ${group} 的 ${metric} 判定无法核验成因：` +
+              '组内无可归因的未达标成员数据，按 fail-closed 维持失败'
+          );
+        }
       }
     }
     metricResult.pass = pass;
@@ -279,8 +413,8 @@ export async function runCheck({ workspaceRoot, config, flags, now = new Date() 
       addWarning(report, notice.code, notice.message);
     }
   }
-  const judge = (group, threshold, groupMetrics) =>
-    judgeGroup(report, group, threshold, groupMetrics, exemptionCtx, now);
+  const judge = (group, threshold, groupMetrics, members = []) =>
+    judgeGroup(report, group, threshold, groupMetrics, exemptionCtx, now, members);
   const summaryPath = path.resolve(
     workspaceRoot,
     flagValue(flags, 'ts-report', inputs.ts?.path ?? 'coverage/coverage-summary.json')
@@ -340,7 +474,7 @@ export async function runCheck({ workspaceRoot, config, flags, now = new Date() 
           results.push({ id: aggregate.id, threshold, skipped: true, pass: true });
           continue;
         }
-        results.push(judge(aggregate.id, threshold, aggregate.metrics));
+        results.push(judge(aggregate.id, threshold, aggregate.metrics, aggregate.members));
       }
     }
   }
@@ -368,12 +502,14 @@ export async function runCheck({ workspaceRoot, config, flags, now = new Date() 
         `Rust 覆盖率报告格式非法：${path.relative(workspaceRoot, rustPath)}`
       );
     } else {
-      results.push(judge('rust-overall', defaultThreshold, rustMetrics));
-      const coreMetrics =
+      const classes = parseTarpaulinClasses(rustXml);
+      const workspaceMembers = aggregateClassesMembers(classes, () => true);
+      results.push(judge('rust-overall', defaultThreshold, rustMetrics, workspaceMembers));
+      const core =
         rustCoreMatch.length > 0
-          ? aggregateCoreLines(parseTarpaulinClasses(rustXml), rustCoreMatch)
-          : rustMetrics;
-      if (coreMetrics === null) {
+          ? aggregateCoreLines(classes, rustCoreMatch)
+          : { metrics: rustMetrics, members: workspaceMembers };
+      if (core === null) {
         addViolation(
           report,
           'COVERAGE011',
@@ -381,7 +517,7 @@ export async function runCheck({ workspaceRoot, config, flags, now = new Date() 
         );
         results.push({ id: 'rust-core', threshold: rustCoreThreshold, skipped: true, pass: true });
       } else {
-        results.push(judge('rust-core', rustCoreThreshold, coreMetrics));
+        results.push(judge('rust-core', rustCoreThreshold, core.metrics, core.members));
       }
     }
   }
