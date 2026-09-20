@@ -97,6 +97,7 @@ export function packCpk(options: ICpkPackOptions): ICliArtifactPackResult {
     {
       manifest: parseManifestText(new TextDecoder('utf-8', { fatal: false }).decode(manifestEntry)),
       members: new Set(members.keys()),
+      contents: members,
       catalog: options.catalog,
       ...(options.platformVersion === undefined
         ? {}

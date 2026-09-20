@@ -69,6 +69,12 @@ export interface IManifestValidationInput {
   readonly manifest: unknown;
   /** 包内成员路径集合（`.cpk` 成员或目录态相对路径，POSIX 分隔）。 */
   readonly members: ReadonlySet<string>;
+  /**
+   * 包内成员内容表（键与 `members` 同形）：提供时清单引用的 `configSchema`
+   * 一律从内容表读取（[插件包格式] §七：校验对象是工程目录/归档自身，
+   * 不依赖进程 cwd）。
+   */
+  readonly contents?: ReadonlyMap<string, Uint8Array>;
   readonly catalog: IPermissionCatalog;
   /** 当前平台版本；提供时校验 `engines.chips` 门禁。 */
   readonly platformVersion?: string;
@@ -996,7 +1002,7 @@ export function validateManifest(
   fileSystem?: IFileSystemPort
 ): IManifestValidationResult {
   const members = input.members;
-  const contents: ReadonlyMap<string, Uint8Array> | undefined = undefined;
+  const contents = input.contents;
   const root = expectObject(input.manifest, '');
   rejectUnknownKeys(
     root,

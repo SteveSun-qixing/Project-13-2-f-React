@@ -24,6 +24,7 @@
     "test:e2e:fixtures:check": "node tests/e2e/fixtures/generate-fixtures.mjs --check",
     "test:e2e:cpk-fixtures": "node tests/e2e/fixtures/cpk/generate-cpk-fixtures.mjs",
     "test:e2e:cpk-fixtures:check": "node tests/e2e/fixtures/cpk/generate-cpk-fixtures.mjs --check",
+    "test:e2e:cli": "pnpm --filter @chips/cli run build && vitest run --config tests/e2e/cli/vitest.config.ts",
     "lint": "eslint . && prettier --check . && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings",
     "typecheck": "tsc -b && pnpm -r run typecheck",
     "package": "pnpm -r run package",

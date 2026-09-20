@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "链路四配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fontSize": {
+      "type": "integer",
+      "minimum": 12,
+      "maximum": 48,
+      "default": 16,
+      "description": "正文字号（px）"
+    },
+    "lineHeight": {
+      "type": "number",
+      "minimum": 1,
+      "default": 1.6,
+      "description": "行高倍数"
+    }
+  }
+}

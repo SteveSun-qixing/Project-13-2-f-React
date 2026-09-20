@@ -1,0 +1,30 @@
+{
+  "name": "@chips/plugin-e2e-chain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "链路四",
+  "type": "module",
+  "scripts": {
+    "build": "vite build --config vite.main.config.ts && vite build --config vite.render.config.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['dist', 'render.js', 'coverage']) fs.rmSync(p, { recursive: true, force: true }); })\"",
+    "package": "pnpm exec chips plugin pack --out dist/"
+  },
+  "devDependencies": {
+    "@chips/sdk": "workspace:*",
+    "@chips/ui": "workspace:*",
+    "@types/node": "20.19.37",
+    "@types/react": "18.3.29",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "@vitest/coverage-v8": "3.2.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.1",
+    "vitest": "3.2.4"
+  }
+}

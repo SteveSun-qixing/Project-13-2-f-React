@@ -1,0 +1,15 @@
+id: chips.e2e.chain4
+version: 0.1.0
+type: basecard
+name: 链路四
+license: MIT
+runtime:
+  targets:
+    - host
+permissions: []
+capabilities:
+  cardTypes:
+    - id: base.chain4
+      name: 链路四
+      icon: assets/icons/chain4.svg
+      configSchema: assets/schemas/chain4-config.schema.json

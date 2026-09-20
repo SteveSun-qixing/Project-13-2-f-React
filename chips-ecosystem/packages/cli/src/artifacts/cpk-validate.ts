@@ -590,6 +590,7 @@ export function validateCpk(options: ICpkValidateOptions): ICliArtifactValidateR
       {
         manifest: parsedManifest,
         members: new Set(members.keys()),
+        contents: members,
         catalog: options.catalog,
         ...(options.platformVersion === undefined
           ? {}
