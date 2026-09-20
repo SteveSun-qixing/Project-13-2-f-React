@@ -201,6 +201,17 @@ export interface IDocumentEntriesResult {
   diagnostics: INativeDiagnostic[];
 }
 
+/**
+ * L2 箱子布局配置结果（`.box/content.yaml` 根值，`DocumentValue` 的
+ * JSON 兼容投影，映射键保持文档顺序）；卡片句柄调用以契约错误拒绝，
+ * 布局单元缺失 / 校验失败按 §8.4 返回空映射占位并携带错误级诊断。
+ */
+export interface IDocumentLayoutConfigResult {
+  kind: INativeDocumentKind;
+  value: Record<string, unknown>;
+  diagnostics: INativeDiagnostic[];
+}
+
 /** 严格校验报告（《06-文档解析器设计》§6.5 `ValidationReport` 投影）。 */
 export interface IDocumentValidationReport {
   kind: INativeDocumentKind;
@@ -390,6 +401,12 @@ export function documentEntries(
   handle: DocumentHandle,
   range?: IDocumentEntriesRange
 ): Promise<IDocumentEntriesResult>;
+
+/**
+ * L2 箱子布局配置单元（`.box/content.yaml` 根值 + 诊断快照）；
+ * 卡片句柄以 `DOCUMENT_*` 契约码拒绝（绑定层不做 kind 预判，判别归 backing）。
+ */
+export function documentLayoutConfig(handle: DocumentHandle): Promise<IDocumentLayoutConfigResult>;
 
 /** L3 资源字节（解析阶段永不读取资源正文）；产物为 `Uint8Array`（Buffer 子类）。 */
 export function documentReadResource(

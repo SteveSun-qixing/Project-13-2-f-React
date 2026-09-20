@@ -3,7 +3,7 @@
  *
  * 覆盖：
  * - 全部已实现导出（值与类型）各至少一次正例调用（含 Bridge 能力执行四导出、
- *   文档解析域十一导出，《核心接口规范》§6.4）；
+ *   文档解析域十二导出，《核心接口规范》§6.4）；
  * - 注册/请求与解析选项/结果类型形状
  *   （`INativeCapabilityRegistration` / `INativeBridgeRequest` /
  *   `INativeParseOptions` / `DocumentView` 等）；
@@ -20,6 +20,7 @@ import type {
   IDocumentContentResult,
   IDocumentEntriesRange,
   IDocumentEntriesResult,
+  IDocumentLayoutConfigResult,
   IDocumentMetadataResult,
   IDocumentResourceRange,
   IDocumentStructureResult,
@@ -58,6 +59,7 @@ import {
   documentClose,
   documentContent,
   documentEntries,
+  documentLayoutConfig,
   documentMetadata,
   documentReadResource,
   documentStructure,
@@ -142,7 +144,7 @@ bridgeOpenSession(sessionFixture);
 bridgeCloseSession(sessionFixture.sessionId);
 bridgeShutdown();
 
-// 文档解析域十一导出：正例调用（《核心接口规范》§6.4 表序）。
+// 文档解析域十二导出：正例调用（§6.4 backing 句柄方法表序）。
 export const openedDocument: Promise<DocumentHandle> = openDocument('/tmp/chips/card-01.card');
 const parseOptionsFixture: INativeParseOptions = {
   strict: true,
@@ -164,6 +166,8 @@ export const entriesPage: Promise<IDocumentEntriesResult> = documentEntries(
   documentHandle,
   entriesRangeFixture
 );
+export const layoutConfigResult: Promise<IDocumentLayoutConfigResult> =
+  documentLayoutConfig(documentHandle);
 const resourceRangeFixture: IDocumentResourceRange = { offset: 4, length: 8 };
 export const resourceBytes: Promise<Uint8Array> = documentReadResource(
   documentHandle,
@@ -245,6 +249,10 @@ documentContent(documentHandle);
 documentContent(documentHandle, 2);
 // @ts-expect-error 分页窗口缺少必填 limit
 documentEntries(documentHandle, { offset: 0 });
+// @ts-expect-error documentLayoutConfig 只接受句柄一个参数
+documentLayoutConfig(documentHandle, 1);
+// @ts-expect-error documentLayoutConfig 必须提供文档句柄
+documentLayoutConfig();
 // @ts-expect-error 字节窗口字段为 length，不接受 count
 documentReadResource(documentHandle, '.card/metadata.yaml', { offset: 0, count: 4 });
 // @ts-expect-error buildDocumentView 的 session 必须是数值

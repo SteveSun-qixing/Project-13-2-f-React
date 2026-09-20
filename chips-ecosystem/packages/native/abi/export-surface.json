@@ -142,6 +142,11 @@
       "signature": "(handle: DocumentHandle, range?: IDocumentEntriesRange) => Promise<IDocumentEntriesResult>"
     },
     {
+      "name": "documentLayoutConfig",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle) => Promise<IDocumentLayoutConfigResult>"
+    },
+    {
       "name": "documentReadResource",
       "kind": "async",
       "signature": "(handle: DocumentHandle, path: string, range?: IDocumentResourceRange) => Promise<Uint8Array>"

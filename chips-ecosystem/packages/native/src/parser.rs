@@ -12,6 +12,7 @@
 //! | `documentStructure` | `DocumentHandle::structure` + `diagnostics` 快照 |
 //! | `documentContent` | `DocumentHandle::content(&NodeId)` + `diagnostics` 快照 |
 //! | `documentEntries` | `DocumentHandle::entries(Option<Range<usize>>)` |
+//! | `documentLayoutConfig` | `DocumentHandle::layout_config()` + `diagnostics` 快照 |
 //! | `documentReadResource` | `DocumentHandle::read_resource(&PackagePath, Option<Range<u64>>)` |
 //! | `documentValidate` | `DocumentHandle::validate` |
 //! | `buildDocumentView` | `build_document_view(&DocumentHandle, SessionId)`（§6.6） |
@@ -29,7 +30,7 @@
 //! - 句柄：`JsBox<NativeDocumentHandle>` 不透明暴露，内部结构不可见；
 //!   `documentClose` 提前释放归档映射（幂等），未关闭时由 GC 终结器兜底；
 //! - 结果形状：`MetadataResult` / `StructureResult` / `ContentResult` /
-//!   `EntriesResult` 统一携带 `{ kind, value, diagnostics }`；
+//!   `EntriesResult` / `LayoutResult` 统一携带 `{ kind, value, diagnostics }`；
 //!   `ValidationReport` 直接投影 backing 序列化形状；DTO 一律经
 //!   `serde_json::Value` 中转（§8.2）。
 
@@ -385,6 +386,15 @@ fn entries_result(
     document_result(handle.kind(), value, &handle.diagnostics())
 }
 
+/// `documentLayoutConfig`：L2 箱子布局配置单元（`.box/content.yaml` 根值）
+/// 与诊断快照。卡片句柄由 backing 以契约码拒绝；文件缺失或校验失败按
+/// §8.4 返回空映射占位并携带错误级诊断（不视为导出失败）。
+fn layout_config_result(handle: &DocumentHandle) -> Result<Value, ChipsError> {
+    let layout = handle.layout_config().map_err(ChipsError::from)?;
+    let value = serialize_json(layout.as_ref(), "/value")?;
+    document_result(handle.kind(), value, &handle.diagnostics())
+}
+
 /// `documentReadResource`：L3 资源字节（复制一次交付，Rust 侧不保留）。
 fn read_resource_bytes(
     handle: &DocumentHandle,
@@ -551,6 +561,12 @@ pub(crate) fn js_document_entries(mut cx: FunctionContext) -> JsResult<JsPromise
         Err(error) => return throw_chips_error(&mut cx, error),
     };
     spawn_export(&mut cx, move || entries_result(&handle, range), settle_json)
+}
+
+/// `documentLayoutConfig(handle)`：L2 箱子布局配置单元（`.box/content.yaml` 根值）。
+pub(crate) fn js_document_layout_config(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let handle = handle_argument!(cx);
+    spawn_export(&mut cx, move || layout_config_result(&handle), settle_json)
 }
 
 /// `documentReadResource(handle, path, range?)`：L3 资源字节 → `Buffer`。
@@ -893,6 +909,65 @@ mod tests {
 
         let error = content_result(&handle, &NodeId::new(NODE).expect("合法标识"))
             .expect_err("箱子句柄读内容节点必须失败");
+        assert_eq!(error.code(), "DOCUMENT_FORMAT_UNKNOWN");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_box_layout_config_dto_shape_and_partial_success() {
+        let root = temp_root("layout");
+        write_minimal_box(&root);
+        let handle = open_blocking(
+            OpenMode::Box,
+            root.display().to_string(),
+            ParseOptions::default(),
+        )
+        .expect("最小箱子夹具必须可打开");
+
+        // 正向 DTO 形状：`{ kind, value, diagnostics }` 统一信封，
+        // `value` 为 `.box/content.yaml` 根值（顺序保持映射）。
+        let result = layout_config_result(&handle).expect("布局配置结果必须可构造");
+        assert_eq!(result["kind"], "box");
+        assert_eq!(result["value"]["active_layout_type"], "grid");
+        assert_eq!(
+            result["value"]["layout_configs"]["grid"]["props"]["column_count"],
+            4
+        );
+        assert!(result["diagnostics"].is_array());
+
+        // §8.4 部分成功：布局单元缺失不是导出失败——返回空映射占位并
+        // 携带错误级诊断（生效布局不可用，视图侧按空配置渲染）。
+        let damaged = temp_root("layout-missing");
+        write_minimal_box(&damaged);
+        fs::remove_file(damaged.join(".box/content.yaml")).expect("移除布局单元");
+        let handle = open_blocking(
+            OpenMode::Box,
+            damaged.display().to_string(),
+            ParseOptions::default(),
+        )
+        .expect("缺布局单元的箱子必须可打开（L2 触达才判定）");
+        let result = layout_config_result(&handle).expect("缺布局单元必须按占位成功返回");
+        assert_eq!(result["kind"], "box");
+        assert_eq!(result["value"], json!({}));
+        assert!(
+            result["diagnostics"]
+                .as_array()
+                .expect("诊断必须是数组")
+                .iter()
+                .any(|item| item["severity"] == "error"),
+            "占位结果必须携带错误级诊断"
+        );
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&damaged);
+    }
+
+    #[test]
+    fn test_card_layout_config_misuse_maps_contract_code() {
+        let root = temp_root("layout-misuse");
+        write_minimal_card(&root);
+        let handle = open_card_fixture(&root);
+        // 卡片句柄无布局配置单元：backing 契约码原样透传（§8.5），绑定层不加码。
+        let error = layout_config_result(&handle).expect_err("卡片句柄读布局配置必须失败");
         assert_eq!(error.code(), "DOCUMENT_FORMAT_UNKNOWN");
         let _ = fs::remove_dir_all(&root);
     }
