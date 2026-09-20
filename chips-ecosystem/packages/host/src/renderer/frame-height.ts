@@ -20,9 +20,9 @@ export interface IFrameHeightControllerDeps {
   /** 帧尺寸限制（来自 `host:init` 同源的 `FrameLimits`）。 */
   readonly limits: FrameLimits;
   /** 应用高度到 iframe 元素（px）。 */
-  readonly applyHeight(heightPx: number): void;
+  applyHeight(heightPx: number): void;
   /** 回执 `host:height-ack`。 */
-  readonly sendAck(epoch: number): void;
+  sendAck(epoch: number): void;
   /** 诊断口（拒绝与违规记录）。 */
   readonly diagnostics: DiagnosticsSink;
   /** 诊断 scope；缺省 `render.height`。 */

@@ -73,6 +73,8 @@ export interface ICardFrameHostLike {
   dispose(): Promise<void>;
   /** 订阅已应用高度变化（clamp 后的 iframe 高度）。 */
   onHeightChanged(listener: (heightPx: number) => void): void;
+  /** 开始握手（等待帧 load → 通道建立 → 下发 `host:init`）。 */
+  beginHandshake(): Promise<void>;
 }
 
 /** 把一次性握手令牌并入帧入口 URL 的 fragment（§9.1 第 1 条：URL 携带令牌，仅子帧脚本可读）。 */

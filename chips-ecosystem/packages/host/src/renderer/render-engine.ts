@@ -19,8 +19,7 @@ import { createRenderError, RENDER_ERROR_CODES } from './codes.js';
 import type { RenderErrorCode } from './codes.js';
 import { normalizeDocumentFailure } from './document-gateway.js';
 import type { IRenderDocumentGateway } from './document-gateway.js';
-import type { ChipsError } from '../preload/chips-error.js';
-import { toChipsError } from '../preload/chips-error.js';
+import { ChipsError, toChipsError } from '../preload/chips-error.js';
 import type { DocumentKind } from '../capabilities/document/contract.js';
 import type { FrameActionPayload, FrameLimits, FrameRole, ICardRenderView } from './frame-protocol.js';
 import type { DesignTokens } from './frame-protocol.js';
@@ -67,6 +66,8 @@ export interface IRenderSession {
   readonly kind: DocumentKind;
   readonly mode: RenderMode;
   readonly state: RenderSessionState;
+  /** 会话失败信息（未失败为 `null`）。 */
+  readonly error: ChipsError | null;
   mount(container: HTMLElement): Promise<void>;
   unmount(): void;
   update(view: ICardRenderView, revision: number): Promise<void>;
@@ -207,6 +208,11 @@ class CardRenderSession implements IRenderSession {
     return this.stateValue;
   }
 
+  /** 会话失败信息（未失败为 `null`）。 */
+  get error(): ChipsError | null {
+    return this.lastError;
+  }
+
   /** 启动解析管线（引擎 open 内调用一次；重复调用为编程错误）。 */
   async startPipeline(): Promise<void> {
     if (this.started) {
@@ -264,7 +270,17 @@ class CardRenderSession implements IRenderSession {
   }
 
   /** 会话视图更新（编辑链路在 `document:write` 成功后调用，revision 取其返回值）。 */
-  async update(view: ICardRenderView, revision: number): Promise<void> {
+  update(view: ICardRenderView, revision: number): Promise<void> {
+    try {
+      this.applyUpdate(view, revision);
+      return Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /** 更新主体（同步校验与转发；失败保留旧帧，不产生半更新状态，§2.4 第 5 条）。 */
+  private applyUpdate(view: ICardRenderView, revision: number): void {
     this.assertAlive();
     if (this.stateValue !== 'ready') {
       this.diagnostics.warn('render.session', '会话未就绪，更新被忽略', { sessionId: this.id, state: this.stateValue });
@@ -333,7 +349,7 @@ class CardRenderSession implements IRenderSession {
     }
   }
 
-  /** 启动解析管线（供引擎 open 触发）。 */
+  /** 管线取消探针。 */
   private throwIfAborted(): void {
     if (this.abortController.signal.aborted) {
       throw new AbortError();
@@ -382,7 +398,10 @@ class CardRenderSession implements IRenderSession {
       .catch((error: ChipsError) => {
         this.fail(error);
       });
-    void host.beginHandshake();
+    host.beginHandshake().catch((error: unknown) => {
+      // 帧加载失败（URL 不可达等）：按渲染失败收敛，不悬挂在 opening。
+      this.fail(toChipsError(error, RENDER_ERROR_CODES.frameTimeout, '渲染帧加载失败'));
+    });
   }
 
   /** 归一管线失败（文档域码按 §11 映射；其余原样透传）。 */

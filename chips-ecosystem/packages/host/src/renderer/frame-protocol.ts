@@ -247,8 +247,13 @@ export interface IFrameHandshakeTransfer {
   readonly token: string;
 }
 
-/** 构造封套（sessionId / frameId 必须与通道登记一致）。 */
-export function createFrameEnvelope<TMessage extends FrameInboundMessage | HostInboundMessage>(
+/**
+ * 构造封套（sessionId / frameId 必须与通道登记一致）。
+ *
+ * @remarks 消息体不加类型约束：跨端口载荷必须可结构化克隆（05.04 §4.5 通信红线），
+ * 形状校验在接收端 {@link parseFrameEnvelope} 完成。
+ */
+export function createFrameEnvelope<TMessage>(
   sessionId: string,
   frameId: string,
   message: TMessage
@@ -293,7 +298,13 @@ export function parseFrameEnvelope(data: unknown): FrameEnvelope<FrameInboundMes
   if (!isRecord(message) || !isString(message['type']) || !FRAME_INBOUND_TYPES.has(message['type'])) {
     return null;
   }
-  if (!isRecord(message['payload'])) {
+  // §9.2 清单中仅 `frame:dispose-ack` 的载荷为 null，其余消息载荷均为对象。
+  const payload = message['payload'];
+  if (payload === null) {
+    if (message['type'] !== 'frame:dispose-ack') {
+      return null;
+    }
+  } else if (!isRecord(payload)) {
     return null;
   }
   return data as unknown as FrameEnvelope<FrameInboundMessage>;

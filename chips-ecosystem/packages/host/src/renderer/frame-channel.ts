@@ -227,7 +227,7 @@ export class FrameChannel {
     if (port === null || this.disposed) {
       return;
     }
-    port.postMessage(createFrameEnvelope(this.deps.sessionId, this.deps.frameId, message as HostOutboundSend));
+    port.postMessage(createFrameEnvelope(this.deps.sessionId, this.deps.frameId, message));
   }
 
   /** 端口入站消息处理（§9.6 校验 → §9.3 路由）。 */
