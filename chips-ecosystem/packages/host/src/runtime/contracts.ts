@@ -100,6 +100,21 @@ export interface IResourceBackend {
   read(request: IResourceReadRequest): Promise<IResourceReadResult>;
 }
 
+/**
+ * 宿主内部取视图通道端点（壳渲染进程 RenderHost ↔ 主进程；工单035 裁定 C+B）。
+ *
+ * @remarks
+ * - 封套形状与两侧校验闸的权威在 `renderer/document-view-channel.ts` 契约（本端口不重复
+ *   声明消息类型，避免跨层类型依赖；端点两侧均为平台自身代码，不经 Bridge 能力注册表、
+ *   无 capability ID、权限判定不适用）。
+ * - `handleRequest` 接收渲染侧 `ipcRenderer.invoke` 的原始载荷：内部先过请求闸
+ *   （非法载荷以在册错误面失败臂回包，不静默、不上抛），成功路径返回守门后的结果臂；
+ *   返回值必为可结构化克隆的通道响应封套（`DocumentViewBuildResponse` 形状）。
+ */
+export interface IDocumentViewChannelEndpoint {
+  handleRequest(data: unknown): Promise<unknown>;
+}
+
 /** 平台运行时端口。 */
 export interface IPlatformRuntime {
   /**
@@ -126,6 +141,11 @@ export interface IPlatformRuntime {
   readonly ipc: IPlatformIpcEndpoint;
   /** 资源读取后端。 */
   readonly resources: IResourceBackend;
+  /**
+   * 宿主内部取视图通道端点（可选；组合根装配文档能力时交付，未装配即缺位——
+   * 壳启动 `ipc` 段据此决定 `document-view:request` 通道的注册与注销）。
+   */
+  readonly documentViewChannel?: IDocumentViewChannelEndpoint;
   /** 注册事件下行投递口；返回注销函数（幂等）。 */
   forwardEvents(sink: IEventSink): () => void;
 }

@@ -9,6 +9,9 @@
  *   {@link IDocumentSessionStore.claimSessionIdentity} 判定 `DOCUMENT_ID_CONFLICT`（§3.1）。
  * - 单文档单写者：写租约在文档记录上（首次成功 `document:write` 时获得，保存成功时归还，
  *   §3.6）；同一文档的 `write` / `save` 经记录内串行队列执行（§7.5），不同文档互不阻塞。
+ * - 记录级原生数值会话（`nativeSession`）：backing `SessionId`（u64）的唯一生成点，
+ *   随记录建立按存储内单调计数分配；宿主 wire 会话 `string` 为对外唯一身份，数值会话
+ *   不出主进程（RFC O3 / 工单035 裁定二，消费面见 `adapters/view-channel.ts`）。
  * - 会话释放（拥有者窗口关闭 / Fork 撤销）由组合根在 Bridge 会话清理链路调用
  *   {@link IDocumentSessionStore.releaseSessionsOf}；R19 不提供显式关闭能力（§4.6），
  *   释放即 `close`，被移除的记录由能力层发布 `document:closed`（§7.3）。
@@ -68,6 +71,15 @@ export interface IDocumentRecord {
   readonly title: string;
   /** 当前只读解析句柄（保存成功后按新指纹重建，§3.5）。 */
   handle: IDocumentHandle;
+  /**
+   * 记录级原生数值会话（backing `SessionId`，u64 的 JS 安全整数子集形态）。
+   *
+   * @remarks RFC O3 / 工单035 裁定二：宿主 wire 会话标识 `string` 为对外唯一身份，
+   * backing 数值会话为主进程内部细节、不出主进程；本字段是该数值身份的**唯一生成点**
+   * （存储内单调计数，随记录建立分配、随记录移除作废），string↔u64 归一单点在
+   * 视图通道会话解析器（`adapters/view-channel.ts`）消费本字段完成。
+   */
+  readonly nativeSession: number;
   /** L0 元数据基线（保存成功后按重建句柄刷新）。 */
   baselineMetadata: DocumentValue;
   /** 打开 / 上次保存时的解析诊断快照（L0）。 */
@@ -102,6 +114,14 @@ export type SessionIdentityClaim = 'ok' | 'reuse' | 'conflict';
 export interface IDocumentSessionStore {
   /** 按受管 URI 取文档记录。 */
   findRecord(managedUri: string): IDocumentRecord | undefined;
+  /**
+   * 按稳定文档标识取声明了该标识的全部存活记录（打开流程 §3.1 之外的只读查询面）。
+   *
+   * @remarks 视图通道会话解析器（`adapters/view-channel.ts`，主进程内部消费）用于
+   * `{source, documentId}` → 记录定位与多记录冲突判定（§3.1 同一标识跨来源的唯一性
+   * 由打开链路的身份声明冲突闸保障，本查询面只做如实枚举，不做二次裁决）。
+   */
+  findRecordsByDocumentId(documentId: string): readonly IDocumentRecord[];
   /** 建立文档记录（同 URI 幂等返回既有记录）。 */
   openRecord(input: IOpenRecordInput): IDocumentRecord;
   /** 取或创建会话（新建即 `reader`、`revision = 0`、非脏）。 */
@@ -152,6 +172,8 @@ export function createDocumentSessionStore(
   const recordsByUri = new Map<string, IDocumentRecord>();
   /** 会话 → 文档标识 → 受管 URI（§3.1 冲突判定索引）。 */
   const sessionIdentity = new Map<string, Map<string, string>>();
+  /** 原生数值会话生成点（RFC O3 裁定二的存储侧单点：记录级单调计数，随记录作废不回收）。 */
+  let nativeSessionCounter = 0;
   /** 正在释放的拥有者会话：§4.6 的 `closing` 标记，期间一律拒绝新的文档会话查找。 */
   const releasingSessions = new Set<string>();
   /** 文档记录 → 串行队列尾。 */
@@ -161,11 +183,21 @@ export function createDocumentSessionStore(
     findRecord(managedUri) {
       return recordsByUri.get(managedUri);
     },
+    findRecordsByDocumentId(documentId) {
+      const matches: IDocumentRecord[] = [];
+      for (const record of recordsByUri.values()) {
+        if (record.documentId === documentId) {
+          matches.push(record);
+        }
+      }
+      return matches;
+    },
     openRecord(input) {
       const existing = recordsByUri.get(input.managedUri);
       if (existing !== undefined) {
         return existing;
       }
+      nativeSessionCounter += 1;
       const record: IDocumentRecord = {
         managedUri: input.managedUri,
         localPath: input.localPath,
@@ -174,6 +206,7 @@ export function createDocumentSessionStore(
         documentId: input.documentId,
         title: input.title,
         handle: input.handle,
+        nativeSession: nativeSessionCounter,
         baselineMetadata: input.baselineMetadata,
         baselineDiagnostics: input.baselineDiagnostics,
         baselineFingerprint: input.baselineFingerprint,

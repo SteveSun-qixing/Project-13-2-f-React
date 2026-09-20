@@ -34,6 +34,7 @@ import { createDocumentCapabilityDescriptors } from '../src/capabilities/documen
 import type { IDocumentCapabilityContext } from '../src/capabilities/document/contract.js';
 import type { DocumentCapabilityExecutor } from '../src/capabilities/document/ports.js';
 import type { IDocumentService } from '../src/capabilities/document/service.js';
+import type { DocumentViewSessionResolution } from '../src/capabilities/document/service.js';
 import { RESERVED_DOCUMENT_CAPABILITIES } from '../src/runtime/capabilities/reserved.js';
 import type { IHostCapabilityContext } from '../src/runtime/capability/contracts.js';
 
@@ -224,6 +225,7 @@ describe('注册单元 ↔ 镜像常量与预留槽位（descriptors.ts）', () 
       executeRead: recorder('read', calls),
       executeWrite: recorder('write', calls),
       executeSave: recorder('save', calls),
+      resolveViewSession: (): DocumentViewSessionResolution => ({ status: 'not-found' }),
       releaseSessions: (): Promise<void> => Promise.resolve(),
       activeRecordCount: (): number => 0,
     };

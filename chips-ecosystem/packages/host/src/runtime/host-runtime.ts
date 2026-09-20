@@ -35,6 +35,7 @@ import type { IPalHost } from '../platform/contracts/index.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import type {
+  IDocumentViewChannelEndpoint,
   IEventSink,
   IPlatformHostChannel,
   IPlatformIpcEndpoint,
@@ -89,6 +90,22 @@ export interface HostRuntimeOptions {
    * 已订阅对应事件的活动会话。
    */
   readonly pluginLoaderFactory?: (deps: IHostPluginLoaderDeps) => IPluginLoaderSurface;
+  /**
+   * 宿主内部取视图通道端点（组合根文档能力装载段交付，见 `runtime/contracts.ts`
+   * {@link IDocumentViewChannelEndpoint}）。
+   *
+   * @remarks 本运行时只透传给 `IPlatformRuntime.documentViewChannel`，注册与注销由壳启动
+   * `ipc` 段完成（通道是宿主内部 IPC，不进 Bridge 能力注册表）；缺位即通道不可用。
+   */
+  readonly documentViewChannel?: IDocumentViewChannelEndpoint;
+  /**
+   * Bridge 会话关闭联动（刀4 缝②）：会话注册表清理链（订阅 / 句柄释放完成后）逐会话
+   * 通知组合根，文档服务据此释放该会话的文档会话与记录（§4.6）。
+   *
+   * @remarks 回调以 fire-and-forget 消费：回调内部异步失败自落诊断（组合根职责），
+   * 同步抛出在本运行时兜底捕获，不阻断其余会话清理。
+   */
+  readonly onBridgeSessionClosed?: (sessionId: string) => void;
 }
 
 /** 生产运行时端口（附带诊断快照查询）。 */
@@ -227,6 +244,18 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
   sessions.onClosed((session: IHostSession): void => {
     events.releaseSession(session.sessionId);
     handles.releaseSession(session.sessionId);
+    // 刀4 缝②：内部清理完成后交组合根联动（文档服务会话释放，§4.6）；同步抛出兜底
+    // 捕获——单会话回调失败不阻断其余会话清理，异步失败由回调方自行落诊断。
+    if (options.onBridgeSessionClosed !== undefined) {
+      try {
+        options.onBridgeSessionClosed(session.sessionId);
+      } catch (error: unknown) {
+        diagnostics.error('host-runtime', '会话关闭联动回调抛出', {
+          sessionId: session.sessionId,
+          reason: error instanceof Error ? error.message : typeof error,
+        });
+      }
+    }
   });
 
   const resolveSession = (source: ISessionSource): IHostSession | null => {
@@ -381,6 +410,7 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
     },
     ipc,
     resources,
+    ...(options.documentViewChannel === undefined ? {} : { documentViewChannel: options.documentViewChannel }),
     forwardEvents(sink: IEventSink): () => void {
       sinks.add(sink);
       let disposed = false;

@@ -27,7 +27,9 @@
 
 import type { DiagnosticsSink } from '../../../shared/diagnostics.js';
 import type { IHostCapabilityDescriptor } from '../../../runtime/capability/contracts.js';
+import type { IDocumentViewChannelEndpoint } from '../../../runtime/contracts.js';
 import { createDocumentService } from '../service.js';
+import type { IDocumentService } from '../service.js';
 import { createDocumentCapabilityDescriptors } from '../descriptors.js';
 import type { IDocumentScopePort, IDocumentStoragePort } from '../ports.js';
 import { createNativeDocumentParserPort } from './native-parser.js';
@@ -38,6 +40,7 @@ import {
 } from './native-parser-module.js';
 import { createDocumentBridgeSessionGuardPort, type DocumentGuardSessionSource } from './bridge-session-guard.js';
 import { createDocumentHostEventBusPort, type HostEventBusPublisher } from './host-event-bus.js';
+import { createDocumentViewChannelHandler, createUnavailableDocumentViewChannelEndpoint } from './view-channel.js';
 
 /** 资源管理器侧端口的正式适配器注入面（scope + 受控写；载体 = W3 chips-resource，工单 036）。 */
 export interface IDocumentResourcePorts {
@@ -91,6 +94,17 @@ export interface IDocumentCapabilityWiring {
    * @remarks `unavailable` 时为 no-op（无服务实例消费总线）。
    */
   bindEventBus(publisher: HostEventBusPublisher): void;
+  /**
+   * 宿主内部取视图通道端点（刀5 段A / 工单035 裁定 C+B）：`wired` 臂为真实构建链
+   * （请求闸 → 主进程构建器 → 会话解析 → 守门回包），`unavailable` 臂为诚实拒绝臂
+   * （在册码 `BRIDGE_INTERNAL` 失败回包，不静默）——两臂恒在，通道注册不依赖装载判定。
+   */
+  readonly viewChannel: IDocumentViewChannelEndpoint;
+  /**
+   * 文档服务实例（`wired` 臂交付；组合根据此接线 Bridge 会话释放联动，刀4 缝②）。
+   * `unavailable` 时缺位（无服务实例可释放）。
+   */
+  readonly service?: IDocumentService;
 }
 
 /** 装载段诊断域标识（组合根留痕口径）。 */
@@ -156,6 +170,7 @@ export function createDocumentCapabilityWiring(
       status: 'unavailable',
       descriptors: [],
       missing,
+      viewChannel: createUnavailableDocumentViewChannelEndpoint(),
       bindEventBus(): void {
         // 未装载：无服务实例，总线无绑定对象。
       },
@@ -164,10 +179,11 @@ export function createDocumentCapabilityWiring(
 
   // 依赖齐备：构造生产端口与真实服务，交组合根注册四条 `document:*`。
   const eventBus = createDocumentHostEventBusPort();
+  const parserPort = createNativeDocumentParserPort(parserBinding.parser);
   const service = createDocumentService({
     scope: resourcePorts.scope,
     storage: resourcePorts.storage,
-    parser: createNativeDocumentParserPort(parserBinding.parser),
+    parser: parserPort,
     events: eventBus.port,
     guard: createDocumentBridgeSessionGuardPort(guardSessionSource),
     diagnostics,
@@ -177,6 +193,10 @@ export function createDocumentCapabilityWiring(
     status: 'wired',
     descriptors: createDocumentCapabilityDescriptors(service),
     missing: [],
+    // 刀5 段A（缝③收口）：视图通道端点与四能力共用同一服务实例、同一原生装载闸产物——
+    // 构建执行位主进程，句柄与数值会话经 `view-channel.ts` 归一单点消费。
+    viewChannel: createDocumentViewChannelHandler({ service, native: parserPort.view }),
+    service,
     bindEventBus(publisher: HostEventBusPublisher): void {
       eventBus.bind(publisher);
     },

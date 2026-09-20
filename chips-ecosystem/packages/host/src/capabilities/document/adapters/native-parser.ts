@@ -62,6 +62,7 @@ import type {
   INativeDocumentRevision,
   INativeDiagnostic,
 } from './native-parser-module.js';
+import type { INativeDocumentViewModule } from '../../../renderer/document-view-builder.js';
 
 /** 解析域登记码（《06-文档解析器设计》§8.2；端口头注口径「失败以已登记 `DOCUMENT_*` 码抛出」）。 */
 const PARSER_CODE = {
@@ -203,12 +204,25 @@ function ensureNotAborted(signal: AbortSignal, stage: string): void {
 }
 
 /**
+ * 端口适配器交付面：`IDocumentParserPort` + 视图构建域 `view` 臂。
+ *
+ * @remarks `view` 臂（工单035 裁定二 / RFC O3 的句柄侧归一点）：入参为服务侧句柄
+ * token（会话存储记录持有的 `IDocumentHandle`，即本适配器 `registerHandle` 交付的
+ * 投影对象），臂内经私有 WeakMap 还原为真实原生句柄逐字交 `buildDocumentView` /
+ * `documentReadResource`——`JsBox` 投影与数值会话同样不出主进程。消费面见
+ * `view-channel.ts`（宿主内部取视图通道主进程侧）。
+ */
+export interface INativeDocumentParserPortAdapter extends IDocumentParserPort {
+  readonly view: INativeDocumentViewModule;
+}
+
+/**
  * 构造 `IDocumentParserPort` 的 chips-native 生产适配器。
  *
  * @param module 解析域注入面（生产由 `loadNativeDocumentParserBinding` 交付；
  *   测试注入替面对象）。适配器本身不做装载判定，装载闸四分面由调用方（刀4 组合根）执行。
  */
-export function createNativeDocumentParserPort(module: INativeDocumentParserModule): IDocumentParserPort {
+export function createNativeDocumentParserPort(module: INativeDocumentParserModule): INativeDocumentParserPortAdapter {
   const handles = new WeakMap<IDocumentHandle, IHandleRecord>();
 
   /** 静默回收原生句柄（泄漏守卫与 `fingerprint` 复合臂共用；关闭失败由 GC 终结器兜底，§12.2）。 */
@@ -347,6 +361,22 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
     return { value: envelope.value, diagnostics: envelope.diagnostics };
   }
 
+  /** 视图构建域臂（句柄 token → 原生句柄还原，WeakMap 私有簿记唯一触达点）。 */
+  const view: INativeDocumentViewModule = {
+    async buildDocumentView(handle, session) {
+      const record = requireLive(handle as unknown as IDocumentHandle, 'buildDocumentView');
+      return attempt(() => module.buildDocumentView(record.native, session));
+    },
+    async documentReadResource(handle, path, range) {
+      const record = requireLive(handle as unknown as IDocumentHandle, 'documentReadResource');
+      return attempt(() =>
+        range === undefined
+          ? module.documentReadResource(record.native, path)
+          : module.documentReadResource(record.native, path, range)
+      );
+    },
+  };
+
   return {
     open,
 
@@ -388,5 +418,7 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
       // 关闭成功后才置位：失败保持可重试（重复 release 再次触达原生侧）。
       record.closed = true;
     },
+
+    view,
   };
 }

@@ -21,6 +21,7 @@ import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import { HostStartupError, type HostStartupStage } from '../shared/errors.js';
 import type { ShellElectronRuntime } from './electron-adapter.js';
+import { registerDocumentViewChannel } from '../capabilities/document/adapters/view-channel.js';
 import { registerIpcChannels } from './ipc-channels.js';
 import { CardWindowOrchestrator } from './card-window-orchestrator.js';
 import { pushSessionPermissions } from './session-resolver.js';
@@ -75,6 +76,7 @@ export class HostApplication {
   private readonly windowManager: ShellWindowManager;
   private readonly cardWindows: CardWindowOrchestrator;
   private detachIpc: (() => void) | null = null;
+  private detachViewChannel: (() => void) | null = null;
   private detachEvents: (() => void) | null = null;
   private coreStarted = false;
   private currentState: HostApplicationState = 'idle';
@@ -149,6 +151,15 @@ export class HostApplication {
         isWindowAlive: (windowId) => this.registry.isAlive(windowId),
         diagnostics: this.diagnostics,
       });
+      // 刀5 段A：宿主内部取视图通道注册（组合根两臂恒在交付；未装配核心的运行时缺位
+      // 即不注册）。通道两端均为平台自身代码，权限判定不适用（工单035 裁定）。
+      const viewChannelEndpoint = this.options.runtime.documentViewChannel;
+      if (viewChannelEndpoint !== undefined) {
+        this.detachViewChannel = registerDocumentViewChannel({
+          ipcMain: this.options.electron.ipcMain,
+          endpoint: viewChannelEndpoint,
+        });
+      }
       stage = 'protocol';
       this.options.electron.app.onWebContentsCreated((webContents) => {
         this.binder.bind(webContents);
@@ -218,6 +229,7 @@ export class HostApplication {
     await this.stopPlugins();
     this.unregisterEvents();
     this.closeWindows();
+    this.unregisterViewChannel();
     this.unregisterIpc();
     await this.shutdownCore();
     this.disposePal();
@@ -301,6 +313,20 @@ export class HostApplication {
     }
   }
 
+  /** 注销宿主内部取视图通道（逆序收口：后注册先注销）。 */
+  private unregisterViewChannel(): void {
+    const detach = this.detachViewChannel;
+    this.detachViewChannel = null;
+    if (detach === null) {
+      return;
+    }
+    try {
+      detach();
+    } catch (error) {
+      this.diagnostics.error('shutdown', '取视图通道注销失败', { reason: describe(error) });
+    }
+  }
+
   /** 核心停机。 */
   private async shutdownCore(): Promise<void> {
     if (!this.coreStarted) {
@@ -331,6 +357,7 @@ export class HostApplication {
   private async rollback(): Promise<void> {
     this.unregisterEvents();
     this.closeWindows();
+    this.unregisterViewChannel();
     this.unregisterIpc();
     await this.shutdownCore();
     this.disposePal();

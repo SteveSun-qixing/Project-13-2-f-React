@@ -16,7 +16,9 @@
  *   「四条能力真实路由到 createDocumentService → 原生端口」的调用形态。
  * - `serialize` 无原生对应物（刀6 裁决：落盘序列化权威归 W3 chips-resource），
  *   夹具无需提供——适配器 `IDocumentParserPort.serialize` 自带诚实拒绝臂。
- * - 未消费的冻结面（`documentReadResource` / `documentValidate` / `buildDocumentView` /
+ * - `buildDocumentView(handle, session)`（任务 #108 刀5 段A 起为已消费面）：按 §6.6
+ *   CardRenderView 冻结形状从登记表投影，调用记录含数值会话入参。
+ * - 其余未消费的冻结面（`documentReadResource` / `documentValidate` /
  *   `documentEntries` / `documentLayoutConfig`）以契约形状的错误诚实拒绝（卡片句柄
  *   误用即点名），不伪造成功。
  */
@@ -194,13 +196,36 @@ module.exports = {
     }
     return fail('DOCUMENT_STRUCTURE_INVALID', '夹具不提供严格校验报告');
   },
-  buildDocumentView(handle) {
+  buildDocumentView(handle, session) {
+    let found;
     try {
-      requireHandle(handle, 'buildDocumentView');
+      found = requireHandle(handle, 'buildDocumentView');
     } catch (error) {
       return Promise.reject(error);
     }
-    return fail('DOCUMENT_STRUCTURE_INVALID', '夹具不提供渲染视图构建');
+    // 任务 #108（刀5 段A）：按 §6.6 CardRenderView 冻结形状从登记表投影真实视图，
+    // 使组合根端到端用例能走完「通道 → 构建器 → 加载闸 → 本导出」全链（含数值会话
+    // 入参消费）；基线修订恒为 0（磁盘基线，无会话覆盖层的原生侧语义由后端承载）。
+    calls[calls.length - 1].args.session = session;
+    if (found.kind !== 'card') {
+      return fail('DOCUMENT_STRUCTURE_INVALID', '夹具仅登记卡片视图');
+    }
+    const contentNodes = structure.structure.map((entry) => ({
+      node_id: entry.id,
+      card_type: entry.type,
+      content: JSON.parse(JSON.stringify(contents.get(entry.id) ?? {})),
+    }));
+    return Promise.resolve({
+      kind: 'card',
+      revision: 0,
+      card_id: found.documentId,
+      name: metadata.name,
+      chip_standards_version: metadata.chip_standards_version,
+      cover_ratio: '1:1',
+      tags: [],
+      cover: { entry: structure.structure[0].id, ratio: '1:1' },
+      content_nodes: contentNodes,
+    });
   },
   documentClose(handle) {
     const found = opened.get(handle);

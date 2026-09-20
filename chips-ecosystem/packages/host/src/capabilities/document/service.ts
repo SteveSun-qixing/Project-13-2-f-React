@@ -53,6 +53,7 @@ import {
 import type { ISourceFingerprint } from './digest.js';
 import type {
   DocumentCapabilityExecutor,
+  IDocumentHandle,
   IDocumentParseOutcome,
   IDocumentSerializeRequest,
   IDocumentSerializedMember,
@@ -76,12 +77,42 @@ import {
   validateStructureSlice,
 } from './validation.js';
 
+/** 视图通道会话定位请求（`{source, documentId}` 二元组，来源为渲染侧端口输入）。 */
+export interface IDocumentViewSessionLookup {
+  readonly source: string;
+  readonly documentId: string;
+}
+
+/**
+ * 视图通道会话解析结果（主进程内部消费面；工单035 裁定 / RFC O3）。
+ *
+ * @remarks `found` 臂交付的 `nativeSession` 为 backing 数值会话（记录级唯一生成点，
+ * 见 `session-store.ts` 头注）：只供主进程视图通道适配器逐调用交原生 `buildDocumentView`
+ * 消费，**不得出现在任何跨进程回包**。`not-found` / `conflict` 由适配器映射为
+ * `DOCUMENT_NOT_OPEN` / `DOCUMENT_ID_CONFLICT`（在册面内，见通道契约错误码表）。
+ */
+export type DocumentViewSessionResolution =
+  | {
+      readonly status: 'found';
+      readonly handle: IDocumentHandle;
+      readonly nativeSession: number;
+      readonly managedUri: string;
+    }
+  | { readonly status: 'not-found' }
+  | { readonly status: 'conflict'; readonly candidateCount: number };
+
 /** 文档服务对外执行面（组合根把执行器包装进能力注册项，见 `descriptors.ts`）。 */
 export interface IDocumentService {
   executeOpen: DocumentCapabilityExecutor<unknown, IDocumentOpenOutput>;
   executeRead: DocumentCapabilityExecutor<unknown, IDocumentReadOutput>;
   executeWrite: DocumentCapabilityExecutor<unknown, IDocumentWriteOutput>;
   executeSave: DocumentCapabilityExecutor<unknown, IDocumentSaveOutput>;
+  /**
+   * 宿主内部取视图通道的会话解析（`05-渲染引擎设计` §2.6 / 工单035）：按
+   * `{source, documentId}` 对在会话存储唯一定位记录，取记录级句柄、数值会话与受管 URI。
+   * string↔u64 归一单点在通道适配器（`adapters/view-channel.ts`）消费本方法完成。
+   */
+  resolveViewSession(lookup: IDocumentViewSessionLookup): DocumentViewSessionResolution;
   /** Bridge 会话释放联动：移除该会话的全部文档会话与身份声明（§4.6 释放语义的宿主入口）。 */
   releaseSessions(sessionId: string): Promise<void>;
   /** 观察面：当前活动文档记录数（诊断与测试）。 */
@@ -782,6 +813,25 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     });
   }
 
+  function resolveViewSession(lookup: IDocumentViewSessionLookup): DocumentViewSessionResolution {
+    const record = store.findRecord(lookup.source);
+    if (record === undefined) {
+      // 来源无存活记录：该 `{source, documentId}` 对无对应会话，如实 not-found（映射 DOCUMENT_NOT_OPEN）。
+      return { status: 'not-found' };
+    }
+    if (record.documentId === lookup.documentId) {
+      return {
+        status: 'found',
+        handle: record.handle,
+        nativeSession: record.nativeSession,
+        managedUri: record.managedUri,
+      };
+    }
+    // 来源记录在册但稳定标识不符：二元组与会话存储声明冲突（§3.1 口径），
+    // `candidateCount` 如实枚举该标识的存活记录数供诊断。
+    return { status: 'conflict', candidateCount: store.findRecordsByDocumentId(lookup.documentId).length };
+  }
+
   async function releaseSessions(sessionId: string): Promise<void> {
     const released = await store.releaseSessionsOf(sessionId);
     for (const record of released) {
@@ -797,6 +847,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     executeRead: (input, ctx) => guardStage(executeRead(input, ctx)),
     executeWrite: (input, ctx) => guardStage(executeWrite(input, ctx)),
     executeSave: (input, ctx) => guardStage(executeSave(input, ctx)),
+    resolveViewSession,
     releaseSessions,
     activeRecordCount() {
       return store.recordCount();

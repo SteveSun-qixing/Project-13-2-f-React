@@ -98,6 +98,53 @@ export type {
   INativeDocumentViewResourceRange,
 } from './document-view-builder.js';
 
+export {
+  DOCUMENT_VIEW_PROTOCOL,
+  DOCUMENT_VIEW_REQUEST_CHANNEL,
+  DOCUMENT_VIEW_MESSAGE_TYPES,
+  DOCUMENT_VIEW_CHANNEL_KINDS,
+  DOCUMENT_VIEW_CHANNEL_ERROR_CODES,
+  isDocumentViewChannelErrorCode,
+  createDocumentViewBuildRequest,
+  createDocumentViewBuildResult,
+  createDocumentViewBuildFailure,
+  isDocumentViewBuildResult,
+  isDocumentViewBuildFailure,
+  normalizeDocumentViewChannelError,
+  guardDocumentViewCardRenderView,
+  validateDocumentViewChannelRequest,
+  validateDocumentViewChannelResponse,
+} from './document-view-channel.js';
+export type {
+  DocumentViewMessageType,
+  DocumentViewChannelErrorCode,
+  IDocumentViewChannelInput,
+  IDocumentViewBuildRequest,
+  IDocumentViewBuildResult,
+  IDocumentViewBuildFailure,
+  DocumentViewBuildResponse,
+  DocumentViewChannelMessage,
+} from './document-view-channel.js';
+
+export { createDocumentViewChannelBuilder } from './document-view-channel-client.js';
+export type {
+  IDocumentViewChannelInvoke,
+  IDocumentViewChannelClientOptions,
+} from './document-view-channel-client.js';
+
+export {
+  createBridgeDocumentWritePort,
+  createDocumentReflowCoordinator,
+} from './document-reflow.js';
+export type {
+  IDocumentWritePort,
+  IDocumentReflowSubscription,
+  DocumentReflowEventSubscribe,
+  DocumentReflowAction,
+  IDocumentReflowBindings,
+  IDocumentReflowCoordinator,
+} from './document-reflow.js';
+
 export { useRenderSession } from './use-render-session.js';
 export type { IUseRenderSessionResult } from './use-render-session.js';
 

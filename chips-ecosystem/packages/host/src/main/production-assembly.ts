@@ -29,6 +29,7 @@
 import { join } from 'node:path';
 
 import type { IPalHost } from '../platform/contracts/index.js';
+import type { IDocumentViewChannelEndpoint } from '../runtime/contracts.js';
 import type { IHostCapabilityDescriptor } from '../runtime/capability/contracts.js';
 import type { IHostCapabilityRegistryOptions } from '../runtime/capability/registry.js';
 import type { IHostSessionProvisioner } from '../runtime/capability/session.js';
@@ -91,6 +92,17 @@ export interface ProductionRuntimeOptions {
   /** 激活端口注入位（工单 025 正式通道）；缺省未注入，`enable` 路径诚实回退内部错误。 */
   readonly pluginActivationPortFor?: PluginActivationPortFor;
   /**
+   * 宿主内部取视图通道端点（刀5 段A）：由组合根文档装载段两臂恒在地交付
+   * （`wired` = 真实构建臂；`unavailable` = 诚实拒绝臂），透传给宿主运行时供壳
+   * `ipc` 段注册 `document-view:request`。缺位即通道整体不可用。
+   */
+  readonly documentViewChannel?: IDocumentViewChannelEndpoint;
+  /**
+   * Bridge 会话关闭联动（刀4 缝②）：透传给宿主运行时，在会话订阅/句柄清理完成后
+   * 通知文档服务释放该会话的文档会话与记录（§4.6）。
+   */
+  readonly onBridgeSessionClosed?: (sessionId: string) => void;
+  /**
    * `chips-native.node` 原生绑定产物路径；缺省按上下文 `platformRoot` 经
    * {@link defaultNativeBridgeModulePath} 推导生产落位（工单 025 消费链装载点）。
    */
@@ -148,6 +160,8 @@ export function createProductionRuntime(
     ...(options.sessionProvisioner === undefined ? {} : { sessionProvisioner: options.sessionProvisioner }),
     ...(options.registryOptions === undefined ? {} : { registryOptions: options.registryOptions }),
     ...(options.pluginLoaderFactory === undefined ? {} : { pluginLoaderFactory: options.pluginLoaderFactory }),
+    ...(options.documentViewChannel === undefined ? {} : { documentViewChannel: options.documentViewChannel }),
+    ...(options.onBridgeSessionClosed === undefined ? {} : { onBridgeSessionClosed: options.onBridgeSessionClosed }),
     ...(options.diagnostics === undefined ? {} : { diagnostics: options.diagnostics }),
   });
 }
@@ -232,11 +246,30 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
         documentAssembly.status === 'wired'
           ? [...(capabilityProviders ?? []), documentAssembly.descriptors]
           : capabilityProviders;
+      // 刀4 缝②落地：Bridge 会话关闭 → 文档服务释放该会话的文档会话与记录（§4.6）。
+      // 释放链内部完成事件发布与诊断留痕；此处兜底 catch 防异步拒绝逃逸（fire-and-forget
+      // 口径见 `host-runtime.ts` `onBridgeSessionClosed` 选项头注）。
+      const documentService = documentAssembly.service;
+      const onBridgeSessionClosed =
+        documentService === undefined
+          ? undefined
+          : (sessionId: string): void => {
+              documentService.releaseSessions(sessionId).catch((error: unknown) => {
+                bridgeDiagnostics.error('document-capability', '会话释放联动失败', {
+                  sessionId,
+                  reason: error instanceof Error ? error.message : typeof error,
+                });
+              });
+            };
       return createProductionRuntime(context, {
         ...(providers === undefined ? {} : { capabilityProviders: providers }),
         ...(sessionProvisioner === undefined ? {} : { sessionProvisioner }),
         ...(registryOptions === undefined ? {} : { registryOptions }),
         pluginLoaderFactory,
+        // 刀5 段A：视图通道端点两臂恒在（wired = 真实构建臂，unavailable = 诚实拒绝臂），
+        // 交壳 `ipc` 段注册 `document-view:request`。
+        documentViewChannel: documentAssembly.viewChannel,
+        ...(onBridgeSessionClosed === undefined ? {} : { onBridgeSessionClosed }),
         ...(diagnostics === undefined ? {} : { diagnostics }),
       });
     },
