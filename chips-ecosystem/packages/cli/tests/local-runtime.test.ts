@@ -141,20 +141,25 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
     expect(fileSystem.kind('/out/demo/src')).toBe('directory');
   });
 
-  it('SDK 脚手架子路径未导出时 create 返回 CLI_TARGET_UNAVAILABLE', async () => {
-    // 对应开发日志遗留项：`@chips/sdk` 的 exports 目前只有 `.` 与 `./testing`，
-    // 未落地 `./scaffold`；解析失败必须显式失败而不是静默降级。
-    expect(await resolveScaffoldProvider()).toBeUndefined();
+  it('默认组装走真实 @chips/sdk/scaffold 链路生成计划并落盘', async () => {
+    // `@chips/sdk` 已正式导出 `./scaffold` 子路径；缺省组装必须经真实生成器落盘，
+    // 解析失败（未安装 / 未构建）时才按 `CLI_TARGET_UNAVAILABLE` 显式失败。
+    const provider = await resolveScaffoldProvider();
+    expect(provider).toBeDefined();
+    const fileSystem = new MemoryFileSystem();
     const artifacts = createLocalArtifacts();
-    await expect(
-      artifacts.create({
-        role: 'app',
-        pluginId: 'chips.demo.app',
-        name: '示例',
-        dir: '/out/demo',
-        fileSystem: new MemoryFileSystem(),
-      })
-    ).rejects.toMatchObject({ code: 'CLI_TARGET_UNAVAILABLE' });
+    const result = await artifacts.create({
+      role: 'app',
+      pluginId: 'chips.demo.app',
+      name: '示例',
+      dir: '/out/demo',
+      fileSystem,
+    });
+    expect(result.pluginId).toBe('chips.demo.app');
+    expect(result.role).toBe('app');
+    expect(result.targetDir).toBe('/out/demo');
+    expect(result.files).toContain('manifest.yaml');
+    expect(fileSystem.exists('/out/demo/manifest.yaml')).toBe(true);
   });
 
   it('pack 产物可被同一引擎 validate 通过（未签名跳过签名阶段）', async () => {

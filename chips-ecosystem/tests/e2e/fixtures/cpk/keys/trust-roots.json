@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "description": "cpk 夹具链信任根（仅测试夹具专用密钥，非发布链路信任根；见《03-插件包格式》§6.3）",
+  "trustRoots": {
+    "chips-fixture-2026": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAl5DZQ5U1UgXjcun7lbpTcGASvzc+fhG/A2r8LMoTf9g=\n-----END PUBLIC KEY-----\n"
+  }
+}

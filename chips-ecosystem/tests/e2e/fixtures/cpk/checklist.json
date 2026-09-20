@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "generatedBy": "tests/e2e/fixtures/cpk/generate-cpk-fixtures.mjs",
+  "plugin": {
+    "sourceDir": "examples/plugins/hello",
+    "packageFilter": "@chips/plugin-hello",
+    "id": "chips.example.hello",
+    "version": "0.1.0",
+    "role": "app"
+  },
+  "signing": {
+    "keyId": "chips-fixture-2026",
+    "trustRootsFile": "keys/trust-roots.json",
+    "note": "夹具专用固定密钥对（keys/*.pem 已入库）：仅用于测试夹具链，不代表发布链路信任根（《03-插件包格式》§6.3，发布链路信任根按《06-更新与分发规范》Phase 3/4 落地）。"
+  },
+  "verification": {
+    "command": "node tests/e2e/fixtures/cpk/generate-cpk-fixtures.mjs --check",
+    "channel": "user",
+    "detail": "重建链逐字节比对 + 五阶段校验矩阵（正夹具 signature 阶段 passed，负夹具按 §八 错误码拒绝）。"
+  },
+  "packages": [
+    {
+      "file": "packages/hello-0.1.0.cpk",
+      "kind": "positive-signed",
+      "summary": "真实 Ed25519 签名正夹具：信任根内 keyId，五阶段全部通过",
+      "archiveSha256": "sha256:2321588df27cdcc9a57e0d89593ed76e98a8555960948fdc9a6488fba52aae2e",
+      "archiveBytes": 12094,
+      "memberCount": 6,
+      "signature": {
+        "keyId": "chips-fixture-2026",
+        "algorithm": "ed25519",
+        "contentHash": "sha256:917054ccc5ff50830dbd8cc5bb3b7971f82765563a619be1c6fcad91e8d6b430"
+      },
+      "expected": {
+        "valid": true,
+        "signatureStage": "passed"
+      }
+    },
+    {
+      "file": "packages/hello-0.1.0-wrong-signature.cpk",
+      "kind": "negative-signature",
+      "summary": "伪造私钥签名、keyId 冒用信任根内标识：Ed25519 验签失败",
+      "archiveSha256": "sha256:d356bb48af1217290d06598ce375145561b487988662d15bf9fe772cca7ace8f",
+      "archiveBytes": 12094,
+      "memberCount": 6,
+      "signature": {
+        "keyId": "chips-fixture-2026",
+        "algorithm": "ed25519",
+        "contentHash": "sha256:917054ccc5ff50830dbd8cc5bb3b7971f82765563a619be1c6fcad91e8d6b430"
+      },
+      "expected": {
+        "valid": false,
+        "code": "CPK_SIGNATURE_INVALID",
+        "stage": "signature"
+      }
+    },
+    {
+      "file": "packages/hello-0.1.0-bad-manifest.cpk",
+      "kind": "negative-manifest",
+      "summary": "manifest.yaml 的 id 违反反向域名约束：清单阶段失败",
+      "archiveSha256": "sha256:478274be8c62da16bb8c0fa8465da0c58dd7282b52c65a1be7dc75d631e33add",
+      "archiveBytes": 12084,
+      "memberCount": 6,
+      "signature": {
+        "keyId": "chips-fixture-2026",
+        "algorithm": "ed25519",
+        "contentHash": "sha256:917054ccc5ff50830dbd8cc5bb3b7971f82765563a619be1c6fcad91e8d6b430"
+      },
+      "expected": {
+        "valid": false,
+        "code": "CPK_MANIFEST_INVALID",
+        "stage": "manifest"
+      }
+    },
+    {
+      "file": "packages/hello-0.1.0-crc-tampered.cpk",
+      "kind": "negative-crc",
+      "summary": "签名单未动、成员数据被篡改：归档阶段 CRC 校验失败",
+      "archiveSha256": "sha256:34e5b8090574a6bbb82d1b4ceb89a9507cf2f407deef3ebbb07f2b38e385d924",
+      "archiveBytes": 12094,
+      "memberCount": null,
+      "signature": null,
+      "expected": {
+        "valid": false,
+        "code": "CPK_ARCHIVE_INVALID",
+        "stage": "archive"
+      }
+    }
+  ]
+}

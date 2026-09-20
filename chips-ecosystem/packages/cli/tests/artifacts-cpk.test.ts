@@ -1031,14 +1031,39 @@ describe('packCpk（§7.1 打包）', () => {
     );
   });
 
-  it('打包输入受根白名单约束：暂存目录外的源码工程文件被拒绝', () => {
+  it('打包输入按包根白名单投影：源码工程文件不入档（§7.1 收集到暂存目录）', () => {
+    const fileSystem = packFixture(baseMembers(), {
+      '/plugins/hello-basecard/package.json': text('{"version":"1.0.0"}'),
+      '/plugins/hello-basecard/src/index.ts': text('export default {}'),
+      '/plugins/hello-basecard/tsconfig.json': text('{}'),
+    });
+    const result = packCpk({
+      fileSystem,
+      dir: '/plugins/hello-basecard',
+      sign: false,
+      catalog: createDocumentedPermissionCatalog(),
+    });
+    expect(result.memberCount).toBe(4);
+    expect(result.signed).toBe(false);
+    const paths = readZipStore(fileSystem.readBinary(result.archivePath)).map(
+      (entry) => entry.path
+    );
+    expect(paths).toEqual([
+      'assets/icons/hello.svg',
+      'dist/index.js',
+      'manifest.yaml',
+      'render.js',
+    ]);
+  });
+
+  it('打包输入含嵌套归档（旧产物未清理）时拒绝', () => {
     expectCpkError(
       () =>
         pack(baseMembers(), {
-          extra: { '/plugins/hello-basecard/package.json': text('{"version":"1.0.0"}') },
+          extra: { '/plugins/hello-basecard/dist/hello-basecard-1.0.0.cpk': text('PK') },
         }),
-      'CPK_LAYOUT_INVALID',
-      '白名单外条目：package.json'
+      'CPK_ARCHIVE_INVALID',
+      '嵌套归档'
     );
   });
 });

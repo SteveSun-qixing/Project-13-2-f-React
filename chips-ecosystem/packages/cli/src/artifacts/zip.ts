@@ -117,21 +117,29 @@ export function compareZipPathBytes(left: string, right: string): number {
   return leftBytes.length - rightBytes.length;
 }
 
+/** 归档阶段错误（[插件包格式] §八：`details` 必须携带阶段与成员路径）。 */
+function archiveError(detail: string, file?: string): never {
+  throw cliError('CPK_ARCHIVE_INVALID', detail, {
+    stage: 'archive',
+    ...(file === undefined ? {} : { file }),
+  });
+}
+
 /** 读取 ZIP Store 字节；结构性缺陷统一抛 `CPK_ARCHIVE_INVALID`。 */
 export function readZipStore(bytes: Uint8Array): readonly IZipEntry[] {
   const eocdOffset = findEndOfCentralDirectory(bytes);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const entryCount = view.getUint16(eocdOffset + 10, true);
   if (entryCount === 0xffff || view.getUint16(eocdOffset + 8, true) === 0xffff) {
-    throw cliError('CPK_ARCHIVE_INVALID', '不支持 ZIP64 归档');
+    archiveError('不支持 ZIP64 归档');
   }
   if (view.getUint16(eocdOffset + 4, true) !== 0 || view.getUint16(eocdOffset + 6, true) !== 0) {
-    throw cliError('CPK_ARCHIVE_INVALID', '不支持多卷 ZIP 归档');
+    archiveError('不支持多卷 ZIP 归档');
   }
   const centralSize = view.getUint32(eocdOffset + 12, true);
   const centralOffset = view.getUint32(eocdOffset + 16, true);
   if (centralOffset + centralSize > bytes.length) {
-    throw cliError('CPK_ARCHIVE_INVALID', '中央目录越界');
+    archiveError('中央目录越界');
   }
 
   const entries: IZipEntry[] = [];
@@ -141,10 +149,10 @@ export function readZipStore(bytes: Uint8Array): readonly IZipEntry[] {
 
   for (let index = 0; index < entryCount; index += 1) {
     if (position + 46 > bytes.length) {
-      throw cliError('CPK_ARCHIVE_INVALID', '中央目录不完整');
+      archiveError('中央目录不完整');
     }
     if (view.getUint32(position, true) !== CENTRAL_HEADER_SIGNATURE) {
-      throw cliError('CPK_ARCHIVE_INVALID', '中央目录签名非法');
+      archiveError('中央目录签名非法');
     }
     const flags = view.getUint16(position + 8, true);
     const method = view.getUint16(position + 10, true);
@@ -157,41 +165,41 @@ export function readZipStore(bytes: Uint8Array): readonly IZipEntry[] {
     const localOffset = view.getUint32(position + 42, true);
 
     if ((flags & 0x0001) !== 0) {
-      throw cliError('CPK_ARCHIVE_INVALID', '归档成员被加密');
+      archiveError('归档成员被加密');
     }
     if (method !== 0) {
-      throw cliError('CPK_ARCHIVE_INVALID', `成员未使用 Store 方法：${method}`);
+      archiveError(`成员未使用 Store 方法：${method}`);
     }
     if (compressedSize !== uncompressedSize) {
-      throw cliError('CPK_ARCHIVE_INVALID', 'Store 成员压缩前后尺寸不一致');
+      archiveError('Store 成员压缩前后尺寸不一致');
     }
     if (extraLength > 0) {
-      throw cliError('CPK_ARCHIVE_INVALID', '归档成员包含非标准扩展字段');
+      archiveError('归档成员包含非标准扩展字段');
     }
     const nameBytes = bytes.subarray(position + 46, position + 46 + nameLength);
     const path = textDecoder.decode(nameBytes);
     if (paths.has(path) || lowered.has(path.toLowerCase())) {
-      throw cliError('CPK_ARCHIVE_INVALID', `归档成员路径重复：${path}`);
+      archiveError(`归档成员路径重复：${path}`, path);
     }
     paths.add(path);
     lowered.add(path.toLowerCase());
 
     if (localOffset + 30 > bytes.length) {
-      throw cliError('CPK_ARCHIVE_INVALID', `成员本地头越界：${path}`);
+      archiveError(`成员本地头越界：${path}`, path);
     }
     if (view.getUint32(localOffset, true) !== LOCAL_HEADER_SIGNATURE) {
-      throw cliError('CPK_ARCHIVE_INVALID', `成员本地头签名非法：${path}`);
+      archiveError(`成员本地头签名非法：${path}`, path);
     }
     const localNameLength = view.getUint16(localOffset + 26, true);
     const localExtraLength = view.getUint16(localOffset + 28, true);
     const dataStart = localOffset + 30 + localNameLength + localExtraLength;
     const dataEnd = dataStart + uncompressedSize;
     if (dataEnd > bytes.length) {
-      throw cliError('CPK_ARCHIVE_INVALID', `成员数据越界：${path}`);
+      archiveError(`成员数据越界：${path}`, path);
     }
     const data = bytes.slice(dataStart, dataEnd);
     if (crc32(data) !== checksum) {
-      throw cliError('CPK_ARCHIVE_INVALID', `成员 CRC 校验失败：${path}`);
+      archiveError(`成员 CRC 校验失败：${path}`, path);
     }
     entries.push({ path, data });
     position += 46 + nameLength + extraLength + commentLength;
@@ -211,5 +219,5 @@ function findEndOfCentralDirectory(bytes: Uint8Array): number {
       return position;
     }
   }
-  throw cliError('CPK_ARCHIVE_INVALID', '不是合法 ZIP 归档：未找到中央目录结束记录');
+  archiveError('不是合法 ZIP 归档：未找到中央目录结束记录');
 }
