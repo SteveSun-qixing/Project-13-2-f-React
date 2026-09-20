@@ -379,14 +379,14 @@ describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 
   ) as { abiVersion: number; exports: { name: string }[] };
   const declaration = readWorkspaceSource('../../native/types/chips-native.d.ts');
 
-  it('§6.4 表原文 13 行导出名与适配器冻结名常量逐项一致（面漂移即翻红）', () => {
+  it('§6.4 表原文 15 行导出名与适配器解析域全集面常量逐项一致（面漂移即翻红）', () => {
     const section = frozenDoc.slice(frozenDoc.indexOf('### 6.4'), frozenDoc.indexOf('### 6.5'));
-    expect(parseExportTableNames(section).sort()).toEqual([...NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS].sort());
+    expect(parseExportTableNames(section).sort()).toEqual([...NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS].sort());
   });
 
-  it('§12.1 表原文 12 行 = §6.4 冻结名去掉 buildDocumentView（两表同源互证）', () => {
+  it('§12.1 表原文 14 行 = 解析域全集面去掉 buildDocumentView（两表同源互证）', () => {
     const section = parserDoc.slice(parserDoc.indexOf('### 12.1'), parserDoc.indexOf('### 12.2'));
-    const expected = NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS.filter((name) => name !== 'buildDocumentView');
+    const expected = NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.filter((name) => name !== 'buildDocumentView');
     expect(parseExportTableNames(section).sort()).toEqual([...expected].sort());
   });
 
