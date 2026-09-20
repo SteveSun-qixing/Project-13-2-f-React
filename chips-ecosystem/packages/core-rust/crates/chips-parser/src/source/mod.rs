@@ -127,7 +127,6 @@ impl Mapping {
 
 /// 字节流（设计稿 §4.1）：压缩态 Store 成员返回映射切片，目录态资源与
 /// 需要解码的成员返回流式读取。
-#[derive(Debug)]
 pub enum ByteStream {
     /// 只读映射切片。
     Mapped {
@@ -140,6 +139,21 @@ pub enum ByteStream {
     },
     /// 流式解码字节。
     Decoded(Box<dyn std::io::Read + Send>),
+}
+
+/// `Box<dyn Read + Send>` 本身不实现 `Debug`，因此手写枚举实现，
+/// 只暴露可读出的定位信息（映射切片给出区间，解码流给出不透明标记）。
+impl std::fmt::Debug for ByteStream {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Mapped { offset, length, .. } => formatter
+                .debug_struct("Mapped")
+                .field("offset", offset)
+                .field("length", length)
+                .finish_non_exhaustive(),
+            Self::Decoded(_) => formatter.write_str("Decoded(<opaque stream>)"),
+        }
+    }
 }
 
 impl ByteStream {

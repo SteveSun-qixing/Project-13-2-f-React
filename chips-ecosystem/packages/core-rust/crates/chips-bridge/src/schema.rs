@@ -241,8 +241,11 @@ fn gate_node(
                 pointer,
             ));
         }
-        let max_bytes = match binary_value {
-            Value::Bool(true) => None,
+        // 《能力契约规范》§5.3：取值为不小于 1 的整数（字节上限）或 true
+        // （不额外限制）。外层 `Option` 表示取值是否合法，内层 `Option<u64>`
+        // 即登记后的上限（`None` = 不设限）。
+        let max_bytes: Option<Option<u64>> = match binary_value {
+            Value::Bool(true) => Some(None),
             Value::Number(number) => number.as_u64().filter(|limit| *limit >= 1).map(Some),
             _ => None,
         };
@@ -1470,6 +1473,41 @@ mod tests {
     }
 
     #[test]
+    fn test_gate_accepts_binary_true_as_unlimited() {
+        // 《能力契约规范》§5.3：`x-chips-binary: true` 表示「不额外限制」，
+        // 门控必须登记为无上限而不是判非法取值。
+        let schema = json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["data"],
+            "properties": { "data": { "x-chips-binary": true } }
+        });
+        let compiled = compile(&schema).expect("true 取值应可编译");
+        assert_eq!(compiled.binary_fields.len(), 1);
+        assert_eq!(compiled.binary_fields[0].name, "data");
+        assert_eq!(compiled.binary_fields[0].max_bytes, None);
+
+        // 不额外限制：远超常规上限的载荷仍通过信封校验。
+        let mut bin = BTreeMap::new();
+        bin.insert("k".to_owned(), vec![7u8; 64 * 1024]);
+        validate_input(&compiled, "test:cap", &json!({ "data": "k" }), &bin)
+            .expect("true 登记的字段不设字节上限");
+
+        // 缺引用键仍按信封规则拒绝。
+        let error = validate_input(
+            &compiled,
+            "test:cap",
+            &json!({ "data": "k" }),
+            &BTreeMap::new(),
+        )
+        .expect_err("bin 表缺少被引用键必须拒绝");
+        let triples = issue_triples(error.details().expect("详情应存在"));
+        assert!(
+            contains_issue(&triples, "/data", "x-chips-binary", "bin 表缺少被引用的键"),
+            "实际：{triples:?}"
+        );
+    }
+
+    #[test]
     fn test_gate_recurses_into_children_and_combinators() {
         let ok = json!({
             "type": "object",
@@ -1586,8 +1624,7 @@ mod tests {
     #[test]
     fn test_collect_binary_fields_true_limit_and_defensive_fallback() {
         // 二次遍历自身按《能力契约规范》§5.3 正确解释 `true`（不额外限制）；
-        // 注：门控通道当前会把 true 误判为非法取值（见本轮报告的实现缺陷），
-        // 因此该口径只能通过直接调用钉住。
+        // 门控通道的同口径由 `test_gate_accepts_binary_true_as_unlimited` 钉住。
         let fields = collect_binary_fields(&json!({
             "properties": { "data": { "x-chips-binary": true } }
         }))
