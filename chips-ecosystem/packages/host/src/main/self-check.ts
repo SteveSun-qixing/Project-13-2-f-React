@@ -4,19 +4,19 @@
  * 权威：`17-跨端Shell与平台抽象设计` §2.4（壳自检）、`重构大计划/03-并行开发与子智能体规范`（最小可运行入口）。
  *
  * @remarks
- * - 用途：在平台核心（Cordis + Bridge）交付前，以真实 Electron 链路启动壳、验证窗口 / preload /
- *   IPC / `chips-resource://` 与退出收口；**不注册任何能力、事件与资源作用域**。
- * - 与生产入口的差异仅在组合根装配（`runtime-provider.ts`）：壳逻辑与生产完全一致。
+ * - 用途：以真实 Electron 链路启动壳、验证窗口 / preload / IPC / `chips-resource://` 与退出收口。
+ * - 与生产入口共用组合根（`production-assembly.ts`）：自检装配内置能力清单（`system:info`）并暴露真实
+ *   响应，未接线能力（如 `document:*`）返回真实的注册表未命中错误；生产打包入口在此之上追加外部提供方。
+ * - 若需"核心完全缺位"的诚实回退（一律 `BRIDGE_CAPABILITY_NOT_FOUND`），改用 `runtime/self-check-runtime.ts`。
  */
 
 import { resolve } from 'node:path';
 
 import { loadElectronModule } from '../platform/electron/load-electron.js';
 import { createMacPalHost } from '../platform/mac/index.js';
-import { createSelfCheckRuntime } from '../runtime/self-check-runtime.js';
 import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import { startHostMain } from './main.js';
-import { createHostAssembly } from './runtime-provider.js';
+import { createProductionAssembly } from './production-assembly.js';
 
 /** 平台构建产物根目录（`dist/renderer`）。 */
 const platformRoot = resolve(__dirname, '..', 'renderer');
@@ -26,8 +26,8 @@ const preloadPath = resolve(__dirname, '..', 'preload', 'index.js');
 /** PAL 窗口 partition 序号；每个窗口独立 partition，保证协议来源可唯一解析。 */
 let palWindowSequence = 0;
 
-/** 自检装配：macOS PAL + 壳自检运行时。 */
-const assembly = createHostAssembly({
+/** 自检装配：macOS PAL + 生产组合根运行时（内置能力清单，无外部提供方）。 */
+const assembly = createProductionAssembly({
   createPalHost: (electronModule, context) =>
     createMacPalHost(electronModule, {
       windowOptions: () => {
@@ -40,7 +40,6 @@ const assembly = createHostAssembly({
         };
       },
     }),
-  createRuntime: (context) => createSelfCheckRuntime({ platformRoot: context.platformRoot }),
 });
 
 /** 启动自检。 */

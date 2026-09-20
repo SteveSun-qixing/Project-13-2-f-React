@@ -5,9 +5,9 @@
  * §3.2（唯一交互面：壳 → 核心只经端口）。
  *
  * @remarks
- * - 壳不装配内核与 Bridge：`createRuntime` 由组合根提供（平台核心交付后由集成任务接线）。
- * - 本文件是组合根单点切换位置：`self-check.ts` 使用 {@link createSelfCheckAssembly}，
- *   生产装配由平台打包入口注入；壳逻辑对两者零改动。
+ * - 壳不装配内核与 Bridge：`createRuntime` 由组合根提供（见 `production-assembly.ts`）。
+ * - 本文件是组合根契约与校验单点：`self-check.ts` 与生产打包入口都经
+ *   `createProductionAssembly` 提供 `createRuntime`；壳逻辑对两者零改动。
  */
 
 import type { IPalHost } from '../platform/contracts/index.js';

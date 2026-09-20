@@ -95,6 +95,77 @@ export type {
 export { asWireError } from './runtime/contracts.js';
 export { createSelfCheckRuntime } from './runtime/self-check-runtime.js';
 export type { SelfCheckRuntimeOptions } from './runtime/self-check-runtime.js';
+export { createPlatformResourceBackend } from './runtime/platform-resource.js';
+
+export {
+  BRIDGE_ERROR_CODES,
+  BRIDGE_ERROR_RETRYABLE,
+  BRIDGE_ERROR_MESSAGES,
+  PERMISSION_ERROR_CODES,
+  bridgeWireError,
+  permissionWireError,
+} from './protocol/error-codes.js';
+export type {
+  BridgeErrorCode,
+  BridgeErrorOptions,
+  PermissionErrorCode,
+  PermissionErrorOptions,
+} from './protocol/error-codes.js';
+
+export {
+  HOST_CAPABILITY_DEFAULTS,
+  HOST_CAPABILITY_OWNER,
+  HOST_CAPABILITY_ID_PATTERN,
+  HOST_PERMISSION_ID_PATTERN,
+  isHostCapabilityId,
+  isHostPermissionId,
+} from './runtime/capability/contracts.js';
+export type {
+  HostCapabilityConcurrency,
+  IHostCapabilityContext,
+  IHostCapabilityDescriptor,
+  IHostCapabilityHandler,
+  IHostPermissionTargetRule,
+  IRegisteredHostCapability,
+  IHostCapabilityDescriptorView,
+  IHostCapabilityRegistryReport,
+  IHostSession,
+  IHostSessionCreateInput,
+  IHostSessionView,
+  IHostRuntimeReport,
+} from './runtime/capability/contracts.js';
+export { createHostCapabilityRegistry, HostCapabilityRegistrationError } from './runtime/capability/registry.js';
+export type { IHostCapabilityRegistry, IHostCapabilityRegistryOptions } from './runtime/capability/registry.js';
+export { createHostSessionRegistry, evaluateHostPermissions } from './runtime/capability/session.js';
+export type {
+  IHostSessionProvisioner,
+  IHostSessionGrant,
+  IHostSessionRegistry,
+  IHostPermissionEvaluation,
+  IHostPermissionDecision,
+  SessionClosedListener,
+  PermissionsChangedListener,
+} from './runtime/capability/session.js';
+export { createEventSubscriptionCenter, createResourceHandleCenter } from './runtime/capability/subscription.js';
+export type { IEventSubscriptionCenter, IResourceHandleCenter } from './runtime/capability/subscription.js';
+export { createHostCallScheduler } from './runtime/capability/scheduler.js';
+export type { IHostCallScheduler, IHostCallGate, IHostCallPermit } from './runtime/capability/scheduler.js';
+export { createHostCapabilityRouter } from './runtime/capability/router.js';
+export type { IHostCapabilityRouter, IHostCapabilityRouterDeps } from './runtime/capability/router.js';
+
+export { SYSTEM_INFO_CAPABILITY_ID, createSystemInfoCapability, createBuiltinCapabilities } from './runtime/capabilities/system-info.js';
+export { RESERVED_DOCUMENT_CAPABILITIES, RESERVED_CAPABILITIES } from './runtime/capabilities/reserved.js';
+export type { IReservedCapabilityDeclaration } from './runtime/capabilities/reserved.js';
+
+export { createHostRuntime, createPlatformSessionProvisioner } from './runtime/host-runtime.js';
+export type { HostRuntimeOptions, IHostRuntime } from './runtime/host-runtime.js';
+
+export {
+  buildProductionManifest,
+  createProductionRuntime,
+  createProductionAssembly,
+} from './main/production-assembly.js';
+export type { ProductionRuntimeOptions, ProductionAssemblyOptions } from './main/production-assembly.js';
 
 export {
   assemblePalHost,
