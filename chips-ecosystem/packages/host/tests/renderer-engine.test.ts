@@ -11,6 +11,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 
 import { createRenderEngine } from '../src/renderer/render-engine.js';
 import type { IRenderEngineBindings, RenderRequest } from '../src/renderer/render-engine.js';
@@ -69,8 +70,14 @@ interface IFrameHostStub {
   beginHandshake: ReturnType<typeof vi.fn>;
 }
 
+/** 帧宿主替身工厂夹具面。 */
+interface IFrameHostFactoryFixture {
+  readonly factory: Mock<(options: ICardFrameHostOptions) => IFrameHostStub>;
+  readonly created: IFrameHostStub[];
+}
+
 /** 帧宿主替身工厂夹具：记录全部产物与构造选项。 */
-const createFrameHostFactory = () => {
+const createFrameHostFactory = (): IFrameHostFactoryFixture => {
   const created: IFrameHostStub[] = [];
   const factory = vi.fn((_options: ICardFrameHostOptions): IFrameHostStub => {
     const stub: IFrameHostStub = {

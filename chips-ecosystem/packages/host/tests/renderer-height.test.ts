@@ -30,8 +30,16 @@ function createDiagnostics(): DiagnosticsSink & { readonly warns: string[] } {
   };
 }
 
+/** 控制器夹具面。 */
+interface IHeightControllerFixture {
+  readonly controller: FrameHeightController;
+  readonly diagnostics: ReturnType<typeof createDiagnostics>;
+  readonly applied: number[];
+  readonly acks: number[];
+}
+
 /** 控制器夹具。 */
-const createController = (limits: FrameLimits = LIMITS) => {
+const createController = (limits: FrameLimits = LIMITS): IHeightControllerFixture => {
   const diagnostics = createDiagnostics();
   const applied: number[] = [];
   const acks: number[] = [];

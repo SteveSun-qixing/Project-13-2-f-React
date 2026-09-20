@@ -8,11 +8,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 
 import { CardFrameHost } from '../src/renderer/card-frame-host.js';
 import type { IFramePortPair } from '../src/renderer/frame-channel.js';
 import { FRAME_DISPOSE_ACK_TIMEOUT_MS, createFrameEnvelope } from '../src/renderer/frame-protocol.js';
 import type {
+  DesignTokens,
   FrameActionPayload,
   FrameLimits,
   ICardRenderView,
@@ -84,11 +86,21 @@ function cardView(revision = 1): ICardRenderView {
   };
 }
 
+/** 帧宿主夹具面。 */
+interface IHostFixture {
+  readonly host: CardFrameHost;
+  readonly pair: ReturnType<typeof createFakePortPair>;
+  readonly transfers: IFrameHandshakeTransfer[];
+  readonly diagnostics: ReturnType<typeof createDiagnostics>;
+  readonly executeAction: Mock<(action: FrameActionPayload) => Promise<void>>;
+  readonly frameId: string;
+}
+
 /** 帧宿主测试夹具。 */
 const createHost = (overrides?: {
   readonly heightCache?: { estimate(key: string): number | undefined };
   readonly view?: ICardRenderView;
-}) => {
+}): IHostFixture => {
   const pair = createFakePortPair();
   const transfers: IFrameHandshakeTransfer[] = [];
   const diagnostics = createDiagnostics();

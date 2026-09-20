@@ -5,9 +5,10 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 
 import { FrameChannel } from '../src/renderer/frame-channel.js';
-import type { IFramePortPair } from '../src/renderer/frame-channel.js';
+import type { IFramePortPair, IFrameReadyInfo } from '../src/renderer/frame-channel.js';
 import {
   FRAME_ACTION_TIMEOUT_MS,
   FRAME_DISPOSE_ACK_TIMEOUT_MS,
@@ -58,13 +59,27 @@ function createDiagnostics(): DiagnosticsSink & { readonly lines: { level: strin
   };
 }
 
+/** 通道夹具面。 */
+interface IChannelFixture {
+  readonly channel: FrameChannel;
+  readonly pair: ReturnType<typeof createFakePortPair>;
+  readonly diagnostics: ReturnType<typeof createDiagnostics>;
+  readonly transfers: IFrameHandshakeTransfer[];
+  readonly ready: Mock<(info: IFrameReadyInfo) => void>;
+  readonly readyTimeout: Mock<() => void>;
+  readonly violation: Mock<(error: ChipsError) => void>;
+  readonly frameError: Mock<(error: ChipsError) => void>;
+  readonly executeAction: Mock<(action: { readonly kind: string }) => Promise<void>>;
+  readonly heightReports: { readonly height: number; readonly epoch: number }[];
+}
+
 /** 通道测试夹具。 */
-const createChannel = (overrides?: { role?: 'card' | 'box-layout' }) => {
+const createChannel = (overrides?: { role?: 'card' | 'box-layout' }): IChannelFixture => {
   const pair = createFakePortPair();
   const diagnostics = createDiagnostics();
   const transfers: IFrameHandshakeTransfer[] = [];
-  const ready = vi.fn();
-  const readyTimeout = vi.fn();
+  const ready = vi.fn<(info: IFrameReadyInfo) => void>();
+  const readyTimeout = vi.fn<() => void>();
   const violation = vi.fn<(error: ChipsError) => void>();
   const frameError = vi.fn<(error: ChipsError) => void>();
   const executeAction = vi.fn<(action: { readonly kind: string }) => Promise<void>>();

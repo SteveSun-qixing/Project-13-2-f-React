@@ -275,7 +275,8 @@ class CardRenderSession implements IRenderSession {
       this.applyUpdate(view, revision);
       return Promise.resolve();
     } catch (error) {
-      return Promise.reject(error);
+      // applyUpdate 的全部抛出路径均为 ChipsError；toChipsError 对其原样透传，不重复包装。
+      return Promise.reject(toChipsError(error, RENDER_ERROR_CODES.updateFailed, '渲染会话更新失败'));
     }
   }
 

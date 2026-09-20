@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { createElement, act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -59,29 +60,39 @@ const createSessionStub = (): { readonly session: ISessionStub; readonly emit: (
   };
 };
 
-/** 渲染夹具：容器 + 根 + 事件驱动入口。 */
+/** 渲染夹具面。 */
+interface IRenderFixture {
+  readonly container: HTMLDivElement;
+  render(): Promise<void>;
+  emitEvent(event: string, payload: unknown): Promise<void>;
+  cleanup(): Promise<void>;
+}
+
+/** 渲染夹具：容器 + 根 + 事件驱动入口（act 异步收口，冲刷 open 链路与状态更新的微任务）。 */
 const createRenderFixture = (
   engine: IRenderEngine,
-  session: ISessionStub,
   emit: (event: string, payload: unknown) => void
-) => {
+): IRenderFixture => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   let root: Root | null = createRoot(container);
   return {
     container,
-    render() {
-      act(() => {
+    async render(): Promise<void> {
+      await act(async () => {
+        await Promise.resolve();
         root?.render(createElement(CardRenderer, { engine, request: REQUEST }));
       });
     },
-    emitEvent(event: string, payload: unknown) {
-      act(() => {
+    async emitEvent(event: string, payload: unknown): Promise<void> {
+      await act(async () => {
+        await Promise.resolve();
         emit(event, payload);
       });
     },
-    cleanup() {
-      act(() => {
+    async cleanup(): Promise<void> {
+      await act(async () => {
+        await Promise.resolve();
         root?.unmount();
       });
       root = null;
@@ -90,39 +101,48 @@ const createRenderFixture = (
   };
 };
 
-/** 组合夹具：替身引擎 + 会话替身。 */
-const createFixture = () => {
+/** 组合夹具面。 */
+interface IFixtureBundle {
+  readonly stub: ReturnType<typeof createSessionStub>;
+  readonly open: Mock<() => Promise<ISessionStub>>;
+  readonly engine: IRenderEngine;
+  readonly fixture: IRenderFixture;
+}
+
+/** 组合夹具：替身引擎 + 会话替身（open 替身以引用暴露，供断言计数）。 */
+const createFixture = (): IFixtureBundle => {
   const stub = createSessionStub();
-  const engine = { open: vi.fn(() => Promise.resolve(stub.session)) } as unknown as IRenderEngine;
-  const fixture = createRenderFixture(engine, stub.session, stub.emit);
-  return { stub, engine, fixture };
+  const open = vi.fn(() => Promise.resolve(stub.session));
+  const engine = { open } as unknown as IRenderEngine;
+  const fixture = createRenderFixture(engine, stub.emit);
+  return { stub, open, engine, fixture };
 };
 
 describe('卡片渲染入口（05.09 §3.2/§6.4，工单002）', () => {
-  it('解析在途呈现加载态（StateBoundary Spin）', () => {
+  it('解析在途呈现加载态（StateBoundary Spin）', async () => {
     const pendingEngine = { open: vi.fn(() => new Promise(() => undefined)) } as unknown as IRenderEngine;
     const stub = createSessionStub();
-    const fixture = createRenderFixture(pendingEngine, stub.session, stub.emit);
-    fixture.render();
+    const fixture = createRenderFixture(pendingEngine, stub.emit);
+    await fixture.render();
     expect(fixture.container.querySelector('.ant-spin')).not.toBeNull();
-    fixture.cleanup();
+    await fixture.cleanup();
   });
 
-  it('就绪后挂载 surface 并把 iframe 挂载点交给会话', () => {
-    const { stub, engine, fixture } = createFixture();
-    fixture.render();
-    fixture.emitEvent('ready', { sessionId: 'render-test' });
+  it('就绪后挂载 surface 并把 iframe 挂载点交给会话', async () => {
+    const { stub, fixture } = createFixture();
+    await fixture.render();
+    await fixture.emitEvent('ready', { sessionId: 'render-test' });
     const surface = fixture.container.querySelector('[data-chips-render-surface="render-test"]');
     expect(surface).not.toBeNull();
     expect(stub.session.mount).toHaveBeenCalledWith(surface);
-    fixture.cleanup();
+    await fixture.cleanup();
     expect(stub.session.dispose).toHaveBeenCalled();
   });
 
-  it('失败降级占位：简体中文文案含错误码；不可重试错误无重试入口', () => {
-    const { stub, fixture } = createFixture();
-    fixture.render();
-    fixture.emitEvent(
+  it('失败降级占位：简体中文文案含错误码；不可重试错误无重试入口', async () => {
+    const { fixture } = createFixture();
+    await fixture.render();
+    await fixture.emitEvent(
       'error',
       new ChipsError({ code: 'RENDER_DOCUMENT_INVALID', message: '文档内容损坏，无法渲染', retryable: false })
     );
@@ -130,30 +150,35 @@ describe('卡片渲染入口（05.09 §3.2/§6.4，工单002）', () => {
     expect(text).toContain('文档内容损坏，无法渲染');
     expect(text).toContain('RENDER_DOCUMENT_INVALID');
     expect(fixture.container.querySelector('.ant-btn')).toBeNull();
-    fixture.cleanup();
+    await fixture.cleanup();
   });
 
-  it('可重试错误提供重试入口：点击后重走完整链路（重新 open）', () => {
-    const { stub, engine, fixture } = createFixture();
-    fixture.render();
-    fixture.emitEvent(
+  it('可重试错误提供重试入口：点击后重走完整链路（重新 open）', async () => {
+    const { open, fixture } = createFixture();
+    await fixture.render();
+    await fixture.emitEvent(
       'error',
       new ChipsError({ code: 'RENDER_FRAME_TIMEOUT', message: '渲染帧启动超时，可重试', retryable: true })
     );
     const retryButton = fixture.container.querySelector<HTMLButtonElement>('.ant-btn');
-    expect(retryButton?.textContent).toBe('重试');
-    fixture.emitEvent('noop', null);
-    retryButton?.click();
-    fixture.emitEvent('noop', null);
-    expect(engine.open).toHaveBeenCalledTimes(2);
-    fixture.cleanup();
+    if (retryButton === null || retryButton.textContent !== '重试') {
+      throw new Error('可重试错误未渲染"重试"按钮');
+    }
+    await fixture.emitEvent('noop', null);
+    await act(async () => {
+      await Promise.resolve();
+      retryButton.click();
+    });
+    await fixture.emitEvent('noop', null);
+    expect(open).toHaveBeenCalledTimes(2);
+    await fixture.cleanup();
   });
 
-  it('组件卸载时释放会话并摘除 surface（§3.2：dispose 收口）', () => {
+  it('组件卸载时释放会话并摘除 surface（§3.2：dispose 收口）', async () => {
     const { stub, fixture } = createFixture();
-    fixture.render();
-    fixture.emitEvent('ready', { sessionId: 'render-test' });
-    fixture.cleanup();
+    await fixture.render();
+    await fixture.emitEvent('ready', { sessionId: 'render-test' });
+    await fixture.cleanup();
     expect(stub.session.dispose).toHaveBeenCalled();
     expect(stub.session.unmount).toHaveBeenCalled();
   });
