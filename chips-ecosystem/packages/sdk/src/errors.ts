@@ -2,7 +2,8 @@
  * 统一错误模型（02-SDK-API规范 §6）。
  *
  * 全生态只有一个错误类 `ChipsError`；`IChipsError` 仅作结构别名。
- * SDK 自身只产生 `SDK_BRIDGE_UNAVAILABLE` 与 `SDK_UNKNOWN_ERROR` 两个错误码（§6.3），
+ * SDK 自身只产生 `SDK_BRIDGE_UNAVAILABLE`、`SDK_INVALID_SCAFFOLD_OPTIONS` 与
+ * `SDK_UNKNOWN_ERROR` 三个错误码（§6.3、§8.4），
  * 平台错误码由 Bridge、资源、权限、事件等权威文档维护，本模块不复制清单。
  */
 
@@ -24,6 +25,9 @@ export interface IChipsError {
 
 /** SDK 自身错误码：客户端未绑定任何 Bridge。 */
 export const SDK_BRIDGE_UNAVAILABLE = 'SDK_BRIDGE_UNAVAILABLE';
+
+/** SDK 自身错误码：脚手架参数不合法（02-SDK-API规范 §6.3、§8.4）。 */
+export const SDK_INVALID_SCAFFOLD_OPTIONS = 'SDK_INVALID_SCAFFOLD_OPTIONS';
 
 /** SDK 自身错误码：`toChipsError` 的兜底错误码。 */
 export const SDK_UNKNOWN_ERROR = 'SDK_UNKNOWN_ERROR';

@@ -1,22 +1,26 @@
 /**
- * 公开入口导出面与文档规定的测试组合路径（02-SDK-API规范 §2.1、§2.2、§3.2、§3.4、§7.2、§7.3）。
+ * 公开入口导出面与文档规定的测试组合路径（02-SDK-API规范 §2.1、§2.2、§3.2、§3.4、§7.2、§7.3、§8.3）。
  *
  * 分工：主入口的六个值导出与依赖边界由 `src/index.test.ts` 断言，`src/generated` 契约常量的
  * 引用路径由 `tests/generated-contracts.test.ts` 断言；本文件补 `@chips/sdk/testing` 入口
  * （§2.2 末段固定的四个值导出）的导出面，以及「插件代码只依赖主入口 + 测试代码用 testing
- * 入口装配 Mock」这条 §7.3 规定的端到端路径。入口的类型面由本文件的 `import type` 消费点
+ * 入口装配 Mock」这条 §7.3 规定的端到端路径，并覆盖 `@chips/sdk/scaffold` 入口（§8.3）的
+ * 值导出面与计划消费路径。入口的类型面由本文件的 `import type` 消费点
  * 承担：`IMockBridge`、`IMockBridgeOptions`、`IMockResourceInit`、`IMockCall` 必须可从入口
  * 取到，否则包级 `typecheck` 失败。
  *
- * 绕开的口径（工单 009 登记）：§2.1 的第三个入口 `@chips/sdk/scaffold` 未在本包 `exports`
- * 中声明（模板与生成器由 `tools/scaffold` 承载）。§3.2、§3.3 的 `CapabilityInput` /
- * `CapabilityOutput` 编译期映射已由主入口导出；本文件的插件示例仍按显式契约接口
- * `IFileReadInput` / `IFileReadOutput` 注解，以固定校验 §2.2 全部 `I*Input` / `I*Output`
- * 契约名的导出面，运行时形状与 §3.2、§7.3 示例一致。
+ * 绕开的口径（工单 009 登记）：§3.2、§3.3 的 `CapabilityInput` / `CapabilityOutput` 编译期映射
+ * 已由主入口导出；本文件的插件示例仍按显式契约接口 `IFileReadInput` / `IFileReadOutput`
+ * 注解，以固定校验 §2.2 全部 `I*Input` / `I*Output` 契约名的导出面，运行时形状与 §3.2、§7.3
+ * 示例一致。§2.1 的第三个入口 `@chips/sdk/scaffold` 已随 W2 P1-8 落地为对 `@chips/scaffold`
+ * 的薄转发，导出面与边界错误归一由 `src/scaffold/index.test.ts` 逐项断言，本文件补一条
+ * 入口类型面消费路径（§8.3）。
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
 import * as testing from '../src/testing/index.js';
+import * as scaffold from '../src/scaffold/index.js';
+import type { IScaffoldPlan, IScaffoldTemplate } from '../src/scaffold/index.js';
 import {
   assertChipsError,
   createMockBridge,
@@ -340,5 +344,26 @@ describe('主入口客户端与 testing 入口 Mock 的端到端路径（§7.3�
       content: '仍可读',
       encoding: 'utf-8',
     });
+  });
+});
+
+describe('@chips/sdk/scaffold 入口值导出面与类型消费（§2.1、§8.3）', () => {
+  it('值导出恰好为文档列出的两项，且无默认导出', () => {
+    expect(Object.keys(scaffold).sort()).toEqual(['createScaffoldPlan', 'listScaffoldTemplates']);
+    expect('default' in scaffold).toBe(false);
+  });
+
+  it('入口类型面可被 import type 消费，计划与模板形状符合 §8.3', () => {
+    const templates: readonly IScaffoldTemplate[] = scaffold.listScaffoldTemplates();
+    expect(templates).toHaveLength(4);
+    const plan: IScaffoldPlan = scaffold.createScaffoldPlan({
+      role: 'app',
+      pluginId: 'chips.official.viewer',
+      name: '卡片查看器',
+      targetDir: 'plugins/viewer',
+    });
+    expect(plan.template.role).toBe('app');
+    expect(plan.manifest.type).toBe('app');
+    expect(plan.files.map((file) => file.path)).toContain('src/ui/AppView.tsx');
   });
 });

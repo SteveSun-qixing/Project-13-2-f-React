@@ -4,6 +4,7 @@ import {
   ChipsError,
   isChipsError,
   SDK_BRIDGE_UNAVAILABLE,
+  SDK_INVALID_SCAFFOLD_OPTIONS,
   SDK_UNKNOWN_ERROR,
   toChipsError,
 } from './errors.js';
@@ -46,8 +47,9 @@ describe('ChipsError 构造', () => {
     expect({ code, message, retryable }).toEqual({ code: 'A_B', message: '文案', retryable: true });
   });
 
-  it('SDK 自有错误码为约定字面量', () => {
+  it('SDK 自有错误码为约定字面量（§6.3 全三行）', () => {
     expect(SDK_BRIDGE_UNAVAILABLE).toBe('SDK_BRIDGE_UNAVAILABLE');
+    expect(SDK_INVALID_SCAFFOLD_OPTIONS).toBe('SDK_INVALID_SCAFFOLD_OPTIONS');
     expect(SDK_UNKNOWN_ERROR).toBe('SDK_UNKNOWN_ERROR');
   });
 });

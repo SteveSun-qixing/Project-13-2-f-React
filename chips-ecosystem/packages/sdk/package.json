@@ -15,6 +15,10 @@
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"
+    },
+    "./scaffold": {
+      "types": "./dist/scaffold/index.d.ts",
+      "import": "./dist/scaffold/index.js"
     }
   },
   "files": [
@@ -31,7 +35,8 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@chips/bridge": "workspace:*"
+    "@chips/bridge": "workspace:*",
+    "@chips/scaffold": "workspace:*"
   },
   "devDependencies": {
     "rimraf": "5.0.10"
