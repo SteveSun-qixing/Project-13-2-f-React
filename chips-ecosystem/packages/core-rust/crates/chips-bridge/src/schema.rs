@@ -2130,6 +2130,35 @@ mod tests {
     }
 
     #[test]
+    fn test_catastrophic_pattern_never_yields_backtrack_limit_kind() {
+        // 上例文档注释的钉桩用例：灾难性回溯模式在 `jsonschema 0.33` +
+        // 其内嵌 `fancy-regex` 组合下返回「不匹配」或普通 Pattern 错误，
+        // 永不产出 `BacktrackLimitExceeded`——为 `describe` 的该映射臂
+        // 「不可达防御分支」定性提供可执行证据（依赖升级改变此行为时本
+        // 用例即失败，提醒重新定性）。
+        use jsonschema::error::ValidationErrorKind;
+        let validator = build_options()
+            .build(&json!({
+                "type": "object", "additionalProperties": false,
+                "properties": { "v": { "type": "string", "pattern": "^(a+)+$" } }
+            }))
+            .expect("局部校验器应可编译");
+        let instance = json!({ "v": format!("{}b", "a".repeat(24)) });
+        let kinds: Vec<&str> = validator
+            .iter_errors(&instance)
+            .map(|error| match &error.kind {
+                ValidationErrorKind::Pattern { .. } => "pattern",
+                ValidationErrorKind::BacktrackLimitExceeded { .. } => "backtrack-limit",
+                _ => "other",
+            })
+            .collect();
+        assert!(
+            !kinds.contains(&"backtrack-limit"),
+            "BacktrackLimitExceeded 不得在该依赖组合下出现，实际种类：{kinds:?}"
+        );
+    }
+
+    #[test]
     fn test_envelope_rejects_bin_table_without_declared_binary_fields() {
         let compiled = compile(&file_read_schema()).expect("应可编译");
         let mut bin = BTreeMap::new();
