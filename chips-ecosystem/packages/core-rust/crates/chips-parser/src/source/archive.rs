@@ -175,6 +175,11 @@ impl ArchiveSource {
                     message: format!("归一后重复路径：{package_path}"),
                 });
             }
+            if meta.method == MemberMethod::Store && meta.size != entry.compressed_size {
+                return Err(DocumentError::ArchiveInvalid {
+                    message: format!("Store 条目尺寸不一致：{package_path}"),
+                });
+            }
             index.insert(package_path, ArchivedMember { meta, header_offset: entry.header_offset, compressed_size: entry.compressed_size });
         }
         if parsed_count != entry_count {
@@ -294,22 +299,22 @@ impl ArchiveSource {
             }
         }
         // 目录条目（尾部 `/`）不纳入索引，但计入中央目录条目数以核对 EOCD。
+        // `entry_end` 是相对本条目起点的长度：游标必须累加，覆盖写法会把
+        // 下一条目的长度误当成绝对偏移，导致自第二条起签名错位。
         if name.ends_with('/') {
-            *cursor = entry_end;
+            *cursor += entry_end;
             return Ok(ParsedCentralEntry {
                 file: None,
                 header_offset,
                 compressed_size,
             });
         }
-        if method == METHOD_STORE && uncompressed_size != compressed_size {
-            return Err(DocumentError::ArchiveInvalid {
-                message: format!("Store 条目尺寸不一致：{name}"),
-            });
-        }
+        // Store 条目的声明尺寸一致性在 `build_index` 内核对：压缩比守卫（§3.3
+        // 限额面）必须先于结构一致性判定，否则尺寸声明被篡改成超大解压值的
+        // 归档会以 `DOCUMENT_ARCHIVE_INVALID` 逃逸 `DOCUMENT_LIMIT_EXCEEDED`。
         let package_path = normalize_archive_name(name)?;
         let modified = dos_date_time_to_system(dos_date, dos_time);
-        *cursor = entry_end;
+        *cursor += entry_end;
         Ok(ParsedCentralEntry {
             file: Some((
                 package_path.clone(),
@@ -919,7 +924,9 @@ mod tests {
         archive.extend_from_slice(&1u64.to_le_bytes()); // 成员数
         archive.extend_from_slice(&1u64.to_le_bytes()); // 中央目录条目数
         archive.extend_from_slice(&(central_size as u64).to_le_bytes());
-        archive.extend_from_slice(&zip64_offset.to_le_bytes());
+        // ZIP64 端到端记录的最后一个 u64 是「中央目录起始偏移」（APPNOTE 4.3.16）；
+        // ZIP64 记录自身的偏移只出现在定位记录里。
+        archive.extend_from_slice(&(central_offset as u64).to_le_bytes());
         archive.extend_from_slice(&ZIP64_EOCD_LOCATOR_SIGNATURE.to_le_bytes());
         archive.extend_from_slice(&0u32.to_le_bytes());
         archive.extend_from_slice(&zip64_offset.to_le_bytes());

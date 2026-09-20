@@ -1,62 +1,141 @@
-import { jsx as i, jsxs as d } from "chips-resource://platform/vendor/react-jsx-runtime.js";
-import s from "chips-resource://platform/vendor/react.js";
-import { ChipsProvider as C, theme as x, Spin as A, Empty as G, Button as m } from "chips-resource://platform/vendor/chips-ui.js";
-const k = "SDK_BRIDGE_UNAVAILABLE", b = "SDK_UNKNOWN_ERROR", y = "发生未知错误";
-class o extends Error {
+import { jsx as a, jsxs as p } from "chips-resource://platform/vendor/react-jsx-runtime.js";
+import o from "chips-resource://platform/vendor/react.js";
+import { ChipsProvider as R, theme as K, Spin as N, Empty as O, Button as m } from "chips-resource://platform/vendor/chips-ui.js";
+const w = "SDK_BRIDGE_UNAVAILABLE", S = "SDK_UNKNOWN_ERROR", A = "发生未知错误";
+class d extends Error {
   code;
   details;
   retryable;
-  constructor(t) {
-    super(t.message), this.name = "ChipsError", this.code = t.code, this.details = t.details, this.retryable = t.retryable ?? !1;
+  constructor(e) {
+    super(e.message), this.name = "ChipsError", this.code = e.code, this.details = e.details, this.retryable = e.retryable ?? !1;
   }
 }
-function I(e) {
-  if (typeof e != "object" || e === null)
+function G(t) {
+  if (typeof t != "object" || t === null)
     return !1;
-  const t = e;
-  return typeof t.code == "string" && typeof t.message == "string";
+  const e = t;
+  return typeof e.code == "string" && typeof e.message == "string";
 }
-function D(e) {
-  return e instanceof Error;
+function U(t) {
+  return t instanceof Error;
 }
-function K(e) {
-  if (e instanceof o)
-    return e;
-  if (I(e)) {
-    const t = e, n = {
-      code: t.code,
-      message: t.message,
-      retryable: t.retryable ?? !1,
-      ...t.details !== void 0 ? { details: t.details } : {}
+function D(t) {
+  if (t instanceof d)
+    return t;
+  if (G(t)) {
+    const e = t, n = {
+      code: e.code,
+      message: e.message,
+      retryable: e.retryable ?? !1,
+      ...e.details !== void 0 ? { details: e.details } : {}
     };
-    return new o(n);
+    return new d(n);
   }
-  return D(e) ? new o({
-    code: b,
-    message: y,
-    details: { name: e.name, cause: e.message },
+  return U(t) ? new d({
+    code: S,
+    message: A,
+    details: { name: t.name, cause: t.message },
     retryable: !1
-  }) : new o({
-    code: b,
-    message: y,
-    details: { value: String(e) },
+  }) : new d({
+    code: S,
+    message: A,
+    details: { value: String(t) },
     retryable: !1
   });
 }
-function B() {
-  return new o({
-    code: k,
+function v() {
+  return new d({
+    code: w,
     message: "未找到可用的 Bridge：window.chips 尚未注入",
     retryable: !1
   });
 }
-function T() {
+function r(t, e, n) {
+  let s;
+  try {
+    s = t();
+  } catch (i) {
+    return Promise.reject(D(i));
+  }
+  return s.request(e, n);
+}
+const x = "cli.command.list", M = "cli.command.get", V = "cli.command.resolve";
+function B(t) {
+  return {
+    list(e) {
+      return r(t, x, e ?? {});
+    },
+    get(e) {
+      return r(t, M, e);
+    },
+    resolve(e) {
+      return r(t, V, e);
+    }
+  };
+}
+const u = {
+  CLI_TASK_ACTIVE: "cli:task-active",
+  CLI_TASK_GET: "cli:task-get",
+  CLI_TASK_PROGRESS: "cli:task-progress",
+  CLI_TASK_COMPLETE: "cli:task-complete",
+  CLI_TASK_FAIL: "cli:task-fail"
+}, P = "cli.task.create", j = "cli.task.bindInvocation", W = "cli.task.cancel";
+function F(t) {
+  return {
+    create(e) {
+      return r(t, P, e).then((n) => n.task);
+    },
+    bindInvocation(e) {
+      return r(t, j, e).then((n) => n.task);
+    },
+    get(e) {
+      const n = { taskId: e };
+      return r(t, u.CLI_TASK_GET, n).then((s) => s.task);
+    },
+    active(e) {
+      const n = { commandId: e };
+      return r(t, u.CLI_TASK_ACTIVE, n).then((s) => s.task);
+    },
+    progress(e, n) {
+      const s = { taskId: e, progress: n };
+      return r(t, u.CLI_TASK_PROGRESS, s).then((i) => i.task);
+    },
+    complete(e, n) {
+      const s = {
+        taskId: e,
+        ...n === void 0 ? {} : { output: n }
+      };
+      return r(t, u.CLI_TASK_COMPLETE, s).then((i) => i.task);
+    },
+    fail(e, n) {
+      const s = { taskId: e, error: n };
+      return r(t, u.CLI_TASK_FAIL, s).then((i) => i.task);
+    },
+    cancel(e) {
+      return r(t, W, { taskId: e }).then((n) => n.task);
+    }
+  };
+}
+function q() {
   return globalThis.window?.chips;
 }
-class U {
-  #e;
-  constructor(t) {
-    this.#e = t;
+class $ {
+  #t;
+  /**
+   * CLI 命令发现扩展命名空间（§3.5）。
+   *
+   * 只读实例成员，不是模块级值导出（§2.2 末段）；与三个方法面共用同一目标解析链路。
+   */
+  cliCommand = B(() => this.#e());
+  /**
+   * CLI 任务生命周期扩展命名空间（§3.5）。
+   *
+   * 只读实例成员；插件侧五方法经 `cli:task-active` 至 `cli:task-fail` 能力转发，
+   * CLI 调度侧三方法经平台服务路由转发（§5.6、§5.8）。
+   */
+  cliTask = F(() => this.#e());
+  constructor(e) {
+    this.#t = e;
   }
   /**
    * 解析本次调用的目标 Bridge。
@@ -64,13 +143,13 @@ class U {
    * @returns 注入目标或当前 `window.chips`
    * @throws ChipsError 两者均不可用时抛 `SDK_BRIDGE_UNAVAILABLE`
    */
-  #t() {
-    if (this.#e !== void 0)
-      return this.#e;
-    const t = T();
-    if (t === void 0)
-      throw B();
-    return t;
+  #e() {
+    if (this.#t !== void 0)
+      return this.#t;
+    const e = q();
+    if (e === void 0)
+      throw v();
+    return e;
   }
   /**
    * 唯一能力调用入口；转发给目标 Bridge。
@@ -79,14 +158,8 @@ class U {
    * @param input - 能力输入，校验与权限判定由平台完成
    * @returns 能力输出；目标不可用或平台调用失败时以 `ChipsError` 拒绝
    */
-  request(t, n) {
-    let a;
-    try {
-      a = this.#t();
-    } catch (l) {
-      return Promise.reject(K(l));
-    }
-    return a.request(t, n);
+  request(e, n) {
+    return r(() => this.#e(), e, n);
   }
   /**
    * 订阅标准事件；转发给目标 Bridge。
@@ -96,8 +169,8 @@ class U {
    * @returns 可退订句柄，`dispose()` 幂等
    * @throws ChipsError 目标不可用时同步抛 `SDK_BRIDGE_UNAVAILABLE`
    */
-  subscribe(t, n) {
-    return this.#t().subscribe(t, n);
+  subscribe(e, n) {
+    return this.#e().subscribe(e, n);
   }
   /**
    * 创建 `chips-resource://` 懒打开句柄；转发给目标 Bridge。
@@ -106,68 +179,68 @@ class U {
    * @returns 资源句柄；预检失败由目标同步抛出 `ChipsError`
    * @throws ChipsError 目标不可用时同步抛 `SDK_BRIDGE_UNAVAILABLE`
    */
-  resource(t) {
-    return this.#t().resource(t);
+  resource(e) {
+    return this.#e().resource(e);
   }
 }
-function L(e) {
-  return new U(e?.bridge);
+function z(t) {
+  return new $(t?.bridge);
 }
-const f = L(), S = "chips.example.hello", w = `plugins.${S}`, N = "greeting", j = `${w}.${N}`, O = "你好，世界！", V = (e) => typeof e != "object" || e === null ? !1 : e.key === j, W = () => {
-  const { token: e } = x.useToken(), [t, n] = s.useState(O), [a, l] = s.useState(0), [p, g] = s.useState(null), [h, E] = s.useState("loading");
-  s.useEffect(() => {
-    let r = !0;
+const _ = z(), I = "chips.example.hello", y = `plugins.${I}`, T = "greeting", Y = `${y}.${T}`, H = "你好，世界！", J = (t) => typeof t != "object" || t === null ? !1 : t.key === Y, Q = () => {
+  const { token: t } = K.useToken(), [e, n] = o.useState(H), [s, i] = o.useState(0), [E, h] = o.useState(null), [C, g] = o.useState("loading");
+  o.useEffect(() => {
+    let c = !0;
     (async () => {
       try {
-        const c = {
-          namespace: w,
-          key: N
-        }, u = await f.request("config:get", c);
-        if (!r)
+        const l = {
+          namespace: y,
+          key: T
+        }, f = await _.request("config:get", l);
+        if (!c)
           return;
-        typeof u.value == "string" && u.value.length > 0 && n(u.value), E("ready");
+        typeof f.value == "string" && f.value.length > 0 && n(f.value), g("ready");
       } catch {
-        r && E("error");
+        c && g("error");
       }
     })();
-    const v = f.subscribe("config:changed", (c) => {
-      !V(c) || typeof c.effectiveValue != "string" || c.effectiveValue.length > 0 && n(c.effectiveValue);
+    const b = _.subscribe("config:changed", (l) => {
+      !J(l) || typeof l.effectiveValue != "string" || l.effectiveValue.length > 0 && n(l.effectiveValue);
     });
     return () => {
-      r = !1, v.dispose();
+      c = !1, b.dispose();
     };
   }, []);
-  const R = s.useCallback(() => {
-    l((r) => r + 1);
-  }, []), _ = s.useCallback(() => {
-    const r = { text: t };
-    f.request("clipboard:write", r).then(() => g("问候语已复制到剪贴板")).catch(() => g("复制失败，请检查剪贴板权限"));
-  }, [t]);
-  return h === "loading" ? /* @__PURE__ */ i(A, {}) : h === "error" ? /* @__PURE__ */ i(G, { description: "读取应用配置失败" }) : /* @__PURE__ */ d(
+  const k = o.useCallback(() => {
+    i((c) => c + 1);
+  }, []), L = o.useCallback(() => {
+    const c = { text: e };
+    _.request("clipboard:write", c).then(() => h("问候语已复制到剪贴板")).catch(() => h("复制失败，请检查剪贴板权限"));
+  }, [e]);
+  return C === "loading" ? /* @__PURE__ */ a(N, {}) : C === "error" ? /* @__PURE__ */ a(O, { description: "读取应用配置失败" }) : /* @__PURE__ */ p(
     "section",
     {
       style: {
         display: "flex",
         flexDirection: "column",
-        gap: e.marginSM,
-        padding: e.padding,
-        color: e.colorText
+        gap: t.marginSM,
+        padding: t.padding,
+        color: t.colorText
       },
       children: [
-        /* @__PURE__ */ i("p", { style: { margin: 0, fontSize: e.fontSizeHeading5 }, children: t }),
-        /* @__PURE__ */ d("div", { style: { display: "flex", flexWrap: "wrap", gap: e.marginSM }, children: [
-          /* @__PURE__ */ d(m, { type: "primary", onClick: R, children: [
+        /* @__PURE__ */ a("p", { style: { margin: 0, fontSize: t.fontSizeHeading5 }, children: e }),
+        /* @__PURE__ */ p("div", { style: { display: "flex", flexWrap: "wrap", gap: t.marginSM }, children: [
+          /* @__PURE__ */ p(m, { type: "primary", onClick: k, children: [
             "点击次数：",
-            a
+            s
           ] }),
-          /* @__PURE__ */ i(m, { onClick: _, children: "复制问候语" })
+          /* @__PURE__ */ a(m, { onClick: L, children: "复制问候语" })
         ] }),
-        p !== null ? /* @__PURE__ */ i("div", { style: { color: e.colorTextSecondary }, children: p }) : null
+        E !== null ? /* @__PURE__ */ a("div", { style: { color: t.colorTextSecondary }, children: E }) : null
       ]
     }
   );
-}, $ = () => /* @__PURE__ */ i(C, { appId: S, surface: "window", children: /* @__PURE__ */ i(W, {}) });
+}, ne = () => /* @__PURE__ */ a(R, { appId: I, surface: "window", children: /* @__PURE__ */ a(Q, {}) });
 export {
-  $ as AppView,
-  $ as default
+  ne as AppView,
+  ne as default
 };

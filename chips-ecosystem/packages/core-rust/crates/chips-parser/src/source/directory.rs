@@ -78,6 +78,12 @@ impl DirectorySource {
                     )
                     .in_file(&file),
                 );
+                if file_type.is_dir() {
+                    // 生成物目录（如 `__MACOSX/`）整棵子树都不入索引，但子树内的
+                    // 每个文件各自记一条信息诊断（设计稿 §3.3「忽略并记录」）；
+                    // 中间目录不重复记录，避免同一条目计入两次。
+                    Self::record_generated_files(&entry.path(), &normalized, depth, diagnostics)?;
+                }
                 continue;
             }
             if file_type.is_symlink() {
@@ -111,6 +117,47 @@ impl DirectorySource {
                     crc32: None,
                     method: MemberMethod::Store,
                 },
+            );
+        }
+        Ok(())
+    }
+
+    /// 生成物子树内的文件逐条记录 `DOCUMENT_GENERATED_FILE_IGNORED`（不入索引）：
+    /// 目录层只由调用方记一条，本函数只为文件与符号链接等非目录条目记账。
+    fn record_generated_files(
+        dir: &Path,
+        prefix: &str,
+        depth: usize,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Fatal<()> {
+        if depth >= DIRECTORY_SCAN_MAX_DEPTH {
+            // 生成物子树同样受有界递归约束（设计稿 §3.3 深度 ≤ 16）。
+            return Ok(());
+        }
+        let entries = std::fs::read_dir(dir).map_err(|io_error| DocumentError::Io {
+            message: format!("无法枚举生成物目录 {}：{io_error}", dir.display()),
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|io_error| DocumentError::Io {
+                message: format!("无法读取目录项 {}：{io_error}", dir.display()),
+            })?;
+            let file_type = entry.file_type().map_err(|io_error| DocumentError::Io {
+                message: format!("无法判定文件类型 {}：{io_error}", entry.path().display()),
+            })?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let normalized = format!("{prefix}/{name}");
+            if file_type.is_dir() {
+                Self::record_generated_files(&entry.path(), &normalized, depth + 1, diagnostics)?;
+                continue;
+            }
+            let file = PackagePath::new(&normalized)?;
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Info,
+                    DOCUMENT_GENERATED_FILE_IGNORED,
+                    format!("已忽略系统生成物 {normalized}"),
+                )
+                .in_file(&file),
             );
         }
         Ok(())

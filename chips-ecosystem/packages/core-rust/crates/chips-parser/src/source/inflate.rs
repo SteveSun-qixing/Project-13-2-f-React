@@ -20,9 +20,10 @@ const LENGTH_BASE: [u16; 29] = [
     163, 195, 227, 258,
 ];
 
-/// 长度码的附加位数。
+/// 长度码的附加位数（RFC 1951 §3.2.5 表：257..261 为 0 位起，263..264 为
+/// 1 位，281..284 为 6 位，285 为 0 位）。
 const LENGTH_EXTRA: [u8; 29] = [
-    0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0,
+    0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 0,
 ];
 
 /// 距离码 0..30 的基础值。
@@ -147,6 +148,10 @@ impl Huffman {
     }
 
     /// 逐位解码一个符号。
+    ///
+    /// 正则哈夫曼码按「同码长内码值连续递增、下一码长的起点码值翻倍」分配
+    /// （RFC 1951 §3.2.2），因此 `first` 必须是当前码长的**码值起点**：
+    /// 每落空一级执行 `first = (first + count) << 1`，否则解码结果整体偏移。
     fn decode(&self, reader: &mut BitReader<'_>) -> Fatal<u16> {
         let mut code = 0i32;
         let mut first = 0i32;
@@ -165,7 +170,7 @@ impl Huffman {
                     .ok_or_else(|| invalid("哈夫曼编码非法：符号缺失"));
             }
             index += count;
-            first = limit;
+            first = limit << 1;
         }
         Err(invalid("哈夫曼编码非法：码长超出 15 位"))
     }
@@ -205,11 +210,17 @@ pub(crate) fn inflate(input: &[u8], expected_size: u64, max_output: u64) -> Fata
         let block_type = reader.bits(2)?;
         match block_type {
             BLOCK_STORED => {
+                // RFC 1951 §3.2.4：非压缩块先丢弃当前字节剩余比特对齐字节
+                // 边界，随后依次是 LEN、NLEN（= LEN 按位取反）与 LEN 个
+                // 原始字节；顺序或对齐错位都会把数据当成校验字段。
+                reader.align();
                 let length = u16::try_from(reader.bits(16)?).map_err(|_| invalid("块长度溢出"))?;
-                let stored = reader.bytes(usize::from(length))?;
-                if u32::from(!0u16) != reader.bits(16)? {
+                let negated =
+                    u16::try_from(reader.bits(16)?).map_err(|_| invalid("反校验字段溢出"))?;
+                if !length != negated {
                     return Err(invalid("非压缩块的反校验字段不匹配"));
                 }
+                let stored = reader.bytes(usize::from(length))?;
                 push(&mut output, stored, max_output)?;
             }
             BLOCK_FIXED => {
@@ -394,10 +405,15 @@ mod tests {
     use super::*;
     use crate::error::DOCUMENT_LIMIT_EXCEEDED;
 
-    /// 「三个字母重复」的动态块样例，由 `zlib.compressobj(9, DEFLATED, -15)`
-    /// 生成后以十六进制入库，保证测试数据与实现解耦。
-    const SAMPLE_DYNAMIC: &str = "4bcec82c882f2e49cc4b492c4a298e2f4b2d2acecccfb3525032d433d03350e24a060ac767a60005120d9d8c928d5d4c524d95b800";
-    const SAMPLE_TEXT: &str = "chip_standards_version: \"1.0.0\"\ncard_id: \"a1B2c3D4e5\"\n";
+    /// 动态哈夫曼块样例，由 `zlib.compressobj(9, DEFLATED, -15)` 生成后以
+    /// 十六进制入库（块头 `0x45` 解码为 BFINAL=1 · BTYPE=10，即动态块，
+    /// 含字面量与 LZ77 回溯复制），保证测试数据与实现解耦。
+    const SAMPLE_DYNAMIC: &str = "458c4b0e80200c05f79ca2575037a697214d4542ac40a098707b3f2cdc4d5ede8c504f4d2da7b8075fd10054253e5e00f09411a6f96392e02302bba8ae3c8b2f611b2f4ed2ce5811965f5a0db186cb59197dedd9e1489b1b";
+    const SAMPLE_TEXT: &str = "layout_configs:\n  stack:\n    gap: 12\n    align: center\n  grid:\n    columns: 3\n    gap: 8\nactive_layout_type: stack\n";
+
+    /// 固定哈夫曼块样例（同一工具在字面量占比高时选定的 BTYPE=01 流）。
+    const SAMPLE_FIXED: &str = "4bcec82c882f2e49cc4b492c4a298e2f4b2d2acecccfb3525032d433d03350e24a060ac767a60005120d9d8c928d5d4c524d95b800";
+    const FIXED_TEXT: &str = "chip_standards_version: \"1.0.0\"\ncard_id: \"a1B2c3D4e5\"\n";
 
     fn hex_to_bytes(text: &str) -> Vec<u8> {
         (0..text.len())
@@ -411,6 +427,13 @@ mod tests {
         let decoded = inflate(&hex_to_bytes(SAMPLE_DYNAMIC), SAMPLE_TEXT.len() as u64, 1 << 20)
             .expect("动态块必须可解");
         assert_eq!(decoded, SAMPLE_TEXT.as_bytes());
+    }
+
+    #[test]
+    fn test_inflate_fixed_huffman_sample() {
+        let decoded = inflate(&hex_to_bytes(SAMPLE_FIXED), FIXED_TEXT.len() as u64, 1 << 20)
+            .expect("固定块必须可解");
+        assert_eq!(decoded, FIXED_TEXT.as_bytes());
     }
 
     #[test]
@@ -428,7 +451,9 @@ mod tests {
     #[test]
     fn test_inflate_fixed_huffman_block() {
         // 空输入 + 固定块 EOB：BFINAL=1,BTYPE=01,然后 7 位码 0000000（符号 256）。
-        let input = [0b0000_0101u8, 0b1000_0000u8];
+        // BTYPE 按 RFC 1951 §3.2.4 低位先读，固定块的 2 位取值为 01 →
+        // 首字节为 0b0000_0011；次字节高位补零凑满 7 位 EOB 码。
+        let input = [0b0000_0011u8, 0b1000_0000u8];
         let decoded = inflate(&input, 0, 64).expect("固定块空输出");
         assert!(decoded.is_empty());
     }

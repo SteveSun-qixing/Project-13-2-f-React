@@ -247,7 +247,10 @@ impl<'de, 'a> Visitor<'de> for ValueVisitor<'a> {
         let mut entries: Vec<(String, DocumentValue)> = Vec::new();
         while let Some(key) = accessor.next_key::<String>()? {
             if entries.iter().any(|(name, _)| *name == key) {
+                // 失败指针指向重复键自身（§6.2 诊断定位），因此先压栈再记录。
+                self.0.push_token(&key);
                 let failure = self.0.record(ScanFailure::DuplicateKey);
+                self.0.pop_token();
                 return Err(A::Error::custom(failure.message()));
             }
             self.0.push_token(&key);
