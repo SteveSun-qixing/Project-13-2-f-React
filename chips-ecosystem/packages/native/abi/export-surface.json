@@ -55,32 +55,27 @@
       "name": "cancelTokenCancel",
       "kind": "sync",
       "signature": "(token: CancelTokenHandle) => void"
-    }
-  ],
-  "blocked": [
+    },
     {
       "name": "bridgeRegister",
       "kind": "sync",
-      "signature": "(registration: INativeCapabilityRegistration) => void",
-      "ticket": "工单005-chips-bridge能力内核未交付"
+      "signature": "(registration: INativeCapabilityRegistration) => void"
     },
     {
       "name": "bridgeUnregister",
       "kind": "sync",
-      "signature": "(capabilityId: string) => void",
-      "ticket": "工单005-chips-bridge能力内核未交付"
+      "signature": "(capabilityId: string) => void"
     },
     {
       "name": "bridgeRequest",
       "kind": "async",
-      "signature": "(request: INativeBridgeRequest) => Promise<unknown>",
-      "ticket": "工单005-chips-bridge能力内核未交付"
+      "signature": "(request: INativeBridgeRequest) => Promise<unknown>"
     },
     {
       "name": "bridgeCancelSession",
       "kind": "sync",
-      "signature": "(sessionId: number) => void",
-      "ticket": "工单005-chips-bridge能力内核未交付"
+      "signature": "(sessionId: number) => void"
     }
-  ]
+  ],
+  "blocked": []
 }

@@ -1,0 +1,7 @@
+node_modules/
+test-results/
+playwright-report/
+
+# 夹具产物由 generate-fixtures.mjs 逐字节生成，不参与格式化
+fixtures/cards/
+fixtures/boxes/

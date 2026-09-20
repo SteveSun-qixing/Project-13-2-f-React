@@ -186,17 +186,20 @@ pub fn json_to_js<'a, C: Context<'a>>(
 ///
 /// 对象自身的 `undefined` 属性视为缺省并省略；数组元素与根位置的
 /// `undefined` 无法用 JSON 表达，返回类型错误。
-pub fn js_to_json<'a, C: Context<'a>>(
+///
+/// 输出为纯 Rust 值：句柄生命周期 `'v` 与上下文生命周期 `'a` 相互独立，
+/// 使 `to_future` 回调（两生命周期必然不同）也能复用本函数（§8.3 规则 7）。
+pub fn js_to_json<'a, 'v, C: Context<'a>>(
     cx: &mut C,
-    value: &Handle<'a, JsValue>,
+    value: &Handle<'v, JsValue>,
 ) -> Result<Value, ConvertIssue> {
     let mut pointer = String::new();
     convert_js_value(cx, value, &mut pointer)
 }
 
-fn convert_js_value<'a, C: Context<'a>>(
+fn convert_js_value<'a, 'v, C: Context<'a>>(
     cx: &mut C,
-    value: &Handle<'a, JsValue>,
+    value: &Handle<'v, JsValue>,
     pointer: &mut String,
 ) -> Result<Value, ConvertIssue> {
     if value.is_a::<JsUndefined, _>(cx) {
@@ -277,9 +280,9 @@ fn convert_js_value<'a, C: Context<'a>>(
     })
 }
 
-fn convert_js_array<'a, C: Context<'a>>(
+fn convert_js_array<'a, 'v, C: Context<'a>>(
     cx: &mut C,
-    array: &Handle<'a, JsArray>,
+    array: &Handle<'v, JsArray>,
     pointer: &mut String,
 ) -> Result<Value, ConvertIssue> {
     let length = array.len(cx) as usize;
@@ -301,9 +304,9 @@ fn convert_js_array<'a, C: Context<'a>>(
     Ok(Value::Array(items))
 }
 
-fn convert_js_object<'a, C: Context<'a>>(
+fn convert_js_object<'a, 'v, C: Context<'a>>(
     cx: &mut C,
-    object: &Handle<'a, JsObject>,
+    object: &Handle<'v, JsObject>,
     pointer: &mut String,
 ) -> Result<Value, ConvertIssue> {
     if !is_plain_object(cx, object).unwrap_or(false) {
@@ -349,9 +352,9 @@ fn convert_js_object<'a, C: Context<'a>>(
 }
 
 /// 普通对象判定：原型为 `null` 或 `Object.prototype`。
-fn is_plain_object<'a, C: Context<'a>>(
+pub(crate) fn is_plain_object<'a, 'v, C: Context<'a>>(
     cx: &mut C,
-    object: &Handle<'a, JsObject>,
+    object: &Handle<'v, JsObject>,
 ) -> NeonResult<bool> {
     let global = cx.global_object();
     let object_constructor: Handle<JsFunction> = global.get(cx, "Object")?;
@@ -365,7 +368,10 @@ fn is_plain_object<'a, C: Context<'a>>(
 }
 
 /// 除 `Uint8Array` 外的 TypedArray（`Float32Array` 等）判定。
-fn is_other_typed_array<'a, C: Context<'a>>(cx: &mut C, value: &Handle<'a, JsValue>) -> bool {
+fn is_other_typed_array<'a, 'v, C: Context<'a>>(
+    cx: &mut C,
+    value: &Handle<'v, JsValue>,
+) -> bool {
     value.is_a::<JsInt8Array, _>(cx)
         || value.is_a::<JsUint16Array, _>(cx)
         || value.is_a::<JsInt16Array, _>(cx)

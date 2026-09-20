@@ -14,6 +14,7 @@
 #![warn(missing_docs)]
 
 mod abi;
+mod bridge;
 mod cancel;
 mod context;
 mod convert;

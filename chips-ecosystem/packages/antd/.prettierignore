@@ -1,4 +1,1 @@
-dist/
-coverage/
-patches/
-node_modules/
+../../.prettierignore

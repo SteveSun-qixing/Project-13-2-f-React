@@ -37,6 +37,10 @@ export_table! {
     "contextEffect" => crate::context::js_context_effect,
     "createCancelToken" => crate::cancel::js_create_cancel_token,
     "cancelTokenCancel" => crate::cancel::js_cancel_token_cancel,
+    "bridgeRegister" => crate::bridge::js_bridge_register,
+    "bridgeUnregister" => crate::bridge::js_bridge_unregister,
+    "bridgeRequest" => crate::bridge::js_bridge_request,
+    "bridgeCancelSession" => crate::bridge::js_bridge_cancel_session,
 }
 
 /// `coreVersion()`：平台统一版本（与全部平台包共用同一版本号）。

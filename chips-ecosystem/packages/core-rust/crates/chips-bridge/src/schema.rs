@@ -1275,4 +1275,875 @@ mod tests {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<CompiledSchema>();
     }
+
+    // ——— 以下为 R18 覆盖率补测新增的分支用例与辅助函数 ———
+
+    use serde_json::json;
+
+    /// 从 `BRIDGE_INVALID_INPUT` 详情中提取 (pointer, keyword, message) 三元组。
+    fn issue_triples(details: &Value) -> Vec<(String, String, String)> {
+        details["errors"]
+            .as_array()
+            .expect("errors 应为数组")
+            .iter()
+            .map(|issue| {
+                (
+                    issue["pointer"].as_str().unwrap_or_default().to_owned(),
+                    issue["keyword"].as_str().unwrap_or_default().to_owned(),
+                    issue["message"].as_str().unwrap_or_default().to_owned(),
+                )
+            })
+            .collect()
+    }
+
+    /// 校验输入并断言失败与错误码，返回聚合的 issue 三元组。
+    fn input_issue_triples(
+        compiled: &CompiledSchema,
+        instance: &Value,
+    ) -> Vec<(String, String, String)> {
+        let error = validate_input(compiled, "test:cap", instance, &BTreeMap::new())
+            .expect_err("输入应当校验失败");
+        assert_eq!(error.code(), BRIDGE_INVALID_INPUT);
+        issue_triples(error.details().expect("详情应存在"))
+    }
+
+    fn contains_issue(
+        triples: &[(String, String, String)],
+        pointer: &str,
+        keyword: &str,
+        message: &str,
+    ) -> bool {
+        triples
+            .iter()
+            .any(|(p, k, m)| p == pointer && k == keyword && m == message)
+    }
+
+    /// 断言错误码为 `BRIDGE_INVALID_SCHEMA` 并取出 `details.reason`。
+    fn invalid_schema_reason(error: &ChipsError) -> String {
+        assert_eq!(error.code(), BRIDGE_INVALID_SCHEMA);
+        error.details().expect("详情应存在")["reason"]
+            .as_str()
+            .expect("reason 应为字符串")
+            .to_owned()
+    }
+
+    #[test]
+    fn test_gate_rejects_non_object_nodes() {
+        let cases = vec![
+            json!(42),
+            json!({
+                "type": "object", "additionalProperties": false,
+                "properties": { "a": 42 }
+            }),
+            json!({
+                "type": "object", "additionalProperties": false,
+                "properties": { "list": { "type": "array", "items": "string" } }
+            }),
+        ];
+        for schema in cases {
+            let error = compile(&schema).expect_err("非对象 schema 节点必须拒绝");
+            assert_eq!(invalid_schema_reason(&error), "schema 节点必须为对象");
+        }
+    }
+
+    #[test]
+    fn test_gate_ref_value_shape_and_target_name() {
+        let not_string = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "a": { "$ref": 42 } }
+        });
+        let error = compile(&not_string).expect_err("$ref 非字符串必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "$ref 必须为字符串");
+
+        let bad_name = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "a": { "$ref": "#/$defs/bad name" } }
+        });
+        let error = compile(&bad_name).expect_err("$ref 目标名含非法字符必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "$ref 目标名非法");
+    }
+
+    #[test]
+    fn test_gate_type_semantics() {
+        let array_ok = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "type": ["string", "null"] } }
+        });
+        assert!(compile(&array_ok).is_ok(), "原语类型数组应可编译");
+
+        let bad_member = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "type": ["string", 42] } }
+        });
+        let error = compile(&bad_member).expect_err("type 数组成员非字符串必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "type 数组成员必须为字符串");
+
+        let bad_shape = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "type": 42 } }
+        });
+        let error = compile(&bad_shape).expect_err("type 既非字符串也非数组必须拒绝");
+        assert_eq!(
+            invalid_schema_reason(&error),
+            "type 必须为字符串或字符串数组"
+        );
+
+        let unknown_single = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "type": "str" } }
+        });
+        let error = compile(&unknown_single).expect_err("未知原语类型必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "type `str` 不是合法原语类型");
+        assert_eq!(
+            error.details().expect("详情应存在")["pointer"],
+            serde_json::json!("/v")
+        );
+
+        let unknown_member = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "type": ["string", "int"] } }
+        });
+        let error = compile(&unknown_member).expect_err("数组内未知原语类型必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "type `int` 不是合法原语类型");
+    }
+
+    #[test]
+    fn test_gate_rejects_bad_required_enum_format_and_properties() {
+        let empty_required =
+            json!({ "type": "object", "additionalProperties": false, "required": [] });
+        let error = compile(&empty_required).expect_err("空 required 必须拒绝");
+        assert_eq!(
+            invalid_schema_reason(&error),
+            "required 必须为非空字符串数组"
+        );
+
+        let bad_required = json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["a", 1], "properties": {}
+        });
+        let error = compile(&bad_required).expect_err("required 含非字符串成员必须拒绝");
+        assert_eq!(
+            invalid_schema_reason(&error),
+            "required 必须为非空字符串数组"
+        );
+
+        let empty_enum = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "enum": [] } }
+        });
+        let error = compile(&empty_enum).expect_err("空 enum 必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "enum 必须为非空数组");
+
+        let bad_format = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "format": 42 } }
+        });
+        let error = compile(&bad_format).expect_err("非字符串 format 必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "format 必须为字符串");
+
+        let bad_properties =
+            json!({ "type": "object", "additionalProperties": false, "properties": 42 });
+        let error = compile(&bad_properties).expect_err("非对象 properties 必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "properties 必须为对象");
+    }
+
+    #[test]
+    fn test_binary_field_rejected_values_and_missing_name() {
+        for bad in [json!(false), json!("1024"), json!(-3.5)] {
+            let schema = json!({
+                "type": "object", "additionalProperties": false,
+                "properties": { "data": { "x-chips-binary": bad } }
+            });
+            let error = compile(&schema).expect_err("仅不小于 1 的整数允许登记");
+            assert_eq!(
+                invalid_schema_reason(&error),
+                "x-chips-binary 取值必须为不小于 1 的整数或 true（不额外限制）"
+            );
+        }
+
+        let empty_name = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "": { "x-chips-binary": 16 } }
+        });
+        let error = compile(&empty_name).expect_err("空属性名无法登记为二进制字段");
+        assert_eq!(invalid_schema_reason(&error), "x-chips-binary 属性名缺失");
+    }
+
+    #[test]
+    fn test_gate_recurses_into_children_and_combinators() {
+        let ok = json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "list": { "type": "array", "items": { "type": "string", "maxLength": 8 } },
+                "dict": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" },
+                    "propertyNames": { "maxLength": 32 },
+                    "properties": {}
+                },
+                "alt": { "oneOf": [{ "type": "string" }, { "type": "integer" }] }
+            },
+            "allOf": [{ "type": "object" }]
+        });
+        let compiled = compile(&ok).expect(
+            "items / propertyNames / additionalProperties / 组合子子节点都应被门控递归遍历",
+        );
+        validate_input(
+            &compiled,
+            "test:cap",
+            &json!({ "list": ["s"], "dict": { "k": "v" }, "alt": 1 }),
+            &BTreeMap::new(),
+        )
+        .expect("合法实例应通过校验");
+
+        let not_array = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "allOf": 42 } }
+        });
+        let error = compile(&not_array).expect_err("allOf 非数组必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "allOf 必须为非空数组");
+
+        let empty_any = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "anyOf": [] } }
+        });
+        let error = compile(&empty_any).expect_err("空 anyOf 必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "anyOf 必须为非空数组");
+
+        let object_one = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "oneOf": {} } }
+        });
+        let error = compile(&object_one).expect_err("oneOf 非数组必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "oneOf 必须为非空数组");
+
+        let bad_child = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "anyOf": [{ "patternProperties": {} }] } }
+        });
+        let error = compile(&bad_child).expect_err("组合子子节点同样受白名单门控");
+        assert_eq!(
+            invalid_schema_reason(&error),
+            "关键字 `patternProperties` 不在平台子集白名单内"
+        );
+        assert_eq!(
+            error.details().expect("详情应存在")["pointer"],
+            serde_json::json!("/v/anyOf/0")
+        );
+    }
+
+    #[test]
+    fn test_gate_defs_placement_and_names() {
+        let nested = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "$defs": { "x": { "type": "string" } } } }
+        });
+        let error = compile(&nested).expect_err("$defs 出现在非根位置必须拒绝");
+        assert_eq!(
+            invalid_schema_reason(&error),
+            "$defs 只允许出现在 schema 根部"
+        );
+
+        let not_object = json!({ "type": "object", "additionalProperties": false, "$defs": 42 });
+        let error = compile(&not_object).expect_err("非对象 $defs 必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "$defs 必须为对象");
+
+        let bad_name = json!({
+            "type": "object", "additionalProperties": false,
+            "$defs": { "bad name": { "type": "string" } }
+        });
+        let error = compile(&bad_name).expect_err("$defs 名称非法必须拒绝");
+        assert_eq!(invalid_schema_reason(&error), "$defs 名称非法");
+    }
+
+    #[test]
+    fn test_compile_reports_meta_schema_failure_summary() {
+        let schema = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "type": "string", "pattern": "[unclosed" } }
+        });
+        let error = compile(&schema).expect_err("门控通过但无法编译的关键字必须注册期拒绝");
+        assert!(
+            error.message().starts_with("能力输入 schema 无法编译："),
+            "实际消息：{}",
+            error.message()
+        );
+        let reason = invalid_schema_reason(&error);
+        assert!(
+            reason.starts_with("meta-schema 或关键字编译失败："),
+            "实际原因：{reason}"
+        );
+    }
+
+    #[test]
+    fn test_compile_root_without_properties_collects_no_binary() {
+        let schema = json!({ "type": "object", "additionalProperties": false });
+        let compiled = compile(&schema).expect("未声明 properties 的根 schema 应可编译");
+        assert!(compiled.binary_fields.is_empty());
+    }
+
+    #[test]
+    fn test_collect_binary_fields_true_limit_and_defensive_fallback() {
+        // 二次遍历自身按《能力契约规范》§5.3 正确解释 `true`（不额外限制）；
+        // 注：门控通道当前会把 true 误判为非法取值（见本轮报告的实现缺陷），
+        // 因此该口径只能通过直接调用钉住。
+        let fields = collect_binary_fields(&json!({
+            "properties": { "data": { "x-chips-binary": true } }
+        }))
+        .expect("true 应登记为不额外限制");
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].name, "data");
+        assert_eq!(fields[0].max_bytes, None);
+
+        let fields = collect_binary_fields(&json!({
+            "properties": { "data": { "x-chips-binary": 2048 } }
+        }))
+        .expect("整数上限应登记为对应字节数");
+        assert_eq!(fields[0].max_bytes, Some(2048));
+
+        // 门控通过链路只会放行 true 或不小于 1 的整数；非布尔非数字的取值
+        // 仅在直接调用二次遍历时出现，此处钉住其回退为「不额外限制」的
+        // 防御语义（不报错、不 panic）。
+        let fields = collect_binary_fields(&json!({
+            "properties": { "data": { "x-chips-binary": "oops" } }
+        }))
+        .expect("二次遍历不应报错");
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].name, "data");
+        assert_eq!(fields[0].max_bytes, None);
+    }
+
+    #[test]
+    fn test_schema_cache_empty_get_and_lru_eviction() {
+        let mut cache = SchemaCache::new();
+        let missing = digest(&json!({ "never": 1 }));
+        assert!(cache.get(&missing).is_none(), "空缓存必须无命中");
+
+        let compiled = compile(&file_read_schema()).expect("应可编译");
+        let keys: Vec<[u8; 32]> = (0..SCHEMA_CACHE_CAPACITY)
+            .map(|index| digest(&json!({ "slot": index })))
+            .collect();
+        for key in &keys {
+            cache.put(*key, Arc::clone(&compiled));
+        }
+        assert_eq!(cache.len(), SCHEMA_CACHE_CAPACITY);
+        assert!(cache.get(&keys[0]).is_some(), "命中应刷新为最近使用");
+        cache.put(
+            digest(&json!({ "slot": "incoming" })),
+            Arc::clone(&compiled),
+        );
+        assert_eq!(cache.len(), SCHEMA_CACHE_CAPACITY, "淘汰后总量仍处上限");
+        assert!(cache.get(&keys[0]).is_some(), "刚被刷新的条目不得被逐出");
+        assert!(cache.get(&keys[1]).is_none(), "最久未使用条目应被逐出");
+    }
+
+    #[test]
+    fn test_schema_cache_eviction_defensive_break() {
+        // 正常 get / put 序列下 entries 与 order 始终同步，order 提前弹空是
+        // 防御分支；此处直接构造病态状态（order 为空、entries 已满），钉住
+        // 淘汰循环遇到空 order 时停止而非 panic。
+        let mut cache = SchemaCache::new();
+        let compiled = compile(&file_read_schema()).expect("应可编译");
+        for index in 0..SCHEMA_CACHE_CAPACITY {
+            cache
+                .entries
+                .insert(digest(&json!({ "ghost": index })), Arc::clone(&compiled));
+        }
+        cache.put(digest(&json!({ "ghost": "tail" })), Arc::clone(&compiled));
+        assert_eq!(cache.len(), SCHEMA_CACHE_CAPACITY + 1);
+        assert!(cache.get(&digest(&json!({ "ghost": 0 }))).is_some());
+    }
+
+    #[test]
+    fn test_scan_strict_defensive_branches() {
+        let mut issues: Vec<Issue> = Vec::new();
+        scan_strict(
+            &json!(true),
+            None,
+            &json!(1),
+            "",
+            &mut Vec::new(),
+            &mut issues,
+        );
+        assert!(issues.is_empty(), "非对象节点应直接返回");
+        scan_strict(
+            &json!({ "$ref": "external://x" }),
+            None,
+            &json!(1),
+            "",
+            &mut Vec::new(),
+            &mut issues,
+        );
+        assert!(issues.is_empty(), "非 #/$defs/ 形态的 $ref 应直接跳过");
+        let defs = Map::new();
+        scan_strict(
+            &json!({ "$ref": "#/$defs/missing" }),
+            Some(&defs),
+            &json!(1),
+            "",
+            &mut Vec::new(),
+            &mut issues,
+        );
+        assert!(issues.is_empty(), "目标不存在时不下降也不报 issue");
+        scan_strict(
+            &json!({ "$ref": "#/$defs/loop" }),
+            None,
+            &json!(1.0),
+            "",
+            &mut vec!["loop".to_owned()],
+            &mut issues,
+        );
+        assert!(issues.is_empty(), "visiting 已含同名 def 时循环防护生效");
+    }
+
+    #[test]
+    fn test_scan_strict_descends_refs_map_items_and_combinators() {
+        let schema = json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "viaRef": { "$ref": "#/$defs/holder" },
+                "map": { "type": "object", "additionalProperties": { "type": "integer" }, "properties": {} },
+                "list": { "type": "array", "items": { "type": "integer" } },
+                "union": { "type": ["integer", "null"] },
+                "flag": { "type": "boolean" },
+                "alt": { "anyOf": [{ "type": "integer" }, { "type": "string" }] }
+            },
+            "$defs": {
+                "holder": { "type": "object", "additionalProperties": false, "properties": { "n": { "type": "integer" } } }
+            }
+        });
+        let compiled = compile(&schema).expect("应可编译");
+        let triples = input_issue_triples(
+            &compiled,
+            &json!({
+                "viaRef": { "n": 1.0 },
+                "map": { "k": 2.0 },
+                "list": [3.0],
+                "union": 4.0,
+                "flag": true,
+                "alt": 5.0
+            }),
+        );
+        for pointer in ["/alt", "/list/0", "/map/k", "/union", "/viaRef/n"] {
+            assert!(
+                contains_issue(&triples, pointer, "type", "integer 不接受浮点值"),
+                "严格扫描应报告 {pointer}，实际：{triples:?}"
+            );
+        }
+        // 记录底层口径供对照：单一 `type: "integer"` 节点下 jsonschema 接受整值
+        // 浮点（/alt、/list/0 等仅有扫描层 issue），这正是平台必须补充严格扫描
+        // 的原因；而 type 数组分支会直接报 schema 层类型错误。
+        assert!(
+            contains_issue(&triples, "/union", "type", "值类型不符合 schema 约束"),
+            "type 数组对整值浮点应另有 schema 层错误，实际：{triples:?}"
+        );
+        assert_eq!(
+            triples.len(),
+            6,
+            "恰好 5 条严格扫描 issue 与 1 条 /union 的 schema 层类型错误：{triples:?}"
+        );
+    }
+
+    #[test]
+    fn test_rfc3339_rejects_malformed_shapes() {
+        let rejects = [
+            "2026/01-01T00:00:00Z",     // 年代号分隔符错位
+            "2026-01/01T00:00:00Z",     // 月日分隔符错位
+            "2026-01-01 00:00:00Z",     // 日期时间分隔符非法
+            "2026-01-01T00-00:00Z",     // 时分分隔符错位
+            "2026-01-01T00:00;00Z",     // 分秒分隔符错位
+            "xxxx-01-01T00:00:00Z",     // 年数字非法
+            "2026-01-01Txx:00:00Z",     // 时数字非法
+            "2026-01-01T00:00:xxZ",     // 秒数字非法
+            "2026-01-01T25:00:00Z",     // 时越界
+            "2026-01-01T00:60:00Z",     // 分越界
+            "2026-01-01T00:00:61Z",     // 秒越出闰秒容许
+            "2026-01-01T00:00:00.Z",    // 小数秒无数字
+            "2026-01-01T00:00:00 UTC",  // 时区位置为未知字符
+            "2026-01-01T00:00:00+0100", // 时区偏移缺冒号且位数不足
+            "2026-01-01T00:00:00+01:0", // 时区偏移位数不足
+        ];
+        for value in rejects {
+            assert!(!is_rfc3339_date_time(value), "应拒绝：{value}");
+        }
+        assert!(
+            is_rfc3339_date_time("2026-01-01T00:00:00.5+08:00"),
+            "小数秒加时区偏移应接受"
+        );
+        assert!(is_rfc3339_date_time("2026-12-31T23:59:60Z"), "闰秒应接受");
+    }
+
+    #[test]
+    fn test_days_in_month_supports_boundary_and_default() {
+        assert_eq!(days_in_month(2026, 2), 28);
+        assert_eq!(days_in_month(2024, 2), 29);
+        assert_eq!(days_in_month(2000, 2), 29);
+        assert_eq!(days_in_month(1900, 2), 28);
+        assert_eq!(days_in_month(2026, 4), 30);
+        assert_eq!(days_in_month(2026, 12), 31);
+        // date-time 入口先做 1..=12 月份范围过滤，回退值 0 只在直接调用时可达。
+        assert_eq!(days_in_month(2026, 13), 0);
+    }
+
+    #[test]
+    fn test_parse_digits_rejects_overrun_and_non_digits() {
+        let bytes: Vec<char> = "12".chars().collect();
+        assert_eq!(parse_digits(&bytes, 0, 4), None, "越界取值必须返回 None");
+        assert_eq!(parse_digits(&bytes, 0, 2), Some(12));
+        let junk: Vec<char> = "ab".chars().collect();
+        assert_eq!(parse_digits(&junk, 0, 2), None, "非数字段必须返回 None");
+    }
+
+    #[test]
+    fn test_uri_predicates_reject_malformed_shapes() {
+        assert!(!is_absolute_uri("example.com/x"), "无冒号即无 scheme");
+        assert!(!is_absolute_uri(":missing-scheme"), "scheme 不得为空");
+        assert!(
+            !is_absolute_uri("1http://example.com"),
+            "scheme 首字符须为字母"
+        );
+        assert!(!is_absolute_uri("ht tp://example.com"), "scheme 含非法字符");
+        assert!(
+            !is_absolute_uri("https://example.com/a#frag"),
+            "禁止片段参与比对"
+        );
+        assert!(
+            !is_absolute_uri("https://example.com/a|b"),
+            "禁止未容纳字符出现在层次部分"
+        );
+        assert!(is_absolute_uri("https://a.b/c?d=e&f=%20g"));
+
+        assert!(
+            !is_chips_resource_uri("https://example.com"),
+            "非 chips-resource scheme 直接失败"
+        );
+        assert!(
+            !is_chips_resource_uri("chips-resource://UPPER/a.png"),
+            "scope 段禁止大写"
+        );
+        assert!(is_chips_resource_uri(
+            "chips-resource://card-01/images/a.png"
+        ));
+
+        assert!(
+            !is_chips_credential_uri("https://example.com"),
+            "非 credential scheme 直接失败"
+        );
+        assert!(
+            !is_chips_credential_uri("credential://only-plugin"),
+            "缺 name 段的引用非法"
+        );
+        assert!(
+            !is_chips_credential_uri("credential://1plugin.sub/name"),
+            "pluginId 段首字符须为字母"
+        );
+        assert!(
+            !is_chips_credential_uri("credential://chips.plugin/a b"),
+            "name 段含空格非法"
+        );
+        assert!(
+            !is_chips_credential_uri("credential://chips.plugin/a/b"),
+            "name 段不得再含斜杠"
+        );
+        assert!(is_chips_credential_uri(
+            "credential://chips.plugin.notes/key_1.2-3"
+        ));
+    }
+
+    #[test]
+    fn test_describe_renders_scalar_keyword_messages() {
+        let cases = vec![
+            (
+                json!({ "v": { "type": "string", "enum": ["a"] } }),
+                json!({ "v": "b" }),
+                "/v",
+                "enum",
+                "值不在允许集合内",
+            ),
+            (
+                json!({ "v": { "const": 7 } }),
+                json!({ "v": 8 }),
+                "/v",
+                "const",
+                "值与固定值不一致",
+            ),
+            (
+                json!({ "v": { "type": "string", "minLength": 3 } }),
+                json!({ "v": "ab" }),
+                "/v",
+                "minLength",
+                "字符串长度不得小于 3",
+            ),
+            (
+                json!({ "v": { "type": "string", "maxLength": 1 } }),
+                json!({ "v": "ab" }),
+                "/v",
+                "maxLength",
+                "字符串长度不得大于 1",
+            ),
+            (
+                json!({ "v": { "type": "string", "pattern": "^a" } }),
+                json!({ "v": "b" }),
+                "/v",
+                "pattern",
+                "字符串不符合模式约束",
+            ),
+            (
+                json!({ "v": { "type": "number", "minimum": 5 } }),
+                json!({ "v": 1 }),
+                "/v",
+                "minimum",
+                "数值不得小于 5",
+            ),
+            (
+                json!({ "v": { "type": "number", "maximum": 1 } }),
+                json!({ "v": 5 }),
+                "/v",
+                "maximum",
+                "数值不得大于 1",
+            ),
+            (
+                json!({ "v": { "type": "number", "exclusiveMinimum": 1 } }),
+                json!({ "v": 1 }),
+                "/v",
+                "exclusiveMinimum",
+                "数值必须大于 1",
+            ),
+            (
+                json!({ "v": { "type": "number", "exclusiveMaximum": 1 } }),
+                json!({ "v": 1 }),
+                "/v",
+                "exclusiveMaximum",
+                "数值必须小于 1",
+            ),
+            (
+                json!({ "v": { "type": "number", "multipleOf": 2 } }),
+                json!({ "v": 3 }),
+                "/v",
+                "multipleOf",
+                "数值必须为指定步长的整数倍",
+            ),
+        ];
+        for (constraint, instance, pointer, keyword, message) in cases {
+            let schema = json!({ "type": "object", "additionalProperties": false, "properties": constraint });
+            let compiled = compile(&schema).expect("应可编译");
+            let triples = input_issue_triples(&compiled, &instance);
+            assert_eq!(
+                triples.len(),
+                1,
+                "{keyword} 应恰好产生 1 条 issue：{triples:?}"
+            );
+            assert!(
+                contains_issue(&triples, pointer, keyword, message),
+                "期望 ({pointer}, {keyword}, {message})，实际：{triples:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_describe_renders_container_keyword_messages() {
+        let schema = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "type": "string" } }
+        });
+        let compiled = compile(&schema).expect("应可编译");
+        let triples = input_issue_triples(&compiled, &json!({ "v": "x", "sneaky": 1 }));
+        assert!(
+            contains_issue(&triples, "", "additionalProperties", "存在未声明字段"),
+            "实际：{triples:?}"
+        );
+
+        let cases = vec![
+            (
+                json!({ "type": "array", "minItems": 2 }),
+                json!([]),
+                "minItems",
+                "数组元素数不得少于 2",
+            ),
+            (
+                json!({ "type": "array", "maxItems": 1 }),
+                json!([1, 2]),
+                "maxItems",
+                "数组元素数不得多于 1",
+            ),
+            (
+                json!({ "type": "array", "uniqueItems": true }),
+                json!([1, 1]),
+                "uniqueItems",
+                "数组元素必须互不重复",
+            ),
+            (
+                json!({ "type": "object", "additionalProperties": false, "properties": {}, "minProperties": 1 }),
+                json!({}),
+                "minProperties",
+                "对象属性数不得少于 1",
+            ),
+            (
+                json!({ "type": "object", "additionalProperties": false, "properties": {}, "maxProperties": 0 }),
+                json!({ "a": 1 }),
+                "maxProperties",
+                "对象属性数不得多于 0",
+            ),
+            (
+                json!({ "type": "object", "additionalProperties": false, "propertyNames": { "pattern": "^x" }, "properties": {} }),
+                json!({ "a": 1 }),
+                "propertyNames",
+                "对象属性名不符合约束",
+            ),
+        ];
+        for (node, value, keyword, message) in cases {
+            let schema = json!({ "type": "object", "additionalProperties": false, "properties": { "v": node } });
+            let compiled = compile(&schema).expect("应可编译");
+            let triples = input_issue_triples(&compiled, &json!({ "v": value }));
+            assert!(
+                contains_issue(&triples, "/v", keyword, message),
+                "{keyword} 应被报告，实际：{triples:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_describe_renders_combinator_keyword_messages() {
+        let any_schema = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "anyOf": [{ "type": "string" }, { "type": "boolean" }] } }
+        });
+        let compiled = compile(&any_schema).expect("应可编译");
+        let triples = input_issue_triples(&compiled, &json!({ "v": 1 }));
+        assert_eq!(
+            triples,
+            vec![(
+                "/v".to_owned(),
+                "anyOf".to_owned(),
+                "值不满足任何允许分支".to_owned()
+            )]
+        );
+
+        let one_none = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "oneOf": [{ "type": "string" }, { "type": "boolean" }] } }
+        });
+        let compiled = compile(&one_none).expect("应可编译");
+        let triples = input_issue_triples(&compiled, &json!({ "v": 1 }));
+        assert_eq!(
+            triples,
+            vec![(
+                "/v".to_owned(),
+                "oneOf".to_owned(),
+                "值不满足任何允许分支".to_owned()
+            )]
+        );
+
+        let one_multi = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "v": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "integer", "maximum": 10 }] } }
+        });
+        let compiled = compile(&one_multi).expect("应可编译");
+        let triples = input_issue_triples(&compiled, &json!({ "v": 5 }));
+        assert_eq!(
+            triples,
+            vec![(
+                "/v".to_owned(),
+                "oneOf".to_owned(),
+                "值同时满足多个互斥分支".to_owned()
+            )]
+        );
+    }
+
+    /// 门控与平台编译口径（`should_validate_formats(false)`、schema 节点必须为
+    /// 对象）保证以下错误种类不会出现在正式链路；这里以局部构造的校验器直接
+    /// 驱动 `describe` 的映射分支，钉住兜底文案不漂移。
+    /// 注：`BacktrackLimitExceeded` 分支无法钉住——当前依赖组合（jsonschema
+    /// 0.33 + 其内嵌 fancy-regex 的回溯上限引擎）对灾难性模式返回不匹配而非
+    /// 报错（jsonschema 自身的回溯上限测试即以上游不再复现为由 ignore），
+    /// 该映射臂属不可达防御分支。
+    fn describe_first(validator: &jsonschema::Validator, instance: &Value) -> Issue {
+        let mut errors = validator.iter_errors(instance);
+        let error = errors.next().expect("应产生校验错误");
+        describe(&error)
+    }
+
+    #[test]
+    fn test_describe_maps_kinds_unreachable_on_platform_path() {
+        let false_validator = build_options()
+            .build(&json!({ "type": "object", "properties": { "never": false } }))
+            .expect("局部校验器应可编译");
+        let issue = describe_first(&false_validator, &json!({ "never": 1 }));
+        assert_eq!(issue.pointer, "/never");
+        assert_eq!(issue.keyword, "type");
+        assert_eq!(issue.message, "该位置不接受任何值");
+
+        let format_validator = jsonschema::options()
+            .with_draft(jsonschema::Draft::Draft202012)
+            .should_validate_formats(true)
+            .build(&json!({ "type": "string", "format": "date" }))
+            .expect("局部校验器应可编译");
+        let issue = describe_first(&format_validator, &json!("nope"));
+        assert_eq!(issue.keyword, "format");
+        assert_eq!(issue.message, "字符串不符合 date 格式");
+
+        let catch_all_validator = build_options()
+            .build(&json!({ "contains": { "const": 5 } }))
+            .expect("局部校验器应可编译");
+        let issue = describe_first(&catch_all_validator, &json!([1, 2]));
+        assert_eq!(issue.keyword, "schema");
+        assert_eq!(issue.message, "值不符合 schema 约束");
+    }
+
+    #[test]
+    fn test_envelope_rejects_bin_table_without_declared_binary_fields() {
+        let compiled = compile(&file_read_schema()).expect("应可编译");
+        let mut bin = BTreeMap::new();
+        bin.insert("payload".to_owned(), vec![1]);
+        let error = validate_input(&compiled, "test:cap", &json!({ "path": "a.txt" }), &bin)
+            .expect_err("未声明二进制字段时 bin 表必须为空");
+        assert_eq!(error.code(), BRIDGE_INVALID_INPUT);
+        let triples = issue_triples(error.details().expect("详情应存在"));
+        assert_eq!(
+            triples,
+            vec![(
+                String::new(),
+                "x-chips-binary".to_owned(),
+                "该能力未声明二进制字段，bin 表必须为空".to_owned()
+            )]
+        );
+    }
+
+    #[test]
+    fn test_envelope_optional_field_skip_and_unique_reference() {
+        let schema = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": { "a": { "x-chips-binary": 8 }, "b": { "x-chips-binary": 64 } }
+        });
+        let compiled = compile(&schema).expect("应可编译");
+        validate_input(&compiled, "test:cap", &json!({}), &BTreeMap::new())
+            .expect("可选二进制字段缺省且不携带 bin 时应通过");
+
+        let mut bin = BTreeMap::new();
+        bin.insert("k".to_owned(), vec![1, 2]);
+        let error = validate_input(&compiled, "test:cap", &json!({}), &bin)
+            .expect_err("未被任何字段引用的 bin 键必须拒绝");
+        assert_eq!(error.code(), BRIDGE_INVALID_INPUT);
+        let triples = issue_triples(error.details().expect("详情应存在"));
+        assert!(
+            contains_issue(&triples, "", "x-chips-binary", "bin 表包含未被引用的多余键"),
+            "实际：{triples:?}"
+        );
+
+        let error = validate_input(&compiled, "test:cap", &json!({ "a": "k", "b": "k" }), &bin)
+            .expect_err("同一输入内重复键引用必须拒绝");
+        assert_eq!(error.code(), BRIDGE_INVALID_INPUT);
+        let triples = issue_triples(error.details().expect("详情应存在"));
+        assert!(
+            contains_issue(
+                &triples,
+                "/b",
+                "x-chips-binary",
+                "同一输入内 bin 表键引用必须唯一"
+            ),
+            "实际：{triples:?}"
+        );
+    }
 }

@@ -15,11 +15,9 @@ use neon::prelude::*;
 use neon::types::Deferred;
 
 /// 绑定层专用异步运行时；懒初始化、全进程共享。
-#[allow(dead_code)] // 异步导出（文档解析、资源管理域）落地前仅由单测与 spawn_result 消费。
 static RUNTIME: OnceLock<Result<tokio::runtime::Runtime, String>> = OnceLock::new();
 
 /// 取绑定层运行时；初始化失败返回 `NATIVE_INTERNAL`。
-#[allow(dead_code)] // 同上：异步导出落地前仅由单测与 spawn_result 消费。
 pub(crate) fn runtime() -> Result<&'static tokio::runtime::Runtime, ChipsError> {
     match RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
@@ -37,7 +35,6 @@ pub(crate) fn runtime() -> Result<&'static tokio::runtime::Runtime, ChipsError> 
 
 /// 把异步结果 settle 到 `JsPromise`：工作提交到绑定层运行时，结果经
 /// `Channel` 回投 JS 线程后执行 `settle`；`ChipsError` 统一抛出。
-#[allow(dead_code)] // 异步导出（文档解析、资源管理域）落地前仅由单测覆盖。
 pub(crate) fn spawn_result<T, F, S>(
     deferred: Deferred,
     channel: Channel,
@@ -60,7 +57,7 @@ where
 }
 
 /// 把一个纯数据值 settle 为 JS 值（`serde_json::Value` 经 [`crate::convert`]）。
-#[allow(dead_code)] // 异步导出（文档解析、资源管理域）落地前仅由单测覆盖。
+#[allow(dead_code)] // JSON-only settle：`bridgeRequest` 输出为 `{ json, bin }` 合并形态（见 envelope），本入口留给无二进制文档解析域导出。
 pub(crate) fn settle_json<'a>(cx: &mut Cx<'a>, value: serde_json::Value) -> JsResult<'a, JsValue> {
     crate::convert::json_to_js(cx, &value, "")
 }

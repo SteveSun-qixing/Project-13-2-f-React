@@ -6,8 +6,8 @@
  * 未在本文件声明的函数不注册，未注册的函数不在本文件声明。
  *
  * 能力执行导出（`bridgeRegister` / `bridgeUnregister` / `bridgeRequest` /
- * `bridgeCancelSession`）的载体 `chips-bridge` 尚未交付，见《问题工单》
- * 工单005；落地后按同一入口追加，导出表只增不改。
+ * `bridgeCancelSession`）与元信息、Context、取消令牌导出共用本入口；
+ * 导出表只增不改，签名变化递增 `coreAbiVersion`。
  *
  * 约束：
  * - 句柄（ContextHandle / CancelTokenHandle）不透明、无字段、不可序列化；
@@ -28,12 +28,12 @@ export interface CancelTokenHandle {
   readonly [cancelTokenHandleBrand]: 'chips-native.cancel-token';
 }
 
-/** 能力执行上下文；与 `ICapabilityContext` 一致（Bridge 三层设计 §3.2）。 */
+/** 能力执行上下文；与 `ICapabilityContext` 一致（《核心接口规范》§5.3）。 */
 export interface INativeCapabilityContext {
   /** 取消信号；会话销毁、超时、能力注销或 Bridge 关闭时触发。 */
   readonly signal: AbortSignal;
-  /** 调用截止时间（Unix epoch 毫秒）；无截止时为 undefined。 */
-  readonly deadline?: number;
+  /** 调用截止时间（Unix epoch 毫秒）；内核准入时即确定。 */
+  readonly deadline: number;
 }
 
 /** TS 能力注册形状；`handler` 在 JS 线程调用，返回值被等待。 */
@@ -100,3 +100,18 @@ export function createCancelToken(): CancelTokenHandle;
 
 /** 触发取消；幂等；可从任意线程调用。 */
 export function cancelTokenCancel(token: CancelTokenHandle): void;
+
+/** 注册 TS 能力并持有其 handler；注册期校验失败抛出 `ChipsError` 同构错误。 */
+export function bridgeRegister(registration: INativeCapabilityRegistration): void;
+
+/** 注销能力；在途调用由内核按取消收口。 */
+export function bridgeUnregister(capabilityId: string): void;
+
+/**
+ * 发起一次能力调用；输入按 `{ json, bin }` 信封解码，输出中 `x-chips-binary`
+ * 位置以 `Uint8Array` 嵌回；失败以 `ChipsError` 同构 `Error` 拒绝。
+ */
+export function bridgeRequest(request: INativeBridgeRequest): Promise<unknown>;
+
+/** 取消会话全部在途调用；幂等；会话保持可用。 */
+export function bridgeCancelSession(sessionId: number): void;

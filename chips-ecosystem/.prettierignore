@@ -14,3 +14,9 @@ pnpm-lock.yaml
 # hello 示例的 render.js 是 vite 构建产物（入库为 check-entries/G4 与 cpk 链的在用输入）；
 # 每次 `pnpm -r build` 都会以压缩形态重写它，格式检查不适用（工单 010 同类配置缺口）。
 examples/plugins/hello/render.js
+# 工单 010 收口：本文件是格式化判定面唯一忽略事实源；各包/测试目录的
+# `.prettierignore` 为指向本文件的符号链接（prettier 只加载 cwd 的忽略文件，
+# 不向上查找），包脚本一律裸 `prettier --check .`，禁止再出现 --ignore-path 分散口径。
+packages/antd/patches/
+tests/e2e/fixtures/cards/
+tests/e2e/fixtures/boxes/

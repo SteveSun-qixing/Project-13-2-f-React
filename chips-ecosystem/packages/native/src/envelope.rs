@@ -8,20 +8,18 @@
 //! `Vec<u8>`；Rust → JS 经 `JsUint8Array::from_slice` 复制一次进 JS 堆。
 //! 不经过 base64 编解码，也不产生第二份副本。
 //!
-//! 本模块的编解码入口由 Bridge 能力导出消费（`bridgeRequest` 等被工单005
-//! 阻塞）：在对应导出落地前仅由单测覆盖，统一关闭 `dead_code` 告警，避免把
-//! "待接线"误报为死代码；导出落地时随该告警一并移除本属性。
-
-#![allow(dead_code)]
+//! 本模块的编解码入口由 Bridge 能力导出消费：`bridgeRequest` 与 TS 能力
+//! 执行器在输入侧经 [`bin_from_js`] / [`validate_bin_table`] 解码校验、在
+//! 输出侧经 [`json_with_bin_to_js`] / [`js_with_bin_to_json`] 合并与抽取。
 
 use std::collections::BTreeMap;
 
 use chips_core::ChipsError;
 use neon::prelude::*;
 use neon::types::buffer::TypedArray;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-use crate::convert::{escape_pointer_segment, json_to_js};
+use crate::convert::{escape_pointer_segment, is_plain_object, json_to_js, js_to_json, ConvertIssue};
 
 /// 信封结构错误统一使用的错误码（缺键、多余键、指针非法）。
 pub const ENVELOPE_INVALID_INPUT_CODE: &str = "BRIDGE_INVALID_INPUT";
@@ -57,6 +55,7 @@ pub fn bin_from_js<'a, C: Context<'a>>(
 }
 
 /// 把字节表写为 JS 对象；每个条目复制一次进 `Uint8Array`。
+#[allow(dead_code)] // 整表输出路径：`bridgeRequest` 输出以 `json_with_bin_to_js` 嵌回，暂未消费整表形态。
 pub fn bin_to_js<'a, C: Context<'a>>(
     cx: &mut C,
     bin: &BTreeMap<String, Vec<u8>>,
@@ -121,6 +120,104 @@ pub fn validate_bin_table(json: &Value, bin: &BTreeMap<String, Vec<u8>>) -> Resu
     Ok(())
 }
 
+/// JS 值转 `{ json, bin }` 信封：`Uint8Array` / `Buffer` 叶子抽取进 `bin` 表
+/// （键为其 JSON Pointer），`json` 侧以指针字符串占位；其余值按
+/// [`crate::convert::js_to_json`] 的白名单与约束递归映射。
+///
+/// 与 [`json_with_bin_to_js`] 互逆：能力 handler 的返回值经本函数分解为
+/// `CapabilityOutput`，`bridgeRegister` 方向的二进制无需 handler 手写指针。
+///
+/// 输出为纯 Rust 值：句柄生命周期与上下文生命周期相互独立，
+/// `to_future` 回调（§8.3 规则 7）可直接复用。
+pub fn js_with_bin_to_json<'a, 'v, C: Context<'a>>(
+    cx: &mut C,
+    value: &Handle<'v, JsValue>,
+) -> Result<(Value, BTreeMap<String, Vec<u8>>), ConvertIssue> {
+    let mut bin = BTreeMap::new();
+    let json = walk_with_bin(cx, value, "", &mut bin)?;
+    Ok((json, bin))
+}
+
+/// 信封分解的递归走查；`pointer` 为当前位置的 JSON Pointer。
+fn walk_with_bin<'a, 'v, C: Context<'a>>(
+    cx: &mut C,
+    value: &Handle<'v, JsValue>,
+    pointer: &str,
+    bin: &mut BTreeMap<String, Vec<u8>>,
+) -> Result<Value, ConvertIssue> {
+    if value.is_a::<JsBuffer, _>(cx) || value.is_a::<JsUint8Array, _>(cx) {
+        let bytes = binary_bytes(cx, value).ok_or_else(|| ConvertIssue::TypeUnsupported {
+            pointer: pointer.to_owned(),
+            detail: "二进制读取失败",
+        })?;
+        bin.insert(pointer.to_owned(), bytes);
+        return Ok(Value::String(pointer.to_owned()));
+    }
+    if value.is_a::<JsArray, _>(cx) {
+        let array = value
+            .downcast::<JsArray, _>(cx)
+            .map_err(|_| ConvertIssue::TypeUnsupported {
+                pointer: pointer.to_owned(),
+                detail: "数组读取失败",
+            })?;
+        let length = array.len(cx) as usize;
+        let mut items = Vec::with_capacity(length);
+        for index in 0..length {
+            let item = array
+                .get::<JsValue, _, _>(cx, index as u32)
+                .map_err(|_| ConvertIssue::TypeUnsupported {
+                    pointer: pointer.to_owned(),
+                    detail: "数组元素读取失败",
+                })?;
+            let item_pointer = format!("{pointer}/{index}");
+            items.push(walk_with_bin(cx, &item, &item_pointer, bin)?);
+        }
+        return Ok(Value::Array(items));
+    }
+    if value.is_a::<JsObject, _>(cx) {
+        let object = value
+            .downcast::<JsObject, _>(cx)
+            .map_err(|_| ConvertIssue::TypeUnsupported {
+                pointer: pointer.to_owned(),
+                detail: "对象读取失败",
+            })?;
+        if is_plain_object(cx, &object).unwrap_or(false) {
+            let names = object
+                .get_own_property_names(cx)
+                .map_err(|_| ConvertIssue::TypeUnsupported {
+                    pointer: pointer.to_owned(),
+                    detail: "对象属性枚举失败",
+                })?;
+            let mut entries = Map::new();
+            for index in 0..names.len(cx) {
+                let name = names
+                    .get::<JsString, _, _>(cx, index)
+                    .map_err(|_| ConvertIssue::TypeUnsupported {
+                        pointer: pointer.to_owned(),
+                        detail: "对象键读取失败",
+                    })?;
+                let key = name.value(cx);
+                let entry = object
+                    .get::<JsValue, _, _>(cx, name)
+                    .map_err(|_| ConvertIssue::TypeUnsupported {
+                        pointer: pointer.to_owned(),
+                        detail: "对象属性读取失败",
+                    })?;
+                // 与 `js_to_json` 同口径：对象自身的 `undefined` 属性视为缺省。
+                if entry.is_a::<JsUndefined, _>(cx) {
+                    continue;
+                }
+                let entry_pointer = format!("{pointer}/{}", escape_pointer_segment(&key));
+                entries.insert(key, walk_with_bin(cx, &entry, &entry_pointer, bin)?);
+            }
+            return Ok(Value::Object(entries));
+        }
+    }
+    // 标量与非白名单值（函数、类实例、其他 TypedArray 等）交回 `js_to_json`
+    // 统一映射与拒绝路径。
+    js_to_json(cx, value)
+}
+
 /// 按 JSON Pointer（RFC 6901）解析值；根指针为空串。
 #[must_use]
 pub fn resolve_pointer<'a>(json: &'a Value, pointer: &str) -> Option<&'a Value> {
@@ -162,7 +259,10 @@ pub fn unescape_pointer_segment(segment: &str) -> Option<String> {
 }
 
 /// 从 JS 值读取二进制：`Buffer` 与 `Uint8Array` 接受，各复制一次。
-fn binary_bytes<'a, C: Context<'a>>(cx: &mut C, value: &Handle<'a, JsValue>) -> Option<Vec<u8>> {
+fn binary_bytes<'a, 'v, C: Context<'a>>(
+    cx: &mut C,
+    value: &Handle<'v, JsValue>,
+) -> Option<Vec<u8>> {
     if let Ok(buffer) = value.downcast::<JsBuffer, _>(cx) {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(buffer.as_slice(cx));

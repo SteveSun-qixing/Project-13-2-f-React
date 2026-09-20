@@ -18,7 +18,6 @@ pub const NATIVE_VALUE_OUT_OF_RANGE: &str = "NATIVE_VALUE_OUT_OF_RANGE";
 pub const NATIVE_INTERNAL: &str = "NATIVE_INTERNAL";
 
 /// 未识别 JS 异常归一后的兜底错误码（Bridge 通道级兜底）。
-#[allow(dead_code)] // 由 chips_error_from_js 消费；JS→Rust 归一入口待 Bridge/插件回调落地。
 pub const BRIDGE_INTERNAL: &str = "BRIDGE_INTERNAL";
 
 /// 构造绑定层内部错误；诊断不携带堆栈与内部路径。
@@ -71,10 +70,12 @@ pub fn throw_chips_error<'a, C: Context<'a>, V>(cx: &mut C, error: ChipsError) -
 ///
 /// 已是 `ChipsError` 同构形状（`code` 为字符串）时原样保留 `code` /
 /// `retryable`；其余一律归一为 `BRIDGE_INTERNAL`，不回传堆栈与内部路径。
-#[allow(dead_code)] // JS→Rust 归一入口：Bridge 调用与插件回调落地后接入。
-pub fn chips_error_from_js<'a, C: Context<'a>>(
+///
+/// 输出为纯 Rust 值：句柄生命周期与上下文生命周期相互独立，
+/// `to_future` 回调（§8.3 规则 7）可直接复用。
+pub fn chips_error_from_js<'a, 'v, C: Context<'a>>(
     cx: &mut C,
-    thrown: Handle<'a, JsValue>,
+    thrown: Handle<'v, JsValue>,
 ) -> ChipsError {
     let object = match thrown.downcast::<JsObject, _>(cx) {
         Ok(object) => object,
@@ -126,13 +127,11 @@ pub fn chips_error_from_js<'a, C: Context<'a>>(
 }
 
 /// 未识别异常：通用文案 + `BRIDGE_INTERNAL`，诊断细节留在宿主日志。
-#[allow(dead_code)] // 由 chips_error_from_js 消费；JS→Rust 归一入口待 Bridge/插件回调落地。
 fn unrecognized_error() -> ChipsError {
     ChipsError::new(BRIDGE_INTERNAL, "桥接内部错误")
 }
 
 /// 错误码形状校验：`<DOMAIN>_<REASON>`，全大写、下划线分隔。
-#[allow(dead_code)] // 由 chips_error_from_js 与单测消费。
 fn is_normalized_code(code: &str) -> bool {
     !code.is_empty()
         && code
