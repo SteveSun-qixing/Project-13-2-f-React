@@ -14,15 +14,16 @@
  *   17 必备名装载闸、Bridge 会话快照视图提供者与资源管理器端口（W3 chips-resource 注入面，
  *   工单 036）全部可得时，经 `createDocumentCapabilityDescriptors` 注册真实 `document:*`
  *   四能力并绑定宿主事件总线；任一硬依赖缺位即整体不装载（诊断留痕，调用维持真实
- *   注册表未命中语义——与 `pluginActivationPortFor` 回退臂同型，不造假适配器）。
+ *   注册表未命中语义——诚实降级不造假适配器）。
  * - CPK 装载器（阶段六接线）：`createRuntime` 时打开插件注册表（`<userData>/chips-plugins/registry.json`），
  *   经 `pluginLoaderFactory` 注入宿主运行时——`pluginsRoot = <userData>/chips-plugins`、内嵌编译期
  *   信任根（当前正式密钥材料缺位，工单 028，失效关闭）、`hostVersion` 取 PAL 宿主快照的
- *   `appVersion`；激活端口注入位（`pluginActivationPortFor`，工单 025）缺省未注入：原生绑定
- *   已在 `createRuntime` 装载并校验（`native-bridge.ts` 消费链），但内核提供方激活 / 会话登记
- *   与插件执行通道（§8.6 扩展导出与 `kernel`/`plugin` 前缀导出）尚未落地（工单 025 剩余项），
- *   正式激活端口无可诚实构造的实现，`enable` 路径保持 BRIDGE_INTERNAL 诚实回退臂
- *   （装载闸不可用时同臂回退，诊断留痕 `native-bridge` 域）。
+ *   `appVersion`；激活端口（工单 025 波 3 起默认接线）：缺省以波 2 正式激活通道
+ *   `createHostPluginActivationChannel({ pluginRegistry, trustRoots, sessionRoot })` 直连
+ *   `deps.activationPortFor`，`enable` 路径即通（通道恒返回端口，无「未注入」回退臂；
+ *   `pluginActivationPortFor` 注入位保留为显式覆盖口，S6）。原生绑定仍在 `createRuntime`
+ *   装载并校验（`native-bridge.ts` 消费链）；内核提供方 Bridge 权威移交未落地前维持
+ *   壳侧回退诊断留痕（工单 025 剩余项①）。
  * - PAL 宿主构造由调用方注入（平台差异），本模块只负责运行时装配，保持与自检入口零逻辑分叉。
  */
 
@@ -54,6 +55,7 @@ import { createBuiltinCapabilities } from '../runtime/capabilities/system-info.j
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import { defaultNativeBridgeModulePath, loadNativeBridgeBinding } from './native-bridge.js';
+import { createHostPluginActivationChannel } from './plugin-activation.js';
 import {
   createHostAssembly,
   type HostAssembly,
@@ -89,7 +91,10 @@ export interface ProductionRuntimeOptions {
    * {@link createProductionRuntime} 时才需自行供给。
    */
   readonly pluginLoaderFactory?: (deps: IHostPluginLoaderDeps) => IPluginLoaderSurface;
-  /** 激活端口注入位（工单 025 正式通道）；缺省未注入，`enable` 路径诚实回退内部错误。 */
+  /**
+   * 激活端口显式覆盖注入位（工单 025 波 3；S6 口径）：缺省由组合根以波 2 正式
+   * 激活通道直连（`enable` 即通）；仅供调用方自备通道或测试注入时覆盖。
+   */
   readonly pluginActivationPortFor?: PluginActivationPortFor;
   /**
    * 宿主内部取视图通道端点（刀5 段A）：由组合根文档装载段两臂恒在地交付
@@ -169,8 +174,13 @@ export function createProductionRuntime(
 /**
  * 准备生产装载器工厂（阶段六接线）：打开插件持久化注册表并闭合生产依赖。
  *
+ * 波 3 裁定（工单 025）：缺省以波 2 正式激活通道直连 `deps.activationPortFor`——
+ * `createHostPluginActivationChannel({ pluginRegistry, trustRoots, sessionRoot })`，
+ * enable 通道即通（S10 能力/会话权威不动；通道恒返回端口，不新建回退臂）。
+ * `pluginActivationPortFor` 注入位保留为显式覆盖口（S6：测试注入/调用方自备通道）。
+ *
  * @param context 组合根上下文（取 `userDataPath` 与 PAL 宿主快照的 `appVersion`）。
- * @param activationPortFor 激活端口注入位（工单 025 正式通道；缺省未注入）。
+ * @param activationPortFor 激活端口显式覆盖注入位（缺省走正式通道）。
  * @returns 交予宿主运行时 `pluginLoaderFactory` 的工厂。
  * @throws 注册表文档非法时原样上抛（整表拒绝不静默降级；壳以 `HOST_STARTUP_FAILED` 终止启动）。
  */
@@ -182,6 +192,16 @@ async function createProductionPluginLoaderFactory(
   const pluginRegistry = await openPluginRegistry({ filePath: join(pluginsRoot, 'registry.json') });
   const trustRoots = createEmbeddedTrustRootRegistry();
   const hostVersion = context.palHost.info.appVersion;
+  // 通道单例：会话表与自建装载器随通道存续，端口供给只转接不重建。
+  const activationChannel = createHostPluginActivationChannel({
+    pluginRegistry,
+    trustRoots,
+    // 会话目录落位随插件根（`.cpk-install-tmp` 同前例）；装载器会话惰性创建，
+    // 构造期零启动副作用。
+    sessionRoot: join(pluginsRoot, '.cpk-activation-sessions'),
+  });
+  const portFor: PluginActivationPortFor =
+    activationPortFor ?? ((plugin) => activationChannel.activationPortFor(plugin));
   return (deps) =>
     createCpkPluginLoader({
       pluginsRoot,
@@ -190,7 +210,7 @@ async function createProductionPluginLoaderFactory(
       emitEvent: deps.emitEvent,
       hostVersion,
       trustRoots,
-      ...(activationPortFor === undefined ? {} : { activationPortFor }),
+      activationPortFor: portFor,
     });
 }
 
@@ -230,8 +250,8 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
       // 金链路刀4 文档能力装载段：解析域产物过装载闸、守卫快照视图提供者与资源管理器
       // 端口正式适配器全部可得时，经 `createDocumentCapabilityDescriptors` 注册真实
       // `document:*` 四能力；任一硬依赖缺位即整体不装载（诊断留痕 `document-capability`
-      // 域，调用维持真实注册表未命中语义——与 `pluginActivationPortFor` 回退臂同型，
-      // 不造假适配器）。事件总线绑定发生在下方 `pluginLoaderFactory` 构造期（早于
+      // 域，调用维持真实注册表未命中语义——诚实降级不造假适配器）。事件总线绑定发生在
+      // 下方 `pluginLoaderFactory` 构造期（早于
       // `start` 注册与任何能力调用，见 `adapters/host-event-bus.ts` 头注）。
       const documentAssembly = createDocumentCapabilityWiring(documentWiring, context, bridgeDiagnostics);
       const productionPluginLoaderFactory = await createProductionPluginLoaderFactory(context, pluginActivationPortFor);

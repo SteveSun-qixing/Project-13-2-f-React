@@ -71,16 +71,9 @@ export function classify(relPath, rules) {
 
 export function workspacePackages(workspaceRoot, { skipDirs = [] } = {}) {
   const results = [];
-  const skip = new Set([
-    ...skipDirs,
-    'node_modules',
-    '.git',
-    'dist',
-    'coverage',
-    'reports',
-    'target',
-    'fixtures',
-  ]);
+  // 目录名按 NFC 归一后比对：macOS 文件系统可能返回 NFD 形态的中文名
+  // （如「归档」），不归一会让配置面的 skipDirs 静默失配。
+  const skip = new Set([...skipDirs, 'node_modules', '.git', 'dist', 'coverage', 'reports', 'target', 'fixtures'].map((name) => name.normalize('NFC')));
   const stack = [workspaceRoot];
   while (stack.length > 0) {
     const current = stack.pop();
@@ -88,7 +81,7 @@ export function workspacePackages(workspaceRoot, { skipDirs = [] } = {}) {
       if (!entry.isDirectory()) {
         continue;
       }
-      if (skip.has(entry.name)) {
+      if (skip.has(entry.name.normalize('NFC'))) {
         continue;
       }
       const full = path.join(current, entry.name);

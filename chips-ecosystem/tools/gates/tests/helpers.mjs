@@ -145,6 +145,28 @@ export function bridgeEdgeBoundariesConfig() {
   };
 }
 
+// 自引用豁免 + 归档排除发现面专用配置（工单 030 波 3 越界定性）：
+// `selfReferenceViaExports` 显式开启（exports 登记子路径放行、未登记维持 BOUNDARY021）；
+// `workspaceSkipDirs` 经 skipArchive 开关形成对照面（开→归档不参与包发现，关→维持 BOUNDARY001）。
+export function selfRefBoundariesConfig({ skipArchive = true } = {}) {
+  return {
+    boundaries: {
+      internalScope: '@chips/',
+      sourceExtensions: ['.ts'],
+      ignoredDirs: ['node_modules', 'dist', 'fixtures'],
+      testFilePatterns: ['\\.test\\.'],
+      workspaceProtocol: 'workspace:',
+      forbiddenProtocolPrefixes: ['file:', 'link:'],
+      selfReferenceViaExports: true,
+      ...(skipArchive ? { workspaceSkipDirs: ['归档'] } : {}),
+      rules: [
+        { id: 'root', match: '.', kind: 'root' },
+        { id: 'packages/self', match: 'packages/self', allowedInternal: [] },
+      ],
+    },
+  };
+}
+
 export function coverageConfig({
   rustRequired = true,
   rustSurface = false,

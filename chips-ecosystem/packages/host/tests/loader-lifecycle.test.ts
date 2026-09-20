@@ -11,8 +11,12 @@
  *
  * @remarks
  * - 插件包经开发目录态构造（`development` 渠道跳过归档与签名两阶段）；激活通道以测试内
- *   `IPluginActivationPort` 实现注入（正式内核通道属工单 025）；超时上限注入等形小值，
+ *   `IPluginActivationPort` 实现注入（正式内核通道属工单 025；波 3 起组合根默认接线
+ *   波 2 正式通道，本套件的端口注入位即显式覆盖口，S6 口径）；超时上限注入等形小值，
  *   默认口径仍取 `limits.ts`（30s/10s，由契约套件锁定）。
+ * - 激活失败归一（波 3 裁定，RFC §5.1 第五行）：在册形状 Error（真 `Error` +
+ *   `code` 形如 `<DOMAIN>_<REASON>` + 布尔 `retryable`）在 T7 面原样透传不再包壳；
+ *   非在册形状归一 `KERNEL_APPLY_FAILED`（原文只进 `details.cause`）。
  * - 错误码一律取自 `codes.ts` 登记码；断言只增不减零放宽。
  */
 
@@ -308,12 +312,19 @@ describe('T3/T4/T5：pending 依赖等待、就绪自动续与取消', () => {
     await installServicePlugin(harness, a, '0.1.0');
     await installServicePlugin(harness, b, '0.1.0', [{ id: a, version: '>=0.1.0' }]);
     // A 处于 failed：B 的启用请求转入 pending 等待恢复。
+    // 在册形状域码 Error（波 3 透传臂）：A 的失败码原样上抛，不再被改写为 KERNEL_APPLY_FAILED。
     harness.ports.set(a, {
       apply: () => {
-        throw Object.assign(new Error('激活失败'), { code: 'KERNEL_APPLY_FAILED' });
+        throw Object.assign(new Error('激活失败'), { code: 'APP_COMMAND_FAILED', retryable: true });
       },
     });
-    await expect(harness.loader.enable(a)).rejects.toMatchObject({ code: 'KERNEL_APPLY_FAILED' });
+    await expect(harness.loader.enable(a)).rejects.toMatchObject({
+      code: 'APP_COMMAND_FAILED',
+      retryable: true,
+    });
+    // 落册 `lastError` 与 `plugin:failed` 同为透传码（§5.1 原样保留，无信息损耗）。
+    expect(harness.loader.get(a)?.lastError).toMatchObject({ code: 'APP_COMMAND_FAILED', retryable: true });
+    expect(failuresOf(harness)).toEqual([{ pluginId: a, code: 'APP_COMMAND_FAILED' }]);
     harness.ports.set(b, { apply: () => undefined });
     const waiting = await harness.loader.enable(b);
     expect(waiting.state).toBe('pending');
@@ -324,7 +335,7 @@ describe('T3/T4/T5：pending 依赖等待、就绪自动续与取消', () => {
 });
 
 describe('T7/T11：激活失败、副作用回滚与 retry', () => {
-  it('apply 抛错 → failed（KERNEL_APPLY_FAILED）、能力回滚、plugin:failed payload；retry → active', async () => {
+  it('apply 抛错（非在册形状）→ failed（KERNEL_APPLY_FAILED）、能力回滚、plugin:failed payload；retry → active', async () => {
     const harness = await createHarness();
     const id = 'chips.example.svc';
     await installServicePlugin(harness, id, '0.1.0');
@@ -335,7 +346,9 @@ describe('T7/T11：激活失败、副作用回滚与 retry', () => {
           permissions: [],
           handler: () => Promise.resolve({}),
         });
-        throw Object.assign(new Error('激活失败'), { code: 'KERNEL_APPLY_FAILED' });
+        // 非在册形状（真 Error 无域码/布尔 retryable）：维持归一（波 3 裁定后半句），
+        // 原文只进 details.cause。
+        throw new Error('激活失败');
       },
     });
     let caught: unknown;
@@ -346,15 +359,62 @@ describe('T7/T11：激活失败、副作用回滚与 retry', () => {
     }
     expect(caught).toBeInstanceOf(LoaderError);
     expect((caught as LoaderError).code).toBe('KERNEL_APPLY_FAILED');
+    expect((caught as LoaderError).details).toMatchObject({ pluginId: id, cause: '激活失败' });
     const failed = harness.loader.get(id);
     expect(failed?.state).toBe('failed');
-    expect(failed?.lastError).toMatchObject({ code: 'KERNEL_APPLY_FAILED' });
+    expect(failed?.lastError).toMatchObject({ code: 'KERNEL_APPLY_FAILED', message: '插件激活失败' });
     expect(failed?.activatedAt).toBeUndefined();
     // 副作用回滚：激活期间注册的能力已摘除。
     expect(harness.capabilityRegistry.get('demo:broken')).toBeUndefined();
     expect(failuresOf(harness)).toEqual([{ pluginId: id, code: 'KERNEL_APPLY_FAILED' }]);
 
     // T11：failed → retry → starting → active。
+    harness.ports.set(id, { apply: () => undefined });
+    const retried = await harness.loader.retry(id);
+    expect(retried.state).toBe('active');
+  });
+
+  it('在册形状 Error 原样透传（波 3 裁定 / RFC §5.1 第五行）：同实例上抛、码与 retryable/details 零损耗', async () => {
+    const harness = await createHarness();
+    const id = 'chips.example.svc';
+    await installServicePlugin(harness, id, '0.1.0');
+    const domainError = Object.assign(new Error('应用态不可用'), {
+      code: 'APP_STATE_INVALID',
+      retryable: true,
+      details: { reason: 'quota-exhausted' },
+    });
+    harness.ports.set(id, {
+      apply: (context) => {
+        context.registerCapability({
+          id: 'demo:passthrough-rollback',
+          permissions: [],
+          handler: () => Promise.resolve({}),
+        });
+        throw domainError;
+      },
+    });
+    let caught: unknown;
+    try {
+      await harness.loader.enable(id);
+    } catch (error) {
+      caught = error;
+    }
+    // 原样透传：同一实例上抛，不再包壳为 LoaderError（波 2 端口边界同形口径）。
+    expect(caught).toBe(domainError);
+    expect(caught).not.toBeInstanceOf(LoaderError);
+    const failed = harness.loader.get(id);
+    expect(failed?.state).toBe('failed');
+    // 落册与事件载荷保留原码、原 retryable 与 details（信息零损耗）。
+    expect(failed?.lastError).toMatchObject({
+      code: 'APP_STATE_INVALID',
+      message: '应用态不可用',
+      retryable: true,
+      details: { reason: 'quota-exhausted' },
+    });
+    // 回滚与状态机其余语义不变。
+    expect(harness.capabilityRegistry.get('demo:passthrough-rollback')).toBeUndefined();
+    expect(failuresOf(harness)).toEqual([{ pluginId: id, code: 'APP_STATE_INVALID' }]);
+
     harness.ports.set(id, { apply: () => undefined });
     const retried = await harness.loader.retry(id);
     expect(retried.state).toBe('active');
@@ -552,17 +612,24 @@ describe('迁移守卫与未命中', () => {
     });
     harness.ports.set(id, {
       apply: () => {
-        throw Object.assign(new Error('激活失败'), { code: 'KERNEL_APPLY_FAILED' });
+        // 在册形状（含 KERNEL_* 同构域码 + 布尔 retryable）：透传臂命中，原实例上抛。
+        throw Object.assign(new Error('激活失败'), { code: 'KERNEL_APPLY_FAILED', retryable: false });
       },
     });
-    await expect(harness.loader.enable(id)).rejects.toMatchObject({ code: 'KERNEL_APPLY_FAILED' });
+    await expect(harness.loader.enable(id)).rejects.toMatchObject({
+      code: 'KERNEL_APPLY_FAILED',
+      retryable: false,
+    });
+    expect(harness.loader.get(id)?.lastError).toMatchObject({ code: 'KERNEL_APPLY_FAILED', retryable: false });
     await expect(harness.loader.disable(id)).rejects.toMatchObject({
       code: 'KERNEL_INVALID_TRANSITION',
     });
   });
 });
 
-describe('激活通道未装配（#27 同类诚实回退，工单 025）', () => {
+describe('激活通道缺位诚实降级（波 3 口径收窄：通道构造失败臂，RFC §3.2.2 S2 / 工单 025）', () => {
+  // 波 3 起组合根默认接线波 2 正式通道（恒返回端口），本臂仅覆盖「注入位缺位/
+  // 通道构造失败」的诚实降级路径：enable 报 BRIDGE_INTERNAL，不伪造空实现。
   it('activationPortFor 未注入：enable 报内部错误 BRIDGE_INTERNAL，插件落 failed 并发布 plugin:failed', async () => {
     const harness = await createHarness({ activationPortFor: undefined });
     const id = 'chips.example.svc';
@@ -787,7 +854,8 @@ describe('§4.6 启动恢复', () => {
     const g = 'chips.example.restore-g';
     harness.ports.set(f, {
       apply: () => {
-        throw Object.assign(new Error('激活失败'), { code: 'KERNEL_APPLY_FAILED' });
+        // 在册形状域码：恢复面失败报告（`wireOf`）同样透传原码（§5.1 原样保留）。
+        throw Object.assign(new Error('激活失败'), { code: 'CARD_EXPORT_FAILED', retryable: false });
       },
     });
     harness.ports.set(g, { apply: () => undefined });
@@ -799,7 +867,7 @@ describe('§4.6 启动恢复', () => {
     expect(report.enabled).toEqual([g]);
     expect(report.failed).toHaveLength(1);
     expect(report.failed[0]?.id).toBe(f);
-    expect(report.failed[0]?.error.code).toBe('KERNEL_APPLY_FAILED');
+    expect(report.failed[0]?.error).toMatchObject({ code: 'CARD_EXPORT_FAILED', retryable: false });
     expect(harness.loader.get(f)?.state).toBe('failed');
     expect(harness.loader.get(e)?.state).toBe('pending');
     expect(report.diagnostics.some((line) => line.includes(e) && line.includes('pending'))).toBe(

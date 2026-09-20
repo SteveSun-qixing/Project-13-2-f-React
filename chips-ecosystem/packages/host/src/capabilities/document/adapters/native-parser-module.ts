@@ -19,7 +19,7 @@
  *   已落 `packages/native` 第 33/34 项导出；文档三面逐行落文在册——§12.1 表（06.12 分件
  *   v1.0.3，`documentReadResource` 行与 §12.2 值映射条两处 `Buffer` 已随 #107 清尾
  *   核正为 `Uint8Array`）、§6.4 表（03.06 分件 v1.0.3，`documentReadResource` 返回类型已随任务 #101
- *   核正为 `Promise<Uint8Array>`）、§8.6 总表（03.08 分件 v1.0.1，四行合计 34 项与
+ *   核正为 `Promise<Uint8Array>`）、§8.6 总表（03.08 分件 v1.0.2，四行合计 34 项与
  *   `export-surface.json` 逐项一致），三表各补两行随任务 #98（提交 f84ad1b23）落文，
  *   表解析锁随跨单合缝（提交 06aa8b576）收紧为全集面比对（§6.4 表 15 项、
  *   §12.1 表 14 项）。

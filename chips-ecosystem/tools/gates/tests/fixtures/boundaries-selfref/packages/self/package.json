@@ -1,0 +1,9 @@
+{
+  "name": "@chips/self",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./sub": "./src/sub.ts"
+  }
+}

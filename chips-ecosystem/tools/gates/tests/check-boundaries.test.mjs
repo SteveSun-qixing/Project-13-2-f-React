@@ -10,6 +10,7 @@ import {
   gatesDir,
   noFlags,
   scaffoldBoundariesConfig,
+  selfRefBoundariesConfig,
   violationCodes,
 } from './helpers.mjs';
 
@@ -103,6 +104,73 @@ test('boundaries：生产配置 gates.config.json 的 sdk 规则已登记 @chips
     (rule) => rule.id !== 'packages/sdk' && (rule.allowedInternal ?? []).includes('@chips/scaffold')
   );
   assert.deepEqual(otherScaffoldRules, [], '@chips/scaffold 放行边应唯一归属 packages/sdk 规则');
+});
+
+// —— 以下为波 3 边界越界修复（tools/testing 自引用豁免 + 归档排除发现面）三向用例 ——
+
+test('boundaries：自引用豁免——exports 登记子路径放行、未登记子路径维持 BOUNDARY021', async () => {
+  const report = await runCheck({
+    workspaceRoot: fixture('boundaries-selfref'),
+    config: selfRefBoundariesConfig(),
+    flags: noFlags,
+  });
+  const undeclared = report.violations.filter((item) => item.code === 'BOUNDARY021');
+  assert.equal(undeclared.length, 1, `仅未登记子路径应报 BOUNDARY021：${JSON.stringify(report.violations)}`);
+  assert.ok(undeclared[0].message.includes('@chips/self/ghost'), '未登记子路径应被点名');
+  assert.ok(undeclared[0].file.endsWith('packages/self/src/index.ts'));
+  // 登记子路径 `@chips/self/sub` 零违规（连同归档排除后全包无其他违规码）。
+  assert.deepEqual(
+    report.violations.filter((item) => item.code !== 'BOUNDARY021'),
+    [],
+    '豁免开启后不应产生其他违规'
+  );
+});
+
+test('boundaries：自引用豁免缺省关闭（fail-closed）——未配置时登记子路径仍报 BOUNDARY021', async () => {
+  const config = selfRefBoundariesConfig();
+  delete config.boundaries.selfReferenceViaExports;
+  const report = await runCheck({
+    workspaceRoot: fixture('boundaries-selfref'),
+    config,
+    flags: noFlags,
+  });
+  const undeclared = report.violations.filter((item) => item.code === 'BOUNDARY021');
+  assert.equal(undeclared.length, 2, '两条自引用导入均应维持未声明内部依赖判定');
+});
+
+test('boundaries：workspaceSkipDirs 排除归档发现面；无配置对照面维持 BOUNDARY001', async () => {
+  const skipped = await runCheck({
+    workspaceRoot: fixture('boundaries-selfref'),
+    config: selfRefBoundariesConfig({ skipArchive: true }),
+    flags: noFlags,
+  });
+  assert.ok(
+    !violationCodes(skipped).includes('BOUNDARY001'),
+    `配置排除后归档不得进入包发现：${JSON.stringify(skipped.violations)}`
+  );
+  const unskipped = await runCheck({
+    workspaceRoot: fixture('boundaries-selfref'),
+    config: selfRefBoundariesConfig({ skipArchive: false }),
+    flags: noFlags,
+  });
+  const archive = unskipped.violations.filter((item) => item.code === 'BOUNDARY001');
+  assert.equal(archive.length, 1, '未配置排除时归档残留应如实报 BOUNDARY001（对照面）');
+  assert.ok(archive[0].file.startsWith('归档/'), `违规应定位归档目录：${archive[0].file}`);
+});
+
+test('boundaries：生产配置 gates.config.json 已登记波 3 两项修复键（防漂移锚点）', () => {
+  // 出处：工单 030（ESM 严格解析自引用边）与波 3 越界定性（task88 归档残留）。
+  const config = JSON.parse(fs.readFileSync(path.join(gatesDir, 'gates.config.json'), 'utf8'));
+  assert.deepEqual(
+    config.boundaries.workspaceSkipDirs,
+    ['归档'],
+    'boundaries.workspaceSkipDirs 应恰为 ["归档"]（归档不参与包发现）'
+  );
+  assert.equal(
+    config.boundaries.selfReferenceViaExports,
+    true,
+    'boundaries.selfReferenceViaExports 应为 true（exports 面自引用豁免）'
+  );
 });
 
 // —— 以下为工单024《RFC-ChipsError统一裁定》§3.3 条 2 波 B amendment 三向用例 ——

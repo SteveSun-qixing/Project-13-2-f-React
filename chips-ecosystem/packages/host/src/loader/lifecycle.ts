@@ -21,7 +21,12 @@
  * - 超时（内核 §6.7）：`apply` 30s 超时 → `KERNEL_LIFECYCLE_TIMEOUT`（`failed`）、
  *   `stop` 10s 超时 → 不阻断撤销（仍 `installed`，错误随停用结果上报）；数值取
  *   `limits.ts` `LIFECYCLE_TIMEOUTS`，测试可注入等形（不放宽默认值）。
- * - 激活通道未注入（工单 025 正式通道开放前）：`enable` 按 #27「资源管理器未装配」同类
+ * - 激活失败归一（波 3 裁定，工单 025）：`enable` 激活抛错按 RFC §5.1 第五行三分——
+ *   `LoaderError` 原码保留；在册形状 Error（`code` 形如 `<DOMAIN>_<REASON>`、布尔
+ *   `retryable`）原样透传（波 2 端口边界已保留同构域码，T7 不再二次包壳）；其余归一
+ *   `KERNEL_APPLY_FAILED`，原文只进 `details.cause`。
+ * - 激活通道未注入（波 3 组合根默认接线后正常路径恒有端口；本臂仅覆盖通道构造失败
+ *   的诚实降级，RFC §3.2.2 S2 口径收窄）：`enable` 按 #27「资源管理器未装配」同类
  *   诚实回退报内部错误（`BRIDGE_INTERNAL`），不伪造空实现。
  * - 生命周期事件（05.05 §4.1）：`plugin:installed` / `plugin:uninstalled` / `plugin:loaded` /
  *   `plugin:enabled` / `plugin:disabled` / `plugin:unloaded` / `plugin:failed`，
@@ -32,7 +37,7 @@ import { rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { BRIDGE_ERROR_CODES } from '../protocol/error-codes.js';
-import { toWireError, type IWireChipsError } from '../protocol/wire.js';
+import { isWireChipsError, toWireError, type IWireChipsError } from '../protocol/wire.js';
 import type { IHostCapabilityRegistry } from '../runtime/capability/registry.js';
 import {
   createPluginActivationContext,
@@ -110,8 +115,9 @@ export interface ICpkPluginLoaderDeps {
   /** 权限登记目录（缺省用宿主内置表）。 */
   readonly catalog?: IPermissionCatalog;
   /**
-   * 激活端口供给（内核 §6.1 `PluginRunner` 通道；工单 025）。未注入时 `enable`
-   * 按内部错误诚实回退（不伪造实现）。
+   * 激活端口供给（内核 §6.1 `PluginRunner` 通道；工单 025 波 3 起由组合根默认接线
+   * 波 2 正式通道，恒返回端口）。未注入或返回 `undefined` 时 `enable` 按内部错误
+   * 诚实降级（通道构造失败臂，不伪造实现）。
    */
   readonly activationPortFor?: (plugin: {
     readonly id: string;
@@ -201,6 +207,24 @@ function invalidTransition(message: string, details: Record<string, unknown>): L
 
 function pluginNotFound(id: string): LoaderError {
   return new LoaderError(LIFECYCLE_ERROR_CODES.pluginNotFound, { details: { pluginId: id } });
+}
+
+/** 在册域码形状 `<DOMAIN>_<REASON>`（与波 2 `plugin-activation.ts` 同形判定）。 */
+const IN_REGISTER_DOMAIN_ERROR_CODE = /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/;
+
+/**
+ * 在册形状 Error 判定（RFC §5.1 第五行「原样保留」；波 3 透传臂口径）：真 `Error` +
+ * `ChipsError` 同构（非空 `code`/`message`）+ `code` 形如 `<DOMAIN>_<REASON>` +
+ * 布尔 `retryable`。域码语义由码主（契约/SDK）定义，宿主不解释、不重包装；
+ * 与波 2 端口边界（`normalizePluginError`）同形，保证通道信息零损耗。
+ */
+function isInRegisterShapeError(error: unknown): error is Error & IWireChipsError {
+  return (
+    error instanceof Error &&
+    isWireChipsError(error) &&
+    IN_REGISTER_DOMAIN_ERROR_CODE.test(error.code) &&
+    typeof error.retryable === 'boolean'
+  );
 }
 
 /** 依赖激活子图拓扑排序（Kahn；确定性按输入序）。 */
@@ -386,7 +410,8 @@ export function createCpkPluginLoader(deps: ICpkPluginLoaderDeps): ICpkPluginLoa
       path: record.path,
     });
     if (port === undefined) {
-      // #27 同类诚实回退：激活通道未装配（工单 025 正式通道），报内部错误，不伪造实现。
+      // #27 同类诚实降级（波 3 口径收窄，RFC §3.2.2 S2）：组合根默认接线后正常路径
+      // 恒有端口，本臂仅覆盖通道构造失败；报内部错误，不伪造实现。
       const wire = activationNotWired();
       markFailed(record, wire);
       throw Object.assign(new Error(wire.message), { code: wire.code, retryable: false, wire });
@@ -441,18 +466,28 @@ export function createCpkPluginLoader(deps: ICpkPluginLoaderDeps): ICpkPluginLoa
       }
       // 激活失败归一（内核 §6.3[4]：`Ok(Err(_))` → `KERNEL_APPLY_FAILED`；
       // 装载器自身抛出的 LoaderError——超时、注册冲突等——按原码保留）。
-      const normalized =
-        error instanceof LoaderError
-          ? error
-          : new LoaderError(LIFECYCLE_ERROR_CODES.applyFailed, {
-              details: {
-                pluginId: id,
-                cause: error instanceof Error ? error.message : String(error),
-              },
-            });
+      // 波 3 裁定（工单 025）：在册形状 Error（§5.1 第五行同构域码）原样透传，
+      // 消除 T7 面对波 2 端口边界已保留码的二次包壳信息损耗；非在册形状维持
+      // 归一（原文只进 `details.cause`）。
+      let normalized: LoaderError | (Error & IWireChipsError);
+      if (error instanceof LoaderError) {
+        normalized = error;
+      } else if (isInRegisterShapeError(error)) {
+        normalized = error;
+      } else {
+        normalized = new LoaderError(LIFECYCLE_ERROR_CODES.applyFailed, {
+          details: {
+            pluginId: id,
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        });
+      }
       const current = requireRecord(id);
       rollbackCapabilities(context);
-      markFailed(current, normalized.toWireError());
+      markFailed(
+        current,
+        normalized instanceof LoaderError ? normalized.toWireError() : toWireError(normalized),
+      );
       throw normalized;
     }
   };

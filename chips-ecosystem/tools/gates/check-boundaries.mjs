@@ -46,6 +46,30 @@ function isInternal(name, scope) {
   return name.startsWith(scope);
 }
 
+/**
+ * 自引用子路径是否在该包自身 `exports` 映射登记（Node ESM self-reference 的解析事实源）。
+ *
+ * 裸包名（无子路径）要求包声明了 `exports`；带子路径（如 `@chips/x/sub`）要求
+ * `exports` 对象恰以该子路径为键。未登记一律返回假（不构成豁免，维持违规判定）。
+ */
+function hasOwnExportsSubpath(manifest, specifier, selfName) {
+  const exportsMap = manifest.exports;
+  if (exportsMap === undefined) {
+    return false;
+  }
+  const subpath = specifier.slice(selfName.length);
+  if (subpath === '') {
+    return true;
+  }
+  // 说明符子路径 `/x` 与 `exports` 键 `./x` 同物异形（Node 包路径规范），归一后比对。
+  const key = `.${subpath}`;
+  return (
+    typeof exportsMap === 'object' &&
+    !Array.isArray(exportsMap) &&
+    Object.prototype.hasOwnProperty.call(exportsMap, key)
+  );
+}
+
 function packageNameOf(specifier) {
   if (specifier.startsWith('@')) {
     const parts = specifier.split('/');
@@ -289,6 +313,10 @@ function checkSource(report, pkg, rules, config, scope, devAllowed) {
       declared.add(name);
     }
   }
+  // 包自身名（供自引用豁免比对）：Node ESM 允许包以自身公开名经 `exports` 子路径
+  // 导入本包模块（self-reference），该边是包内引用而非跨包依赖。
+  const selfName = typeof pkg.json.name === 'string' ? pkg.json.name : null;
+  const selfRefViaExports = config.selfReferenceViaExports === true;
   const allowed = new Set(rules.allowedInternal ?? []);
   const typeOnly = new Set(rules.typeOnlyInternal ?? []);
   const forbidden = new Set(rules.forbiddenModules ?? []);
@@ -316,6 +344,13 @@ function checkSource(report, pkg, rules, config, scope, devAllowed) {
         continue;
       }
       if (!isInternal(specifier, scope)) {
+        continue;
+      }
+      // 自引用豁免（工单 030 波及裁定）：包以自身公开名导入本包 `exports` 已登记
+      // 子路径（Node ESM self-reference，单一事实源为该包 `exports` 映射）不构成跨包
+      // 内部依赖，豁免 BOUNDARY020/021；由门禁配置 `selfReferenceViaExports` 显式
+      // 开启（缺省关闭，fail-closed），子路径未在该包 `exports` 登记时维持原违规判定。
+      if (selfRefViaExports && packageName === selfName && hasOwnExportsSubpath(pkg.json, specifier, selfName)) {
         continue;
       }
       if (!declared.has(specifier) && !declared.has(packageName)) {
@@ -485,7 +520,11 @@ export async function runCheck({ workspaceRoot, config }) {
   const scope = boundaryConfig.internalScope ?? '@chips/';
   const rules = boundaryConfig.rules ?? [];
   const devAllowed = new Set(boundaryConfig.allowedDevInternal ?? []);
-  const packages = workspacePackages(workspaceRoot);
+  const packages = workspacePackages(workspaceRoot, {
+    // 归档目录（`归档/**`）按配置排除发现面：移除的内容统一归档不删除（AGENTS 归档纪律），
+    // 归档残留清单不是在册工作区包，不参与边界判定（与文档闸 `docs.skipDirs` 同先例）。
+    skipDirs: boundaryConfig.workspaceSkipDirs ?? [],
+  });
   const manifests = packages.filter((pkg) => pkg.relPath !== '.');
   const graphNodes = new Set();
   const graphEdges = new Map();

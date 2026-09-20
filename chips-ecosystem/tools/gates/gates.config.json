@@ -40,6 +40,8 @@
   "boundaries": {
     "internalScope": "@chips/",
     "rootManifest": "package.json",
+    "workspaceSkipDirs": ["归档"],
+    "selfReferenceViaExports": true,
     "sourceExtensions": [".ts", ".tsx", ".mjs", ".js", ".cjs", ".mts", ".cts"],
     "ignoredDirs": [
       "node_modules",
