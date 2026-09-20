@@ -6,8 +6,8 @@
  * development 跳过、builtin 必签）；负矩阵逐码——坏 manifest/未知权限→
  * `CPK_MANIFEST_INVALID`、缺 manifest→`CPK_MANIFEST_MISSING`、engines 不满足→
  * `CPK_ENGINE_UNSUPPORTED`、布局错位→`CPK_LAYOUT_INVALID`、缺入口→`CPK_ENTRY_MISSING`、
- * 路径穿越→`CPK_PATH_UNSAFE`、超限→`CPK_LIMIT_EXCEEDED`、CRC 破坏→
- * `CPK_ARCHIVE_INVALID`、篡改签名/错误 contentHash/未注册 keyId→
+ * 原生载荷→`CPK_NATIVE_PAYLOAD`、路径穿越→`CPK_PATH_UNSAFE`、超限→`CPK_LIMIT_EXCEEDED`、
+ * CRC 破坏→`CPK_ARCHIVE_INVALID`、篡改签名/错误 contentHash/未注册 keyId→
  * `CPK_SIGNATURE_INVALID`（stage=signature）、builtin 缺签→`CPK_SIGNATURE_REQUIRED`。
  *
  * @remarks
@@ -346,6 +346,40 @@ describe('校验段负矩阵（逐码）', () => {
     );
     expect(details.stage).toBe('layout');
     expect(details.file).toBe('dist/index.js');
+  });
+
+  it('原生载荷（.node 扩展名成员）→ CPK_NATIVE_PAYLOAD（stage=layout）', () => {
+    const details = expectLoaderFailure(
+      () =>
+        validatePositiveVariant({
+          mutate: (members) => {
+            members.set(
+              'dist/native.node',
+              new TextEncoder().encode('伪装成文本的原生载荷\n'),
+            );
+          },
+        }),
+      'CPK_NATIVE_PAYLOAD',
+      'layout',
+    );
+    expect(details.stage).toBe('layout');
+    expect(details.file).toBe('dist/native.node');
+  });
+
+  it('原生载荷（PE 魔数内容、非扩展名命中）→ CPK_NATIVE_PAYLOAD（stage=layout）', () => {
+    const peBytes = new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00]);
+    const details = expectLoaderFailure(
+      () =>
+        validatePositiveVariant({
+          mutate: (members) => {
+            members.set('dist/blob.bin', peBytes);
+          },
+        }),
+      'CPK_NATIVE_PAYLOAD',
+      'layout',
+    );
+    expect(details.stage).toBe('layout');
+    expect(details.file).toBe('dist/blob.bin');
   });
 
   it('路径穿越 → CPK_PATH_UNSAFE（stage=archive）', () => {
