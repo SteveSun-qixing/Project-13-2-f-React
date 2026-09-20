@@ -10,7 +10,10 @@
  *   解析/序列化/指纹端口由 chips-parser 侧（Neon 绑定 `openDocument` / `documentMetadata` /
  *   `documentStructure` / `documentContent` / `documentEntries` / `documentClose`）承载，
  *   受控写与目录列举由资源管理器受控提交路径承载，权限判定入口为 Bridge 会话权限快照，
- *   事件发布入口为内核事件总线。生产适配器接线为后续接线项（见包开发日志与工单口径）。
+ *   事件发布入口为内核事件总线。生产适配器的组合根装载段已交付（金链路刀4，
+ *   `adapters/production-wiring.ts`：parser=chips-native、events=宿主事件总线、
+ *   guard=Bridge 会话注册表判定面；scope/storage 载体为 W3 chips-resource，正式适配器
+ *   缺位已登记工单 036，缺位时装载段诚实回退、`document:*` 不注册）。
  * - 服务不自行放行、不缓存授权（`11-文档服务设计` §9.1）：{@link IDocumentGuardPort} 只是
  *   Bridge 权限判定与会话注册表的调用入口，判定逻辑本体在 Bridge。
  */

@@ -6,10 +6,15 @@
  *
  * @remarks
  * - `createRuntime` 按**显式能力清单**注册单元：内置能力（`system:info`）+ 注入的外部提供方
- *   （如 `document:*` 由文档能力方产出描述符后经 `capabilityProviders` 附加），替代旧空壳的统一
- *   `BRIDGE_CAPABILITY_NOT_FOUND`。
+ *   （`capabilityProviders` 槽）+ 文档能力装载段（金链路刀4）产出的 `document:*` 描述符，
+ *   替代旧空壳的统一 `BRIDGE_CAPABILITY_NOT_FOUND`。
  * - 外部提供方的接线契约是 {@link IHostCapabilityDescriptor}：一条描述 = 一个可注册单元
  *   （ID + 所需权限 + handler + 超时/并发）。注册冲突或权限校验失败即在 `start` 抛出、壳终止启动。
+ * - 文档能力装载段（`capabilities/document/adapters/production-wiring.ts`）：解析域产物过
+ *   17 必备名装载闸、Bridge 会话快照视图提供者与资源管理器端口（W3 chips-resource 注入面，
+ *   工单 036）全部可得时，经 `createDocumentCapabilityDescriptors` 注册真实 `document:*`
+ *   四能力并绑定宿主事件总线；任一硬依赖缺位即整体不装载（诊断留痕，调用维持真实
+ *   注册表未命中语义——与 `pluginActivationPortFor` 回退臂同型，不造假适配器）。
  * - CPK 装载器（阶段六接线）：`createRuntime` 时打开插件注册表（`<userData>/chips-plugins/registry.json`），
  *   经 `pluginLoaderFactory` 注入宿主运行时——`pluginsRoot = <userData>/chips-plugins`、内嵌编译期
  *   信任根（当前正式密钥材料缺位，工单 028，失效关闭）、`hostVersion` 取 PAL 宿主快照的
@@ -27,6 +32,10 @@ import type { IPalHost } from '../platform/contracts/index.js';
 import type { IHostCapabilityDescriptor } from '../runtime/capability/contracts.js';
 import type { IHostCapabilityRegistryOptions } from '../runtime/capability/registry.js';
 import type { IHostSessionProvisioner } from '../runtime/capability/session.js';
+import {
+  createDocumentCapabilityWiring,
+  type IDocumentCapabilityWiringOptions,
+} from '../capabilities/document/adapters/production-wiring.js';
 import {
   createCpkPluginLoader,
   createEmbeddedTrustRootRegistry,
@@ -64,7 +73,9 @@ export interface ProductionRuntimeOptions {
   /**
    * 外部能力提供方清单：每个提供方产出一组 {@link IHostCapabilityDescriptor}。
    *
-   * @remarks 文档能力（`document:open|read|write|save`）由文档侧装配为 provider 传入；本模块不实现其业务逻辑。
+   * @remarks 文档能力（`document:open|read|write|save`）自金链路刀4 起由组合根装载段
+   * 按依赖判据注册（{@link ProductionAssemblyOptions.documentWiring}），不再经本槽外部传入；
+   * 本槽位保留给其余外部提供方，本模块不实现其业务逻辑。
    */
   readonly capabilityProviders?: readonly (readonly IHostCapabilityDescriptor[])[];
   /** 会话授权来源；缺省为平台会话全量授权（见 `host-runtime.ts`）。 */
@@ -88,10 +99,19 @@ export interface ProductionRuntimeOptions {
   readonly diagnostics?: DiagnosticsSink;
 }
 
-/** 生产装配完整选项：运行时选项 + PAL 宿主工厂。 */
+/** 生产装配完整选项：运行时选项 + PAL 宿主工厂 + 文档能力装载注入面。 */
 export interface ProductionAssemblyOptions extends ProductionRuntimeOptions {
   /** PAL 宿主工厂（平台差异）；与 {@link HostAssembly.createPalHost} 同签名。 */
   readonly createPalHost: (electronModule: unknown, context: PalHostContext) => IPalHost;
+  /**
+   * 文档能力装载段注入项（金链路刀4）：解析域产物落位、Bridge 会话快照视图提供者与
+   * 资源管理器侧端口正式适配器（W3 chips-resource 交付面）。
+   *
+   * @remarks 缺省即真实生产环境判据——资源管理器端口与守卫快照提供者缺位，装载段
+   * 诚实回退、`document:*` 不注册（工单 036）；注入项齐备且解析域产物过闸时，
+   * 组合根经 `createDocumentCapabilityDescriptors` 注册真实四能力。
+   */
+  readonly documentWiring?: IDocumentCapabilityWiringOptions;
 }
 
 /**
@@ -173,6 +193,7 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
     registryOptions,
     pluginActivationPortFor,
     nativeBridgeModulePath,
+    documentWiring,
     diagnostics,
   } = options;
   return createHostAssembly({
@@ -192,9 +213,27 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
           detail: nativeBridge.detail,
         });
       }
-      const pluginLoaderFactory = await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
+      // 金链路刀4 文档能力装载段：解析域产物过装载闸、守卫快照视图提供者与资源管理器
+      // 端口正式适配器全部可得时，经 `createDocumentCapabilityDescriptors` 注册真实
+      // `document:*` 四能力；任一硬依赖缺位即整体不装载（诊断留痕 `document-capability`
+      // 域，调用维持真实注册表未命中语义——与 `pluginActivationPortFor` 回退臂同型，
+      // 不造假适配器）。事件总线绑定发生在下方 `pluginLoaderFactory` 构造期（早于
+      // `start` 注册与任何能力调用，见 `adapters/host-event-bus.ts` 头注）。
+      const documentAssembly = createDocumentCapabilityWiring(documentWiring, context, bridgeDiagnostics);
+      const productionPluginLoaderFactory = await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
+      const pluginLoaderFactory =
+        documentAssembly.status === 'wired'
+          ? (deps: IHostPluginLoaderDeps): IPluginLoaderSurface => {
+              documentAssembly.bindEventBus(deps.emitEvent);
+              return productionPluginLoaderFactory(deps);
+            }
+          : productionPluginLoaderFactory;
+      const providers =
+        documentAssembly.status === 'wired'
+          ? [...(capabilityProviders ?? []), documentAssembly.descriptors]
+          : capabilityProviders;
       return createProductionRuntime(context, {
-        ...(capabilityProviders === undefined ? {} : { capabilityProviders }),
+        ...(providers === undefined ? {} : { capabilityProviders: providers }),
         ...(sessionProvisioner === undefined ? {} : { sessionProvisioner }),
         ...(registryOptions === undefined ? {} : { registryOptions }),
         pluginLoaderFactory,
