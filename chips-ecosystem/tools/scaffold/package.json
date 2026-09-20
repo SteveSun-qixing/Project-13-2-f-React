@@ -21,7 +21,7 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src tests",
+    "lint": "eslint src tests && prettier --check .",
     "typecheck": "tsc -p tsconfig.json",
     "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['dist', 'coverage']) fs.rmSync(p, { recursive: true, force: true }); })\""
   },

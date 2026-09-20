@@ -16,7 +16,7 @@
     "coverage": "tsx src/coverage/run.ts",
     "report": "tsx src/coverage/cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src tests vitest.config.ts",
+    "lint": "eslint src tests vitest.config.ts && prettier --check .",
     "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['coverage', '.tsbuildinfo']) fs.rmSync(p, { recursive: true, force: true }); })\""
   },
   "devDependencies": {

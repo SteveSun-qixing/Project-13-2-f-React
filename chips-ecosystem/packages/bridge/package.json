@@ -23,7 +23,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:contract": "pnpm --filter @chips/contract-tests run test:contract",
-    "lint": "eslint .",
+    "lint": "eslint . && prettier --check .",
     "clean": "rimraf dist"
   },
   "devDependencies": {

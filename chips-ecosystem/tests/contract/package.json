@@ -12,7 +12,7 @@
     "test:contract": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:contract:update": "CHIPS_CONTRACT_SNAPSHOT_UPDATE=1 vitest run",
-    "lint": "eslint src tests vitest.config.ts",
+    "lint": "eslint src tests vitest.config.ts && prettier --check .",
     "clean": "node -e \"import('node:fs').then((fs) => fs.rmSync('../../reports/contract', { recursive: true, force: true }))\""
   },
   "devDependencies": {

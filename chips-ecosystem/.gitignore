@@ -11,5 +11,8 @@ playwright-report/
 target/
 *.node
 *.cpk
+# cpk 夹具链（tests/e2e/fixtures/cpk/packages）：入库的装载器在用输入，
+# 不得被 `*.cpk` 通配吞没（工单 018 同型缺陷；生成物口径见《03-插件包格式》§7.1 末条的例外）
+!tests/e2e/fixtures/cpk/packages/*.cpk
 *.tsbuildinfo
 .DS_Store

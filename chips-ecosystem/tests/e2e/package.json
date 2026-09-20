@@ -11,6 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --config ../../eslint.config.mjs --max-warnings 0 && prettier --check .",
     "fixtures": "node fixtures/generate-fixtures.mjs",
-    "fixtures:check": "node fixtures/generate-fixtures.mjs --check"
+    "fixtures:check": "node fixtures/generate-fixtures.mjs --check",
+    "fixtures:cpk": "node fixtures/cpk/generate-cpk-fixtures.mjs",
+    "fixtures:cpk:check": "node fixtures/cpk/generate-cpk-fixtures.mjs --check"
   }
 }

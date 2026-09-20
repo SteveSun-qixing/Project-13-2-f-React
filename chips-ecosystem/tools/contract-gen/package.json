@@ -22,6 +22,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "lint": "prettier --check .",
     "generate": "tsc -p tsconfig.build.json && node dist/cli.js generate",
     "check": "tsc -p tsconfig.build.json && node dist/cli.js check",
     "validate": "tsc -p tsconfig.build.json && node dist/cli.js validate",

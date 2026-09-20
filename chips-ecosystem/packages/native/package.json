@@ -16,7 +16,7 @@
     "test": "node scripts/check-abi.mjs && node scripts/check-types.mjs",
     "test:rust": "cargo test -p chips-native",
     "test:contract": "node scripts/check-abi.mjs",
-    "lint": "node scripts/check-abi.mjs",
+    "lint": "node scripts/check-abi.mjs && prettier --check .",
     "typecheck": "node scripts/check-types.mjs",
     "clean": "cargo clean -p chips-native"
   }
