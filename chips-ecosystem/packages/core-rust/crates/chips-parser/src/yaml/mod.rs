@@ -22,7 +22,7 @@ use crate::error::{
 };
 use crate::model::{DocumentValue, ParseLimits, ParseOptions, ScanLimits};
 use crate::source::PackagePath;
-use crate::yaml::value::{ValueScan, escape_pointer_token};
+use crate::yaml::value::{escape_pointer_token, ValueScan};
 
 /// 别名计数与禁用标签扫描结果。
 #[derive(Debug, Default)]
@@ -43,14 +43,6 @@ pub(crate) struct YamlDocument {
     pub spans: SpanIndex,
     /// 归一化前的源字节数（统计用）。
     pub source_bytes: u64,
-}
-
-impl YamlDocument {
-    /// 是否存在错误级判定（根不可用）。
-    #[must_use]
-    pub fn failed(&self) -> bool {
-        self.root.is_none()
-    }
 }
 
 /// 解析 YAML 成员字节（§3.4 阶段 3-5 共用入口）。
@@ -106,7 +98,10 @@ pub(crate) fn parse(
         );
     }
     let mut root = None;
-    if !diagnostics.iter().any(|item| item.severity == Severity::Error) {
+    if !diagnostics
+        .iter()
+        .any(|item| item.severity == Severity::Error)
+    {
         let mut scan = ValueScan::new(value_limits(limits));
         match value::from_deserializer(serde_yaml::Deserializer::from_str(&text), &mut scan) {
             Ok(value @ DocumentValue::Mapping(_)) => root = Some(value),
@@ -332,7 +327,8 @@ impl SpanIndex {
                 }
                 block_scalar_indent = None;
             }
-            if content.starts_with("---") || content.starts_with("...") || content.starts_with('%') {
+            if content.starts_with("---") || content.starts_with("...") || content.starts_with('%')
+            {
                 continue;
             }
             if let Some(rest) = sequence_item(content) {
@@ -354,9 +350,7 @@ impl SpanIndex {
                             sequence: Some(0),
                         });
                         // 新压入的帧必有下标。
-                        stack
-                            .last()
-                            .map_or_else(String::new, Frame::item_pointer)
+                        stack.last().map_or_else(String::new, Frame::item_pointer)
                     }
                 };
                 insert_position(&mut positions, &item_pointer, line, token_column(indent));
@@ -386,7 +380,12 @@ impl SpanIndex {
                 stack.pop();
             }
             let parent = stack.last().map_or_else(String::new, Frame::item_pointer);
-            insert_position(&mut positions, &join_pointer(&parent, &key), line, token_column(indent));
+            insert_position(
+                &mut positions,
+                &join_pointer(&parent, &key),
+                line,
+                token_column(indent),
+            );
             if value_is_empty(tail) {
                 stack.push(Frame {
                     indent,
@@ -429,7 +428,9 @@ fn insert_position(
     line: u32,
     column: u32,
 ) {
-    positions.entry(pointer.to_owned()).or_insert((line, column));
+    positions
+        .entry(pointer.to_owned())
+        .or_insert((line, column));
 }
 
 /// 拼接指针。
@@ -501,7 +502,11 @@ fn is_block_scalar(tail: &str) -> bool {
 }
 
 /// 用 Span 索引补齐缺失的行列（schema 层与 YAML 层共用）。
-pub(crate) fn enrich_with_spans(diagnostics: &mut Vec<Diagnostic>, spans: &SpanIndex, file: &PackagePath) {
+pub(crate) fn enrich_with_spans(
+    diagnostics: &mut [Diagnostic],
+    spans: &SpanIndex,
+    file: &PackagePath,
+) {
     for diagnostic in diagnostics.iter_mut() {
         if diagnostic.line.is_some() {
             continue;

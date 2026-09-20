@@ -13,8 +13,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::error::{DocumentError, Fatal};
 use crate::digest::crc32;
+use crate::error::{DocumentError, Fatal};
 use crate::model::ParseLimits;
 use crate::source::{
     inflate, ByteStream, DocumentSource, Mapping, MemberFingerprint, MemberMeta, MemberMethod,
@@ -79,10 +79,9 @@ pub struct ArchiveSource {
 impl ArchiveSource {
     /// 读取归档文件、定位 EOCD（含 ZIP64）、解析中央目录并建立索引。
     pub(crate) fn open(path: &Path, limits: &ParseLimits) -> Fatal<Self> {
-        let data = std::fs::read(path)
-            .map_err(|io_error| DocumentError::Io {
-                message: format!("读取归档 {} 失败：{io_error}", path.display()),
-            })?;
+        let data = std::fs::read(path).map_err(|io_error| DocumentError::Io {
+            message: format!("读取归档 {} 失败：{io_error}", path.display()),
+        })?;
         Self::from_bytes(data, limits)
     }
 
@@ -95,7 +94,11 @@ impl ArchiveSource {
         }
         let mapping = Arc::new(Mapping::new(data));
         let index = Self::build_index(&mapping, limits)?;
-        Ok(Self { mapping, index, limits: *limits })
+        Ok(Self {
+            mapping,
+            index,
+            limits: *limits,
+        })
     }
 
     /// 阶段 1 使用的归档签名检查：普通归档 `PK\x03\x04` 或空归档 `PK\x05\x06`。
@@ -107,7 +110,10 @@ impl ArchiveSource {
         prefix == LOCAL_SIGNATURE || prefix == EOCD_SIGNATURE
     }
 
-    fn build_index(mapping: &Arc<Mapping>, limits: &ParseLimits) -> Fatal<BTreeMap<PackagePath, ArchivedMember>> {
+    fn build_index(
+        mapping: &Arc<Mapping>,
+        limits: &ParseLimits,
+    ) -> Fatal<BTreeMap<PackagePath, ArchivedMember>> {
         let file_len = mapping.len();
         let (entry_count, central_offset, central_size) = Self::locate_central_directory(mapping)?;
         let central_end = central_offset
@@ -116,11 +122,11 @@ impl ArchiveSource {
             .ok_or_else(|| DocumentError::ArchiveInvalid {
                 message: "中央目录超出归档范围".to_owned(),
             })?;
-        let central_bytes = mapping
-            .slice(central_offset, central_size)
-            .ok_or_else(|| DocumentError::ArchiveInvalid {
+        let central_bytes = mapping.slice(central_offset, central_size).ok_or_else(|| {
+            DocumentError::ArchiveInvalid {
                 message: "无法读取中央目录字节".to_owned(),
-            })?;
+            }
+        })?;
         if u64::from(entry_count) > limits.max_uncompressed_members_guard() {
             return Err(DocumentError::LimitExceeded {
                 limit: "max_uncompressed_bytes",
@@ -162,11 +168,17 @@ impl ArchiveSource {
                 });
             }
             if entry.compressed_size > 0
-                && meta.size > entry.compressed_size.saturating_mul(limits.max_compression_ratio.max(1))
+                && meta.size
+                    > entry
+                        .compressed_size
+                        .saturating_mul(limits.max_compression_ratio.max(1))
             {
                 return Err(DocumentError::LimitExceeded {
                     limit: "max_compression_ratio",
-                    actual: format!("{} / {} 超出比率 {}", meta.size, entry.compressed_size, limits.max_compression_ratio),
+                    actual: format!(
+                        "{} / {} 超出比率 {}",
+                        meta.size, entry.compressed_size, limits.max_compression_ratio
+                    ),
                     file: Some(package_path.clone()),
                 });
             }
@@ -180,7 +192,14 @@ impl ArchiveSource {
                     message: format!("Store 条目尺寸不一致：{package_path}"),
                 });
             }
-            index.insert(package_path, ArchivedMember { meta, header_offset: entry.header_offset, compressed_size: entry.compressed_size });
+            index.insert(
+                package_path,
+                ArchivedMember {
+                    meta,
+                    header_offset: entry.header_offset,
+                    compressed_size: entry.compressed_size,
+                },
+            );
         }
         if parsed_count != entry_count {
             return Err(DocumentError::ArchiveInvalid {
@@ -191,17 +210,17 @@ impl ArchiveSource {
     }
 
     /// 定位中央目录：经典 EOCD 反向搜索 + ZIP64 覆盖。
-    fn locate_central_directory(
-        mapping: &Arc<Mapping>,
-    ) -> Fatal<(u32, u64, u64)> {
+    fn locate_central_directory(mapping: &Arc<Mapping>) -> Fatal<(u32, u64, u64)> {
         let file_len = mapping.len();
         let usize_len = usize::try_from(file_len).map_err(|_| DocumentError::ArchiveInvalid {
             message: "归档长度超出地址空间".to_owned(),
         })?;
         let window_start = usize_len.saturating_sub(EOCD_MAX_BACKSCAN);
-        let tail = mapping.slice(window_start as u64, (usize_len - window_start) as u64).ok_or_else(|| {
-            DocumentError::ArchiveInvalid { message: "无法读取归档尾部".to_owned() }
-        })?;
+        let tail = mapping
+            .slice(window_start as u64, (usize_len - window_start) as u64)
+            .ok_or_else(|| DocumentError::ArchiveInvalid {
+                message: "无法读取归档尾部".to_owned(),
+            })?;
         // EOCD 签名从尾部向前找。
         let ecdcd_position = tail
             .windows(4)
@@ -212,13 +231,18 @@ impl ArchiveSource {
             })?;
         let eocd = &tail[ecdcd_position..];
         if eocd.len() < EOCD_FIXED_SIZE {
-            return Err(DocumentError::ArchiveInvalid { message: "EOCD 记录不完整".to_owned() });
+            return Err(DocumentError::ArchiveInvalid {
+                message: "EOCD 记录不完整".to_owned(),
+            });
         }
         let mut entry_count = u32::from(read_u16_le(&eocd[10..]));
         let mut central_size = u64::from(read_u32_le(&eocd[12..]));
         let mut central_offset = u64::from(read_u32_le(&eocd[16..]));
         // ZIP64：任一字段为哨兵值时读取 ZIP64 EOCD。
-        if entry_count == u32::from(u16::MAX) || central_size == u64::from(u32::MAX) || central_offset == u64::from(u32::MAX) {
+        if entry_count == u32::from(u16::MAX)
+            || central_size == u64::from(u32::MAX)
+            || central_offset == u64::from(u32::MAX)
+        {
             let locator_start = ecdcd_position.saturating_sub(20);
             let locator = &tail[locator_start..ecdcd_position];
             if locator.len() != 20 || read_u32_le(locator) != ZIP64_EOCD_LOCATOR_SIGNATURE {
@@ -227,18 +251,21 @@ impl ArchiveSource {
                 });
             }
             let zip64_offset = read_u64_le(&locator[8..16]);
-            let record = mapping
-                .slice(zip64_offset, 56)
-                .ok_or_else(|| DocumentError::ArchiveInvalid {
-                    message: "无法读取 ZIP64 端到端记录".to_owned(),
-                })?;
+            let record =
+                mapping
+                    .slice(zip64_offset, 56)
+                    .ok_or_else(|| DocumentError::ArchiveInvalid {
+                        message: "无法读取 ZIP64 端到端记录".to_owned(),
+                    })?;
             if read_u32_le(record) != ZIP64_EOCD_SIGNATURE {
                 return Err(DocumentError::ArchiveInvalid {
                     message: "ZIP64 端到端记录签名非法".to_owned(),
                 });
             }
             entry_count = u32::try_from(read_u64_le(&record[32..40])).map_err(|_| {
-                DocumentError::ArchiveInvalid { message: "ZIP64 成员数超出处理上限".to_owned() }
+                DocumentError::ArchiveInvalid {
+                    message: "ZIP64 成员数超出处理上限".to_owned(),
+                }
             })?;
             central_size = read_u64_le(&record[40..48]);
             central_offset = read_u64_le(&record[48..56]);
@@ -246,10 +273,7 @@ impl ArchiveSource {
         Ok((entry_count, central_offset, central_size))
     }
 
-    fn parse_central_entry(
-        central_bytes: &[u8],
-        cursor: &mut usize,
-    ) -> Fatal<ParsedCentralEntry> {
+    fn parse_central_entry(central_bytes: &[u8], cursor: &mut usize) -> Fatal<ParsedCentralEntry> {
         let entry = central_bytes
             .get(*cursor..)
             .and_then(|rest| rest.get(..CENTRAL_FIXED_SIZE).map(|head| (head, rest)))
@@ -282,14 +306,21 @@ impl ArchiveSource {
         let extra_end = name_end + extra_len;
         let entry_end = extra_end + comment_len;
         let raw_name = rest.get(CENTRAL_FIXED_SIZE..name_end).ok_or_else(|| {
-            DocumentError::ArchiveInvalid { message: "条目文件名越界".to_owned() }
+            DocumentError::ArchiveInvalid {
+                message: "条目文件名越界".to_owned(),
+            }
         })?;
         let name = std::str::from_utf8(raw_name).map_err(|_| DocumentError::ArchiveInvalid {
             message: "非 UTF-8 文件名".to_owned(),
         })?;
         // ZIP64 扩展字段：按「未压缩、已压缩、相对偏移」顺序补足 u64。
         let extra = rest.get(name_end..extra_end).unwrap_or(&[]);
-        Self::apply_zip64_extra(extra, &mut uncompressed_size, &mut compressed_size, &mut header_offset)?;
+        Self::apply_zip64_extra(
+            extra,
+            &mut uncompressed_size,
+            &mut compressed_size,
+            &mut header_offset,
+        )?;
         match method {
             METHOD_STORE | METHOD_DEFLATE => {}
             other => {
@@ -345,18 +376,28 @@ impl ArchiveSource {
             let tag = read_u16_le(&extra[position..]);
             let size = usize::from(read_u16_le(&extra[position + 2..]));
             let body_start = position + 4;
-            let body_end = body_start.checked_add(size).ok_or_else(|| DocumentError::ArchiveInvalid {
-                message: "扩展字段长度溢出".to_owned(),
-            })?;
-            let body = extra.get(body_start..body_end).ok_or_else(|| DocumentError::ArchiveInvalid {
-                message: "扩展字段越界".to_owned(),
-            })?;
+            let body_end =
+                body_start
+                    .checked_add(size)
+                    .ok_or_else(|| DocumentError::ArchiveInvalid {
+                        message: "扩展字段长度溢出".to_owned(),
+                    })?;
+            let body =
+                extra
+                    .get(body_start..body_end)
+                    .ok_or_else(|| DocumentError::ArchiveInvalid {
+                        message: "扩展字段越界".to_owned(),
+                    })?;
             if tag == ZIP64_EXTRA_TAG {
                 let mut field = 0usize;
-                for slot in [&mut *uncompressed_size, &mut *compressed_size, &mut *header_offset] {
+                for slot in [
+                    &mut *uncompressed_size,
+                    &mut *compressed_size,
+                    &mut *header_offset,
+                ] {
                     if *slot == u64::from(u32::MAX) {
                         let next = field + 8;
-                        let value = body.get(field..next).map(|bytes| read_u64_le(bytes)).ok_or_else(|| {
+                        let value = body.get(field..next).map(read_u64_le).ok_or_else(|| {
                             DocumentError::ArchiveInvalid {
                                 message: "ZIP64 扩展字段缺少 64 位值".to_owned(),
                             }
@@ -393,7 +434,9 @@ impl ArchiveSource {
                 message: format!("本地文件名越界：{path}"),
             })?;
         let stored_name = std::str::from_utf8(&whole[LOCAL_FIXED_SIZE..]).map_err(|_| {
-            DocumentError::ArchiveInvalid { message: format!("本地文件名非 UTF-8：{path}") }
+            DocumentError::ArchiveInvalid {
+                message: format!("本地文件名非 UTF-8：{path}"),
+            }
         })?;
         if normalize_archive_name(stored_name)? != *path {
             return Err(DocumentError::ArchiveInvalid {
@@ -447,9 +490,12 @@ impl ArchiveSource {
     pub(crate) fn verify_member_crc(&self, path: &PackagePath) -> Fatal<()> {
         let member = self.archived(path)?;
         let bytes = self.decompressed(member, path)?;
-        let expected = member.meta.crc32.ok_or_else(|| DocumentError::ArchiveInvalid {
-            message: format!("成员缺少 CRC32：{path}"),
-        })?;
+        let expected = member
+            .meta
+            .crc32
+            .ok_or_else(|| DocumentError::ArchiveInvalid {
+                message: format!("成员缺少 CRC32：{path}"),
+            })?;
         if crc32(&bytes) != expected {
             return Err(DocumentError::ArchiveInvalid {
                 message: format!("CRC32 校验失败：{path}"),
@@ -462,7 +508,9 @@ impl ArchiveSource {
 /// 归档成员名归一为包内路径：统一 `/` 分隔并做安全性校验。
 fn normalize_archive_name(name: &str) -> Fatal<PackagePath> {
     if name.contains('\\') {
-        return Err(DocumentError::PathUnsafe { path: name.to_owned() });
+        return Err(DocumentError::PathUnsafe {
+            path: name.to_owned(),
+        });
     }
     PackagePath::new(name)
 }
@@ -492,12 +540,19 @@ fn dos_date_time_to_system(date: u16, time: u16) -> Option<SystemTime> {
     let hour = u32::from(time >> 11);
     let minute = u32::from((time >> 5) & 0x3F);
     let second = u32::from((time & 0x1F) * 2);
-    if !(1..=12).contains(&month) || !(1..=31).contains(&day) || hour > 23 || minute > 59 || second > 59 {
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
         return None;
     }
     // 以 1980-01-01 为纪元锚点换算天数（闰年按格里高利历）。
     let days = days_between_1970_to_1980() + days_from_1980(year, month, day);
-    UNIX_EPOCH.checked_add(Duration::from_secs(u64::from(days) * 86_400 + u64::from(hour * 3600 + minute * 60 + second)))
+    UNIX_EPOCH.checked_add(Duration::from_secs(
+        u64::from(days) * 86_400 + u64::from(hour * 3600 + minute * 60 + second),
+    ))
 }
 
 /// 1970-01-01 至 1980-01-01 的天数。
@@ -548,7 +603,12 @@ impl DocumentSource for ArchiveSource {
 
     fn list(&self, prefix: &PackagePath) -> Fatal<Vec<PackagePath>> {
         let needle = format!("{prefix}/");
-        Ok(self.index.keys().filter(|path| path.as_str().starts_with(&needle)).cloned().collect())
+        Ok(self
+            .index
+            .keys()
+            .filter(|path| path.as_str().starts_with(&needle))
+            .cloned()
+            .collect())
     }
 
     fn read(&self, path: &PackagePath) -> Result<Vec<u8>, DocumentError> {
@@ -585,9 +645,7 @@ impl DocumentSource for ArchiveSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::{
-        DOCUMENT_ARCHIVE_INVALID, DOCUMENT_LIMIT_EXCEEDED, DOCUMENT_PATH_UNSAFE,
-    };
+    use crate::error::{DOCUMENT_ARCHIVE_INVALID, DOCUMENT_LIMIT_EXCEEDED, DOCUMENT_PATH_UNSAFE};
 
     /// 测试归档条目描述。
     struct TestEntry<'a> {
@@ -604,17 +662,32 @@ mod tests {
     impl<'a> TestEntry<'a> {
         /// Store 条目。
         fn store(name: &'a str, data: &'a [u8]) -> Self {
-            Self { name, data, stored: data, method: METHOD_STORE }
+            Self {
+                name,
+                data,
+                stored: data,
+                method: METHOD_STORE,
+            }
         }
 
         /// Deflate 条目：`stored` 为压缩字节。
         fn deflate(name: &'a str, data: &'a [u8], stored: &'a [u8]) -> Self {
-            Self { name, data, stored, method: METHOD_DEFLATE }
+            Self {
+                name,
+                data,
+                stored,
+                method: METHOD_DEFLATE,
+            }
         }
 
         /// 目录条目（零尺寸、尾部 `/`）。
         fn directory(name: &'a str) -> Self {
-            Self { name, data: &[], stored: &[], method: METHOD_STORE }
+            Self {
+                name,
+                data: &[],
+                stored: &[],
+                method: METHOD_STORE,
+            }
         }
     }
 
@@ -747,7 +820,8 @@ mod tests {
         // 手工置位加密标志（中央目录 flags 偏移 8）。
         let mut tampered = archive;
         let eocd = find_signature(&tampered, EOCD_SIGNATURE);
-        let central_offset = usize::try_from(read_u32_le(&tampered[eocd + 16..])).expect("偏移可读");
+        let central_offset =
+            usize::try_from(read_u32_le(&tampered[eocd + 16..])).expect("偏移可读");
         for byte in tampered[central_offset + 8..central_offset + 10].iter_mut() {
             *byte |= FLAG_ENCRYPTED as u8;
         }
@@ -762,8 +836,10 @@ mod tests {
         for method in [12u16, 99] {
             let mut tampered = archive.clone();
             let eocd = find_signature(&tampered, EOCD_SIGNATURE);
-            let central_offset = usize::try_from(read_u32_le(&tampered[eocd + 16..])).expect("偏移可读");
-            tampered[central_offset + 10..central_offset + 12].copy_from_slice(&method.to_le_bytes());
+            let central_offset =
+                usize::try_from(read_u32_le(&tampered[eocd + 16..])).expect("偏移可读");
+            tampered[central_offset + 10..central_offset + 12]
+                .copy_from_slice(&method.to_le_bytes());
             let error = ArchiveSource::from_bytes(tampered, &ParseLimits::default())
                 .expect_err("未知压缩方法必须拒绝");
             assert_eq!(error.code(), DOCUMENT_ARCHIVE_INVALID);
@@ -778,7 +854,12 @@ mod tests {
             .expect("含目录条目的归档必须可打开");
         let file = PackagePath::new(".card/metadata.yaml").expect("合法");
         assert_eq!(source.read(&file).expect("读取文件成员"), b"ok: true\n");
-        assert!(source.member(&PackagePath::new(".card").expect("合法")).is_none(), "目录条目不入索引");
+        assert!(
+            source
+                .member(&PackagePath::new(".card").expect("合法"))
+                .is_none(),
+            "目录条目不入索引"
+        );
     }
 
     #[test]
@@ -791,7 +872,9 @@ mod tests {
         assert_eq!(source.read(&path).expect("Deflate 成员读取"), b"abc");
         let mut stream = source.open_stream(&path).expect("打开流");
         assert_eq!(stream.read_to_vec().expect("流解码一致"), b"abc");
-        source.verify_member_crc(&path).expect("Deflate CRC 校验通过");
+        source
+            .verify_member_crc(&path)
+            .expect("Deflate CRC 校验通过");
     }
 
     #[test]
@@ -816,7 +899,10 @@ mod tests {
     #[test]
     fn test_limit_on_total_uncompressed_bytes() {
         let archive = build_zip(&[("a.bin", b"1234567890")]);
-        let limits = ParseLimits { max_uncompressed_bytes: 4, ..ParseLimits::default() };
+        let limits = ParseLimits {
+            max_uncompressed_bytes: 4,
+            ..ParseLimits::default()
+        };
         let error = ArchiveSource::from_bytes(archive, &limits).expect_err("超限必须拒绝");
         assert_eq!(error.code(), DOCUMENT_LIMIT_EXCEEDED);
     }
@@ -827,7 +913,8 @@ mod tests {
         let archive = build_zip(&[("a.bin", b"12345")]);
         let mut tampered = archive;
         let eocd = find_signature(&tampered, EOCD_SIGNATURE);
-        let central_offset = usize::try_from(read_u32_le(&tampered[eocd + 16..])).expect("偏移可读");
+        let central_offset =
+            usize::try_from(read_u32_le(&tampered[eocd + 16..])).expect("偏移可读");
         tampered[central_offset + 24..central_offset + 28].copy_from_slice(&5000u32.to_le_bytes());
         let error = ArchiveSource::from_bytes(tampered, &ParseLimits::default())
             .expect_err("压缩比超限必须拒绝");
@@ -848,7 +935,8 @@ mod tests {
         // 篡改成员数据（本地数据区第一字节），CRC 校验必须失败。
         let mut tampered = archive;
         tampered[30 + "a.yaml".len() + 1] ^= 0xFF;
-        let source = ArchiveSource::from_bytes(tampered, &ParseLimits::default()).expect("打开成功");
+        let source =
+            ArchiveSource::from_bytes(tampered, &ParseLimits::default()).expect("打开成功");
         let path = PackagePath::new("a.yaml").expect("合法");
         let error = source.verify_member_crc(&path).expect_err("CRC 必须失败");
         assert_eq!(error.code(), DOCUMENT_ARCHIVE_INVALID);
@@ -875,7 +963,8 @@ mod tests {
         archive.extend_from_slice(&EOCD_SIGNATURE.to_le_bytes());
         archive.extend_from_slice(&[0u8; 18]);
         assert!(ArchiveSource::looks_like_zip(&archive));
-        let source = ArchiveSource::from_bytes(archive, &ParseLimits::default()).expect("空归档可打开");
+        let source =
+            ArchiveSource::from_bytes(archive, &ParseLimits::default()).expect("空归档可打开");
         assert_eq!(source.fingerprint().members.len(), 0);
     }
 
@@ -944,7 +1033,8 @@ mod tests {
         archive.extend_from_slice(&u32::MAX.to_le_bytes());
         archive.extend_from_slice(&u32::MAX.to_le_bytes());
         archive.extend_from_slice(&0u16.to_le_bytes());
-        let source = ArchiveSource::from_bytes(archive, &ParseLimits::default()).expect("ZIP64 归档可打开");
+        let source =
+            ArchiveSource::from_bytes(archive, &ParseLimits::default()).expect("ZIP64 归档可打开");
         let path = PackagePath::new("big.bin").expect("合法");
         assert_eq!(source.read(&path).expect("ZIP64 成员读取"), b"0123456789");
     }
@@ -954,7 +1044,10 @@ mod tests {
         // 1980-01-01 00:00:00 → Unix epoch + 3652 天。
         let converted = dos_date_time_to_system(0x0021, 0).expect("合法 DOS 时间");
         assert_eq!(converted, UNIX_EPOCH + Duration::from_secs(3652 * 86_400));
-        assert!(dos_date_time_to_system(0x0021 | (13 << 5), 0).is_none(), "非法月份必须归 None");
+        assert!(
+            dos_date_time_to_system(0x0021 | (13 << 5), 0).is_none(),
+            "非法月份必须归 None"
+        );
     }
 
     #[test]

@@ -174,7 +174,10 @@ impl Diagnostic {
     #[must_use]
     pub(crate) fn escalated(self, strict: bool) -> Self {
         if strict && self.severity == Severity::Warning && escalates_in_strict(self.code) {
-            Self { severity: Severity::Error, ..self }
+            Self {
+                severity: Severity::Error,
+                ..self
+            }
         } else {
             self
         }
@@ -186,17 +189,22 @@ impl Diagnostic {
 pub(crate) fn escalates_in_strict(code: &'static str) -> bool {
     matches!(
         code,
-        SCHEMA_UNKNOWN_FIELD
-            | DOCUMENT_RESOURCE_INTEGRITY_MISMATCH
-            | DOCUMENT_UNREFERENCED_FILE
+        SCHEMA_UNKNOWN_FIELD | DOCUMENT_RESOURCE_INTEGRITY_MISMATCH | DOCUMENT_UNREFERENCED_FILE
     )
 }
 
 /// 诊断排序键：`(file, line, column, pointer, code)`（设计稿 §3.7）。
 #[must_use]
-pub(crate) fn diagnostic_sort_key(diagnostic: &Diagnostic) -> (String, u64, u64, String, &'static str) {
+pub(crate) fn diagnostic_sort_key(
+    diagnostic: &Diagnostic,
+) -> (String, u64, u64, String, &'static str) {
     (
-        diagnostic.file.as_ref().map(PackagePath::as_str).unwrap_or("").to_owned(),
+        diagnostic
+            .file
+            .as_ref()
+            .map(PackagePath::as_str)
+            .unwrap_or("")
+            .to_owned(),
         u64::from(diagnostic.line.unwrap_or(u32::MAX)),
         u64::from(diagnostic.column.unwrap_or(u32::MAX)),
         diagnostic.pointer.clone().unwrap_or_default(),
@@ -207,9 +215,7 @@ pub(crate) fn diagnostic_sort_key(diagnostic: &Diagnostic) -> (String, u64, u64,
 /// 对诊断集合排序去重，保证确定性输出（设计稿 §3.7、§2.3 输出确定性）。
 #[must_use]
 pub fn sort_diagnostics(mut diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
-    diagnostics.sort_by(|left, right| {
-        diagnostic_sort_key(left).cmp(&diagnostic_sort_key(right))
-    });
+    diagnostics.sort_by(|left, right| diagnostic_sort_key(left).cmp(&diagnostic_sort_key(right)));
     diagnostics.dedup_by(|left, right| {
         left.severity == right.severity
             && left.code == right.code
@@ -337,9 +343,8 @@ impl DocumentError {
     #[must_use]
     pub fn diagnostics(&self) -> &[Diagnostic] {
         match self {
-            Self::MetadataInvalid { diagnostics, .. } | Self::StructureInvalid { diagnostics, .. } => {
-                diagnostics
-            }
+            Self::MetadataInvalid { diagnostics, .. }
+            | Self::StructureInvalid { diagnostics, .. } => diagnostics,
             _ => &[],
         }
     }
@@ -349,16 +354,25 @@ impl DocumentError {
     pub fn details(&self) -> Option<serde_json::Value> {
         let diagnostics = sort_diagnostics(self.diagnostics().to_vec());
         match self {
-            Self::LimitExceeded { limit, actual, file } => Some(serde_json::json!({
+            Self::LimitExceeded {
+                limit,
+                actual,
+                file,
+            } => Some(serde_json::json!({
                 "limit": limit,
                 "actual": actual,
                 "file": file.as_ref().map(|path| serde_json::Value::String(path.to_string())),
                 "diagnostics": serde_json::to_value(&diagnostics).unwrap_or(serde_json::Value::Null),
             })),
-            Self::Io { .. } | Self::NotFound { .. } | Self::FormatUnknown { .. }
-            | Self::MetadataMissing { .. } | Self::VersionOutdated { .. }
-            | Self::VersionUnsupported { .. } | Self::ArchiveInvalid { .. }
-            | Self::PathUnsafe { .. } | Self::ParseCancelled => {
+            Self::Io { .. }
+            | Self::NotFound { .. }
+            | Self::FormatUnknown { .. }
+            | Self::MetadataMissing { .. }
+            | Self::VersionOutdated { .. }
+            | Self::VersionUnsupported { .. }
+            | Self::ArchiveInvalid { .. }
+            | Self::PathUnsafe { .. }
+            | Self::ParseCancelled => {
                 if diagnostics.is_empty() {
                     None
                 } else {
@@ -431,10 +445,19 @@ mod tests {
         assert_eq!(ENTRY_SOURCE_INVALID, "ENTRY_SOURCE_INVALID");
         assert_eq!(ENTRY_TARGET_MISSING, "ENTRY_TARGET_MISSING");
         assert_eq!(ENTRY_FAILED, "ENTRY_FAILED");
-        assert_eq!(DOCUMENT_RESOURCE_FILE_MISSING, "DOCUMENT_RESOURCE_FILE_MISSING");
-        assert_eq!(DOCUMENT_RESOURCE_INTEGRITY_MISMATCH, "DOCUMENT_RESOURCE_INTEGRITY_MISMATCH");
+        assert_eq!(
+            DOCUMENT_RESOURCE_FILE_MISSING,
+            "DOCUMENT_RESOURCE_FILE_MISSING"
+        );
+        assert_eq!(
+            DOCUMENT_RESOURCE_INTEGRITY_MISMATCH,
+            "DOCUMENT_RESOURCE_INTEGRITY_MISMATCH"
+        );
         assert_eq!(DOCUMENT_UNREFERENCED_FILE, "DOCUMENT_UNREFERENCED_FILE");
-        assert_eq!(DOCUMENT_GENERATED_FILE_IGNORED, "DOCUMENT_GENERATED_FILE_IGNORED");
+        assert_eq!(
+            DOCUMENT_GENERATED_FILE_IGNORED,
+            "DOCUMENT_GENERATED_FILE_IGNORED"
+        );
         assert_eq!(DOCUMENT_SYMLINK_IGNORED, "DOCUMENT_SYMLINK_IGNORED");
         assert_eq!(DOCUMENT_UNICODE_NORMALIZED, "DOCUMENT_UNICODE_NORMALIZED");
         assert_eq!(DOCUMENT_EXTENSION_MISMATCH, "DOCUMENT_EXTENSION_MISMATCH");
@@ -443,9 +466,21 @@ mod tests {
 
     #[test]
     fn test_error_code_and_retryable_mapping() {
-        assert_eq!(DocumentError::NotFound { path: "x.card".into() }.code(), DOCUMENT_NOT_FOUND);
-        assert!(!DocumentError::NotFound { path: "x.card".into() }.retryable());
-        assert!(DocumentError::Io { message: "读取失败".into() }.retryable());
+        assert_eq!(
+            DocumentError::NotFound {
+                path: "x.card".into()
+            }
+            .code(),
+            DOCUMENT_NOT_FOUND
+        );
+        assert!(!DocumentError::NotFound {
+            path: "x.card".into()
+        }
+        .retryable());
+        assert!(DocumentError::Io {
+            message: "读取失败".into()
+        }
+        .retryable());
         assert!(DocumentError::ParseCancelled.retryable());
         let limit = DocumentError::LimitExceeded {
             limit: "max_yaml_bytes",
@@ -494,7 +529,10 @@ mod tests {
                 .with_location(Some(1), Some(1)),
         ]);
         assert_eq!(diagnostics.len(), 2, "完全重复的诊断必须去重");
-        assert_eq!(diagnostics[0].code, SCHEMA_DEFAULT_APPLIED, "按文件路径排序");
+        assert_eq!(
+            diagnostics[0].code, SCHEMA_DEFAULT_APPLIED,
+            "按文件路径排序"
+        );
         assert_eq!(diagnostics[1].code, SCHEMA_UNKNOWN_FIELD);
     }
 
@@ -504,8 +542,8 @@ mod tests {
         let escalated = warning.clone().escalated(true);
         assert_eq!(escalated.severity, Severity::Error);
         // 未标注「严格：错误」的警告码不升级。
-        let kept = Diagnostic::new(Severity::Warning, ENTRY_TARGET_MISSING, "目标缺失")
-            .escalated(true);
+        let kept =
+            Diagnostic::new(Severity::Warning, ENTRY_TARGET_MISSING, "目标缺失").escalated(true);
         assert_eq!(kept.severity, Severity::Warning);
         assert_eq!(warning.escalated(false).severity, Severity::Warning);
     }

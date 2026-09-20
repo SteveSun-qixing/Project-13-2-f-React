@@ -255,8 +255,7 @@ fn project_document_view(
             };
             let mut content_nodes = Vec::with_capacity(nodes.len());
             for entry in nodes {
-                let content: Arc<ContentNode> =
-                    map_fatal(handle.content(&entry.node_id), session)?;
+                let content: Arc<ContentNode> = map_fatal(handle.content(&entry.node_id), session)?;
                 content_nodes.push(project_card_node_view(entry, Some(content.as_ref())));
             }
             Ok(DocumentView::Card(project_card_render_view(
@@ -528,7 +527,10 @@ mod tests {
         let node = content_node(
             "a1B2c3D4e5",
             "base.richtext",
-            mapping(vec![("card_type", text("base.richtext")), ("config", text("原文"))]),
+            mapping(vec![
+                ("card_type", text("base.richtext")),
+                ("config", text("原文")),
+            ]),
         );
         let view = project_card_render_view(
             &metadata,
@@ -555,7 +557,10 @@ mod tests {
         assert_eq!(view.content_nodes[0].node_id, "a1B2c3D4e5");
         // L1 可见、L2 未达节点：保留声明顺序与类型，内容空映射缺省。
         assert_eq!(view.content_nodes[1].card_type, "base.image");
-        assert_eq!(view.content_nodes[1].content, DocumentValue::Mapping(Vec::new()));
+        assert_eq!(
+            view.content_nodes[1].content,
+            DocumentValue::Mapping(Vec::new())
+        );
     }
 
     #[test]
@@ -604,7 +609,10 @@ mod tests {
         let metadata = box_metadata(Some("1:1"));
         // L1/L0 可见、布局单元不可得：空映射缺省（按空配置渲染）。
         let without_unit = project_box_render_view(&metadata, &[], None, 1);
-        assert_eq!(without_unit.layout_config, DocumentValue::Mapping(Vec::new()));
+        assert_eq!(
+            without_unit.layout_config,
+            DocumentValue::Mapping(Vec::new())
+        );
         assert_eq!(without_unit.cover.ratio, "1:1");
         // 生效布局类型在 `layout_configs` 中不存在：同样空映射。
         let root = mapping(vec![
@@ -618,7 +626,10 @@ mod tests {
             ),
         ]);
         let other_layout = project_box_render_view(&metadata, &[], Some(&root), 1);
-        assert_eq!(other_layout.layout_config, DocumentValue::Mapping(Vec::new()));
+        assert_eq!(
+            other_layout.layout_config,
+            DocumentValue::Mapping(Vec::new())
+        );
     }
 
     #[test]
@@ -654,8 +665,8 @@ mod tests {
         assert!(json["entries"][0].get("layout_hints").is_none());
         assert_eq!(json["entries"][0]["entry_id"], "E001");
 
-        let cover_json = serde_json::to_value(BoxCoverView::from(&rendered))
-            .expect("封面视图必须可序列化");
+        let cover_json =
+            serde_json::to_value(BoxCoverView::from(&rendered)).expect("封面视图必须可序列化");
         assert_eq!(cover_json["kind"], "box");
         assert_eq!(cover_json["cover"]["ratio"], "3:4");
 
@@ -676,7 +687,11 @@ mod tests {
     fn test_tag_view_untagged_json() {
         let tags = project_tags(&[
             Tag::Simple("美食".to_owned()),
-            Tag::Structured(vec!["菜系".to_owned(), "川菜".to_owned(), "湘菜".to_owned()]),
+            Tag::Structured(vec![
+                "菜系".to_owned(),
+                "川菜".to_owned(),
+                "湘菜".to_owned(),
+            ]),
         ]);
         let json = serde_json::to_value(&tags).expect("标签视图必须可序列化");
         assert_eq!(
@@ -698,16 +713,16 @@ mod tests {
 
     #[test]
     fn test_error_normalization_carries_session_and_code() {
-        let error = with_session(
-            DocumentError::ParseCancelled.to_chips_error(),
-            42,
-        );
+        let error = with_session(DocumentError::ParseCancelled.to_chips_error(), 42);
         assert_eq!(error.code(), "DOCUMENT_PARSE_CANCELLED");
         assert!(error.retryable());
         assert_eq!(error.details().expect("必须携带会话上下文")["session"], 42);
 
         let conflict = kinds_conflict(7);
         assert_eq!(conflict.code(), "DOCUMENT_STRUCTURE_INVALID");
-        assert_eq!(conflict.details().expect("必须携带会话上下文")["session"], 7);
+        assert_eq!(
+            conflict.details().expect("必须携带会话上下文")["session"],
+            7
+        );
     }
 }

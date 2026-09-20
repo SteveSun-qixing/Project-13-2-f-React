@@ -88,7 +88,9 @@ pub struct SourceFingerprint {
 fn system_time_to_millis(time: SystemTime) -> i64 {
     match time.duration_since(UNIX_EPOCH) {
         Ok(duration) => duration.as_millis().min(i64::MAX as u128) as i64,
-        Err(error) => -i64::try_from(error.duration().as_millis().min(i64::MAX as u128)).unwrap_or(0),
+        Err(error) => {
+            -i64::try_from(error.duration().as_millis().min(i64::MAX as u128)).unwrap_or(0)
+        }
     }
 }
 
@@ -161,16 +163,24 @@ impl ByteStream {
     /// 读取全部字节到内存。
     pub fn read_to_vec(&mut self) -> Result<Vec<u8>, DocumentError> {
         match self {
-            Self::Mapped { source, offset, length } => {
-                let bytes = source.slice(*offset, *length).ok_or_else(|| DocumentError::Io {
-                    message: "映射切片越界，归档可能已损坏".to_owned(),
-                })?;
+            Self::Mapped {
+                source,
+                offset,
+                length,
+            } => {
+                let bytes = source
+                    .slice(*offset, *length)
+                    .ok_or_else(|| DocumentError::Io {
+                        message: "映射切片越界，归档可能已损坏".to_owned(),
+                    })?;
                 Ok(bytes.to_vec())
             }
             Self::Decoded(reader) => {
                 let mut buffer = Vec::new();
                 std::io::Read::read_to_end(reader.as_mut(), &mut buffer).map_err(|io_error| {
-                    DocumentError::Io { message: format!("读取资源字节失败：{io_error}") }
+                    DocumentError::Io {
+                        message: format!("读取资源字节失败：{io_error}"),
+                    }
                 })?;
                 Ok(buffer)
             }
@@ -250,7 +260,11 @@ mod tests {
     #[test]
     fn test_byte_stream_mapped_read_and_length() {
         let source = std::sync::Arc::new(Mapping::new(b"abcdef".to_vec()));
-        let mut stream = ByteStream::Mapped { source, offset: 2, length: 3 };
+        let mut stream = ByteStream::Mapped {
+            source,
+            offset: 2,
+            length: 3,
+        };
         assert_eq!(stream.known_length(), Some(3));
         assert_eq!(stream.read_to_vec().expect("读取成功"), b"cde");
     }
@@ -265,7 +279,11 @@ mod tests {
     #[test]
     fn test_byte_stream_mapped_out_of_range_is_io() {
         let source = std::sync::Arc::new(Mapping::new(b"abc".to_vec()));
-        let mut stream = ByteStream::Mapped { source, offset: 0, length: 99 };
+        let mut stream = ByteStream::Mapped {
+            source,
+            offset: 0,
+            length: 99,
+        };
         let error = stream.read_to_vec().expect_err("越界必须失败");
         assert_eq!(error.code(), crate::error::DOCUMENT_IO);
     }

@@ -32,7 +32,6 @@ impl PackagePath {
     }
 
     /// 以 `/` 分隔的路径段。
-    #[must_use]
     pub fn segments(&self) -> impl Iterator<Item = &str> {
         self.0.split('/')
     }
@@ -83,23 +82,33 @@ impl<'de> Deserialize<'de> for PackagePath {
 /// 校验包内路径文本；错误消息为简体中文。
 pub(crate) fn validate_package_path(raw: &str) -> Fatal<()> {
     if raw.is_empty() {
-        return Err(DocumentError::PathUnsafe { path: raw.to_owned() });
+        return Err(DocumentError::PathUnsafe {
+            path: raw.to_owned(),
+        });
     }
     if raw.starts_with('/') || raw.contains('\\') {
-        return Err(DocumentError::PathUnsafe { path: raw.to_owned() });
+        return Err(DocumentError::PathUnsafe {
+            path: raw.to_owned(),
+        });
     }
     // Windows 盘符样式绝对路径。
     if raw.len() >= 2 && raw.as_bytes()[1] == b':' && raw.as_bytes()[0].is_ascii_alphabetic() {
-        return Err(DocumentError::PathUnsafe { path: raw.to_owned() });
+        return Err(DocumentError::PathUnsafe {
+            path: raw.to_owned(),
+        });
     }
     for ch in raw.chars() {
         if (ch as u32) < 0x20 || ch == '\u{7f}' {
-            return Err(DocumentError::PathUnsafe { path: raw.to_owned() });
+            return Err(DocumentError::PathUnsafe {
+                path: raw.to_owned(),
+            });
         }
     }
     for segment in raw.split('/') {
         if segment.is_empty() || segment == "." || segment == ".." {
-            return Err(DocumentError::PathUnsafe { path: raw.to_owned() });
+            return Err(DocumentError::PathUnsafe {
+                path: raw.to_owned(),
+            });
         }
     }
     Ok(())
@@ -118,7 +127,8 @@ mod tests {
             "video.mp4",
             "richtext/a1B2c3D4e5.md",
         ] {
-            let path = PackagePath::new(raw).unwrap_or_else(|error| panic!("{raw} 应合法：{error}"));
+            let path =
+                PackagePath::new(raw).unwrap_or_else(|error| panic!("{raw} 应合法：{error}"));
             assert_eq!(path.as_str(), raw);
         }
     }
@@ -145,7 +155,10 @@ mod tests {
     #[test]
     fn test_segments_parent_and_file_name() {
         let path = PackagePath::new("richtext/a1B2c3D4e5.md").expect("合法路径");
-        assert_eq!(path.segments().collect::<Vec<_>>(), vec!["richtext", "a1B2c3D4e5.md"]);
+        assert_eq!(
+            path.segments().collect::<Vec<_>>(),
+            vec!["richtext", "a1B2c3D4e5.md"]
+        );
         assert_eq!(path.parent().expect("有父目录").as_str(), "richtext");
         assert_eq!(path.file_name(), "a1B2c3D4e5.md");
         let root_file = PackagePath::new("video.mp4").expect("合法路径");

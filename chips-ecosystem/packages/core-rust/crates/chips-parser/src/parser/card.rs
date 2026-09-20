@@ -24,7 +24,10 @@ impl CardParser {
     /// 以给定选项创建入口（§6.2）。
     #[must_use]
     pub fn new(options: ParseOptions) -> Self {
-        Self { options, cache: None }
+        Self {
+            options,
+            cache: None,
+        }
     }
 
     /// 挂接单元级 [`ParseCache`]（§5.3 并行与缓存；规范入口签名之外的

@@ -107,32 +107,38 @@ impl ParsedUnit {
     #[must_use]
     pub fn memory_bytes(&self) -> usize {
         match self {
-            Self::Metadata(metadata) => serde_json::to_vec(metadata.as_ref())
-                .map(|bytes| bytes.len())
-                .unwrap_or(0)
-                + std::mem::size_of::<DocumentMetadata>(),
-            Self::Structure(structure) => serde_json::to_vec(structure.as_ref())
-                .map(|bytes| bytes.len())
-                .unwrap_or(0)
-                + std::mem::size_of::<StructureModel>(),
+            Self::Metadata(metadata) => {
+                serde_json::to_vec(metadata.as_ref())
+                    .map(|bytes| bytes.len())
+                    .unwrap_or(0)
+                    + std::mem::size_of::<DocumentMetadata>()
+            }
+            Self::Structure(structure) => {
+                serde_json::to_vec(structure.as_ref())
+                    .map(|bytes| bytes.len())
+                    .unwrap_or(0)
+                    + std::mem::size_of::<StructureModel>()
+            }
             Self::Content(node) => node.memory_hint(),
-            Self::Entries(entries) => entries
-                .iter()
-                .map(|entry| {
-                    entry.entry_id.len()
-                        + entry.url.len()
-                        + entry
-                            .snapshot
-                            .as_ref()
-                            .map_or(0, DocumentValue::estimated_bytes)
-                        + entry
-                            .layout_hints
-                            .as_ref()
-                            .map_or(0, DocumentValue::estimated_bytes)
-                        + 64
-                })
-                .sum::<usize>()
-                + std::mem::size_of::<Vec<Entry>>(),
+            Self::Entries(entries) => {
+                entries
+                    .iter()
+                    .map(|entry| {
+                        entry.entry_id.len()
+                            + entry.url.len()
+                            + entry
+                                .snapshot
+                                .as_ref()
+                                .map_or(0, DocumentValue::estimated_bytes)
+                            + entry
+                                .layout_hints
+                                .as_ref()
+                                .map_or(0, DocumentValue::estimated_bytes)
+                            + 64
+                    })
+                    .sum::<usize>()
+                    + std::mem::size_of::<Vec<Entry>>()
+            }
             Self::LayoutConfig(value) => value.estimated_bytes(),
         }
     }
@@ -307,10 +313,14 @@ impl ParseCache {
         };
         let now = self.tick();
         let mut state = self.lock();
-        if let Some(previous) = state
-            .units
-            .insert(key, CachedEntry { value: unit, memory, last_used: now })
-        {
+        if let Some(previous) = state.units.insert(
+            key,
+            CachedEntry {
+                value: unit,
+                memory,
+                last_used: now,
+            },
+        ) {
             state.unit_memory = state.unit_memory.saturating_sub(previous.memory);
         }
         state.unit_memory = state.unit_memory.saturating_add(memory);
@@ -372,9 +382,14 @@ impl ParseCache {
             fingerprint_digest: digest,
             options: OptionsKey::of(options),
         };
-        if let Some(previous) =
-            state.documents.insert(key, CachedEntry { value, memory, last_used: now })
-        {
+        if let Some(previous) = state.documents.insert(
+            key,
+            CachedEntry {
+                value,
+                memory,
+                last_used: now,
+            },
+        ) {
             state.document_memory = state.document_memory.saturating_sub(previous.memory);
         }
         state.document_memory = state.document_memory.saturating_add(memory);
@@ -489,7 +504,11 @@ mod tests {
     }
 
     fn member_fingerprint(size: u64, crc32: Option<u32>) -> MemberFingerprint {
-        MemberFingerprint { size, modified_millis: None, crc32 }
+        MemberFingerprint {
+            size,
+            modified_millis: None,
+            crc32,
+        }
     }
 
     fn content_node(name: &str) -> Arc<ContentNode> {
@@ -561,12 +580,17 @@ mod tests {
             &options(),
             ParsedUnit::Content(content_node("base.image")),
         );
-        let hit = cache.get_unit(&path, fingerprint, &options()).expect("同指纹必须命中");
+        let hit = cache
+            .get_unit(&path, fingerprint, &options())
+            .expect("同指纹必须命中");
         assert_eq!(hit.as_content().expect("内容单元").card_type, "base.image");
         // 成员指纹变化（尺寸变化）即未命中（§5.4 增量重解析口径）。
         let changed = member_fingerprint(11, Some(1));
         assert!(cache.get_unit(&path, changed, &options()).is_none());
-        assert!(cache.get_unit(&path, fingerprint, &options()).is_some(), "旧条目不受影响");
+        assert!(
+            cache.get_unit(&path, fingerprint, &options()).is_some(),
+            "旧条目不受影响"
+        );
     }
 
     #[test]
@@ -581,17 +605,28 @@ mod tests {
             ParsedUnit::Content(content_node("base.score")),
         );
         // `parallelism` 不改变解析结果，不参与键。
-        let parallel_only = ParseOptions { parallelism: 8, ..ParseOptions::default() };
+        let parallel_only = ParseOptions {
+            parallelism: 8,
+            ..ParseOptions::default()
+        };
         assert!(cache.get_unit(&path, fingerprint, &parallel_only).is_some());
         // `strict` 改变诊断升级结果，必须区分键。
-        let strict = ParseOptions { strict: true, ..ParseOptions::default() };
+        let strict = ParseOptions {
+            strict: true,
+            ..ParseOptions::default()
+        };
         assert!(cache.get_unit(&path, fingerprint, &strict).is_none());
         // 限额变化同样区分键。
         let limits_changed = ParseOptions {
-            limits: ParseLimits { max_aliases: 9, ..ParseLimits::default() },
+            limits: ParseLimits {
+                max_aliases: 9,
+                ..ParseLimits::default()
+            },
             ..ParseOptions::default()
         };
-        assert!(cache.get_unit(&path, fingerprint, &limits_changed).is_none());
+        assert!(cache
+            .get_unit(&path, fingerprint, &limits_changed)
+            .is_none());
     }
 
     #[test]
@@ -602,16 +637,37 @@ mod tests {
         let a = make("content/aaaaaaaaaa.yaml");
         let b = make("content/bbbbbbbbbb.yaml");
         let c = make("content/cccccccccc.yaml");
-        cache.insert_unit(&a, fingerprint, &options(), ParsedUnit::Content(content_node("a")));
-        cache.insert_unit(&b, fingerprint, &options(), ParsedUnit::Content(content_node("b")));
+        cache.insert_unit(
+            &a,
+            fingerprint,
+            &options(),
+            ParsedUnit::Content(content_node("a")),
+        );
+        cache.insert_unit(
+            &b,
+            fingerprint,
+            &options(),
+            ParsedUnit::Content(content_node("b")),
+        );
         // 触碰 a，使 b 成为最久未用。
         assert!(cache.get_unit(&a, fingerprint, &options()).is_some());
-        cache.insert_unit(&c, fingerprint, &options(), ParsedUnit::Content(content_node("c")));
+        cache.insert_unit(
+            &c,
+            fingerprint,
+            &options(),
+            ParsedUnit::Content(content_node("c")),
+        );
         let (units, documents, _) = cache.stats();
         assert_eq!((units, documents), (2, 0));
-        assert!(cache.get_unit(&a, fingerprint, &options()).is_some(), "最近使用必须保留");
+        assert!(
+            cache.get_unit(&a, fingerprint, &options()).is_some(),
+            "最近使用必须保留"
+        );
         assert!(cache.get_unit(&c, fingerprint, &options()).is_some());
-        assert!(cache.get_unit(&b, fingerprint, &options()).is_none(), "最久未用必须淘汰");
+        assert!(
+            cache.get_unit(&b, fingerprint, &options()).is_none(),
+            "最久未用必须淘汰"
+        );
     }
 
     #[test]
@@ -622,10 +678,20 @@ mod tests {
         let fingerprint = member_fingerprint(10, None);
         let a = PackagePath::new("content/aaaaaaaaaa.yaml").expect("合法路径");
         let b = PackagePath::new("content/bbbbbbbbbb.yaml").expect("合法路径");
-        cache.insert_unit(&a, fingerprint, &options(), ParsedUnit::Content(content_node("a")));
+        cache.insert_unit(
+            &a,
+            fingerprint,
+            &options(),
+            ParsedUnit::Content(content_node("a")),
+        );
         let first = cache.stats().2;
         assert!(first <= 200 && first > 0);
-        cache.insert_unit(&b, fingerprint, &options(), ParsedUnit::Content(content_node("b")));
+        cache.insert_unit(
+            &b,
+            fingerprint,
+            &options(),
+            ParsedUnit::Content(content_node("b")),
+        );
         let (units, _, memory) = cache.stats();
         assert!(memory <= 200, "总内存必须收敛在配额内");
         assert_eq!(units, 1, "超配额后必须淘汰旧单元");
@@ -665,21 +731,27 @@ mod tests {
         // 指纹变化写入新句柄条目：该路径旧条目整体失效（§5.3），
         // 单元条目按成员指纹保留并跨修订复用（§5.4）。
         cache.insert_document("/tmp/demo.card", &new_source, &options(), card_metadata());
-        assert!(cache
-            .get_document::<DocumentMetadata>("/tmp/demo.card", &old_source, &options())
-            .is_none(),
-            "旧指纹句柄条目必须整体失效");
+        assert!(
+            cache
+                .get_document::<DocumentMetadata>("/tmp/demo.card", &old_source, &options())
+                .is_none(),
+            "旧指纹句柄条目必须整体失效"
+        );
         assert!(cache
             .get_document::<DocumentMetadata>("/tmp/demo.card", &new_source, &options())
             .is_some());
         assert!(
-            cache.get_unit(&unit_path, unit_fingerprint, &options()).is_some(),
+            cache
+                .get_unit(&unit_path, unit_fingerprint, &options())
+                .is_some(),
             "未变化成员的单元条目必须跨修订保留"
         );
         // 显式失效只清句柄条目、不动单元条目。
         cache.invalidate_source("/tmp/demo.card");
         assert_eq!(cache.stats().1, 0);
-        assert!(cache.get_unit(&unit_path, unit_fingerprint, &options()).is_some());
+        assert!(cache
+            .get_unit(&unit_path, unit_fingerprint, &options())
+            .is_some());
     }
 
     #[test]
@@ -688,13 +760,17 @@ mod tests {
         let fingerprint = source(10);
         cache.insert_document("/tmp/a.card", &fingerprint, &options(), card_metadata());
         assert!(
-            cache.get_document::<ContentNode>("/tmp/a.card", &fingerprint, &options()).is_none(),
+            cache
+                .get_document::<ContentNode>("/tmp/a.card", &fingerprint, &options())
+                .is_none(),
             "类型不符视为未命中"
         );
-        assert!(cache
-            .get_document::<DocumentMetadata>("/tmp/b.card", &fingerprint, &options())
-            .is_none(),
-            "不同入口路径互不命中");
+        assert!(
+            cache
+                .get_document::<DocumentMetadata>("/tmp/b.card", &fingerprint, &options())
+                .is_none(),
+            "不同入口路径互不命中"
+        );
         cache.clear();
         assert!(cache.is_empty());
     }
@@ -719,9 +795,9 @@ mod tests {
         let reader = Arc::clone(&cache);
         let reader_path = path.clone();
         let handle = thread::spawn(move || {
-            reader.get_unit(&reader_path, fingerprint, &options()).map(|unit| {
-                unit.as_content().map(|node| node.card_type.clone())
-            })
+            reader
+                .get_unit(&reader_path, fingerprint, &options())
+                .map(|unit| unit.as_content().map(|node| node.card_type.clone()))
         });
         assert_eq!(
             handle.join().expect("读线程正常退出"),

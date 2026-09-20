@@ -191,7 +191,9 @@ impl<'de, 'a> Visitor<'de> for ValueVisitor<'a> {
 
     fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<DocumentValue, E> {
         Self::guard(self.0.visit_node())?;
-        Ok(DocumentValue::Integer(i64::try_from(value).unwrap_or(i64::MAX)))
+        Ok(DocumentValue::Integer(
+            i64::try_from(value).unwrap_or(i64::MAX),
+        ))
     }
 
     fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<DocumentValue, E> {
@@ -302,7 +304,10 @@ mod tests {
             panic!("根节点应为映射");
         };
         assert_eq!(
-            entries.iter().map(|(key, _)| key.as_str()).collect::<Vec<_>>(),
+            entries
+                .iter()
+                .map(|(key, _)| key.as_str())
+                .collect::<Vec<_>>(),
             vec!["b", "a"],
             "映射必须保持文档顺序"
         );
@@ -317,9 +322,11 @@ mod tests {
     #[test]
     fn test_duplicate_key_rejected_with_pointer() {
         let mut scan = ValueScan::new(full_limits());
-        let error =
-            from_deserializer(serde_yaml::Deserializer::from_str("a: 1\na: 2\n"), &mut scan)
-                .expect_err("重复键必须失败");
+        let error = from_deserializer(
+            serde_yaml::Deserializer::from_str("a: 1\na: 2\n"),
+            &mut scan,
+        )
+        .expect_err("重复键必须失败");
         assert!(error.to_string().contains("映射键重复"), "{error}");
         assert_eq!(scan.failure(), Some(ScanFailure::DuplicateKey));
         assert_eq!(scan.failure_pointer(), Some("/a"));
@@ -331,9 +338,11 @@ mod tests {
             max_depth: 2,
             node_budget: 1_000,
         });
-        let error =
-            from_deserializer(serde_yaml::Deserializer::from_str("a:\n  b:\n    c: 1\n"), &mut scan)
-                .expect_err("超深必须失败");
+        let error = from_deserializer(
+            serde_yaml::Deserializer::from_str("a:\n  b:\n    c: 1\n"),
+            &mut scan,
+        )
+        .expect_err("超深必须失败");
         assert!(error.to_string().contains("嵌套深度"), "{error}");
         assert_eq!(scan.failure(), Some(ScanFailure::DepthExceeded));
     }
@@ -361,10 +370,7 @@ mod tests {
 
     #[test]
     fn test_scan_failure_message() {
-        assert_eq!(
-            ScanFailure::DuplicateKey.message(),
-            "映射键重复"
-        );
+        assert_eq!(ScanFailure::DuplicateKey.message(), "映射键重复");
         assert!(ScanFailure::DepthExceeded.message().contains("深度"));
         assert!(ScanFailure::NodeBudgetExceeded.message().contains("节点"));
     }

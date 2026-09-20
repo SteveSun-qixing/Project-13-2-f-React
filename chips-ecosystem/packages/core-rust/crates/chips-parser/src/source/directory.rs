@@ -36,7 +36,10 @@ impl DirectorySource {
         let canonical_root = root.canonicalize().map_err(|io_error| DocumentError::Io {
             message: format!("无法解析包根目录：{io_error}"),
         })?;
-        let mut source = Self { root: canonical_root.clone(), index: BTreeMap::new() };
+        let mut source = Self {
+            root: canonical_root.clone(),
+            index: BTreeMap::new(),
+        };
         source.walk(&canonical_root, "", 0, diagnostics)?;
         Ok(source)
     }
@@ -55,10 +58,9 @@ impl DirectorySource {
                 file: None,
             });
         }
-        let entries = std::fs::read_dir(dir)
-            .map_err(|io_error| DocumentError::Io {
-                message: format!("无法枚举目录 {}：{io_error}", dir.display()),
-            })?;
+        let entries = std::fs::read_dir(dir).map_err(|io_error| DocumentError::Io {
+            message: format!("无法枚举目录 {}：{io_error}", dir.display()),
+        })?;
         for entry in entries {
             let entry = entry.map_err(|io_error| DocumentError::Io {
                 message: format!("无法读取目录项 {}：{io_error}", dir.display()),
@@ -67,7 +69,11 @@ impl DirectorySource {
                 message: format!("无法判定文件类型 {}：{io_error}", entry.path().display()),
             })?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            let normalized = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
+            let normalized = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{prefix}/{name}")
+            };
             if is_ignored_generated(&normalized) {
                 let file = PackagePath::new(&normalized)?;
                 diagnostics.push(
@@ -104,8 +110,8 @@ impl DirectorySource {
                 continue;
             }
             let package_path = PackagePath::new(&normalized)?;
-            let metadata = std::fs::metadata(entry.path())
-                .map_err(|io_error| DocumentError::Io {
+            let metadata =
+                std::fs::metadata(entry.path()).map_err(|io_error| DocumentError::Io {
                     message: format!("无法读取文件元数据 {}：{io_error}", entry.path().display()),
                 })?;
             self.index.insert(
@@ -169,14 +175,24 @@ impl DirectorySource {
         for segment in path.segments() {
             candidate.push(segment);
         }
-        let resolved = candidate.canonicalize().map_err(|io_error| DocumentError::Io {
-            message: format!("无法解析包内路径 {path}：{io_error}"),
-        })?;
+        let resolved = candidate
+            .canonicalize()
+            .map_err(|io_error| DocumentError::Io {
+                message: format!("无法解析包内路径 {path}：{io_error}"),
+            })?;
         if !resolved.starts_with(&self.root) {
-            return Err(DocumentError::PathUnsafe { path: path.to_string() });
+            return Err(DocumentError::PathUnsafe {
+                path: path.to_string(),
+            });
         }
-        if resolved.symlink_metadata().map(|meta| meta.file_type().is_symlink()).unwrap_or(false) {
-            return Err(DocumentError::PathUnsafe { path: path.to_string() });
+        if resolved
+            .symlink_metadata()
+            .map(|meta| meta.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            return Err(DocumentError::PathUnsafe {
+                path: path.to_string(),
+            });
         }
         Ok(resolved)
     }
@@ -185,7 +201,9 @@ impl DirectorySource {
 /// 命中系统生成物名单（任一路径段精确匹配）。
 #[must_use]
 pub(crate) fn is_ignored_generated(normalized_path: &str) -> bool {
-    normalized_path.split('/').any(|segment| IGNORED_GENERATED_NAMES.contains(&segment))
+    normalized_path
+        .split('/')
+        .any(|segment| IGNORED_GENERATED_NAMES.contains(&segment))
 }
 
 impl DocumentSource for DirectorySource {
@@ -220,7 +238,9 @@ impl DocumentSource for DirectorySource {
 
     fn read(&self, path: &PackagePath) -> Result<Vec<u8>, DocumentError> {
         if !self.index.contains_key(path) {
-            return Err(DocumentError::NotFound { path: path.to_string() });
+            return Err(DocumentError::NotFound {
+                path: path.to_string(),
+            });
         }
         let resolved = self.resolve(path)?;
         std::fs::read(&resolved).map_err(|io_error| DocumentError::Io {
@@ -230,7 +250,9 @@ impl DocumentSource for DirectorySource {
 
     fn open_stream(&self, path: &PackagePath) -> Result<ByteStream, DocumentError> {
         if !self.index.contains_key(path) {
-            return Err(DocumentError::NotFound { path: path.to_string() });
+            return Err(DocumentError::NotFound {
+                path: path.to_string(),
+            });
         }
         let resolved = self.resolve(path)?;
         let file = std::fs::File::open(&resolved).map_err(|io_error| DocumentError::Io {
@@ -262,19 +284,29 @@ mod tests {
     fn test_open_indexes_files_and_ignores_generated() {
         let root = temp_root("index");
         std::fs::create_dir_all(root.join(".card")).expect("创建配置目录");
-        std::fs::write(root.join(".card/metadata.yaml"), b"chip_standards_version: \"1.0.0\"\n")
-            .expect("写入元数据");
+        std::fs::write(
+            root.join(".card/metadata.yaml"),
+            b"chip_standards_version: \"1.0.0\"\n",
+        )
+        .expect("写入元数据");
         std::fs::write(root.join(".DS_Store"), b"junk").expect("写入生成物");
         std::fs::create_dir_all(root.join("__MACOSX/sub")).expect("创建生成物目录");
         std::fs::write(root.join("__MACOSX/sub/resource.txt"), b"junk").expect("写入生成物内容");
         let mut diagnostics = Vec::new();
         let source = DirectorySource::open(&root, &mut diagnostics).expect("打开目录态");
         assert_eq!(source.kind(), SourceKind::Directory);
-        let paths: Vec<String> =
-            source.fingerprint().members.iter().map(|(path, _)| path.to_string()).collect();
+        let paths: Vec<String> = source
+            .fingerprint()
+            .members
+            .iter()
+            .map(|(path, _)| path.to_string())
+            .collect();
         assert_eq!(paths, vec![".card/metadata.yaml"], "系统生成物不得进入索引");
         assert_eq!(
-            diagnostics.iter().filter(|d| d.code == DOCUMENT_GENERATED_FILE_IGNORED).count(),
+            diagnostics
+                .iter()
+                .filter(|d| d.code == DOCUMENT_GENERATED_FILE_IGNORED)
+                .count(),
             3,
             ".DS_Store、__MACOSX/ 目录与其子文件各记一条信息诊断"
         );
@@ -312,12 +344,15 @@ mod tests {
     fn test_symlink_recorded_and_skipped() {
         let root = temp_root("symlink");
         std::fs::write(root.join("real.txt"), b"content").expect("写入实体");
-        std::os::unix::fs::symlink(root.join("real.txt"), root.join("link.txt")).expect("创建符号链接");
+        std::os::unix::fs::symlink(root.join("real.txt"), root.join("link.txt"))
+            .expect("创建符号链接");
         let mut diagnostics = Vec::new();
         let source = DirectorySource::open(&root, &mut diagnostics).expect("打开");
         let link = PackagePath::new("link.txt").expect("合法路径");
         assert!(source.member(&link).is_none(), "符号链接不得纳入索引");
-        assert!(diagnostics.iter().any(|d| d.code == DOCUMENT_SYMLINK_IGNORED));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.code == DOCUMENT_SYMLINK_IGNORED));
         std::fs::remove_dir_all(root).expect("清理");
     }
 
@@ -325,7 +360,11 @@ mod tests {
     fn test_list_prefix() {
         let root = temp_root("list");
         std::fs::create_dir_all(root.join("content")).expect("创建目录");
-        std::fs::write(root.join("content/a1B2c3D4e5.yaml"), b"card_type: base.image\n").expect("写入");
+        std::fs::write(
+            root.join("content/a1B2c3D4e5.yaml"),
+            b"card_type: base.image\n",
+        )
+        .expect("写入");
         std::fs::write(root.join("video.mp4"), b"00").expect("写入");
         let mut diagnostics = Vec::new();
         let source = DirectorySource::open(&root, &mut diagnostics).expect("打开");
@@ -345,7 +384,8 @@ mod tests {
         }
         std::fs::create_dir_all(&deep).expect("创建深层目录");
         let mut diagnostics = Vec::new();
-        let error = DirectorySource::open(&root, &mut diagnostics).expect_err("深层目录必须触发限额");
+        let error =
+            DirectorySource::open(&root, &mut diagnostics).expect_err("深层目录必须触发限额");
         assert_eq!(error.code(), DOCUMENT_LIMIT_EXCEEDED);
         std::fs::remove_dir_all(root).expect("清理");
     }

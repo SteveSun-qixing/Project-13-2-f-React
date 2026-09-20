@@ -55,17 +55,15 @@ pub use cache::ParseCache;
 pub use error::{Diagnostic, DocumentError, Severity};
 pub use model::{
     BoxMetadata, CardMetadata, ContentIndex, ContentNode, DocumentKind, DocumentMetadata,
-    DocumentStatistics, DocumentValue, Entry, FileInfo, ParseLimits, ParseOptions, SourceFingerprint,
-    StructureModel, Tag, ValidationReport, ValidationStatus,
+    DocumentStatistics, DocumentValue, Entry, FileInfo, ParseLimits, ParseOptions,
+    SourceFingerprint, StructureModel, Tag, ValidationReport, ValidationStatus,
 };
-pub use parser::{
-    BoxParser, CardParser, DocumentHandle, CURRENT_CHIP_STANDARDS_VERSION,
+pub use parser::{BoxParser, CardParser, DocumentHandle, CURRENT_CHIP_STANDARDS_VERSION};
+pub use source::{ByteStream, DocumentSource, MemberMeta, MemberMethod, PackagePath, SourceKind};
+pub use view::{
+    build_document_view, BoxCoverView, BoxRenderView, CardNodeView, CardRenderView, CoverView,
+    DocumentView, EntryView, TagView,
 };
-pub use source::{
-    ByteStream, DocumentSource, MemberMeta, MemberMethod, PackagePath, SourceKind,
-};
-pub use view::{build_document_view, BoxCoverView, BoxRenderView, CardNodeView, CardRenderView,
-               CoverView, DocumentView, EntryView, TagView};
 
 /// 自动识别 `.card` / `.box`；扩展名与探测结果矛盾时以探测结果为准，
 /// 并记录 `DOCUMENT_EXTENSION_MISMATCH`（警告）。

@@ -30,7 +30,7 @@ pub const METADATA_FIELDS: &[FieldSpec] = &[
     FieldSpec::optional("age_rating", FieldKind::String)
         .with_enum(&["all", "pg", "pg13", "r", "nc17"]),
     FieldSpec::optional("content_warning", FieldKind::Sequence),
-    FieldSpec::optional("file_info", FieldKind::Mapping).with_children(&FILE_INFO_FIELDS),
+    FieldSpec::optional("file_info", FieldKind::Mapping).with_children(FILE_INFO_FIELDS),
 ];
 
 /// `metadata.file_info` 内部字段（§4.1；模型侧 `total_size`/`file_count`
@@ -44,8 +44,8 @@ const FILE_INFO_FIELDS: &[FieldSpec] = &[
 
 /// `.card/structure.yaml` 字段规格（《卡片文件格式》§5.1）。
 pub const STRUCTURE_FIELDS: &[FieldSpec] = &[
-    FieldSpec::required("structure", FieldKind::Sequence).with_children(&STRUCTURE_ITEM_FIELDS),
-    FieldSpec::required("manifest", FieldKind::Mapping).with_children(&MANIFEST_FIELDS),
+    FieldSpec::required("structure", FieldKind::Sequence).with_children(STRUCTURE_ITEM_FIELDS),
+    FieldSpec::required("manifest", FieldKind::Mapping).with_children(MANIFEST_FIELDS),
 ];
 
 /// `structure[]` 条目字段（§5.1、§5.3：`id` 为 10 位 Base62，`type` 为
@@ -59,7 +59,7 @@ const STRUCTURE_ITEM_FIELDS: &[FieldSpec] = &[
 const MANIFEST_FIELDS: &[FieldSpec] = &[
     FieldSpec::required("card_count", FieldKind::Integer).with_minimum(0),
     FieldSpec::required("resource_count", FieldKind::Integer).with_minimum(0),
-    FieldSpec::optional("resources", FieldKind::Sequence).with_children(&RESOURCE_ITEM_FIELDS),
+    FieldSpec::optional("resources", FieldKind::Sequence).with_children(RESOURCE_ITEM_FIELDS),
 ];
 
 /// `manifest.resources[]` 条目字段（§5.1、§5.3）。
@@ -81,7 +81,7 @@ const RESOURCE_ITEM_FIELDS: &[FieldSpec] = &[
 pub const CONTENT_FIELDS: &[FieldSpec] = &[
     FieldSpec::required("card_type", FieldKind::String),
     FieldSpec::optional("theme", FieldKind::String).with_default(SpecDefault::Text("")),
-    FieldSpec::optional("layout", FieldKind::Mapping).with_children(&LAYOUT_FIELDS),
+    FieldSpec::optional("layout", FieldKind::Mapping).with_children(LAYOUT_FIELDS),
 ];
 
 /// `layout` 通用布局参数字段（§6.1）。
@@ -131,10 +131,19 @@ mod tests {
             find(METADATA_FIELDS, "chip_standards_version").format,
             FieldFormat::StrictVersion
         );
-        assert_eq!(find(METADATA_FIELDS, "card_id").format, FieldFormat::Base62Id);
+        assert_eq!(
+            find(METADATA_FIELDS, "card_id").format,
+            FieldFormat::Base62Id
+        );
         assert_eq!(find(METADATA_FIELDS, "name").max_length, Some(500));
-        assert_eq!(find(METADATA_FIELDS, "created_at").format, FieldFormat::DateTime);
-        assert_eq!(find(METADATA_FIELDS, "cover_ratio").format, FieldFormat::CoverRatio);
+        assert_eq!(
+            find(METADATA_FIELDS, "created_at").format,
+            FieldFormat::DateTime
+        );
+        assert_eq!(
+            find(METADATA_FIELDS, "cover_ratio").format,
+            FieldFormat::CoverRatio
+        );
         assert_eq!(
             find(METADATA_FIELDS, "cover_ratio").default,
             Some(SpecDefault::Text("3:4"))
@@ -205,10 +214,7 @@ mod tests {
         let layout = find(CONTENT_FIELDS, "layout");
         let height_mode = find(layout.children, "height_mode");
         assert_eq!(height_mode.enum_values, ["auto", "fixed"]);
-        assert_eq!(
-            height_mode.default,
-            Some(SpecDefault::Text("auto"))
-        );
+        assert_eq!(height_mode.default, Some(SpecDefault::Text("auto")));
         assert_eq!(
             find(layout.children, "aspect_ratio").format,
             FieldFormat::CoverRatio

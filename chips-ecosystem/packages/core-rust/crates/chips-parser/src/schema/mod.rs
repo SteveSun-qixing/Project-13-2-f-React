@@ -167,7 +167,10 @@ impl FieldSpec {
     /// 可选标量字段。
     #[must_use]
     pub const fn optional(name: &'static str, kind: FieldKind) -> Self {
-        Self { required: false, ..Self::required(name, kind) }
+        Self {
+            required: false,
+            ..Self::required(name, kind)
+        }
     }
 
     /// 附加字符串格式。
@@ -392,7 +395,12 @@ impl SchemaContext<'_> {
     }
 
     /// 单字段校验：类型 → 枚举 → 格式 → 长度 → 嵌套。
-    fn field(&mut self, spec: &FieldSpec, value: &DocumentValue, pointer: &str) -> Option<DocumentValue> {
+    fn field(
+        &mut self,
+        spec: &FieldSpec,
+        value: &DocumentValue,
+        pointer: &str,
+    ) -> Option<DocumentValue> {
         if spec.kind == FieldKind::Any {
             return None;
         }
@@ -410,7 +418,11 @@ impl SchemaContext<'_> {
                 Severity::Error,
                 SCHEMA_TYPE_MISMATCH,
                 pointer,
-                format!("期望 {}，实际为 {}", spec.kind.type_name(), value.type_name()),
+                format!(
+                    "期望 {}，实际为 {}",
+                    spec.kind.type_name(),
+                    value.type_name()
+                ),
                 "按格式规范的类型改写该字段",
             );
             return None;
@@ -518,7 +530,10 @@ impl SchemaContext<'_> {
                 if all_strings {
                     format!("结构化标签至少需要「键 + 1 个值」，实际 {} 项", items.len())
                 } else {
-                    format!("结构化标签的元素必须是字符串，实际含 {}", element_types(items))
+                    format!(
+                        "结构化标签的元素必须是字符串，实际含 {}",
+                        element_types(items)
+                    )
                 },
                 "改用字符串标签或 [键, 值…] 形式的字符串数组",
             );
@@ -535,8 +550,15 @@ impl SchemaContext<'_> {
     }
 
     /// 追加诊断。
-    fn push(&mut self, severity: Severity, code: &'static str, pointer: &str, message: String, hint: &str) {
-        let diagnostic = Diagnostic::new(severity, code, format!("{message}"))
+    fn push(
+        &mut self,
+        severity: Severity,
+        code: &'static str,
+        pointer: &str,
+        message: String,
+        hint: &str,
+    ) {
+        let diagnostic = Diagnostic::new(severity, code, message)
             .at(self.file, pointer.to_owned())
             .with_hint(hint.to_owned());
         self.diagnostics.push(diagnostic);
@@ -568,7 +590,9 @@ fn field_label(pointer: &str, name: &str) -> String {
 /// 格式不符时的提示文案。
 fn format_suggestion(format: FieldFormat) -> &'static str {
     match format {
-        FieldFormat::StrictVersion => "版本号需使用引号包裹的严格三段式，如 chip_standards_version: \"1.0.0\"",
+        FieldFormat::StrictVersion => {
+            "版本号需使用引号包裹的严格三段式，如 chip_standards_version: \"1.0.0\""
+        }
         FieldFormat::Base62Id => "标识必须是 10 位 Base62 字符串",
         FieldFormat::CoverRatio => "比例需写作「宽:高」，如 \"3:4\"",
         FieldFormat::DateTime => "时间需为 ISO 8601 UTC 形式，如 \"2026-01-15T08:00:00.000Z\"",
@@ -599,10 +623,14 @@ pub fn check_format(format: FieldFormat, text: &str) -> Option<String> {
 #[must_use]
 pub fn is_strict_version(text: &str) -> bool {
     let mut parts = text.split('.');
-    let (Some(major), Some(minor), Some(patch), None) = (parts.next(), parts.next(), parts.next(), parts.next()) else {
+    let (Some(major), Some(minor), Some(patch), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
         return false;
     };
-    [major, minor, patch].iter().all(|part| is_numeric_part(part))
+    [major, minor, patch]
+        .iter()
+        .all(|part| is_numeric_part(part))
 }
 
 /// 纯数字段（非空、全为 ASCII 数字、不允许前导 `+`/`-`）。
@@ -613,7 +641,10 @@ fn is_numeric_part(text: &str) -> bool {
 /// 10 位 Base62 编号（《ID生成规范》）。
 #[must_use]
 pub fn is_base62_id(text: &str) -> bool {
-    text.len() == 10 && text.bytes().all(|byte| byte.is_ascii_digit() || byte.is_ascii_alphabetic())
+    text.len() == 10
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || byte.is_ascii_alphabetic())
 }
 
 /// 封面比例 `宽:高`（正数比值，允许小数）。
@@ -631,7 +662,7 @@ fn is_positive_number(text: &str) -> bool {
         Some((head, tail)) => (head, Some(tail)),
         None => (text, None),
     };
-    is_numeric_part(integer) && fraction.is_none_or(is_numeric_part)
+    is_numeric_part(integer) && fraction.map_or(true, is_numeric_part)
 }
 
 /// ISO 8601 / RFC 3339 UTC 时间戳（毫秒可选，时区固定 `Z`）。
@@ -644,17 +675,35 @@ pub fn is_date_time(text: &str) -> bool {
     if !bytes[13].eq(&b':') || !bytes[16].eq(&b':') {
         return false;
     }
-    let digits = |range: std::ops::Range<usize>| {
-        text.get(range).is_some_and(|slice| is_numeric_part(slice))
-    };
-    let year: u32 = text.get(0..4).and_then(|value| value.parse().ok()).unwrap_or(0);
-    let month: u32 = text.get(5..7).and_then(|value| value.parse().ok()).unwrap_or(0);
-    let day: u32 = text.get(8..10).and_then(|value| value.parse().ok()).unwrap_or(0);
-    let hour: u32 = text.get(11..13).and_then(|value| value.parse().ok()).unwrap_or(u32::MAX);
-    let minute: u32 = text.get(14..16).and_then(|value| value.parse().ok()).unwrap_or(u32::MAX);
-    let second: u32 = text.get(17..19).and_then(|value| value.parse().ok()).unwrap_or(u32::MAX);
+    let digits = |range: std::ops::Range<usize>| text.get(range).is_some_and(is_numeric_part);
+    let year: u32 = text
+        .get(0..4)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
+    let month: u32 = text
+        .get(5..7)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
+    let day: u32 = text
+        .get(8..10)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
+    let hour: u32 = text
+        .get(11..13)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(u32::MAX);
+    let minute: u32 = text
+        .get(14..16)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(u32::MAX);
+    let second: u32 = text
+        .get(17..19)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(u32::MAX);
     let tail = text.get(19..).unwrap_or_default();
-    let suffix_ok = matches!(tail, "Z") || tail == ".000Z" || (tail.len() == 5 && tail.ends_with('Z') && is_numeric_part(&tail[1..4]));
+    let suffix_ok = matches!(tail, "Z")
+        || tail == ".000Z"
+        || (tail.len() == 5 && tail.ends_with('Z') && is_numeric_part(&tail[1..4]));
     suffix_ok
         && digits(0..4)
         && digits(5..7)
@@ -662,8 +711,7 @@ pub fn is_date_time(text: &str) -> bool {
         && digits(11..13)
         && digits(14..16)
         && digits(17..19)
-        && month >= 1
-        && month <= 12
+        && (1..=12).contains(&month)
         && day >= 1
         && day <= days_in_month(year, month)
         && hour <= 23
@@ -737,13 +785,23 @@ mod tests {
         assert!(is_date_time("2024-02-29T08:00:00Z"), "闰年 2 月 29 日合法");
         assert!(!is_date_time("2023-02-29T08:00:00Z"));
         assert!(!is_date_time("2026-13-01T08:00:00Z"));
-        assert!(!is_date_time("2026-01-15T08:00:00+08:00"), "首版只接受 UTC 形式");
+        assert!(
+            !is_date_time("2026-01-15T08:00:00+08:00"),
+            "首版只接受 UTC 形式"
+        );
     }
 
     #[test]
     fn test_validate_reports_required_missing_with_pointer() {
         let value = mapping("card_id: \"a1B2c3D4e5\"\n");
-        let outcome = validate(SchemaMember::CardMetadata, &value, &path(), true, false, None);
+        let outcome = validate(
+            SchemaMember::CardMetadata,
+            &value,
+            &path(),
+            true,
+            false,
+            None,
+        );
         assert!(outcome.has_errors());
         let missing = outcome
             .diagnostics
@@ -759,16 +817,42 @@ mod tests {
         let text = "chip_standards_version: \"1.0.0\"\ncard_id: \"a1B2c3D4e5\"\nname: \"n\"\n\
                     created_at: \"2026-01-15T08:00:00.000Z\"\nmodified_at: \"2026-01-15T08:00:00.000Z\"\n";
         let value = mapping(text);
-        let outcome = validate(SchemaMember::CardMetadata, &value, &path(), true, false, None);
+        let outcome = validate(
+            SchemaMember::CardMetadata,
+            &value,
+            &path(),
+            true,
+            false,
+            None,
+        );
         assert!(!outcome.has_errors(), "{:?}", outcome.diagnostics);
-        assert_eq!(outcome.value.get("cover_ratio").and_then(DocumentValue::as_str), Some("3:4"));
-        assert_eq!(outcome.value.get("visibility").and_then(DocumentValue::as_str), Some("private"));
+        assert_eq!(
+            outcome
+                .value
+                .get("cover_ratio")
+                .and_then(DocumentValue::as_str),
+            Some("3:4")
+        );
+        assert_eq!(
+            outcome
+                .value
+                .get("visibility")
+                .and_then(DocumentValue::as_str),
+            Some("private")
+        );
         let applied = outcome
             .diagnostics
             .iter()
             .filter(|item| item.code == SCHEMA_DEFAULT_APPLIED)
             .count();
-        let again = validate(SchemaMember::CardMetadata, &outcome.value, &path(), true, false, None);
+        let again = validate(
+            SchemaMember::CardMetadata,
+            &outcome.value,
+            &path(),
+            true,
+            false,
+            None,
+        );
         assert_eq!(
             again
                 .diagnostics
@@ -788,7 +872,14 @@ mod tests {
              created_at: \"2026-01-15T08:00:00.000Z\"\nmodified_at: \"2026-01-15T08:00:00.000Z\"\n\
              mystery: 1\n",
         );
-        let lenient = validate(SchemaMember::CardMetadata, &value, &path(), false, false, None);
+        let lenient = validate(
+            SchemaMember::CardMetadata,
+            &value,
+            &path(),
+            false,
+            false,
+            None,
+        );
         let unknown = lenient
             .diagnostics
             .iter()
@@ -800,7 +891,14 @@ mod tests {
             Some(1),
             "未知字段必须保留原文值"
         );
-        let strict = validate(SchemaMember::CardMetadata, &value, &path(), false, true, None);
+        let strict = validate(
+            SchemaMember::CardMetadata,
+            &value,
+            &path(),
+            false,
+            true,
+            None,
+        );
         assert!(strict
             .diagnostics
             .iter()
@@ -814,7 +912,14 @@ mod tests {
              created_at: \"2026-01-15T08:00:00.000Z\"\nmodified_at: \"2026-01-15T08:00:00.000Z\"\n\
              visibility: \"publicish\"\ndownloadable: \"yes\"\n",
         );
-        let outcome = validate(SchemaMember::CardMetadata, &value, &path(), false, false, None);
+        let outcome = validate(
+            SchemaMember::CardMetadata,
+            &value,
+            &path(),
+            false,
+            false,
+            None,
+        );
         let codes: Vec<&str> = outcome
             .diagnostics
             .iter()
@@ -833,7 +938,14 @@ mod tests {
              tags:\n  - \"旅行\"\n  - [\"地点\", \"日本\"]\n  - [\"只有一个值\"]\n  - 7\n\
              file_info:\n  total_size: -1\n  generated_at: \"nope\"\n",
         );
-        let outcome = validate(SchemaMember::CardMetadata, &value, &path(), false, false, None);
+        let outcome = validate(
+            SchemaMember::CardMetadata,
+            &value,
+            &path(),
+            false,
+            false,
+            None,
+        );
         let pointers: Vec<String> = outcome
             .diagnostics
             .iter()
@@ -841,31 +953,56 @@ mod tests {
             .collect();
         assert!(pointers.contains(&"/tags/2".to_owned()), "{pointers:?}");
         assert!(pointers.contains(&"/tags/3".to_owned()), "{pointers:?}");
-        assert!(pointers.contains(&"/file_info/total_size".to_owned()), "{pointers:?}");
-        assert!(pointers.contains(&"/file_info/generated_at".to_owned()), "{pointers:?}");
+        assert!(
+            pointers.contains(&"/file_info/total_size".to_owned()),
+            "{pointers:?}"
+        );
+        assert!(
+            pointers.contains(&"/file_info/generated_at".to_owned()),
+            "{pointers:?}"
+        );
     }
 
     #[test]
     fn test_validate_non_mapping_root_is_error() {
         let value = DocumentValue::Sequence(vec![DocumentValue::Integer(1)]);
-        let outcome = validate(SchemaMember::CardMetadata, &value, &path(), false, false, None);
+        let outcome = validate(
+            SchemaMember::CardMetadata,
+            &value,
+            &path(),
+            false,
+            false,
+            None,
+        );
         assert!(outcome.has_errors());
         assert_eq!(outcome.diagnostics[0].pointer.as_deref(), Some(""));
     }
 
     #[test]
     fn test_content_member_allows_unknown_fields() {
-        assert!(SchemaRegistry::allows_unknown_fields(SchemaMember::CardContent));
-        assert!(!SchemaRegistry::allows_unknown_fields(SchemaMember::CardMetadata));
+        assert!(SchemaRegistry::allows_unknown_fields(
+            SchemaMember::CardContent
+        ));
+        assert!(!SchemaRegistry::allows_unknown_fields(
+            SchemaMember::CardMetadata
+        ));
         let fields = SchemaRegistry::fields(SchemaMember::CardContent);
-        assert!(fields.iter().any(|spec| spec.name == "card_type" && spec.required));
+        assert!(fields
+            .iter()
+            .any(|spec| spec.name == "card_type" && spec.required));
     }
 
     #[test]
     fn test_spec_default_values() {
-        assert_eq!(SpecDefault::Text("3:4").value(), DocumentValue::String("3:4".to_owned()));
+        assert_eq!(
+            SpecDefault::Text("3:4").value(),
+            DocumentValue::String("3:4".to_owned())
+        );
         assert_eq!(SpecDefault::Flag(true).value(), DocumentValue::Bool(true));
-        assert_eq!(SpecDefault::EmptySequence.value(), DocumentValue::Sequence(Vec::new()));
+        assert_eq!(
+            SpecDefault::EmptySequence.value(),
+            DocumentValue::Sequence(Vec::new())
+        );
     }
 
     #[test]
@@ -873,6 +1010,13 @@ mod tests {
         assert_eq!(field_label("", "name"), "name");
         assert_eq!(field_label("/a", "name"), "/a/name");
         assert_eq!(escape_token("a/b~c"), "a~1b~0c");
-        assert_eq!(element_types(&[DocumentValue::Bool(true), DocumentValue::Integer(1), DocumentValue::Bool(false)]), "boolean/integer");
+        assert_eq!(
+            element_types(&[
+                DocumentValue::Bool(true),
+                DocumentValue::Integer(1),
+                DocumentValue::Bool(false)
+            ]),
+            "boolean/integer"
+        );
     }
 }

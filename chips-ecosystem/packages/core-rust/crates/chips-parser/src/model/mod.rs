@@ -16,12 +16,12 @@ use crate::source::PackagePath;
 pub use crate::source::SourceFingerprint;
 use crate::yaml::value::ValueScan;
 
-mod card;
 #[path = "box.rs"]
 mod box_model;
+mod card;
 
-pub use card::{AgeRating, CardMetadata, Visibility};
 pub use box_model::BoxMetadata;
+pub use card::{AgeRating, CardMetadata, Visibility};
 
 /// 文档格式类别（《核心接口规范》§6.1）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -769,7 +769,10 @@ impl DocumentValue {
     #[must_use]
     pub fn pointer(&self, pointer: &str) -> Option<&DocumentValue> {
         let mut current = self;
-        for token in pointer.split('/').skip(if pointer.starts_with('/') { 1 } else { 0 }) {
+        for token in pointer
+            .split('/')
+            .skip(if pointer.starts_with('/') { 1 } else { 0 })
+        {
             let key = token.replace("~1", "/").replace("~0", "~");
             current = match current {
                 Self::Mapping(_) => current.get(&key)?,
@@ -799,7 +802,10 @@ impl DocumentValue {
         match self {
             Self::Sequence(items) => 1 + items.iter().map(Self::node_count).sum::<u64>(),
             Self::Mapping(entries) => {
-                1 + entries.iter().map(|(_, value)| value.node_count()).sum::<u64>()
+                1 + entries
+                    .iter()
+                    .map(|(_, value)| value.node_count())
+                    .sum::<u64>()
             }
             _ => 1,
         }
@@ -811,11 +817,13 @@ impl DocumentValue {
         match self {
             Self::String(text) => text.len() + 32,
             Self::Sequence(items) => items.iter().map(Self::estimated_bytes).sum::<usize>() + 32,
-            Self::Mapping(entries) => entries
-                .iter()
-                .map(|(key, value)| key.len() + value.estimated_bytes() + 48)
-                .sum::<usize>()
-                + 32,
+            Self::Mapping(entries) => {
+                entries
+                    .iter()
+                    .map(|(key, value)| key.len() + value.estimated_bytes() + 48)
+                    .sum::<usize>()
+                    + 32
+            }
             _ => 24,
         }
     }
@@ -831,7 +839,9 @@ impl DocumentValue {
                 .map(serde_json::Value::Number)
                 .unwrap_or(serde_json::Value::Null),
             Self::String(text) => serde_json::Value::String(text.clone()),
-            Self::Sequence(items) => serde_json::Value::Array(items.iter().map(Self::to_json).collect()),
+            Self::Sequence(items) => {
+                serde_json::Value::Array(items.iter().map(Self::to_json).collect())
+            }
             Self::Mapping(entries) => {
                 let mut object = serde_json::Map::new();
                 for (key, value) in entries {
@@ -855,7 +865,9 @@ impl DocumentValue {
                 number.as_f64().map_or(Self::Null, Self::Float)
             }
             serde_json::Value::String(text) => Self::String(text.clone()),
-            serde_json::Value::Array(items) => Self::Sequence(items.iter().map(Self::from_json).collect()),
+            serde_json::Value::Array(items) => {
+                Self::Sequence(items.iter().map(Self::from_json).collect())
+            }
             serde_json::Value::Object(object) => Self::Mapping(
                 object
                     .iter()

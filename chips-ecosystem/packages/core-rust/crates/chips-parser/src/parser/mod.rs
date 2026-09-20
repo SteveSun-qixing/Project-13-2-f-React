@@ -29,16 +29,16 @@ use crate::digest::Sha256;
 use crate::error::{sort_diagnostics, Diagnostic, DocumentError, Fatal, Severity};
 use crate::model::{
     ContentIndex, ContentNode, DocumentKind, DocumentMetadata, DocumentRevision,
-    DocumentStatistics, DocumentValue, Entry, NodeId, ParseOptions, StructureEntry,
-    StructureModel, ValidationReport, ValidationStatus,
+    DocumentStatistics, DocumentValue, Entry, NodeId, ParseOptions, StructureEntry, StructureModel,
+    ValidationReport, ValidationStatus,
 };
 use crate::source::{ByteStream, MemberFingerprint, PackagePath};
 
 mod pipeline;
 
-pub mod card;
 #[path = "box.rs"]
 pub mod box_parser;
+pub mod card;
 
 pub use box_parser::{BoxParser, ParsedBox};
 pub use card::{CardParser, ParsedCard};
@@ -59,10 +59,7 @@ pub const CURRENT_CHIP_STANDARDS_VERSION: &str = "1.0.0";
 /// # Errors
 ///
 /// 见 [`DocumentHandle::open`] 的致命错误集合。
-pub fn open_document(
-    path: &Path,
-    options: &ParseOptions,
-) -> Result<DocumentHandle, DocumentError> {
+pub fn open_document(path: &Path, options: &ParseOptions) -> Result<DocumentHandle, DocumentError> {
     DocumentHandle::open_auto(path, options, None)
 }
 
@@ -185,14 +182,18 @@ impl DocumentHandle {
     /// （IO / 限额）返回 `Err`。挂接 [`ParseCache`] 时按成员指纹复用。
     pub fn content(&self, node: &NodeId) -> Result<Arc<ContentNode>, DocumentError> {
         if self.kind != DocumentKind::Card {
-            return Err(format_misuse("卡片句柄才有内容节点，箱子句柄请使用 entries / layout_config"));
+            return Err(format_misuse(
+                "卡片句柄才有内容节点，箱子句柄请使用 entries / layout_config",
+            ));
         }
         let structure = self.structure()?;
         let nodes = Self::card_nodes(&structure)?;
         let index = nodes
             .iter()
             .position(|entry| &entry.node_id == node)
-            .ok_or_else(|| DocumentError::NotFound { path: node.content_file().to_string() })?;
+            .ok_or_else(|| DocumentError::NotFound {
+                path: node.content_file().to_string(),
+            })?;
         if let Some(existing) = self.content_read(node) {
             return Ok(existing);
         }
@@ -215,7 +216,9 @@ impl DocumentHandle {
     /// 宿主侧数组切片语义一致）。失败条目按 §8.4 保留位置（禁用态）。
     pub fn entries(&self, range: Option<Range<usize>>) -> Result<Arc<[Entry]>, DocumentError> {
         if self.kind != DocumentKind::Box {
-            return Err(format_misuse("箱子句柄才有条目集合，卡片句柄请使用 content"));
+            return Err(format_misuse(
+                "箱子句柄才有条目集合，卡片句柄请使用 content",
+            ));
         }
         let all = self.all_entries()?;
         Ok(match range {
@@ -266,9 +269,13 @@ impl DocumentHandle {
         let meta = self
             .source
             .member(path)
-            .ok_or_else(|| DocumentError::NotFound { path: path.to_string() })?;
+            .ok_or_else(|| DocumentError::NotFound {
+                path: path.to_string(),
+            })?;
         let stream = self.source.open_stream(path)?;
-        let Some(range) = range else { return Ok(stream) };
+        let Some(range) = range else {
+            return Ok(stream);
+        };
         if range.start >= range.end || range.end > meta.size {
             return Err(DocumentError::Io {
                 message: format!(
@@ -287,12 +294,20 @@ impl DocumentHandle {
                         message: format!("资源 {path} 的映射窗口越界"),
                     });
                 }
-                Ok(ByteStream::Mapped { source, offset: new_offset, length })
+                Ok(ByteStream::Mapped {
+                    source,
+                    offset: new_offset,
+                    length,
+                })
             }
             mut decoded => {
                 let bytes = decoded.read_to_vec()?;
-                let start = usize::try_from(range.start).unwrap_or(usize::MAX).min(bytes.len());
-                let end = usize::try_from(range.end).unwrap_or(usize::MAX).min(bytes.len());
+                let start = usize::try_from(range.start)
+                    .unwrap_or(usize::MAX)
+                    .min(bytes.len());
+                let end = usize::try_from(range.end)
+                    .unwrap_or(usize::MAX)
+                    .min(bytes.len());
                 Ok(ByteStream::Decoded(Box::new(std::io::Cursor::new(
                     bytes[start..end].to_vec(),
                 ))))
@@ -362,7 +377,9 @@ impl DocumentHandle {
         diagnostics.append(&mut stage);
         yaml_bytes += structure_bytes;
         match structure.as_ref() {
-            StructureModel::Card { structure: nodes, .. } => {
+            StructureModel::Card {
+                structure: nodes, ..
+            } => {
                 let file = pipeline::structure_file(self.kind);
                 for (index, entry) in nodes.iter().enumerate() {
                     let pointer = format!("/structure/{index}");
@@ -416,7 +433,8 @@ impl DocumentHandle {
 
     /// 统计快照（§3.7）：结构未加载时资源/条目计数为 0，已解析 YAML
     /// 字节数随惰性层级推进。
-    pub(crate) fn statistics(&self) -> DocumentStatistics {
+    #[must_use]
+    pub fn statistics(&self) -> DocumentStatistics {
         let fingerprint = self.source.fingerprint();
         let structure = self
             .structure
@@ -485,46 +503,52 @@ impl DocumentHandle {
             return Ok(output);
         }
         let source = Arc::clone(&self.source);
-        let options = &self.options;
-        let cache = self.cache.as_ref();
+        let options = self.options.clone();
+        let cache = self.cache.clone();
         let structure_file = pipeline::structure_file(self.kind);
-        let mut per_worker: Vec<Vec<(usize, Arc<ContentNode>, u64)>> = std::thread::scope(|scope| {
-            let results: Vec<std::sync::Mutex<Vec<(usize, Arc<ContentNode>, u64)>>> =
-                (0..workers).map(|_| std::sync::Mutex::new(Vec::new())).collect();
-            for (worker, slot) in (0..workers).zip(&results) {
-                let entries: Vec<(usize, &StructureEntry)> = misses
-                    .iter()
-                    .enumerate()
-                    .filter(|(offset, _)| offset % workers == worker)
-                    .map(|(_, (index, entry))| (*index, entry))
-                    .collect();
-                let source = Arc::clone(&source);
-                std::thread::Builder::new()
-                    .name(format!("chips-parser-l2-{worker}"))
-                    .spawn_scoped(scope, move || {
-                        for (index, entry) in entries {
-                            let pointer = format!("/structure/{index}");
-                            if let Ok((node, bytes)) = parse_unit_with_cache(
-                                source.as_ref(),
-                                cache,
-                                options,
-                                entry,
-                                &structure_file,
-                                &pointer,
-                            ) {
-                                let mut guard =
-                                    slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                                guard.push((index, node, bytes));
-                            }
-                        }
-                    })
-                    .expect("受 parallelism 上限的少量作用域线程创建不会失败");
-            }
-            results
-                .into_iter()
-                .map(|slot| slot.into_inner().unwrap_or_default())
-                .collect()
-        });
+        let mut per_worker: Vec<Vec<(usize, Arc<ContentNode>, u64)>> =
+            std::thread::scope(|scope| {
+                let mut handles = Vec::with_capacity(workers);
+                for worker in 0..workers {
+                    let entries: Vec<(usize, StructureEntry)> = misses
+                        .iter()
+                        .enumerate()
+                        .filter(|(offset, _)| offset % workers == worker)
+                        .map(|(_, (index, entry))| (*index, entry.clone()))
+                        .collect();
+                    let source = Arc::clone(&source);
+                    let options = options.clone();
+                    let cache = cache.clone();
+                    let structure_file = structure_file.clone();
+                    handles.push(
+                        std::thread::Builder::new()
+                            .name(format!("chips-parser-l2-{worker}"))
+                            .spawn_scoped(scope, move || {
+                                let mut produced = Vec::with_capacity(entries.len());
+                                for (index, entry) in entries {
+                                    let pointer = format!("/structure/{index}");
+                                    if let Ok((node, bytes)) = parse_unit_with_cache(
+                                        source.as_ref(),
+                                        cache.as_ref(),
+                                        &options,
+                                        &entry,
+                                        &structure_file,
+                                        &pointer,
+                                    ) {
+                                        produced.push((index, node, bytes));
+                                    }
+                                }
+                                produced
+                            })
+                            .expect("受 parallelism 上限的少量作用域线程创建不会失败"),
+                    );
+                }
+                // 作用域内回收全部工作线程（输出确定性：分组后按下标归并）。
+                handles
+                    .into_iter()
+                    .map(|handle| handle.join().unwrap_or_default())
+                    .collect()
+            });
         let mut merged: Vec<(usize, Arc<ContentNode>, u64)> = Vec::with_capacity(misses.len());
         for group in per_worker.drain(..) {
             merged.extend(group);
@@ -642,13 +666,7 @@ fn parse_unit_with_cache(
             }
         }
     }
-    let node = pipeline::parse_content_unit(
-        source,
-        options,
-        entry,
-        structure_file,
-        pointer,
-    )?;
+    let node = pipeline::parse_content_unit(source, options, entry, structure_file, pointer)?;
     if let (Some(cache), Some(fingerprint)) = (cache, fingerprint) {
         cache.insert_unit(
             &entry.file,
@@ -664,15 +682,20 @@ fn parse_unit_with_cache(
 fn feed_digest(hasher: &mut Sha256, stream: &mut ByteStream) -> Result<(), DocumentError> {
     const CHUNK: u64 = 64 * 1024;
     match stream {
-        ByteStream::Mapped { source, offset, length } => {
+        ByteStream::Mapped {
+            source,
+            offset,
+            length,
+        } => {
             let mut done = 0u64;
             while done < *length {
                 let take = (*length - done).min(CHUNK);
-                let bytes = source
-                    .slice(*offset + done, take)
-                    .ok_or_else(|| DocumentError::Io {
-                        message: "映射切片越界，归档可能已损坏".to_owned(),
-                    })?;
+                let bytes =
+                    source
+                        .slice(*offset + done, take)
+                        .ok_or_else(|| DocumentError::Io {
+                            message: "映射切片越界，归档可能已损坏".to_owned(),
+                        })?;
                 hasher.update(bytes);
                 done += take;
             }
@@ -696,9 +719,27 @@ fn feed_digest(hasher: &mut Sha256, stream: &mut ByteStream) -> Result<(), Docum
     }
 }
 
+/// 句柄调试输出：只暴露不可变判定结果（格式、文档标识与版本），不触发
+/// 任何惰性层级解析（§5.2 访问器语义不变）。
+impl std::fmt::Debug for DocumentHandle {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("DocumentHandle")
+            .field("kind", &self.kind)
+            .field("document_id", &self.metadata.document_id())
+            .field(
+                "chip_standards_version",
+                &self.metadata.chip_standards_version(),
+            )
+            .finish_non_exhaustive()
+    }
+}
+
 /// 访问器与文档格式不符的致命错误（复用 §8.2 码表，不发明新码）。
 fn format_misuse(message: impl Into<String>) -> DocumentError {
-    DocumentError::FormatUnknown { message: message.into() }
+    DocumentError::FormatUnknown {
+        message: message.into(),
+    }
 }
 
 #[cfg(test)]
@@ -724,8 +765,13 @@ mod tests {
 
     #[test]
     fn test_open_missing_path_is_not_found() {
-        let error = open_document(Path::new("/nonexistent/chips-c54.card"), &ParseOptions::default())
-            .expect_err("不存在的路径必须失败");
+        let error = match open_document(
+            Path::new("/nonexistent/chips-c54.card"),
+            &ParseOptions::default(),
+        ) {
+            Ok(_) => panic!("不存在的路径必须失败"),
+            Err(error) => error,
+        };
         assert_eq!(error.code(), crate::error::DOCUMENT_NOT_FOUND);
     }
 }

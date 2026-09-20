@@ -26,9 +26,8 @@ pub const METADATA_FIELDS: &[FieldSpec] = &[
 ];
 
 /// `.box/structure.yaml` 字段规格（《箱子文件格式》§5.2、§5.3、§5.7）。
-pub const STRUCTURE_FIELDS: &[FieldSpec] = &[
-    FieldSpec::required("entries", FieldKind::Sequence).with_children(&ENTRY_ITEM_FIELDS),
-];
+pub const STRUCTURE_FIELDS: &[FieldSpec] =
+    &[FieldSpec::required("entries", FieldKind::Sequence).with_children(ENTRY_ITEM_FIELDS)];
 
 /// `entries[]` 条目字段：`entry_id`、`url`、`enabled` 必填（§5.7 第 5 条），
 /// `snapshot`/`layout_hints` 为可选摘要与布局索引（§5.4、§5.6），内部
@@ -86,8 +85,14 @@ mod tests {
 
     #[test]
     fn test_metadata_optional_fields() {
-        assert_eq!(find(METADATA_FIELDS, "cover_asset").format, FieldFormat::AssetPath);
-        assert_eq!(find(METADATA_FIELDS, "cover_ratio").format, FieldFormat::CoverRatio);
+        assert_eq!(
+            find(METADATA_FIELDS, "cover_asset").format,
+            FieldFormat::AssetPath
+        );
+        assert_eq!(
+            find(METADATA_FIELDS, "cover_ratio").format,
+            FieldFormat::CoverRatio
+        );
         assert_eq!(find(METADATA_FIELDS, "tags").kind, FieldKind::TagList);
         assert!(!find(METADATA_FIELDS, "source").required);
         assert_eq!(find(METADATA_FIELDS, "source").kind, FieldKind::Mapping);
@@ -100,7 +105,10 @@ mod tests {
         assert!(entries.required);
         assert_eq!(entries.kind, FieldKind::Sequence);
         assert!(find(entries.children, "entry_id").required);
-        assert_eq!(find(entries.children, "entry_id").format, FieldFormat::Base62Id);
+        assert_eq!(
+            find(entries.children, "entry_id").format,
+            FieldFormat::Base62Id
+        );
         assert!(find(entries.children, "url").required);
         assert!(find(entries.children, "enabled").required);
         assert_eq!(find(entries.children, "enabled").kind, FieldKind::Boolean);
@@ -114,6 +122,9 @@ mod tests {
         let configs = find(CONTENT_FIELDS, "layout_configs");
         assert!(!configs.required);
         assert_eq!(configs.kind, FieldKind::Mapping);
-        assert!(configs.children.is_empty(), "布局配置键为任意布局类型，不逐项收窄");
+        assert!(
+            configs.children.is_empty(),
+            "布局配置键为任意布局类型，不逐项收窄"
+        );
     }
 }

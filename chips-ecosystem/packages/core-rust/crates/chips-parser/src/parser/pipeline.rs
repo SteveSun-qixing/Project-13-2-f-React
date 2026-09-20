@@ -13,9 +13,10 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
+use super::CURRENT_CHIP_STANDARDS_VERSION;
 use crate::error::{
-    Diagnostic, DocumentError, Fatal, Severity, DOCUMENT_EXTENSION_MISMATCH,
-    DOCUMENT_NOT_FOUND, DOCUMENT_RESOURCE_FILE_MISSING, DOCUMENT_RESOURCE_INTEGRITY_MISMATCH,
+    Diagnostic, DocumentError, Fatal, Severity, DOCUMENT_EXTENSION_MISMATCH, DOCUMENT_NOT_FOUND,
+    DOCUMENT_RESOURCE_FILE_MISSING, DOCUMENT_RESOURCE_INTEGRITY_MISMATCH,
     DOCUMENT_UNREFERENCED_FILE, ENTRY_FAILED, ENTRY_SOURCE_INVALID, ENTRY_TARGET_MISSING,
     STRUCTURE_CONTENT_MISSING, STRUCTURE_NODE_FAILED,
 };
@@ -29,8 +30,6 @@ use crate::source::archive::ArchiveSource;
 use crate::source::directory::DirectorySource;
 use crate::source::{PackagePath, SourceFingerprint};
 use crate::yaml;
-
-use super::CURRENT_CHIP_STANDARDS_VERSION;
 
 /// metadata 成员文件名（配置目录内）。
 const METADATA_FILE: &str = "metadata.yaml";
@@ -47,8 +46,6 @@ pub(crate) struct OpenedL0 {
     pub kind: DocumentKind,
     /// L0 元数据模型（冻结）。
     pub metadata: Arc<DocumentMetadata>,
-    /// 数据源指纹（修订构建输入，§3.7）。
-    pub fingerprint: SourceFingerprint,
     /// 打开期诊断（未排序，由句柄统一排序去重）。
     pub diagnostics: Vec<Diagnostic>,
     /// 已解析 YAML 字节数（阶段 3 部分）。
@@ -68,7 +65,9 @@ pub(crate) fn open_l0(
 ) -> Fatal<OpenedL0> {
     let entry_state = std::fs::metadata(path).map_err(|io_error| {
         if io_error.kind() == std::io::ErrorKind::NotFound {
-            DocumentError::NotFound { path: path.display().to_string() }
+            DocumentError::NotFound {
+                path: path.display().to_string(),
+            }
         } else {
             DocumentError::Io {
                 message: format!("无法访问入口路径 {}：{io_error}", path.display()),
@@ -108,7 +107,6 @@ pub(crate) fn open_l0(
         source,
         kind,
         metadata,
-        fingerprint: source.fingerprint(),
         diagnostics,
         yaml_bytes,
     })
@@ -156,9 +154,14 @@ fn detect_kind(
     };
     // 索引探测：配置目录的元数据成员存在即判定（归档根即包根，§3.3）。
     let has_config = |kind: DocumentKind| {
-        source.member(&member_in_config_dir(kind, METADATA_FILE)).is_some()
+        source
+            .member(&member_in_config_dir(kind, METADATA_FILE))
+            .is_some()
     };
-    let probed = match (has_config(DocumentKind::Card), has_config(DocumentKind::Box)) {
+    let probed = match (
+        has_config(DocumentKind::Card),
+        has_config(DocumentKind::Box),
+    ) {
         (true, false) => Some(DocumentKind::Card),
         (false, true) => Some(DocumentKind::Box),
         (true, true) => {
@@ -273,18 +276,20 @@ pub(crate) fn parse_metadata(
         options.strict,
         Some(&document.spans),
     );
+    let metadata_failed = outcome.has_errors();
     diagnostics.extend(outcome.diagnostics);
-    if outcome.has_errors() {
+    if metadata_failed {
         return Err(DocumentError::MetadataInvalid {
             message: "元数据未通过 schema 校验（必填、类型、枚举或格式不符）".to_owned(),
             diagnostics,
         });
     }
     let build_failure = || DocumentError::MetadataInvalid {
+        message: "元数据模型构建失败（校验后值树缺少必填字段或形态不符）".to_owned(),
+        diagnostics: diagnostics.clone(),
+    };
     let metadata = match kind {
-        DocumentKind::Card => {
-            build_card_metadata(&outcome.value).ok_or_else(build_failure)?
-        }
+        DocumentKind::Card => build_card_metadata(&outcome.value).ok_or_else(build_failure)?,
         DocumentKind::Box => build_box_metadata(&outcome.value).ok_or_else(build_failure)?,
     };
     // 版本兼容判定（§7.2）在模型构建后执行。
@@ -302,10 +307,14 @@ pub(crate) fn check_version_compatibility(
     let (major, minor) = split_version(version);
     let (current_major, current_minor) = split_version(CURRENT_CHIP_STANDARDS_VERSION);
     if major > current_major {
-        return Err(DocumentError::VersionUnsupported { version: version.to_owned() });
+        return Err(DocumentError::VersionUnsupported {
+            version: version.to_owned(),
+        });
     }
     if major < current_major {
-        return Err(DocumentError::VersionOutdated { version: version.to_owned() });
+        return Err(DocumentError::VersionOutdated {
+            version: version.to_owned(),
+        });
     }
     if minor > current_minor {
         diagnostics.push(crate::yaml::version_mismatch_warning(
@@ -357,7 +366,12 @@ fn build_tags(value: Option<&DocumentValue>) -> Option<Vec<Tag>> {
 /// schema 层已保证必填、类型、枚举与格式；任一前提不满足（防御性）
 /// 返回 `None`，调用方归一为 `DOCUMENT_METADATA_INVALID`。
 fn build_card_metadata(value: &DocumentValue) -> Option<DocumentMetadata> {
-    let text = |key: &str| value.get(key).and_then(DocumentValue::as_str).map(str::to_owned);
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(DocumentValue::as_str)
+            .map(str::to_owned)
+    };
     let tags = build_tags(value.get("tags"))?;
     let content_warning = match value.get("content_warning") {
         None | Some(DocumentValue::Null) => None,
@@ -377,7 +391,10 @@ fn build_card_metadata(value: &DocumentValue) -> Option<DocumentMetadata> {
         Some(info @ DocumentValue::Mapping(_)) => Some(FileInfo {
             total_size: u64::try_from(info.get("total_size")?.as_i64()?).ok()?,
             file_count: u64::try_from(info.get("file_count")?.as_i64()?).ok()?,
-            checksum: info.get("checksum").and_then(DocumentValue::as_str).map(str::to_owned),
+            checksum: info
+                .get("checksum")
+                .and_then(DocumentValue::as_str)
+                .map(str::to_owned),
             generated_at: info
                 .get("generated_at")
                 .and_then(DocumentValue::as_str)
@@ -428,7 +445,12 @@ fn build_card_metadata(value: &DocumentValue) -> Option<DocumentMetadata> {
 
 /// 由校验后的值树构建箱子元数据模型（§11.3）。
 fn build_box_metadata(value: &DocumentValue) -> Option<DocumentMetadata> {
-    let text = |key: &str| value.get(key).and_then(DocumentValue::as_str).map(str::to_owned);
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(DocumentValue::as_str)
+            .map(str::to_owned)
+    };
     let tags = match value.get("tags") {
         None | Some(DocumentValue::Null) => None,
         Some(_) => Some(build_tags(value.get("tags"))?),
@@ -491,8 +513,9 @@ pub(crate) fn parse_structure(
         options.strict,
         Some(&document.spans),
     );
+    let structure_failed = outcome.has_errors();
     diagnostics.extend(outcome.diagnostics);
-    if outcome.has_errors() {
+    if structure_failed {
         return Err(DocumentError::StructureInvalid {
             message: "结构文件未通过 schema 校验".to_owned(),
             diagnostics,
@@ -536,7 +559,10 @@ fn build_card_structure(
     let mut entries = Vec::with_capacity(items.len());
     for (index, item) in items.iter().enumerate() {
         let pointer = format!("/structure/{index}");
-        let id_text = item.get("id").and_then(DocumentValue::as_str).unwrap_or_default();
+        let id_text = item
+            .get("id")
+            .and_then(DocumentValue::as_str)
+            .unwrap_or_default();
         let card_type = item
             .get("type")
             .and_then(DocumentValue::as_str)
@@ -572,10 +598,18 @@ fn build_card_structure(
         if !present {
             diagnostics.push(missing_content_diagnostic(&node_id, &target, &pointer));
         }
-        entries.push(StructureEntry { node_id, card_type, file: target, present });
+        entries.push(StructureEntry {
+            node_id,
+            card_type,
+            file: target,
+            present,
+        });
     }
     let manifest = build_manifest(source, value.get("manifest"), file, options, diagnostics);
-    Ok(StructureModel::Card { structure: entries, manifest })
+    Ok(StructureModel::Card {
+        structure: entries,
+        manifest,
+    })
 }
 
 /// 结构引用内容文件缺失诊断（§3.5）。
@@ -592,8 +626,13 @@ pub(crate) fn missing_content_diagnostic(
         STRUCTURE_CONTENT_MISSING,
         format!("结构节点 {node_id} 引用的内容文件 {target} 不存在"),
     )
-    .at(&member_in_config_dir(DocumentKind::Card, STRUCTURE_FILE), pointer.to_owned())
-    .with_hint(format!("补充 {CARD_CONTENT_DIR}/{node_id}.yaml 或从 structure 中移除该节点声明"))
+    .at(
+        &member_in_config_dir(DocumentKind::Card, STRUCTURE_FILE),
+        pointer.to_owned(),
+    )
+    .with_hint(format!(
+        "补充 {CARD_CONTENT_DIR}/{node_id}.yaml 或从 structure 中移除该节点声明"
+    ))
 }
 
 /// `manifest` 清单构建与资源引用校验（§3.5、§6.4）。
@@ -608,10 +647,16 @@ fn build_manifest(
         return StructureManifest::default();
     };
     let mut resources = Vec::new();
-    if let Some(items) = manifest_value.get("resources").and_then(DocumentValue::as_sequence) {
+    if let Some(items) = manifest_value
+        .get("resources")
+        .and_then(DocumentValue::as_sequence)
+    {
         for (index, item) in items.iter().enumerate() {
             let pointer = format!("/manifest/resources/{index}");
-            let path_text = item.get("path").and_then(DocumentValue::as_str).unwrap_or("");
+            let path_text = item
+                .get("path")
+                .and_then(DocumentValue::as_str)
+                .unwrap_or("");
             let Ok(path) = PackagePath::new(path_text) else {
                 diagnostics.push(
                     Diagnostic::new(
@@ -718,7 +763,7 @@ fn verify_resource_checksum(
     let Some(declared) = item.get("checksum").and_then(DocumentValue::as_str) else {
         return;
     };
-    let mismatch = |reason: String| {
+    let mut mismatch = |reason: String| {
         diagnostics.push(
             Diagnostic::new(
                 Severity::Error,
@@ -738,7 +783,12 @@ fn verify_resource_checksum(
     };
     let computed = crate::digest::sha256(&bytes);
     let hex: String = computed.iter().map(|byte| format!("{byte:02x}")).collect();
-    if hex != declared.trim_start_matches("sha256:").trim().to_ascii_lowercase() {
+    if hex
+        != declared
+            .trim_start_matches("sha256:")
+            .trim()
+            .to_ascii_lowercase()
+    {
         mismatch("SHA256 与声明值不符".to_owned());
     }
 }
@@ -770,8 +820,14 @@ fn build_box_structure(
     let mut entries = Vec::with_capacity(items.len());
     for (index, item) in items.iter().enumerate() {
         let pointer = format!("/entries/{index}");
-        let entry_id = item.get("entry_id").and_then(DocumentValue::as_str).unwrap_or_default();
-        let url = item.get("url").and_then(DocumentValue::as_str).unwrap_or("");
+        let entry_id = item
+            .get("entry_id")
+            .and_then(DocumentValue::as_str)
+            .unwrap_or_default();
+        let url = item
+            .get("url")
+            .and_then(DocumentValue::as_str)
+            .unwrap_or("");
         let Some(enabled) = item.get("enabled").and_then(DocumentValue::as_bool) else {
             diagnostics.push(
                 Diagnostic::new(
@@ -811,7 +867,10 @@ fn build_box_structure(
             layout_hints: optional_mapping(item.get("layout_hints")),
         });
     }
-    Ok(StructureModel::Box { entries, diagnostics: Vec::new() })
+    Ok(StructureModel::Box {
+        entries,
+        diagnostics: Vec::new(),
+    })
 }
 
 /// 条目引用的分类与校验（§3.5「引用形式唯一集合」）。
@@ -844,7 +903,9 @@ fn classify_entry_url(
                     format!("条目引用使用了不允许的 scheme：{other}"),
                 )
                 .at(file, pointer.to_owned())
-                .with_hint("仅接受包内相对路径、file、http(s)、webdav 与 chips-resource".to_owned()),
+                .with_hint(
+                    "仅接受包内相对路径、file、http(s)、webdav 与 chips-resource".to_owned(),
+                ),
             ),
         }
         return;
@@ -945,7 +1006,11 @@ pub(crate) fn parse_content_unit(
         &entry.file,
         options.repair,
         options.strict,
-        if options.strict { Some(&document.spans) } else { None },
+        if options.strict {
+            Some(&document.spans)
+        } else {
+            None
+        },
     );
     if outcome.has_errors() {
         return Ok(node_failed(outcome.diagnostics, document.diagnostics));
@@ -1016,9 +1081,13 @@ pub(crate) fn parse_layout_unit(
         options.strict,
         Some(&document.spans),
     );
-    let mut diagnostics: Vec<Diagnostic> =
-        outcome.diagnostics.into_iter().chain(document.diagnostics).collect();
-    if outcome.has_errors() {
+    let layout_failed = outcome.has_errors();
+    let mut diagnostics: Vec<Diagnostic> = outcome
+        .diagnostics
+        .into_iter()
+        .chain(document.diagnostics)
+        .collect();
+    if layout_failed {
         diagnostics.push(
             Diagnostic::new(
                 Severity::Error,
@@ -1044,7 +1113,10 @@ fn collect_unreferenced_files(
         referenced.insert(member_in_config_dir(kind, name));
     }
     match model {
-        StructureModel::Card { structure, manifest } => {
+        StructureModel::Card {
+            structure,
+            manifest,
+        } => {
             for entry in structure {
                 referenced.insert(entry.file.clone());
             }
@@ -1053,6 +1125,11 @@ fn collect_unreferenced_files(
             }
         }
         StructureModel::Box { entries, .. } => {
+            // `.box/content.yaml` 是箱子必需配置成员（《箱子文件格式》§6），
+            // 不属于「清单外资源」；随条目包内引用一并计入引用集合。
+            referenced.insert(PackagePath::from_validated(
+                crate::model::BOX_LAYOUT_CONFIG_FILE.to_owned(),
+            ));
             for entry in entries {
                 // 包内相对路径引用视为已引用；其余形态不参与文件集合。
                 if let Ok(path) = PackagePath::new(&entry.url) {
@@ -1086,11 +1163,21 @@ pub(crate) fn statistics_from(
     model: Option<&StructureModel>,
 ) -> DocumentStatistics {
     let member_count = u64::try_from(fingerprint.members.len()).unwrap_or(u64::MAX);
-    let uncompressed_bytes = fingerprint.members.iter().map(|(_, member)| member.size).sum();
+    let uncompressed_bytes = fingerprint
+        .members
+        .iter()
+        .map(|(_, member)| member.size)
+        .sum();
     let (resource_count, entry_count) = match model {
         Some(StructureModel::Card { manifest, .. }) => (manifest.resources.len() as u64, 0),
         Some(StructureModel::Box { entries, .. }) => (0, entries.len() as u64),
         None => (0, 0),
     };
-    DocumentStatistics { member_count, yaml_bytes, resource_count, entry_count, uncompressed_bytes }
+    DocumentStatistics {
+        member_count,
+        yaml_bytes,
+        resource_count,
+        entry_count,
+        uncompressed_bytes,
+    }
 }

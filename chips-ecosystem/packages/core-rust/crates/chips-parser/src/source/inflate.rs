@@ -54,7 +54,9 @@ const BLOCK_DYNAMIC: u32 = 2;
 
 /// 归档非法的便捷构造。
 fn invalid(detail: impl Into<String>) -> DocumentError {
-    DocumentError::ArchiveInvalid { message: detail.into() }
+    DocumentError::ArchiveInvalid {
+        message: detail.into(),
+    }
 }
 
 /// LSB 优先的位流读取器（RFC 1951 §3.1.1）。
@@ -98,7 +100,9 @@ impl<'a> BitReader<'a> {
     fn bytes(&mut self, count: usize) -> Fatal<&'a [u8]> {
         self.align();
         let start = self.cursor / 8;
-        let end = start.checked_add(count).ok_or_else(|| invalid("非压缩块长度溢出"))?;
+        let end = start
+            .checked_add(count)
+            .ok_or_else(|| invalid("非压缩块长度溢出"))?;
         let slice = self
             .data
             .get(start..end)
@@ -270,19 +274,21 @@ fn push(output: &mut Vec<u8>, bytes: &[u8], max_output: u64) -> Fatal<()> {
 
 /// 读取动态哈夫曼表（RFC 1951 §3.2.7）。
 fn read_dynamic_tables(reader: &mut BitReader<'_>) -> Fatal<(Huffman, Huffman)> {
-    let literal_count = u32::from(reader.bits(5)?) + 257;
-    let distance_count = u32::from(reader.bits(5)?) + 1;
-    let code_length_count = u32::from(reader.bits(4)?) + 4;
+    let literal_count = reader.bits(5)? + 257;
+    let distance_count = reader.bits(5)? + 1;
+    let code_length_count = reader.bits(4)? + 4;
     if literal_count > 288 || distance_count > 30 {
         return Err(invalid("动态哈夫曼表符号数超出上限"));
     }
     let mut code_lengths = [0u8; 19];
     for index in 0..code_length_count {
-        let slot = CODE_LENGTH_ORDER[usize::try_from(index).map_err(|_| invalid("码长下标异常"))?];
+        let slot =
+            CODE_LENGTH_ORDER[usize::try_from(index).map_err(|_| invalid("码长下标异常"))?];
         code_lengths[slot] = u8::try_from(reader.bits(3)?).map_err(|_| invalid("码长超出上限"))?;
     }
     let code_table = Huffman::new(&code_lengths).ok_or_else(|| invalid("码长表构建失败"))?;
-    let total = usize::try_from(literal_count + distance_count).map_err(|_| invalid("符号总数溢出"))?;
+    let total =
+        usize::try_from(literal_count + distance_count).map_err(|_| invalid("符号总数溢出"))?;
     let mut lengths = vec![0u8; total];
     let mut index = 0usize;
     while index < total {
@@ -297,15 +303,18 @@ fn read_dynamic_tables(reader: &mut BitReader<'_>) -> Fatal<(Huffman, Huffman)> 
                     return Err(invalid("码长重复指令缺少前值"));
                 }
                 let previous = lengths[index - 1];
-                let repeat = 3 + usize::try_from(reader.bits(2)?).map_err(|_| invalid("重复位数异常"))?;
+                let repeat =
+                    3 + usize::try_from(reader.bits(2)?).map_err(|_| invalid("重复位数异常"))?;
                 fill(&mut lengths, &mut index, repeat, previous)?;
             }
             17 => {
-                let repeat = 3 + usize::try_from(reader.bits(3)?).map_err(|_| invalid("重复位数异常"))?;
+                let repeat =
+                    3 + usize::try_from(reader.bits(3)?).map_err(|_| invalid("重复位数异常"))?;
                 fill(&mut lengths, &mut index, repeat, 0)?;
             }
             18 => {
-                let repeat = 11 + usize::try_from(reader.bits(7)?).map_err(|_| invalid("重复位数异常"))?;
+                let repeat =
+                    11 + usize::try_from(reader.bits(7)?).map_err(|_| invalid("重复位数异常"))?;
                 fill(&mut lengths, &mut index, repeat, 0)?;
             }
             other => return Err(invalid(format!("码长符号 {other} 非法"))),
@@ -326,15 +335,16 @@ fn read_dynamic_tables(reader: &mut BitReader<'_>) -> Fatal<(Huffman, Huffman)> 
         Huffman::new(distance_slice)
     }
     .ok_or_else(|| invalid("距离表构建失败"))?;
-    let literal_table =
-        Huffman::new(literal_slice).ok_or_else(|| invalid("字面量表构建失败"))?;
+    let literal_table = Huffman::new(literal_slice).ok_or_else(|| invalid("字面量表构建失败"))?;
     Ok((literal_table, distance_table))
 }
 
 /// 执行码长重复填充。
 fn fill(lengths: &mut [u8], index: &mut usize, repeat: usize, value: u8) -> Fatal<()> {
     for _ in 0..repeat {
-        let slot = lengths.get_mut(*index).ok_or_else(|| invalid("码长填充越界"))?;
+        let slot = lengths
+            .get_mut(*index)
+            .ok_or_else(|| invalid("码长填充越界"))?;
         *slot = value;
         *index += 1;
     }
@@ -356,8 +366,8 @@ fn decode_block(
             256 => return Ok(()),
             257..=285 => {
                 let index = usize::from(symbol) - 257;
-                let length = u64::from(LENGTH_BASE[index])
-                    + u64::from(reader.bits(LENGTH_EXTRA[index])?);
+                let length =
+                    u64::from(LENGTH_BASE[index]) + u64::from(reader.bits(LENGTH_EXTRA[index])?);
                 let distance_symbol = distance_table.decode(reader)?;
                 let distance = read_distance(reader, distance_symbol)?;
                 copy_back(output, length, distance, max_output)?;
@@ -426,15 +436,23 @@ mod tests {
 
     #[test]
     fn test_inflate_dynamic_sample() {
-        let decoded = inflate(&hex_to_bytes(SAMPLE_DYNAMIC), SAMPLE_TEXT.len() as u64, 1 << 20)
-            .expect("动态块必须可解");
+        let decoded = inflate(
+            &hex_to_bytes(SAMPLE_DYNAMIC),
+            SAMPLE_TEXT.len() as u64,
+            1 << 20,
+        )
+        .expect("动态块必须可解");
         assert_eq!(decoded, SAMPLE_TEXT.as_bytes());
     }
 
     #[test]
     fn test_inflate_fixed_huffman_sample() {
-        let decoded = inflate(&hex_to_bytes(SAMPLE_FIXED), FIXED_TEXT.len() as u64, 1 << 20)
-            .expect("固定块必须可解");
+        let decoded = inflate(
+            &hex_to_bytes(SAMPLE_FIXED),
+            FIXED_TEXT.len() as u64,
+            1 << 20,
+        )
+        .expect("固定块必须可解");
         assert_eq!(decoded, FIXED_TEXT.as_bytes());
     }
 
@@ -478,8 +496,8 @@ mod tests {
     #[test]
     fn test_inflate_rejects_size_mismatch() {
         let bytes = hex_to_bytes(SAMPLE_DYNAMIC);
-        let error = inflate(&bytes, SAMPLE_TEXT.len() as u64 + 1, 1 << 20)
-            .expect_err("尺寸不一致必须拒绝");
+        let error =
+            inflate(&bytes, SAMPLE_TEXT.len() as u64 + 1, 1 << 20).expect_err("尺寸不一致必须拒绝");
         assert!(matches!(error, DocumentError::ArchiveInvalid { .. }));
     }
 
@@ -493,6 +511,9 @@ mod tests {
     #[test]
     fn test_huffman_rejects_empty_table() {
         assert!(Huffman::new(&[0u8; 8]).is_none(), "空表必须判定为不可用");
-        assert!(Huffman::new(&[16u8; 8]).is_none(), "码长超上限必须判定为不可用");
+        assert!(
+            Huffman::new(&[16u8; 8]).is_none(),
+            "码长超上限必须判定为不可用"
+        );
     }
 }
