@@ -14,6 +14,8 @@ Thumbs.db
 Desktop.ini
 *.log
 **/*.log
+# 台账操作留痕是审计资产，随台账工具与 DB 入库（非运行日志）
+!重构大计划/台账操作.log
 *.tsbuildinfo
 **/*.tsbuildinfo
 .cache/
