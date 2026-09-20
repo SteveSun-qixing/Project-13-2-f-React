@@ -3,6 +3,9 @@
  *
  * 权威：`05-渲染引擎设计` §9.4（高度自适应算法父帧侧职责：clamp、上限冻结、缓存键）、
  * §9.6（拒绝越限高度与非递增 epoch 并记录诊断）。
+ *
+ * @remarks 刀3 双轨：渲染会话高度事件桥同时保留原受控 stub viewBuilder 轨，
+ * 并新增真实现 `createDocumentViewBuilder`（fake native 模块注入）轨孪生用例。
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -10,6 +13,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { FrameHeightCache, FrameHeightController, frameHeightCacheKey } from '../src/renderer/frame-height.js';
 import { createRenderEngine } from '../src/renderer/render-engine.js';
 import type { IRenderEngineBindings } from '../src/renderer/render-engine.js';
+import { createDocumentViewBuilder } from '../src/renderer/document-view-builder.js';
+import type { IDocumentViewBuildInput, INativeDocumentViewHandle, INativeDocumentViewModule } from '../src/renderer/document-view-builder.js';
+import type { ICardFrameHostOptions } from '../src/renderer/card-frame-host.js';
 import { FRAME_HEIGHT_MIN_DELTA_PX } from '../src/renderer/frame-protocol.js';
 import type { FrameLimits, ICardRenderView } from '../src/renderer/frame-protocol.js';
 import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
@@ -197,6 +203,87 @@ describe('渲染会话高度事件桥（§9.4 父帧侧接线）', () => {
     await vi.waitFor(() => {
       expect(session.state).toBe('ready');
     });
+    expect(heightListeners).toHaveLength(1);
+    const changed: number[] = [];
+    session.subscribe('height-changed', (payload) => {
+      changed.push(payload.height);
+    });
+    heightListeners[0]?.(360);
+    expect(changed).toEqual([360]);
+    expect(cache.estimate(frameHeightCacheKey({ role: 'card', source: 'chips-resource://a', revision: 1 }))).toBe(360);
+    await session.dispose();
+  });
+
+  it('双轨孪生（刀3 真实现）：viewBuilder 换真 DocumentViewBuilder（fake native 注入）后同一高度桥逐环成立，视图与原受控轨全等', async () => {
+    const cache = new FrameHeightCache();
+    const heightListeners: ((heightPx: number) => void)[] = [];
+    const frameHost = {
+      element: { tag: 'fake-iframe' } as unknown as HTMLElement,
+      ready: Promise.resolve(),
+      appliedHeight: null,
+      attach: vi.fn(),
+      detach: vi.fn(),
+      update: vi.fn(),
+      dispose: vi.fn(() => Promise.resolve()),
+      onHeightChanged(listener: (heightPx: number) => void) {
+        heightListeners.push(listener);
+      },
+      beginHandshake: vi.fn(() => Promise.resolve()),
+    };
+    const view: ICardRenderView = {
+      kind: 'card',
+      revision: 1,
+      card_id: 'card-1',
+      name: '测试卡片',
+      chip_standards_version: '1.0.0',
+      cover_ratio: '3:2',
+      tags: [],
+      cover: { entry: 'cover', ratio: '3:2' },
+      content_nodes: [],
+    };
+    const handle = { nativeDocumentHandleBrand: 'chips-native.document' } as const satisfies INativeDocumentViewHandle;
+    const native: INativeDocumentViewModule = {
+      buildDocumentView: () => Promise.resolve(view as unknown as Record<string, unknown>),
+      documentReadResource: () => Promise.resolve(new Uint8Array()),
+    };
+    const viewInputs: IDocumentViewBuildInput[] = [];
+    const factory = vi.fn((_options: ICardFrameHostOptions) => frameHost);
+    const bindings: IRenderEngineBindings = {
+      document: {
+        open: vi.fn(() => Promise.resolve({ documentId: 'doc-1', kind: 'card' as const })),
+        read: vi.fn(),
+      } as unknown as IRenderEngineBindings['document'],
+      viewBuilder: createDocumentViewBuilder({
+        native,
+        resolveSession: (input) => {
+          viewInputs.push(input);
+          return Promise.resolve({ handle, sessionId: 9, managedScope: 'card-doc-1' });
+        },
+      }),
+      frames: {
+        frameEntryUrl: 'chips-resource://platform/frame.html',
+        tokens: {},
+        executeAction: vi.fn(() => Promise.resolve()),
+      },
+      resourceBase: 'chips-resource://default',
+      pluginEntries: {},
+      limits: LIMITS,
+      heightCache: cache,
+      diagnostics: createDiagnostics(),
+      frameHostFactory: factory,
+    };
+    const engine = createRenderEngine(bindings);
+    const session = await engine.open({ kind: 'card', source: 'chips-resource://a', mode: 'view' });
+    await vi.waitFor(() => {
+      expect(session.state).toBe('ready');
+    });
+    // 守门重建后的真实现轨视图与原受控轨视图逐字段全等（孪生一致性核心断言）。
+    expect(factory.mock.calls[0]?.[0].view).toStrictEqual(view);
+    // 端口输入按 documentId 送达会话解析入口一次。
+    expect(viewInputs).toHaveLength(1);
+    expect(viewInputs[0]?.documentId).toBe('doc-1');
+    expect(viewInputs[0]?.kind).toBe('card');
+    // 高度桥后续环节与受控轨同构：订阅 → 上报 → 事件发布 + 缓存写入。
     expect(heightListeners).toHaveLength(1);
     const changed: number[] = [];
     session.subscribe('height-changed', (payload) => {

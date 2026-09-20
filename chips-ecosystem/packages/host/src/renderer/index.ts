@@ -85,6 +85,19 @@ export type {
   RenderSessionState,
 } from './render-engine.js';
 
+export { NATIVE_DOCUMENT_VIEW_FROZEN_EXPORTS, createDocumentViewBuilder } from './document-view-builder.js';
+export type {
+  DocumentViewSessionResolver,
+  IDocumentViewBuildInput,
+  IDocumentViewBuilderOptions,
+  IDocumentViewBuilderService,
+  IDocumentViewResourceRequest,
+  IDocumentViewSessionBinding,
+  INativeDocumentViewHandle,
+  INativeDocumentViewModule,
+  INativeDocumentViewResourceRange,
+} from './document-view-builder.js';
+
 export { useRenderSession } from './use-render-session.js';
 export type { IUseRenderSessionResult } from './use-render-session.js';
 

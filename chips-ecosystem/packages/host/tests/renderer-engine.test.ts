@@ -8,6 +8,10 @@
  * @remarks document 侧走 `tests/helpers/document-fake-ports.ts` 替身 + #28 已验收服务本体
  * （`createDocumentService`）+ 服务形态网关，构成真实 open 链路；受控时序与失败注入用
  * 网关替身驱动。
+ *
+ * 刀3 双轨：`createBindings` 的 viewBuilder 换为真实现 `createDocumentViewBuilder`
+ * （注入 §6.4 两臂的 native 替身，`buildView` 逐调用触达 fake backing）；
+ * `createControlledBindings` 保留原受控 stub 轨不删不减，两轨新增逐字段一致性断言。
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -15,6 +19,8 @@ import type { Mock } from 'vitest';
 
 import { createRenderEngine } from '../src/renderer/render-engine.js';
 import type { IRenderEngineBindings, RenderRequest } from '../src/renderer/render-engine.js';
+import { createDocumentViewBuilder } from '../src/renderer/document-view-builder.js';
+import type { IDocumentViewBuildInput, INativeDocumentViewHandle, INativeDocumentViewModule } from '../src/renderer/document-view-builder.js';
 import { createServiceDocumentGateway, normalizeDocumentFailure } from '../src/renderer/document-gateway.js';
 import type { IRenderDocumentGateway } from '../src/renderer/document-gateway.js';
 import { createDocumentService } from '../src/capabilities/document/service.js';
@@ -55,6 +61,33 @@ function cardView(revision = 1): ICardRenderView {
     cover: { entry: 'cover', ratio: '3:2' },
     content_nodes: [{ node_id: 'node-1', card_type: 'text', content: { text: '正文' } }],
   };
+}
+
+/** 刀3 真实现轨：视图构建域 native 替身（§6.4 两臂）与调用记录面。 */
+interface IViewBuilderTrack {
+  readonly native: INativeDocumentViewModule;
+  readonly handle: INativeDocumentViewHandle;
+  /** `buildDocumentView` 实参逐次记录（句柄 + 数值会话按 §6.4 位次）。 */
+  readonly backingCalls: readonly (readonly unknown[])[];
+  /** 端口输入经会话解析入口逐次记录（documentId 断言承接自原 stub 轨）。 */
+  readonly viewInputs: IDocumentViewBuildInput[];
+}
+
+/** 构造视图构建域替身注入面：`buildDocumentView` 返回 `cardView()` 冻结 DTO。 */
+function createViewBuilderTrack(): IViewBuilderTrack {
+  const handle = { nativeDocumentHandleBrand: 'chips-native.document' } as const satisfies INativeDocumentViewHandle;
+  const backingCalls: (readonly unknown[])[] = [];
+  const viewInputs: IDocumentViewBuildInput[] = [];
+  const native: INativeDocumentViewModule = {
+    buildDocumentView(handleArg, session) {
+      backingCalls.push([handleArg, session]);
+      return Promise.resolve(cardView() as unknown as Record<string, unknown>);
+    },
+    documentReadResource() {
+      return Promise.resolve(new Uint8Array());
+    },
+  };
+  return { native, handle, backingCalls, viewInputs };
 }
 
 /** 帧宿主替身。 */
@@ -106,23 +139,32 @@ function requireStub(stubs: ReturnType<typeof createFrameHostFactory>, index = 0
   return stub;
 }
 
-/** 绑定夹具（真实文档服务链路）。 */
+/** 绑定夹具（真实文档服务链路 + 刀3 真实现视图轨）。 */
 function createBindings(overrides?: {
   readonly factory?: NonNullable<IRenderEngineBindings['frameHostFactory']>;
   readonly heightCache?: NonNullable<IRenderEngineBindings['heightCache']>;
-}): IRenderEngineBindings & { readonly harness: ReturnType<typeof createHarness>; readonly diagnostics: RecordingDiagnostics } {
+}): IRenderEngineBindings & {
+  readonly harness: ReturnType<typeof createHarness>;
+  readonly diagnostics: RecordingDiagnostics;
+  readonly viewTrack: IViewBuilderTrack;
+} {
   const harness = createHarness();
   const service = createDocumentService(harness.dependencies);
+  const viewTrack = createViewBuilderTrack();
   return {
     harness,
     diagnostics: createDiagnostics(),
     document: createServiceDocumentGateway(service, { sessionId: SESSION_A }),
-    viewBuilder: {
-      buildView: (input) => {
+    viewBuilder: createDocumentViewBuilder({
+      native: viewTrack.native,
+      resolveSession: (input) => {
+        // 原 stub 轨的 documentId 断言承接位：真实现轨同样逐调用校验端口输入。
+        viewTrack.viewInputs.push(input);
         expect(input.documentId).toBe(CARD_ID);
-        return Promise.resolve(cardView());
+        return Promise.resolve({ handle: viewTrack.handle, sessionId: 42, managedScope: 'card-7f3a' });
       },
-    },
+    }),
+    viewTrack,
     frames: {
       frameEntryUrl: 'chips-resource://platform/frame.html',
       tokens: { '--chips-font-size': '14px' },
@@ -214,6 +256,34 @@ describe('渲染会话状态机（§2.4）', () => {
     expect(options?.frameEntryUrl).toBe('chips-resource://platform/frame.html');
     await session.dispose();
     expect(requireStub(stubs).dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('双轨一致（刀3）：真实现轨与受控 stub 轨下发帧宿主视图逐字段相等，backing 按 §6.4 位次单调用', async () => {
+    const realStubs = createFrameHostFactory();
+    const bindings = createBindings({ factory: realStubs.factory });
+    const engine = createRenderEngine(bindings);
+    const session = await engine.open(REQUEST);
+    await vi.waitFor(() => {
+      expect(session.state).toBe('ready');
+    });
+    const controlled = createControlledBindings();
+    const controlledEngine = createRenderEngine(controlled.bindings);
+    const controlledSession = await controlledEngine.open(REQUEST);
+    controlled.gateway.releaseOpen({ documentId: CARD_ID, kind: 'card' });
+    await vi.waitFor(() => {
+      expect(controlledSession.state).toBe('ready');
+    });
+    // 真实现轨视图 = 冻结 DTO 本体 = 受控轨视图（覆盖面不缩水：原 stub 产出继续被断言）。
+    const realView = realStubs.factory.mock.calls[0]?.[0]?.view;
+    const controlledView = controlled.stubs.factory.mock.calls[0]?.[0]?.view;
+    expect(realView).toStrictEqual(cardView());
+    expect(realView).toStrictEqual(controlledView);
+    // 逐调用触达 backing 一次、无自有缓存，句柄与数值会话按 §6.4 位次交付。
+    expect(bindings.viewTrack.backingCalls).toStrictEqual([[bindings.viewTrack.handle, 42]]);
+    expect(bindings.viewTrack.viewInputs).toHaveLength(1);
+    expect(bindings.viewTrack.viewInputs[0]?.kind).toBe('card');
+    await session.dispose();
+    await controlledSession.dispose();
   });
 
   it('解析管线在途时 mount 挂起，管线完成后自动挂载；unmount 后可重新挂载', async () => {

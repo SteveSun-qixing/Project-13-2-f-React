@@ -93,7 +93,11 @@ export interface IRenderFrameEnvironment {
   readonly executeAction: (action: FrameActionPayload) => Promise<void>;
 }
 
-/** 文档视图构建端口（正式实现=主进程文档视图构建器，05.02 §2.6；集成缝 1）。 */
+/**
+ * 文档视图构建端口（正式实现=主进程文档视图构建器，05.02 §2.6；集成缝 1，刀3 交付：
+ * `document-view-builder.ts` `createDocumentViewBuilder`——经 §6.4 冻结注入面逐字调用
+ * `buildDocumentView(handle, sessionId)`，组合根接线属刀4）。
+ */
 export interface IDocumentViewBuilder {
   buildView(input: {
     readonly source: string;
