@@ -75,9 +75,10 @@ describe('createElectronApi：class 形状注入面', () => {
 
   it('接受函数对象上挂载静态成员的非 class 形状', () => {
     const mock = createMockElectron();
-    const fnMenu: Record<string, unknown> = (): void => undefined;
-    fnMenu['buildFromTemplate'] = (): object => ({});
-    fnMenu['setApplicationMenu'] = (): void => undefined;
+    const fnMenu = Object.assign((): void => undefined, {
+      buildFromTemplate: (): object => ({}),
+      setApplicationMenu: (): void => undefined,
+    });
     expect(() => createElectronApi({ app: mock.app, Menu: fnMenu })).not.toThrow();
   });
 
