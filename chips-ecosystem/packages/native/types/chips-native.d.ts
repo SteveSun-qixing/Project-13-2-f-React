@@ -8,17 +8,22 @@
  * 能力执行导出（`bridgeRegister` / `bridgeUnregister` / `bridgeRequest` /
  * `bridgeCancelSession`）、激活与会话扩展导出（`bridgeActivateProvider` /
  * `bridgeDeactivateProvider` / `bridgeGrantCapabilityId` / `bridgeOpenSession` /
- * `bridgeCloseSession` / `bridgeShutdown`，《核心接口规范》§5.5–§5.7）与元信息、
- * Context、取消令牌导出共用本入口；导出表只增不改，签名变化递增 `coreAbiVersion`。
+ * `bridgeCloseSession` / `bridgeShutdown`，《核心接口规范》§5.5–§5.7）、文档解析
+ * 域导出（`openDocument` / `openCard` / `openBox` / `document*` /
+ * `buildDocumentView`，《核心接口规范》§6.4、§6.6，《06-文档解析器设计》§12）
+ * 与元信息、Context、取消令牌导出共用本入口；导出表只增不改，
+ * 签名变化递增 `coreAbiVersion`。
  *
  * 约束：
- * - 句柄（ContextHandle / CancelTokenHandle）不透明、无字段、不可序列化；
+ * - 句柄（ContextHandle / CancelTokenHandle / DocumentHandle）不透明、无字段、
+ *   不可序列化；
  * - 时间与 ID 用 number（ID 低于 2^53）；
  * - 二进制一律 `Uint8Array`（主进程 Buffer 为其子类），禁止 base64。
  */
 
 declare const contextHandleBrand: unique symbol;
 declare const cancelTokenHandleBrand: unique symbol;
+declare const documentHandleBrand: unique symbol;
 
 /** 不透明 Context 句柄；由内核插件管理层创建并经 `context*` 系列使用。 */
 export interface ContextHandle {
@@ -28,6 +33,15 @@ export interface ContextHandle {
 /** 不透明取消令牌句柄；`createCancelToken` 创建，`cancelTokenCancel` 触发。 */
 export interface CancelTokenHandle {
   readonly [cancelTokenHandleBrand]: 'chips-native.cancel-token';
+}
+
+/**
+ * 不透明文档解析句柄；`openDocument` / `openCard` / `openBox` 创建，
+ * `document*` 系列与 `buildDocumentView` 消费，`documentClose` 显式释放
+ * （《核心接口规范》§6.4；内部结构不暴露，未关闭时由 GC 终结器兜底）。
+ */
+export interface DocumentHandle {
+  readonly [documentHandleBrand]: 'chips-native.document';
 }
 
 /** 能力执行上下文；与 `ICapabilityContext` 一致（《核心接口规范》§5.3）。 */
@@ -85,6 +99,177 @@ export interface INativeSessionRegistration {
   pluginId: string;
   /** 会话授权权限快照。 */
   grantedPermissions: string[];
+}
+
+/** 文档格式判别（与 backing `DocumentKind` 序列化逐字一致）。 */
+export type INativeDocumentKind = 'card' | 'box';
+
+/** 解析诊断严重级（《06-文档解析器设计》§8.4）。 */
+export type INativeDiagnosticSeverity = 'error' | 'warning' | 'info';
+
+/** 解析诊断（《06-文档解析器设计》§12.3 `Diagnostic`；可选字段缺省时不出现）。 */
+export interface INativeDiagnostic {
+  severity: INativeDiagnosticSeverity;
+  code: string;
+  message: string;
+  file?: string;
+  pointer?: string;
+  line?: number;
+  column?: number;
+  hint?: string;
+}
+
+/**
+ * 解析限额（《06-文档解析器设计》§9.1 `ParseLimits` 的 JS 侧 camelCase 形状）；
+ * 缺省字段回落 backing 默认值。
+ */
+export interface INativeParseLimits {
+  maxUncompressedBytes?: number;
+  maxYamlBytes?: number;
+  maxEntryCount?: number;
+  maxCompressionRatio?: number;
+  maxAliases?: number;
+  maxDepth?: number;
+}
+
+/**
+ * 解析选项（《核心接口规范》§6.1 `ParseOptions` 的 JS 侧 camelCase 形状）；
+ * 缺省回落 `ParseOptions::default`（strict=false、repair=true、
+ * verifyHashes=false、parallelism=4）。
+ */
+export interface INativeParseOptions {
+  strict?: boolean;
+  repair?: boolean;
+  verifyHashes?: boolean;
+  parallelism?: number;
+  limits?: INativeParseLimits;
+}
+
+/** `documentEntries` 分页窗口（项数语义，越界端点由解析器收敛）。 */
+export interface IDocumentEntriesRange {
+  offset: number;
+  limit: number;
+}
+
+/** `documentReadResource` 字节窗口（绝对偏移；end 越出成员长度即失败）。 */
+export interface IDocumentResourceRange {
+  offset: number;
+  length: number;
+}
+
+/** L0 元数据结果（《核心接口规范》§6.4 `{ kind, value, diagnostics }`）。 */
+export interface IDocumentMetadataResult {
+  kind: INativeDocumentKind;
+  /** 格式对应投影（`CardMetadata` / `BoxMetadata` 字段，snake_case）。 */
+  value: Record<string, unknown>;
+  diagnostics: INativeDiagnostic[];
+}
+
+/** L1 结构结果（`value` 为卡片结构或箱子条目索引）。 */
+export interface IDocumentStructureResult {
+  kind: INativeDocumentKind;
+  value: Record<string, unknown>;
+  diagnostics: INativeDiagnostic[];
+}
+
+/** L2 内容节点结果（《06-文档解析器设计》§11.3 `ContentNode` 投影）。 */
+export interface IDocumentContentResult {
+  kind: INativeDocumentKind;
+  value: {
+    node_id: string;
+    file: string;
+    card_type: string;
+    value: Record<string, unknown>;
+    diagnostics: INativeDiagnostic[];
+  };
+  diagnostics: INativeDiagnostic[];
+}
+
+/** 箱子条目（《核心接口规范》§6.3 `Entry` 序列化形状，snake_case）。 */
+export interface IDocumentEntry {
+  entry_id: string;
+  url: string;
+  enabled: boolean;
+  snapshot?: Record<string, unknown>;
+  layout_hints?: Record<string, unknown>;
+}
+
+/** L2 条目分页结果（卡片句柄调用以契约错误拒绝）。 */
+export interface IDocumentEntriesResult {
+  kind: INativeDocumentKind;
+  value: IDocumentEntry[];
+  diagnostics: INativeDiagnostic[];
+}
+
+/** 严格校验报告（《06-文档解析器设计》§6.5 `ValidationReport` 投影）。 */
+export interface IDocumentValidationReport {
+  kind: INativeDocumentKind;
+  chip_standards_version: string;
+  status: 'valid' | 'validwithwarnings' | 'invalid';
+  statistics: {
+    member_count: number;
+    yaml_bytes: number;
+    resource_count: number;
+    entry_count: number;
+    uncompressed_bytes: number;
+  };
+  diagnostics: INativeDiagnostic[];
+}
+
+/* ------- 文档视图类型（《核心接口规范》§6.6 正式定义，逐字登记） ------- */
+
+/** 文档视图联合（`buildDocumentView` 返回；只读快照，可结构化克隆）。 */
+export type DocumentView = CardRenderView | BoxRenderView;
+
+/** 标签视图（简单标签为字符串；结构化标签首项为键、其余为值）。 */
+export type TagView = string | string[];
+
+/** 封面视图（正式封面入口路径，不读取、不解析、不执行）。 */
+export interface CoverView {
+  entry: string;
+  ratio: string;
+}
+
+/** 卡片内容节点视图。 */
+export interface CardNodeView {
+  node_id: string;
+  card_type: string;
+  content: Record<string, unknown>;
+}
+
+/** 卡片渲染视图。 */
+export interface CardRenderView {
+  kind: 'card';
+  revision: number;
+  card_id: string;
+  name: string;
+  chip_standards_version: string;
+  cover_ratio: string;
+  tags: TagView[];
+  cover: CoverView;
+  content_nodes: CardNodeView[];
+}
+
+/** 箱子条目视图（`url` 为唯一正式定位字段，保持文件原样）。 */
+export interface EntryView {
+  entry_id: string;
+  url: string;
+  enabled: boolean;
+  snapshot?: Record<string, unknown>;
+  layout_hints?: Record<string, unknown>;
+}
+
+/** 箱子渲染视图。 */
+export interface BoxRenderView {
+  kind: 'box';
+  revision: number;
+  box_id: string;
+  name: string;
+  chip_standards_version: string;
+  active_layout_type: string;
+  layout_config: Record<string, unknown>;
+  cover: CoverView;
+  entries: EntryView[];
 }
 
 /** 平台版本；与全部平台包同一版本号。 */
@@ -175,3 +360,52 @@ export function bridgeCloseSession(sessionId: number): void;
  * 仅关闭内核状态，不停止 Neon 绑定自身的运行时。
  */
 export function bridgeShutdown(): void;
+
+/**
+ * 打开文档并解析到 L0（自动识别 `.card` / `.box`，《核心接口规范》§6.2）；
+ * 失败以 `ChipsError` 同构 `Error` 拒绝（契约码 `DOCUMENT_*` 原样透传）。
+ */
+export function openDocument(path: string, options?: INativeParseOptions): Promise<DocumentHandle>;
+
+/** 严格 card 入口；形状与错误语义同 `openDocument`。 */
+export function openCard(path: string, options?: INativeParseOptions): Promise<DocumentHandle>;
+
+/** 严格 box 入口；形状与错误语义同 `openDocument`。 */
+export function openBox(path: string, options?: INativeParseOptions): Promise<DocumentHandle>;
+
+/** L0 元数据（打开时冻结，常数时间）+ 句柄诊断快照。 */
+export function documentMetadata(handle: DocumentHandle): Promise<IDocumentMetadataResult>;
+
+/** L1 结构与引用索引（首次访问触发解析）+ 诊断快照。 */
+export function documentStructure(handle: DocumentHandle): Promise<IDocumentStructureResult>;
+
+/** L2 单个内容节点；`nodeId` 为 10 位 Base62 字母数字编号。 */
+export function documentContent(
+  handle: DocumentHandle,
+  nodeId: string
+): Promise<IDocumentContentResult>;
+
+/** L2 条目分页读取（箱子句柄）；卡片句柄以 `DOCUMENT_*` 契约码拒绝。 */
+export function documentEntries(
+  handle: DocumentHandle,
+  range?: IDocumentEntriesRange
+): Promise<IDocumentEntriesResult>;
+
+/** L3 资源字节（解析阶段永不读取资源正文）；产物为 `Uint8Array`（Buffer 子类）。 */
+export function documentReadResource(
+  handle: DocumentHandle,
+  path: string,
+  range?: IDocumentResourceRange
+): Promise<Uint8Array>;
+
+/** 严格校验报告；同一输入必产生字节级一致的报告（§6.5）。 */
+export function documentValidate(handle: DocumentHandle): Promise<IDocumentValidationReport>;
+
+/**
+ * 文档视图构建器（§6.6）：句柄 + 渲染会话投影为可结构化克隆的只读快照；
+ * 不读取资源字节、不拼接资源 URI。
+ */
+export function buildDocumentView(handle: DocumentHandle, session: number): Promise<DocumentView>;
+
+/** 显式释放归档映射；幂等，未关闭时由 GC 终结器兜底。 */
+export function documentClose(handle: DocumentHandle): Promise<void>;

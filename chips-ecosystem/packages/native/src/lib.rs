@@ -21,6 +21,7 @@ mod convert;
 mod envelope;
 mod error;
 mod handles;
+mod parser;
 mod runtime;
 
 use neon::prelude::*;

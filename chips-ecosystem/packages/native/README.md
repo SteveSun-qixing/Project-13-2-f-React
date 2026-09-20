@@ -23,7 +23,7 @@
 
 ```
 packages/native/
-├── Cargo.toml                     # crate-type = ["cdylib"]；path 依赖 chips-core / chips-cordis / chips-bridge
+├── Cargo.toml                     # crate-type = ["cdylib"]；path 依赖 chips-core / chips-cordis / chips-bridge / chips-parser
 ├── package.json                   # build / copy-native / test / typecheck / lint / clean
 ├── src/
 │   ├── lib.rs                     # #[neon::main] 唯一入口；模块声明与线程约束说明
@@ -33,6 +33,7 @@ packages/native/
 │   ├── error.rs                   # ChipsError → JS Error、JS 异常 → ChipsError、NATIVE_* 码
 │   ├── runtime.rs                 # 绑定层 tokio 运行时与 Promise settle 助手
 │   ├── bridge.rs                  # Bridge 域四导出 + TS 能力执行器（Channel 回投 + AbortSignal）
+│   ├── parser.rs                  # 文档解析域十一导出（句柄装箱、DTO 转换、契约码透传）
 │   ├── handles.rs                 # Root 持有：服务值、回调、Context 句柄载体
 │   ├── cancel.rs                  # createCancelToken / cancelTokenCancel
 │   └── context.rs                 # context* 导出与监听令牌翻译表
@@ -51,14 +52,23 @@ packages/native/
 | 元信息           | `coreVersion`、`coreAbiVersion`                                                                                    |
 | Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect` |
 | 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                           |
-| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`                                       |
+| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`、`bridgeActivateProvider`、`bridgeDeactivateProvider`、`bridgeGrantCapabilityId`、`bridgeOpenSession`、`bridgeCloseSession`、`bridgeShutdown` |
+| 文档解析         | `openDocument`、`openCard`、`openBox`、`documentMetadata`、`documentStructure`、`documentContent`、`documentEntries`、`documentReadResource`、`documentValidate`、`buildDocumentView`、`documentClose` |
 
-四个 Bridge 导出全部转发 `chips-bridge` 内核（工单005，《问题工单》）：
+十个 Bridge 导出全部转发 `chips-bridge` 内核（工单005，《问题工单》）：
 绑定层只做参数解析、`{ json, bin }` 信封编解码、错误归一与线程回投；
 注册表、权限判定、Schema 校验、并发准入与超时取消语义在内核侧。
 `bridgeRequest` 为异步导出（`Promise`），JS 线程不 `block_on`；TS 能力的
 `handler` 由 `Root` 持有、经 `Channel` 回投 JS 线程执行（§8.3、§8.4）。
-清单的 `blocked` 段当前为空，`scripts/check-abi.mjs` 强制校验三方一致。
+十一个文档解析导出全部转发 `chips-parser`（《核心接口规范》§6.4、§6.6，
+《06-文档解析器设计》§12）：`DocumentHandle` 以 `JsBox` 不透明句柄暴露，
+`documentClose` 显式释放、GC 终结器兜底；三入口与访问器均为异步
+（工作提交绑定层运行时线程，经 `Channel` 回投 settle）；`DOCUMENT_*`
+契约码经 `ChipsError` 原样透传，绑定层只以 `NATIVE_*` 三码拒绝非法入参。
+《核心接口规范》§6.4 总表的 13 行中，`createCancelToken` /
+`cancelTokenCancel` 两行已由取消令牌域注册，文档解析域本轮净增 11 项，
+导出面合计 32 项。清单的 `blocked` 段当前为空，
+`scripts/check-abi.mjs` 强制校验三方一致。
 
 ## 四、命令
 
@@ -77,7 +87,7 @@ cargo clippy -p chips-native --all-targets -- -D warnings
 ## 五、约定
 
 - `abi/export-surface.json` 是导出清单事实源；Rust 单测与 JS 检查脚本共同消费。
-- 句柄（`ContextHandle` / `CancelTokenHandle`）对 JS 不透明、无字段、不可序列化。
+- 句柄（`ContextHandle` / `CancelTokenHandle` / `DocumentHandle`）对 JS 不透明、无字段、不可序列化。
 - 二进制一律 `Uint8Array`（主进程 `Buffer` 为其子类），禁止 base64；输入输出
   各一次拷贝。
 - ID 与整数跨边界必须 `< 2^53`，否则 `NATIVE_VALUE_OUT_OF_RANGE`。

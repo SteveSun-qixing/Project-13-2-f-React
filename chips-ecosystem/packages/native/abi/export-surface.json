@@ -105,6 +105,61 @@
       "name": "bridgeShutdown",
       "kind": "sync",
       "signature": "() => void"
+    },
+    {
+      "name": "openDocument",
+      "kind": "async",
+      "signature": "(path: string, options?: INativeParseOptions) => Promise<DocumentHandle>"
+    },
+    {
+      "name": "openCard",
+      "kind": "async",
+      "signature": "(path: string, options?: INativeParseOptions) => Promise<DocumentHandle>"
+    },
+    {
+      "name": "openBox",
+      "kind": "async",
+      "signature": "(path: string, options?: INativeParseOptions) => Promise<DocumentHandle>"
+    },
+    {
+      "name": "documentMetadata",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle) => Promise<IDocumentMetadataResult>"
+    },
+    {
+      "name": "documentStructure",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle) => Promise<IDocumentStructureResult>"
+    },
+    {
+      "name": "documentContent",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle, nodeId: string) => Promise<IDocumentContentResult>"
+    },
+    {
+      "name": "documentEntries",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle, range?: IDocumentEntriesRange) => Promise<IDocumentEntriesResult>"
+    },
+    {
+      "name": "documentReadResource",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle, path: string, range?: IDocumentResourceRange) => Promise<Uint8Array>"
+    },
+    {
+      "name": "documentValidate",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle) => Promise<IDocumentValidationReport>"
+    },
+    {
+      "name": "buildDocumentView",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle, session: number) => Promise<DocumentView>"
+    },
+    {
+      "name": "documentClose",
+      "kind": "async",
+      "signature": "(handle: DocumentHandle) => Promise<void>"
     }
   ],
   "blocked": []

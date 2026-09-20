@@ -142,6 +142,7 @@ dependencies = [
  "chips-bridge",
  "chips-cordis",
  "chips-core",
+ "chips-parser",
  "neon",
  "serde",
  "serde_json",

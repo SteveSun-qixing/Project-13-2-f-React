@@ -14,6 +14,7 @@ async-trait.workspace = true
 chips-core = { path = "../core-rust/crates/chips-core" }
 chips-cordis = { path = "../core-rust/crates/chips-cordis" }
 chips-bridge = { path = "../core-rust/crates/chips-bridge" }
+chips-parser = { path = "../core-rust/crates/chips-parser" }
 neon = { version = "1", features = ["futures"] }
 serde.workspace = true
 serde_json.workspace = true

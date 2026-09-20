@@ -2,8 +2,11 @@
  * chips-native ABI 类型检查夹具。
  *
  * 覆盖：
- * - 全部已实现导出（值与类型）各至少一次正例调用（含 Bridge 能力执行四导出）；
- * - 注册/请求类型形状（`INativeCapabilityRegistration` / `INativeBridgeRequest`）；
+ * - 全部已实现导出（值与类型）各至少一次正例调用（含 Bridge 能力执行四导出、
+ *   文档解析域十一导出，《核心接口规范》§6.4）；
+ * - 注册/请求与解析选项/结果类型形状
+ *   （`INativeCapabilityRegistration` / `INativeBridgeRequest` /
+ *   `INativeParseOptions` / `DocumentView` 等）；
  * - `@ts-expect-error` 负例：参数类型、返回类型与必填字段必须被拒绝。
  *
  * 本文件只做类型检查（`tsc --noEmit`），不产生运行时代码。
@@ -12,9 +15,20 @@
 import type {
   CancelTokenHandle,
   ContextHandle,
+  DocumentHandle,
+  DocumentView,
+  IDocumentContentResult,
+  IDocumentEntriesRange,
+  IDocumentEntriesResult,
+  IDocumentMetadataResult,
+  IDocumentResourceRange,
+  IDocumentStructureResult,
+  IDocumentValidationReport,
   INativeBridgeRequest,
   INativeCapabilityContext,
   INativeCapabilityRegistration,
+  INativeDiagnostic,
+  INativeParseOptions,
   INativeProviderRegistration,
   INativeSessionRegistration,
 } from 'chips-native';
@@ -29,6 +43,7 @@ import {
   bridgeRequest,
   bridgeShutdown,
   bridgeUnregister,
+  buildDocumentView,
   cancelTokenCancel,
   contextEffect,
   contextEmit,
@@ -40,10 +55,21 @@ import {
   coreAbiVersion,
   coreVersion,
   createCancelToken,
+  documentClose,
+  documentContent,
+  documentEntries,
+  documentMetadata,
+  documentReadResource,
+  documentStructure,
+  documentValidate,
+  openBox,
+  openCard,
+  openDocument,
 } from 'chips-native';
 
 declare const handle: ContextHandle;
 declare const token: CancelTokenHandle;
+declare const documentHandle: DocumentHandle;
 declare const request: INativeBridgeRequest;
 declare const capabilityContext: INativeCapabilityContext;
 declare const registration: INativeCapabilityRegistration;
@@ -116,6 +142,52 @@ bridgeOpenSession(sessionFixture);
 bridgeCloseSession(sessionFixture.sessionId);
 bridgeShutdown();
 
+// 文档解析域十一导出：正例调用（《核心接口规范》§6.4 表序）。
+export const openedDocument: Promise<DocumentHandle> = openDocument('/tmp/chips/card-01.card');
+const parseOptionsFixture: INativeParseOptions = {
+  strict: true,
+  verifyHashes: true,
+  parallelism: 2,
+  limits: { maxYamlBytes: 4096, maxDepth: 8 },
+};
+export const openedCard: Promise<DocumentHandle> = openCard('/tmp/chips/card-01.card', parseOptionsFixture);
+export const openedBox: Promise<DocumentHandle> = openBox('/tmp/chips/box-01.box');
+export const metadataResult: Promise<IDocumentMetadataResult> = documentMetadata(documentHandle);
+export const structureResult: Promise<IDocumentStructureResult> = documentStructure(documentHandle);
+export const contentResult: Promise<IDocumentContentResult> = documentContent(
+  documentHandle,
+  'a1B2c3D4e5'
+);
+const entriesRangeFixture: IDocumentEntriesRange = { offset: 0, limit: 20 };
+export const entriesAll: Promise<IDocumentEntriesResult> = documentEntries(documentHandle);
+export const entriesPage: Promise<IDocumentEntriesResult> = documentEntries(
+  documentHandle,
+  entriesRangeFixture
+);
+const resourceRangeFixture: IDocumentResourceRange = { offset: 4, length: 8 };
+export const resourceBytes: Promise<Uint8Array> = documentReadResource(
+  documentHandle,
+  '.card/metadata.yaml'
+);
+export const resourceWindow: Promise<Uint8Array> = documentReadResource(
+  documentHandle,
+  '.card/cover.html',
+  resourceRangeFixture
+);
+export const validationReport: Promise<IDocumentValidationReport> = documentValidate(documentHandle);
+export const documentView: Promise<DocumentView> = buildDocumentView(documentHandle, 1);
+export const closedDocument: Promise<void> = documentClose(documentHandle);
+
+// 结果形状探针：判别字段与只读快照字段必须按声明面可用。
+export const metadataDiagnostics: Promise<INativeDiagnostic[]> = metadataResult.then(
+  (result) => result.diagnostics
+);
+export const validationStatus: Promise<'valid' | 'validwithwarnings' | 'invalid'> =
+  validationReport.then((report) => report.status);
+export async function viewIdentifier(value: DocumentView): Promise<string> {
+  return value.kind === 'card' ? value.card_id : value.box_id;
+}
+
 // 负例：以下写法必须被类型系统拒绝。
 // @ts-expect-error coreAbiVersion 返回 number，不能赋给 string
 export const wrongVersion: string = coreAbiVersion();
@@ -155,3 +227,36 @@ bridgeOpenSession({ sessionId: 1, grantedPermissions: [] });
 bridgeCloseSession('session-1');
 // @ts-expect-error bridgeShutdown 不接受参数
 bridgeShutdown(1);
+
+// 文档解析域负例。
+// @ts-expect-error path 必须是字符串
+openCard(1);
+// @ts-expect-error 选项字段为 camelCase，snake_case 必须被拒绝
+openDocument('/tmp/chips/card-01.card', { verify_hashes: true });
+// @ts-expect-error limits 字段必须是数值
+openBox('/tmp/chips/box-01.box', { limits: { maxDepth: '8' } });
+// @ts-expect-error documentMetadata 必须提供句柄
+documentMetadata();
+// @ts-expect-error Context 句柄与文档句柄不可混用
+documentMetadata(handle);
+// @ts-expect-error documentContent 必须提供 nodeId
+documentContent(documentHandle);
+// @ts-expect-error nodeId 必须是字符串
+documentContent(documentHandle, 2);
+// @ts-expect-error 分页窗口缺少必填 limit
+documentEntries(documentHandle, { offset: 0 });
+// @ts-expect-error 字节窗口字段为 length，不接受 count
+documentReadResource(documentHandle, '.card/metadata.yaml', { offset: 0, count: 4 });
+// @ts-expect-error buildDocumentView 的 session 必须是数值
+buildDocumentView(documentHandle, 'session-1');
+// @ts-expect-error documentClose 不接受第二个参数
+documentClose(documentHandle, 1);
+// 视图联合按 kind 判别：分支字段不可交叉访问。
+export const wrongViewField: Promise<string> = documentView.then((value) => {
+  if (value.kind === 'card') {
+    // @ts-expect-error 卡片分支没有 box_id 字段
+    return value.box_id;
+  }
+  // @ts-expect-error 箱子分支没有 card_id 字段
+  return value.card_id;
+});

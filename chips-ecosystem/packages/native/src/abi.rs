@@ -47,6 +47,17 @@ export_table! {
     "bridgeOpenSession" => crate::bridge::js_bridge_open_session,
     "bridgeCloseSession" => crate::bridge::js_bridge_close_session,
     "bridgeShutdown" => crate::bridge::js_bridge_shutdown,
+    "openDocument" => crate::parser::js_open_document,
+    "openCard" => crate::parser::js_open_card,
+    "openBox" => crate::parser::js_open_box,
+    "documentMetadata" => crate::parser::js_document_metadata,
+    "documentStructure" => crate::parser::js_document_structure,
+    "documentContent" => crate::parser::js_document_content,
+    "documentEntries" => crate::parser::js_document_entries,
+    "documentReadResource" => crate::parser::js_document_read_resource,
+    "documentValidate" => crate::parser::js_document_validate,
+    "buildDocumentView" => crate::parser::js_build_document_view,
+    "documentClose" => crate::parser::js_document_close,
 }
 
 /// `coreVersion()`：平台统一版本（与全部平台包共用同一版本号）。

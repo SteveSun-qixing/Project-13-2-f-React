@@ -57,7 +57,6 @@ where
 }
 
 /// 把一个纯数据值 settle 为 JS 值（`serde_json::Value` 经 [`crate::convert`]）。
-#[allow(dead_code)] // JSON-only settle：`bridgeRequest` 输出为 `{ json, bin }` 合并形态（见 envelope），本入口留给无二进制文档解析域导出。
 pub(crate) fn settle_json<'a>(cx: &mut Cx<'a>, value: serde_json::Value) -> JsResult<'a, JsValue> {
     crate::convert::json_to_js(cx, &value, "")
 }
