@@ -445,11 +445,13 @@ impl Bridge {
 
     /// 注销能力；在途调用按超时/取消收口（《核心接口规范》§5.1）。
     ///
-    /// 注销后停止接受新调用；其 ID 可由登记绑定的提供方重新注册。
+    /// 注销是幂等操作：对未注册或已注销 ID 重复注销为 no-op，不产生错误
+    /// （《能力契约规范》§4.4）。注销后停止接受新调用；其 ID 可由登记绑定的
+    /// 提供方重新注册。
     pub fn unregister(&self, capability_id: &str) -> Result<(), ChipsError> {
         let mut state = lock_core(&self.inner);
         if state.capabilities.remove(capability_id).is_none() {
-            return Err(capability_not_found_error(capability_id));
+            return Ok(());
         }
         cancel_capability(&mut state, capability_id);
         state.serial.remove(capability_id);
