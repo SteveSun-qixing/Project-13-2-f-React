@@ -3617,3 +3617,21 @@
 2026-09-20 20:31:10	cmd=dispose-batch  owner=ledger-media-community   rows=3      disposition=废弃 status=已裁决 target=- notes=栅格图标判废弃（基线6）：app-icon.png(116)/.ico(54)/.icns(116)无登记位置，laun 目录组=1 跳过=0
 2026-09-20 20:31:10	cmd=dispose-batch  owner=ledger-media-community   rows=24     disposition=归档 status=已裁决 target=- notes=过程材料整批归档（基线1，旧仓只读就地登记）：归档/**23行=i18n双语包×2(302×2，task030废弃)、A 目录组=13 跳过=0
 2026-09-20 20:31:10	cmd=dispose-batch  owner=ledger-media-community   rows=6      disposition=保留设计 status=已裁决 target=薯片生态文档库/01-架构设计/01-子系统设计/16-社区客户端设计.md notes=技术文档×5判保留设计（09-目录§7.3「新设计已入库16号子系统设计」）：00索引22/01客户端架构与移植85/0 目录组=1 跳过=0
+2026-09-20 21:05:57	cmd=symbols-claim  owner=ledger-sym-ufv           rows=1433   class=expand 仓库分布=Chips-UniversalFileViewer=1433 命中=1433 重复跳过=0
+2026-09-20 21:06:00	cmd=symbols-claim  owner=ledger-sym-office-b      rows=1300   class=expand 仓库分布=Chips-Office=1300 命中=3854 重复跳过=0
+2026-09-20 21:06:05	cmd=symbols-claim  owner=ledger-sym-office-c      rows=2554   class=expand 仓库分布=Chips-Office=2554 命中=3854 重复跳过=1300
+2026-09-20 21:06:14	cmd=symbols-claim  owner=ledger-sweep-inherit     rows=2821   class=inherit 仓库分布=Chips-SDK=637 Chips-Host=584 Chips-Office=292 Chips-EditingEngine=260 Chips-EcoSettingsPanel=242 Chips-PersonalServer=238 Chips-Notes=207 Chips-Scaffold=151 Chips-CommunityPlatformServer=108 Chips-MusicPlayer=102 命中=2821 重复跳过=0
+2026-09-20 21:06:23	cmd=symbols-claim  owner=ledger-sweep-inherit     rows=879    class=inherit 仓库分布=旧版-项目日志与笔记=96 Chips-CardViewer=95 Chips-UniversalFileViewer=90 Chips-BaseCardPlugin=76 Chips-CommunityClient=76 Chips-BookReader=75 Chips-Ui=72 Chips-RichTextEditor=61 Chip-iconMaker=54 Chips-VideoPlayer=47 Chips-PhotoViewer=41 scripts=36 Chips-ModulePlugin=28 Chips-BoxLayoutPlugin=20 ProductFinishedProductTestingSpace=12 命中=879 重复跳过=0
+2026-09-20 21:06:24	cmd=symbols-claim  owner=ledger-sweep-inherit     rows=13772  class=inherit 仓库分布=OpenSourceProjectHandlingFolder=13772 命中=13772 重复跳过=0
+2026-09-20 21:06:38	cmd=symbol-sweep   owner=ledger-sweep-inherit     rows=13772  镜像分布=废弃=13769 归档=3 展开类拒绝=0 write=True
+2026-09-20 21:06:38	cmd=symbol-sweep   owner=ledger-sweep-inherit     rows=1513   镜像分布=废弃=1513 展开类拒绝=0 write=True
+2026-09-20 21:06:42	cmd=symbols-claim  owner=ledger-sym-plugins       rows=891    class=expand 仓库分布=Chips-BaseCardPlugin=891 命中=891 重复跳过=0
+2026-09-20 21:06:42	cmd=symbols-claim  owner=ledger-sym-plugins       rows=819    class=expand 仓库分布=Chips-BoxLayoutPlugin=819 命中=819 重复跳过=0
+2026-09-20 21:06:42	cmd=symbols-claim  owner=ledger-sym-plugins       rows=157    class=expand 仓库分布=Chips-ModulePlugin=157 命中=157 重复跳过=0
+2026-09-20 21:06:46	cmd=symbol-sweep   owner=ledger-sweep-inherit     rows=947    镜像分布=归档=606 废弃=341 展开类拒绝=0 write=True
+2026-09-20 21:06:47	cmd=symbol-sweep   owner=ledger-sweep-inherit     rows=457    镜像分布=废弃=280 归档=176 保留设计=1 展开类拒绝=0 write=True
+2026-09-20 21:06:47	cmd=symbol-sweep   owner=ledger-sweep-inherit     rows=783    镜像分布=归档=530 废弃=252 保留设计=1 展开类拒绝=0 write=True
+2026-09-20 21:07:37	cmd=symbols-claim  owner=ledger-sym-engine-host   rows=746    class=expand 仓库分布=Chips-EditingEngine=360 Chips-Host=267 Chips-SDK=41 Chips-Scaffold=37 scripts=23 ProductFinishedProductTestingSpace=18 命中=746 重复跳过=0
+2026-09-20 21:07:47	cmd=symbols-claim  owner=ledger-sym-apps          rows=504    class=expand 仓库分布=Chips-BookReader=504 命中=504 重复跳过=0
+2026-09-20 21:07:47	cmd=symbols-claim  owner=ledger-sym-apps          rows=467    class=expand 仓库分布=Chips-Notes=467 命中=467 重复跳过=0
+2026-09-20 21:07:47	cmd=symbols-claim  owner=ledger-sym-apps          rows=254    class=expand 仓库分布=Chips-MusicPlayer=254 命中=254 重复跳过=0
