@@ -25,6 +25,19 @@
   python3 重构大计划/工具/重构台账.py verify --strict    # 收口期：连“迁移/重写 规划落点未落地”一起清零
   python3 重构大计划/工具/重构台账.py release --owner tool-selftest   # 归还认领 / 返工复位
 
+符号复裁通道（工单032 通道②：已裁决符号的跨路精确点名复裁）：
+  python3 重构大计划/工具/重构台账.py symbol-redecide --owner ledger-matrix-gap \\
+      --from-owner ledger-sym-office-c --symbol 6591,6592 --append-notes "<收口句>" --write
+      # 精确点名两选一：--symbol <symbols.id 清单> 或 --notes-like <含字面文本的精确条件（须 --repo 限定）>；
+      # 机器互斥保留：仅 files.owner / symbols.wave_owner 命中 --from-owner 点名原裁决路的符号可改写，
+      # 其余路裁决一律拒绝；未裁决符号不走本通道；默认 dry-run 预览，--write 才落库
+
+增量登记通道（工单032 通道①：限定范围的 files+symbols 增量 INSERT，不重建、不触碰已裁决行）：
+  python3 重构大计划/工具/重构台账.py scan-incr --repo Chips-Office --dir vendor \\
+      --allow-excluded vendor --owner ledger-matrix-gap [--write]
+      # --allow-excluded 在本登记范围内显式覆盖 EXCLUDE_DIRS 的目录名排除（如 vendor）；
+      # 新增文件行直接归 owner（status=进行中），新增符号行打 wave_owner；默认 dry-run，--write 才落库
+
 符号波认领与继承批量面（symbols.wave_owner 模型，主智能体 W2 裁决口径）：
   python3 重构大计划/工具/重构台账.py symbols-claim --owner sweep-host-expand --repo Chips-Host \\
       --class expand -n 500        # 只对未裁决且未认领的符号置 wave_owner；按仓+类别保证并行路互斥
@@ -437,6 +450,138 @@ def scan(force=False):
     conn.commit()
     conn.close()
     print(f"scan done: {len(repos)} repos, {total_files} files, {total_symbols} symbols")
+
+
+def scan_incr(args):
+    """增量登记（工单032 通道①）：限定 --repo + --dir 显式路径清单，只 INSERT 磁盘上未登记的行。
+
+    与 `scan` 的本质区别：不整库重扫、不 DELETE、不触碰任何已登记 files 行及其符号裁决，
+    只对范围内磁盘新增行做 files+symbols 两层增量 INSERT。`--allow-excluded` 在本登记范围内
+    显式覆盖 `EXCLUDE_DIRS` 的目录名排除（如 `vendor`，含嵌套同名目录），未点名的排除目录仍跳过。
+    新文件行直接归 `--owner`（status=进行中、写入 wave），新符号行打 `wave_owner=--owner`，
+    后续即可经既有 `dispose-batch` / `symbol-dispose` / `symbol-sweep` 通道落裁决。
+    默认 dry-run 预览计数，`--write` 才落库（单事务 + 台账操作.log 留痕）。
+    """
+    owner = (args.owner or "").strip()
+    if not owner:
+        die("--owner 不能为空（增量登记的新行直接归本路，机器保证认领互斥）")
+    if not args.repo:
+        die("scan-incr 必须带 --repo <仓库名>（增量登记要求显式仓库面）")
+    if len(args.repo) > 1:
+        die("scan-incr 只允许一个 --repo（显式仓库面；跨仓请分次执行）")
+    rid = args.repo[0]
+    dirs = []
+    for d in args.dir or []:
+        d = d.strip().strip("/")
+        if not d or d in (".", "*"):
+            die("--dir 不能是空串或仓库根（增量登记要求显式路径清单；整仓库重建请改用 scan --force）")
+        if d in dirs:
+            continue
+        if not os.path.isdir(os.path.join(ROOT, rid, d)):
+            die("--dir 在磁盘上不存在：%s/%s" % (rid, d))
+        dirs.append(d)
+    if not dirs:
+        die("scan-incr 必须带至少一个 --dir <仓库内相对目录>（显式路径清单）")
+    allow = list(args.allow_excluded or [])
+    unknown = [x for x in allow if x not in EXCLUDE_DIRS]
+    if unknown:
+        die("--allow-excluded 含不在 EXCLUDE_DIRS 中的目录名：%s（可覆盖项：%s）"
+            % (" ".join(unknown), " ".join(sorted(EXCLUDE_DIRS))))
+    excluded = EXCLUDE_DIRS - set(allow)
+
+    # 只读收集阶段：与 scan 同口径（category_of / extract_symbols / sha1），不改库
+    conn = connect()
+    try:
+        if not conn.execute("SELECT 1 FROM repos WHERE id=?", (rid,)).fetchone():
+            die("repos 表中无仓库 %s（请先由 scan 登记仓库面）" % rid)
+        existing = set()
+        for d in dirs:
+            for r in conn.execute(
+                "SELECT rel_path FROM files WHERE repo_id=? AND (rel_path=? OR rel_path LIKE ?)",
+                (rid, d, d + "/%"),
+            ):
+                existing.add(r[0])
+        new_rows = []   # (rel, ext, size, lines, sha1, category, syms)
+        skipped_existing = 0
+        seen = set()
+        for d in dirs:
+            for dirpath, dirnames, filenames in os.walk(os.path.join(ROOT, rid, d)):
+                dirnames[:] = [x for x in dirnames if x not in excluded]
+                for fn in sorted(filenames):
+                    if fn == ".DS_Store":
+                        continue
+                    full = os.path.join(dirpath, fn)
+                    rel = os.path.relpath(full, os.path.join(ROOT, rid)).replace("\\", "/")
+                    if rel in seen:
+                        continue
+                    seen.add(rel)
+                    if rel in existing:
+                        skipped_existing += 1
+                        continue
+                    ext = os.path.splitext(fn)[1].lower()
+                    try:
+                        size = os.path.getsize(full)
+                        with open(full, "rb") as f:
+                            data = f.read()
+                    except OSError:
+                        continue
+                    sha1 = hashlib.sha1(data).hexdigest()
+                    lines = data.count(b"\n") + (1 if data else 0)
+                    syms = extract_symbols(full, ext) if ext in CODE_EXT else []
+                    new_rows.append((rel, ext, size, lines, sha1, category_of(rel, ext), syms))
+    finally:
+        conn.close()
+
+    total_syms = sum(len(r[6]) for r in new_rows)
+    per_dir = count_by(new_rows, lambda r: dir_of(r[0]))
+    print("scan-incr: repo=%s owner=%s wave=%s 覆盖排除目录名=%s"
+          % (rid, owner, args.wave, ",".join(allow) or "(无)"))
+    print("  待登记新行 %d 个文件 / %d 个符号；已登记跳过 %d 行（其行与符号裁决一律不触碰）"
+          % (len(new_rows), total_syms, skipped_existing))
+    print("  类别分布: %s" % (fmt_dist(count_by(new_rows, lambda r: r[5])) or "-"))
+    for d in sorted(per_dir):
+        print("    %-52s %d" % (d or "(目录根)", per_dir[d]))
+    if args.print_ids:
+        for r in new_rows:
+            print("rel=%s\t%s\t符号=%d" % (r[0], r[5], len(r[6])))
+    if not args.write:
+        print("  (dry-run 预览，未落库；加 --write 落库)")
+        return
+    if not new_rows:
+        die("没有可登记的新行（范围内 %d 个磁盘文件均已登记）" % skipped_existing)
+
+    def work(wconn):
+        nonlocal skipped_existing
+        n_files = n_syms = 0
+        for rel, ext, size, lines, sha1, cat, syms in new_rows:
+            cur = wconn.execute(
+                """INSERT INTO files(repo_id, rel_path, ext, size, lines, sha1, category, status, owner, wave)
+                   VALUES(?,?,?,?,?,?,?, '进行中', ?, ?)
+                   ON CONFLICT(repo_id, rel_path) DO NOTHING""",
+                (rid, rel, ext, size, lines, sha1, cat, owner, args.wave),
+            )
+            if cur.rowcount == 0:
+                skipped_existing += 1
+                continue
+            fid = cur.lastrowid
+            n_files += 1
+            for kind_, name_, line, exported in syms:
+                wconn.execute(
+                    "INSERT INTO symbols(file_id, kind, name, line, exported, wave_owner) VALUES(?,?,?,?,?,?)",
+                    (fid, kind_, name_, line, exported, owner),
+                )
+                n_syms += 1
+        wconn.execute("UPDATE repos SET file_count=(SELECT COUNT(*) FROM files WHERE repo_id=?) WHERE id=?",
+                      (rid, rid))
+        return n_files, n_syms
+
+    n_files, n_syms = run_write("scan-incr", work)
+    print("scan-incr: owner=%s 落库 %d 个文件行 + %d 个符号行（增量 INSERT；已登记 %d 行与其裁决未触碰）"
+          % (owner, n_files, n_syms, skipped_existing))
+    log_operation("scan-incr", owner, n_files,
+                  "repo=%s dirs=%s symbols=%d 已登记跳过=%d 覆盖排除=%s write=True"
+                  % (rid, ",".join(dirs), n_syms, skipped_existing, ",".join(allow) or "-"))
+
 
 
 def mark_old():
@@ -1013,6 +1158,117 @@ def symbol_sweep(args):
                   "镜像分布=%s 展开类拒绝=%d write=True" % (fmt_dist(dist), expand_pending))
 
 
+def symbol_redecide(args):
+    """已裁决符号精确点名复裁（工单032 通道②）：跨路收口时覆写 disposition/target/notes。
+
+    点名面两选一：`--symbol <symbols.id 清单>` 或 `--notes-like <含字面文本的精确条件>`（后者必须
+    带 `--repo` 限定仓库面）——拒绝整表/整仓一把梭。机器互斥语义保留：只有 `files.owner` 或
+    `symbols.wave_owner` 命中 `--from-owner <原裁决路>`（可多值，须逐路显式点名）的符号可被改写，
+    未点名裁决路的符号一律计越权拒绝；未裁决符号不走本通道（应经 symbols-claim / symbol-dispose）。
+    覆写项至少给一个：`--disposition`（五值之一）、`--target`（显式给值即覆写，`""` 即清空）、
+    `--notes`（整条覆写）或 `--append-notes`（追加到既有 notes 末尾，「；」分隔）；未给的项保持原值。
+    默认 dry-run 预览，`--write` 才落库（单事务 + 台账操作.log 留痕）。
+    """
+    owner = (args.owner or "").strip()
+    if not owner:
+        die("--owner 不能为空（本路执行者标识，用于操作留痕）")
+    from_owners = []
+    for o in args.from_owner or []:
+        o = o.strip()
+        if o and o not in from_owners:
+            from_owners.append(o)
+    if not from_owners:
+        die("symbol-redecide 必须带至少一个 --from-owner <原裁决路>（点名互斥闸口：未点名裁决路的符号一律拒绝复裁）")
+    if bool(args.symbol) == bool(args.notes_like):
+        die("--symbol <symbols.id 清单> 与 --notes-like <notes 精确条件> 必须二选一（精确点名，拒绝一把梭）")
+    if args.notes_like:
+        if not re.sub(r"[%_]", "", args.notes_like).strip():
+            die("--notes-like 必须含字面文本（拒绝 '%s' 这类全库扫描式条件）" % args.notes_like)
+        if not args.repo:
+            die("--notes-like 必须同时带 --repo <仓库名> 限定仓库面（精确点名安全闸口）")
+    if args.disposition is not None and args.disposition not in VALID_DISPOSITIONS:
+        die("--disposition 取值非法：%r（可选：%s）" % (args.disposition, "/".join(VALID_DISPOSITIONS)))
+    if args.notes is not None and args.append_notes is not None:
+        die("--notes（整条覆写）与 --append-notes（末尾追加）不能同时给")
+    if args.disposition is None and args.target is None and args.notes is None and args.append_notes is None:
+        die("至少给一个覆写项：--disposition / --target / --notes / --append-notes（复裁不是空转预览的开关）")
+
+    if args.symbol:
+        toks = [t for t in re.split(r"[,\s]+", args.symbol.strip()) if t]
+        bad = [t for t in toks if not re.fullmatch(r"\d+", t)]
+        if bad:
+            die("--symbol 含非法 id：%s" % " ".join(bad[:5]))
+        sym_ids = sorted(set(int(t) for t in toks))
+        cond, params = "s.id " + in_clause(sym_ids), list(sym_ids)
+        selector = "--symbol %d 个 id" % len(sym_ids)
+    else:
+        cond, params = "s.notes LIKE ?", [args.notes_like]
+        cond += " AND f.repo_id " + in_clause(args.repo)
+        params += list(args.repo)
+        selector = "--notes-like %r（repo=%s）" % (args.notes_like, ",".join(args.repo))
+
+    set_parts, set_params = [], []
+    if args.disposition is not None:
+        set_parts.append("disposition=?")
+        set_params.append(args.disposition)
+    if args.target is not None:
+        set_parts.append("target=?")
+        set_params.append(args.target)
+    if args.notes is not None:
+        set_parts.append("notes=?")
+        set_params.append(args.notes)
+    elif args.append_notes is not None:
+        app = args.append_notes.strip()
+        set_parts.append("notes=CASE WHEN notes IS NULL OR notes='' THEN ? ELSE notes || '；' || ? END")
+        set_params += [app, app]
+    set_sql = ", ".join(set_parts)
+
+    def work(conn):
+        rows = conn.execute(
+            "SELECT s.id, s.disposition, s.target, s.notes, f.owner, s.wave_owner, f.repo_id, f.rel_path, s.name"
+            " FROM symbols s JOIN files f ON f.id = s.file_id WHERE " + cond,
+            params,
+        ).fetchall()
+        pending = [r for r in rows if r[1] is None]
+        decided = [r for r in rows if r[1] is not None]
+        mine = [r for r in decided if r[4] in from_owners or r[5] in from_owners]
+        mine_ids = {r[0] for r in mine}
+        foreign = [r for r in decided if r[0] not in mine_ids]
+        if args.write and mine:
+            conn.executemany(
+                "UPDATE symbols SET %s WHERE id=? AND disposition IS NOT NULL" % set_sql,
+                [tuple(set_params) + (r[0],) for r in mine],
+            )
+        return rows, mine, foreign, pending
+
+    rows, mine, foreign, pending = run_write("symbol-redecide", work)
+    print("symbol-redecide: owner=%s 点名面=%s 原裁决路点名 from-owner=%s"
+          % (owner, selector, ",".join(from_owners)))
+    print("  命中 %d 个符号：可复裁（裁决路命中点名）%d 个，越权拒绝（未点名裁决路）%d 个，未裁决跳过 %d 个"
+          % (len(rows), len(mine), len(foreign), len(pending)))
+    if foreign:
+        for r in foreign[:20]:
+            print("    symbol=%d\t%s/%s\t%s\towner=%s\twave_owner=%s"
+                  % (r[0], r[6], r[7], r[1], r[4] or "(空)", r[5] or "(空)"))
+        if len(foreign) > 20:
+            print("    …（其余 %d 个省略）" % (len(foreign) - 20))
+    if pending:
+        print("    未裁决符号不走本通道（应经 symbols-claim / symbol-dispose 落首裁）")
+    if not args.write:
+        print("  (dry-run 预览，未落库；加 --write 落库)")
+        if not mine:
+            die("没有可复裁的符号：命中面全部越权或未裁决（检查 --from-owner 点名是否齐全）")
+        return
+    if not mine:
+        die("没有可复裁的符号：命中面全部越权或未裁决（检查 --from-owner 点名是否齐全）")
+    print("symbol-redecide: owner=%s 落库 %d 个符号（%s）"
+          % (owner, len(mine), set_sql.replace("=?", "'?'")))
+    log_operation("symbol-redecide", owner, len(mine),
+                  "%s 覆写[%s] from-owner=%s 越权拒绝=%d 未裁决跳过=%d write=True"
+                  % (selector, set_sql, ",".join(from_owners), len(foreign), len(pending)))
+
+
+
 def verify(args):
     """一致性体检：状态/裁决计数、认领分布、孤儿行、target 落盘存在性（防幻想 target）、
     符号波认领分布与 sweep 一致性（继承类符号 disposition 与所属文件一致性）。"""
@@ -1251,6 +1507,22 @@ def main():
     sub = ap.add_subparsers(dest="cmd")
     p_scan = sub.add_parser("scan", help="全量重扫旧仓库并重建文件/符号登记（符号裁决会被重建，需 --force）")
     p_scan.add_argument("--force", action="store_true", help="已有符号裁决时仍然重扫")
+
+    p_si = sub.add_parser("scan-incr",
+                          help="增量登记（工单032 通道①）：限定 --repo+--dir 显式路径清单，"
+                               "只 INSERT 磁盘未登记行（files+symbols 两层），不重建、不触碰已裁决行；"
+                               "--allow-excluded 覆盖 EXCLUDE_DIRS 目录名排除；默认 dry-run，--write 才落库")
+    p_si.add_argument("--repo", action="append", metavar="REPO_ID",
+                      help="登记仓库面（必填且只允许一个，如 --repo Chips-Office）")
+    p_si.add_argument("--dir", action="append", metavar="REL_DIR",
+                      help="显式路径清单：仓库内相对目录（可重复传；空串/仓库根拒绝）")
+    p_si.add_argument("--allow-excluded", action="append", metavar="DIR_NAME",
+                      help="本范围内显式覆盖的 EXCLUDE_DIRS 目录名排除（如 vendor，可重复传）")
+    p_si.add_argument("--owner", required=True,
+                      help="新文件行 owner / 新符号行 wave_owner 归属（如 ledger-matrix-gap）")
+    p_si.add_argument("--wave", default="W2", help="写入新行的波次标识（默认 W2）")
+    p_si.add_argument("--write", action="store_true", help="真正落库（默认 dry-run 只预览计数）")
+    p_si.add_argument("--print-ids", action="store_true", help="打印本次登记范围的新行 rel_path 与符号数")
     sub.add_parser("mark-old")
     sub.add_parser("init-workspace")
     sub.add_parser("stats")
@@ -1303,6 +1575,25 @@ def main():
     p_sd.add_argument("--wave", default="W2", help="随 auto-file-status 回写的波次标识")
     add_dry_run_arg(p_sd)
 
+    p_sr = sub.add_parser("symbol-redecide",
+                          help="已裁决符号精确点名复裁（工单032 通道②）：--symbol id 清单或 --notes-like"
+                               " 精确条件（须 --repo 限定）点名，仅 --from-owner 显式点名的原裁决路符号可"
+                               "覆写 disposition/target/notes，其余一律越权拒绝；默认 dry-run，--write 才落库")
+    p_sr.add_argument("--owner", required=True, help="本路执行者标识（操作留痕，如 ledger-matrix-gap）")
+    p_sr.add_argument("--from-owner", action="append", metavar="SRC_OWNER",
+                      help="点名的原裁决路（匹配 symbols.wave_owner 或 files.owner，可重复传；必填）")
+    p_sr.add_argument("--symbol", help="symbols.id 列表，逗号或空格分隔（与 --notes-like 二选一）")
+    p_sr.add_argument("--notes-like", help="notes 精确 LIKE 条件（须含字面文本，且必须带 --repo 限定；与 --symbol 二选一）")
+    p_sr.add_argument("--repo", action="append", metavar="REPO_ID",
+                      help="限定 --notes-like 点名面的仓库（可重复传；--symbol 场景不需要）")
+    p_sr.add_argument("--disposition", default=None, choices=VALID_DISPOSITIONS,
+                      help="覆写 disposition（不给则维持现裁决不变）")
+    p_sr.add_argument("--target", default=None,
+                      help="显式覆写 target（传空串即清空；不给则维持原 target 不变）")
+    p_sr.add_argument("--notes", default=None, help="整条覆写 notes")
+    p_sr.add_argument("--append-notes", default=None, help="追加到既有 notes 末尾（「；」分隔），不丢历史判定理由")
+    p_sr.add_argument("--write", action="store_true", help="真正落库（默认 dry-run 只预览命中与越权计数）")
+
     p_sc = sub.add_parser("symbols-claim",
                           help="符号波认领：未裁决且未认领的符号打 wave_owner，按仓+类别保证并行路互斥")
     p_sc.add_argument("--owner", required=True, help="符号波标识，如 sweep-host-expand")
@@ -1345,6 +1636,8 @@ def main():
         ensure_indexes()
     if args.cmd == "scan":
         scan(args.force)
+    elif args.cmd == "scan-incr":
+        scan_incr(args)
     elif args.cmd == "mark-old":
         mark_old()
     elif args.cmd == "init-workspace":
@@ -1365,6 +1658,8 @@ def main():
         symbols_cmd(args)
     elif args.cmd == "symbol-dispose":
         symbol_dispose(args)
+    elif args.cmd == "symbol-redecide":
+        symbol_redecide(args)
     elif args.cmd == "symbols-claim":
         symbols_claim(args)
     elif args.cmd == "symbol-sweep":

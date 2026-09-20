@@ -11805,3 +11805,22 @@
 2026-09-20 21:25:31	cmd=symbol-dispose owner=ledger-sym-office-c      rows=1      disposition=重写 target=chips-ecosystem/plugins/apps/office/src/bridge/document-session.ts#closeDocument files=2884 越权跳过=0
 2026-09-20 21:25:31	cmd=symbol-dispose owner=ledger-sym-office-c      rows=1      disposition=重写 target=chips-ecosystem/plugins/apps/office/src/bridge/document-session.ts#toDocumentSessionError files=2884 越权跳过=0
 2026-09-20 21:25:31	cmd=symbol-dispose owner=ledger-sym-office-c      rows=1      disposition=重写 target=chips-ecosystem/plugins/apps/office/src/runtime/chips-client.ts#chipsClient files=2886 越权跳过=0
+2026-09-21 02:34:00	cmd=scan-incr      owner=ledger-matrix-gap        rows=421    repo=Chips-Office dirs=vendor symbols=2310 已登记跳过=0 覆盖排除=vendor write=True
+2026-09-21 02:34:29	cmd=dispose-batch  owner=ledger-matrix-gap        rows=123    disposition=归档 status=已裁决 target=就近归档 notes=登记性裁决（对齐 ledger-doclib 先例「归档为登记性裁决、冻结旧库不实体搬运」）：@genoffice/*  目录组=7 跳过=0
+2026-09-21 02:34:29	cmd=symbol-dispose owner=ledger-matrix-gap        rows=777    disposition=归档 target=就近归档 files=12531,12532,12537,12543,12545,12550,12551,12553,12554,12555,12556,12557,12560,12 越权跳过=0
+2026-09-21 02:34:29	cmd=dispose-batch  owner=ledger-matrix-gap        rows=11     disposition=归档 status=已裁决 target=就近归档 notes=登记性裁决（对齐 ledger-doclib 先例「归档为登记性裁决、冻结旧库不实体搬运」）：@genoffice/*  目录组=4 跳过=0
+2026-09-21 02:34:29	cmd=symbol-dispose owner=ledger-matrix-gap        rows=40     disposition=归档 target=就近归档 files=12519,12522,12523,12524,12525,12526 越权跳过=0
+2026-09-21 02:34:29	cmd=dispose-batch  owner=ledger-matrix-gap        rows=5      disposition=归档 status=已裁决 target=就近归档 notes=登记性裁决（对齐 ledger-doclib 先例「归档为登记性裁决、冻结旧库不实体搬运」）：@genoffice/*  目录组=3 跳过=0
+2026-09-21 02:34:29	cmd=symbol-dispose owner=ledger-matrix-gap        rows=16     disposition=归档 target=就近归档 files=12793 越权跳过=0
+2026-09-21 02:34:29	cmd=dispose-batch  owner=ledger-matrix-gap        rows=114    disposition=归档 status=已裁决 target=就近归档 notes=登记性裁决（对齐 ledger-doclib 先例「归档为登记性裁决、冻结旧库不实体搬运」）：@genoffice/*  目录组=17 跳过=0
+2026-09-21 02:34:29	cmd=symbol-dispose owner=ledger-matrix-gap        rows=605    disposition=归档 target=就近归档 files=12654,12659,12661,12662,12663,12664,12666,12667,12669,12672,12673,12675,12679,12 越权跳过=0
+2026-09-21 02:34:30	cmd=dispose-batch  owner=ledger-matrix-gap        rows=122    disposition=归档 status=已裁决 target=就近归档 notes=登记性裁决（对齐 ledger-doclib 先例「归档为登记性裁决、冻结旧库不实体搬运」）：@genoffice/*  目录组=4 跳过=0
+2026-09-21 02:34:30	cmd=symbol-dispose owner=ledger-matrix-gap        rows=654    disposition=归档 target=就近归档 files=12380,12384,12392,12400,12402,12407,12408,12419,12421,12425,12426,12434,12435,12 越权跳过=0
+2026-09-21 02:34:30	cmd=dispose-batch  owner=ledger-matrix-gap        rows=25     disposition=归档 status=已裁决 target=就近归档 notes=登记性裁决（对齐 ledger-doclib 先例「归档为登记性裁决、冻结旧库不实体搬运」）：@genoffice/*  目录组=3 跳过=0
+2026-09-21 02:34:30	cmd=symbol-dispose owner=ledger-matrix-gap        rows=172    disposition=归档 target=就近归档 files=12775,12776,12777,12778,12779,12780,12781,12783,12784,12785,12786,12787,12788 越权跳过=0
+2026-09-21 02:34:30	cmd=dispose-batch  owner=ledger-matrix-gap        rows=18     disposition=归档 status=已裁决 target=就近归档 notes=登记性裁决（对齐 ledger-doclib 先例「归档为登记性裁决、冻结旧库不实体搬运」）：@genoffice/*  目录组=2 跳过=0
+2026-09-21 02:34:30	cmd=symbol-dispose owner=ledger-matrix-gap        rows=46     disposition=归档 target=就近归档 files=12500,12502,12504,12505,12506,12507,12509,12511,12512,12513,12515 越权跳过=0
+2026-09-21 02:34:30	cmd=dispose-batch  owner=ledger-matrix-gap        rows=3      disposition=归档 status=已裁决 target=就近归档 notes=登记性裁决（对齐 ledger-doclib 先例）：GenOffice 移植引擎（Apache-2.0）vendor  目录组=1 跳过=0
+2026-09-21 02:34:39	cmd=symbol-redecide owner=ledger-matrix-gap        rows=597    --notes-like '%G2%'（repo=Chips-Office,Chips-ModulePlugin,Chips-Scaffold） 覆写[notes=CASE WHEN notes IS NULL OR notes='' THEN ? ELSE notes || '；' || ? END] from-owner=ledger-sym-office-c,ledger-sym-plugins,ledger-sym-engine-host 越权拒绝=0 未裁决跳过=0 write=True
+2026-09-21 02:34:55	cmd=symbol-redecide owner=ledger-matrix-gap        rows=32     --symbol 32 个 id 覆写[notes=CASE WHEN notes IS NULL OR notes='' THEN ? ELSE notes || '；' || ? END] from-owner=ledger-sym-office-c 越权拒绝=0 未裁决跳过=0 write=True
+2026-09-21 02:34:55	cmd=symbol-redecide owner=ledger-matrix-gap        rows=12     --symbol 12 个 id 覆写[disposition=?, target=?, notes=CASE WHEN notes IS NULL OR notes='' THEN ? ELSE notes || '；' || ? END] from-owner=ledger-sym-office-c 越权拒绝=0 未裁决跳过=0 write=True
