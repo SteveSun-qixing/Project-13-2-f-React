@@ -55,6 +55,7 @@ export_table! {
     "documentContent" => crate::parser::js_document_content,
     "documentEntries" => crate::parser::js_document_entries,
     "documentLayoutConfig" => crate::parser::js_document_layout_config,
+    "documentRevision" => crate::parser::js_document_revision,
     "documentReadResource" => crate::parser::js_document_read_resource,
     "documentValidate" => crate::parser::js_document_validate,
     "buildDocumentView" => crate::parser::js_build_document_view,

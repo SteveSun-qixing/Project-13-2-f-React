@@ -4,7 +4,7 @@
  *
  * 权威：
  * - 端口签名与语义：`../ports.ts` `IDocumentParserPort`（失败以已登记 `DOCUMENT_*` 码抛出）；
- * - 注入面与装载闸：`./native-parser-module.ts`（13 项冻结名 + 工单034 两项待裁名，fail-closed）；
+ * - 注入面与装载闸：`./native-parser-module.ts`（13 项 §6.4 冻结名 + 工单034 两项正式化名，fail-closed）；
  * - 错误还原：§12.2「JS `Error` 携带 `code` / `message` / `details` / `retryable`，与
  *   `ChipsError` 结构一致」——backing 抛出的同构错误经 `@chips/bridge` `normalizeError`
  *   单点还原为唯一类 `ChipsError`（工单024 口径；`preload/bridge.ts` 直连先例），
@@ -15,30 +15,32 @@
  * - 端口臂 → 导出映射（正向逐调用可断言）：
  *   - `open`：`kind==='card'` → `openCard(localPath)`；`'box'` → `openBox(localPath)`；
  *     `null` → `openDocument(localPath)`（§6.2 自动识别）；随后 `documentMetadata(handle)` +
- *     `documentRevision(handle)`（待裁名，工单034）组装 L0 信封；
+ *     `documentRevision(handle)`（工单034 正式化名）组装 L0 信封；
  *   - `readPart`：`metadata` → `documentMetadata`；`structure` → `documentStructure`；
  *     `content` 带 `nodeId` → `documentContent(handle, nodeId)`；`content` 不带 `nodeId`
- *     （箱子布局，`service.ts` `ensureLayoutConfig`）→ `documentLayoutConfig`（待裁名）；
+ *     （箱子布局，`service.ts` `ensureLayoutConfig`）→ `documentLayoutConfig`（工单034 正式化名）；
  *     `entries` → `documentEntries(handle, range)`（range 逐字转发 `{offset, limit}`）；
  *   - `fingerprint`：`openDocument` + `documentRevision` + `documentClose`（finally，泄漏守卫）；
  *   - `release`：`documentClose`（幂等注册表，见下）。
  * - 句柄生命周期：宿主侧以 `WeakMap` 登记「端口句柄 → 原生句柄 + 已关闭标志」；
  *   未登记句柄（伪造/串用）一律 `DOCUMENT_NOT_FOUND`；释放成功后标志置位，重复释放为
  *   no-op（端口幂等契约）；`documentClose` 抛错时标志保持可重试（原生侧 GC 终结器兜底，§12.2）。
- * - 取消：Neon 导出面没有 token 传参位（工单034 第三项），适配器只做阶段边界
+ * - 取消：Neon 导出面没有 token 传参位（工单034 第三项，主智能体裁决③：经文档路在
+ *   §6.4 注记「Neon 侧取消仅经宿主 signal 预检、在途取消暂不可达」），适配器只做阶段边界
  *   `signal.aborted` 预检，命中以登记码 `DOCUMENT_PARSE_CANCELLED`（§8.2，可重试）拒绝；
- *   在途调用的原生侧取消不可达，收口前不伪造该能力。
+ *   在途调用的原生侧取消不可达，不伪造该能力。
  * - 泄漏守卫：`open` 内取得原生句柄后的任何失败（含预检命中、信封形状违约与
  *   `documentRevision` 失败）都以 `documentClose` 回收原生句柄后再上抛原始错误
  *   （关闭自身失败静默，GC 终结器兜底，§12.2）。
  * - `serialize`：主智能体「金链路集成七刀定案」刀6 裁定落盘序列化权威归 W3
- *   chips-resource 波（解析器 13 项导出面无序列化项），本臂按诚实失败交付：
+ *   chips-resource 波（解析器导出面无序列化项），本臂按诚实失败交付：
  *   以在册码 `BRIDGE_CAPABILITY_NOT_FOUND`（「能力不存在或已注销」，`@chips/bridge`
  *   错误码表；壳侧先例 `runtime/self-check-runtime.ts` 以同码呈现「能力未注册」）拒绝，
  *   `details` 携带端口臂与裁决出处；服务侧按既有链路包装为
  *   `DOCUMENT_SAVE_FAILED`（`details.cause = BRIDGE_CAPABILITY_NOT_FOUND`）。不产生任何原生调用。
- * - 生产接线（组合根注入、与资源端口同生命周期）为刀4 范围；工单034 收口前不得接线
- *   （装载闸对 13 项旧产物恒判 `surface-mismatch`，属预期 fail-closed）。
+ * - 生产接线（组合根注入、与资源端口同生命周期）为刀4 范围；工单034 ①②两正式化名
+ *   已落 `packages/native`（第 33/34 项导出），装载闸按 15 名消费面交付类型化注入面
+ *   （旧表产物在装载点即判 `surface-mismatch`，属预期 fail-closed）。
  */
 
 import { BRIDGE_ERROR_CODES, ChipsError, createBridgeError, normalizeError } from '@chips/bridge';
@@ -254,7 +256,7 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
       case 'content': {
         const nodeId = request.nodeId;
         if (nodeId === undefined) {
-          // 箱子布局臂（`service.ts` `ensureLayoutConfig`）：工单034 待裁名 `documentLayoutConfig`。
+          // 箱子布局臂（`service.ts` `ensureLayoutConfig`）：工单034 正式化名 `documentLayoutConfig`。
           return checkEnvelope(
             'documentLayoutConfig',
             await attempt(() => module.documentLayoutConfig(record.native)),

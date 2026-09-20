@@ -13,6 +13,7 @@
 //! | `documentContent` | `DocumentHandle::content(&NodeId)` + `diagnostics` 快照 |
 //! | `documentEntries` | `DocumentHandle::entries(Option<Range<usize>>)` |
 //! | `documentLayoutConfig` | `DocumentHandle::layout_config()` + `diagnostics` 快照 |
+//! | `documentRevision` | `DocumentHandle::revision()`（工单034 正式化，修订/源指纹直投） |
 //! | `documentReadResource` | `DocumentHandle::read_resource(&PackagePath, Option<Range<u64>>)` |
 //! | `documentValidate` | `DocumentHandle::validate` |
 //! | `buildDocumentView` | `build_document_view(&DocumentHandle, SessionId)`（§6.6） |
@@ -31,8 +32,9 @@
 //!   `documentClose` 提前释放归档映射（幂等），未关闭时由 GC 终结器兜底；
 //! - 结果形状：`MetadataResult` / `StructureResult` / `ContentResult` /
 //!   `EntriesResult` / `LayoutResult` 统一携带 `{ kind, value, diagnostics }`；
-//!   `ValidationReport` 直接投影 backing 序列化形状；DTO 一律经
-//!   `serde_json::Value` 中转（§8.2）。
+//!   `ValidationReport` 直接投影 backing 序列化形状；`documentRevision` 按
+//!   工单034 冻结的 camelCase DTO 形状直投（无诊断快照位，常数时间构建）；
+//!   DTO 一律经 `serde_json::Value` 中转（§8.2）。
 
 use std::ops::Range;
 use std::path::Path;
@@ -42,7 +44,7 @@ use chips_core::{ChipsError, SessionId};
 use chips_parser::model::NodeId;
 use chips_parser::{
     build_document_view, open_document, BoxParser, CardParser, Diagnostic, DocumentHandle,
-    DocumentKind, PackagePath, ParseLimits, ParseOptions,
+    DocumentKind, PackagePath, ParseLimits, ParseOptions, SourceKind,
 };
 use neon::prelude::*;
 use serde::Deserialize;
@@ -395,6 +397,68 @@ fn layout_config_result(handle: &DocumentHandle) -> Result<Value, ChipsError> {
     document_result(handle.kind(), value, &handle.diagnostics())
 }
 
+/// 修订 DTO 的成员项（工单034 §五.1 冻结形状；`modifiedMillis` / `crc32`
+/// 对应 Rust `Option` → `null`）。
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RevisionMemberDto {
+    path: String,
+    size: u64,
+    modified_millis: Option<i64>,
+    crc32: Option<u32>,
+}
+
+/// 修订 DTO 的数据源指纹项（`kind` 取 `directory` / `archive` 判别字面量，
+/// 成员保持 backing 的包内路径升序）。
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RevisionSourceDto {
+    kind: &'static str,
+    members: Vec<RevisionMemberDto>,
+}
+
+/// `documentRevision` 返回值 DTO（工单034 §五.1 逐字冻结的 camelCase 形状）。
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DocumentRevisionDto {
+    source: RevisionSourceDto,
+    chip_standards_version: String,
+    index_digest: String,
+}
+
+/// `documentRevision`：修订与源指纹（工单034 正式化导出）。
+///
+/// `DocumentHandle::revision()` 的 DTO 直投（§8.2 经 `serde_json::Value` 中转），
+/// 形状为 `{ source: { kind, members: [{ path, size, modifiedMillis, crc32 }] },
+/// chipStandardsVersion, indexDigest }`。构建为常数时间、不读取资源正文
+/// （《06-文档解析器设计》§5.4、《11-文档服务设计》§5.5）；宿主侧
+/// `digest.ts` 直接映射为 `ISourceFingerprint`。
+fn revision_result(handle: &DocumentHandle) -> Result<Value, ChipsError> {
+    let revision = handle.revision();
+    let dto = DocumentRevisionDto {
+        source: RevisionSourceDto {
+            kind: match revision.source.kind {
+                SourceKind::Directory => "directory",
+                SourceKind::Archive => "archive",
+            },
+            members: revision
+                .source
+                .members
+                .iter()
+                .map(|(path, fingerprint)| RevisionMemberDto {
+                    path: path.as_str().to_owned(),
+                    size: fingerprint.size,
+                    modified_millis: fingerprint.modified_millis,
+                    crc32: fingerprint.crc32,
+                })
+                .collect(),
+        },
+        chip_standards_version: revision.chip_standards_version,
+        index_digest: revision.index_digest,
+    };
+    serialize_json(&dto, "/revision")
+}
+
 /// `documentReadResource`：L3 资源字节（复制一次交付，Rust 侧不保留）。
 fn read_resource_bytes(
     handle: &DocumentHandle,
@@ -567,6 +631,12 @@ pub(crate) fn js_document_entries(mut cx: FunctionContext) -> JsResult<JsPromise
 pub(crate) fn js_document_layout_config(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let handle = handle_argument!(cx);
     spawn_export(&mut cx, move || layout_config_result(&handle), settle_json)
+}
+
+/// `documentRevision(handle)`：修订与源指纹（常数时间，不读取资源正文）。
+pub(crate) fn js_document_revision(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let handle = handle_argument!(cx);
+    spawn_export(&mut cx, move || revision_result(&handle), settle_json)
 }
 
 /// `documentReadResource(handle, path, range?)`：L3 资源字节 → `Buffer`。
@@ -969,6 +1039,97 @@ mod tests {
         // 卡片句柄无布局配置单元：backing 契约码原样透传（§8.5），绑定层不加码。
         let error = layout_config_result(&handle).expect_err("卡片句柄读布局配置必须失败");
         assert_eq!(error.code(), "DOCUMENT_FORMAT_UNKNOWN");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_document_revision_card_directory_shape_and_determinism() {
+        let root = temp_root("revision-card");
+        write_minimal_card(&root);
+        let handle = open_card_fixture(&root);
+
+        let revision = revision_result(&handle).expect("修订结果必须可构造（常数时间）");
+        assert_eq!(revision["source"]["kind"], "directory");
+        assert_eq!(revision["chipStandardsVersion"], "1.0.0");
+        let members = revision["source"]["members"]
+            .as_array()
+            .expect("成员必须是数组");
+        // 目录态：`.card` 三成员 + `content/` 分片，全部在列且按包内路径升序。
+        let paths = members
+            .iter()
+            .map(|item| item["path"].as_str().expect("path 必须是字符串"))
+            .collect::<Vec<_>>();
+        assert!(paths.contains(&".card/metadata.yaml"));
+        assert!(paths.contains(&".card/structure.yaml"));
+        assert!(paths.contains(&".card/cover.html"));
+        assert!(paths.contains(&"content/a1B2c3D4e5.yaml"));
+        let mut sorted = paths.clone();
+        sorted.sort();
+        assert_eq!(paths, sorted, "成员必须保持包内路径升序");
+        for item in members {
+            assert!(item["size"].as_u64().is_some(), "size 必须是数值");
+            // 目录态无 CRC32：`crc32` 恒为 `null`；修改时间存在且为整数毫秒。
+            assert!(item["crc32"].is_null());
+            assert!(
+                item["modifiedMillis"].is_i64()
+                    || item["modifiedMillis"].is_u64()
+                    || item["modifiedMillis"].is_null(),
+                "modifiedMillis 只允许整数或 null"
+            );
+        }
+        let digest = revision["indexDigest"]
+            .as_str()
+            .expect("索引摘要必须是字符串");
+        assert!(
+            digest.len() == 64
+                && digest
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
+            "indexDigest 必须是 64 位小写十六进制：{digest}"
+        );
+
+        // 确定性：同一句柄两次取数逐字段一致（常数时间投影，无副作用）。
+        let again = revision_result(&handle).expect("重复取数必须成功");
+        assert_eq!(revision, again);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_document_revision_tracks_membership_changes() {
+        let root = temp_root("revision-box");
+        write_minimal_box(&root);
+        let handle = open_blocking(
+            OpenMode::Box,
+            root.display().to_string(),
+            ParseOptions::default(),
+        )
+        .expect("最小箱子夹具必须可打开");
+        let before = revision_result(&handle).expect("箱子修订必须可构造");
+        assert_eq!(before["source"]["kind"], "directory");
+        assert!(before["source"]["members"]
+            .as_array()
+            .expect("成员数组")
+            .iter()
+            .any(|item| item["path"] == ".box/content.yaml"));
+
+        // 外部新增成员后重开：成员集合与索引摘要随之变化（§7.1 基线复查的载体语义）。
+        write(&root, "assets/note.txt", "外部新增成员");
+        let reopened = open_blocking(
+            OpenMode::Box,
+            root.display().to_string(),
+            ParseOptions::default(),
+        )
+        .expect("新增成员后必须仍可打开");
+        let after = revision_result(&reopened).expect("重开后修订必须可构造");
+        assert_ne!(
+            before["indexDigest"], after["indexDigest"],
+            "指纹集合变化必须改变索引摘要"
+        );
+        assert!(after["source"]["members"]
+            .as_array()
+            .expect("成员数组")
+            .iter()
+            .any(|item| item["path"] == "assets/note.txt"));
         let _ = fs::remove_dir_all(&root);
     }
 

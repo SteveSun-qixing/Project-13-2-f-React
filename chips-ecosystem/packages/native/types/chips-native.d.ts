@@ -212,6 +212,37 @@ export interface IDocumentLayoutConfigResult {
   diagnostics: INativeDiagnostic[];
 }
 
+/**
+ * 修订结果的源指纹成员（工单034 §五.1 冻结形状：`modifiedMillis` / `crc32`
+ * 对应 Rust `Option` → `null`；目录态无 CRC32，恒为 `null`）。
+ */
+export interface IDocumentRevisionMember {
+  /** 包内路径（`/` 分隔）。 */
+  path: string;
+  /** 解压后字节数。 */
+  size: number;
+  /** 修改时间（Unix epoch 毫秒）；无时间信息时为 `null`。 */
+  modifiedMillis: number | null;
+  /** 归档条目 CRC32；目录态为 `null`。 */
+  crc32: number | null;
+}
+
+/**
+ * 修订与源指纹结果（`documentRevision` 返回，`DocumentHandle::revision()` 的
+ * DTO 直投，工单034 正式化导出）：成员按包内路径升序；构建为常数时间，
+ * 不读取资源正文（《06-文档解析器设计》§5.4、《11-文档服务设计》§5.5）。
+ * 宿主侧 `digest.ts` 的 `ISourceFingerprint` 以本形状为唯一取数口径。
+ */
+export interface IDocumentRevisionResult {
+  source: {
+    kind: 'directory' | 'archive';
+    members: IDocumentRevisionMember[];
+  };
+  chipStandardsVersion: string;
+  /** 索引摘要（SHA-256 十六进制小写）。 */
+  indexDigest: string;
+}
+
 /** 严格校验报告（《06-文档解析器设计》§6.5 `ValidationReport` 投影）。 */
 export interface IDocumentValidationReport {
   kind: INativeDocumentKind;
@@ -407,6 +438,13 @@ export function documentEntries(
  * 卡片句柄以 `DOCUMENT_*` 契约码拒绝（绑定层不做 kind 预判，判别归 backing）。
  */
 export function documentLayoutConfig(handle: DocumentHandle): Promise<IDocumentLayoutConfigResult>;
+
+/**
+ * 修订与源指纹（工单034 正式化导出，《06-文档解析器设计》§12.1 访问器一一对应
+ * 规则自 `DocumentHandle::revision()` 机械导出）：常数时间构建，不读取资源正文；
+ * 形状见 {@link IDocumentRevisionResult}。
+ */
+export function documentRevision(handle: DocumentHandle): Promise<IDocumentRevisionResult>;
 
 /** L3 资源字节（解析阶段永不读取资源正文）；产物为 `Uint8Array`（Buffer 子类）。 */
 export function documentReadResource(

@@ -3,11 +3,12 @@
  *
  * 权威：《03-核心接口规范》§6.4「Neon 导出」表与 §6.6、《06-文档解析器设计》§12.1/§12.2
  * （导出名、参数位次、返回信封、`ChipsError` 同构错误形状）、§8.6（导出表只增不改、
- * ABI 递增规则）、工单034（`documentRevision` / `documentLayoutConfig` 两待裁名口径）。
+ * ABI 递增规则）、工单034（`documentRevision` / `documentLayoutConfig` 两正式化名口径）。
  *
  * 覆盖面：
  * - A 组 契约锁：§6.4/§12.1 表原文解析 ↔ 适配器冻结导出名常量逐项一致；ABI 常量 ↔
- *   `export-surface.json`；`.d.ts` 函数面；工单034 登记现状锁（两待裁名尚未入表）。
+ *   `export-surface.json`；`.d.ts` 函数面；工单034 收口锁（两正式化名已入表并与
+ *   注入面同序互锁）。
  * - B 组 装载闸：fail-closed 四分面（CJS 替身夹具，`native-bridge.test.ts` 同法）。
  * - C 组 适配器直连：open（严格 kind / 自动识别逐导出）、readPart 四臂参数位次与
  *   返回形状逐字对 §6.4、fingerprint 复合臂、release 幂等注册表、backing 抛
@@ -30,8 +31,9 @@ import { createNativeDocumentParserPort } from '../src/capabilities/document/ada
 import {
   NATIVE_DOCUMENT_PARSER_ABI_VERSION,
   NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS,
-  NATIVE_DOCUMENT_PARSER_PENDING_EXPORTS,
+  NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS,
   NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS,
+  NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS,
   defaultNativeDocumentParserModulePath,
   loadNativeDocumentParserBinding,
 } from '../src/capabilities/document/adapters/native-parser-module.js';
@@ -388,11 +390,14 @@ describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 
     expect(parseExportTableNames(section).sort()).toEqual([...expected].sort());
   });
 
-  it('工单034 待裁名清单与注入面声明一致（documentRevision / documentLayoutConfig）', () => {
-    expect(NATIVE_DOCUMENT_PARSER_PENDING_EXPORTS).toEqual(['documentRevision', 'documentLayoutConfig']);
+  it('工单034 正式化名清单与注入面声明一致（documentRevision / documentLayoutConfig）', () => {
+    expect(NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS).toEqual([
+      'documentRevision',
+      'documentLayoutConfig',
+    ]);
     expect(NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS.length).toBe(
       NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS.length +
-        NATIVE_DOCUMENT_PARSER_PENDING_EXPORTS.length +
+        NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS.length +
         2 /* 元信息两项 */
     );
   });
@@ -405,11 +410,20 @@ describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 
     }
   });
 
-  it('工单034 登记现状锁：两待裁名尚未入 ABI 清单（本单收口时翻转并并入冻结名）', () => {
+  it('工单034 收口锁：两正式化名已入 ABI 清单与 .d.ts，落位互锁（翻转自登记现状锁）', () => {
     const names = manifest.exports.map((entry) => entry.name);
-    for (const name of NATIVE_DOCUMENT_PARSER_PENDING_EXPORTS) {
-      expect(names).not.toContain(name);
+    for (const name of NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS) {
+      expect(names).toContain(name);
+      expect(declaration).toContain(`export function ${name}(`);
     }
+    // 落位（§6.4 backing 句柄方法表序，`documentEntries` 之后、`documentReadResource`
+    // 之前）：`documentLayoutConfig` 先、`documentRevision` 后（Rust 侧声明序），
+    // 与 `export_table!` / `check-abi` 三方一致口径互锁。
+    const index = (name: string): number => names.indexOf(name);
+    expect(index('documentLayoutConfig')).toBeGreaterThan(index('documentEntries'));
+    expect(index('documentRevision')).toBe(index('documentLayoutConfig') + 1);
+    expect(index('documentRevision')).toBeLessThan(index('documentReadResource'));
+    expect(NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.length).toBe(15);
   });
 
   it('宿主期望解析域 ABI 与 export-surface.json 的 abiVersion 等值', () => {
@@ -434,13 +448,23 @@ describe('刀2装载闸：loadNativeDocumentParserBinding（fail-closed 四分�
     }
   });
 
-  it('旧 13 项产物：surface-mismatch 且逐项点名两待裁名（防静默降级，工单034 口径）', () => {
+  it('旧 13 项产物：surface-mismatch 且逐项点名两正式化名（防静默降级，工单034 口径）', () => {
     const binding = loadNativeDocumentParserBinding(fixturePath('parser-stale-13.js'));
     expect(binding.status).toBe('unavailable');
     if (binding.status === 'unavailable') {
       expect(binding.reason).toBe('surface-mismatch');
       expect(binding.detail).toContain('documentRevision');
       expect(binding.detail).toContain('documentLayoutConfig');
+    }
+  });
+
+  it('33 项旧产物（仅缺 documentRevision）：surface-mismatch 且只点名该名（收口闸粒度锁）', () => {
+    const binding = loadNativeDocumentParserBinding(fixturePath('parser-stale-33.js'));
+    expect(binding.status).toBe('unavailable');
+    if (binding.status === 'unavailable') {
+      expect(binding.reason).toBe('surface-mismatch');
+      expect(binding.detail).toContain('documentRevision');
+      expect(binding.detail).not.toContain('documentLayoutConfig');
     }
   });
 

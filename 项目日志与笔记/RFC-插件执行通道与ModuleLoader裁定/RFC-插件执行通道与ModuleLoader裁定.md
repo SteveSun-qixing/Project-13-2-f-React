@@ -1,7 +1,7 @@
 # RFC-插件执行通道与 ModuleLoader 裁定（工单025 剩余项② 收编：宿主装载的 `.cpk` 插件 JS 代码之加载、执行与失败语义归属）
 
 > 版本：v1.0.0
-> 日期：2026-09-22
+> 日期：2026-09-21
 > 状态：已裁定（本 RFC 为纯文档面裁定；本轮 `chips-ecosystem/**` 代码零改动；实施波见第八节，由主智能体统一派单验收）
 > 关联：工单025《宿主未接原生绑定且缺激活与会话通道》任务说明 §6.2 剩余项②（`工单025-宿主未接原生绑定且缺激活与会话通道/任务说明.md:55`）与 §6.3 建议（`:60`）、工单026 收编 RFC《RFC-chips-bridge契约发布面裁定》§五.3（`:94`，六扩展导出名与三方同步要求）、工单031 任务说明 §五.2（`:40`，「六导出与 ModuleLoader 互为独立、仅在激活编排上前后置」实测结论）、RFC-ChipsError 统一裁定（错误唯一类纪律先例）、`task043《契约-代码漂移审计-2026-09-20》` W2 面
 
@@ -9,9 +9,9 @@
 
 ## 一、背景与动机
 
-工单025 宿主侧收口（2026-09-22）后，剩余项② 的原始定性为：「§8.6 规则预留的 `kernel`/`plugin` 前缀导出（§8.7 `PluginRunner` 的 Neon 实现）与 ModuleLoader（03-插件架构设计 §5.2 受管加载器，完整性门禁 + 白名单）均未交付；装载器 `activationPortFor` 注入位据此保持 BRIDGE_INTERNAL 诚实回退臂」（`任务说明.md:55`），且 §6.3 判其「体量最大（Neon `PluginRunner` + ModuleLoader 子系统），建议单独立项规划」（`:60`）。本 RFC 对该定性做方案级裁定：插件 JS 模块的**加载**与**执行**到底落在哪一层、`kernel`/`plugin` 前缀导出与在途六扩展导出的关系、失败语义如何映射 `apply` 30s / `stop` 10s 端口、与装载器已有面的接线缝，以及按契约先行的拆波。
+工单025 宿主侧收口（2026-09-21）后，剩余项② 的原始定性为：「§8.6 规则预留的 `kernel`/`plugin` 前缀导出（§8.7 `PluginRunner` 的 Neon 实现）与 ModuleLoader（03-插件架构设计 §5.2 受管加载器，完整性门禁 + 白名单）均未交付；装载器 `activationPortFor` 注入位据此保持 BRIDGE_INTERNAL 诚实回退臂」（`任务说明.md:55`），且 §6.3 判其「体量最大（Neon `PluginRunner` + ModuleLoader 子系统），建议单独立项规划」（`:60`）。本 RFC 对该定性做方案级裁定：插件 JS 模块的**加载**与**执行**到底落在哪一层、`kernel`/`plugin` 前缀导出与在途六扩展导出的关系、失败语义如何映射 `apply` 30s / `stop` 10s 端口、与装载器已有面的接线缝，以及按契约先行的拆波。
 
-**现状实测面（2026-09-22 复核，行号以此为准）**：
+**现状实测面（2026-09-21 复核，行号以此为准）**：
 
 1. **激活编排契约已在壳侧落地并测试锁定**：`packages/host/src/loader/activation.ts:68-73` `IPluginActivationPort`（内核 §6.1 `PluginRunner` 的 TS 契约视图，`apply` 30s / `stop` 10s）；`packages/host/src/loader/lifecycle.ts` T1–T14 状态机、`activationPortFor` 注入位（`:116-121`）、诚实回退臂（`:265-269`、`:388-393`、`:571-572`）、超时强制（`:332-348`、`:408-415`、`:574-581`）；超时常量壳侧唯一视图 `loader/limits.ts:32-37`（`applyMs: 30_000` / `stopMs: 10_000`，权威《01-薯片内核设计》§6.7 `01.06:200-216`）。
 2. **组合根注入位与工厂缝就绪**：`packages/host/src/main/production-assembly.ts:54-60` `PluginActivationPortFor` 签名、`:81` `pluginActivationPortFor` 选项（缺省未注入即回退臂）、`:143-161` `createProductionPluginLoaderFactory`、`:185-194` 原生绑定装载闸接线；`packages/host/src/runtime/host-runtime.ts:91,103-112,203` `pluginLoaderFactory` 递交缝。
@@ -163,7 +163,7 @@
 ## 十一、实施与验证（本轮）
 
 1. 本轮实施：仅本 RFC 一份新建 + 工单025 任务说明末尾追加「剩余项② RFC 裁定交付」一段；`chips-ecosystem/**` 与文档库零改动（`git status` 审计于开工前后各一次，在途 `packages/native` 四文件与 `tools/testing` 面未被触碰；未执行任何 git 写操作）。
-2. 本轮证据命令（2026-09-22 实测）：
+2. 本轮证据命令（2026-09-21 实测）：
    - `git status --short` → 开工时仅 `packages/native` 四文件 M（在途六扩展波）+ 两个与本单无关的未跟踪目录；收工复测增量应且仅应有本目录与 `工单025-*/任务说明.md`。
    - 导出面：`packages/native/abi/export-surface.json` 工作树 21 项（基线 15 项 + Bridge 域六扩展），§8.6 文档表 `03.08:149` 仍 4 项（在途波收口职责）。
    - 宿主 cordis 消费面：`grep -rn "contextProvide\|contextInject" chips-ecosystem/packages/host/src` → 0 命中（§一.6 依据）。

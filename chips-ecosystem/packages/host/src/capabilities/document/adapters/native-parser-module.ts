@@ -12,12 +12,16 @@
  *   `src/main/native-bridge.ts` 的镜像模式同构）；本模块镜像与
  *   `packages/native/abi/export-surface.json`、`packages/native/types/chips-native.d.ts`
  *   及契约文档 §6.4 表的三方一致性由 `tests/document-native-parser-adapter.test.ts` 单点锁定。
- * - 注入面 = 13 项冻结名 + 工单034 两项「待裁名」（`documentRevision`、`documentLayoutConfig`，
- *   按 §12.1「访问器与 Rust 方法一一对应、命名 camelCase」规则自 `DocumentHandle::revision()` /
- *   `layout_config()` 机械导出）。`IDocumentParserPort` 的源指纹臂与箱子布局臂没有这两项即
- *   无原生载体（宿主侧自行做 `.card`/`.box` 字节解析违反工单015 红线），故装载闸把两项与
- *   13 项冻结名同口径要求全部在位（fail-closed）：工单034 收口前，任何按 13 项旧表构建的
- *   产物在装载点即被判 `surface-mismatch` 并逐项点名缺位导出，杜绝静默降级。
+ * - 注入面 = 13 项 §6.4 冻结名 + 工单034 两项正式化名（`documentRevision`、
+ *   `documentLayoutConfig`，按 §12.1「访问器与 Rust 方法一一对应、命名 camelCase」规则
+ *   自 `DocumentHandle::revision()` / `layout_config()` 机械导出，主智能体裁决②修正后
+ *   已落 `packages/native` 第 33/34 项导出；文档三面 §12.1 / §6.4 / §8.6 逐行随动归文档路
+ *   欠账）。`IDocumentParserPort` 的源指纹臂与箱子布局臂没有这两项即
+ *   无原生载体（宿主侧自行做 `.card`/`.box` 字节解析违反工单015 红线，且「快速指纹
+ *   不读取资源字节」（《11-文档服务设计》§5.5）禁止宿主读字节复算），故装载闸把两项与
+ *   13 项冻结名同口径要求全部在位（fail-closed）：任何按旧表（13 项或 33 项产物）构建、
+ *   缺任一正式化名的产物在装载点即被判 `surface-mismatch` 并逐项点名缺位导出，
+ *   杜绝静默降级。
  * - 导出表只增不改（§8.6）：判定按「必备名全部在位」，不要求全等集合；后续域扩展不影响
  *   既有判定。签名变化递增 `coreAbiVersion`，与宿主期望 `NATIVE_DOCUMENT_PARSER_ABI_VERSION`
  *   不等即 `abi-mismatch`。
@@ -57,19 +61,24 @@ export const NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS = [
 ] as const;
 
 /**
- * 工单034 待裁名（2 项）：§12.1「访问器与 Rust 方法一一对应」未兑现的
- * `DocumentHandle::revision()` / `layout_config()` 的机械导出名。收口前按冻结名
- * 同口径 fail-closed（见本文件头注），收口入表后本清单并入冻结名、签名不变。
+ * 工单034 正式化名（2 项）：§12.1「访问器与 Rust 方法一一对应」的两项
+ * `DocumentHandle::revision()` / `layout_config()` 机械导出名。主智能体裁决
+ * （工单034 期望行为三项，①②）已裁定正式化，`packages/native` 已落第 33/34 项
+ * 导出（`CORE_ABI_VERSION` 不 bump，新增不破坏）；本清单与 13 项冻结名同口径
+ * 进入装载闸，文档三面（§12.1 / §6.4 / §8.6）补行为文档路欠账。
  */
-export const NATIVE_DOCUMENT_PARSER_PENDING_EXPORTS = ['documentRevision', 'documentLayoutConfig'] as const;
+export const NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS = [
+  'documentRevision',
+  'documentLayoutConfig',
+] as const;
 
 /**
- * 装载闸要求的解析域导出名集合（13 冻结 + 2 待裁，共 15 项）。
+ * 装载闸要求的解析域导出名集合（13 冻结 + 2 正式化，共 15 项）。
  * 元信息两项（`coreVersion` / `coreAbiVersion`）另见 {@link NATIVE_DOCUMENT_PARSER_REQUIRED_META_EXPORTS}。
  */
 export const NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS = [
   ...NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS,
-  ...NATIVE_DOCUMENT_PARSER_PENDING_EXPORTS,
+  ...NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS,
 ] as const;
 
 /** 装载闸要求的元信息导出名（§8.6 元信息域两项，与 native-bridge 装载闸同判据）。 */
@@ -152,7 +161,7 @@ export interface INativeResourceRange {
 /** L2 条目分页结果（卡片句柄调用以契约错误拒绝）。 */
 export type INativeEntriesResult = INativeDocumentEnvelope<Record<string, unknown>[]>;
 
-/** 箱子布局配置结果（工单034 待裁名 `documentLayoutConfig`：`layout_config()` 的信封投影）。 */
+/** 箱子布局配置结果（工单034 正式化名 `documentLayoutConfig`：`layout_config()` 的信封投影）。 */
 export type INativeLayoutConfigResult = INativeDocumentEnvelope<Record<string, unknown>>;
 
 /** 严格校验报告（《06-文档解析器设计》§6.5 `ValidationReport` 投影；本适配器不消费，仅冻结签名）。 */
@@ -182,7 +191,7 @@ export interface INativeSourceMember {
 }
 
 /**
- * 修订与源指纹结果（工单034 待裁名 `documentRevision`：`DocumentHandle::revision()` 的
+ * 修订与源指纹结果（工单034 正式化名 `documentRevision`：`DocumentHandle::revision()` 的
  * JS 投影，形状逐字按工单任务说明「期望行为」第 1 项冻结）。
  */
 export interface INativeDocumentRevision {
@@ -197,7 +206,7 @@ export interface INativeDocumentRevision {
 /**
  * 文档解析域注入面（15 函数结构接口）：调用方（组合根，刀4）经
  * {@link loadNativeDocumentParserBinding} 或直接构造兼容对象注入；本工单不做生产接线。
- * 键名、参数位次、返回形状逐字对齐 §6.4 / §12.1 表（含两待裁名的冻结形状）。
+ * 键名、参数位次、返回形状逐字对齐 §6.4 / §12.1 表（含两正式化名的冻结形状）。
  */
 export interface INativeDocumentParserModule {
   /** 打开并解析到 L0（自动识别 `.card` / `.box`，§6.2）。 */
@@ -230,9 +239,9 @@ export interface INativeDocumentParserModule {
   createCancelToken(): INativeCancelTokenHandle;
   /** 触发取消；幂等（本适配器仅声明面）。 */
   cancelTokenCancel(token: INativeCancelTokenHandle): void;
-  /** 修订与源指纹（工单034 待裁名；`DocumentHandle::revision()`）。 */
+  /** 修订与源指纹（工单034 正式化名；`DocumentHandle::revision()`）。 */
   documentRevision(handle: INativeDocumentHandle): Promise<INativeDocumentRevision>;
-  /** 箱子布局配置（工单034 待裁名；`DocumentHandle::layout_config()`，卡片句柄误用按契约码拒绝）。 */
+  /** 箱子布局配置（工单034 正式化名；`DocumentHandle::layout_config()`，卡片句柄误用按契约码拒绝）。 */
   documentLayoutConfig(handle: INativeDocumentHandle): Promise<INativeLayoutConfigResult>;
 }
 
@@ -242,7 +251,7 @@ export type NativeDocumentParserUnavailableReason =
   | 'module-missing'
   /** 文件存在但加载抛错（损坏、平台不匹配、依赖缺失）。 */
   | 'load-failed'
-  /** 加载成功但必备导出缺位或非函数（旧产物 / 面漂移，含工单034 待裁名缺位形态）。 */
+  /** 加载成功但必备导出缺位或非函数（旧产物 / 面漂移，含工单034 正式化名缺位形态）。 */
   | 'surface-mismatch'
   /** 导出在位但 `coreAbiVersion()` 与宿主期望不等或取值非法（ABI 漂移）。 */
   | 'abi-mismatch';
@@ -290,7 +299,8 @@ function unavailable(
  * 装载并校验 `chips-native.node` 的文档解析域消费面（§8.6 元信息 + §6.4/工单034 解析域）。
  *
  * @remarks 判定顺序与 `loadNativeBridgeBinding` 同构：文件存在 → 加载成功且导出为对象 →
- * 17 项必备导出全部在位且为函数（13 冻结 + 2 待裁 + 元信息 2；旧 13 项产物在此被判
+ * 17 项必备导出全部在位且为函数（13 冻结 + 2 正式化 + 元信息 2；旧 13 项产物与
+ * 缺任一正式化名的 33 项产物在此被判
  * `surface-mismatch` 并逐项点名）→ `coreVersion` / `coreAbiVersion` 合法且 ABI 等值。
  * 任一步失败即返回对应原因，全部通过才交付类型化消费面。
  */

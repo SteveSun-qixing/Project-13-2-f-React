@@ -3,7 +3,7 @@
  *
  * 覆盖：
  * - 全部已实现导出（值与类型）各至少一次正例调用（含 Bridge 能力执行四导出、
- *   文档解析域十二导出，《核心接口规范》§6.4）；
+ *   文档解析域十三导出，《核心接口规范》§6.4 与工单034 正式化两项）；
  * - 注册/请求与解析选项/结果类型形状
  *   （`INativeCapabilityRegistration` / `INativeBridgeRequest` /
  *   `INativeParseOptions` / `DocumentView` 等）；
@@ -23,6 +23,8 @@ import type {
   IDocumentLayoutConfigResult,
   IDocumentMetadataResult,
   IDocumentResourceRange,
+  IDocumentRevisionMember,
+  IDocumentRevisionResult,
   IDocumentStructureResult,
   IDocumentValidationReport,
   INativeBridgeRequest,
@@ -62,6 +64,7 @@ import {
   documentLayoutConfig,
   documentMetadata,
   documentReadResource,
+  documentRevision,
   documentStructure,
   documentValidate,
   openBox,
@@ -168,6 +171,7 @@ export const entriesPage: Promise<IDocumentEntriesResult> = documentEntries(
 );
 export const layoutConfigResult: Promise<IDocumentLayoutConfigResult> =
   documentLayoutConfig(documentHandle);
+export const revisionResult: Promise<IDocumentRevisionResult> = documentRevision(documentHandle);
 const resourceRangeFixture: IDocumentResourceRange = { offset: 4, length: 8 };
 export const resourceBytes: Promise<Uint8Array> = documentReadResource(
   documentHandle,
@@ -188,6 +192,9 @@ export const metadataDiagnostics: Promise<INativeDiagnostic[]> = metadataResult.
 );
 export const validationStatus: Promise<'valid' | 'validwithwarnings' | 'invalid'> =
   validationReport.then((report) => report.status);
+export const revisionMembers: Promise<IDocumentRevisionMember[]> = revisionResult.then(
+  (result) => result.source.members
+);
 export async function viewIdentifier(value: DocumentView): Promise<string> {
   return value.kind === 'card' ? value.card_id : value.box_id;
 }
@@ -253,6 +260,10 @@ documentEntries(documentHandle, { offset: 0 });
 documentLayoutConfig(documentHandle, 1);
 // @ts-expect-error documentLayoutConfig 必须提供文档句柄
 documentLayoutConfig();
+// @ts-expect-error documentRevision 只接受句柄一个参数
+documentRevision(documentHandle, 1);
+// @ts-expect-error documentRevision 必须提供文档句柄
+documentRevision();
 // @ts-expect-error 字节窗口字段为 length，不接受 count
 documentReadResource(documentHandle, '.card/metadata.yaml', { offset: 0, count: 4 });
 // @ts-expect-error buildDocumentView 的 session 必须是数值

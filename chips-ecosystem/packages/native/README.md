@@ -53,21 +53,22 @@ packages/native/
 | Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect` |
 | 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                           |
 | Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`、`bridgeActivateProvider`、`bridgeDeactivateProvider`、`bridgeGrantCapabilityId`、`bridgeOpenSession`、`bridgeCloseSession`、`bridgeShutdown` |
-| 文档解析         | `openDocument`、`openCard`、`openBox`、`documentMetadata`、`documentStructure`、`documentContent`、`documentEntries`、`documentReadResource`、`documentValidate`、`buildDocumentView`、`documentClose` |
+| 文档解析         | `openDocument`、`openCard`、`openBox`、`documentMetadata`、`documentStructure`、`documentContent`、`documentEntries`、`documentLayoutConfig`、`documentRevision`、`documentReadResource`、`documentValidate`、`buildDocumentView`、`documentClose` |
 
 十个 Bridge 导出全部转发 `chips-bridge` 内核（工单005，《问题工单》）：
 绑定层只做参数解析、`{ json, bin }` 信封编解码、错误归一与线程回投；
 注册表、权限判定、Schema 校验、并发准入与超时取消语义在内核侧。
 `bridgeRequest` 为异步导出（`Promise`），JS 线程不 `block_on`；TS 能力的
 `handler` 由 `Root` 持有、经 `Channel` 回投 JS 线程执行（§8.3、§8.4）。
-十一个文档解析导出全部转发 `chips-parser`（《核心接口规范》§6.4、§6.6，
+十三个文档解析导出全部转发 `chips-parser`（《核心接口规范》§6.4、§6.6，
 《06-文档解析器设计》§12）：`DocumentHandle` 以 `JsBox` 不透明句柄暴露，
 `documentClose` 显式释放、GC 终结器兜底；三入口与访问器均为异步
 （工作提交绑定层运行时线程，经 `Channel` 回投 settle）；`DOCUMENT_*`
 契约码经 `ChipsError` 原样透传，绑定层只以 `NATIVE_*` 三码拒绝非法入参。
 《核心接口规范》§6.4 总表的 13 行中，`createCancelToken` /
-`cancelTokenCancel` 两行已由取消令牌域注册，文档解析域本轮净增 11 项，
-导出面合计 32 项。清单的 `blocked` 段当前为空，
+`cancelTokenCancel` 两行已由取消令牌域注册；文档解析域在 11 行之外补齐
+工单034 正式化两项（`documentLayoutConfig`、`documentRevision`），净增 13 项，
+导出面合计 34 项。清单的 `blocked` 段当前为空，
 `scripts/check-abi.mjs` 强制校验三方一致。
 
 ## 四、命令
