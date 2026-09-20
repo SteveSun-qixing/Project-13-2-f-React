@@ -122,3 +122,14 @@ export {
   type IRestoreReport,
   type PluginLifecycleEventId,
 } from './lifecycle.js';
+
+export {
+  MODULE_LOADER_ENTRY_FILE,
+  createCpkModuleLoader,
+  type ICpkModuleGateStats,
+  type ICpkModuleLoadResult,
+  type ICpkModuleLoadTarget,
+  type ICpkModuleLoader,
+  type ICreateCpkModuleLoaderOptions,
+  type ModuleLoadGateStage,
+} from './module-loader.js';
