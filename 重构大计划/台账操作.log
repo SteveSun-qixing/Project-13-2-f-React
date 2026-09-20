@@ -3502,3 +3502,35 @@
 2026-09-20 18:41:41	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=保留设计 Chips-Scaffold/chips-scaffold-module/templates/module-html-rendering/tests/unit/module-definition.test.ts.tpl
 2026-09-20 18:41:41	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=保留设计 Chips-Scaffold/chips-scaffold-module/templates/module-image-processing/tests/unit/module-definition.test.ts.tpl
 2026-09-20 18:41:41	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=保留设计 Chips-Scaffold/chips-scaffold-module/templates/module-orchestration/tests/unit/module-definition.test.ts.tpl
+2026-09-20 18:43:00	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-app/package.json
+2026-09-20 18:43:00	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-app/tsconfig.json
+2026-09-20 18:43:00	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-basecard/package.json
+2026-09-20 18:43:00	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-basecard/tsconfig.json
+2026-09-20 18:43:00	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=归档 Chips-Scaffold/chips-scaffold-basecard/package-lock.json
+2026-09-20 18:43:00	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-boxlayout/package.json
+2026-09-20 18:43:00	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-boxlayout/tsconfig.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/package.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/tsconfig.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-app/templates/app-standard/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-basecard/templates/card-standard/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-boxlayout/templates/boxlayout-standard/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/templates/module-standard/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/templates/module-pure-function/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/templates/module-color-extraction/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/templates/module-file-conversion/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/templates/module-html-rendering/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/templates/module-image-processing/template.json
+2026-09-20 18:43:01	cmd=dispose        owner=ledger-host-scaffold     rows=1      disposition=废弃 Chips-Scaffold/chips-scaffold-module/templates/module-orchestration/template.json
+2026-09-20 18:43:32	cmd=dispose-batch  owner=ledger-host-scaffold     rows=33     disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/app.ts notes=批次判定（chips-scaffold-app/templates/app-standard/** 全部 33 个 .t 目录组=12 跳过=0
+2026-09-20 18:43:32	cmd=dispose-batch  owner=ledger-host-scaffold     rows=20     disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/basecard.ts notes=批次判定（chips-scaffold-basecard/templates/card-standard/** 全部 2 目录组=10 跳过=0
+2026-09-20 18:43:32	cmd=dispose-batch  owner=ledger-host-scaffold     rows=19     disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/boxlayout.ts notes=批次判定（chips-scaffold-boxlayout/templates/boxlayout-standard/* 目录组=9 跳过=0
+2026-09-20 18:43:55	cmd=dispose-batch  owner=ledger-host-scaffold     rows=37     disposition=保留设计 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/service.ts notes=批次判定（chips-scaffold-module/templates/<7 形态>/{src/index.ts.tp 目录组=21 跳过=0
+2026-09-20 18:43:55	cmd=dispose-batch  owner=ledger-host-scaffold     rows=6      disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/index.ts notes=批次判定（chips-scaffold-module/templates/**/{.eslintrc.cjs.tpl,. 目录组=1 跳过=0
+2026-09-20 18:44:54	cmd=dispose-batch  owner=ledger-host-scaffold     rows=22     disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/tests notes=批次判定（chips-scaffold-basecard/tests/.tmp-basecard-tests/card- 目录组=12 跳过=0
+2026-09-20 18:44:54	cmd=dispose-batch  owner=ledger-host-scaffold     rows=22     disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/tests notes=批次判定（chips-scaffold-basecard/tests/.tmp-e2e/card-standard-pr 目录组=12 跳过=0
+2026-09-20 18:44:55	cmd=dispose-batch  owner=ledger-host-scaffold     rows=10     disposition=归档 status=已裁决 target=计划归属：Chips-Scaffold/归档/（已在旧仓归档目录内，随旧仓只读冻结） notes=批次判定（chips-scaffold-app/归档/**，14 件）：已在旧仓 归档/ 内的历史模板快照（task02 目录组=6 跳过=0
+2026-09-20 18:44:55	cmd=dispose-batch  owner=ledger-host-scaffold     rows=3      disposition=归档 status=已裁决 target=计划归属：Chips-Scaffold/归档/（已在旧仓归档目录内，随旧仓只读冻结） notes=批次判定（chips-scaffold-basecard/归档/task030-antd-template/**，3 件 目录组=2 跳过=0
+2026-09-20 18:44:55	cmd=dispose-batch  owner=ledger-host-scaffold     rows=3      disposition=归档 status=已裁决 target=计划归属：Chips-Scaffold/归档/（已在旧仓归档目录内，随旧仓只读冻结） notes=批次判定（chips-scaffold-boxlayout/归档/task030-antd-template/**，3  目录组=2 跳过=0
+2026-09-20 18:45:12	cmd=dispose-batch  owner=ledger-host-scaffold     rows=10     disposition=归档 status=已裁决 target=计划归属：Chips-Scaffold/归档/（已在旧仓归档目录内，随旧仓只读冻结） notes=批次判定（chips-scaffold-app/归档/**，共 10 件，实数核对）：已在旧仓 归档/ 内的历史模板快照 目录组=6 跳过=0
+2026-09-20 18:45:25	cmd=dispose-batch  owner=ledger-host-scaffold     rows=4      disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/vitest.config.ts notes=批次判定（4 件包根工程件：chips-scaffold-{module,basecard,boxlayout}/vit 目录组=3 跳过=0
+2026-09-20 18:45:25	cmd=dispose-batch  owner=ledger-host-scaffold     rows=5      disposition=保留设计 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/app.ts notes=批次判定（chips-scaffold-app/templates/app-standard/assets/icons/ 目录组=1 跳过=0
