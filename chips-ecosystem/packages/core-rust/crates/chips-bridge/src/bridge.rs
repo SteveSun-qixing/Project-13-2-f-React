@@ -7,7 +7,7 @@
 //! `CancelToken` 协作传播并强止任务，迟到结果随任务丢弃。
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -50,6 +50,16 @@ pub struct ProviderRegistration {
     pub permissions: Vec<String>,
 }
 
+/// 能力生命周期状态（《能力契约规范》§10.1 状态机；对应 §4.3 编目
+/// `ICapabilityDescriptor.state` 的 Rust 侧权威取值）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CapabilityState {
+    /// 能力可调用。
+    Active,
+    /// 蓝绿更新的旧代际：拒绝新调用；在途调用完成或按超时收口。
+    Draining,
+}
+
 /// 注册表内的生效注册项：元数据 + 编译缓存的校验器。
 ///
 /// 注册表以能力 ID 为键，条目内不再冗余存储 ID。
@@ -62,6 +72,9 @@ struct Registration {
     descriptor_permissions: Vec<String>,
     descriptor_schema: serde_json::Value,
     compiled: Arc<CompiledSchema>,
+    /// 蓝绿 draining 标记：置位后新调用按 `BRIDGE_CAPABILITY_NOT_FOUND`
+    /// 拒绝，在途调用完成或按超时收口（《能力契约规范》§4.4、§10.1）。
+    draining: AtomicBool,
 }
 
 /// 会话快照（《Bridge三层设计》§7.4 的 Rust 侧权威实例）。
@@ -106,6 +119,10 @@ struct CoreState {
     providers: HashMap<String, ProviderEntry>,
     /// 第三方能力 ID 登记绑定：ID → 提供方（不可转让、不可改绑）。
     id_ledger: HashMap<String, String>,
+    /// 原 owner 绑定：ID → 首次成功注册的提供方。注销后同一 ID 只能由原
+    /// owner 重新注册（《能力契约规范》§4.4「其他提供方不得抢占」），绑定
+    /// 不可转让、不可继承，不随注销移除。内置 ID 无登记台账，同样适用。
+    owner_bindings: HashMap<String, String>,
     capabilities: HashMap<String, Arc<Registration>>,
     sessions: HashMap<SessionId, SessionEntry>,
     serial: HashMap<String, SerialState>,
@@ -122,6 +139,7 @@ impl CoreState {
             next_seq: 1,
             providers: HashMap::new(),
             id_ledger: HashMap::new(),
+            owner_bindings: HashMap::new(),
             capabilities: HashMap::new(),
             sessions: HashMap::new(),
             serial: HashMap::new(),
@@ -176,6 +194,16 @@ fn release_invocation(state: &mut CoreState, seq: u64) {
         ids.remove(&seq);
         if ids.is_empty() {
             state.cap_invocations.remove(&entry.capability_id);
+            // draining 收口：在途清零后旧代际注册项自动进入「已注销」
+            // （《能力契约规范》§10.1 状态机：draining →在途收口→ 已注销）。
+            if state
+                .capabilities
+                .get(&entry.capability_id)
+                .is_some_and(|registration| registration.draining.load(Ordering::Acquire))
+            {
+                state.capabilities.remove(&entry.capability_id);
+                state.serial.remove(&entry.capability_id);
+            }
         }
     }
     if entry.holds_serial {
@@ -217,6 +245,9 @@ fn capability_not_found_error(capability_id: &str) -> ChipsError {
     )
     .with_details(serde_json::json!({ "capabilityId": capability_id }))
 }
+
+/// 原 owner 抢占拒绝的统一 reason（《能力契约规范》§4.4、§9.3）。
+const OWNER_BINDING_CONFLICT_REASON: &str = "同一 ID 只能由原 owner 重新注册，其他提供方不得抢占";
 
 /// 生成平台追踪 ID：单调序号 + 进程启动纪元时间，十六进制编码。
 ///
@@ -372,7 +403,36 @@ impl Bridge {
     ///
     /// 注册校验一次性完成：ID 文法与登记绑定、schema 离线编译、权限词表与
     /// manifest 声明、owner 激活状态；同 owner 同定义的重复注册幂等。
+    /// ID 已被占用或已注销时，只有原 owner 可以注册（《能力契约规范》§4.4
+    /// 「同一 ID 只能由原 owner 重新注册」）；原 owner 在蓝绿代际切换中的
+    /// 定义覆盖请使用 [`Bridge::takeover_register`]。
     pub fn register(&self, registration: CapabilityRegistration) -> Result<(), ChipsError> {
+        self.register_with(registration, false)
+    }
+
+    /// 蓝绿更新的代际接管注册（《能力契约规范》§4.4 触发表「蓝绿更新代际
+    /// 切换」、§9.3「蓝绿更新的代际接管」、《03-插件架构设计》§6.2 原子切换点）。
+    ///
+    /// 注册校验与首次注册完全一致（§4.4「重注册校验与首次注册一致」）；差异
+    /// 仅在于允许同一原 owner 对已占用 ID 做定义覆盖——这是 §9.3 登记的
+    /// 「唯一允许的同 ID 覆盖」。接管成功后注册表立即指向新代际（新代际
+    /// 接管）；旧代际进入 draining：其已准入的在途调用持旧注册项快照完成或
+    /// 按超时收口（§10.1、§4.4），新调用一律由新代际处理（《03-插件架构
+    /// 设计》§6.3「一次调用要么由旧版本处理，要么由新版本处理」）。
+    /// 跨 owner 接管按 `BRIDGE_CAPABILITY_CONFLICT` 拒绝。
+    pub fn takeover_register(
+        &self,
+        registration: CapabilityRegistration,
+    ) -> Result<(), ChipsError> {
+        self.register_with(registration, true)
+    }
+
+    /// 注册主体实现；`takeover` 为蓝绿接管模式（允许同 owner 的定义覆盖）。
+    fn register_with(
+        &self,
+        registration: CapabilityRegistration,
+        takeover: bool,
+    ) -> Result<(), ChipsError> {
         precheck_registration(&registration)?;
         let capability_id = registration.descriptor.id.clone();
 
@@ -388,22 +448,31 @@ impl Bridge {
                 && existing.max_queue == registration.max_queue
                 && existing.descriptor_permissions == registration.descriptor.permissions
                 && existing.descriptor_schema == registration.descriptor.schema;
-            if !same_definition {
+            if same_definition {
+                // 同定义幂等：采纳新的执行器句柄与编译产物；draining 标记随
+                // 注册项延续（普通注册不得唤醒 draining 槽位，§10.1），接管
+                // 模式则安装为新代际（新代际接管，§9.3）。
+                let replaced = Arc::new(Registration {
+                    owner: registration.owner,
+                    timeout_ms: registration.timeout_ms,
+                    concurrency: registration.concurrency,
+                    max_queue: registration.max_queue,
+                    executor: registration.executor,
+                    descriptor_permissions: registration.descriptor.permissions,
+                    descriptor_schema: registration.descriptor.schema,
+                    compiled: Arc::clone(&existing.compiled),
+                    draining: AtomicBool::new(
+                        existing.draining.load(Ordering::Acquire) && !takeover,
+                    ),
+                });
+                state.capabilities.insert(capability_id, replaced);
+                return Ok(());
+            }
+            // 定义不一致：蓝绿接管之外一律拒绝（§9.3 同代际重复注册口径）。
+            if !takeover {
                 return Err(conflict("重复注册定义不一致", &capability_id));
             }
-            // 同定义幂等：采纳新的执行器句柄与编译产物。
-            let replaced = Arc::new(Registration {
-                owner: registration.owner,
-                timeout_ms: registration.timeout_ms,
-                concurrency: registration.concurrency,
-                max_queue: registration.max_queue,
-                executor: registration.executor,
-                descriptor_permissions: registration.descriptor.permissions,
-                descriptor_schema: registration.descriptor.schema,
-                compiled: Arc::clone(&existing.compiled),
-            });
-            state.capabilities.insert(capability_id, replaced);
-            return Ok(());
+            // 跨 owner 的抢占已被绑定校验拒绝；此处必为原 owner 接管。
         }
         let key = schema::digest(&registration.descriptor.schema);
         let cached = state.schema_cache.get(&key);
@@ -424,9 +493,17 @@ impl Bridge {
         if state.shutdown {
             return Err(cancelled_error());
         }
-        if state.capabilities.contains_key(&capability_id) {
-            return Err(conflict("注册竞态下 ID 已被占用", &capability_id));
+        if let Some(existing) = state.capabilities.get(&capability_id) {
+            if !takeover {
+                return Err(conflict("注册竞态下 ID 已被占用", &capability_id));
+            }
+            if existing.owner != registration.owner {
+                return Err(conflict(OWNER_BINDING_CONFLICT_REASON, &capability_id));
+            }
         }
+        state
+            .owner_bindings
+            .insert(capability_id.clone(), registration.owner.clone());
         state.capabilities.insert(
             capability_id.clone(),
             Arc::new(Registration {
@@ -438,6 +515,7 @@ impl Bridge {
                 descriptor_permissions: registration.descriptor.permissions,
                 descriptor_schema: registration.descriptor.schema,
                 compiled,
+                draining: AtomicBool::new(false),
             }),
         );
         Ok(())
@@ -446,8 +524,11 @@ impl Bridge {
     /// 注销能力；在途调用按超时/取消收口（《核心接口规范》§5.1）。
     ///
     /// 注销是幂等操作：对未注册或已注销 ID 重复注销为 no-op，不产生错误
-    /// （《能力契约规范》§4.4）。注销后停止接受新调用；其 ID 可由登记绑定的
-    /// 提供方重新注册。
+    /// （《能力契约规范》§4.4）。注销后停止接受新调用（
+    /// `BRIDGE_CAPABILITY_NOT_FOUND`）；其 ID 只能由原 owner 重新注册，
+    /// 登记绑定与原 owner 绑定不随注销移除（§4.4「其他提供方不得抢占」）。
+    /// 蓝绿代际切换的有序收尾路径见 [`Bridge::begin_draining`] 与
+    /// [`Bridge::takeover_register`]。
     pub fn unregister(&self, capability_id: &str) -> Result<(), ChipsError> {
         let mut state = lock_core(&self.inner);
         if state.capabilities.remove(capability_id).is_none() {
@@ -455,6 +536,34 @@ impl Bridge {
         }
         cancel_capability(&mut state, capability_id);
         state.serial.remove(capability_id);
+        Ok(())
+    }
+
+    /// 使能力进入蓝绿更新的 `draining` 状态（《能力契约规范》§4.4 触发表
+    /// 「蓝绿更新代际切换」、§10.1 状态机）。
+    ///
+    /// 语义：新调用一律按 `BRIDGE_CAPABILITY_NOT_FOUND` 拒绝（§11.2
+    /// 「draining 后的新调用」）；在途调用不强杀，完成或按超时收口（§10.1
+    /// 「拒绝新调用；在途调用完成或按超时收口」）；在途清零后注册项自动进入
+    /// 「已注销」。幂等：对未注册或已注销 ID、对已处于 draining 的 ID 均为
+    /// no-op，不产生错误。新代际随后可经 [`Bridge::takeover_register`]
+    /// 接管同一 ID。
+    pub fn begin_draining(&self, capability_id: &str) -> Result<(), ChipsError> {
+        let mut state = lock_core(&self.inner);
+        if state.shutdown {
+            return Err(cancelled_error());
+        }
+        let Some(registration) = state.capabilities.get(capability_id) else {
+            return Ok(());
+        };
+        if registration.draining.swap(true, Ordering::AcqRel) {
+            return Ok(());
+        }
+        // 无在途调用时立即完成收口：draining → 已注销（§10.1 状态机）。
+        if !state.cap_invocations.contains_key(capability_id) {
+            state.capabilities.remove(capability_id);
+            state.serial.remove(capability_id);
+        }
         Ok(())
     }
 
@@ -539,11 +648,27 @@ impl Bridge {
     }
 
     /// 注册表只读快照：能力是否已注册（供适配层诊断，不暴露枚举面）。
+    ///
+    /// 处于 `draining` 且尚未收口的注册项仍在册，返回 `true`；在途收口完成
+    /// 后返回 `false`（《能力契约规范》§10.1）。
     #[must_use]
     pub fn has_capability(&self, capability_id: &str) -> bool {
         lock_core(&self.inner)
             .capabilities
             .contains_key(capability_id)
+    }
+
+    /// 能力生命周期状态只读查询（《能力契约规范》§4.3 编目
+    /// `ICapabilityDescriptor.state`、§10.1 状态机）；未注册时返回 `None`。
+    #[must_use]
+    pub fn capability_state(&self, capability_id: &str) -> Option<CapabilityState> {
+        let state = lock_core(&self.inner);
+        let registration = state.capabilities.get(capability_id)?;
+        Some(if registration.draining.load(Ordering::Acquire) {
+            CapabilityState::Draining
+        } else {
+            CapabilityState::Active
+        })
     }
 
     /// 完成会话校验、注册表命中、权限判定、Schema 校验与并发准入后执行能力。
@@ -588,6 +713,10 @@ impl Bridge {
                     .get(&request.capability_id)
                     .ok_or_else(|| capability_not_found_error(&request.capability_id))?,
             );
+            if registration.draining.load(Ordering::Acquire) {
+                // draining 后的新调用按未找到拒绝（《能力契约规范》§10.1、§11.2）。
+                return Err(capability_not_found_error(&request.capability_id));
+            }
             (
                 registration,
                 session.plugin_id.clone(),
@@ -634,7 +763,12 @@ impl Bridge {
         if state.shutdown {
             return Err(cancelled_error());
         }
-        if !state.capabilities.contains_key(&request.capability_id) {
+        if !state
+            .capabilities
+            .get(&request.capability_id)
+            .is_some_and(|entry| !entry.draining.load(Ordering::Acquire))
+        {
+            // 两段锁之间进入 draining 或已收口摘除：同样按未找到拒绝（§11.2）。
             return Err(capability_not_found_error(&request.capability_id));
         }
         if !state.sessions.contains_key(&request.session) {
@@ -846,6 +980,14 @@ fn check_registration_bindings(
             format!("能力提供方尚未激活：{}", registration.owner),
         ));
     };
+    // 原 owner 绑定：ID 一旦被成功注册即与原 owner 永久绑定，注销不解除；
+    // 其他提供方不得抢占（《能力契约规范》§4.4、§9.3「登记绑定不可转让、
+    // 不可继承」）。内置 ID 无登记台账，此校验是唯一的重注册约束面。
+    if let Some(bound) = state.owner_bindings.get(capability_id) {
+        if bound != &registration.owner {
+            return Err(conflict(OWNER_BINDING_CONFLICT_REASON, capability_id));
+        }
+    }
     if is_builtin_capability_id(capability_id) {
         if provider.kind != ProviderKind::PlatformService {
             return Err(conflict("内置 ID 由平台服务域持有", capability_id));

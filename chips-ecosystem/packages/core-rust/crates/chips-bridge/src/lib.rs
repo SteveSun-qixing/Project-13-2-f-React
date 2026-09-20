@@ -97,7 +97,7 @@ pub mod naming;
 pub mod permissions;
 mod schema;
 
-pub use bridge::{Bridge, ProviderKind, ProviderRegistration};
+pub use bridge::{Bridge, CapabilityState, ProviderKind, ProviderRegistration};
 pub use constants::{
     DEFAULT_MAX_QUEUE, DEFAULT_TIMEOUT_MS, MAX_VALIDATION_ISSUES, SCHEMA_CACHE_CAPACITY,
     SESSION_IN_FLIGHT_LIMIT,
