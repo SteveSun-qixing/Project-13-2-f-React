@@ -80,7 +80,7 @@ export function createLocalArtifacts(options: ILocalArtifactsOptions = {}): ICli
           // 逐次注入的信任注册文件覆盖构造期信任根表（[CLI 完整参考] §2.7 注入面；判定实现唯一）。
           trustRoots:
             input.trustRootsFile === undefined
-              ? options.trustRoots ?? {}
+              ? (options.trustRoots ?? {})
               : loadTrustRootsFile(input.fileSystem, input.trustRootsFile),
         })
       ),

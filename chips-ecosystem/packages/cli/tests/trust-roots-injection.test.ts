@@ -103,9 +103,9 @@ describe('信任注册文件加载（loadTrustRootsFile，§2.7）', () => {
     expect(exitCodeForError(missing)).toBe(5);
     const fileSystem = new MemoryFileSystem();
     fileSystem.writeDirectory('/keys');
-    expect(
-      expectError(() => loadTrustRootsFile(fileSystem, '/keys')).code
-    ).toBe('CLI_PATH_INVALID');
+    expect(expectError(() => loadTrustRootsFile(fileSystem, '/keys')).code).toBe(
+      'CLI_PATH_INVALID'
+    );
   });
 
   it('非法 JSON、version 非 1、未知顶层字段、trustRoots 结构非法均 CLI_ARGUMENT_INVALID（退出码 2）', () => {

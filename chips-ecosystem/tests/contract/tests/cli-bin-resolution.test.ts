@@ -9,7 +9,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { afterAll, describe, expect, it } from 'vitest';
@@ -28,7 +29,72 @@ afterAll(() => {
   }
 });
 
-function run(command: string, args: readonly string[], cwd: string): {
+/** 同步休眠（Atomics 超时等待，不引入异步调度）。 */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** 持有者进程是否存活（`kill` 信号 0 探测；ESRCH 即已退出）。 */
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+  }
+}
+
+/**
+ * `package` 脚本链互斥锁（跨进程）：`pnpm -r test:contract` 会让
+ * `@chips/contract-tests` 同时经受控直跑与 `packages/bridge` 转发两条执行面并发运行本套件，
+ * 双方都会在同一绝对路径 pack/清理产物；嵌套归档拒绝是既有校验强度，因此并发写同一
+ * 产物属执行面串扰而非产品缺陷。这里以原子 `mkdir` 建锁串行化临界区；
+ * 残锁接管双保险——持有者进程已退出（worker 被超时终止后进程不复存在）或锁龄超 3 分钟即接管。
+ * 等待预算必须小于本用例显式超时（见 `it` 第三参数），保证被终止的等待者不会留下二次残锁。
+ */
+function withPackageChainLock<T>(body: () => T): T {
+  const lockDir = `${tmpdir()}/chips-contract-hello-package.lock`;
+  const deadline = Date.now() + 90_000;
+  for (;;) {
+    try {
+      mkdirSync(lockDir);
+      writeFileSync(`${lockDir}/owner`, String(process.pid));
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        throw error;
+      }
+      let takeover = false;
+      try {
+        const ownerPid = Number(readFileSync(`${lockDir}/owner`, 'utf8').trim());
+        const staleMs = Date.now() - statSync(lockDir).mtimeMs;
+        takeover =
+          (Number.isInteger(ownerPid) && ownerPid > 0 && !pidAlive(ownerPid)) || staleMs > 180_000;
+      } catch {
+        takeover = true; // 锁目录/owner 文件读失败：视为残锁。
+      }
+      if (takeover) {
+        rmSync(lockDir, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(`等待 package 脚本链互斥锁超时（持有者见 ${lockDir}/owner）：${lockDir}`);
+      }
+      sleepSync(200);
+    }
+  }
+  try {
+    return body();
+  } finally {
+    rmSync(lockDir, { recursive: true, force: true });
+  }
+}
+
+function run(
+  command: string,
+  args: readonly string[],
+  cwd: string
+): {
   status: number | null;
   stdout: string;
   stderr: string;
@@ -57,20 +123,24 @@ describe('工作区 bin 锚点与 package 脚本链', () => {
     expect(workspace.stdout.trim().length).toBeGreaterThan(0);
   });
 
+  // 显式超时须大于互斥锁等待预算（90s）+ 冷载 pack/validate 用时，
+  // 避免 vitest 默认 30s 超时在临界区内终止持有者进程制造残锁。
   it('package 脚本链端到端：pack 产物通过正式引擎 validate（EXIT=0）', () => {
-    // 旧产物先清理（嵌套归档拒算是既有校验强度，见 RFC §六.2）。
-    rmSync(packedArchive, { force: true });
-    producedArtifacts.push(packedArchive);
+    withPackageChainLock(() => {
+      // 旧产物先清理（嵌套归档拒算是既有校验强度，见 RFC §六.2）。
+      rmSync(packedArchive, { force: true });
+      producedArtifacts.push(packedArchive);
 
-    const packed = run('pnpm', ['--filter', '@chips/plugin-hello', 'run', 'package'], repoRoot);
-    expect(packed.status, `${packed.stdout}\n${packed.stderr}`).toBe(0);
-    expect(existsSync(packedArchive)).toBe(true);
+      const packed = run('pnpm', ['--filter', '@chips/plugin-hello', 'run', 'package'], repoRoot);
+      expect(packed.status, `${packed.stdout}\n${packed.stderr}`).toBe(0);
+      expect(existsSync(packedArchive)).toBe(true);
 
-    const validated = run('node', [cliEntry, 'plugin', 'validate', packedArchive], repoRoot);
-    expect(validated.status, `${validated.stdout}\n${validated.stderr}`).toBe(0);
-    expect(validated.stdout).toContain('结果: valid');
+      const validated = run('node', [cliEntry, 'plugin', 'validate', packedArchive], repoRoot);
+      expect(validated.status, `${validated.stdout}\n${validated.stderr}`).toBe(0);
+      expect(validated.stdout).toContain('结果: valid');
 
-    rmSync(packedArchive, { force: true });
-    expect(existsSync(packedArchive)).toBe(false);
-  });
+      rmSync(packedArchive, { force: true });
+      expect(existsSync(packedArchive)).toBe(false);
+    });
+  }, 240_000);
 });

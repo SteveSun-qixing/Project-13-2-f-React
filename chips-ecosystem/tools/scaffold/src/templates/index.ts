@@ -184,7 +184,10 @@ export function buildScaffoldFiles(context: IScaffoldContext): IScaffoldFile[] {
  *
  * - 内部依赖一律 `workspace:*`（《依赖管理与锁文件规范》§2.1）；
  * - 第三方依赖精确版本（同文档 §2.2），与 `examples/plugins/hello` 的工具链基线一致；
- * - `react` / `react-dom` / `@chips/ui` 是平台提供物，只参与构建与类型检查，禁止进入 `dependencies`。
+ * - `react` / `react-dom` / `@chips/ui` 是平台提供物，只参与构建与类型检查，禁止进入 `dependencies`；
+ * - `@chips/cli` 是 `package` 脚本（`pnpm exec chips plugin pack`）的 bin 锚点：
+ *   声明为 devDependency 后 `pnpm exec` 在本包 `node_modules/.bin` 解析到工作区版 CLI，
+ *   杜绝静默回退 PATH 命中仓库外同名全局 bin（工单020 缺陷①）。
  */
 function packageDevDependencies(context: IScaffoldContext): {
   devDependencies: Record<string, string>;
@@ -193,6 +196,7 @@ function packageDevDependencies(context: IScaffoldContext): {
   if (role === 'service') {
     return {
       devDependencies: {
+        '@chips/cli': 'workspace:*',
         '@chips/sdk': 'workspace:*',
         '@types/node': '20.19.37',
         '@vitest/coverage-v8': '3.2.4',
@@ -204,6 +208,7 @@ function packageDevDependencies(context: IScaffoldContext): {
   }
 
   const devDependencies: Record<string, string> = {
+    '@chips/cli': 'workspace:*',
     '@chips/sdk': 'workspace:*',
     '@chips/ui': 'workspace:*',
     '@types/node': '20.19.37',

@@ -1,8 +1,8 @@
 # RFC-CLI 信任根注入面：`chips plugin validate` 的签名信任根正式注入链路
 
 > 版本：v1.0.0
-> 日期：2026-09-20
-> 状态：实施中（§五 验证证据表在收口时以真实退出码回填）
+> 日期：2026-09-20（验证证据回填：2026-09-21，W2 #46 接管收口）
+> 状态：已收口（§五 验证证据表已以真实退出码回填）
 > 关联：工单019（插件签名信任根无正式注入链路）、工单020（插件 package 命令 bin 解析漂移与目录态校验口径缺口）、`chips-ecosystem/packages/cli`、《04-文件格式规范/03-插件包格式》§6.3、《06-开发与运维/07-CLI完整参考》§2.7/§3.5、《06-开发与运维/02-构建与打包》§7.3
 
 ## 一、动机（信任根判定有实现、无注入口）
@@ -53,17 +53,24 @@
    - `06-开发与运维/02.07-….md` §7.3：注入文件形状与 host 编译期注册表的关系注记；
    - `packages/cli/开发日志.md` 与两工单 `收口记录.md`。回写后 `校验拆分件.py`、`检查文档链接.py` 必须 EXIT=0。
 
-## 五、验证证据（收口时以真实退出码回填，工作目录 `chips-ecosystem/`）
+## 五、验证证据（2026-09-21 W2 #46 接管收口回填，全部重定向取真实退出码，工作目录 `chips-ecosystem/`）
 
 | # | 命令 | 退出码 | 关键输出 |
 | --- | --- | --- | --- |
-| V1 | `pnpm --filter @chips/cli build / test / lint / typecheck` | 待回填 | |
-| V2 | `CHIPS_TRUST_ROOTS_FILE=tests/e2e/fixtures/cpk/keys/trust-roots.json node packages/cli/dist/bin.js plugin validate tests/e2e/fixtures/cpk/packages/hello-0.1.0.cpk` | 待回填 | 期望 EXIT=0 且 `签名校验: 通过` |
-| V3 | 同上注入，逐件 validate 三个负夹具 | 待回填 | 各按 `CPK_SIGNATURE_INVALID` / `CPK_MANIFEST_INVALID` / `CPK_ARCHIVE_INVALID` EXIT=1 |
-| V4 | 不注入信任根 validate 正夹具 | 待回填 | `CPK_SIGNATURE_INVALID`（信任根未注册）EXIT=1 |
-| V5 | `cd examples/plugins/hello && pnpm exec which chips` | 待回填 | 解析到当前工作区 bin（非 `~/.volta/bin/chips`） |
-| V6 | `pnpm --filter @chips/plugin-hello run package` + 产物 validate | 待回填 | EXIT=0，用例自清理 |
-| V7 | `node tools/gates/check-boundaries.mjs --no-report`、契约测试、`test:e2e:cpk-fixtures:check`、`校验拆分件.py`、`检查文档链接.py` | 待回填 | |
+| V1 | `pnpm --filter @chips/cli build` / `typecheck` / `lint` / `test` | 0 / 0 / 0 / 0 | test：`Test Files 20 passed`、`Tests 482 passed`（lint 面本轮对 4 个新改文件执行 `prettier --write` 后收敛为规范形，判定强度零变化） |
+| V2 | `CHIPS_TRUST_ROOTS_FILE=tests/e2e/fixtures/cpk/keys/trust-roots.json node packages/cli/dist/bin.js plugin validate tests/e2e/fixtures/cpk/packages/hello-0.1.0.cpk` | 0 | 五阶段全过：`签名校验: 通过（keyId: chips-fixture-2026）`、`摘要校验: 通过`、`结果: valid` |
+| V3 | 同上注入，逐件 validate 三个负夹具 | 1 / 1 / 1 | `CPK_SIGNATURE_INVALID` / `CPK_MANIFEST_INVALID` / `CPK_ARCHIVE_INVALID` |
+| V4 | 不注入信任根 validate 正夹具 | 1 | `CPK_SIGNATURE_INVALID`（`信任根未注册的 keyId：chips-fixture-2026`，stage=signature） |
+| V5 | `cd examples/plugins/hello && pnpm exec which chips` | 0 | 解析到 `<repo>/chips-ecosystem/node_modules/.bin/chips`（非 `~/.volta/bin/chips`） |
+| V6 | `pnpm --filter @chips/plugin-hello run package` + 产物 validate | 0 / 0 | pack `校验: 通过`；validate `结果: valid`；产物自清理 |
+| V7 | `pnpm gates:all` | 收口实测 0（终验快照期 1/3，见下注） | 收口复跑：G12/G8/G9/G6 全过（13 条 DOCS090 短章节警告为既有基线，非本单引入）；`校验拆分件.py` 0、`检查文档链接.py` 0（7218 链接 0 坏链）；`pnpm --filter @chips/scaffold test/typecheck` 0/0（87 用例）。终验快照期外部漂移（`tools/gates/**` 本路线零接触、禁改面）：并行 G6 豁免挂点路（工单017 域）在途编辑先致 `check-coverage.mjs` `matchExemption` 引用错位崩溃（EXIT=3），改名收敛后 TD-001 豁免登记 `scopePaths` 为空判不构成豁免（EXIT=1，rust-core lines 83.00% 维持失败）；ts 面 total/shared 判定不受影响，归属该路文件面如实报告不越面修复 |
+| V8 | 全量 `pnpm test:contract` | 1（非本单归属） | 本单 `cli-bin-resolution.test.ts` 直跑实例 `✓ 3 tests`（3720ms）通过；`packages/bridge` 转发实例在上一轮全量并发实测中同套用例通过（双进程并发实测两实例均 3/3），本轮该实例在 `cpk-fixtures` 失败后遭 pnpm fail-fast 中止（属该失败连带）；唯一失败 `cpk-fixtures.test.ts` 为夹具字节落后于并行路 R43/#43 在途 `packages/sdk/**` 源码（sdk 被内联进 hello render 包），需该路收口后重跑生成器再生，`packages/sdk/**` 与夹具链均为本单禁改面，如实报告不越面修复 |
+
+> 执行面串扰注：原 §四.6 设计未预见 `pnpm -r test:contract` 会让 `@chips/contract-tests`
+> 双执行面并发跑同一套件（直跑 + `packages/bridge` 转发，转发接线属并行路 #42 文件面，本单禁改）；
+> 本单在册用例改为跨进程互斥串行化临界区：原子 `mkdir` 建锁 + owner PID 存活性/锁龄 3 分钟双路残锁接管
+> （fail-fast 击杀持有者后 ≤1s 恢复）+ 用例显式 240s 超时包住 90s 等待预算（防 vitest 默认 30s
+> 超时在临界区内制造残锁），不放宽任何断言。
 
 ## 六、遗留与建议（不构成本单红点）
 

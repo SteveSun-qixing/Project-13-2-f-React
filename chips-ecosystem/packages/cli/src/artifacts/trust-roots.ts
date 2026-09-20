@@ -37,7 +37,10 @@ export function loadTrustRootsFile(
     });
   }
   if (fileSystem.kind(path) !== 'file') {
-    throw cliError('CLI_PATH_INVALID', `信任注册路径不是文件：${path}`, { path, env: TRUST_ROOTS_ENV });
+    throw cliError('CLI_PATH_INVALID', `信任注册路径不是文件：${path}`, {
+      path,
+      env: TRUST_ROOTS_ENV,
+    });
   }
   let document: unknown;
   try {

@@ -238,9 +238,7 @@ const validateCommand: ICliCommandDefinition = {
       path,
       source,
       ...(platformVersion === undefined ? {} : { platformVersion }),
-      ...(trustRootsFile === undefined || trustRootsFile.length === 0
-        ? {}
-        : { trustRootsFile }),
+      ...(trustRootsFile === undefined || trustRootsFile.length === 0 ? {} : { trustRootsFile }),
       fileSystem: context.fileSystem,
     });
     const human = [
