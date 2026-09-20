@@ -157,6 +157,7 @@
 1. **O1**：加载门禁/完整性失败是否专设码（如 `PLUGIN_LOAD_DENIED` 域或《01-薯片内核设计》§9.1 码表扩充）；本轮以在册 `KERNEL_APPLY_FAILED` 兜底，`retryable: true` 对确定性拒装存在语义钝差（登记于 §5.1，实现波不得自造）。
 2. **O2**：ESM 求值机制 M1/M2 终局——波 0 Electron 真进程实测后签认；若取 M1，`--experimental-vm-modules` 进入生产启动面须显式接受。
 3. **O3**：暂存代际/能力发布权威（壳侧 `hostCapabilityRegistry` ↔ 内核 §6.3[d]）与 sessionId `string`↔`u64` 漂移（RFC-026 §4.3 备注 3）的归属收敛，随剩余项①③ 集成单与波 4 立项统筹。
+   - 已裁定（2026-09-21，任务 #103 落文）：sessionId `string`↔`u64` 漂移部分裁定「归宿主主进程适配层单点归一」——宿主 wire `string` 为对外唯一身份（Bridge/事件/审计面），backing `u64` 为主进程内部细节，映射单点落 resolver/适配层所在处（`packages/host/src/renderer/document-view-builder.ts` 会话解析器域），§6.4 backing 冻结签名 `buildDocumentView(handle, session: number)` 不动；落文面《03-核心接口规范》§5.6、§6.4 注记与《05-渲染引擎设计》§2.6（工单035 任务说明 §八同步）。暂存代际/能力发布权威部分仍随波 4 立项（O4）统筹，不在本次裁定覆盖内。
 4. **O4**：波 4（内核运行时接线 + `kernel`/`plugin` 前缀导出 + §6.8 熔断 + 工具进程服务隔离）是否立项与排期。
 5. **O5**：§8.6 规则 3 / §8.7 的口径修订文本（§7.2）在波 3 后落共用文档前，是否需按 AGENTS 文档边界先行评审。
 
