@@ -1,0 +1,5 @@
+{
+  "format": "chips-trust-roots-v1",
+  "description": "宿主编译期信任根注册表：内置插件签名公钥集合（chips-trust-roots-v1）。当前正式密钥材料未交付（工单 028），keys 为空集即未注册任何密钥全集——带签名成员一律按 keyId 未注册拒绝（CPK_SIGNATURE_INVALID），失效关闭。",
+  "keys": []
+}

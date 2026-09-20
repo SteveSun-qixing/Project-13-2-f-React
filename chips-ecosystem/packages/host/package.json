@@ -18,6 +18,9 @@
     "lint": "eslint . && prettier --check .",
     "clean": "node ./scripts/clean.mjs"
   },
+  "dependencies": {
+    "yaml": "2.8.2"
+  },
   "devDependencies": {
     "@types/node": "22.20.3",
     "electron": "40.8.0",
