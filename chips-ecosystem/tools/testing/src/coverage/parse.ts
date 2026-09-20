@@ -8,8 +8,8 @@
 
 import { relative, isAbsolute, normalize, sep } from 'node:path';
 
-import { type CoverageMetric } from '../thresholds';
-import { type CoverageCount, type CoverageCounts, type CoveredFile } from './model';
+import { type CoverageMetric } from '../thresholds.ts';
+import { type CoverageCount, type CoverageCounts, type CoveredFile } from './model.ts';
 
 /** vitest v8 `json-summary` 中单个维度的原始结构。 */
 interface VitestMetricSummary {

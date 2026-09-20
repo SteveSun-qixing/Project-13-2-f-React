@@ -22,8 +22,12 @@
  * { "test": "vitest run --configLoader runner" }
  * ```
  *
- * 覆盖率阈值装载自 `./thresholds`（单一事实源为 `tools/gates/gates.config.json`，
- * G6 为唯一判定面，工单 017）；包内 `test:coverage` 使用 tier 对应的阈值作为
+ * 覆盖率阈值装载自本包公开子路径 `@chips/testing/thresholds`（包内自引用 exports，
+ * 单一事实源为 `tools/gates/gates.config.json`，G6 为唯一判定面，工单 017）；
+ * 必须使用可被 Node ESM 严格解析的说明符（bare 子路径或带显式扩展名），
+ * 禁止无扩展名相对导入——工作区包以 TS 源导出，配置链默认加载器会将其外置为
+ * Node ESM，无扩展名相对导入会抛 `ERR_MODULE_NOT_FOUND`（工单 030）。
+ * 包内 `test:coverage` 使用 tier 对应的阈值作为
  * vitest 本地守卫，权威判定仍以根脚本 `pnpm gates:coverage`（G6）为准。
  */
 
@@ -32,7 +36,7 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { configDefaults, defineConfig, type UserConfig } from 'vitest/config';
 
-import { COVERAGE_THRESHOLDS, type CoverageThreshold } from './thresholds';
+import { COVERAGE_THRESHOLDS, type CoverageThreshold } from '@chips/testing/thresholds';
 
 /** 覆盖率层级：`standard`（总体 80%）/ `core` / `shared`（90%）。 */
 export type ChipsCoverageTier = 'standard' | 'core' | 'shared';

@@ -5,7 +5,7 @@
  * 判定唯一归属 G6（工单 017），本入口只委托执行并透出结论与退出码。
  */
 
-import { runCoverageGate } from './runner';
+import { runCoverageGate } from './runner.ts';
 
 const result = runCoverageGate();
 

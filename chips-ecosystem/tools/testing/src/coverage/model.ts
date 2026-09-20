@@ -5,8 +5,8 @@
  * （`g6.ts`）的行渲染视图。
  */
 
-import type { CoverageMetric } from '../thresholds';
-import type { G6Trace } from './g6';
+import type { CoverageMetric } from '../thresholds.ts';
+import type { G6Trace } from './g6.ts';
 
 /** 单一维度的命中/总量统计。 */
 export interface CoverageCount {

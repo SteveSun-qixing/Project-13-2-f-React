@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 
-import { REPO_ROOT, runCoverageGate, type RunCoverageGateResult } from './runner';
+import { REPO_ROOT, runCoverageGate, type RunCoverageGateResult } from './runner.ts';
 
 interface CoverageStage {
   readonly id: string;

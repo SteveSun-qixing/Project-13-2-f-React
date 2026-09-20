@@ -14,11 +14,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { COVERAGE_REPORT_PATHS } from '../thresholds';
-import { createGateReport, formatPercent, renderReportMarkdown } from './gate';
-import { runG6CoverageGate, type G6CoverageReport, type G6RunOutcome } from './g6';
-import { parseTarpaulinReport, parseVitestSummary } from './parse';
-import type { CoverageGateReport, CoverageVerdict, CoveredFile } from './model';
+import { COVERAGE_REPORT_PATHS } from '../thresholds.ts';
+import { createGateReport, formatPercent, renderReportMarkdown } from './gate.ts';
+import { runG6CoverageGate, type G6CoverageReport, type G6RunOutcome } from './g6.ts';
+import { parseTarpaulinReport, parseVitestSummary } from './parse.ts';
+import type { CoverageGateReport, CoverageVerdict, CoveredFile } from './model.ts';
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 

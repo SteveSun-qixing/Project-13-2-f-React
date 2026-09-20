@@ -11,7 +11,7 @@
  *   声明的核心统计面；阈值与统计面口径见 `../thresholds.ts` 装载的门禁配置）。
  */
 
-import type { G6CoverageReport } from './g6';
+import type { G6CoverageReport } from './g6.ts';
 import type {
   CoverageCount,
   CoverageCounts,
@@ -19,13 +19,13 @@ import type {
   CoverageGroup,
   CoverageVerdict,
   CoveredFile,
-} from './model';
-import type { CoverageMetric } from '../thresholds';
+} from './model.ts';
+import type { CoverageMetric } from '../thresholds.ts';
 import {
   COVERAGE_METRICS,
   CORE_RUST_CRATE_PATH_PREFIXES,
   SHARED_LAYER_GLOBS,
-} from '../thresholds';
+} from '../thresholds.ts';
 
 /** 计算覆盖率百分比；总量为 0 时返回 `null`（口径不适用）。 */
 export function coveragePercent(count: CoverageCount): number | null {
