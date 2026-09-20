@@ -5,6 +5,7 @@ import path from 'node:path';
 import { runCheck } from '../check-boundaries.mjs';
 import {
   boundariesConfig,
+  bridgeEdgeBoundariesConfig,
   fixture,
   gatesDir,
   noFlags,
@@ -95,11 +96,76 @@ test('boundaries：生产配置 gates.config.json 的 sdk 规则已登记 @chips
     'packages/sdk allowedInternal 应包含 @chips/scaffold（§8.2 规则 9 薄转发边）'
   );
   assert.ok(
-    !sdkRule.typeOnlyInternal.includes('@chips/scaffold'),
+    !(sdkRule.typeOnlyInternal ?? []).includes('@chips/scaffold'),
     '转发入口是运行时 import，@chips/scaffold 不应被限为 import type'
   );
   const otherScaffoldRules = rules.filter(
     (rule) => rule.id !== 'packages/sdk' && (rule.allowedInternal ?? []).includes('@chips/scaffold')
   );
   assert.deepEqual(otherScaffoldRules, [], '@chips/scaffold 放行边应唯一归属 packages/sdk 规则');
+});
+
+// —— 以下为工单024《RFC-ChipsError统一裁定》§3.3 条 2 波 B amendment 三向用例 ——
+
+test('boundaries：packages/sdk 运行时 import @chips/bridge 错误模型边放行（RFC-ChipsError统一裁定 §3.3 条 2）', async () => {
+  const report = await runCheck({
+    workspaceRoot: fixture('boundaries-bridge-edge'),
+    config: bridgeEdgeBoundariesConfig(),
+    flags: noFlags,
+  });
+  const sdkViolations = report.violations.filter(
+    (item) => item.file === undefined || !item.file.startsWith('packages/ui')
+  );
+  assert.deepEqual(
+    sdkViolations,
+    [],
+    `sdk / bridge 两侧的 workspace:* 依赖与运行时 import 不应报任何违规（含 BOUNDARY022 type-only 限制已解除）：${JSON.stringify(
+      sdkViolations
+    )}`
+  );
+});
+
+test('boundaries：放行面仅限 sdk→bridge，其他未放行 runtime 边仍拒', async () => {
+  const report = await runCheck({
+    workspaceRoot: fixture('boundaries-bridge-edge'),
+    config: bridgeEdgeBoundariesConfig(),
+    flags: noFlags,
+  });
+  assert.equal(report.status, 'fail');
+  const codes = violationCodes(report);
+  assert.ok(codes.includes('BOUNDARY010'), 'packages/ui 依赖 @chips/bridge 应报 BOUNDARY010');
+  assert.ok(
+    codes.includes('BOUNDARY020'),
+    'packages/ui 源码运行时导入 @chips/bridge 应报 BOUNDARY020'
+  );
+  for (const item of report.violations) {
+    assert.ok(
+      item.file !== undefined && item.file.startsWith('packages/ui'),
+      `违规应全部来自未放行的 packages/ui：${JSON.stringify(item)}`
+    );
+  }
+});
+
+test('boundaries：生产配置 gates.config.json 的 sdk 规则已按裁定解除 @chips/bridge type-only 限制（防漂移锚点）', () => {
+  // 出处：项目日志与笔记/RFC-ChipsError统一裁定/RFC-ChipsError统一裁定.md §3.3 条 2、§八波 B 行。
+  const config = JSON.parse(fs.readFileSync(path.join(gatesDir, 'gates.config.json'), 'utf8'));
+  const rules = config.boundaries.rules;
+  const sdkRule = rules.find((rule) => rule.id === 'packages/sdk');
+  assert.ok(sdkRule, '缺少 packages/sdk 规则');
+  assert.ok(
+    sdkRule.allowedInternal.includes('@chips/bridge'),
+    'packages/sdk allowedInternal 应维持含 @chips/bridge（裁定只解除 type-only 形态限制，不新增包图边）'
+  );
+  assert.ok(
+    !(sdkRule.typeOnlyInternal ?? []).includes('@chips/bridge'),
+    'RFC-ChipsError统一裁定 §3.3 条 2：packages/sdk typeOnlyInternal 应已移除 @chips/bridge（运行时边放行）'
+  );
+  const otherTypeOnlyBridge = rules.filter(
+    (rule) => rule.id !== 'packages/sdk' && (rule.typeOnlyInternal ?? []).includes('@chips/bridge')
+  );
+  assert.deepEqual(
+    otherTypeOnlyBridge,
+    [],
+    '@chips/bridge 的 type-only 表项应仅随 packages/sdk 规则在册或被全部移除，不得漂移到其他规则'
+  );
 });

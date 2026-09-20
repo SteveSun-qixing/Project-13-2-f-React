@@ -117,6 +117,34 @@ export function scaffoldBoundariesConfig() {
   };
 }
 
+// sdk→@chips/bridge 运行时边放行专用配置（RFC-ChipsError统一裁定 §3.3 条 2 波 B amendment）：
+// 与其他夹具配置分面、互不影响既有用例；packages/sdk 规则与生产 gates.config.json 修订后同形
+// （allowedInternal 含 @chips/bridge、typeOnlyInternal 整键移除），packages/ui 允许集不含
+// @chips/bridge 作未放行对照面。运行时 import 仅限 bridge 错误模型面为 §3.3 条 3 规范条款，
+// 不写入门禁判定面，故此处不设、也不应设任何用途级判定。
+export function bridgeEdgeBoundariesConfig() {
+  return {
+    boundaries: {
+      internalScope: '@chips/',
+      sourceExtensions: ['.ts'],
+      ignoredDirs: ['node_modules', 'dist', 'fixtures'],
+      testFilePatterns: ['\\.test\\.'],
+      workspaceProtocol: 'workspace:',
+      forbiddenProtocolPrefixes: ['file:', 'link:'],
+      rules: [
+        { id: 'root', match: '.', kind: 'root' },
+        {
+          id: 'packages/sdk',
+          match: 'packages/sdk',
+          allowedInternal: ['@chips/bridge', '@chips/scaffold'],
+        },
+        { id: 'packages/bridge', match: 'packages/bridge', allowedInternal: [] },
+        { id: 'packages/ui', match: 'packages/ui', allowedInternal: ['@chips/antd'] },
+      ],
+    },
+  };
+}
+
 export function coverageConfig({
   rustRequired = true,
   rustSurface = false,

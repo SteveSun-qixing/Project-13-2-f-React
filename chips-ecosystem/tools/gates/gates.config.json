@@ -72,8 +72,7 @@
       {
         "id": "packages/sdk",
         "match": "packages/sdk",
-        "allowedInternal": ["@chips/bridge", "@chips/scaffold"],
-        "typeOnlyInternal": ["@chips/bridge"]
+        "allowedInternal": ["@chips/bridge", "@chips/scaffold"]
       },
       {
         "id": "packages/ui",

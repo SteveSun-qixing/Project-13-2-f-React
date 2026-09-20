@@ -1,6 +1,6 @@
 # 薯片生态质量门禁脚本集
 
-> 版本：v1.1.0
+> 版本：v1.2.0
 > 日期：2026-09-20
 > 状态：正式版
 > 适用范围：`chips-ecosystem/tools/gates/` 门禁脚本集的使用方法、退出码契约、配置参考、检查项代码、报告产物与自测方式；不覆盖门禁数值基线与豁免流程本身（以《CI/CD 与质量门禁》为准）。
@@ -131,7 +131,12 @@ node tools/gates/check-entries.mjs examples/plugins/hello
 
 测试文件（`tests/`、`*.test.*`、`*.spec.*`、`*.stories.*`）不参与源码导入检查；子路径导入（如 `@chips/testing/vitest`）按包名归一判定。
 
-依赖允许集的事实源是 `gates.config.json` → `boundaries.rules`。其中 `packages/sdk → @chips/scaffold` 为 RFC 裁决放行的唯一脚手架转发有向边（《05-接口与契约/02-SDK-API规范》§8.2 规则 9：模板事实源在 `tools/scaffold/src/templates/`，`@chips/sdk/scaffold` 是薄转发层；见 `项目日志与笔记/RFC-G9边界表放行sdk转发边/`），放行面仅此一条边（依赖 + 源码 import），不放宽任何其他跨包边，也不引入豁免字段。
+依赖允许集的事实源是 `gates.config.json` → `boundaries.rules`。跨包边的 RFC 裁决放行在册两条，均为「配置面对齐规范面」处置、不放宽任何其他跨包边、不引入豁免字段：
+
+- `packages/sdk → @chips/scaffold`：唯一脚手架转发有向边（《05-接口与契约/02-SDK-API规范》§8.2 规则 9：模板事实源在 `tools/scaffold/src/templates/`，`@chips/sdk/scaffold` 是薄转发层；见 `项目日志与笔记/RFC-G9边界表放行sdk转发边/`），放行面仅此一条边（依赖 + 源码 import）。
+- `packages/sdk → @chips/bridge`：按《RFC-ChipsError统一裁定》§3.3 条 2（`项目日志与笔记/RFC-ChipsError统一裁定/RFC-ChipsError统一裁定.md`）解除 type-only 限制、放开到运行时 import 形态（`typeOnlyInternal` 移除该表项，`allowedInternal` 维持含之）；该边在依赖声明与类型 import 两层早已在册，不新增包图边。裁定 §3.3 条 3 同时限定该边运行时用途仅限 `@chips/bridge` 错误模型面——这是规范条款而非门禁条款，判定面不做用途级检查。
+
+`typeOnlyInternal` 判定能力保留（BOUNDARY022 检查逻辑与夹具自测在册），当前生产配置无 type-only 表项；边界表变更史见 `开发日志.md` 对应 RFC 落地条目。
 
 ### 4.4 覆盖率门禁（G6）
 
