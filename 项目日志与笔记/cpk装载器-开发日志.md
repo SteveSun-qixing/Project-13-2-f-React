@@ -49,3 +49,21 @@
   - 阶段六：`runtime/host-runtime.ts` 工厂位装配 `createCpkPluginLoader` + `production-assembly.ts` 注入 + 组合根 7 案不回退。
   - 阶段七：全量验收闸门 + Electron 承载冒烟。
   - 工单 025（内核激活通道）、工单 028（宿主编译期信任根正式内容）保持登记。
+
+## 段三段（阶段六~七：组合根接线 + 夹具合缝 + 全链验收 · 收口）
+
+- 交付面：
+  - **阶段六接线**：`runtime/host-runtime.ts` 增 `HostRuntimeOptions.pluginLoaderFactory?: (deps: IHostPluginLoaderDeps) => IPluginLoaderSurface`（工厂递交宿主能力注册表与 `plugin:*` 事件出口；事件经既有 `publishEvent` 管线向全部已订阅该事件的活动会话广播，05.05 下行口径）；`restorePlugins()`/`stopPlugins()` 工厂注入后委托装载器 `restore()`/`stopAll()`，缺省保持 #27 组合根缺位无操作（口径不变）。`main/production-assembly.ts` 注入：`createRuntime` 时 `openPluginRegistry(<userData>/chips-plugins/registry.json)`（文档非法整表拒绝原样上抛，壳以 `HOST_STARTUP_FAILED` 终止启动，失效关闭）、`pluginsRoot = <userData>/chips-plugins`、信任根 `createEmbeddedTrustRootRegistry()`（内嵌编译期形态，keys 空集失效关闭＝工单 028 口径）、`hostVersion` 取 PAL 宿主快照 `appVersion`；激活端口注入位 `ProductionRuntimeOptions.pluginActivationPortFor` 预留（工单 025 正式通道），缺省未注入 → `enable` 路径 `BRIDGE_INTERNAL` 诚实回退（段二裁决口径不变，登记不实施）。能力注册消费链接真实 registry 面：装载器经工厂递交的 `IHostCapabilityRegistry` 即运行时路由同一实例，service 激活预绑定注册/停用摘除直达 Bridge 路由；#28 document 服务、#27 能力注册面契约对接形态不变。
+  - **阶段七合缝 a（夹具再生成链）**：根 `pnpm test:contract` 唯一红为 `tests/contract/tests/cpk-fixtures.test.ts`（packages/bridge 镜像同红）「重建链逐字节不一致」——根因＝`examples/plugins/hello/render.js` 派生漂移（波 C 包体对比+SDK cli 面 #43 合入后重建产物，防丢快照 c6096c85 在库）未同步进 `.cpk` 夹具。处理：核对 render.js 为现行源码的确定性构建产物（生成器重建后逐字节一致，无源改动）后收编为期望态；以段一/段二交付的校验权威语义跑 `generate-cpk-fixtures.mjs` 写模式重建四夹具+checklist.json，五阶段校验矩阵（1 正 3 负）经 `@chips/cli` 正式引擎库面全过，`--check` 复跑 EXIT=0（确定性确认）。校验器与《装载器契约》文档无冲突，未修实现。
+  - **阶段七合缝 b（render.js 收编）**：`chips-ecosystem/examples/plugins/hello/render.js` 在途漂移核对后收编为期望态（内容=现行 React+`@chips/ui`+SDK 主入口源码的 vite 生产构建产物，含 ChipsProvider 挂载链与 config/clipboard 能力消费），零手工编辑。
+  - **阶段七合缝 c（工单 028 落档）**：按计划书边界口径与事实落档——新建 `项目日志与笔记/工单028-宿主编译期信任根注册表正式内容缺位/任务说明.md`（背景/证据/影响/复现/期望行为/验收口径六节；`resources/trust-roots.json` keys 空集失效关闭为设计内现状而非缺陷，编码统一裁决悬置登记），`问题工单.md` 编号 028 未被占用、按序插入 027/029 之间。
+- Electron 承载冒烟（包内 `build:main` 后）：`node ./node_modules/electron/cli.js ./dist/main/self-check.js`，pgrep 口径 `pgrep -f self-check` 取真进程 3 个、存活 27s（≥14s）、运行期 stderr 0 字节、`HOST_STARTUP_FAILED` 0 次；`kill -TERM`（主 Electron 进程）优雅收口，包装器实录 `EXIT=0`、进程全清（pgrep 0）。命令与口径已同步 `packages/host/开发日志.md`。
+- 收口验收（volta PATH，全部真实退出码）：
+  - `cd chips-ecosystem && pnpm test:contract > /tmp/seg3_contract.log 2>&1; echo EXIT=$?` → `EXIT=0`（tests/contract 63 案、bridge/sdk 镜像 63+63、host 24 案全绿；夹具红清零，且本轮重建链零副作用——render.js 未再漂移）
+  - `cd chips-ecosystem/packages/host && npm run build:main > /tmp/seg3_build.log 2>&1; echo EXIT=$?` → `EXIT=0`
+  - `pnpm exec vitest run tests/loader-trust-roots.test.ts tests/loader-contract.test.ts tests/loader-package.test.ts tests/loader-install.test.ts tests/loader-lifecycle.test.ts tests/composition-root.test.ts tests/production-assembly.test.ts tests/renderer-engine.test.ts tests/renderer-height.test.ts tests/renderer-frame-channel.test.ts tests/renderer-frame-protocol.test.ts tests/renderer-card-frame-host.test.ts tests/renderer-card-surface.test.ts > /tmp/seg3_host.log 2>&1; echo EXIT=$?` → `EXIT=0`（13 套件 162 案全绿：loader 84 + 组合根 7 + 生产组合根 6 + 渲染 65，零回退）
+  - `pnpm exec tsc -p tsconfig.json --noEmit > /tmp/seg3_tsc.log 2>&1; echo EXIT=$?` → `EXIT=0`
+- 遗留与移交：
+  - 工单 025（宿主 `chips-native` 原生绑定与激活通道）：激活端口注入位已在 `production-assembly.ts`（`pluginActivationPortFor`）与 `host-runtime.ts` 工厂缝就位，正式通道交付后一行注入即通；本路只登记不实施。
+  - 工单 028（宿主编译期信任根正式内容）：已按事实落档，Phase 3/4 交付后按验收口径收口；裁决前 `trust-roots.json` 保持空集失效关闭。
+  - 生产安装入口（能力面/IPC 暴露 `plugin:*` 管理面）不在本装载器任务范围，属后续波次组合根扩展。

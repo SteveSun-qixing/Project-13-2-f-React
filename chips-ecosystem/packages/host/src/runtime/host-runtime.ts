@@ -44,7 +44,11 @@ import type {
   IResourceReadRequest,
   ISessionSource,
 } from './contracts.js';
-import { createHostCapabilityRegistry, type IHostCapabilityRegistryOptions } from './capability/registry.js';
+import {
+  createHostCapabilityRegistry,
+  type IHostCapabilityRegistry,
+  type IHostCapabilityRegistryOptions,
+} from './capability/registry.js';
 import { createHostSessionRegistry, type IHostSessionProvisioner } from './capability/session.js';
 import { createHostCallScheduler } from './capability/scheduler.js';
 import { createHostCapabilityRouter } from './capability/router.js';
@@ -52,12 +56,8 @@ import { createEventSubscriptionCenter, createResourceHandleCenter } from './cap
 import { createPlatformResourceBackend } from './platform-resource.js';
 import { RESERVED_CAPABILITIES } from './capabilities/reserved.js';
 import type { IReservedCapabilityDeclaration } from './capabilities/reserved.js';
-import type {
-  IHostCapabilityDescriptor,
-  IHostReservedCapabilityView,
-  IHostRuntimeReport,
-  IHostSession,
-} from './capability/contracts.js';
+import type { IHostCapabilityDescriptor, IHostReservedCapabilityView, IHostRuntimeReport, IHostSession } from './capability/contracts.js';
+import type { IRestoreReport } from '../loader/index.js';
 
 /** 生产运行时选项。 */
 export interface HostRuntimeOptions {
@@ -81,6 +81,14 @@ export interface HostRuntimeOptions {
   readonly diagnostics?: DiagnosticsSink;
   /** 时钟（毫秒）；测试可注入。 */
   readonly now?: () => number;
+  /**
+   * CPK 插件装载器工厂（阶段六接线；组合根注入位）。
+   *
+   * @remarks 注入后 `restorePlugins()` / `stopPlugins()` 委托装载器 `restore()` / `stopAll()`；
+   * 缺省保持 #27 文档化的组合根缺位无操作。装载器生命周期事件经 `emitEvent` 投递给
+   * 已订阅对应事件的活动会话。
+   */
+  readonly pluginLoaderFactory?: (deps: IHostPluginLoaderDeps) => IPluginLoaderSurface;
 }
 
 /** 生产运行时端口（附带诊断快照查询）。 */
@@ -91,6 +99,22 @@ export interface IHostRuntime extends IPlatformRuntime {
 
 /** 默认平台会话授权来源标识。 */
 const PLATFORM_SESSION_PLUGIN_ID = 'platform';
+
+/** 装载器工厂注入依赖（宿主运行时递交给 `pluginLoaderFactory` 的内部面）。 */
+export interface IHostPluginLoaderDeps {
+  /** 宿主能力注册表（service 激活经激活上下文预绑定注册，04.24）。 */
+  readonly hostCapabilityRegistry: IHostCapabilityRegistry;
+  /** 事件发布出口（装载器生命周期事件 `plugin:*` 经此投递给已订阅会话）。 */
+  readonly emitEvent: (eventId: string, payload: unknown) => void;
+}
+
+/** 插件装载器在宿主运行时消费的最小面（§4.6 恢复与停机收口）。 */
+export interface IPluginLoaderSurface {
+  /** 启动恢复（《03-插件架构设计》§4.6）。 */
+  restore(): Promise<IRestoreReport>;
+  /** 全部运行态插件停用（宿主停机面）。 */
+  stopAll(): Promise<void>;
+}
 
 /**
  * 默认会话授权来源：为壳自身窗口建立平台会话并授予全量权限。
@@ -173,6 +197,18 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
     now,
     publishEvent,
     sessionSignalFor: (sessionId: string): AbortSignal | undefined => sessions.signalFor(sessionId),
+  });
+
+  // 装载器生命周期事件（`plugin:*`）向全部已订阅该事件的活动会话广播（05.05 下行口径）。
+  const pluginLoader = options.pluginLoaderFactory?.({
+    hostCapabilityRegistry: registry,
+    emitEvent: (eventId: string, payload: unknown): void => {
+      for (const session of sessions.list()) {
+        if (session.state === 'active') {
+          publishEvent(session.sessionId, session.windowId, eventId, payload);
+        }
+      }
+    },
   });
 
   const pushSnapshot = (session: IHostSession): void => {
@@ -311,8 +347,10 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       return Promise.resolve();
     },
     async restorePlugins(): Promise<void> {
-      // 插件拓扑恢复属平台核心职责（Rust Bridge 内核交付后接管）；组合根缺位期为无操作。
-      return Promise.resolve();
+      // 装载器已注入：启动恢复走 §4.6 正式链路；缺省保持 #27 组合根缺位无操作。
+      if (pluginLoader !== undefined) {
+        await pluginLoader.restore();
+      }
     },
     async handleStartupInputs(inputs: readonly IPlatformStartupInput[]): Promise<void> {
       if (inputs.length === 0) {
@@ -322,7 +360,10 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       return Promise.resolve();
     },
     async stopPlugins(): Promise<void> {
-      return Promise.resolve();
+      // 装载器已注入：停机按逆拓扑停用全部运行态插件；缺省保持 #27 无操作。
+      if (pluginLoader !== undefined) {
+        await pluginLoader.stopAll();
+      }
     },
     async shutdown(): Promise<void> {
       if (state === 'stopped') {

@@ -10,14 +10,33 @@
  *   `BRIDGE_CAPABILITY_NOT_FOUND`。
  * - 外部提供方的接线契约是 {@link IHostCapabilityDescriptor}：一条描述 = 一个可注册单元
  *   （ID + 所需权限 + handler + 超时/并发）。注册冲突或权限校验失败即在 `start` 抛出、壳终止启动。
+ * - CPK 装载器（阶段六接线）：`createRuntime` 时打开插件注册表（`<userData>/chips-plugins/registry.json`），
+ *   经 `pluginLoaderFactory` 注入宿主运行时——`pluginsRoot = <userData>/chips-plugins`、内嵌编译期
+ *   信任根（当前正式密钥材料缺位，工单 028，失效关闭）、`hostVersion` 取 PAL 宿主快照的
+ *   `appVersion`；激活端口注入位（`pluginActivationPortFor`，工单 025 正式通道）缺省未注入，
+ *   `enable` 路径按 #27「资源管理器未装配」同类诚实回退报内部错误，自检/启动链不受影响。
  * - PAL 宿主构造由调用方注入（平台差异），本模块只负责运行时装配，保持与自检入口零逻辑分叉。
  */
+
+import { join } from 'node:path';
 
 import type { IPalHost } from '../platform/contracts/index.js';
 import type { IHostCapabilityDescriptor } from '../runtime/capability/contracts.js';
 import type { IHostCapabilityRegistryOptions } from '../runtime/capability/registry.js';
 import type { IHostSessionProvisioner } from '../runtime/capability/session.js';
-import { createHostRuntime, type IHostRuntime } from '../runtime/host-runtime.js';
+import {
+  createCpkPluginLoader,
+  createEmbeddedTrustRootRegistry,
+  openPluginRegistry,
+  type IPluginActivationPort,
+  type PluginRole,
+} from '../loader/index.js';
+import {
+  createHostRuntime,
+  type IHostPluginLoaderDeps,
+  type IHostRuntime,
+  type IPluginLoaderSurface,
+} from '../runtime/host-runtime.js';
 import { createBuiltinCapabilities } from '../runtime/capabilities/system-info.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import {
@@ -26,6 +45,14 @@ import {
   type HostRuntimeContext,
   type PalHostContext,
 } from './runtime-provider.js';
+
+/** 插件激活端口供给签名（内核 §6.1 `PluginRunner` 通道；工单 025 正式注入位）。 */
+export type PluginActivationPortFor = (plugin: {
+  readonly id: string;
+  readonly version: string;
+  readonly role: PluginRole;
+  readonly path: string;
+}) => IPluginActivationPort | undefined;
 
 /** 生产运行时装配选项（在 `runtime/host-runtime.ts` 的 `HostRuntimeOptions` 之上的组合根视图）。 */
 export interface ProductionRuntimeOptions {
@@ -39,6 +66,14 @@ export interface ProductionRuntimeOptions {
   readonly sessionProvisioner?: IHostSessionProvisioner;
   /** 注册表注入项。 */
   readonly registryOptions?: IHostCapabilityRegistryOptions;
+  /**
+   * CPK 插件装载器工厂；缺省由 {@link createProductionAssembly} 按生产口径注入
+   * （`<userData>/chips-plugins` + 内嵌编译期信任根）。仅当调用方绕过组合根直接调
+   * {@link createProductionRuntime} 时才需自行供给。
+   */
+  readonly pluginLoaderFactory?: (deps: IHostPluginLoaderDeps) => IPluginLoaderSurface;
+  /** 激活端口注入位（工单 025 正式通道）；缺省未注入，`enable` 路径诚实回退内部错误。 */
+  readonly pluginActivationPortFor?: PluginActivationPortFor;
   /** 诊断口。 */
   readonly diagnostics?: DiagnosticsSink;
 }
@@ -82,8 +117,37 @@ export function createProductionRuntime(
     platformRoot: context.platformRoot,
     ...(options.sessionProvisioner === undefined ? {} : { sessionProvisioner: options.sessionProvisioner }),
     ...(options.registryOptions === undefined ? {} : { registryOptions: options.registryOptions }),
+    ...(options.pluginLoaderFactory === undefined ? {} : { pluginLoaderFactory: options.pluginLoaderFactory }),
     ...(options.diagnostics === undefined ? {} : { diagnostics: options.diagnostics }),
   });
+}
+
+/**
+ * 准备生产装载器工厂（阶段六接线）：打开插件持久化注册表并闭合生产依赖。
+ *
+ * @param context 组合根上下文（取 `userDataPath` 与 PAL 宿主快照的 `appVersion`）。
+ * @param activationPortFor 激活端口注入位（工单 025 正式通道；缺省未注入）。
+ * @returns 交予宿主运行时 `pluginLoaderFactory` 的工厂。
+ * @throws 注册表文档非法时原样上抛（整表拒绝不静默降级；壳以 `HOST_STARTUP_FAILED` 终止启动）。
+ */
+async function createProductionPluginLoaderFactory(
+  context: HostRuntimeContext,
+  activationPortFor: PluginActivationPortFor | undefined,
+): Promise<(deps: IHostPluginLoaderDeps) => IPluginLoaderSurface> {
+  const pluginsRoot = join(context.userDataPath, 'chips-plugins');
+  const pluginRegistry = await openPluginRegistry({ filePath: join(pluginsRoot, 'registry.json') });
+  const trustRoots = createEmbeddedTrustRootRegistry();
+  const hostVersion = context.palHost.info.appVersion;
+  return (deps) =>
+    createCpkPluginLoader({
+      pluginsRoot,
+      registry: pluginRegistry,
+      hostCapabilityRegistry: deps.hostCapabilityRegistry,
+      emitEvent: deps.emitEvent,
+      hostVersion,
+      trustRoots,
+      ...(activationPortFor === undefined ? {} : { activationPortFor }),
+    });
 }
 
 /**
@@ -92,15 +156,25 @@ export function createProductionRuntime(
  * @param options 装配选项（含 PAL 宿主工厂与外部能力提供方）。
  */
 export function createProductionAssembly(options: ProductionAssemblyOptions): HostAssembly<IHostRuntime> {
-  const { createPalHost, capabilityProviders, sessionProvisioner, registryOptions, diagnostics } = options;
+  const {
+    createPalHost,
+    capabilityProviders,
+    sessionProvisioner,
+    registryOptions,
+    pluginActivationPortFor,
+    diagnostics,
+  } = options;
   return createHostAssembly({
     createPalHost,
-    createRuntime: (context) =>
-      createProductionRuntime(context, {
+    createRuntime: async (context) => {
+      const pluginLoaderFactory = await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
+      return createProductionRuntime(context, {
         ...(capabilityProviders === undefined ? {} : { capabilityProviders }),
         ...(sessionProvisioner === undefined ? {} : { sessionProvisioner }),
         ...(registryOptions === undefined ? {} : { registryOptions }),
+        pluginLoaderFactory,
         ...(diagnostics === undefined ? {} : { diagnostics }),
-      }),
+      });
+    },
   });
 }
