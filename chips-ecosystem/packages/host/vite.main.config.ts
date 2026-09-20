@@ -16,6 +16,7 @@ export default defineConfig({
       input: {
         main: 'src/main/main.ts',
         'self-check': 'src/main/self-check.ts',
+        app: 'src/main/app.ts',
       },
       external: (id: string) => id === 'electron' || id.startsWith('node:') || id.endsWith('.node'),
       output: {
