@@ -568,8 +568,9 @@ fn parse_provider_registration<'a, C: Context<'a>>(
 ) -> Result<ProviderRegistration, ChipsError> {
     let id = string_field(cx, registration, "id", "/id")?;
     let kind_raw = string_field(cx, registration, "kind", "/kind")?;
-    let kind = parse_provider_kind(&kind_raw)
-        .ok_or_else(|| type_unsupported("/kind", "取值必须是 'platformService' 或 'servicePlugin'"))?;
+    let kind = parse_provider_kind(&kind_raw).ok_or_else(|| {
+        type_unsupported("/kind", "取值必须是 'platformService' 或 'servicePlugin'")
+    })?;
     let permissions = string_list_field(cx, registration, "permissions", "/permissions")?;
     Ok(ProviderRegistration {
         id,
@@ -587,8 +588,12 @@ fn parse_session_registration<'a, C: Context<'a>>(
 ) -> Result<(SessionId, PluginId, Vec<String>), ChipsError> {
     let session = u64_field(cx, registration, "sessionId", "/sessionId")?;
     let plugin_id = string_field(cx, registration, "pluginId", "/pluginId")?;
-    let granted_permissions =
-        string_list_field(cx, registration, "grantedPermissions", "/grantedPermissions")?;
+    let granted_permissions = string_list_field(
+        cx,
+        registration,
+        "grantedPermissions",
+        "/grantedPermissions",
+    )?;
     Ok((session, plugin_id, granted_permissions))
 }
 
@@ -904,9 +909,11 @@ mod tests {
     fn test_open_close_session_backing_lifecycle_and_shutdown_reject() {
         let kernel = Bridge::new();
         kernel
-            .open_session(1, "chips.official.editor".to_owned(), vec![
-                "filesystem:read".to_owned(),
-            ])
+            .open_session(
+                1,
+                "chips.official.editor".to_owned(),
+                vec!["filesystem:read".to_owned()],
+            )
             .expect("登记会话快照");
         // 授权变更重新登记即覆盖（无错误）。
         kernel
