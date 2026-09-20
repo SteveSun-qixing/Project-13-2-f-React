@@ -15,11 +15,19 @@ import type {
   INativeBridgeRequest,
   INativeCapabilityContext,
   INativeCapabilityRegistration,
+  INativeProviderRegistration,
+  INativeSessionRegistration,
 } from 'chips-native';
 import {
+  bridgeActivateProvider,
   bridgeCancelSession,
+  bridgeCloseSession,
+  bridgeDeactivateProvider,
+  bridgeGrantCapabilityId,
+  bridgeOpenSession,
   bridgeRegister,
   bridgeRequest,
+  bridgeShutdown,
   bridgeUnregister,
   cancelTokenCancel,
   contextEffect,
@@ -90,6 +98,24 @@ bridgeUnregister(registrationFixture.descriptor.id);
 export const bridgeResponse: Promise<unknown> = bridgeRequest(request);
 bridgeCancelSession(request.sessionId);
 
+// 激活与会话扩展六导出：正例调用。
+const providerFixture: INativeProviderRegistration = {
+  id: 'chips.official.host',
+  kind: 'platformService',
+  permissions: ['filesystem:read'],
+};
+bridgeActivateProvider(providerFixture);
+bridgeDeactivateProvider(providerFixture.id);
+bridgeGrantCapabilityId('file:read', providerFixture.id);
+const sessionFixture: INativeSessionRegistration = {
+  sessionId: 1,
+  pluginId: 'chips.official.editor',
+  grantedPermissions: ['filesystem:read'],
+};
+bridgeOpenSession(sessionFixture);
+bridgeCloseSession(sessionFixture.sessionId);
+bridgeShutdown();
+
 // 负例：以下写法必须被类型系统拒绝。
 // @ts-expect-error coreAbiVersion 返回 number，不能赋给 string
 export const wrongVersion: string = coreAbiVersion();
@@ -113,3 +139,19 @@ bridgeUnregister(1);
 bridgeCancelSession('session-1');
 // @ts-expect-error handler 缺失的注册对象不可注册
 bridgeRegister({ ...registrationFixture, handler: undefined });
+// @ts-expect-error provider kind 只能是 'platformService' 或 'servicePlugin'
+bridgeActivateProvider({ ...providerFixture, kind: 'unknownKind' });
+// @ts-expect-error 提供方登记缺少必填 permissions
+bridgeActivateProvider({ id: 'x', kind: 'platformService' });
+// @ts-expect-error bridgeDeactivateProvider 的参数必须是字符串
+bridgeDeactivateProvider(1);
+// @ts-expect-error bridgeGrantCapabilityId 需要 capabilityId 与 owner 两个参数
+bridgeGrantCapabilityId('file:read');
+// @ts-expect-error bridgeGrantCapabilityId 的 owner 必须是字符串
+bridgeGrantCapabilityId('file:read', 2);
+// @ts-expect-error 会话登记缺少必填 pluginId
+bridgeOpenSession({ sessionId: 1, grantedPermissions: [] });
+// @ts-expect-error bridgeCloseSession 的参数必须是数值会话 ID
+bridgeCloseSession('session-1');
+// @ts-expect-error bridgeShutdown 不接受参数
+bridgeShutdown(1);

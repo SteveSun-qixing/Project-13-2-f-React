@@ -75,6 +75,36 @@
       "name": "bridgeCancelSession",
       "kind": "sync",
       "signature": "(sessionId: number) => void"
+    },
+    {
+      "name": "bridgeActivateProvider",
+      "kind": "sync",
+      "signature": "(registration: INativeProviderRegistration) => void"
+    },
+    {
+      "name": "bridgeDeactivateProvider",
+      "kind": "sync",
+      "signature": "(owner: string) => void"
+    },
+    {
+      "name": "bridgeGrantCapabilityId",
+      "kind": "sync",
+      "signature": "(capabilityId: string, owner: string) => void"
+    },
+    {
+      "name": "bridgeOpenSession",
+      "kind": "sync",
+      "signature": "(session: INativeSessionRegistration) => void"
+    },
+    {
+      "name": "bridgeCloseSession",
+      "kind": "sync",
+      "signature": "(sessionId: number) => void"
+    },
+    {
+      "name": "bridgeShutdown",
+      "kind": "sync",
+      "signature": "() => void"
     }
   ],
   "blocked": []

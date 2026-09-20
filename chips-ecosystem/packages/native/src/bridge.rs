@@ -1,9 +1,17 @@
-//! Bridge 能力导出（`bridgeRegister` / `bridgeUnregister` / `bridgeRequest` /
-//! `bridgeCancelSession`，《核心接口规范》§5、§8.6）。
+//! Bridge 导出（《核心接口规范》§5、§8.6）。
+//!
+//! - 能力执行域四导出：`bridgeRegister` / `bridgeUnregister` / `bridgeRequest` /
+//!   `bridgeCancelSession`；
+//! - 激活与会话扩展六导出（RFC-026 §五.3 裁定的 §8.6 扩展名）：
+//!   `bridgeActivateProvider` / `bridgeDeactivateProvider` / `bridgeGrantCapabilityId` /
+//!   `bridgeOpenSession` / `bridgeCloseSession` / `bridgeShutdown`。
 //!
 //! 绑定层只做参数解析、`{ json, bin }` 信封编解码、错误归一与线程回投；
-//! 注册表、权限判定、Schema 校验、并发准入与超时取消语义全部由
-//! `chips-bridge` 内核承载（进程级单例共享，[`bridge`]）。
+//! 注册表、提供方激活、能力 ID 登记绑定、会话表、权限判定、Schema 校验、并发
+//! 准入与超时取消语义全部由 `chips-bridge` 内核承载（进程级单例共享，[`bridge`]）；
+//! 六扩展导出为内核同名 backing 方法的薄转发，不发明行为、不新增错误码。
+//! 内核 `shutdown` 只关闭进程级 Bridge 单例，不触碰 Neon 绑定自身的
+//! `tokio` 运行时（`crate::runtime` 常驻，与模块生命周期解耦）。
 //!
 //! TS 能力的执行以 [`TsCapabilityExecutor`] 包装：内核在 tokio 工作线程发起
 //! 调用后，经 `Channel` 回投 JS 线程执行 `handler`（§8.3 线程约束），Rust 侧
@@ -18,9 +26,10 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use chips_bridge::{
     Bridge, BridgeRequest, CapabilityContext, CapabilityDescriptor, CapabilityExecutor,
-    CapabilityInput, CapabilityOutput, CapabilityRegistration, Concurrency, BRIDGE_CANCELLED,
+    CapabilityInput, CapabilityOutput, CapabilityRegistration, Concurrency, ProviderKind,
+    ProviderRegistration, BRIDGE_CANCELLED,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, PluginId, SessionId};
 use neon::prelude::*;
 use neon::types::JsFuture;
 
@@ -540,10 +549,128 @@ pub(crate) fn js_bridge_cancel_session(mut cx: FunctionContext) -> JsResult<JsUn
     Ok(cx.undefined())
 }
 
+/// 解析 JS 侧 `kind` 字段（§5.5 提供方类别：`'platformService' | 'servicePlugin'`）。
+#[must_use]
+pub(crate) fn parse_provider_kind(raw: &str) -> Option<ProviderKind> {
+    match raw {
+        "platformService" => Some(ProviderKind::PlatformService),
+        "servicePlugin" => Some(ProviderKind::ServicePlugin),
+        _ => None,
+    }
+}
+
+/// 解析 `bridgeActivateProvider` 的提供方登记对象（§5.5
+/// `INativeProviderRegistration` 形态）；只校验类型形状，权限词表校验、
+/// shutdown 拒绝与重复激活覆盖全部由 `chips-bridge` backing 承载。
+fn parse_provider_registration<'a, C: Context<'a>>(
+    cx: &mut C,
+    registration: &Handle<'a, JsObject>,
+) -> Result<ProviderRegistration, ChipsError> {
+    let id = string_field(cx, registration, "id", "/id")?;
+    let kind_raw = string_field(cx, registration, "kind", "/kind")?;
+    let kind = parse_provider_kind(&kind_raw)
+        .ok_or_else(|| type_unsupported("/kind", "取值必须是 'platformService' 或 'servicePlugin'"))?;
+    let permissions = string_list_field(cx, registration, "permissions", "/permissions")?;
+    Ok(ProviderRegistration {
+        id,
+        kind,
+        permissions,
+    })
+}
+
+/// 解析 `bridgeOpenSession` 的会话登记对象（§5.6 `INativeSessionRegistration`
+/// 形态）；`sessionId` 经 §8.2 数值归一，授权集合与插件 ID 只做类型校验，
+/// 快照重建与 shutdown 拒绝由 backing 承载。
+fn parse_session_registration<'a, C: Context<'a>>(
+    cx: &mut C,
+    registration: &Handle<'a, JsObject>,
+) -> Result<(SessionId, PluginId, Vec<String>), ChipsError> {
+    let session = u64_field(cx, registration, "sessionId", "/sessionId")?;
+    let plugin_id = string_field(cx, registration, "pluginId", "/pluginId")?;
+    let granted_permissions =
+        string_list_field(cx, registration, "grantedPermissions", "/grantedPermissions")?;
+    Ok((session, plugin_id, granted_permissions))
+}
+
+/// `bridgeActivateProvider(registration)`：登记并激活提供方，manifest 申请的
+/// 权限集合入内核；激活后其能力方可注册（§5.5）。失败经 §8.5 归一：权限声明引用
+/// 未注册权限 ID → `PERMISSION_UNKNOWN`；内核已关闭 → `BRIDGE_CANCELLED`；
+/// 重复激活同 ID 以内核「授权变更重建」覆盖（无错误）。绑定层不自造错误码。
+pub(crate) fn js_bridge_activate_provider(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let registration_object = cx.argument::<JsObject>(0)?;
+    let registration = match parse_provider_registration(&mut cx, &registration_object) {
+        Ok(registration) => registration,
+        Err(error) => return throw_chips_error(&mut cx, error),
+    };
+    match bridge().activate_provider(registration) {
+        Ok(()) => Ok(cx.undefined()),
+        Err(error) => throw_chips_error(&mut cx, error),
+    }
+}
+
+/// `bridgeDeactivateProvider(owner)`：停用提供方，注销其全部能力并在途调用按
+/// 取消收口；幂等（§5.5）。backing 无错误返回，绑定层零判定直传。
+pub(crate) fn js_bridge_deactivate_provider(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let owner = cx.argument::<JsString>(0)?.value(&mut cx);
+    bridge().deactivate_provider(&owner);
+    Ok(cx.undefined())
+}
+
+/// `bridgeGrantCapabilityId(capabilityId, owner)`：登记第三方能力 ID 并绑定
+/// 提供方（§5.5 / 契约§9.1）。失败经 §8.5 归一：文法非法、内置保留 ID、改绑他人
+/// → `BRIDGE_CAPABILITY_CONFLICT`；提供方未激活 → `KERNEL_INVALID_TRANSITION`；
+/// 内核已关闭 → `BRIDGE_CANCELLED`。绑定层不校验 ID 文法，一律由 backing 判定。
+pub(crate) fn js_bridge_grant_capability_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let capability_id = cx.argument::<JsString>(0)?.value(&mut cx);
+    let owner = cx.argument::<JsString>(1)?.value(&mut cx);
+    match bridge().grant_capability_id(&capability_id, &owner) {
+        Ok(()) => Ok(cx.undefined()),
+        Err(error) => throw_chips_error(&mut cx, error),
+    }
+}
+
+/// `bridgeOpenSession(session)`：登记会话快照（授权集合 + 插件 ID），
+/// request 前的会话登记前置（§5.6）。失败经 §8.5 归一（内核已关闭 →
+/// `BRIDGE_CANCELLED`）；授权变更重新登记即覆盖（无错误）。
+pub(crate) fn js_bridge_open_session(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let registration_object = cx.argument::<JsObject>(0)?;
+    let parsed = match parse_session_registration(&mut cx, &registration_object) {
+        Ok(parsed) => parsed,
+        Err(error) => return throw_chips_error(&mut cx, error),
+    };
+    let (session, plugin_id, granted_permissions) = parsed;
+    match bridge().open_session(session, plugin_id, granted_permissions) {
+        Ok(()) => Ok(cx.undefined()),
+        Err(error) => throw_chips_error(&mut cx, error),
+    }
+}
+
+/// `bridgeCloseSession(sessionId)`：关闭会话，拒绝新调用并取消该会话全部在途
+/// 调用；幂等（§5.6）。`sessionId` 经 §8.2 数值归一，不合法报告
+/// `NATIVE_VALUE_OUT_OF_RANGE`；backing 无错误返回。
+pub(crate) fn js_bridge_close_session(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let raw = cx.argument::<JsNumber>(0)?.value(&mut cx);
+    let Some(session) = normalize_u64_field(raw) else {
+        return throw_chips_error(
+            &mut cx,
+            value_out_of_range("/sessionId", "必须是不超过 2^53 的非负整数值"),
+        );
+    };
+    bridge().close_session(session);
+    Ok(cx.undefined())
+}
+
+/// `bridgeShutdown()`：关闭进程级 Bridge 内核单例，取消全部在途调用并拒绝
+/// 新请求；幂等（§5.7 / 三层§8.2 取消来源之「Bridge 关闭」）。仅关内核状态，
+/// 不停止 Neon 绑定自身的 `tokio` 运行时。
+pub(crate) fn js_bridge_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    bridge().shutdown();
+    Ok(cx.undefined())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chips_bridge::{ProviderKind, ProviderRegistration};
     use serde_json::json;
     use std::time::Duration;
 
@@ -653,5 +780,192 @@ mod tests {
             })
             .expect_err("未激活提供方注册必须失败");
         assert_eq!(error.code(), chips_bridge::KERNEL_INVALID_TRANSITION);
+    }
+
+    #[test]
+    fn test_parse_provider_kind_maps_js_shapes() {
+        assert_eq!(
+            parse_provider_kind("platformService"),
+            Some(ProviderKind::PlatformService)
+        );
+        assert_eq!(
+            parse_provider_kind("servicePlugin"),
+            Some(ProviderKind::ServicePlugin)
+        );
+        // 大小写敏感、非枚举值与空串一律回退 None（由调用点归一为 NATIVE_TYPE_UNSUPPORTED）。
+        assert_eq!(parse_provider_kind("PlatformService"), None);
+        assert_eq!(parse_provider_kind("PLATFORM_SERVICE"), None);
+        assert_eq!(parse_provider_kind(""), None);
+    }
+
+    #[test]
+    fn test_activate_provider_backing_normalizes_permission_and_shutdown_codes() {
+        let kernel = Bridge::new();
+        // 权限声明引用未注册权限 ID → PERMISSION_UNKNOWN（backing 归一，绑定层不自造）。
+        let error = kernel
+            .activate_provider(ProviderRegistration {
+                id: "chips.official.editor".to_owned(),
+                kind: ProviderKind::ServicePlugin,
+                permissions: vec!["notARegisteredPermission".to_owned()],
+            })
+            .expect_err("未知权限 ID 激活必须失败");
+        assert_eq!(error.code(), chips_bridge::PERMISSION_UNKNOWN);
+        // 空申请集合激活成功；重复激活同 ID 覆盖（无错误）。
+        kernel
+            .activate_provider(ProviderRegistration {
+                id: "chips.official.editor".to_owned(),
+                kind: ProviderKind::ServicePlugin,
+                permissions: Vec::new(),
+            })
+            .expect("空权限激活成功");
+        // 关闭内核后再激活 → BRIDGE_CANCELLED。
+        kernel.shutdown();
+        let error = kernel
+            .activate_provider(ProviderRegistration {
+                id: "chips.official.viewer".to_owned(),
+                kind: ProviderKind::ServicePlugin,
+                permissions: Vec::new(),
+            })
+            .expect_err("关闭后激活必须失败");
+        assert_eq!(error.code(), chips_bridge::BRIDGE_CANCELLED);
+    }
+
+    #[test]
+    fn test_grant_capability_id_backing_covers_conflict_and_transition() {
+        let kernel = Bridge::new();
+        // 文法非法 → BRIDGE_CAPABILITY_CONFLICT。
+        let error = kernel
+            .grant_capability_id("Bad:Id", "chips.official.editor")
+            .expect_err("非法文法必须拒绝");
+        assert_eq!(error.code(), chips_bridge::BRIDGE_CAPABILITY_CONFLICT);
+        // 内置保留 ID 由平台服务域持有，第三方登记 → BRIDGE_CAPABILITY_CONFLICT。
+        let error = kernel
+            .grant_capability_id("file:read", "chips.official.editor")
+            .expect_err("内置保留 ID 登记必须拒绝");
+        assert_eq!(error.code(), chips_bridge::BRIDGE_CAPABILITY_CONFLICT);
+        // 合法第三方 ID、但提供方未激活 → KERNEL_INVALID_TRANSITION。
+        let error = kernel
+            .grant_capability_id("hello:greet", "chips.official.editor")
+            .expect_err("未激活提供方登记必须失败");
+        assert_eq!(error.code(), chips_bridge::KERNEL_INVALID_TRANSITION);
+        // 激活提供方后登记第三方 ID 成功；重复登记同 owner 幂等成功。
+        kernel
+            .activate_provider(ProviderRegistration {
+                id: "chips.official.editor".to_owned(),
+                kind: ProviderKind::ServicePlugin,
+                permissions: Vec::new(),
+            })
+            .expect("激活服务插件");
+        kernel
+            .grant_capability_id("hello:greet", "chips.official.editor")
+            .expect("第三方 ID 登记成功");
+        kernel
+            .grant_capability_id("hello:greet", "chips.official.editor")
+            .expect("同 owner 重复登记幂等");
+    }
+
+    #[test]
+    fn test_deactivate_provider_backing_cascades_and_is_idempotent() {
+        let kernel = Bridge::new();
+        kernel
+            .activate_provider(ProviderRegistration {
+                id: "chips.official.host".to_owned(),
+                kind: ProviderKind::PlatformService,
+                permissions: Vec::new(),
+            })
+            .expect("激活平台服务域");
+        kernel
+            .register(CapabilityRegistration {
+                descriptor: CapabilityDescriptor {
+                    id: "file:read".to_owned(),
+                    schema: json!({"type": "object", "additionalProperties": false}),
+                    permissions: Vec::new(),
+                },
+                owner: "chips.official.host".to_owned(),
+                timeout_ms: chips_bridge::DEFAULT_TIMEOUT_MS,
+                concurrency: Concurrency::Parallel,
+                max_queue: chips_bridge::DEFAULT_MAX_QUEUE,
+                executor: Arc::new(Echo),
+            })
+            .expect("注册回声能力");
+        assert!(kernel.has_capability("file:read"));
+        // 停用提供方级联注销其能力；backing 无错误返回。
+        kernel.deactivate_provider("chips.official.host");
+        assert!(
+            !kernel.has_capability("file:read"),
+            "停用提供方必须级联注销其能力"
+        );
+        // 重复停用为幂等 no-op，不 panic、不产生错误。
+        kernel.deactivate_provider("chips.official.host");
+        kernel.deactivate_provider("chips.official.unknown");
+    }
+
+    #[test]
+    fn test_open_close_session_backing_lifecycle_and_shutdown_reject() {
+        let kernel = Bridge::new();
+        kernel
+            .open_session(1, "chips.official.editor".to_owned(), vec![
+                "filesystem:read".to_owned(),
+            ])
+            .expect("登记会话快照");
+        // 授权变更重新登记即覆盖（无错误）。
+        kernel
+            .open_session(1, "chips.official.editor".to_owned(), Vec::new())
+            .expect("重新登记覆盖快照");
+        // 关闭会话幂等，无错误返回。
+        kernel.close_session(1);
+        kernel.close_session(1);
+        kernel.close_session(999);
+        // 关闭内核后新登记会话 → BRIDGE_CANCELLED。
+        kernel.shutdown();
+        let error = kernel
+            .open_session(2, "chips.official.editor".to_owned(), Vec::new())
+            .expect_err("关闭后登记会话必须失败");
+        assert_eq!(error.code(), chips_bridge::BRIDGE_CANCELLED);
+    }
+
+    #[test]
+    fn test_shutdown_backing_is_idempotent_and_blocks_new_registration() {
+        let kernel = Bridge::new();
+        kernel
+            .activate_provider(ProviderRegistration {
+                id: "chips.official.host".to_owned(),
+                kind: ProviderKind::PlatformService,
+                permissions: Vec::new(),
+            })
+            .expect("激活平台服务域");
+        let descriptor = || CapabilityDescriptor {
+            id: "file:read".to_owned(),
+            schema: json!({"type": "object", "additionalProperties": false}),
+            permissions: Vec::new(),
+        };
+        // 关闭前注册成功。
+        kernel
+            .register(CapabilityRegistration {
+                descriptor: descriptor(),
+                owner: "chips.official.host".to_owned(),
+                timeout_ms: 1_000,
+                concurrency: Concurrency::Parallel,
+                max_queue: 8,
+                executor: Arc::new(Echo),
+            })
+            .expect("关闭前注册成功");
+        // 关闭内核幂等（重复调用不 panic）。
+        kernel.shutdown();
+        assert!(kernel.is_shutdown());
+        kernel.shutdown();
+        assert!(kernel.is_shutdown());
+        // 关闭后新注册 → BRIDGE_CANCELLED。
+        let error = kernel
+            .register(CapabilityRegistration {
+                descriptor: descriptor(),
+                owner: "chips.official.host".to_owned(),
+                timeout_ms: 1_000,
+                concurrency: Concurrency::Parallel,
+                max_queue: 8,
+                executor: Arc::new(Echo),
+            })
+            .expect_err("关闭后注册必须失败");
+        assert_eq!(error.code(), chips_bridge::BRIDGE_CANCELLED);
     }
 }

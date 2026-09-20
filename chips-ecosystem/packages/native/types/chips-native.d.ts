@@ -6,8 +6,10 @@
  * 未在本文件声明的函数不注册，未注册的函数不在本文件声明。
  *
  * 能力执行导出（`bridgeRegister` / `bridgeUnregister` / `bridgeRequest` /
- * `bridgeCancelSession`）与元信息、Context、取消令牌导出共用本入口；
- * 导出表只增不改，签名变化递增 `coreAbiVersion`。
+ * `bridgeCancelSession`）、激活与会话扩展导出（`bridgeActivateProvider` /
+ * `bridgeDeactivateProvider` / `bridgeGrantCapabilityId` / `bridgeOpenSession` /
+ * `bridgeCloseSession` / `bridgeShutdown`，《核心接口规范》§5.5–§5.7）与元信息、
+ * Context、取消令牌导出共用本入口；导出表只增不改，签名变化递增 `coreAbiVersion`。
  *
  * 约束：
  * - 句柄（ContextHandle / CancelTokenHandle）不透明、无字段、不可序列化；
@@ -57,6 +59,32 @@ export interface INativeBridgeRequest {
   sessionId: number;
   input: unknown;
   bin?: Record<string, Uint8Array>;
+}
+
+/**
+ * 提供方登记（《核心接口规范》§5.5 `ProviderRegistration` 的 JS 侧形状）；
+ * `permissions` 为 manifest 声明的申请权限集合。
+ */
+export interface INativeProviderRegistration {
+  /** 提供方标识（反向域名式插件 ID 或平台服务域 ID）。 */
+  id: string;
+  /** 提供方类别；与内核 `ProviderKind` 逐值对应。 */
+  kind: 'platformService' | 'servicePlugin';
+  /** manifest 声明的权限 ID 集合（安装时提交的申请集合）。 */
+  permissions: string[];
+}
+
+/**
+ * 会话登记快照（《核心接口规范》§5.6 `open_session` 入参的 JS 侧形状）；
+ * 授权变更后重新登记即按新快照覆盖。
+ */
+export interface INativeSessionRegistration {
+  /** 会话键（低于 2^53 的非负整数）。 */
+  sessionId: number;
+  /** 承载会话的插件 ID。 */
+  pluginId: string;
+  /** 会话授权权限快照。 */
+  grantedPermissions: string[];
 }
 
 /** 平台版本；与全部平台包同一版本号。 */
@@ -115,3 +143,35 @@ export function bridgeRequest(request: INativeBridgeRequest): Promise<unknown>;
 
 /** 取消会话全部在途调用；幂等；会话保持可用。 */
 export function bridgeCancelSession(sessionId: number): void;
+
+/**
+ * 登记并激活提供方（§5.5）；激活后其能力方可注册，`permissions` 为 manifest
+ * 申请的权限集合。失败以 `ChipsError` 同构 `Error` 抛出（权限 ID 未注册 →
+ * `PERMISSION_UNKNOWN`；内核已关闭 → `BRIDGE_CANCELLED`）；重复激活同 ID 覆盖。
+ */
+export function bridgeActivateProvider(registration: INativeProviderRegistration): void;
+
+/** 停用提供方（§5.5）；注销其全部能力并在途调用按取消收口；幂等，无错误返回。 */
+export function bridgeDeactivateProvider(owner: string): void;
+
+/**
+ * 登记第三方能力 ID 并绑定提供方（§5.5 / 契约 §9.1）；绑定不可转让、不可改绑。
+ * 失败以 `ChipsError` 同构 `Error` 抛出（文法非法 / 内置保留 / 改绑 →
+ * `BRIDGE_CAPABILITY_CONFLICT`；提供方未激活 → `KERNEL_INVALID_TRANSITION`）。
+ */
+export function bridgeGrantCapabilityId(capabilityId: string, owner: string): void;
+
+/**
+ * 登记会话快照（§5.6）；`request` 前的会话登记前置，授权变更重新登记即覆盖。
+ * 失败以 `ChipsError` 同构 `Error` 抛出（内核已关闭 → `BRIDGE_CANCELLED`）。
+ */
+export function bridgeOpenSession(session: INativeSessionRegistration): void;
+
+/** 关闭会话（§5.6）；拒绝新调用并取消该会话全部在途调用；幂等，无错误返回。 */
+export function bridgeCloseSession(sessionId: number): void;
+
+/**
+ * 关闭进程级 Bridge 内核（§5.7）；取消全部在途调用并拒绝新请求；幂等。
+ * 仅关闭内核状态，不停止 Neon 绑定自身的运行时。
+ */
+export function bridgeShutdown(): void;

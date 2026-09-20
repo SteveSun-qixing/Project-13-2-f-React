@@ -41,6 +41,12 @@ export_table! {
     "bridgeUnregister" => crate::bridge::js_bridge_unregister,
     "bridgeRequest" => crate::bridge::js_bridge_request,
     "bridgeCancelSession" => crate::bridge::js_bridge_cancel_session,
+    "bridgeActivateProvider" => crate::bridge::js_bridge_activate_provider,
+    "bridgeDeactivateProvider" => crate::bridge::js_bridge_deactivate_provider,
+    "bridgeGrantCapabilityId" => crate::bridge::js_bridge_grant_capability_id,
+    "bridgeOpenSession" => crate::bridge::js_bridge_open_session,
+    "bridgeCloseSession" => crate::bridge::js_bridge_close_session,
+    "bridgeShutdown" => crate::bridge::js_bridge_shutdown,
 }
 
 /// `coreVersion()`：平台统一版本（与全部平台包共用同一版本号）。
