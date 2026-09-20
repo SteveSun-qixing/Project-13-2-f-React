@@ -1,0 +1,18 @@
+[package]
+name = "chips-bridge"
+description = "薯片平台 Bridge 内核：能力注册表、权限判定、Schema 校验、路由与超时取消"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.75"
+
+[dependencies]
+async-trait.workspace = true
+chips-core = { path = "../chips-core" }
+jsonschema = { version = "0.33", default-features = false }
+serde_json.workspace = true
+sha2 = "0.10"
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "time"] }
