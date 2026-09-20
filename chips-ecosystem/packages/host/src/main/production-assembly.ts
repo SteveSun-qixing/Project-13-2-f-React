@@ -13,8 +13,11 @@
  * - CPK 装载器（阶段六接线）：`createRuntime` 时打开插件注册表（`<userData>/chips-plugins/registry.json`），
  *   经 `pluginLoaderFactory` 注入宿主运行时——`pluginsRoot = <userData>/chips-plugins`、内嵌编译期
  *   信任根（当前正式密钥材料缺位，工单 028，失效关闭）、`hostVersion` 取 PAL 宿主快照的
- *   `appVersion`；激活端口注入位（`pluginActivationPortFor`，工单 025 正式通道）缺省未注入，
- *   `enable` 路径按 #27「资源管理器未装配」同类诚实回退报内部错误，自检/启动链不受影响。
+ *   `appVersion`；激活端口注入位（`pluginActivationPortFor`，工单 025）缺省未注入：原生绑定
+ *   已在 `createRuntime` 装载并校验（`native-bridge.ts` 消费链），但内核提供方激活 / 会话登记
+ *   与插件执行通道（§8.6 扩展导出与 `kernel`/`plugin` 前缀导出）尚未落地（工单 025 剩余项），
+ *   正式激活端口无可诚实构造的实现，`enable` 路径保持 BRIDGE_INTERNAL 诚实回退臂
+ *   （装载闸不可用时同臂回退，诊断留痕 `native-bridge` 域）。
  * - PAL 宿主构造由调用方注入（平台差异），本模块只负责运行时装配，保持与自检入口零逻辑分叉。
  */
 
@@ -39,6 +42,8 @@ import {
 } from '../runtime/host-runtime.js';
 import { createBuiltinCapabilities } from '../runtime/capabilities/system-info.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
+import { createStderrDiagnostics } from '../shared/diagnostics.js';
+import { defaultNativeBridgeModulePath, loadNativeBridgeBinding } from './native-bridge.js';
 import {
   createHostAssembly,
   type HostAssembly,
@@ -74,6 +79,11 @@ export interface ProductionRuntimeOptions {
   readonly pluginLoaderFactory?: (deps: IHostPluginLoaderDeps) => IPluginLoaderSurface;
   /** 激活端口注入位（工单 025 正式通道）；缺省未注入，`enable` 路径诚实回退内部错误。 */
   readonly pluginActivationPortFor?: PluginActivationPortFor;
+  /**
+   * `chips-native.node` 原生绑定产物路径；缺省按上下文 `platformRoot` 经
+   * {@link defaultNativeBridgeModulePath} 推导生产落位（工单 025 消费链装载点）。
+   */
+  readonly nativeBridgeModulePath?: string;
   /** 诊断口。 */
   readonly diagnostics?: DiagnosticsSink;
 }
@@ -162,11 +172,26 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
     sessionProvisioner,
     registryOptions,
     pluginActivationPortFor,
+    nativeBridgeModulePath,
     diagnostics,
   } = options;
   return createHostAssembly({
     createPalHost,
     createRuntime: async (context) => {
+      // 工单 025 消费链装载点：校验并持有原生绑定（Node 模块缓存保证内核单例语义，
+      // §5.4）；不可用时诊断留痕，Bridge 权威暂留壳侧路由（诚实回退臂，口径见
+      // `native-bridge.ts` 头注与工单任务说明剩余项）。
+      const bridgeDiagnostics = diagnostics ?? createStderrDiagnostics();
+      const nativeBridge = loadNativeBridgeBinding(
+        nativeBridgeModulePath ?? defaultNativeBridgeModulePath(context.platformRoot),
+      );
+      if (nativeBridge.status === 'unavailable') {
+        bridgeDiagnostics.warn('native-bridge', '原生绑定不可用，Bridge 内核通道保持壳侧回退（工单 025 剩余项）', {
+          reason: nativeBridge.reason,
+          modulePath: nativeBridge.modulePath,
+          detail: nativeBridge.detail,
+        });
+      }
       const pluginLoaderFactory = await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
       return createProductionRuntime(context, {
         ...(capabilityProviders === undefined ? {} : { capabilityProviders }),

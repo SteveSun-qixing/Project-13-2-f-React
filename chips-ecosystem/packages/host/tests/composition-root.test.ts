@@ -96,6 +96,9 @@ async function startComposition(
   let runtime: IHostRuntime | null = null;
   const production = createProductionAssembly({
     ...(providers.length === 0 ? {} : { capabilityProviders: providers }),
+    // 原生绑定装载诊断经收集口吸收（生产默认 stderr 口会把 fixture 的缺产物回退
+    // 警告打进测试输出；装载链本体由 production-assembly 套件断言）。
+    diagnostics: { warn: vi.fn(), error: vi.fn() },
     createPalHost: (electronModule, context) => {
       palCalls.push({ electronModule, context });
       return palHost;
@@ -248,6 +251,7 @@ describe('组合根全链：壳启动 → PAL 自举 → 运行时装配 → 能
     const palHost = createSystemPalHost();
     const production = createProductionAssembly({
       capabilityProviders: [conflictProvider],
+      diagnostics: { warn: vi.fn(), error: vi.fn() },
       createPalHost: () => palHost,
     });
     const diagnostics = { warn: vi.fn(), error: vi.fn() };

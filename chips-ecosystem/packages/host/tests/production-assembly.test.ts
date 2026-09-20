@@ -1,14 +1,38 @@
 import { describe, expect, it } from 'vitest';
 
+import { fileURLToPath } from 'node:url';
+
 import {
   buildProductionManifest,
   createProductionAssembly,
   createProductionRuntime,
 } from '../src/main/production-assembly.js';
 import { RESERVED_DOCUMENT_CAPABILITIES } from '../src/runtime/capabilities/reserved.js';
+import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 import type { IHostCapabilityDescriptor } from '../src/runtime/capability/contracts.js';
 import type { IPalHost, SystemInfo } from '../src/platform/contracts/index.js';
 import type { HostRuntimeContext } from '../src/main/runtime-provider.js';
+
+/** 收集型诊断口（断言原生绑定装载留痕用）。 */
+function collectDiagnostics(): DiagnosticsSink & {
+  entries: { level: 'warn' | 'error'; scope: string; message: string; details?: Readonly<Record<string, unknown>> }[];
+} {
+  const entries: {
+    level: 'warn' | 'error';
+    scope: string;
+    message: string;
+    details?: Readonly<Record<string, unknown>>;
+  }[] = [];
+  return {
+    entries,
+    warn(scope, message, details) {
+      entries.push({ level: 'warn', scope, message, ...(details === undefined ? {} : { details }) });
+    },
+    error(scope, message, details) {
+      entries.push({ level: 'error', scope, message, ...(details === undefined ? {} : { details }) });
+    },
+  };
+}
 
 const SYSTEM_SNAPSHOT: SystemInfo = {
   platform: 'darwin',
@@ -98,6 +122,7 @@ describe('生产组合根：清单装配', () => {
     const assembly = createProductionAssembly({
       createPalHost: () => host,
       capabilityProviders: [documentProvider],
+      diagnostics: collectDiagnostics(),
     });
     expect(typeof assembly.createPalHost).toBe('function');
     expect(typeof assembly.createRuntime).toBe('function');
@@ -138,6 +163,47 @@ describe('生产组合根：预留槽位诊断面（已预留、待接线）', (
       permissions: ['resources:read'],
     });
     expect(reserved.get('document:save')?.wired).toBe(false);
+    await runtime.shutdown();
+  });
+});
+
+describe('生产组合根：原生绑定装载（工单 025 消费链接线点）', () => {
+  const availableFixture = fileURLToPath(new URL('./fixtures/native-binding/available.js', import.meta.url));
+
+  it('绑定不可用：诊断留痕 module-missing，运行时装配与启动不受影响（诚实回退臂）', async () => {
+    const diagnostics = collectDiagnostics();
+    const assembly = createProductionAssembly({
+      createPalHost: () => host,
+      nativeBridgeModulePath: '/tmp/chips-native-025-组合根-不存在.node',
+      diagnostics,
+    });
+    const runtime = await assembly.createRuntime(context);
+    await runtime.start(host, { pushSessionPermissions: () => undefined });
+    expect(runtime.report().capabilities.active).toBe(1);
+
+    const nativeEntries = diagnostics.entries.filter((entry) => entry.scope === 'native-bridge');
+    expect(nativeEntries).toHaveLength(1);
+    expect(nativeEntries[0]?.level).toBe('warn');
+    expect(nativeEntries[0]?.message).toContain('工单 025 剩余项');
+    expect(nativeEntries[0]?.details).toMatchObject({
+      reason: 'module-missing',
+      modulePath: '/tmp/chips-native-025-组合根-不存在.node',
+    });
+    await runtime.shutdown();
+  });
+
+  it('绑定可用（夹具面）：无原生域警告留痕，装配照常完成并进入运行', async () => {
+    const diagnostics = collectDiagnostics();
+    const assembly = createProductionAssembly({
+      createPalHost: () => host,
+      capabilityProviders: [documentProvider],
+      nativeBridgeModulePath: availableFixture,
+      diagnostics,
+    });
+    const runtime = await assembly.createRuntime(context);
+    await runtime.start(host, { pushSessionPermissions: () => undefined });
+    expect(runtime.report().capabilities.active).toBe(2);
+    expect(diagnostics.entries.filter((entry) => entry.scope === 'native-bridge')).toEqual([]);
     await runtime.shutdown();
   });
 });

@@ -173,6 +173,24 @@ export {
 export type { ProductionRuntimeOptions, ProductionAssemblyOptions } from './main/production-assembly.js';
 
 export {
+  NATIVE_BRIDGE_ABI_VERSION,
+  NATIVE_BRIDGE_REQUIRED_EXPORTS,
+  defaultNativeBridgeModulePath,
+  dispatchNativeBridgeRequest,
+  loadNativeBridgeBinding,
+} from './main/native-bridge.js';
+export type {
+  INativeBridge,
+  INativeBridgeAvailable,
+  INativeBridgeBinding,
+  INativeBridgeRequest,
+  INativeBridgeUnavailable,
+  INativeCapabilityContext,
+  INativeCapabilityRegistration,
+  NativeBridgeUnavailableReason,
+} from './main/native-bridge.js';
+
+export {
   assemblePalHost,
   buildCapabilityMatrix,
   validateCapabilityMatrix,
