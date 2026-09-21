@@ -35,6 +35,7 @@ import type { IPalHost } from '../platform/contracts/index.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import type {
+  CardWindowDocumentBindingResolver,
   IDocumentViewChannelEndpoint,
   IEventSink,
   IPlatformHostChannel,
@@ -98,6 +99,15 @@ export interface HostRuntimeOptions {
    * `ipc` 段完成（通道是宿主内部 IPC，不进 Bridge 能力注册表）；缺位即通道不可用。
    */
   readonly documentViewChannel?: IDocumentViewChannelEndpoint;
+  /**
+   * 卡片窗口装载投递的文档绑定解析端口（组合根文档能力装载段交付，见 `runtime/contracts.ts`
+   * {@link CardWindowDocumentBindingResolver}）。
+   *
+   * @remarks 本运行时只透传给 `IPlatformRuntime.cardWindowDocumentBinding`：装载投递通道
+   * （`card-window-init:request`）的注册与注销由壳启动 `ipc` 段完成，端口本身在通道处理函数
+   * 内被消费（登记表命中后钉死 `source ↔ documentId`）；缺位即绑定腿未就绪，投递臂如实拒收。
+   */
+  readonly cardWindowDocumentBinding?: CardWindowDocumentBindingResolver;
   /**
    * Bridge 会话关闭联动（刀4 缝②）：会话注册表清理链（订阅 / 句柄释放完成后）逐会话
    * 通知组合根，文档服务据此释放该会话的文档会话与记录（§4.6）。
@@ -411,6 +421,7 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
     ipc,
     resources,
     ...(options.documentViewChannel === undefined ? {} : { documentViewChannel: options.documentViewChannel }),
+    ...(options.cardWindowDocumentBinding === undefined ? {} : { cardWindowDocumentBinding: options.cardWindowDocumentBinding }),
     forwardEvents(sink: IEventSink): () => void {
       sinks.add(sink);
       let disposed = false;

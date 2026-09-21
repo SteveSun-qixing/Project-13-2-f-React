@@ -14,8 +14,12 @@
  *   destroyed 事件自动解绑）。窗口的会话绑定、协议处理器与核心会话清理由既有
  *   `WebContentsBinder` / `WindowRegistry` 链路承载，本模块只做卡片域语义。
  * - 单窗口单文档：同一 `source` 至多一个存活卡片窗口；重复打开前置（`show`）而非新建。
- * - 文档绑定投递（主进程登记表 → 卡片窗口渲染侧的装载输入）是已登记集成缝：
- *   `document:*` 能力接线在途（#99），本波只编码冻结契约面并在开发日志留痕，不留假通路。
+ * - 文档绑定承载位（工单035 §九「待裁随账」腿，刀7 装载投递接线波收口）：`ICardWindowRecord`
+ *   携带 `documentId` 承载位，打开时为 `null`，由装载投递腿凭 `document:open` 同源会话记录经
+ *   {@link CardWindowOrchestrator.bindDocument} 钉死 `windowId ↔ source ↔ documentId` 三元一致性；
+ *   一经写入即为该窗口装载输入的身份锚点（异值拒收不覆盖，随记录销毁一并作废）。
+ *   投递封套构造见 `src/main/card-window-init-channel.ts`（契约面
+ *   `src/shared/card-window-init-surface.ts`，工单035 §十）。
  */
 
 import { ChipsError } from '@chips/bridge';
@@ -48,7 +52,28 @@ export interface ICardWindowRecord {
   readonly entryUrl: string;
   /** 绑定时间（Unix epoch 毫秒）。 */
   readonly openedAt: number;
+  /**
+   * 文档绑定承载位（稳定文档标识，十位 Base62；未绑定为 `null`）。
+   *
+   * @remarks 卡片窗口装载 URI 无 query / fragment（`window-entries.ts`），文档绑定的唯一
+   * 钉死时机是装载投递腿凭 `document:open` 同源会话记录写入本字段（工单035 §九待裁随账收口）；
+   * 写入后不覆盖、不改绑（异值以冲突臂如实拒收），随窗口销毁作废。字段形状权威在投递契约闸
+   * `validateCardWindowInitPayload`（`shared/card-window-init-surface.ts`），本侧不做二次词法校验。
+   */
+  documentId: string | null;
 }
+
+/**
+ * 文档绑定钉死的结果（{@link CardWindowOrchestrator.bindDocument} 交付）。
+ *
+ * - `ok`：承载位为空（本次写入）或已持同值（幂等复用）——投递臂据此构造就绪臂；
+ * - `conflict`：承载位已钉另一稳定标识（同源会话记录与登记表声明不一致，构造性漂移）；
+ * - `unregistered`：窗口未登记或已解绑（销毁竞态）。
+ */
+export type CardWindowDocumentBindOutcome =
+  | { readonly status: 'ok'; readonly record: ICardWindowRecord }
+  | { readonly status: 'conflict'; readonly record: ICardWindowRecord; readonly boundDocumentId: string }
+  | { readonly status: 'unregistered' };
 
 /** 编排器依赖。 */
 export interface ICardWindowOrchestratorDeps {
@@ -96,6 +121,41 @@ export class CardWindowOrchestrator {
   }
 
   /**
+   * 按窗口 ID 解析存活卡片窗口记录（装载投递腿的登记表定位入口）。
+   *
+   * @param windowId 主进程取证的窗口 ID（`event.sender.id` = `webContents.id`）。
+   * @returns 登记表记录；未登记或已解绑为 `null`。
+   */
+  recordOf(windowId: number): ICardWindowRecord | null {
+    return this.byWindowId.get(windowId) ?? null;
+  }
+
+  /**
+   * 钉死一张卡片窗口的文档绑定（登记表 `documentId` 承载位写入，幂等）。
+   *
+   * @remarks 唯一写入方是卡片窗口装载投递腿（`card-window-init-channel.ts`），实参取自
+   * `document:open` 同源会话记录（`IDocumentService.resolveWindowDocument`），口径与
+   * `resolveViewSession` 的 `source ↔ documentId` 二元组定位一致；一经写入不改绑。
+   *
+   * @param windowId 主进程取证的窗口 ID。
+   * @param documentId 会话记录声明的稳定文档标识（形状权威在投递契约闸）。
+   * @returns 钉死结果（见 {@link CardWindowDocumentBindOutcome}）。
+   */
+  bindDocument(windowId: number, documentId: string): CardWindowDocumentBindOutcome {
+    const record = this.byWindowId.get(windowId);
+    if (record === undefined) {
+      return { status: 'unregistered' };
+    }
+    if (record.documentId !== null && record.documentId !== documentId) {
+      return { status: 'conflict', record, boundDocumentId: record.documentId };
+    }
+    if (record.documentId === null) {
+      record.documentId = documentId;
+    }
+    return { status: 'ok', record };
+  }
+
+  /**
    * 打开（或前置）一张卡片窗口。
    *
    * @param input 打开输入。
@@ -121,6 +181,7 @@ export class CardWindowOrchestrator {
       source: input.source,
       entryUrl: CARD_WINDOW_ENTRY_URL,
       openedAt: this.now(),
+      documentId: null,
     };
     this.byWindowId.set(binding.windowId, binding);
     this.windowIdBySource.set(binding.source, binding.windowId);

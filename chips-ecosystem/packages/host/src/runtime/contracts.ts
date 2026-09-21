@@ -115,6 +115,28 @@ export interface IDocumentViewChannelEndpoint {
   handleRequest(data: unknown): Promise<unknown>;
 }
 
+/**
+ * 卡片窗口装载投递的文档绑定（`document:open` 回包同源字段的结构投影）。
+ *
+ * @remarks 字段与 `capabilities/document/service.ts` 的 `ICardWindowDocumentBinding` 逐字段同形；
+ * 本端口层不 import 能力层类型（与 {@link IDocumentViewChannelEndpoint} 同纪律：不在跨层边界
+ * 重复声明形状权威，只做结构切片），能力侧交付的实现以其自身类型满足本投影。
+ */
+export interface ICardWindowDocumentBindingView {
+  /** 稳定文档标识（十位 Base62；`document:open` 回包的 `documentId` 同源字段）。 */
+  readonly documentId: string;
+  /** 资源基址（受管引用的作用域根 URI，资源管理器作用域身份）。 */
+  readonly resourceBase: string;
+}
+
+/**
+ * 文档绑定解析端口（按来源引用定位存活会话记录；无绑定为 `null`）。
+ *
+ * @remarks 口径与取视图通道的 `resolveViewSession` 一致（同一会话存储、同一 `source` 即受管
+ * 引用会话键）；同步查询，主进程内部消费，不出主进程。
+ */
+export type CardWindowDocumentBindingResolver = (source: string) => ICardWindowDocumentBindingView | null;
+
 /** 平台运行时端口。 */
 export interface IPlatformRuntime {
   /**
@@ -146,6 +168,15 @@ export interface IPlatformRuntime {
    * 壳启动 `ipc` 段据此决定 `document-view:request` 通道的注册与注销）。
    */
   readonly documentViewChannel?: IDocumentViewChannelEndpoint;
+  /**
+   * 卡片窗口装载投递的文档绑定解析端口（可选；组合根文档能力装载段交付）。
+   *
+   * @remarks 主进程内部查询面：卡片窗口装载投递腿（`main/card-window-init-channel.ts`）凭它
+   * 把登记表 `source` 解析为 `document:open` 回包同源的稳定标识与资源基址，钉死
+   * `windowId ↔ source ↔ documentId` 一致性（工单035 §九待裁随账收口）。缺位即绑定腿未就绪，
+   * 投递臂按在册码 `DOCUMENT_NOT_OPEN` 如实拒收（不伪造装载）。
+   */
+  readonly cardWindowDocumentBinding?: CardWindowDocumentBindingResolver;
   /** 注册事件下行投递口；返回注销函数（幂等）。 */
   forwardEvents(sink: IEventSink): () => void;
 }

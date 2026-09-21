@@ -83,6 +83,14 @@ export interface IDocumentViewSessionLookup {
   readonly documentId: string;
 }
 
+/** 卡片窗口装载投递的文档绑定解析结果（主进程内部消费面；工单035 §九待裁随账收口）。 */
+export interface ICardWindowDocumentBinding {
+  /** 稳定文档标识——与 `document:open` 回包的 `documentId` 同源（同一会话存储记录字段）。 */
+  readonly documentId: string;
+  /** 资源基址：受管引用的作用域根 URI（`chips-resource://<scope>/`，资源管理器作用域身份）。 */
+  readonly resourceBase: string;
+}
+
 /**
  * 视图通道会话解析结果（主进程内部消费面；工单035 裁定 / RFC O3）。
  *
@@ -113,6 +121,15 @@ export interface IDocumentService {
    * string↔u64 归一单点在通道适配器（`adapters/view-channel.ts`）消费本方法完成。
    */
   resolveViewSession(lookup: IDocumentViewSessionLookup): DocumentViewSessionResolution;
+  /**
+   * 卡片窗口装载投递的文档绑定解析（`05-渲染引擎设计` §2.3 装载投递承载 / 工单035 §九待裁随账）：
+   * 按来源引用定位存活会话记录，交付 `document:open` 回包同源的稳定标识与资源作用域根。
+   *
+   * @remarks 定位口径与 {@link IDocumentService.resolveViewSession} 逐字一致（同一
+   * `findRecord(source)` 会话键口径）；无存活记录或受管引用词法不可投影为作用域根时返回
+   * `null`，由投递臂按在册码 `DOCUMENT_NOT_OPEN` 如实拒收（不伪造装载）。
+   */
+  resolveWindowDocument(source: string): ICardWindowDocumentBinding | null;
   /** Bridge 会话释放联动：移除该会话的全部文档会话与身份声明（§4.6 释放语义的宿主入口）。 */
   releaseSessions(sessionId: string): Promise<void>;
   /** 观察面：当前活动文档记录数（诊断与测试）。 */
@@ -125,6 +142,25 @@ type ChangedParts = readonly DocumentPart[];
 /** 卡片内容成员的包内路径（`01-卡片文件格式` §三、§5.3）。 */
 function contentMemberPath(nodeId: string): string {
   return `content/${nodeId}.yaml`;
+}
+
+/**
+ * 受管引用的作用域根 URI（`chips-resource://<scope>/`）——卡片窗口装载投递的资源基址口径。
+ *
+ * @remarks 只取 `06-资源协议规范` §二 URI 语法的 **authority 段**（作用域段）做词法投影，
+ * 不复用 `parseResourceUri` 的完整语法闸：作用域种类的登记事实归资源管理器，本函数只把
+ * 打开链路 `normalizeSource` 交付的受管引用收敛为其作用域根（相对资源以该作用域为根解析）。
+ * 词法不可投影（缺 `://`、authority 段为空）返回 `null`——投递臂据此如实拒收，不猜测基址。
+ */
+function scopeRootUri(managedUri: string): string | null {
+  const separator = managedUri.indexOf('://');
+  if (separator <= 0) {
+    return null;
+  }
+  const authority = managedUri.slice(separator + 3);
+  const boundary = authority.search(/[/?#]/);
+  const scope = boundary < 0 ? authority : authority.slice(0, boundary);
+  return scope.length === 0 ? null : `${managedUri.slice(0, separator + 3 + scope.length)}/`;
 }
 
 /** 包内成员的字节数累加（`document:changed` 的 `size` 口径）。 */
@@ -832,6 +868,23 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     return { status: 'conflict', candidateCount: store.findRecordsByDocumentId(lookup.documentId).length };
   }
 
+  function resolveWindowDocument(source: string): ICardWindowDocumentBinding | null {
+    const record = store.findRecord(source);
+    if (record === undefined) {
+      // 来源无存活记录（文档链路未打开或记录已随会话释放移除）：如实 `null`，投递臂拒收。
+      return null;
+    }
+    const resourceBase = scopeRootUri(record.managedUri);
+    if (resourceBase === null) {
+      // 会话键不符合受管引用词法：构造性漂移，不猜测资源基址。
+      deps.diagnostics?.warn('document', '装载投递绑定解析的受管引用无法投影为资源作用域根', {
+        managedUri: record.managedUri,
+      });
+      return null;
+    }
+    return { documentId: record.documentId, resourceBase };
+  }
+
   async function releaseSessions(sessionId: string): Promise<void> {
     const released = await store.releaseSessionsOf(sessionId);
     for (const record of released) {
@@ -848,6 +901,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     executeWrite: (input, ctx) => guardStage(executeWrite(input, ctx)),
     executeSave: (input, ctx) => guardStage(executeSave(input, ctx)),
     resolveViewSession,
+    resolveWindowDocument,
     releaseSessions,
     activeRecordCount() {
       return store.recordCount();
