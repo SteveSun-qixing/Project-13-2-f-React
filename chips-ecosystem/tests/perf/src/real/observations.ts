@@ -5,8 +5,9 @@ import { MARKERS, isScenarioId, scenarioDefinition, type ScenarioId } from '../s
 /**
  * 外部观测 → 标记点时间线归一（真进程采集纯逻辑面）。
  *
- * 宿主当前没有内建 `CHIPS_TRACE` 标记点导出（登记见 `真进程采集-设计.md` §三）；
- * 本模块把**外部可观测时间戳**（进程启动时刻、Bridge 往返时刻）归一为规范标记点命名，
+ * 宿主 `CHIPS_TRACE` 导出面自建于工单041①（JSONL 落盘 `<userData>/logs/trace/`，
+ * 消费侧 `host-trace.ts`），用于 open-card 三段阶段分解还原与两口径对照；本模块
+ * 继续把**外部可观测时间戳**（进程启动时刻、Bridge 往返时刻）归一为规范标记点命名，
  * 交由 `MarkerTimeline`（既有语义）求跨度——不新造第二套测量语义。
  * 每个归一标记点携带 `category: 'external-proxy:<可观测量>'`，报告与样本文件如实
  * 呈现代理口径，不冒充宿主内建标记。
@@ -83,6 +84,11 @@ export interface UnmeasurableArm {
 /**
  * 宿主侧标记缺口的缺测臂登记表（口径缺口，非测量失败）。
  *
+ * 工单041① 后状态：宿主 `CHIPS_TRACE` JSONL 导出面已建（`startup` / `bridge` /
+ * `render` 类别，`<userData>/logs/trace/`，消费侧 `src/real/host-trace.ts`），
+ * open-card 装载 / 解析 / 视图构建三段已可实测还原，`open_card.parse` 阶段臂关闭；
+ * 剩余臂为渲染臂（#99）与语义映射（findings）所限。
+ *
  * 理由引用：卡片/箱子 DOM 渲染臂为在册集成缝（#99）；`kind:'box'` 视图面随 W4 箱子波
  * （刀3 `document-view-builder.ts` 在册闸以 `BRIDGE_INVALID_INPUT` 诚实拒绝）。
  */
@@ -92,7 +98,7 @@ export const HOST_MARKER_GAPS: Readonly<Partial<Record<ScenarioId, readonly Unme
       kind: 'metric',
       target: 'cold_start_ms',
       reason:
-        '宿主无 startup:* 内建标记：以 electron.launch 发起→launchHostApp 返回（首窗口+Bridge 就绪，与 e2e 启动器同口径）代理，含 Playwright 侧往返开销（偏保守）。',
+        '门禁口径为外部观测代理：electron.launch 发起→launchHostApp 返回（首窗口+Bridge 就绪，与 e2e 启动器同口径），含 Playwright 侧往返开销（偏保守）。宿主 startup:process-start / startup:window-ready 导出面已建（工单041①），两口径差已可在真进程复测中对照，但门禁数值源不变更。',
     },
   ],
   'open-card': [
@@ -100,22 +106,19 @@ export const HOST_MARKER_GAPS: Readonly<Partial<Record<ScenarioId, readonly Unme
       kind: 'metric',
       target: 'open_card_ms',
       reason:
-        '终点以 document:open 回包 resolve 代理「首帧提交」（卡片 DOM 渲染臂为在册集成缝 #99，首帧提交不可外部观测）。',
-    },
-    {
-      kind: 'phase',
-      target: 'open_card.parse',
-      reason: '宿主无 request-accepted / document-parsed 标记点导出，阶段缺测。',
+        '终点以 document:open 回包 resolve 代理「首帧提交」：render:first-frame-commit 锚点属渲染进程侧事实（卡片 DOM 渲染臂在册集成缝 #99），主进程导出面无该可观测量；首帧真锚点的口径纳入与否归 findings 裁定。',
     },
     {
       kind: 'phase',
       target: 'open_card.frame-ready',
-      reason: '宿主无 frame-created / frame-ready 标记点导出，阶段缺测。',
+      reason:
+        '宿主 CHIPS_TRACE 导出面已建（工单041①）、规范标记名 render:frame-created / render:frame-ready 在册，但两点由渲染引擎帧生命周期产生（#99 渲染臂接入前无实例可导出），阶段缺测。',
     },
     {
       kind: 'phase',
       target: 'open_card.first-commit',
-      reason: '宿主无 first-frame-commit 标记点导出，阶段缺测。',
+      reason:
+        'CHIPS_TRACE 导出面与规范标记名（render:first-frame-commit）在册，但该点为渲染进程首帧提交事实（#99 渲染臂接入前无实例可导出），阶段缺测。',
     },
   ],
   'open-box': [
@@ -130,7 +133,8 @@ export const HOST_MARKER_GAPS: Readonly<Partial<Record<ScenarioId, readonly Unme
     {
       kind: 'metric',
       target: 'render_update_ms',
-      reason: '单帧更新任务耗时属渲染引擎内部标记，宿主无导出，外部不可测（缺测臂）。',
+      reason:
+        '数据通道已建（工单041②：宿主 CHIPS_TRACE durationMs 分段导出 + perf 消费侧 host-trace.ts）；在册语义「单帧内更新任务耗时」的实例（RenderEngine.update / 帧粒度任务）在 W2 构建态无导出面与规范标记名承载（#99 渲染臂未接通），以一次性构建或合成器帧间隔冒充均属造假，缺测保留，标记名映射归 findings 裁定。',
     },
   ],
 };

@@ -58,6 +58,19 @@ import type {
 } from './ports.js';
 import { createDocumentSessionStore } from './session-store.js';
 import type { IDocumentRecord, IDocumentSession } from './session-store.js';
+import { getHostTrace } from '../../shared/host-trace.js';
+
+/**
+ * `document:open` 阶段边界的在册规范标记点名。
+ *
+ * 权威：《渲染引擎设计》§10.1 阶段预算边界（请求接受 → 解析）与 `@chips/perf`
+ * 工具在册命名（`tests/perf/src/scenarios.ts` `MARKERS`：「Host / RenderEngine /
+ * 解析器经 `CHIPS_TRACE` 导出时的统一命名」）逐字同源；本模块不自造第二套命名。
+ */
+export const DOCUMENT_OPEN_TRACE_PHASES = {
+  requestAccepted: 'render:request-accepted',
+  documentParsed: 'document:parsed',
+} as const;
 import {
   assertOpenInput,
   assertPartCombination,
@@ -469,16 +482,58 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     }
   }
 
+  /**
+   * `document:open` 执行臂（含工单041 修复波的 `render` 类别阶段导出）。
+   *
+   * @remarks 边界记录沿用 `@chips/perf` 在册规范标记点名（`src/scenarios.ts` `MARKERS`，
+   * 《渲染引擎设计》§10.1 阶段预算边界同源）：`render:request-accepted`（请求接受：
+   * 入参闸 + 授权 + 来源归一通过点）→ `document:parsed`（记录建立：解析到 L0 +
+   * 身份声明 + 作用域注册完成点）。每条边界记录的 `durationMs` 按 §2.3「该阶段耗时」
+   * 口径承载其前置分段耗时（接受记录 = 装载/路由段，parsed 记录 = 解析段），
+   * 一次打开一个操作级 `traceId`（§2.5）。
+   */
   async function executeOpen(input: unknown, ctx: IDocumentCapabilityContext): Promise<IDocumentOpenOutput> {
+    const trace = getHostTrace();
+    const traceEnabled = trace.enabled('render');
+    const openTraceId = traceEnabled ? trace.newTraceId() : '';
+    const enteredAtMs = performance.now();
     const checked = assertOpenInput(input);
     await authorize(DOCUMENT_CAPABILITY_IDS.open, ctx);
     const resolved = await deps.scope.normalizeSource(checked.source, ctx);
+    const acceptedAtMs = performance.now();
+    if (traceEnabled) {
+      trace.record({
+        category: 'render',
+        phase: DOCUMENT_OPEN_TRACE_PHASES.requestAccepted,
+        traceId: openTraceId,
+        sessionId: ctx.sessionId,
+        outcome: 'ok',
+        durationMs: Math.max(0, acceptedAtMs - enteredAtMs),
+        details: { capabilityId: DOCUMENT_CAPABILITY_IDS.open, source: resolved.managedUri },
+      });
+    }
     const existing = store.findRecord(resolved.managedUri);
     const record = existing ?? (await establishRecord(resolved, checked.kind, ctx));
     if (existing !== undefined) {
       // 既有记录：显式 `kind` 与解析结果矛盾按解析器同码拒绝；随后声明本会话身份（§3.1）。
       assertKindMatchesRequest(checked.kind, record);
       claimSessionIdentityOrThrow(ctx, record.documentId, record.managedUri);
+    }
+    const parsedAtMs = performance.now();
+    if (traceEnabled) {
+      trace.record({
+        category: 'render',
+        phase: DOCUMENT_OPEN_TRACE_PHASES.documentParsed,
+        traceId: openTraceId,
+        sessionId: ctx.sessionId,
+        outcome: 'ok',
+        durationMs: Math.max(0, parsedAtMs - acceptedAtMs),
+        details: {
+          capabilityId: DOCUMENT_CAPABILITY_IDS.open,
+          documentId: record.documentId,
+          reusedRecord: existing !== undefined,
+        },
+      });
     }
     const isNewSession = !record.sessions.has(ctx.sessionId);
     try {

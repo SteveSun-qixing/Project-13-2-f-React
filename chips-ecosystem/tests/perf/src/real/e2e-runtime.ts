@@ -189,3 +189,18 @@ export async function collectHostRssBytes(host: HostInstanceSurface): Promise<nu
   }
   return totalBytes;
 }
+
+/**
+ * 取宿主 `app.getPath('userData')`（工单041① `CHIPS_TRACE` 落盘目录的定位入口）。
+ * 调用形态与 `collectHostRssBytes` 同一契约：内联匿名单表达式箭头，electron 模块首参。
+ */
+export async function collectHostUserDataPath(host: HostInstanceSurface): Promise<string> {
+  const userDataPath = await host.app.evaluate<unknown>(
+    (electronModule: { app: { getPath(name: 'userData'): string } }): string =>
+      electronModule.app.getPath('userData')
+  );
+  if (typeof userDataPath !== 'string' || userDataPath.length === 0) {
+    throw new Error('app.getPath("userData") 回包不是非空字符串（真进程采集 fail-closed）。');
+  }
+  return userDataPath;
+}

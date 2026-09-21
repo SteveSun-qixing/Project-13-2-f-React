@@ -43,8 +43,22 @@ import type {
 } from '../../../renderer/document-view-builder.js';
 import type { IDocumentViewChannelEndpoint } from '../../../runtime/contracts.js';
 import type { ShellIpcMain } from '../../../main/shell-api.js';
+import { getHostTrace } from '../../../shared/host-trace.js';
 import { DOCUMENT_BUSINESS_ERROR_CODES, documentError } from '../errors.js';
 import type { IDocumentService } from '../service.js';
+
+/**
+ * 取视图通道构建边界的标记点名。
+ *
+ * @remarks 「视图构建」阶段边界在《渲染引擎设计》§10.1 有预算语义，但
+ * `@chips/perf` 规范标记点注册表（`src/scenarios.ts` `MARKERS`）尚无在册名；
+ * 本波采用建议名 `render:view-built` / `render:view-build-failed` 导出，
+ * 命名在册化随工单041 修复波 findings 交裁定（不阻塞观测链路）。
+ */
+export const DOCUMENT_VIEW_TRACE_PHASES = {
+  viewBuilt: 'render:view-built',
+  viewBuildFailed: 'render:view-build-failed',
+} as const;
 
 /**
  * 请求封套破损到取不出合法 `requestId` 时的失败臂关联标识。
@@ -163,12 +177,46 @@ export function createDocumentViewChannelHandler(
   return {
     async handleRequest(data: unknown): Promise<unknown> {
       let requestId = DOCUMENT_VIEW_UNCORRELATED_REQUEST_ID;
+      // 视图构建阶段导出（工单041 修复波；《调试指南》§2.3/§6.1 记录形态，`durationMs`
+      // = 构建任务整体耗时。「视图构建」边界在 `@chips/perf` `MARKERS` 无在册名，
+      // 暂用建议名 `render:view-built` 并登记 findings 待裁——见该单修复波说明）。
+      const trace = getHostTrace();
+      const traceEnabled = trace.enabled('render');
+      const startedAtMs = performance.now();
       try {
         const request = validateDocumentViewChannelRequest(data);
         requestId = request.requestId;
         const view = await builder.buildView(request.input);
-        return createDocumentViewBuildResult(requestId, guardDocumentViewCardRenderView(view));
+        const result = createDocumentViewBuildResult(requestId, guardDocumentViewCardRenderView(view));
+        if (traceEnabled) {
+          trace.record({
+            category: 'render',
+            phase: DOCUMENT_VIEW_TRACE_PHASES.viewBuilt,
+            message: DOCUMENT_VIEW_REQUEST_CHANNEL,
+            outcome: 'ok',
+            durationMs: Math.max(0, performance.now() - startedAtMs),
+            details: {
+              requestId,
+              source: request.input.source,
+              documentId: request.input.documentId,
+              kind: request.input.kind,
+            },
+          });
+        }
+        return result;
       } catch (error: unknown) {
+        if (traceEnabled) {
+          const code = (error as { code?: unknown } | null)?.code;
+          trace.record({
+            category: 'render',
+            phase: DOCUMENT_VIEW_TRACE_PHASES.viewBuildFailed,
+            message: DOCUMENT_VIEW_REQUEST_CHANNEL,
+            outcome: 'error',
+            errorCode: typeof code === 'string' ? code : null,
+            durationMs: Math.max(0, performance.now() - startedAtMs),
+            details: { requestId },
+          });
+        }
         return createDocumentViewBuildFailure(requestId, error);
       }
     },

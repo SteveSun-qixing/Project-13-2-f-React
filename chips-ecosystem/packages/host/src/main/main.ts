@@ -13,6 +13,7 @@
 import { isPalBootstrapError } from '../platform/errors.js';
 import type { IPalHost } from '../platform/contracts/index.js';
 import type { IPlatformRuntime, IPlatformStartupInput } from '../runtime/contracts.js';
+import { createStartupTrace, STARTUP_TRACE_PHASES, type HostStartupTrace } from './startup-trace.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import { HostStartupError, describeHostFailure } from '../shared/errors.js';
@@ -93,8 +94,15 @@ export async function startHostMain(options: HostMainOptions): Promise<HostMainH
   await app.whenReady();
 
   let application: HostApplication;
+  let startupTrace: HostStartupTrace | null = null;
   try {
     const userDataPath = app.getPath('userData');
+    // 调试追踪（§2.1/§2.2）：取得 userData 即初始化单例，`startup` 里程碑随后分段落点。
+    startupTrace = createStartupTrace({
+      electronModule: options.electronModule,
+      userDataPath,
+      diagnostics,
+    });
     const palHost: IPalHost = options.assembly.createPalHost(options.electronModule, {
       userDataPath,
       preloadPath: options.preloadPath,
@@ -114,10 +122,12 @@ export async function startHostMain(options: HostMainOptions): Promise<HostMainH
       diagnostics,
     });
     await application.start();
+    startupTrace.recordStartup(STARTUP_TRACE_PHASES.windowReady);
   } catch (error) {
     // 装配与启动同属启动阶段：任一环节失败都以退出码 1 结束进程并上抛（17-跨端Shell 2.4）。
     const failure = describeHostFailure(error);
     diagnostics.error('startup', `壳启动失败：${failure.code}`, { stage: stageOf(error) });
+    await startupTrace?.shutdown().catch(() => undefined);
     app.exit(1);
     throw error instanceof HostStartupError
       ? error
@@ -136,6 +146,12 @@ export async function startHostMain(options: HostMainOptions): Promise<HostMainH
     } catch (error) {
       diagnostics.error('shutdown', '壳收口异常', { reason: error instanceof Error ? error.message : typeof error });
     }
+    // 调试追踪收口：等待写入链落盘后再结束进程（采集侧进程后读取的确定性前提）。
+    await startupTrace?.shutdown().catch((error: unknown) => {
+      diagnostics.error('shutdown', '调试追踪收口异常', {
+        reason: error instanceof Error ? error.message : typeof error,
+      });
+    });
     app.exit(0);
   };
 

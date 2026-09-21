@@ -236,6 +236,7 @@ async function collectOpenCard(
   const realAdapter = createRealHostAdapter();
   assertValidAdapter(realAdapter);
   const samples: number[] = [];
+  const stageNotes: string[] = [];
   for (let iteration = 0; iteration < config.measurement.rounds; iteration += 1) {
     const result = await realAdapter.run({ scenarioId: 'open-card', iteration });
     if (result.markers === undefined || result.markers.length === 0) {
@@ -244,6 +245,11 @@ async function collectOpenCard(
         `open-card 第 ${String(iteration)} 轮缺少标记点（真进程采集 fail-closed）`
       );
     }
+    for (const note of result.notes ?? []) {
+      if (!stageNotes.includes(note)) {
+        stageNotes.push(note);
+      }
+    }
     const timeline = observationTimeline(result.markers);
     samples.push(timeline.duration(definition.totalSpan));
   }
@@ -251,13 +257,18 @@ async function collectOpenCard(
     [totalMetricId]: samples,
   };
   const document = buildRealSamplesDocument(
-    { scenarioId: 'open-card', status: 'measured', samples: samplesByMetric },
+    {
+      scenarioId: 'open-card',
+      status: 'measured',
+      samples: samplesByMetric,
+      extraNotes: stageNotes,
+    },
     samplesMeta(configPath, hostVersion)
   );
   const samplesPath = resolve(outputDir, realSamplesFileName('open-card'));
   await writeJson(samplesPath, document);
   writeLine(
-    `[采集完成] open-card：${String(samples.length)} 轮实测 totalSpan 样本（阶段分解缺测，见登记表） → ${samplesPath}`
+    `[采集完成] open-card：${String(samples.length)} 轮实测 totalSpan 样本（装载/解析/视图构建三段经 CHIPS_TRACE 导出还原，逐轮注记见样本文件 notes；frame-ready/first-commit 缺测见登记表） → ${samplesPath}`
   );
   return samplesPath;
 }

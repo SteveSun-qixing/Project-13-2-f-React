@@ -24,8 +24,51 @@ import {
 } from '../protocol/wire.js';
 import type { IPlatformRuntime, ISessionSource } from '../runtime/contracts.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
+import { getHostTrace, type IHostTrace } from '../shared/host-trace.js';
 import type { ShellIpcInvokeEvent, ShellIpcMain } from './shell-api.js';
 import { BRIDGE_SESSION_UNKNOWN_ERROR, resolveIpcSession } from './session-resolver.js';
+
+/**
+ * 落一条 `bridge` 类别执行记录（《调试指南》§5.2 在册字段：`requestId` / `channel` /
+ * `direction` / `capabilityId` / `phase` / `outcome` / `errorCode` / `retryable` /
+ * `durationMs`＝收到请求到返回结果的耗时）。`sessionId` 在本层未解析（会话身份归
+ * Bridge 核心段解析），按 §2.3「适用时」口径缺位。
+ */
+function recordBridgeRequestTrace(
+  trace: IHostTrace,
+  request: IBridgeRequest,
+  session: ISessionSource,
+  startedAtMs: number,
+  response: IBridgeResponse,
+): void {
+  if (response.ok) {
+    trace.record({
+      category: 'bridge',
+      phase: 'execute',
+      windowId: session.windowId,
+      requestId: request.requestId,
+      channel: BRIDGE_REQUEST_CHANNEL,
+      direction: 'in',
+      capabilityId: request.capabilityId,
+      outcome: 'ok',
+      durationMs: Math.max(0, performance.now() - startedAtMs),
+    });
+    return;
+  }
+  trace.record({
+    category: 'bridge',
+    phase: 'execute',
+    windowId: session.windowId,
+    requestId: request.requestId,
+    channel: BRIDGE_REQUEST_CHANNEL,
+    direction: 'in',
+    capabilityId: request.capabilityId,
+    outcome: 'error',
+    errorCode: response.error.code,
+    ...(response.error.retryable === undefined ? {} : { retryable: response.error.retryable }),
+    durationMs: Math.max(0, performance.now() - startedAtMs),
+  });
+}
 
 /** 通道注册依赖。 */
 export interface IpcChannelDeps {
@@ -83,11 +126,28 @@ export function registerIpcChannels(deps: IpcChannelDeps): () => void {
     if (session === null) {
       return { requestId: request.requestId, ok: false, error: BRIDGE_SESSION_UNKNOWN_ERROR };
     }
+    // Bridge 调用追踪（《调试指南》§5.1/§5.2：主进程适配层为在册追踪位置；
+    // `durationMs` = Bridge 收到请求到返回结果的耗时，即本包裹段）。
+    const trace = getHostTrace();
+    const traceEnabled = trace.enabled('bridge');
+    const startedAtMs = performance.now();
     try {
-      return await runtime.ipc.handleRequest(session, request);
+      const response = await runtime.ipc.handleRequest(session, request);
+      if (traceEnabled) {
+        recordBridgeRequestTrace(trace, request, session, startedAtMs, response);
+      }
+      return response;
     } catch (error) {
       diagnostics.error('ipc', '能力调用处理异常', { windowId: session.windowId });
-      return { requestId: request.requestId, ok: false, error: toWireError(error) };
+      const response: IBridgeResponse = {
+        requestId: request.requestId,
+        ok: false,
+        error: toWireError(error),
+      };
+      if (traceEnabled) {
+        recordBridgeRequestTrace(trace, request, session, startedAtMs, response);
+      }
+      return response;
     }
   });
 

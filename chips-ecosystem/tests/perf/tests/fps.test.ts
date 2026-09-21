@@ -18,6 +18,20 @@ describe('帧率采样（fps）', () => {
     expect(summary.durationMs).toBeCloseTo(10_000, 6);
   });
 
+  it('60Hz 真实节律（末间隔越过整秒边界）：分桶均值不再截断为 59.90', () => {
+    // 复现工单041④ 探针场景：601 个帧时间戳、恒定间隔 16.667ms，
+    // 总时长 10000.2ms 略超 10 个整秒桶。旧「结束时刻」口径下，
+    // 末段间隔结束于 10000.2 > 末桶边界 10000，被整体丢弃 →
+    // 分桶合计 599 个间隔 → 桶均值 59.90（结构性 −1 偏置）。
+    // 中点口径下该间隔中点 9991.85 落入末桶 → 分桶合计 600 → 均值 60.0。
+    const timestamps = constantIntervalTimestamps(10000.2 / 600, 601);
+    const summary = summarizeFrames(timestamps);
+    expect(summary.buckets).toHaveLength(10);
+    expect(summary.averageFps).toBeCloseTo(59.9988, 4);
+    expect(summary.buckets.reduce((sum, bucket) => sum + bucket.frameIntervals, 0)).toBe(600);
+    expect(summary.bucketFpsStats.mean).toBeCloseTo(60, 6);
+  });
+
   it('20fps：全部为长帧，平均帧率为 20', () => {
     const summary = summarizeFrames(constantIntervalTimestamps(50, 201));
     expect(summary.averageFps).toBeCloseTo(20, 6);

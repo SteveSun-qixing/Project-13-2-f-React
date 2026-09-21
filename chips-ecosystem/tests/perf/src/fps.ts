@@ -53,7 +53,14 @@ function validateTimestamps(timestampsMs: readonly number[]): void {
  * 汇总帧时间戳：全程平均帧率、1 s 分桶帧率、帧时间统计与长帧比例。
  *
  * 分桶规则：以首个时间戳为原点，每 1000 ms 一个桶；末尾不足 1 s 的余量不参与分桶
- * （不足 1 s 的采样整体作为一个桶）。桶归属按帧间隔的结束时刻判定。
+ * （不足 1 s 的采样整体作为一个桶）。
+ *
+ * 桶归属按帧间隔的中点时刻判定（工单041④ 口径修正）：旧实现按间隔的「结束时刻」
+ * 判定，真实 60Hz 流（间隔 ≈16.667ms、末间隔总时长越过整秒边界）的最后一段间隔
+ * 会落在末桶边界之外被整体丢弃，产生系统性的 −1 间隔截断偏置——10 秒采样报出
+ * 59.90 而非 60.0（探针证据：/tmp/w135_fps_probe.json，全程 59.999 对比桶均值
+ * 59.900，空白页对照组同偏差）。中点判定使跨桶间隔归属其几何中点所在桶，消除
+ * 该截断；判定阈值与门禁逻辑不变，仅修正采集口径。
  *
  * @param timestampsMs 单调递增的帧时间戳（毫秒）
  * @param frameBudgetMs 单帧预算，默认由 60fps 推导
@@ -97,10 +104,12 @@ export function summarizeFrames(
     let frameIntervals = 0;
     for (let index = 1; index < timestampsMs.length; index += 1) {
       const current = timestampsMs[index];
-      if (current === undefined) {
+      const previous = timestampsMs[index - 1];
+      if (current === undefined || previous === undefined) {
         continue;
       }
-      if (current > bucketStart && current <= bucketEnd) {
+      const midpoint = (previous + current) / 2;
+      if (midpoint > bucketStart && midpoint <= bucketEnd) {
         frameIntervals += 1;
       }
     }

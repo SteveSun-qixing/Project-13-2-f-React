@@ -87,13 +87,19 @@ describe('外部观测 → 标记点时间线归一（observations）', () => {
     );
   });
 
-  it('缺测臂登记：open-card 含三条阶段缺测、scroll-fps 含 render_update_ms、open-box 整场景', () => {
-    expect(unmeasurableArmsOf('open-card').filter((arm) => arm.kind === 'phase')).toHaveLength(3);
+  it('缺测臂登记：open-card 含两条阶段缺测（parse 臂已随工单041① 导出面关闭）、scroll-fps 含 render_update_ms、open-box 整场景', () => {
+    const phaseArms = unmeasurableArmsOf('open-card').filter((arm) => arm.kind === 'phase');
+    expect(phaseArms).toHaveLength(2);
+    expect(phaseArms.map((arm) => arm.target)).toEqual([
+      'open_card.frame-ready',
+      'open_card.first-commit',
+    ]);
     expect(unmeasurableArmsOf('scroll-fps').map((arm) => arm.target)).toContain('render_update_ms');
     expect(unmeasurableArmsOf('open-box').some((arm) => arm.kind === 'scenario')).toBe(true);
     const notes = unmeasurableArmNotes('open-card');
-    expect(notes.length).toBeGreaterThanOrEqual(4);
+    expect(notes.length).toBe(3);
     expect(notes.every((note) => note.startsWith('缺测臂（'))).toBe(true);
+    expect(notes.some((note) => note.includes('导出面已建'))).toBe(true);
     expect(() => unmeasurableArmNotes('未知场景')).toThrowError(PerfError);
   });
 });

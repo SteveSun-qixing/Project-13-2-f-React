@@ -6,6 +6,7 @@ import { SCENARIOS } from '../scenarios';
 import type { MemorySample } from '../memory';
 import {
   collectHostRssBytes,
+  collectHostUserDataPath,
   loadChipsE2eRuntime,
   resolveDocumentHostEntry,
   resolveFormalAppEntry,
@@ -14,6 +15,7 @@ import {
   type PageSurface,
 } from './e2e-runtime';
 import { coldStartMarkers, openCardMarkers } from './observations';
+import { waitForOpenCardStages } from './host-trace';
 
 /**
  * 真进程宿主适配器（W2-P1-6 / 任务 #121 段A）。
@@ -28,11 +30,12 @@ import { coldStartMarkers, openCardMarkers } from './observations';
  * - `scroll-fps`（frames 路径，rAF 时间戳；`render_update_ms` 为缺测臂，
  *   由 `observations.ts` 登记表如实呈现）；
  * - `idle-memory`（memory 路径，`app.getAppMetrics()` 全进程 RSS 合计）。
- * `open-card` 因场景登记的阶段标记点在宿主侧无导出（`measureScenario` 的 markers
- * 路径强制要求阶段边界），不经 `measureScenario`，由采集器按 `totalSpan` 单跨度
- * 组装（同一 `MarkerTimeline` 语义）；`open-box` 整场景不可测（视图面随 W4），
- * 不在 `provides`，由探针 {@link observeOpenBox} 产出真进程证据。缺口语义全部
- * 登记于 `真进程采集-设计.md` §三。
+ * `open-card` 不经 `measureScenario`（阶段标记仍不完整：frame-created / frame-ready /
+ * first-frame-commit 随 #99 渲染臂接入），由采集器按 `totalSpan` 单跨度组装；
+ * 装载 / 解析 / 视图构建三段自工单041① 起经宿主 `CHIPS_TRACE` JSONL 导出面
+ * 消费还原（`src/real/host-trace.ts` 关联链，fail-closed），逐轮写入 `notes`；
+ * `open-box` 整场景不可测（视图面随 W4），不在 `provides`，由探针
+ * {@link observeOpenBox} 产出真进程证据。缺口语义全部登记于 `真进程采集-设计.md` §三。
  */
 
 /** 适配器构造选项（全部可注入，供纯逻辑测试替换时钟/运行时）。 */
@@ -58,6 +61,34 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+/** 阶段毫秒数报告形态（两位小数，不新造舍入口径，仅呈现层）。 */
+function formatStageMs(value: number): string {
+  return (Math.round(value * 100) / 100).toFixed(2);
+}
+
+/**
+ * open-card 视图构建探针回包闸：失败臂（带 `error` 面）与非对象回包 fail-closed
+ * 抛错；成功臂回传判型字符串如实呈现。
+ */
+function assertViewProbeResolved(reply: unknown, what: string): string {
+  if (typeof reply !== 'object' || reply === null) {
+    throw new Error(`${what} 回包不是对象（真进程采集 fail-closed）。`);
+  }
+  const shape = reply as ViewChannelReplyShape;
+  const replyType = typeof shape.type === 'string' ? shape.type : String(shape.type);
+  const rawCode = shape.error?.code;
+  if (
+    rawCode !== undefined ||
+    replyType === 'channel-missing' ||
+    replyType === 'channel-rejected'
+  ) {
+    throw new Error(
+      `${what} 被宿主拒绝（判型 ${replyType}${typeof rawCode === 'string' ? `，在册码 ${rawCode}` : ''}），阶段导出不可还原。`
+    );
+  }
+  return replyType;
+}
+
 /** 文档能力场景的在册承载：E2E 入口 + 接线模块 + 工作区根 env（与金链路 spec 同源通道）。 */
 async function launchDocumentHost(
   runtime: ChipsE2eRuntimeSurface,
@@ -71,6 +102,9 @@ async function launchDocumentHost(
     env: {
       CHIPS_E2E_DOCUMENT_WIRING_MODULE: wiringModulePath,
       CHIPS_E2E_DOCUMENT_ROOT: workspacePath,
+      // 工单041①：显式钉住追踪类别（开发默认臂本就覆盖除 resource 外全部，此处
+      // 显式化以隔绝外层 shell 环境污染/篡改，采集面只依赖 startup/bridge/render）。
+      CHIPS_TRACE: 'startup,bridge,render',
     },
   });
 }
@@ -169,24 +203,49 @@ export function createRealHostAdapter(options: RealHostAdapterOptions = {}): Per
       if (workspace.cardArchivePath === null) {
         throw new Error('工作区未装配归档态卡片夹具（真进程采集 fail-closed）。');
       }
+      // 追踪窗口起点先于宿主启动捕获：运行段锚 `startup:process-start` 的记录时刻
+      // 是进程时间原点（早于 document:open），窗口必须覆盖它。
+      const traceWindowStartIso = new Date().toISOString();
       host = await launchDocumentHost(
         runtime,
         workspace.root,
         wiring.appEntry,
         wiring.wiringModulePath
       );
+      const userDataPath = await collectHostUserDataPath(host);
       const source = pathToFileURL(workspace.cardArchivePath).href;
       const openCalledAtMs = clock();
       const opened = await runtime.openDocument(host.window, { source, kind: 'card' });
       const openResolvedAtMs = clock();
       const openedRecord = opened as Record<string, unknown>;
       const openedKind = typeof openedRecord['kind'] === 'string' ? openedRecord['kind'] : 'card';
-      const openedId =
-        typeof openedRecord['documentId'] === 'string' ? openedRecord['documentId'] : '未知';
+      if (
+        typeof openedRecord['documentId'] !== 'string' ||
+        typeof openedRecord['source'] !== 'string'
+      ) {
+        throw new Error(
+          'document:open 回包缺少 documentId/source（阶段导出关联锚缺失，真进程采集 fail-closed）。'
+        );
+      }
+      const openedId = openedRecord['documentId'];
+      const managedSource = openedRecord['source'];
+      // 视图构建段探针：当轮唯一 requestId 作关联链锚（host-trace.ts 消费侧同名闸）。
+      const probeRequestId = `perf-real-open-card-view-${String(iteration)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const probeReply = await host.window.evaluate<unknown>(
+        `(${VIEW_CHANNEL_PROBE})(${JSON.stringify({
+          source: managedSource,
+          documentId: openedId,
+          kind: 'card',
+          requestId: probeRequestId,
+        })})`
+      );
+      const probeType = assertViewProbeResolved(probeReply, '卡片视图构建探针');
+      const stages = await waitForOpenCardStages(userDataPath, traceWindowStartIso, probeRequestId);
       return {
         markers: openCardMarkers({ openCalledAtMs, openResolvedAtMs }),
         notes: [
-          `document:open 真实往返（kind=${openedKind}，documentId=${openedId}）；阶段分解缺测见登记表。`,
+          `document:open 真实往返（kind=${openedKind}，documentId=${openedId}）；视图构建探针回包判型 ${probeType}。`,
+          `阶段分解（CHIPS_TRACE 宿主就地实测）：装载 ${formatStageMs(stages.loadMs)} ms / 解析 ${formatStageMs(stages.parseMs)} ms / 视图构建 ${formatStageMs(stages.viewBuildMs)} ms（traceId=${stages.traceId}）。`,
         ],
       };
     } finally {
@@ -236,6 +295,7 @@ export function createRealHostAdapter(options: RealHostAdapterOptions = {}): Per
         frameTimestampsMs: timestamps,
         notes: [
           '帧时间戳来自壳窗口 rAF（W2 期卡片 DOM 渲染臂未接通 #99，帧率为宿主窗口合成器口径）。',
+          '1 s 分桶按帧间隔中点判定（工单041④ 口径修正：旧结束时刻判定存在末桶 −1 间隔截断偏置，精确 60Hz 流报 59.90）。',
         ],
       };
     } finally {
@@ -324,6 +384,8 @@ interface ViewChannelReplyShape {
 /**
  * 取视图通道探针页面函数（纯 JS 字符串源，同帧采集的 `__name` 消除纪律；封套为 #105
  * 冻结形状；字符串表达式不被自动调用，实参以 IIFE 内联承载）。
+ * `kind`/`requestId` 由调用方注入（open-box 探针与 open-card 阶段探针共用封套形状，
+ * 不改线上契约）。
  */
 const VIEW_CHANNEL_PROBE = `(input) => {
   const surface = window.__chipsHostViewChannel;
@@ -334,8 +396,8 @@ const VIEW_CHANNEL_PROBE = `(input) => {
     .requestView({
       protocol: 'chips-document-view/1',
       type: 'document-view:build',
-      requestId: 'perf-real-open-box-probe',
-      input: { source: input.source, documentId: input.documentId, kind: 'box' },
+      requestId: input.requestId,
+      input: { source: input.source, documentId: input.documentId, kind: input.kind },
     })
     .then((result) => result)
     .catch((error) => ({
@@ -373,7 +435,12 @@ export async function observeOpenBox(
     const source = pathToFileURL(workspace.boxArchivePath).href;
     await runtime.openDocument(host.window, { source, kind: 'box' });
     const reply = await host.window.evaluate<unknown>(
-      `(${VIEW_CHANNEL_PROBE})(${JSON.stringify({ source, documentId: 'perfBoxPrb' })})`
+      `(${VIEW_CHANNEL_PROBE})(${JSON.stringify({
+        source,
+        documentId: 'perfBoxPrb',
+        kind: 'box',
+        requestId: 'perf-real-open-box-probe',
+      })})`
     );
     if (typeof reply !== 'object' || reply === null) {
       throw new Error('取视图通道探针回包不是对象（真进程探针 fail-closed）。');
