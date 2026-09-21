@@ -306,6 +306,21 @@ pub enum ResourceError {
         /// 冲突目标标识。
         uri: String,
     },
+    /// 目录非空（`RESOURCE_NOT_EMPTY`；`delete` 非递归模式，《06》§7.2，
+    /// 段二 B2 随 DirectoryProvider 产化；`details` 为 `{ uri }`，《06》§7.3）。
+    #[error("目录非空，非递归删除被拒绝：{uri}")]
+    NotEmpty {
+        /// 规范 URI。
+        uri: String,
+    },
+    /// 写入提交失败（`RESOURCE_WRITE_FAILED`；磁盘/锁冲突，《06》§7.2，
+    /// 段二 B2 随 DirectoryProvider 持久化写族产化；`details` 为 `{ uri }`，
+    /// §7.3 `cause` 分类词表未在册，不自造，见 findings）。
+    #[error("写入提交失败：{uri}")]
+    WriteFailed {
+        /// 规范 URI（不含真实文件系统路径，《06》§7.1）。
+        uri: String,
+    },
     /// 操作不被当前 Provider/作用域支持（`RESOURCE_NOT_SUPPORTED`，
     /// 《06》§7.2/§7.3 `IResourceScopeErrorDetails`；如 Platform/External/Memory
     /// 不支持列举、Memory 形态 rename/copy 出会话）。
@@ -357,6 +372,8 @@ impl ResourceError {
             Self::PoolExhausted { .. } => RESOURCE_POOL_EXHAUSTED,
             Self::ReadOnly { .. } => RESOURCE_READ_ONLY,
             Self::AlreadyExists { .. } => RESOURCE_ALREADY_EXISTS,
+            Self::NotEmpty { .. } => RESOURCE_NOT_EMPTY,
+            Self::WriteFailed { .. } => RESOURCE_WRITE_FAILED,
             Self::NotSupported { .. } => RESOURCE_NOT_SUPPORTED,
             Self::CrossScope { .. } => RESOURCE_CROSS_SCOPE,
             Self::Internal => RESOURCE_INTERNAL,
@@ -424,6 +441,8 @@ impl ResourceError {
             })),
             Self::ReadOnly { uri } => Some(serde_json::json!({ "uri": uri })),
             Self::AlreadyExists { uri } => Some(serde_json::json!({ "uri": uri })),
+            Self::NotEmpty { uri } => Some(serde_json::json!({ "uri": uri })),
+            Self::WriteFailed { uri } => Some(serde_json::json!({ "uri": uri })),
             Self::NotSupported {
                 uri,
                 scope,

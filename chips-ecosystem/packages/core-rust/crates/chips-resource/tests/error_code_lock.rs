@@ -501,6 +501,46 @@ fn test_state_and_reason_vocabularies_serialization() {
 }
 
 #[test]
+fn test_b2_not_empty_and_write_failed_locked() {
+    // 段二 B2 产化映射锁（纯新增，不改既有 18 码表条目）：
+    // NotEmpty / WriteFailed 两变体 → 码值、retryable 走在册表、
+    // details 键形 {uri} 单键（《06》§7.3；WRITE_FAILED 的 cause 分类
+    // 词表未在册，不自造，见 findings 登记）。
+    let samples: Vec<(ResourceError, &str, bool)> = vec![
+        (
+            ResourceError::NotEmpty { uri: "u".into() },
+            RESOURCE_NOT_EMPTY,
+            false,
+        ),
+        (
+            ResourceError::WriteFailed { uri: "u".into() },
+            RESOURCE_WRITE_FAILED,
+            true,
+        ),
+    ];
+    for (error, code, retryable) in samples {
+        assert_eq!(error.code(), code, "B2 产化变体码映射与码表漂移");
+        assert_eq!(error.retryable(), retryable);
+        assert_eq!(
+            error.retryable(),
+            retryable_for(code),
+            "{code} retryable 必须走在册表"
+        );
+        assert!(
+            REGISTERED
+                .iter()
+                .any(|(registered, _, _)| *registered == code),
+            "{code} 必须在《06》§7.2 在册表内"
+        );
+        let details = error.details().expect("B2 产化两码必携 details");
+        let object = details.as_object().expect("details 必须是对象");
+        let mut names: Vec<&String> = object.keys().collect();
+        names.sort();
+        assert_eq!(names, vec!["uri"], "{code} details 键形漂移");
+    }
+}
+
+#[test]
 fn test_chips_error_single_form_carries_registered_code() {
     // 跨边界归一：ChipsError.code 逐码原样上抛，不改写、不折算。
     let samples = [

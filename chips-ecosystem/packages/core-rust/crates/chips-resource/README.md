@@ -1,8 +1,11 @@
-# chips-resource（段一寻址内核 + 段二 B1：MemoryProvider 挂载与 unicode 触发臂）
+# chips-resource（段一寻址内核 + 段二 B1：MemoryProvider 挂载与 unicode 触发臂 + B2：DirectoryProvider 挂载与读面）
 
 薯片平台资源管理器的 Rust 权威 crate：段一交付 `chips-resource://` URI 与作用域解析、
 管理器侧权限判定（PathGuard）、资源句柄与租约状态机；段二 B1 随单追加内置
-`MemoryProvider` 挂载、写入提交与 FS 操作入口、unicode 触发臂产化（工单042 裁定④）。
+`MemoryProvider` 挂载、写入提交与 FS 操作入口、unicode 触发臂产化（工单042 裁定④）；
+段二 B2 随单追加内置 `DirectoryProvider`（真实文件系统目录域，`mount_directory`
+挂载，读面/流面/列举面/写入提交面，《04》§3.3）与 `NOT_EMPTY` / `WRITE_FAILED`
+产化、符号链接逃逸落位后防御（《06》§9.1）。
 权威依据：
 
 - 《06-资源协议规范》§2（URI 语法）、§3（作用域）、§4（权限）、§6（句柄生命周期）、§7（错误码，唯一权威）、§9（安全约束）；
@@ -16,19 +19,20 @@
 
 ## 模块导览
 
-| 模块         | 职责                                                                                                                                                   | 权威条目                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
-| `error`      | 18 个在册 `RESOURCE_*` 错误码常量、`ResourceError` 强类型枚举、`details` 形状、`ChipsError` 归一                                                       | 《06》§7                       |
-| `constants`  | 默认限额（8 MiB / 2 GiB / 256 KiB / 64 / 4096 等）与 `ResourceLimits`                                                                                  | 《04》§12、《06》§9.3          |
-| `uri`        | 语法解析与归一化（scheme/scope/path/query、External origin、大小写、百分号、punycode、IPv6）                                                           | 《06》§2                       |
-| `path_guard` | 解码一次 + NFC + 分段 + 控制字符 + 平台特例 + 长度 + 符号链接根内校验 + Unicode 触发臂（工单042 裁定④，`reason=unicode` 已产化）                       | 《04》§9、《06》§2.4/§9.1      |
-| `scope`      | `ScopeKind`/`ScopeRegistration`/`ScopePolicy`/`ScopeRegistry`（含 External 按 origin 惰性注册）                                                        | 《04》§5.2、《06》§3           |
-| `session`    | `ResourceSession`/`SessionKind`/会话注册表：派生不扩权、关闭级联                                                                                       | 《04》§11.2、《03》§7.2        |
-| `permission` | 作用域×能力面管理器侧在册判定矩阵与 `IPermissionDeniedDetails`（口径：《06.04》§4.3 为协议权威，Platform 任意插件免权限公开只读）                      | 《06》§4、《04》§5.3（已对齐） |
-| `provider`   | 在册 `ResourceProvider` trait 与地址模型类型（仅抽象；内置实现见 `memory`，目录/ZIP/HTTP 属段二后续波次）                                              | 《04》§3.1/§3.2                |
-| `memory`     | 内置 `MemoryProvider`：运行时内存字节、不落盘、无磁盘缓存；流式/可写如实声明、目录列举不支持                                                           | 《04.03》§3.2/§3.3             |
-| `handle`     | `open`/`invalidated`/`released` 三态状态机、句柄表、租约归属与归还、失效订阅、池上限                                                                   | 《04》§4、《06》§6             |
-| `manager`    | `ResourceManager` 门面：`resolve` 流水线、`open/stat/read_range/read_chunk/release`、Memory 挂载（`mount_memory`）与写族/FS 操作入口、会话与作用域级联 | 《04》§5.1/§11、《03》§7       |
+| 模块         | 职责                                                                                                                                                                                                | 权威条目                       |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `error`      | 18 个在册 `RESOURCE_*` 错误码常量、`ResourceError` 强类型枚举、`details` 形状、`ChipsError` 归一                                                                                                    | 《06》§7                       |
+| `constants`  | 默认限额（8 MiB / 2 GiB / 256 KiB / 64 / 4096 等）与 `ResourceLimits`                                                                                                                               | 《04》§12、《06》§9.3          |
+| `uri`        | 语法解析与归一化（scheme/scope/path/query、External origin、大小写、百分号、punycode、IPv6）                                                                                                        | 《06》§2                       |
+| `path_guard` | 解码一次 + NFC + 分段 + 控制字符 + 平台特例 + 长度 + 符号链接根内校验 + Unicode 触发臂（工单042 裁定④，`reason=unicode` 已产化）                                                                    | 《04》§9、《06》§2.4/§9.1      |
+| `scope`      | `ScopeKind`/`ScopeRegistration`/`ScopePolicy`/`ScopeRegistry`（含 External 按 origin 惰性注册）                                                                                                     | 《04》§5.2、《06》§3           |
+| `session`    | `ResourceSession`/`SessionKind`/会话注册表：派生不扩权、关闭级联                                                                                                                                    | 《04》§11.2、《03》§7.2        |
+| `permission` | 作用域×能力面管理器侧在册判定矩阵与 `IPermissionDeniedDetails`（口径：《06.04》§4.3 为协议权威，Platform 任意插件免权限公开只读）                                                                   | 《06》§4、《04》§5.3（已对齐） |
+| `provider`   | 在册 `ResourceProvider` trait 与地址模型类型（仅抽象；内置实现见 `memory`/`directory`，ZIP/HTTP 属段二后续波次）                                                                                    | 《04》§3.1/§3.2                |
+| `memory`     | 内置 `MemoryProvider`：运行时内存字节、不落盘、无磁盘缓存；流式/可写如实声明、目录列举不支持                                                                                                        | 《04.03》§3.2/§3.3             |
+| `directory`  | 内置 `DirectoryProvider`：真实文件系统目录域（`attach_root` 落位）；stat/范围读/流读不整档入内存、列举过滤隐藏与符号链接条目、写族原子提交（temp+rename）、根外符号链接逃逸防御（`reason=symlink`） | 《04.03》§3.2/§3.3、《06》§9.1 |
+| `handle`     | `open`/`invalidated`/`released` 三态状态机、句柄表、租约归属与归还、失效订阅、池上限                                                                                                                | 《04》§4、《06》§6             |
+| `manager`    | `ResourceManager` 门面：`resolve` 流水线、`open/stat/read_range/read_chunk/release`、Memory 挂载（`mount_memory`）/目录挂载（`mount_directory`）与写族/FS 操作入口、会话与作用域级联                | 《04》§5.1/§11、《03》§7       |
 
 ## 段边界（本段做与不做）
 
@@ -37,32 +41,40 @@
 （`commit_write`）与 FS 操作公开入口（`list_directory` / `delete` / `rename` / `copy` /
 `create_directory`，《04.04》§4.9），能力预检在 Manager 层直接返回
 `RESOURCE_READ_ONLY` / `RESOURCE_NOT_SUPPORTED`，不透传 Provider；以及工单042 裁定④
-unicode 触发臂产化（《06.02》§2.4）。
-仍不做：`open_write_stream` 写流提交入口（流式读 `read_chunk` 已在段一；跨 Provider 写流归后续波）、
-`file:*`/`resource:*` 能力面接线、Neon 绑定（§11.3）、缓存（§6）、网络两栖（段三）。
+unicode 触发臂产化（《06.02》§2.4）。段二 B2（本次随单）起追加：内置
+`DirectoryProvider` 挂载（`mount_directory`，Workspace/Document/Plugin/Temporary
+四类目录域，只读临时域走 `dialog:open` 只读臂）与其读面（stat/范围读/流读，全程
+无整档驻留）、列举面（隐藏点文件与符号链接条目过滤、按名定序）、写入提交面落
+真实 FS（原子 temp+rename 提交、rename/copy 不覆盖、mkdir 幂等、非递归删除
+`NOT_EMPTY`）与落位后符号链接逃逸防御（《06》§9.1）。
+仍不做：ZIP Store（`ArchiveProvider`，B3）、`open_write_stream` 写流提交入口（流式读 `read_chunk` 已在段一；跨 Provider 写流归后续波）、
+`file:*`/`resource:*` 能力面接线、Neon 绑定（§11.3）、缓存（§6，B4）、网络两栖（段三）。
 `Provider` trait 按《04》§3.2 全量在册定义，未重定义。
 
-## 在册错误码 ↔ 用例对照（段一 + 段二 B1 产生面）
+## 在册错误码 ↔ 用例对照（段一 + 段二 B1/B2 产生面）
 
-| 错误码                                                   | 段一产生点                                                                                                                                                                                 | 锁测                                                                                                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `RESOURCE_INVALID_URI`                                   | 语法矩阵：query/fragment/编码/userinfo/origin/scheme 前缀、无路径分隔符的裸 origin                                                                                                         | `src/uri.rs` 单测矩阵 + `tests/uri_syntax_matrix.rs` + `tests/error_code_lock.rs`                                                     |
-| `RESOURCE_UNSUPPORTED_SCHEME`                            | `resolve_input` 收到 `file://`、`webdav://`、未知 scheme                                                                                                                                   | `src/uri.rs` + `tests/uri_syntax_matrix.rs`                                                                                           |
-| `RESOURCE_PATH_INVALID`                                  | PathGuard 攻击面全量（9 类 reason 中 `absolute/separator/segment/encoding/control/length/platform/symlink` 8 类；第 9 类 `unicode` 亦以本码承载（2026-09-21 主智能体码归属更正），见下行） | `src/path_guard.rs` 单测 + `tests/error_code_lock.rs` 形状锁                                                                          |
-| `RESOURCE_PATH_INVALID`（`reason=unicode`）              | Unicode 触发臂（工单042 裁定④，码归属按 2026-09-21 更正落路径族）：百分号解码一次后字节非法 UTF-8、含 U+FFFD 或非字符 U+nFFFE/U+nFFFF（n=1..10）即拒绝；NFC 归一差异不拒绝                 | `src/path_guard.rs` 产化单测 + `tests/error_code_lock.rs::test_unicode_reason_has_production` + `tests/memory_provider.rs` URI 面用例 |
-| `RESOURCE_NOT_FOUND`                                     | 作用域未注册；直接请求作用域根（空路径基址）                                                                                                                                               | `src/scope.rs` / `src/manager.rs` 流水线单测                                                                                          |
-| `RESOURCE_PERMISSION_DENIED`                             | 判定矩阵拒绝面 + 会话未解析                                                                                                                                                                | `src/permission.rs` / `src/manager.rs` 单测                                                                                           |
-| `RESOURCE_TOO_LARGE`                                     | `open` 超过作用域 `max_resource_bytes`                                                                                                                                                     | `src/manager.rs` 单测                                                                                                                 |
-| `RESOURCE_BUSY`                                          | 流游标占用期间 `read_range`                                                                                                                                                                | `src/manager.rs` / `src/handle.rs` 单测                                                                                               |
-| `RESOURCE_HANDLE_RELEASED`                               | 已释放句柄使用（含 ID 陈旧命中墓碑）                                                                                                                                                       | `src/handle.rs` 单测                                                                                                                  |
-| `RESOURCE_HANDLE_INVALIDATED`                            | 已失效句柄读操作                                                                                                                                                                           | `src/handle.rs` / `src/manager.rs` 单测                                                                                               |
-| `RESOURCE_POOL_EXHAUSTED`                                | 单插件 64 / 全局 4096 超限（`kind: handles`）                                                                                                                                              | `src/handle.rs` 单测                                                                                                                  |
-| `RESOURCE_READ_ONLY`                                     | 只读策略作用域写入能力预检（Manager 层直接返回不透传；Platform/External 由判定矩阵先行以 PERMISSION_DENIED 拒绝，见 findings）+ `supports_write=false` Provider 写预检                     | `src/permission.rs` / `src/manager.rs` 单测                                                                                           |
-| `RESOURCE_ALREADY_EXISTS`                                | 作用域 / Provider 重复注册（含 Memory 重复挂载、rename/copy 目标已存在不覆盖）                                                                                                             | `src/scope.rs` / `src/manager.rs` 单测                                                                                                |
-| `RESOURCE_INTERNAL`                                      | 兜底：作用域注册项指向未注册 Provider（装配错误，协议层兜底口径《06》§7.2）                                                                                                                | `src/manager.rs` 兜底单测 + `tests/error_code_lock.rs` 形状锁（无 details）                                                           |
-| `RESOURCE_NOT_SUPPORTED`                                 | 段二 B1 产化：Memory 目录列举/建目录预检、`delete`/`create_directory`/`rename`/`list` 作用域类别门（Manager 层直接返回，`details{uri,scope,operation}`）                                   | `src/memory.rs` / `src/manager.rs` / `tests/memory_provider.rs` + 锁测                                                                |
-| `RESOURCE_CROSS_SCOPE`                                   | 段二 B1 产化：跨作用域 `copy` 且对目标作用域缺写权（`details` 复用 `IPermissionDeniedDetails` 形状）                                                                                       | `src/manager.rs` 单测 + `tests/error_code_lock.rs` 形状锁                                                                             |
-| 其余 3 码（`NOT_EMPTY`/`WRITE_FAILED`/`NETWORK_FAILED`） | 本段不产生（依赖真实 FS Provider 与外部代理，段二后续/段三接入）；常量与 `retryable`、HTTP 映射表由 `tests/error_code_lock.rs` 三方锁钉住                                                  | `tests/error_code_lock.rs`                                                                                                            |
+| 错误码                                              | 段一产生点                                                                                                                                                                                                                                                                                            | 锁测                                                                                                                                  |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `RESOURCE_INVALID_URI`                              | 语法矩阵：query/fragment/编码/userinfo/origin/scheme 前缀、无路径分隔符的裸 origin                                                                                                                                                                                                                    | `src/uri.rs` 单测矩阵 + `tests/uri_syntax_matrix.rs` + `tests/error_code_lock.rs`                                                     |
+| `RESOURCE_UNSUPPORTED_SCHEME`                       | `resolve_input` 收到 `file://`、`webdav://`、未知 scheme                                                                                                                                                                                                                                              | `src/uri.rs` + `tests/uri_syntax_matrix.rs`                                                                                           |
+| `RESOURCE_PATH_INVALID`                             | PathGuard 攻击面全量（9 类 reason 中 `absolute/separator/segment/encoding/control/length/platform/symlink` 8 类；第 9 类 `unicode` 亦以本码承载（2026-09-21 主智能体码归属更正），见下行）                                                                                                            | `src/path_guard.rs` 单测 + `tests/error_code_lock.rs` 形状锁                                                                          |
+| `RESOURCE_PATH_INVALID`（`reason=unicode`）         | Unicode 触发臂（工单042 裁定④，码归属按 2026-09-21 更正落路径族）：百分号解码一次后字节非法 UTF-8、含 U+FFFD 或非字符 U+nFFFE/U+nFFFF（n=1..10）即拒绝；NFC 归一差异不拒绝                                                                                                                            | `src/path_guard.rs` 产化单测 + `tests/error_code_lock.rs::test_unicode_reason_has_production` + `tests/memory_provider.rs` URI 面用例 |
+| `RESOURCE_PATH_INVALID`（`reason=symlink`，目录域） | 段二 B2 产化：真实 FS 落位后宿主侧防御——根内组件逐段 `canonicalize` 复核命中根外符号链接即拒绝（`src/path_guard.rs::resolve_within_root`，uri 由 `DirectoryProvider::locate` 回填目标规范 URI，《06》§7.3）                                                                                           | `src/directory.rs` 单测 + `tests/directory_provider.rs::test_directory_symlink_escape_and_traversal_defense`                          |
+| `RESOURCE_NOT_FOUND`                                | 作用域未注册；直接请求作用域根（空路径基址）；段二 B2 产化：目录域资源缺失、目录态路径不得作为资源读取/开流/范围读、列举作用于文件或不存在目录、挂载根缺失/为文件（《06》§2.4，findings 登记裁定）                                                                                                    | `src/scope.rs` / `src/manager.rs` / `src/directory.rs` / `tests/directory_provider.rs`                                                |
+| `RESOURCE_PERMISSION_DENIED`                        | 判定矩阵拒绝面 + 会话未解析                                                                                                                                                                                                                                                                           | `src/permission.rs` / `src/manager.rs` 单测                                                                                           |
+| `RESOURCE_TOO_LARGE`                                | `open` 超过作用域 `max_resource_bytes`（段二 B2 起对目录域真实大小同样生效，stat 后于 Manager 层收口）                                                                                                                                                                                                | `src/manager.rs` 单测 + `tests/directory_provider.rs`                                                                                 |
+| `RESOURCE_BUSY`                                     | 流游标占用期间 `read_range`                                                                                                                                                                                                                                                                           | `src/manager.rs` / `src/handle.rs` 单测                                                                                               |
+| `RESOURCE_HANDLE_RELEASED`                          | 已释放句柄使用（含 ID 陈旧命中墓碑）                                                                                                                                                                                                                                                                  | `src/handle.rs` 单测                                                                                                                  |
+| `RESOURCE_HANDLE_INVALIDATED`                       | 已失效句柄读操作                                                                                                                                                                                                                                                                                      | `src/handle.rs` / `src/manager.rs` 单测                                                                                               |
+| `RESOURCE_POOL_EXHAUSTED`                           | 单插件 64 / 全局 4096 超限（`kind: handles`）                                                                                                                                                                                                                                                         | `src/handle.rs` 单测                                                                                                                  |
+| `RESOURCE_READ_ONLY`                                | 只读策略作用域写入能力预检（Manager 层直接返回不透传；段二 B2 起对 `dialog:open` 只读临时目录域生效——写/删预检 READ_ONLY，读/列举放行；Platform/External 由判定矩阵先行以 PERMISSION_DENIED 拒绝，见 findings）+ `supports_write=false` Provider 写预检                                               | `src/permission.rs` / `src/manager.rs` 单测 + `tests/directory_provider.rs::test_directory_read_only_temporary_mount_arm`             |
+| `RESOURCE_ALREADY_EXISTS`                           | 作用域 / Provider 重复注册（含 Memory 重复挂载、目录重复挂载 `mount_directory`、rename/copy 目标已存在不覆盖、mkdir 同名文件占用、写族目标为在册目录）                                                                                                                                                | `src/scope.rs` / `src/manager.rs` / `src/directory.rs` / `tests/directory_provider.rs`                                                |
+| `RESOURCE_INTERNAL`                                 | 兜底：作用域注册项指向未注册 Provider（装配错误，协议层兜底口径《06》§7.2）                                                                                                                                                                                                                           | `src/manager.rs` 兜底单测 + `tests/error_code_lock.rs` 形状锁（无 details）                                                           |
+| `RESOURCE_NOT_SUPPORTED`                            | 段二 B1 产化：Memory 目录列举/建目录预检、`delete`/`create_directory`/`rename`/`list` 作用域类别门（Manager 层直接返回，`details{uri,scope,operation}`）；段二 B2 追加：目录域 `set_metadata`（§7.3 operation 六词无 metadata 词，映射 `write` 臂，沿用 B1 口径）与 Workspace/Document 目录域过同类门 | `src/memory.rs` / `src/directory.rs` / `src/manager.rs` / `tests/memory_provider.rs` / `tests/directory_provider.rs` + 锁测           |
+| `RESOURCE_CROSS_SCOPE`                              | 段二 B1 产化：跨作用域 `copy` 且对目标作用域缺写权（`details` 复用 `IPermissionDeniedDetails` 形状）                                                                                                                                                                                                  | `src/manager.rs` 单测 + `tests/error_code_lock.rs` 形状锁                                                                             |
+| `RESOURCE_NOT_EMPTY`                                | 段二 B2 产化：目录域 `delete` 非递归模式命中非空目录（《06》§7.2；原始目录非空判定，隐藏条目亦计，findings 登记口径）；`details{uri}` 单键（§7.3）                                                                                                                                                    | `src/directory.rs` / `tests/directory_provider.rs` + `tests/error_code_lock.rs::test_b2_not_empty_and_write_failed_locked`            |
+| `RESOURCE_WRITE_FAILED`                             | 段二 B2 产化：目录域写族提交遇磁盘/锁冲突（write/rename/copy/mkdir 落盘失败，原子临时文件清理后上抛）；`details{uri}` 单键；§7.3 `cause` 分类词表未在册不携带（findings）                                                                                                                             | `tests/error_code_lock.rs::test_b2_not_empty_and_write_failed_locked` 映射锁（真实磁盘错误注入面留验收波）                            |
+| 其余 1 码（`NETWORK_FAILED`）                       | 本段不产生（依赖外部代理，段三接入）；常量与 `retryable`、HTTP 映射表由 `tests/error_code_lock.rs` 三方锁钉住                                                                                                                                                                                         | `tests/error_code_lock.rs`                                                                                                            |
 
 ## 发现的文档漂移（只登记，未改任何文档）
 
@@ -166,3 +178,57 @@ unicode 触发臂产化（《06.02》§2.4）。
   六词之「metadata」词，映射 `NOT_SUPPORTED{operation:"write"}` 并注记；
   判定矩阵先于 Manager 预检执行（Platform 写 → PERMISSION_DENIED/policy；
   只读策略临时作用域 → READ_ONLY），顺序按实码矩阵固化。
+
+## 段二 B2 收口记录（任务 #134 随单，2026-09）
+
+- ① DirectoryProvider 挂载：`src/directory.rs` 新增内置 `DirectoryProvider`
+  （复用 `provider` 在册 trait 未重定义；能力三元组 `id="directory"` /
+  `supports_streaming=true` / `supports_write=true` 如实声明）。作用域→真实根
+  以 `attach_root` 登记（`canonicalize` 根落位，macOS `/var` 符号链接形态自洽；
+  根缺失/为文件 → `NOT_FOUND`；重复挂载 → `ALREADY_EXISTS`，细节仅携作用域
+  标识不泄露真实路径）。读面 `stat`/`read_range`/`open_stream` 全程分块
+  （64 KiB 传输缓冲 + 256 KiB 在册块上限），无整档驻留内存；版本戳
+  `mtime_secs-size`（《04》§1.3）。流契按段一在册 `ResourceStream` 拉取模型
+  （非末块 ∈ (0, min(max_bytes, 256 KiB)]、None 唯一终结、游标自 0 严格累计；
+  BUSY 占用由 `HandleTable` 强制，Provider 不重复记账）。列举面过滤
+  隐藏点文件（含 `.DS_Store`/`.git`）与 `Thumbs.db` 及符号链接条目
+  （不跟随、不列举，06.02 §3.3 口径），非 UTF-8 文件名跳过，按名定序。
+  写入提交面原子落地（`.chips-tmp-<pid>-<seq>` + `flush` + `sync_all` +
+  `rename`，失败清理零残留）；rename/copy 不覆盖、mkdir 幂等、
+  `delete` 非递归（非空目录 `NOT_EMPTY`，《04.04》§4.9）；
+  `set_metadata` 无 §7.3 operation 词，映射 `NOT_SUPPORTED{operation:"write"}`
+  沿用 B1 口径。
+- ② 路径安全落位后防御：读/写族寻址统一走 `locate`（复用在册
+  `path_guard::resolve_within_root`，9 词 reason 词表零自造）；根外符号链接
+  逃逸 → `RESOURCE_PATH_INVALID` + `details.reason=symlink`；
+  `resolve_within_root` 以空 uri 产错（段一在册形状），Provider 层回填
+  目标规范 URI 以符 §7.3 `IResourcePathErrorDetails{uri,path,reason}`
+  （修复面在调用层，不动 path_guard，登记 findings）。目录态路径不得
+  作为资源读取（stat/范围读/开流 → `NOT_FOUND`，《06》§2.4）；列举作用
+  域根由 `resolve` 先行拒绝，文件/缺失目录列举 → `NOT_FOUND`（findings）。
+- ③ Manager `mount_directory(session, registration)`：会话须存在
+  （PERMISSION_DENIED/out_of_scope）；种类限 Workspace/Document/Plugin/
+  Temporary 且 origin 必为 `Directory`（越界装配错误 → INTERNAL，零自造码）；
+  `provider_id` 强制归一为 `directory`，Provider 惰性注册一次；注册/绑定
+  任一步失败回滚已完成的根挂载与作用域登记，不留半挂载态；
+  `unregister_scope` 同步 `detach_root`（无泄漏收口）；目录域作用域**不**随
+  `close_session` 自动摘除（宿主驱动注销，《06.03》§3.2 注销时机表，
+  区别于 Memory 的 B1 驱逐臂；登记 findings 供裁决复核）。只读臂
+  （`dialog:open` 临时域 `policy.read_only=true`）由既有判定矩阵
+  `temporary()` 臂产 READ_ONLY，本单不改 permission.rs。
+- ④ 错误码产化增量：`RESOURCE_NOT_EMPTY` / `RESOURCE_WRITE_FAILED` 由
+  「常量在册、零产生」翻为「有产生」（`src/error.rs` 纯新增两变体，
+  18 码表零改动）；`tests/error_code_lock.rs` 纯新增
+  `test_b2_not_empty_and_write_failed_locked`（变体→码、retryable 走
+  在册表、details 键形 {uri} 单键），既有 11 条锁零改零删。
+- 测试账（真实输出）：基线 124（lib 97 + error_code_lock 11 +
+  memory_provider 6 + uri_syntax_matrix 9 + doctest 1）→ 152（lib 112 +
+  error_code_lock 12 + directory_provider 12 + memory_provider 6 +
+  uri_syntax_matrix 9 + doctest 1），**+28 纯增量、零删档零放宽**
+  （lib +15 = directory 单测 11 + manager 挂载单测 4；集成 +12；锁测 +1）。
+  夹具为真实临时目录（std temp_dir + pid/原子序号命名，Drop 自清，
+  不新增第三方依赖）。
+- 门禁复跑（真实退出码）：`cargo test -p chips-resource`=0、
+  `cargo clippy -p chips-resource --all-targets -- -D warnings`=0、
+  `cargo fmt -p chips-resource -- --check`=0、`cargo check -p chips-resource`=0
+  零警告、prettier `--check` README=0。

@@ -9,7 +9,9 @@
 //! `rename` / `copy` / `create_directory` / `list_directory`），能力预检在
 //! 管理器层按 `supports_write` 与作用域策略直接返回
 //! `RESOURCE_READ_ONLY` / `RESOURCE_NOT_SUPPORTED`，不透传 Provider
-//! （《04》§3.3）。缓存与单一飞行、断点续传流提交（`commit_write_stream`）
+//! （《04》§3.3）。段二 B2 追加：内置 DirectoryProvider 挂载
+//! （[`ResourceManager::mount_directory`]，真实文件系统目录域，《04》§3.3）。
+//! 缓存与单一飞行、断点续传流提交（`commit_write_stream`）
 //! 属段二后续/段三，本段不挂载。
 //!
 //! 错误口径：同步判定入口返回强类型 [`ResourceError`]；异步入口（会触达
@@ -22,6 +24,7 @@ use std::sync::{Arc, Mutex};
 use chips_core::{ChipsError, HandleId, PluginId, SessionId};
 
 use crate::constants::ResourceLimits;
+use crate::directory::{DirectoryProvider, DIRECTORY_PROVIDER_ID};
 use crate::error::{InvalidateReason, ResourceError, ResourceResult, ScopeOperation};
 use crate::handle::{HandleEntry, HandleTable, StreamSlot};
 use crate::memory::MemoryProvider;
@@ -158,6 +161,7 @@ pub struct ResourceManager {
     handles: Arc<HandleTable>,
     memory_provider: Arc<MemoryProvider>,
     memory_mount: Mutex<Option<MemoryMount>>,
+    directory_provider: Arc<DirectoryProvider>,
 }
 
 impl Default for ResourceManager {
@@ -179,6 +183,7 @@ impl ResourceManager {
             handles: Arc::new(handles),
             memory_provider: Arc::new(MemoryProvider::new()),
             memory_mount: Mutex::new(None),
+            directory_provider: Arc::new(DirectoryProvider::new()),
         }
     }
 
@@ -229,10 +234,12 @@ impl ResourceManager {
         self.sessions.attach_scope(session, scope)
     }
 
-    /// 注销作用域：级联失效并释放其全部句柄、终止流（《06》§3.2 注销级联）。
+    /// 注销作用域：级联失效并释放其全部句柄、终止流（《06》§3.2 注销级联）；
+    /// 目录域作用域同步摘除 Provider 侧根目录挂载（段二 B2，无泄漏收口）。
     pub fn unregister_scope(&self, scope: &ScopeId) -> ResourceResult<()> {
         self.scopes.unregister(scope)?;
         self.sessions.detach_scope(scope);
+        self.directory_provider.detach_root(scope);
         self.handles
             .invalidate_and_release_where(InvalidateReason::ScopeRevoked, |entry: &HandleEntry| {
                 &entry.scope == scope
@@ -510,6 +517,75 @@ impl ResourceManager {
     #[must_use]
     pub fn memory_mounted(&self) -> bool {
         self.memory_mount.lock().expect("挂载锁不得中毒").is_some()
+    }
+
+    /// 挂载内置 DirectoryProvider 目录域作用域（段二 B2，《04》§3.3 /
+    /// 《04.05》§5.3）。
+    ///
+    /// 幂等注册 `directory` Provider；把注册项的 `provider_id` 强制归一为
+    /// `directory` 后注册作用域并绑定创建者会话。`origin` 必须是
+    /// `Origin::Directory`，种类限 Workspace / Document / Plugin / Temporary
+    /// （Platform 内嵌、External 代理、Memory 字节各有专责 Provider，
+    /// `dialog:open` 临时授权域以 `policy.read_only = true` 走只读臂）。
+    /// 重复挂载同一作用域返回 `RESOURCE_ALREADY_EXISTS`（《06》§7.2）；
+    /// 根目录不存在或非目录返回 `RESOURCE_NOT_FOUND`（细节仅携作用域
+    /// URI，《06》§7.1 不泄露真实路径）。任一登记步骤失败即回滚已完成的
+    /// 挂载，不留半挂载态。目录域作用域不随 `close_session` 自动摘除
+    /// （宿主显式 `unregister_scope` 注销，《06.03》§3.2 注销时机表），
+    /// `unregister_scope` 时同步 detach 根目录。
+    pub fn mount_directory(
+        &self,
+        session: SessionId,
+        mut registration: ScopeRegistration,
+    ) -> ResourceResult<ScopeId> {
+        let record = self
+            .sessions
+            .get(session)
+            .ok_or_else(|| ResourceError::PermissionDenied {
+                target: format!("chips-resource://{}/", registration.scope),
+                permission: "session".to_owned(),
+                required: Vec::new(),
+                missing: Vec::new(),
+                granted: Vec::new(),
+                reason: crate::error::PermissionDenyReason::OutOfScope,
+            })?;
+        let Origin::Directory(root) = registration.origin.clone() else {
+            return Err(ResourceError::Internal);
+        };
+        if !matches!(
+            registration.kind,
+            ScopeKind::Workspace | ScopeKind::Document | ScopeKind::Plugin | ScopeKind::Temporary
+        ) {
+            return Err(ResourceError::Internal);
+        }
+        registration.provider_id = DIRECTORY_PROVIDER_ID.to_owned();
+        if self.providers.lookup(DIRECTORY_PROVIDER_ID).is_none() {
+            let typed = Arc::clone(&self.directory_provider);
+            let provider: Arc<dyn ResourceProvider> = typed;
+            self.register_provider(provider)?;
+        }
+        let scope_id = registration.scope.clone();
+        self.directory_provider
+            .attach_root(&scope_id, &root, registration.kind)?;
+        let scope = match self.register_scope(registration) {
+            Ok(scope) => scope,
+            Err(error) => {
+                self.directory_provider.detach_root(&scope_id);
+                return Err(error);
+            }
+        };
+        if let Err(error) = self.attach_scope(record.id, &scope) {
+            self.directory_provider.detach_root(&scope_id);
+            let _ = self.scopes.unregister(&scope);
+            return Err(error);
+        }
+        Ok(scope)
+    }
+
+    /// 目录域在册状态探测（指定作用域是否已挂载真实根目录）。
+    #[must_use]
+    pub fn directory_mounted(&self, scope: &ScopeId) -> bool {
+        self.directory_provider.is_mounted(scope)
     }
 
     /// 一次性写入提交（《04》§11.1 `commit_write`，《04.04》§4.8）：
@@ -1617,5 +1693,148 @@ mod tests {
             .await
             .expect_err("copy 不覆盖（《06》§7.2）");
         assert_eq!(error.code(), crate::error::RESOURCE_ALREADY_EXISTS);
+    }
+
+    /// 目录挂载专用临时根（自建自清）。
+    fn temp_root(tag: &str) -> PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("chips-mgr-mount-{}-{}", tag, std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("临时根必须可建");
+        root
+    }
+
+    fn directory_registration(
+        scope: &str,
+        kind: ScopeKind,
+        root: PathBuf,
+        read_only: bool,
+    ) -> ScopeRegistration {
+        ScopeRegistration {
+            scope: scope.into(),
+            kind,
+            owner: "chips.official.editor".into(),
+            provider_id: "directory".into(),
+            origin: Origin::Directory(root),
+            policy: ScopePolicy {
+                read_only,
+                max_resource_bytes: 1024,
+                allowed_hosts: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn test_mount_directory_requires_existing_session() {
+        let manager = ResourceManager::default();
+        let error = manager
+            .mount_directory(
+                4242,
+                directory_registration(
+                    "workspace-1",
+                    ScopeKind::Workspace,
+                    temp_root("no-session"),
+                    false,
+                ),
+            )
+            .expect_err("未知会话不得挂载");
+        assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+        assert_eq!(error.details().unwrap()["reason"], "out_of_scope");
+        assert!(!manager.directory_mounted(&"workspace-1".to_owned()));
+    }
+
+    #[test]
+    fn test_mount_directory_rejects_foreign_origin_or_kind() {
+        let manager = ResourceManager::default();
+        let session = writer_session(&manager, &[]);
+        // 非目录 origin（Memory）走 ZIP/内存等专责通道，不在此入口。
+        let mut foreign_origin = directory_registration(
+            "workspace-1",
+            ScopeKind::Workspace,
+            temp_root("bad-origin"),
+            false,
+        );
+        foreign_origin.origin = Origin::Memory;
+        let error = manager
+            .mount_directory(session, foreign_origin)
+            .expect_err("非目录 origin 必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_INTERNAL);
+        // Platform 种类不在目录挂载面（内嵌资源专责 Provider）。
+        let bad_kind = ScopeRegistration {
+            kind: ScopeKind::Platform,
+            ..directory_registration(
+                "workspace-9",
+                ScopeKind::Workspace,
+                temp_root("bad-kind"),
+                false,
+            )
+        };
+        let error = manager
+            .mount_directory(session, bad_kind)
+            .expect_err("Platform 种类必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_INTERNAL);
+        assert!(!manager.directory_mounted(&"workspace-9".to_owned()));
+    }
+
+    #[test]
+    fn test_mount_directory_absent_root_is_not_found() {
+        let manager = ResourceManager::default();
+        let session = writer_session(&manager, &[]);
+        let absent = temp_root("absent").join("no-such-dir");
+        let error = manager
+            .mount_directory(
+                session,
+                directory_registration("workspace-1", ScopeKind::Workspace, absent, false),
+            )
+            .expect_err("根目录不存在必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_FOUND);
+        assert!(!manager.directory_mounted(&"workspace-1".to_owned()));
+        // 根为文件同样拒绝（非目录）。
+        let root = temp_root("file-root");
+        let file_root = root.join("plain.bin");
+        std::fs::write(&file_root, b"x").unwrap();
+        let error = manager
+            .mount_directory(
+                session,
+                directory_registration("workspace-2", ScopeKind::Workspace, file_root, false),
+            )
+            .expect_err("根为文件必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_FOUND);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_mount_directory_twice_is_already_exists_and_normalizes_provider() {
+        let manager = ResourceManager::default();
+        let session = writer_session(&manager, &[]);
+        let root = temp_root("dup");
+        let mut registration =
+            directory_registration("workspace-1", ScopeKind::Workspace, root.clone(), false);
+        // 传入杂牌 provider_id 必须被强制归一为 directory。
+        registration.provider_id = "zip-store".into();
+        let scope = manager
+            .mount_directory(session, registration)
+            .expect("首挂放行");
+        assert_eq!(scope, "workspace-1");
+        let record = manager.scopes().lookup(&scope).expect("作用域在册");
+        assert_eq!(record.provider_id, DIRECTORY_PROVIDER_ID);
+        assert!(manager.directory_mounted(&scope));
+        let error = manager
+            .mount_directory(
+                session,
+                directory_registration("workspace-1", ScopeKind::Workspace, root.clone(), false),
+            )
+            .expect_err("重复挂载作用域唯一");
+        assert_eq!(error.code(), crate::error::RESOURCE_ALREADY_EXISTS);
+        // 注销即摘根；重挂放行（无半挂载残留）。
+        manager.unregister_scope(&scope).expect("注销放行");
+        assert!(!manager.directory_mounted(&scope));
+        manager
+            .mount_directory(
+                session,
+                directory_registration("workspace-1", ScopeKind::Workspace, root, false),
+            )
+            .expect("注销后可重挂");
+        let _ = std::fs::remove_dir_all(temp_root("dup"));
     }
 }

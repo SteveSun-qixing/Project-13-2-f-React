@@ -17,9 +17,10 @@
 //! [`ResourceManager`] 把四个面串成《04》§5.1 的解析流水线，并对外提供
 //! `open` / `stat` / `read_range` / `read_chunk` / `release` 入口；
 //! [`ResourceProvider`] 是文件系统抽象层的在册契约，段二 B1 起挂载内置
-//! [`MemoryProvider`]（运行时内存字节，《04》§3.3）并交付写入提交面
-//! （`commit_write` / `delete` / `rename` / `copy` / `create_directory` /
-//! `list_directory`）。
+//! [`MemoryProvider`]（运行时内存字节，《04》§3.3），段二 B2 起挂载内置
+//! [`DirectoryProvider`]（真实文件系统目录域，《04》§3.3），并交付写入
+//! 提交面（`commit_write` / `delete` / `rename` / `copy` /
+//! `create_directory` / `list_directory`）。
 //!
 //! # 错误口径
 //!
@@ -31,10 +32,12 @@
 //! # 段边界
 //!
 //! 段一交付寻址内核四面。段二 B1 追加 MemoryProvider 挂载、写入提交面与
-//! Unicode 触发臂（工单042 裁定④）。目录 / ZIP Store / HTTP Provider 挂载、
-//! 缓存与单一飞行（§六之外的 P2/P3）、断点续传流提交（`commit_write_stream`）、
-//! `file:*` / `resource:*` 能力面接线、Neon 绑定与 host TS 适配层均不在
-//! 本段。
+//! Unicode 触发臂（工单042 裁定④）。段二 B2 追加 DirectoryProvider
+//! （`mount_directory` 真实目录域：读面 + 流面 + 列举面 + 写入提交面，
+//! 落位后宿主侧符号链接逃逸防御，《06》§9.1）。ZIP Store / HTTP Provider
+//! 挂载、缓存与单一飞行（§六之外的 P2/P3）、断点续传流提交
+//! （`commit_write_stream`）、`file:*` / `resource:*` 能力面接线、
+//! Neon 绑定与 host TS 适配层均不在本段。
 //!
 //! # 示例
 //!
@@ -62,6 +65,7 @@
 #![warn(missing_docs)]
 
 pub mod constants;
+pub mod directory;
 pub mod error;
 pub mod handle;
 pub mod manager;
@@ -74,6 +78,7 @@ pub mod session;
 pub mod uri;
 
 pub use constants::ResourceLimits;
+pub use directory::{DirectoryProvider, FileStream, DIRECTORY_PROVIDER_ID};
 pub use error::{
     HandleState, InvalidateReason, PathErrorReason, PermissionDenyReason, PoolKind, ResourceError,
     ScopeOperation, UriErrorReason,
