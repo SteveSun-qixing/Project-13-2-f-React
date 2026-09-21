@@ -13,7 +13,13 @@
 //! - 错误：[`DocumentError`]（致命）与 [`Diagnostic`]（非致命），码表见
 //!   设计稿 §8；致命错误经 `From<DocumentError> for ChipsError` 在 Neon
 //!   边界归一（《核心接口规范》§3.3）；
-//! - 视图：[`build_document_view`]（《核心接口规范》§6.6）。
+//! - 视图：[`build_document_view`]（《核心接口规范》§6.6）；
+//! - 归档层公开读取面：`source::archive` 的 [`ArchiveSource`] 打开
+//!   （EOCD/ZIP64/中央目录/索引）、成员枚举与范围读——《04.03》§3.3
+//!   裁定资源管理器 `ArchiveProvider` 复用本层、不得重复实现 ZIP 解析
+//!   （段二 B3 扩面）；除该最小面外不导出 ZIP 结构细节。
+//!
+//! [`ArchiveSource`]: source::archive::ArchiveSource
 //!
 //! 依赖方向铁律（《核心接口规范》§2.1 规则 5）：本 crate 只依赖
 //! `chips-core` 的基础类型，不依赖任何 TS 包，不做跨层直连。

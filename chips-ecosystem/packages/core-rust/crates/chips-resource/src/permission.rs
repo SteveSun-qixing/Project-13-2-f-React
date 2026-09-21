@@ -1,11 +1,8 @@
 //! 管理器侧权限判定：作用域 × 能力面的在册判定矩阵（《04-资源管理设计》§5.3、
 //! 《06-资源协议规范》§4）。
 //!
-//! 只实现在册判定，不发明新规则。口径裁决（工单042 已收口）：判定表以
-//! 《06.04》§4.3 为协议权威，Platform 为任意插件免权限公开只读；
-//! 《04.05》§5.3 已按该口径对齐（旧 `resources:read:platform` 限定变体
-//! 随裁定①废止，见 README 漂移登记第 1 条），本模块不再保留该口径的
-//! 收紧预留。
+//! 只实现在册判定，不发明新规则。口径裁决：判定表以《06.04》§4.3 为协议
+//! 权威，Platform 为任意插件免权限公开只读（《04.05》§5.3 同口径）。
 //!
 //! 会话内读取免重复校验（R19）：会话绑定作用域的读取在句柄获取时完成一次
 //! 判定；每请求只做「目标作用域是否属于该会话」的常数校验。写入一律要求
@@ -66,10 +63,14 @@ pub struct PermissionChecker<'a> {
     operation: ResourceOperation,
     granted: &'a BTreeSet<String>,
     external_origin: Option<&'a ExternalOrigin>,
+    target_uri: String,
 }
 
 impl<'a> PermissionChecker<'a> {
     /// 构造判定输入。External 作用域必须携带已解析 origin（host 级附加约束）。
+    ///
+    /// `target_uri` 为本次请求已规范化的精确目标 uri：`RESOURCE_READ_ONLY`
+    /// 的 `details.uri` 一律回填该精确目标（工单044 §三.5 裁定⑧-2）。
     pub fn new(
         caller: &'a PluginId,
         session: &'a ResourceSession,
@@ -77,6 +78,7 @@ impl<'a> PermissionChecker<'a> {
         operation: ResourceOperation,
         granted: &'a BTreeSet<String>,
         external_origin: Option<&'a ExternalOrigin>,
+        target_uri: String,
     ) -> Self {
         Self {
             caller,
@@ -85,6 +87,7 @@ impl<'a> PermissionChecker<'a> {
             operation,
             granted,
             external_origin,
+            target_uri,
         }
     }
 
@@ -290,7 +293,7 @@ impl<'a> PermissionChecker<'a> {
             ResourceOperation::Write => {
                 if self.registration.policy.read_only {
                     return Decision::Denied(ResourceError::ReadOnly {
-                        uri: format!("chips-resource://{}/", self.registration.scope),
+                        uri: self.target_uri.clone(),
                     });
                 }
                 if self.has(PERMISSION_RESOURCES_WRITE) {
@@ -413,6 +416,7 @@ mod tests {
             operation,
             &session.permissions,
             origin,
+            format!("chips-resource://{}/target.bin", registration.scope),
         )
         .decide()
         .into_result()
@@ -655,6 +659,11 @@ mod tests {
         )
         .expect_err("dialog:open 只读授权不可写入");
         assert_eq!(error.code(), crate::error::RESOURCE_READ_ONLY);
+        // 工单044 §三.5 裁定⑧-2：READ_ONLY details.uri 回填精确目标 uri。
+        assert_eq!(
+            error.details().expect("READ_ONLY 必携 uri")["uri"],
+            "chips-resource://temp-1/target.bin"
+        );
         assert!(decide(
             "chips.a",
             &holder,

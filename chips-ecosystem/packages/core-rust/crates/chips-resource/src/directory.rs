@@ -208,6 +208,111 @@ impl DirectoryProvider {
             .to_chips_error()
         })
     }
+
+    /// 流式写入落盘槽建档（段二 B3，《04.04》§4.8 `commit_write_stream`
+    /// 的目录域通道）：与一次性提交同款原子形态——同目录隐藏临时文件
+    /// 先建档，逐块 append，提交时 `sync_all` + `rename` 原子替换。
+    /// 目标为在册目录 → `RESOURCE_ALREADY_EXISTS`（不覆盖）；父目录缺失
+    /// → `RESOURCE_NOT_FOUND`（不自动建层）；建档 IO 失败 →
+    /// `RESOURCE_WRITE_FAILED`。
+    pub(crate) fn begin_stream_write(
+        &self,
+        address: &ResourceAddress,
+    ) -> Result<DirectoryStreamSink, ChipsError> {
+        let (_, path) = self.locate(address)?;
+        if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir()) {
+            return Err(ResourceError::AlreadyExists {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error());
+        }
+        let parent = path
+            .parent()
+            .ok_or_else(|| ResourceError::Internal.to_chips_error())?;
+        if !parent.is_dir() {
+            return Err(ResourceError::NotFound {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error());
+        }
+        let temp_path = parent.join(format!(
+            ".chips-tmp-{}-{}",
+            std::process::id(),
+            self.next_temp_id.fetch_add(1, Ordering::Relaxed)
+        ));
+        let file = File::create(&temp_path).map_err(|_| {
+            ResourceError::WriteFailed {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error()
+        })?;
+        Ok(DirectoryStreamSink {
+            temp_path,
+            target_path: path,
+            uri: address.uri.clone(),
+            file: Some(file),
+        })
+    }
+}
+
+/// 目录域流式写入落盘槽（B3）：临时文件句柄 + 目标路径；
+/// `finish` 原子替换、`abort`/`Drop` 清理临时文件——失败与中断均零残留
+/// （《04.04》§4.9「管理器清理失败/中断的临时文件」）。
+#[derive(Debug)]
+pub struct DirectoryStreamSink {
+    temp_path: PathBuf,
+    target_path: PathBuf,
+    uri: String,
+    file: Option<File>,
+}
+
+impl DirectoryStreamSink {
+    /// 追加一块字节；宿主 IO 失败 → `RESOURCE_WRITE_FAILED`（临时文件
+    /// 由 Drop 通道清理）。
+    pub(crate) fn append(&mut self, bytes: &[u8]) -> Result<(), ChipsError> {
+        let write_failed = || ResourceError::WriteFailed {
+            uri: self.uri.clone(),
+        };
+        let file = self.file.as_mut().ok_or_else(write_failed)?;
+        file.write_all(bytes)
+            .map_err(|_| write_failed().to_chips_error())
+    }
+
+    /// 提交：`flush` + `sync_all` + `rename` 原子替换；任何一步失败删除
+    /// 临时文件并返回 `RESOURCE_WRITE_FAILED`（目标保持旧态，《04.04》§4.8）。
+    pub(crate) fn finish(mut self) -> Result<(), ChipsError> {
+        let temp = self.temp_path.clone();
+        let outcome: std::io::Result<()> = (|| {
+            if let Some(file) = self.file.as_mut() {
+                file.flush()?;
+                file.sync_all()?;
+            }
+            fs::rename(&self.temp_path, &self.target_path)
+        })();
+        // 处置权移交完成：成功与失败均显式清理路径记账。
+        self.file = None;
+        self.temp_path = PathBuf::new();
+        match outcome {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                // `rename` 失败时临时文件仍在原位，删除之（目标保持旧态）。
+                let _ = fs::remove_file(&temp);
+                Err(ResourceError::WriteFailed {
+                    uri: self.uri.clone(),
+                }
+                .to_chips_error())
+            }
+        }
+    }
+}
+
+impl Drop for DirectoryStreamSink {
+    fn drop(&mut self) {
+        // 未提交即弃（abort / 会话关闭 / 超限回滚）：删除临时文件零残留。
+        if !self.temp_path.as_os_str().is_empty() {
+            let _ = fs::remove_file(&self.temp_path);
+        }
+    }
 }
 
 /// 读取面宿主 IO 错误分流：不存在 → `RESOURCE_NOT_FOUND`；其余 → 协议层兜底

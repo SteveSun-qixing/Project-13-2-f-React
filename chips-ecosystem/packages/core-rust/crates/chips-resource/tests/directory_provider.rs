@@ -547,13 +547,11 @@ async fn test_directory_read_only_temporary_mount_arm() {
         .await
         .expect_err("只读授权不得持久化写");
     assert_eq!(error.code(), RESOURCE_READ_ONLY);
-    // B1 既有口径：Temporary 只读臂在权限判定层短路（src/permission.rs
-    // `temporary()`），details.uri 为作用域根形（非目标资源全路径）；
-    // 与 writable_provider 臂（精确地址）形态分歧登记 findings，不改
-    // permission.rs（矩阵面禁改）。
+    // 工单044 §三.5 裁定⑧-2（B3 代码波落地）：READ_ONLY 的 details.uri
+    // 一律回填精确目标 uri，权限矩阵臂与 writable_provider 臂统一形态。
     assert_eq!(
         error.details().expect("read-only details")["uri"],
-        "chips-resource://temp-1/"
+        "chips-resource://temp-1/draft.txt"
     );
     let error = manager
         .delete(fs_request(
@@ -564,6 +562,10 @@ async fn test_directory_read_only_temporary_mount_arm() {
         .await
         .expect_err("只读授权不得删除");
     assert_eq!(error.code(), RESOURCE_READ_ONLY);
+    assert_eq!(
+        error.details().expect("delete read-only details")["uri"],
+        "chips-resource://temp-1/granted.txt"
+    );
 }
 
 #[tokio::test]

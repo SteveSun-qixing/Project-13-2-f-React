@@ -11,20 +11,27 @@
 //! `RESOURCE_READ_ONLY` / `RESOURCE_NOT_SUPPORTED`，不透传 Provider
 //! （《04》§3.3）。段二 B2 追加：内置 DirectoryProvider 挂载
 //! （[`ResourceManager::mount_directory`]，真实文件系统目录域，《04》§3.3）。
-//! 缓存与单一飞行、断点续传流提交（`commit_write_stream`）
-//! 属段二后续/段三，本段不挂载。
+//! 段二 B3 追加：内置 ArchiveProvider 挂载（[`ResourceManager::mount_archive`]，
+//! ZIP Store 归档只读域，ZIP 解析复用 `chips-parser` 归档层，《04.03》§3.3）、
+//! 流式写入提交面（[`ResourceManager::open_write_stream`] /
+//! [`ResourceManager::append_write_stream`] /
+//! [`ResourceManager::commit_write_stream`]，《03.07》§7.1、《04.04》§4.8）
+//! 与 `WriteCoordinator` 路径写锁（目录写族全部提交点单写者化，
+//! 《04.13》§13-3）。缓存与单一飞行属段二后续/段三，本段不挂载。
 //!
 //! 错误口径：同步判定入口返回强类型 [`ResourceError`]；异步入口（会触达
 //! Provider）以跨边界统一单形 `ChipsError` 收口，错误码保持《06》§7.2 在册
 //! 值原样上抛——管理器不改写、不折算 Provider 的错误码。
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use chips_core::{ChipsError, HandleId, PluginId, SessionId};
 
+use crate::archive::{ArchiveProvider, ARCHIVE_PROVIDER_ID};
 use crate::constants::ResourceLimits;
-use crate::directory::{DirectoryProvider, DIRECTORY_PROVIDER_ID};
+use crate::directory::{DirectoryProvider, DirectoryStreamSink, DIRECTORY_PROVIDER_ID};
 use crate::error::{InvalidateReason, ResourceError, ResourceResult, ScopeOperation};
 use crate::handle::{HandleEntry, HandleTable, StreamSlot};
 use crate::memory::MemoryProvider;
@@ -36,6 +43,7 @@ use crate::provider::{
 use crate::scope::{Origin, ScopeId, ScopeKind, ScopePolicy, ScopeRegistration, ScopeRegistry};
 use crate::session::{ResourceSession, SessionKind, SessionRegistry};
 use crate::uri::{resolve_input, CanonicalUri, ExternalOrigin, MEMORY_SCOPE};
+use crate::write_coord::{PathWritePermit, WriteCoordinator};
 
 /// 管理器异步面的结果别名：`ChipsError` 单形承载全部在册 `RESOURCE_*` 码。
 pub type ManagerResult<T> = Result<T, ChipsError>;
@@ -100,6 +108,66 @@ pub struct FsOpRequest {
     pub recursive: bool,
 }
 
+/// 流式写入提交请求（《04.11》§11.1 `WriteStreamRequest`：`scope` /
+/// `path` / `session` / `expected_size`；字节 > `max_inline_bytes` 的大
+/// 资源提交面，《04.04》§4.8）。
+#[derive(Debug, Clone)]
+pub struct WriteStreamRequest {
+    /// 发起会话。
+    pub session: SessionId,
+    /// 目标作用域 ID。
+    pub scope: ScopeId,
+    /// 目标虚拟路径（经 PathGuard 复检，《04.04》§4.8）。
+    pub path: VirtualPath,
+    /// 预期终尺寸（可选；提交时不符即回滚，不产生半写文件）。
+    pub expected_size: Option<u64>,
+}
+
+/// 流式写入句柄（《03.07》§7.1 `WriteStreamHandle`：文档未定形其字段面，
+/// 取「登记表键 + 目标规范 URI」最小承载，findings 登记）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WriteStreamHandle {
+    /// 登记表键（单调分配，不复用）。
+    pub id: u64,
+    /// 目标资源规范 URI（错误回执与审计定位用）。
+    pub uri: String,
+}
+
+/// 流式写入落盘通道：目录域走隐藏临时文件（B2 原子形态的流式承载），
+/// 其余可写 Provider 走内存缓冲后一次性 `Provider::write`（findings
+/// 登记：文档未为 Provider 抽象定义流式契约）。
+#[derive(Debug)]
+enum StreamSink {
+    Directory(DirectoryStreamSink),
+    Buffer(Vec<u8>),
+}
+
+impl StreamSink {
+    fn append(&mut self, bytes: &[u8]) -> ManagerResult<()> {
+        match self {
+            Self::Directory(sink) => sink.append(bytes),
+            Self::Buffer(buffer) => {
+                buffer.extend_from_slice(bytes);
+                Ok(())
+            }
+        }
+    }
+}
+
+/// 活动流式写入记录：路径写锁许可随流生命周期持有（《04.04》§4.9
+/// 单写者；临时文件经 [`DirectoryStreamSink`] 的 `Drop` 通道零残留清理）。
+#[derive(Debug)]
+struct WriteStreamRecord {
+    session: SessionId,
+    address: ResourceAddress,
+    provider_id: String,
+    max_resource_bytes: u64,
+    expected_size: Option<u64>,
+    received: u64,
+    _permit: Arc<PathWritePermit>,
+    sink: StreamSink,
+}
+
 /// MemoryProvider 挂载记录：创建者会话 + 在册 Provider 句柄。
 #[derive(Debug)]
 struct MemoryMount {
@@ -150,8 +218,8 @@ impl ProviderRegistry {
     }
 }
 
-/// 资源管理器（《04》§11.1 核心结构；段一不含 CacheStore/SingleFlight/
-/// WriteCoordinator）。
+/// 资源管理器（《04》§11.1 核心结构；段二 B3 起含 WriteCoordinator
+/// 路径写锁与流式写入登记表；缓存与单一飞行仍属后续波次）。
 #[derive(Debug)]
 pub struct ResourceManager {
     limits: ResourceLimits,
@@ -162,6 +230,10 @@ pub struct ResourceManager {
     memory_provider: Arc<MemoryProvider>,
     memory_mount: Mutex<Option<MemoryMount>>,
     directory_provider: Arc<DirectoryProvider>,
+    archive_provider: Arc<ArchiveProvider>,
+    write_coordinator: WriteCoordinator,
+    write_streams: Mutex<BTreeMap<u64, WriteStreamRecord>>,
+    next_write_stream_id: AtomicU64,
 }
 
 impl Default for ResourceManager {
@@ -184,6 +256,10 @@ impl ResourceManager {
             memory_provider: Arc::new(MemoryProvider::new()),
             memory_mount: Mutex::new(None),
             directory_provider: Arc::new(DirectoryProvider::new()),
+            archive_provider: Arc::new(ArchiveProvider::new()),
+            write_coordinator: WriteCoordinator::new(),
+            write_streams: Mutex::new(BTreeMap::new()),
+            next_write_stream_id: AtomicU64::new(1),
         }
     }
 
@@ -235,11 +311,15 @@ impl ResourceManager {
     }
 
     /// 注销作用域：级联失效并释放其全部句柄、终止流（《06》§3.2 注销级联）；
-    /// 目录域作用域同步摘除 Provider 侧根目录挂载（段二 B2，无泄漏收口）。
+    /// 目录域作用域同步摘除 Provider 侧根目录挂载、归档域同步摘除归档挂载
+    /// （段二 B2/B3，无泄漏收口）；该作用域活动流式写入一律中止并清理
+    /// 临时文件（《04.04》§4.9 零残留）。
     pub fn unregister_scope(&self, scope: &ScopeId) -> ResourceResult<()> {
         self.scopes.unregister(scope)?;
         self.sessions.detach_scope(scope);
         self.directory_provider.detach_root(scope);
+        self.archive_provider.detach_archive(scope);
+        self.abort_write_streams(|record| &record.address.scope == scope);
         self.handles
             .invalidate_and_release_where(InvalidateReason::ScopeRevoked, |entry: &HandleEntry| {
                 &entry.scope == scope
@@ -283,6 +363,9 @@ impl ResourceManager {
             InvalidateReason::SessionClosed,
             |entry: &HandleEntry| closed_ids.contains(&entry.session),
         );
+        // 中断的流式写入随会话关闭一律中止：临时文件由管理器清理，零残留
+        // （《04.04》§4.9）。
+        self.abort_write_streams(|record| closed_ids.contains(&record.session));
         self.evict_memory_mount(&closed_ids);
         Ok(())
     }
@@ -332,7 +415,10 @@ impl ResourceManager {
                 uri: uri.to_canonical_string(),
             });
         }
-        // 4. 会话与权限判定（失败：PERMISSION_DENIED）。
+        // 4. 会话与权限判定（失败：PERMISSION_DENIED）。判定矩阵的
+        // `RESOURCE_READ_ONLY` 臂携带目标精确 uri（工单044 裁定 §三.5-⑧-2
+        // 统一形，《06.07》§7.3）：
+        let canonical_uri = uri.to_canonical_string();
         PermissionChecker::new(
             &session_record.owner,
             &session_record,
@@ -340,17 +426,18 @@ impl ResourceManager {
             operation,
             &session_record.permissions,
             uri.external.as_ref(),
+            canonical_uri.clone(),
         )
         .decide()
         .into_result()?;
         // 5. Provider 选择与地址构建。
         let path = uri.path.clone().ok_or_else(|| ResourceError::NotFound {
-            uri: uri.to_canonical_string(),
+            uri: canonical_uri.clone(),
         })?;
         let address = ResourceAddress {
             scope: registration.scope.clone(),
             path,
-            uri: uri.to_canonical_string(),
+            uri: canonical_uri,
         };
         Ok(ResolvedResource {
             uri,
@@ -588,6 +675,74 @@ impl ResourceManager {
         self.directory_provider.is_mounted(scope)
     }
 
+    /// 挂载内置 ArchiveProvider 归档域作用域（段二 B3，《04.03》§3.3
+    /// ArchiveProvider 行）。
+    ///
+    /// 幂等注册 `archive` Provider；把注册项的 `provider_id` 强制归一为
+    /// `archive`、`policy.read_only` 强制翻真（归档永不就地改写，
+    /// 《04.04》§4.8）后注册作用域并绑定会话。`origin` 必须是
+    /// `Origin::Archive`，种类限 Document / Plugin（`.card` / `.box` /
+    /// `.cpk` 归档载体；其余种类各有专责 Provider，越界属装配错误 →
+    /// `RESOURCE_INTERNAL`，零自造码）。归档缺失 → `RESOURCE_NOT_FOUND`；
+    /// 非归档 / 结构损坏 / 含非普通文件条目（解析器索引期拒绝，《04.03》
+    /// §3.3 尾部）→ `RESOURCE_INTERNAL` 兜底；重复挂载 →
+    /// `RESOURCE_ALREADY_EXISTS`；任一步失败回滚，不留半挂载态。
+    /// 归档域作用域与目录域同款**不**随 `close_session` 自动摘除（宿主
+    /// 显式 `unregister_scope` 注销，《06.03》§3.2 注销时机表），
+    /// `unregister_scope` 时同步摘除归档挂载。
+    pub fn mount_archive(
+        &self,
+        session: SessionId,
+        mut registration: ScopeRegistration,
+    ) -> ResourceResult<ScopeId> {
+        let record = self
+            .sessions
+            .get(session)
+            .ok_or_else(|| ResourceError::PermissionDenied {
+                target: format!("chips-resource://{}/", registration.scope),
+                permission: "session".to_owned(),
+                required: Vec::new(),
+                missing: Vec::new(),
+                granted: Vec::new(),
+                reason: crate::error::PermissionDenyReason::OutOfScope,
+            })?;
+        let Origin::Archive(archive_path) = registration.origin.clone() else {
+            return Err(ResourceError::Internal);
+        };
+        if !matches!(registration.kind, ScopeKind::Document | ScopeKind::Plugin) {
+            return Err(ResourceError::Internal);
+        }
+        registration.provider_id = ARCHIVE_PROVIDER_ID.to_owned();
+        registration.policy.read_only = true;
+        if self.providers.lookup(ARCHIVE_PROVIDER_ID).is_none() {
+            let typed = Arc::clone(&self.archive_provider);
+            let provider: Arc<dyn ResourceProvider> = typed;
+            self.register_provider(provider)?;
+        }
+        let scope_id = registration.scope.clone();
+        self.archive_provider
+            .attach_archive(&scope_id, &archive_path, registration.kind)?;
+        let scope = match self.register_scope(registration) {
+            Ok(scope) => scope,
+            Err(error) => {
+                self.archive_provider.detach_archive(&scope_id);
+                return Err(error);
+            }
+        };
+        if let Err(error) = self.attach_scope(record.id, &scope) {
+            self.archive_provider.detach_archive(&scope_id);
+            let _ = self.scopes.unregister(&scope);
+            return Err(error);
+        }
+        Ok(scope)
+    }
+
+    /// 归档域在册状态探测（指定作用域是否已挂载归档文件）。
+    #[must_use]
+    pub fn archive_mounted(&self, scope: &ScopeId) -> bool {
+        self.archive_provider.is_mounted(scope)
+    }
+
     /// 一次性写入提交（《04》§11.1 `commit_write`，《04.04》§4.8）：
     /// 句柄只读，写入统一由管理器提交。流水线复检（PathGuard + 会话权限
     /// `resources:write`）→ 能力预检（只读策略 / `supports_write` 不支持 →
@@ -615,6 +770,9 @@ impl ResourceManager {
             size,
         )?;
         let provider = self.writable_provider(&resolved)?;
+        // WriteCoordinator 单写者路径锁（《04.04》§4.9、《04.13》§13-3）：
+        // 同名路径提交互斥排队，锁覆盖 Provider 提交全程。
+        let _write_permit = self.write_coordinator.lock([path_lock_key(&resolved)]);
         let metadata = provider.write(&resolved.address, &request.bytes).await?;
         Ok(metadata_view(
             &resolved.address.uri,
@@ -630,6 +788,7 @@ impl ResourceManager {
         let resolved = self.resolve(&request.source, request.session, ResourceOperation::Write)?;
         let provider = self.writable_provider(&resolved)?;
         self.check_write_kind_gate(&resolved, ScopeOperation::Delete)?;
+        let _write_permit = self.write_coordinator.lock([path_lock_key(&resolved)]);
         provider.delete(&resolved.address).await?;
         Ok(())
     }
@@ -650,6 +809,10 @@ impl ResourceManager {
             .to_chips_error());
         }
         let provider = self.writable_provider(&source)?;
+        // rename A→B 同时锁 {A, B}：与对 B 的并发写互斥（《04.04》§4.9）。
+        let _write_permit = self
+            .write_coordinator
+            .lock([path_lock_key(&source), path_lock_key(&target)]);
         provider.rename(&source.address, &target.address).await?;
         let metadata = provider.stat(&target.address).await?;
         Ok(metadata_view(
@@ -707,10 +870,12 @@ impl ResourceManager {
             .to_chips_error());
         }
         if source.registration.provider_id == target.registration.provider_id {
+            let _write_permit = self.write_coordinator.lock([path_lock_key(&target)]);
             target_provider
                 .copy(&source.address, &target.address)
                 .await?;
         } else {
+            let _write_permit = self.write_coordinator.lock([path_lock_key(&target)]);
             if target_provider.stat(&target.address).await.is_ok() {
                 return Err(ResourceError::AlreadyExists {
                     uri: target.address.uri.clone(),
@@ -753,6 +918,7 @@ impl ResourceManager {
             }
             .to_chips_error());
         }
+        let _write_permit = self.write_coordinator.lock([path_lock_key(&resolved)]);
         provider.create_directory(&resolved.address).await?;
         Ok(())
     }
@@ -778,6 +944,224 @@ impl ResourceManager {
             .lookup(&resolved.registration.provider_id)
             .ok_or(ResourceError::Internal)?;
         provider.list_directory(&resolved.address).await
+    }
+
+    /// 打开流式写入通道（《03.07》§7.1 `open_write_stream`，同步签名；
+    /// 《04.04》§4.8 大资源 > `max_inline_bytes` 的分块提交入口）：
+    /// 解析流水线写鉴权 → 能力预检（归档 / 只读策略 → `RESOURCE_READ_ONLY`
+    /// 精确目标 uri 臂）→ `expected_size` 上限预核 → 取得
+    /// `WriteCoordinator` 路径写锁并贯穿流生命周期（《04.13》§13-3 写
+    /// 路径唯一）→ 目录域建档隐藏临时文件（B2 原子形态流式承载）。
+    /// 目标为在册目录 → `ALREADY_EXISTS`、父目录缺失 → `NOT_FOUND`
+    /// （与一次性提交同口径，锁内判定无竞态）。
+    pub fn open_write_stream(
+        &self,
+        request: WriteStreamRequest,
+    ) -> ManagerResult<WriteStreamHandle> {
+        let uri = format!(
+            "chips-resource://{}/{}",
+            request.scope,
+            request.path.as_str()
+        );
+        let resolved = self.resolve(&uri, request.session, ResourceOperation::Write)?;
+        if let Some(expected) = request.expected_size {
+            check_size(
+                &resolved.address.uri,
+                resolved.registration.policy.max_resource_bytes,
+                expected,
+            )
+            .map_err(|error| error.to_chips_error())?;
+        }
+        let _ = self.writable_provider(&resolved)?;
+        let permit = self.write_coordinator.lock([path_lock_key(&resolved)]);
+        let sink = if resolved.registration.provider_id == DIRECTORY_PROVIDER_ID {
+            StreamSink::Directory(
+                self.directory_provider
+                    .begin_stream_write(&resolved.address)?,
+            )
+        } else {
+            StreamSink::Buffer(Vec::new())
+        };
+        let id = self.next_write_stream_id.fetch_add(1, Ordering::Relaxed);
+        let handle = WriteStreamHandle {
+            id,
+            uri: resolved.address.uri.clone(),
+        };
+        self.write_streams
+            .lock()
+            .expect("写流登记表锁不得中毒")
+            .insert(
+                id,
+                WriteStreamRecord {
+                    session: resolved.session.id,
+                    address: resolved.address,
+                    provider_id: resolved.registration.provider_id,
+                    max_resource_bytes: resolved.registration.policy.max_resource_bytes,
+                    expected_size: request.expected_size,
+                    received: 0,
+                    _permit: permit,
+                    sink,
+                },
+            );
+        Ok(handle)
+    }
+
+    /// 分块送入（背压承载：调用方不送入即不推进，《04.04》§4.8）：
+    /// 累计超出作用域 `max_resource_bytes` → `RESOURCE_TOO_LARGE` 并回滚
+    /// （临时文件即时清理）；超出 `expected_size` → `RESOURCE_WRITE_FAILED`
+    /// 并回滚（findings 登记裁量）；宿主 IO 失败 → `RESOURCE_WRITE_FAILED`
+    /// 并回滚。陈旧句柄（已提交/中止/随会话注销）→ `RESOURCE_NOT_FOUND`
+    /// （写流句柄不进出册句柄三态状态机，findings 登记）。
+    pub fn append_write_stream(
+        &self,
+        handle: &WriteStreamHandle,
+        bytes: &[u8],
+    ) -> ManagerResult<()> {
+        let added = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+        let mut streams = self.write_streams.lock().expect("写流登记表锁不得中毒");
+        let Some(record) = streams.get_mut(&handle.id) else {
+            return Err(ResourceError::NotFound {
+                uri: handle.uri.clone(),
+            }
+            .to_chips_error());
+        };
+        let total = record.received.saturating_add(added);
+        let failure = if total > record.max_resource_bytes {
+            Some(
+                ResourceError::TooLarge {
+                    uri: handle.uri.clone(),
+                    size: total,
+                    limit: record.max_resource_bytes,
+                }
+                .to_chips_error(),
+            )
+        } else if record
+            .expected_size
+            .is_some_and(|expected| total > expected)
+        {
+            Some(
+                ResourceError::WriteFailed {
+                    uri: handle.uri.clone(),
+                }
+                .to_chips_error(),
+            )
+        } else {
+            match record.sink.append(bytes) {
+                Ok(()) => {
+                    record.received = total;
+                    None
+                }
+                Err(error) => Some(error),
+            }
+        };
+        if failure.is_some() {
+            // 失败即回滚：弃置记录（临时文件 Drop 清理、写锁归还）。
+            streams.remove(&handle.id);
+        }
+        failure.map_or(Ok(()), Err)
+    }
+
+    /// 提交流式写入（《03.07》§7.1 `commit_write_stream`，异步签名）：
+    /// 目录域 `flush` + `sync_all` + 原子 `rename`（《04.04》§4.8）；其余
+    /// 可写 Provider 一次性 `Provider::write` 落定；`expected_size` 不符
+    /// 即回滚不提交（《04.07》§7.3 失败回滚临时物）；失败删除临时文件、
+    /// 目标保持旧态；提交成功归还路径写锁并返回新版本元数据。
+    pub async fn commit_write_stream(
+        &self,
+        handle: WriteStreamHandle,
+    ) -> ManagerResult<ResourceMetadata> {
+        let Some(record) = self
+            .write_streams
+            .lock()
+            .expect("写流登记表锁不得中毒")
+            .remove(&handle.id)
+        else {
+            return Err(ResourceError::NotFound {
+                uri: handle.uri.clone(),
+            }
+            .to_chips_error());
+        };
+        let WriteStreamRecord {
+            address,
+            provider_id,
+            expected_size,
+            received,
+            _permit,
+            sink,
+            ..
+        } = record;
+        if expected_size.is_some_and(|expected| expected != received) {
+            // 尺寸不符：sink 弃置（临时文件 Drop 清理）→ WRITE_FAILED。
+            drop(sink);
+            return Err(ResourceError::WriteFailed {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error());
+        }
+        let provider = self
+            .providers
+            .lookup(&provider_id)
+            .ok_or(ResourceError::Internal)?;
+        match sink {
+            StreamSink::Directory(sink) => {
+                sink.finish()?;
+            }
+            StreamSink::Buffer(bytes) => {
+                provider.write(&address, &bytes).await?;
+            }
+        }
+        // 元数据视图（提交后新版本，《04.04》§4.10）。
+        let registration = self.scopes.lookup(&address.scope).ok_or_else(|| {
+            ResourceError::NotFound {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error()
+        })?;
+        let metadata = provider.stat(&address).await?;
+        Ok(metadata_view(&address.uri, registration.kind, metadata))
+    }
+
+    /// 主动中止流式写入：弃置通道并清理临时文件（零残留，《04.04》§4.9），
+    /// 归还路径写锁。陈旧句柄 → `RESOURCE_NOT_FOUND`（与 append 同口径）。
+    pub fn abort_write_stream(&self, handle: &WriteStreamHandle) -> ManagerResult<()> {
+        let taken = self
+            .write_streams
+            .lock()
+            .expect("写流登记表锁不得中毒")
+            .remove(&handle.id);
+        match taken {
+            Some(record) => {
+                drop(record);
+                Ok(())
+            }
+            None => Err(ResourceError::NotFound {
+                uri: handle.uri.clone(),
+            }
+            .to_chips_error()),
+        }
+    }
+
+    /// 活动流式写入计数（装配与级联测试探测）。
+    #[must_use]
+    pub fn open_write_stream_count(&self) -> usize {
+        self.write_streams
+            .lock()
+            .expect("写流登记表锁不得中毒")
+            .len()
+    }
+
+    /// 按谓词中止活动流式写入（会话关闭 / 作用域注销级联）：记录整体
+    /// 弃置，临时文件与路径写锁随之归还。
+    fn abort_write_streams(&self, predicate: impl Fn(&WriteStreamRecord) -> bool) {
+        let mut streams = self.write_streams.lock().expect("写流登记表锁不得中毒");
+        let doomed: Vec<u64> = streams
+            .iter()
+            .filter(|(_, record)| predicate(record))
+            .map(|(id, _)| *id)
+            .collect();
+        for id in doomed {
+            streams.remove(&id);
+        }
     }
 
     /// rename/copy 的目标 URI 在册必需字段校验（缺失按语法级非法路径收口）。
@@ -872,6 +1256,15 @@ fn check_size(uri: &str, limit: u64, size: u64) -> ResourceResult<()> {
         });
     }
     Ok(())
+}
+
+/// `WriteCoordinator` 路径锁键：作用域 ID + 规范虚拟路径文本
+/// （《04.04》§4.9 单写者判定粒度）。
+fn path_lock_key(resolved: &ResolvedResource) -> (ScopeId, String) {
+    (
+        resolved.address.scope.clone(),
+        resolved.address.path.as_str().to_owned(),
+    )
 }
 
 /// 组装对外的元数据视图：`uri` 与 `scope` 由管理器在册定值。

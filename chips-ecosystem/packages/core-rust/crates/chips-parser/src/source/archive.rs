@@ -7,6 +7,16 @@
 //! 形状与设计稿一致。加密条目、未知压缩方法与损坏的中央目录返回
 //! `DOCUMENT_ARCHIVE_INVALID`；Deflate 成员在限额内现场解压读取；ZIP64 归档
 //! 只读支持。
+//!
+//! 归档层公开读取面（《04.03》§3.3「资源管理器不重复实现 ZIP 解析」的
+//! 复用面，段二 B3 扩面）：[`ArchiveSource::open`] /
+//! [`ArchiveSource::from_bytes`] / [`ArchiveSource::looks_like_zip`] 打开
+//! 归档（EOCD / ZIP64 / 中央目录 / 索引），[`ArchiveSource::members`]
+//! 枚举成员（包内路径 + [`ArchivedMember`] 元数据行，含本地头偏移与
+//! 压缩数据长度），[`ArchiveSource::read_member_range`] 成员范围读
+//! （Store 直接切映射数据区、Deflate 限额内现场解压后切片）；流式读取
+//! 走既有 [`DocumentSource::open_stream`] 路径。除上述最小面外不导出
+//! ZIP 结构细节。
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -47,15 +57,23 @@ const METHOD_STORE: u16 = 0;
 /// Deflate 压缩方法编号（发布侧不产生；读取端在限额内接受并现场解压，
 /// 设计稿 §3.3「读取端不得因 Deflate 而拒绝本可正常打开的文档」）。
 const METHOD_DEFLATE: u16 = 8;
+/// 「version made by」高字节：UNIX 宿主（外部属性携带 POSIX 模式位）。
+const MADE_BY_UNIX: u8 = 3;
+/// POSIX 文件类型位掩码（外部属性高 16 位中的 `S_IFMT`）。
+const S_IFMT: u32 = 0o170_000;
+/// POSIX 普通文件类型（`S_IFREG`）。
+const S_IFREG: u32 = 0o100_000;
 
-/// 中央目录条目派生的成员定位信息。
+/// 中央目录条目派生的成员定位信息（归档层公开索引行，《04.03》§3.3
+/// 资源管理器复用面；字段只读，不提供任何改写通道）。
 #[derive(Debug, Clone)]
-struct ArchivedMember {
-    meta: MemberMeta,
+pub struct ArchivedMember {
+    /// 成员元数据（路径、解压尺寸、修改时间、CRC32、压缩方法）。
+    pub meta: MemberMeta,
     /// 本地文件头偏移。
-    header_offset: u64,
+    pub header_offset: u64,
     /// 压缩数据长度（Store 口径下等于 `meta.size`）。
-    compressed_size: u64,
+    pub compressed_size: u64,
 }
 
 /// 中央目录单条解析产物（§3.3 索引行）。
@@ -78,15 +96,18 @@ pub struct ArchiveSource {
 
 impl ArchiveSource {
     /// 读取归档文件、定位 EOCD（含 ZIP64）、解析中央目录并建立索引。
-    pub(crate) fn open(path: &Path, limits: &ParseLimits) -> Fatal<Self> {
+    ///
+    /// 归档层公开打开面（《04.03》§3.3：资源管理器 `ArchiveProvider`
+    /// 复用本入口，不得自行解析 ZIP）。
+    pub fn open(path: &Path, limits: &ParseLimits) -> Fatal<Self> {
         let data = std::fs::read(path).map_err(|io_error| DocumentError::Io {
             message: format!("读取归档 {} 失败：{io_error}", path.display()),
         })?;
         Self::from_bytes(data, limits)
     }
 
-    /// 从归档字节构建（测试与内存来源复用同一入口）。
-    pub(crate) fn from_bytes(data: Vec<u8>, limits: &ParseLimits) -> Fatal<Self> {
+    /// 从归档字节构建（测试与内存来源复用同一入口；亦为公开面）。
+    pub fn from_bytes(data: Vec<u8>, limits: &ParseLimits) -> Fatal<Self> {
         if data.len() < 4 {
             return Err(DocumentError::ArchiveInvalid {
                 message: "归档长度不足以包含签名".to_owned(),
@@ -103,7 +124,7 @@ impl ArchiveSource {
 
     /// 阶段 1 使用的归档签名检查：普通归档 `PK\x03\x04` 或空归档 `PK\x05\x06`。
     #[must_use]
-    pub(crate) fn looks_like_zip(data: &[u8]) -> bool {
+    pub fn looks_like_zip(data: &[u8]) -> bool {
         let Ok(prefix) = data.get(..4).ok_or(()).map(read_u32_le) else {
             return false;
         };
@@ -340,6 +361,19 @@ impl ArchiveSource {
                 compressed_size,
             });
         }
+        // 归档条目限普通文件（《04.03》§3.3 尾部：拒绝符号链接 / 设备
+        // 文件）。made-by 宿主为 UNIX（高字节 3）时外部属性高 16 位携带
+        // POSIX 模式，文件类型位非 `S_IFREG` 在解析期即拒绝整个归档；
+        // DOS/NT 宿主无模式信息，按普通文件接受。ZIP 无硬链接语义
+        // （硬链接成员发布为独立普通条目），无额外判定面。
+        if (read_u16_le(&head[4..]) >> 8) == u16::from(MADE_BY_UNIX) {
+            let file_type_bits = (read_u32_le(&head[38..]) >> 16) & S_IFMT;
+            if file_type_bits != S_IFREG {
+                return Err(DocumentError::ArchiveInvalid {
+                    message: format!("非普通文件条目不受支持：{name}"),
+                });
+            }
+        }
         // Store 条目的声明尺寸一致性在 `build_index` 内核对：压缩比守卫（§3.3
         // 限额面）必须先于结构一致性判定，否则尺寸声明被篡改成超大解压值的
         // 归档会以 `DOCUMENT_ARCHIVE_INVALID` 逃逸 `DOCUMENT_LIMIT_EXCEEDED`。
@@ -486,6 +520,54 @@ impl ArchiveSource {
         })
     }
 
+    /// 全部成员索引行的只读视图（按包内路径升序，《04.03》§3.3 资源
+    /// 管理器枚举面）：目录条目不入索引（§3.3 仅计数），符号链接 /
+    /// 设备文件等非普通文件条目在解析期即拒绝。
+    #[must_use]
+    pub fn members(&self) -> &BTreeMap<PackagePath, ArchivedMember> {
+        &self.index
+    }
+
+    /// 成员解压字节的范围读（《04.03》§3.2 读面复用面）：Store 成员直接
+    /// 切映射数据区（零解压）；Deflate 成员在限额内现场解压后按范围切片。
+    /// `length` 为 `None` 表示读到结尾；越界偏移返回空字节（与读面同款
+    /// 收口），`offset + length` 溢出按读到结尾处理。
+    ///
+    /// # Errors
+    ///
+    /// 成员不存在返回 `DOCUMENT_NOT_FOUND`；本地头校验失败、数据区越界
+    /// 返回 `DOCUMENT_ARCHIVE_INVALID`；Deflate 超限返回
+    /// `DOCUMENT_LIMIT_EXCEEDED`。
+    pub fn read_member_range(
+        &self,
+        path: &PackagePath,
+        offset: u64,
+        length: Option<u64>,
+    ) -> Fatal<Vec<u8>> {
+        let member = self.archived(path)?;
+        match member.meta.method {
+            // Store：直接从映射数据区切片（不复制整员、零解压）。
+            MemberMethod::Store => {
+                let data_start = self.data_start(member, path)?;
+                let (start, span) = clip_range(member.meta.size, offset, length);
+                if span == 0 {
+                    return Ok(Vec::new());
+                }
+                self.mapping
+                    .slice(data_start + start, span)
+                    .map(<[u8]>::to_vec)
+                    .ok_or_else(|| DocumentError::ArchiveInvalid {
+                        message: format!("成员数据区越界：{path}"),
+                    })
+            }
+            // Deflate：限额内现场解压后按范围切片。
+            MemberMethod::Deflate => {
+                let bytes = self.decompressed(member, path)?;
+                Ok(sliced_range(&bytes, offset, length))
+            }
+        }
+    }
+
     /// 校验单个成员的 CRC32（`verify_hashes` 或 `validate` 路径）。
     pub(crate) fn verify_member_crc(&self, path: &PackagePath) -> Fatal<()> {
         let member = self.archived(path)?;
@@ -513,6 +595,31 @@ fn normalize_archive_name(name: &str) -> Fatal<PackagePath> {
         });
     }
     PackagePath::new(name)
+}
+
+/// 范围读裁剪：返回 `(起点, 长度)`；`offset` 越界或零长度区间归一为
+/// `(0, 0)`（调用方按空结果收口），`length = None` 读到结尾，
+/// `offset + length` 溢出按读到结尾处理。
+fn clip_range(size: u64, offset: u64, length: Option<u64>) -> (u64, u64) {
+    if offset >= size {
+        return (0, 0);
+    }
+    let end = match length {
+        Some(length) => offset.saturating_add(length).min(size),
+        None => size,
+    };
+    (offset, end - offset)
+}
+
+/// 已解压字节上的范围切片（与 [`clip_range`] 同一收口口径）。
+fn sliced_range(bytes: &[u8], offset: u64, length: Option<u64>) -> Vec<u8> {
+    let (start, span) = clip_range(bytes.len() as u64, offset, length);
+    let start = usize::try_from(start).unwrap_or(usize::MAX);
+    let end = start.saturating_add(usize::try_from(span).unwrap_or(usize::MAX));
+    bytes
+        .get(start..end)
+        .map(<[u8]>::to_vec)
+        .unwrap_or_default()
 }
 
 /// 读取小端 u16。
@@ -1056,6 +1163,118 @@ mod tests {
         assert!(ArchiveSource::looks_like_zip(b"PK\x05\x06"));
         assert!(!ArchiveSource::looks_like_zip(b"PK"));
         assert!(!ArchiveSource::looks_like_zip(b"RAR!\x1a\x07"));
+    }
+
+    #[test]
+    fn test_members_enumeration_exposes_offsets_and_sizes() {
+        // 归档层公开枚举面（《04.03》§3.3 资源管理器复用）：路径升序、
+        // 元数据行携带本地头偏移与压缩数据长度；目录条目不入索引。
+        let archive = zip_entries(&[
+            TestEntry::directory("videos/"),
+            TestEntry::store("videos/b.mp4", b"bb"),
+            TestEntry::store("videos/a.mp4", b"aaaa"),
+        ]);
+        let source = ArchiveSource::from_bytes(archive, &ParseLimits::default()).expect("打开");
+        let rows: Vec<(String, u64, u64, u64)> = source
+            .members()
+            .iter()
+            .map(|(path, member)| {
+                (
+                    path.to_string(),
+                    member.meta.size,
+                    member.header_offset,
+                    member.compressed_size,
+                )
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                // 构造序：目录条目（37 B）→ b.mp4（本地头 30+12+2 = 44 B）
+                // → a.mp4；索引按路径升序输出，偏移为真实布局。
+                ("videos/a.mp4".to_owned(), 4, 81, 4),
+                ("videos/b.mp4".to_owned(), 2, 37, 2),
+            ],
+            "按路径升序且偏移/长度与构造一致"
+        );
+    }
+
+    #[test]
+    fn test_read_member_range_store_and_deflate() {
+        // Store 范围读：直接切映射数据区；越界偏移/零长度收口为空。
+        let archive = zip_entries(&[
+            TestEntry::store("a.bin", b"0123456789"),
+            TestEntry::deflate("d.txt", b"abc", &{
+                let mut compressed = vec![0x01u8];
+                compressed.extend_from_slice(&3u16.to_le_bytes());
+                compressed.extend_from_slice(&(!3u16).to_le_bytes());
+                compressed.extend_from_slice(b"abc");
+                compressed
+            }),
+        ]);
+        let source = ArchiveSource::from_bytes(archive, &ParseLimits::default()).expect("打开");
+        let path = PackagePath::new("a.bin").expect("合法");
+        assert_eq!(
+            source
+                .read_member_range(&path, 2, Some(3))
+                .expect("中段范围读"),
+            b"234"
+        );
+        assert_eq!(
+            source.read_member_range(&path, 7, None).expect("读到结尾"),
+            b"789"
+        );
+        assert_eq!(
+            source
+                .read_member_range(&path, 6, Some(99))
+                .expect("越界长度裁剪到结尾"),
+            b"6789"
+        );
+        assert!(source
+            .read_member_range(&path, 999, Some(4))
+            .expect("越界偏移按空结果")
+            .is_empty());
+        // Deflate 成员范围读：现场解压后切片。
+        let deflated = PackagePath::new("d.txt").expect("合法");
+        assert_eq!(
+            source
+                .read_member_range(&deflated, 1, Some(1))
+                .expect("Deflate 范围读"),
+            b"b"
+        );
+        let error = source
+            .read_member_range(&PackagePath::new("ghost.bin").expect("合法"), 0, None)
+            .expect_err("成员不存在必须 NotFound");
+        assert_eq!(error.code(), crate::error::DOCUMENT_NOT_FOUND);
+    }
+
+    #[test]
+    fn test_rejects_non_regular_unix_entries() {
+        // 归档条目限普通文件（《04.03》§3.3 尾部）：UNIX 宿主（made-by
+        // 高字节 3）外部属性文件类型位为符号链接（0xA000）必须拒绝。
+        let archive = build_zip(&[("link.yaml", b"x: 1\n")]);
+        for external_mode in [0o120000u32, 0o060000, 0o020000] {
+            let mut tampered = archive.clone();
+            let eocd = find_signature(&tampered, EOCD_SIGNATURE);
+            let central_offset =
+                usize::try_from(read_u32_le(&tampered[eocd + 16..])).expect("偏移可读");
+            tampered[central_offset + 4..central_offset + 6]
+                .copy_from_slice(&((u16::from(MADE_BY_UNIX) << 8) | 20u16).to_le_bytes());
+            tampered[central_offset + 38..central_offset + 42]
+                .copy_from_slice(&(external_mode << 16).to_le_bytes());
+            let error = ArchiveSource::from_bytes(tampered, &ParseLimits::default())
+                .expect_err("非普通文件条目必须拒绝");
+            assert_eq!(error.code(), DOCUMENT_ARCHIVE_INVALID);
+        }
+        // 普通文件模式（0o100000）正常放行。
+        let mut regular = archive;
+        let eocd = find_signature(&regular, EOCD_SIGNATURE);
+        let central_offset = usize::try_from(read_u32_le(&regular[eocd + 16..])).expect("偏移可读");
+        regular[central_offset + 4..central_offset + 6]
+            .copy_from_slice(&((u16::from(MADE_BY_UNIX) << 8) | 20u16).to_le_bytes());
+        regular[central_offset + 38..central_offset + 42]
+            .copy_from_slice(&(0o100644u32 << 16).to_le_bytes());
+        ArchiveSource::from_bytes(regular, &ParseLimits::default()).expect("普通文件放行");
     }
 
     /// 在字节串中查找签名偏移（测试辅助）。

@@ -18,9 +18,12 @@
 //! `open` / `stat` / `read_range` / `read_chunk` / `release` 入口；
 //! [`ResourceProvider`] 是文件系统抽象层的在册契约，段二 B1 起挂载内置
 //! [`MemoryProvider`]（运行时内存字节，《04》§3.3），段二 B2 起挂载内置
-//! [`DirectoryProvider`]（真实文件系统目录域，《04》§3.3），并交付写入
+//! [`DirectoryProvider`]（真实文件系统目录域，《04》§3.3），段二 B3 起挂载内置
+//! [`ArchiveProvider`]（ZIP Store 归档只读域，《04》§3.3），并交付写入
 //! 提交面（`commit_write` / `delete` / `rename` / `copy` /
-//! `create_directory` / `list_directory`）。
+//! `create_directory` / `list_directory`）与流式提交面
+//! （`open_write_stream` / `append_write_stream` / `commit_write_stream` /
+//! `abort_write_stream`，由 [`WriteCoordinator`] 提供目录写族单写者路径锁）。
 //!
 //! # 错误口径
 //!
@@ -34,9 +37,14 @@
 //! 段一交付寻址内核四面。段二 B1 追加 MemoryProvider 挂载、写入提交面与
 //! Unicode 触发臂（工单042 裁定④）。段二 B2 追加 DirectoryProvider
 //! （`mount_directory` 真实目录域：读面 + 流面 + 列举面 + 写入提交面，
-//! 落位后宿主侧符号链接逃逸防御，《06》§9.1）。ZIP Store / HTTP Provider
-//! 挂载、缓存与单一飞行（§六之外的 P2/P3）、断点续传流提交
-//! （`commit_write_stream`）、`file:*` / `resource:*` 能力面接线、
+//! 落位后宿主侧符号链接逃逸防御，《06》§9.1）。段二 B3 追加 ArchiveProvider
+//! （`mount_archive` ZIP 归档只读域：读面 + 流面 + 列举面，写入族全量
+//! `RESOURCE_READ_ONLY`，归档解析复用 `chips-parser` 归档层公开读取面）
+//! 与流式写入提交面（`open_write_stream` → `commit_write_stream`，
+//! 《04.04》§4.9 单写者路径锁 + 零残留 temp 清理），并把
+//! `RESOURCE_READ_ONLY` 的 `details.uri` 统一到精确目标 uri
+//! （工单044 §三.5 裁定⑧-2）。HTTP Provider 挂载、缓存与单一飞行
+//! （§六之外的 P2/P3）、`file:*` / `resource:*` 能力面接线、
 //! Neon 绑定与 host TS 适配层均不在本段。
 //!
 //! # 示例
@@ -64,6 +72,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod archive;
 pub mod constants;
 pub mod directory;
 pub mod error;
@@ -76,7 +85,9 @@ pub mod provider;
 pub mod scope;
 pub mod session;
 pub mod uri;
+pub mod write_coord;
 
+pub use archive::{ArchiveProvider, ArchiveStream, ARCHIVE_PROVIDER_ID};
 pub use constants::ResourceLimits;
 pub use directory::{DirectoryProvider, FileStream, DIRECTORY_PROVIDER_ID};
 pub use error::{
@@ -87,6 +98,7 @@ pub use handle::{HandleEntrySnapshot, HandleTable, InvalidateListener, StreamSlo
 pub use manager::{
     external_origin_of, handles_of_session, open_handle_count, FsOpRequest, ManagerResult,
     OpenHandle, OpenRequest, ProviderRegistry, ResolvedResource, ResourceManager, WriteRequest,
+    WriteStreamHandle, WriteStreamRequest,
 };
 pub use memory::{guess_mime_type, MemoryProvider, MemoryStream};
 pub use path_guard::{
@@ -111,6 +123,7 @@ pub use uri::{
     resolve_input, CanonicalUri, ExternalOrigin, EXTERNAL_SCOPE, EXTERNAL_TARGET_SCHEMES,
     MANAGED_SCOPE_PREFIXES, MEMORY_SCOPE, PLATFORM_SCOPE, RESOURCE_SCHEME,
 };
+pub use write_coord::{PathLockKey, PathWritePermit, WriteCoordinator};
 
 /// crate 内统一的资源域结果别名（公开可消费）。
 pub type ResourceResult<T> = Result<T, ResourceError>;
