@@ -14,6 +14,13 @@
  *   node tests/e2e/fixtures/cpk/generate-cpk-fixtures.mjs           # 重建并写入夹具
  *   node tests/e2e/fixtures/cpk/generate-cpk-fixtures.mjs --check   # 重建后逐字节比对并跑校验矩阵（不写盘）
  *
+ * 重建关键区互斥（闸链幂等收口）：`pnpm -r run test:contract` 双执行面并发跑同一套件，
+ * 套件内 `package` 脚本链用例（`tests/contract/tests/cli-bin-resolution.test.ts`）与本生成器
+ * 共享 `examples/plugins/hello/dist` 输入面；生成器 `--out` 指向工程外时 CLI 输入收集不做
+ * 历史输出排除，嵌套归档守卫按工单033锁定语义拒绝锁外写入的 `dist/*.cpk`。因此 build →
+ * 残留清理 → 两次 pack 的关键区必须与 `package` 脚本链持同一把跨进程互斥锁，并在 pack 前
+ * 显式清理 `dist/` 顶层本包同族历史归档（仅 `<包名>-*.cpk`；外来归档一律留给守卫拒绝）。
+ *
  * `keys/` 下的密钥对为一次性生成的入库资产，本脚本只读不写；轮换步骤与背景见
  * 《项目日志与笔记/task043-生态梳理/cpk夹具链勘查与落地-2026-09-20.md》。
  */
@@ -21,10 +28,12 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,6 +47,12 @@ const checkOnly = process.argv.includes('--check');
 
 const KEY_ID = 'chips-fixture-2026';
 const BUILT_CPK_NAME = 'hello-0.1.0.cpk';
+const HELLO_PLUGIN_DIR = path.join(ecosystemRoot, 'examples', 'plugins', 'hello');
+
+/** package 脚本链跨进程互斥锁的锁目录与默认预算（协议登记与实现见下方 `withPackageChainLock`）。 */
+const PACKAGE_CHAIN_LOCK_DIR = path.join(tmpdir(), 'chips-contract-hello-package.lock');
+const PACKAGE_CHAIN_LOCK_WAIT_MS = 90_000;
+const PACKAGE_CHAIN_LOCK_STALE_MS = 180_000;
 
 /** 夹具清单：file 为相对本目录路径；expected 为五阶段校验的期望判定。 */
 const FIXTURE_PACKAGES = [
@@ -87,6 +102,94 @@ function readRequiredFile(label, file) {
   return readFileSync(file);
 }
 
+/** 同步休眠（Atomics 超时等待，不引入异步调度）。 */
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** 持有者进程是否存活（`kill` 信号 0 探测；ESRCH 即已退出）。 */
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code !== 'ESRCH';
+  }
+}
+
+/**
+ * package 脚本链跨进程互斥锁：与 `tests/contract/tests/cli-bin-resolution.test.ts` 的
+ * 同名锁（`PACKAGE_CHAIN_LOCK_DIR`，原子 `mkdir` 建锁 + owner pid + 残锁接管双保险）
+ * 共目录同协议，串行化一切读改写 `examples/plugins/hello/dist` 输入面的执行面
+ * （`package` 链 pack/validate/清理 与 本生成器 build→清理→pack 重建链）。
+ * 等待预算必须小于调用方显式超时，保证被终止的等待者不会留下二次残锁。
+ */
+function withPackageChainLock(body, options = {}) {
+  const lockDir = options.lockDir ?? PACKAGE_CHAIN_LOCK_DIR;
+  const timeoutMs = options.timeoutMs ?? PACKAGE_CHAIN_LOCK_WAIT_MS;
+  const staleMs = options.staleMs ?? PACKAGE_CHAIN_LOCK_STALE_MS;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      mkdirSync(lockDir);
+      writeFileSync(path.join(lockDir, 'owner'), String(process.pid));
+      break;
+    } catch (error) {
+      if (error.code !== 'EEXIST') {
+        throw error;
+      }
+      let takeover = false;
+      try {
+        const ownerPid = Number(readFileSync(path.join(lockDir, 'owner'), 'utf8').trim());
+        takeover =
+          (Number.isInteger(ownerPid) && ownerPid > 0 && !pidAlive(ownerPid)) ||
+          Date.now() - statSync(lockDir).mtimeMs > staleMs;
+      } catch {
+        takeover = true; // 锁目录/owner 文件读失败：视为残锁。
+      }
+      if (takeover) {
+        rmSync(lockDir, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(`等待 package 脚本链互斥锁超时（持有者见 ${lockDir}/owner）：${lockDir}`);
+      }
+      sleepSync(200);
+    }
+  }
+  try {
+    return body();
+  } finally {
+    rmSync(lockDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * pack 前残留清理（清理时序收口）：`dist/` 顶层与本包归档命名同族
+ * （`<包名>-*.cpk`，即 CLI pack 的唯一输出命名）的顶层文件是本包历史打包产物，
+ * 锁内先行删除保证重建链输入面干净；其余嵌套归档不动，仍由 CLI 守卫按
+ * [插件包格式] §2.6 拒绝（fail-closed 语义零削弱）。
+ */
+function removeFamilyPackResidue(pluginDir = HELLO_PLUGIN_DIR) {
+  const distDir = path.join(pluginDir, 'dist');
+  if (!existsSync(distDir)) {
+    return 0;
+  }
+  const familyPrefix = `${path.basename(pluginDir)}-`;
+  let removed = 0;
+  for (const entry of readdirSync(distDir, { withFileTypes: true })) {
+    if (!entry.isFile()) {
+      continue;
+    }
+    const extension = entry.name.slice(entry.name.lastIndexOf('.') + 1).toLowerCase();
+    if (entry.name.startsWith(familyPrefix) && extension === 'cpk') {
+      rmSync(path.join(distDir, entry.name), { force: true });
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
 /** 加载 `@chips/cli` 构建产物的公开引擎 API（正式链路的库面）。 */
 async function loadCliEngine() {
   const entry = path.join(ecosystemRoot, 'packages', 'cli', 'dist', 'index.js');
@@ -120,7 +223,7 @@ function spawnSyncCliPack(bin, outDir, privateKeyFile) {
       'plugin',
       'pack',
       '--dir',
-      path.join(ecosystemRoot, 'examples', 'plugins', 'hello'),
+      HELLO_PLUGIN_DIR,
       '--out',
       outDir,
       '--sign',
@@ -181,18 +284,25 @@ function readSignatureDocument(engine, bytes) {
 /** 构建全部夹具字节与校验清单（不写盘）。 */
 async function buildFixturePlan(workDir) {
   const engine = await loadCliEngine();
-  expectRun(
-    'pnpm --filter @chips/plugin-hello run build',
-    spawnSyncPnpmBuild()
-  );
 
   const trustedPrivate = path.join(keysDir, 'fixture-signing-private.pem');
   const untrustedPrivate = path.join(keysDir, 'untrusted-signing-private.pem');
   readRequiredFile('夹具签名私钥', trustedPrivate);
   readRequiredFile('负夹具伪造私钥', untrustedPrivate);
 
-  const signed = packViaCli(workDir, 'trusted', trustedPrivate);
-  const wrongSignature = packViaCli(workDir, 'untrusted', untrustedPrivate);
+  // 重建关键区与 package 脚本链互斥：build（vite 清空 dist）→ 同族残留清理 →
+  // 两次 CLI pack（`--out` 在工程外）相对其他执行面的 pack 写入/清理必须原子完成。
+  const { signed, wrongSignature } = withPackageChainLock(() => {
+    expectRun(
+      'pnpm --filter @chips/plugin-hello run build',
+      spawnSyncPnpmBuild()
+    );
+    removeFamilyPackResidue();
+    return {
+      signed: packViaCli(workDir, 'trusted', trustedPrivate),
+      wrongSignature: packViaCli(workDir, 'untrusted', untrustedPrivate),
+    };
+  });
   const badManifest = buildBadManifestArchive(engine, signed);
   const crcTampered = buildCrcTamperedArchive(signed);
 
@@ -399,4 +509,18 @@ async function main() {
   }
 }
 
-await main();
+/** 仅在直接执行本脚本时跑生成/校验主流程；被测试导入时只导出锁原语与清理时序件。 */
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+
+if (invokedDirectly) {
+  await main();
+}
+
+export {
+  PACKAGE_CHAIN_LOCK_DIR,
+  withPackageChainLock,
+  removeFamilyPackResidue,
+  HELLO_PLUGIN_DIR,
+};

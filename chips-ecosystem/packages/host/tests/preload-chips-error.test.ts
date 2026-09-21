@@ -11,12 +11,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import {
-  BRIDGE_ERROR_CODES,
-  ChipsError,
-  isChipsError,
-  normalizeError,
-} from '@chips/bridge';
+import { BRIDGE_ERROR_CODES, ChipsError, isChipsError, normalizeError } from '@chips/bridge';
 
 import {
   createRenderError,

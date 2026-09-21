@@ -11,9 +11,13 @@ fixtures/
 *.cpk
 pnpm-lock.yaml
 **/归档/**
-# hello 示例的 render.js 是 vite 构建产物（入库为 check-entries/G4 与 cpk 链的在用输入）；
-# 每次 `pnpm -r build` 都会以压缩形态重写它，格式检查不适用（工单 010 同类配置缺口）。
-examples/plugins/hello/render.js
+# 插件渲染入口构建产物 `render.js`（vite render 构建再生成，事实源为插件 `src/ui/`；
+# 入库为 check-entries/G4 与 cpk 链的在用输入，每次 `pnpm -r build` 以压缩形态重写，
+# 格式化它会与构建链红绿循环；工单 010 同类配置缺口）。必须用基名模式：根聚合
+# （cwd=仓库根）与包级相对脚本（`prettier --check .`，本文件经符号链接位于包内，
+# 带斜杠的根锚定路径在包 cwd 下不命中包根的 `render.js`）共用同一判定面口径。
+# 仓内其余 render.js 仅存在于 `**/fixtures/` 夹具树，已被上方 `fixtures/` 模式覆盖。
+render.js
 # 工单 010 收口：本文件是格式化判定面唯一忽略事实源；各包/测试目录的
 # `.prettierignore` 为指向本文件的符号链接（prettier 只加载 cwd 的忽略文件，
 # 不向上查找），包脚本一律裸 `prettier --check .`，禁止再出现 --ignore-path 分散口径。

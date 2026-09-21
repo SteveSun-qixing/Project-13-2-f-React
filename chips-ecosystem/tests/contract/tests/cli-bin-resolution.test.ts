@@ -51,6 +51,11 @@ function pidAlive(pid: number): boolean {
  * 产物属执行面串扰而非产品缺陷。这里以原子 `mkdir` 建锁串行化临界区；
  * 残锁接管双保险——持有者进程已退出（worker 被超时终止后进程不复存在）或锁龄超 3 分钟即接管。
  * 等待预算必须小于本用例显式超时（见 `it` 第三参数），保证被终止的等待者不会留下二次残锁。
+ *
+ * 锁目录与协议的另一参与方是 cpk 夹具重建链
+ * （`tests/e2e/fixtures/cpk/generate-cpk-fixtures.mjs` 的 `withPackageChainLock`：
+ * build→同族残留清理→两次 pack 的关键区共此锁，消除共享 `dist/` 输入面的结构性竞态）。
+ * 任一侧改协议必须两侧同步；回归锁 `cpk-fixtures.test.ts` 断言两侧锁目录名同源。
  */
 function withPackageChainLock<T>(body: () => T): T {
   const lockDir = `${tmpdir()}/chips-contract-hello-package.lock`;
