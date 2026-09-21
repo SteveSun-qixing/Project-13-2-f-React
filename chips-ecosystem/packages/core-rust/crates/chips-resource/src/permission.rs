@@ -1,10 +1,11 @@
 //! 管理器侧权限判定：作用域 × 能力面的在册判定矩阵（《04-资源管理设计》§5.3、
 //! 《06-资源协议规范》§4）。
 //!
-//! 只实现在册判定，不发明新规则。口径裁决：判定表以《06.04》§4.3 为协议权威
-//! （Platform 免权限公开只读；《04.05》§5.3 的 `resources:read:platform` 变体
-//! 视为漂移，见 README 漂移登记第 1 条——若未来裁决采用 04.05 口径，只需在
-//! `platform_read` 一处收紧）。
+//! 只实现在册判定，不发明新规则。口径裁决（工单042 已收口）：判定表以
+//! 《06.04》§4.3 为协议权威，Platform 为任意插件免权限公开只读；
+//! 《04.05》§5.3 已按该口径对齐（旧 `resources:read:platform` 限定变体
+//! 随裁定①废止，见 README 漂移登记第 1 条），本模块不再保留该口径的
+//! 收紧预留。
 //!
 //! 会话内读取免重复校验（R19）：会话绑定作用域的读取在句柄获取时完成一次
 //! 判定；每请求只做「目标作用域是否属于该会话」的常数校验。写入一律要求
@@ -306,18 +307,32 @@ impl<'a> PermissionChecker<'a> {
         }
     }
 
-    /// Memory（§4.3 行 9）：仅创建者会话；跨会话传递禁止。写入不落盘由
-    /// MemoryProvider 保证（段二）。
+    /// Memory（§4.3 行 9）：仅创建者会话；读取会话内免重复校验，写入要求
+    /// `resources:write`（每次提交重新判定，不落盘由 MemoryProvider 保证）；
+    /// 跨会话传递禁止——作用域不绑定即拒绝。
     fn memory(self) -> Decision {
-        if self.session_bound() {
-            Decision::Allowed
-        } else {
-            self.denied(
+        if !self.session_bound() {
+            return self.denied(
                 &format!("resources:read:{}", self.registration.scope),
                 Vec::new(),
                 Vec::new(),
                 PermissionDenyReason::OutOfScope,
-            )
+            );
+        }
+        match self.operation {
+            ResourceOperation::Read => Decision::Allowed,
+            ResourceOperation::Write => {
+                if self.has(PERMISSION_RESOURCES_WRITE) {
+                    Decision::Allowed
+                } else {
+                    self.denied(
+                        PERMISSION_RESOURCES_WRITE,
+                        vec![PERMISSION_RESOURCES_WRITE.into()],
+                        vec![PERMISSION_RESOURCES_WRITE.into()],
+                        PermissionDenyReason::NotGranted,
+                    )
+                }
+            }
         }
     }
 
@@ -669,6 +684,43 @@ mod tests {
             decide("chips.b", &other, &memory, ResourceOperation::Read, None).is_err(),
             "跨会话传递禁止"
         );
+    }
+
+    #[test]
+    fn test_memory_write_requires_resources_write_in_session() {
+        // §4.3 行 9：Memory 写入 = 会话内 resources:write（不落盘）。
+        let memory = registration(ScopeKind::Memory, "memory", "chips.a", false);
+        let creator_no_write = session_of("chips.a", &["memory"], &[]);
+        let error = decide(
+            "chips.a",
+            &creator_no_write,
+            &memory,
+            ResourceOperation::Write,
+            None,
+        )
+        .expect_err("缺 resources:write 不得写入内存作用域");
+        assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+        assert_eq!(error.details().unwrap()["missing"][0], "resources:write");
+        let creator_write = session_of("chips.a", &["memory"], &["resources:write"]);
+        assert!(decide(
+            "chips.a",
+            &creator_write,
+            &memory,
+            ResourceOperation::Write,
+            None
+        )
+        .is_ok());
+        // 会话外即使持 resources:write 也拒绝（out_of_scope 优先）。
+        let outsider = session_of("chips.b", &[], &["resources:write"]);
+        let error = decide(
+            "chips.b",
+            &outsider,
+            &memory,
+            ResourceOperation::Write,
+            None,
+        )
+        .expect_err("禁止跨会话写入");
+        assert_eq!(error.details().unwrap()["reason"], "out_of_scope");
     }
 
     #[test]

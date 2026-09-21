@@ -4,7 +4,13 @@
 //! 段一交付：URI 语法 → 作用域查找 → PathGuard → 会话与权限判定的完整
 //! 流水线（[`ResourceManager::resolve`]），以及句柄 `open` / `stat` /
 //! `read_range` / `read_chunk` / `release` 三态状态机、会话与作用域级联。
-//! 缓存、写入提交与文件系统挂载属段二/三，本段不挂载对应入口。
+//! 段二 B1 追加：内置 MemoryProvider 挂载（[`ResourceManager::mount_memory`]）
+//! 与写入提交/文件系统操作入口（《04》§11.1 `commit_write` / `delete` /
+//! `rename` / `copy` / `create_directory` / `list_directory`），能力预检在
+//! 管理器层按 `supports_write` 与作用域策略直接返回
+//! `RESOURCE_READ_ONLY` / `RESOURCE_NOT_SUPPORTED`，不透传 Provider
+//! （《04》§3.3）。缓存与单一飞行、断点续传流提交（`commit_write_stream`）
+//! 属段二后续/段三，本段不挂载。
 //!
 //! 错误口径：同步判定入口返回强类型 [`ResourceError`]；异步入口（会触达
 //! Provider）以跨边界统一单形 `ChipsError` 收口，错误码保持《06》§7.2 在册
@@ -16,13 +22,17 @@ use std::sync::{Arc, Mutex};
 use chips_core::{ChipsError, HandleId, PluginId, SessionId};
 
 use crate::constants::ResourceLimits;
-use crate::error::{InvalidateReason, ResourceError, ResourceResult};
+use crate::error::{InvalidateReason, ResourceError, ResourceResult, ScopeOperation};
 use crate::handle::{HandleEntry, HandleTable, StreamSlot};
+use crate::memory::MemoryProvider;
+use crate::path_guard::VirtualPath;
 use crate::permission::{PermissionChecker, ResourceOperation};
-use crate::provider::{ByteRange, ResourceAddress, ResourceMetadata, ResourceProvider};
-use crate::scope::{ScopeId, ScopeKind, ScopeRegistration, ScopeRegistry};
+use crate::provider::{
+    ByteRange, DirectoryEntry, ResourceAddress, ResourceMetadata, ResourceProvider,
+};
+use crate::scope::{Origin, ScopeId, ScopeKind, ScopePolicy, ScopeRegistration, ScopeRegistry};
 use crate::session::{ResourceSession, SessionKind, SessionRegistry};
-use crate::uri::{resolve_input, CanonicalUri, ExternalOrigin};
+use crate::uri::{resolve_input, CanonicalUri, ExternalOrigin, MEMORY_SCOPE};
 
 /// 管理器异步面的结果别名：`ChipsError` 单形承载全部在册 `RESOURCE_*` 码。
 pub type ManagerResult<T> = Result<T, ChipsError>;
@@ -56,6 +66,42 @@ pub struct OpenRequest {
     pub uri: String,
     /// 资源会话。
     pub session: SessionId,
+}
+
+/// 一次性写入提交请求（《04》§11.1 `WriteRequest`；字节 ≤ `max_inline_bytes`，
+/// 超限走 `commit_write_stream`——段二后续波次，本段入口对超限直接
+/// `RESOURCE_TOO_LARGE` 收口，《04.04》§4.8）。
+#[derive(Debug, Clone)]
+pub struct WriteRequest {
+    /// 发起会话。
+    pub session: SessionId,
+    /// 目标作用域 ID。
+    pub scope: ScopeId,
+    /// 目标虚拟路径（经 PathGuard 复检，《04.04》§4.8）。
+    pub path: VirtualPath,
+    /// 提交字节。
+    pub bytes: Vec<u8>,
+}
+
+/// 文件系统操作请求（《04》§11.1 `FsOpRequest`；rename/copy 用
+/// `source` + `target`，delete/create_directory/list 用 `source`）。
+#[derive(Debug, Clone)]
+pub struct FsOpRequest {
+    /// 发起会话。
+    pub session: SessionId,
+    /// 源规范 URI。
+    pub source: String,
+    /// 目标规范 URI（rename/copy 必填）。
+    pub target: Option<String>,
+    /// 递归标志（在册形状字段；Provider 面本段不消费）。
+    pub recursive: bool,
+}
+
+/// MemoryProvider 挂载记录：创建者会话 + 在册 Provider 句柄。
+#[derive(Debug)]
+struct MemoryMount {
+    session: SessionId,
+    provider: Arc<MemoryProvider>,
 }
 
 /// Provider 注册表。
@@ -110,6 +156,8 @@ pub struct ResourceManager {
     sessions: Arc<SessionRegistry>,
     providers: Arc<ProviderRegistry>,
     handles: Arc<HandleTable>,
+    memory_provider: Arc<MemoryProvider>,
+    memory_mount: Mutex<Option<MemoryMount>>,
 }
 
 impl Default for ResourceManager {
@@ -129,6 +177,8 @@ impl ResourceManager {
             sessions: Arc::new(SessionRegistry::new()),
             providers: Arc::new(ProviderRegistry::default()),
             handles: Arc::new(handles),
+            memory_provider: Arc::new(MemoryProvider::new()),
+            memory_mount: Mutex::new(None),
         }
     }
 
@@ -217,6 +267,8 @@ impl ResourceManager {
     }
 
     /// 关闭会话并级联归还全部租约（句柄失效并释放，《04》§10.1）。
+    /// 创建者会话关闭时，Memory 挂载整体失效：内存条目清空、作用域注销
+    /// （禁止持久化与跨会话传递，《06.04》§4.3 行 9）。
     pub fn close_session(&self, session: SessionId) -> ResourceResult<()> {
         let closed = self.sessions.close_session(session)?;
         let closed_ids: BTreeSet<SessionId> = closed.iter().map(|record| record.id).collect();
@@ -224,6 +276,7 @@ impl ResourceManager {
             InvalidateReason::SessionClosed,
             |entry: &HandleEntry| closed_ids.contains(&entry.session),
         );
+        self.evict_memory_mount(&closed_ids);
         Ok(())
     }
 
@@ -404,6 +457,324 @@ impl ResourceManager {
     /// 释放句柄与租约；幂等（《03》§7.1 `release`）。
     pub fn release(&self, handle: HandleId) -> ResourceResult<()> {
         self.handles.release(handle)
+    }
+
+    /// 挂载内置 MemoryProvider 到创建者会话（《04》§3.3 / 《06.04》§4.3 行 9）。
+    ///
+    /// 幂等注册 `memory` Provider；注册保留作用域 `memory`（`Origin::Memory`，
+    /// 可写策略）并绑定到会话。作用域唯一：已挂载时返回
+    /// `RESOURCE_ALREADY_EXISTS`；禁止跨会话传递（其余会话未绑定即拒绝）。
+    pub fn mount_memory(&self, session: SessionId) -> ResourceResult<ScopeId> {
+        let record = self
+            .sessions
+            .get(session)
+            .ok_or_else(|| ResourceError::PermissionDenied {
+                target: format!("chips-resource://{MEMORY_SCOPE}/"),
+                permission: "session".to_owned(),
+                required: Vec::new(),
+                missing: Vec::new(),
+                granted: Vec::new(),
+                reason: crate::error::PermissionDenyReason::OutOfScope,
+            })?;
+        if self.memory_mount.lock().expect("挂载锁不得中毒").is_some() {
+            return Err(ResourceError::AlreadyExists {
+                uri: MEMORY_SCOPE.to_owned(),
+            });
+        }
+        if self.providers.lookup(MEMORY_SCOPE).is_none() {
+            let typed = Arc::clone(&self.memory_provider);
+            let provider: Arc<dyn ResourceProvider> = typed;
+            self.register_provider(provider)?;
+        }
+        let scope = self.register_scope(ScopeRegistration {
+            scope: MEMORY_SCOPE.to_owned(),
+            kind: ScopeKind::Memory,
+            owner: record.owner.clone(),
+            provider_id: MEMORY_SCOPE.to_owned(),
+            origin: Origin::Memory,
+            policy: ScopePolicy {
+                read_only: false,
+                max_resource_bytes: self.limits.max_resource_bytes,
+                allowed_hosts: Vec::new(),
+            },
+        })?;
+        self.attach_scope(record.id, &scope)?;
+        *self.memory_mount.lock().expect("挂载锁不得中毒") = Some(MemoryMount {
+            session: record.id,
+            provider: Arc::clone(&self.memory_provider),
+        });
+        Ok(scope)
+    }
+
+    /// 内存挂载在册状态（只读探测：是否已挂载）。
+    #[must_use]
+    pub fn memory_mounted(&self) -> bool {
+        self.memory_mount.lock().expect("挂载锁不得中毒").is_some()
+    }
+
+    /// 一次性写入提交（《04》§11.1 `commit_write`，《04.04》§4.8）：
+    /// 句柄只读，写入统一由管理器提交。流水线复检（PathGuard + 会话权限
+    /// `resources:write`）→ 能力预检（只读策略 / `supports_write` 不支持 →
+    /// `RESOURCE_READ_ONLY`）→ 单次字节上限（> `max_inline_bytes` →
+    /// `RESOURCE_TOO_LARGE`）→ Provider 落写并返回新版本元数据。
+    pub async fn commit_write(&self, request: WriteRequest) -> ManagerResult<ResourceMetadata> {
+        let uri = format!(
+            "chips-resource://{}/{}",
+            request.scope,
+            request.path.as_str()
+        );
+        let size = u64::try_from(request.bytes.len()).unwrap_or(u64::MAX);
+        if size > self.limits.max_inline_bytes {
+            return Err(ResourceError::TooLarge {
+                uri: uri.clone(),
+                size,
+                limit: self.limits.max_inline_bytes,
+            }
+            .to_chips_error());
+        }
+        let resolved = self.resolve(&uri, request.session, ResourceOperation::Write)?;
+        check_size(
+            &resolved.address.uri,
+            resolved.registration.policy.max_resource_bytes,
+            size,
+        )?;
+        let provider = self.writable_provider(&resolved)?;
+        let metadata = provider.write(&resolved.address, &request.bytes).await?;
+        Ok(metadata_view(
+            &resolved.address.uri,
+            resolved.registration.kind,
+            metadata,
+        ))
+    }
+
+    /// 删除（《04》§11.1 `delete`，《04.04》§4.9）：写入族鉴权与能力预检后，
+    /// 仅 Plugin / Temporary / Memory 种类在册接受删除；其余返回
+    /// `RESOURCE_NOT_SUPPORTED`（`operation = delete`），不透传 Provider。
+    pub async fn delete(&self, request: FsOpRequest) -> ManagerResult<()> {
+        let resolved = self.resolve(&request.source, request.session, ResourceOperation::Write)?;
+        let provider = self.writable_provider(&resolved)?;
+        self.check_write_kind_gate(&resolved, ScopeOperation::Delete)?;
+        provider.delete(&resolved.address).await?;
+        Ok(())
+    }
+
+    /// 重命名/移动（《04》§11.1 `rename`，《04.04》§4.9）：同作用域 only，
+    /// 跨作用域返回 `RESOURCE_NOT_SUPPORTED`（`operation = rename`）；
+    /// 目标已存在不覆盖（`RESOURCE_ALREADY_EXISTS`，Provider 面收口）。
+    pub async fn rename(&self, request: FsOpRequest) -> ManagerResult<ResourceMetadata> {
+        let target_uri = self.require_target(&request)?;
+        let source = self.resolve(&request.source, request.session, ResourceOperation::Write)?;
+        let target = self.resolve(&target_uri, request.session, ResourceOperation::Write)?;
+        if source.address.scope != target.address.scope {
+            return Err(ResourceError::NotSupported {
+                uri: target_uri,
+                scope: target.registration.kind,
+                operation: ScopeOperation::Rename,
+            }
+            .to_chips_error());
+        }
+        let provider = self.writable_provider(&source)?;
+        provider.rename(&source.address, &target.address).await?;
+        let metadata = provider.stat(&target.address).await?;
+        Ok(metadata_view(
+            &target.address.uri,
+            target.registration.kind,
+            metadata,
+        ))
+    }
+
+    /// 复制（《04》§11.1 `copy`，《04.04》§4.9/§4.10）：源按读鉴权、目标按写
+    /// 鉴权；跨作用域且缺目标权限 → `RESOURCE_CROSS_SCOPE`（《06》§7.2）；
+    /// 目标已存在不覆盖（《06》§7.2 ALREADY_EXISTS 口径，README 漂移登记）。
+    /// 单次提交体量守 `max_inline_bytes`（一次性写入面）。
+    pub async fn copy(&self, request: FsOpRequest) -> ManagerResult<ResourceMetadata> {
+        let target_uri = self.require_target(&request)?;
+        let source = self.resolve(&request.source, request.session, ResourceOperation::Read)?;
+        let cross_scope = resolve_input(&target_uri, &self.limits)?.scope != source.address.scope;
+        let target = self
+            .resolve(&target_uri, request.session, ResourceOperation::Write)
+            .map_err(|error| match error {
+                ResourceError::PermissionDenied {
+                    permission,
+                    required,
+                    missing,
+                    granted,
+                    reason,
+                    ..
+                } if cross_scope => ResourceError::CrossScope {
+                    target: target_uri.clone(),
+                    permission,
+                    required,
+                    missing,
+                    granted,
+                    reason,
+                },
+                other => other,
+            })?;
+        let source_provider = self
+            .providers
+            .lookup(&source.registration.provider_id)
+            .ok_or(ResourceError::Internal)?;
+        let target_provider = self.writable_provider(&target)?;
+        let stat = source_provider.stat(&source.address).await?;
+        check_size(
+            &target.address.uri,
+            target.registration.policy.max_resource_bytes,
+            stat.size,
+        )?;
+        if stat.size > self.limits.max_inline_bytes {
+            return Err(ResourceError::TooLarge {
+                uri: target.address.uri.clone(),
+                size: stat.size,
+                limit: self.limits.max_inline_bytes,
+            }
+            .to_chips_error());
+        }
+        if source.registration.provider_id == target.registration.provider_id {
+            target_provider
+                .copy(&source.address, &target.address)
+                .await?;
+        } else {
+            if target_provider.stat(&target.address).await.is_ok() {
+                return Err(ResourceError::AlreadyExists {
+                    uri: target.address.uri.clone(),
+                }
+                .to_chips_error());
+            }
+            let bytes = source_provider
+                .read_range(
+                    &source.address,
+                    ByteRange {
+                        offset: 0,
+                        length: Some(stat.size),
+                    },
+                )
+                .await?;
+            target_provider.write(&target.address, &bytes).await?;
+        }
+        let metadata = target_provider.stat(&target.address).await?;
+        Ok(metadata_view(
+            &target.address.uri,
+            target.registration.kind,
+            metadata,
+        ))
+    }
+
+    /// 创建目录（《04》§11.1 `create_directory`，《04.04》§4.9）：仅 Plugin /
+    /// Temporary 在册接受；Memory（扁平字节键空间无目录层级）及其余种类
+    /// 返回 `RESOURCE_NOT_SUPPORTED`（`operation = create_directory`）。
+    pub async fn create_directory(&self, request: FsOpRequest) -> ManagerResult<()> {
+        let resolved = self.resolve(&request.source, request.session, ResourceOperation::Write)?;
+        let provider = self.writable_provider(&resolved)?;
+        if !matches!(
+            resolved.registration.kind,
+            ScopeKind::Plugin | ScopeKind::Temporary
+        ) {
+            return Err(ResourceError::NotSupported {
+                uri: resolved.address.uri.clone(),
+                scope: resolved.registration.kind,
+                operation: ScopeOperation::CreateDirectory,
+            }
+            .to_chips_error());
+        }
+        provider.create_directory(&resolved.address).await?;
+        Ok(())
+    }
+
+    /// 目录列举（《04》§11.1 `list_directory`）：Platform / External /
+    /// Memory 在册不支持（《04》§3.3 / §5.2），管理器层直接返回
+    /// `RESOURCE_NOT_SUPPORTED`（`operation = list`），不透传 Provider。
+    pub async fn list_directory(&self, request: OpenRequest) -> ManagerResult<Vec<DirectoryEntry>> {
+        let resolved = self.resolve(&request.uri, request.session, ResourceOperation::Read)?;
+        if matches!(
+            resolved.registration.kind,
+            ScopeKind::Platform | ScopeKind::External | ScopeKind::Memory
+        ) {
+            return Err(ResourceError::NotSupported {
+                uri: resolved.address.uri.clone(),
+                scope: resolved.registration.kind,
+                operation: ScopeOperation::List,
+            }
+            .to_chips_error());
+        }
+        let provider = self
+            .providers
+            .lookup(&resolved.registration.provider_id)
+            .ok_or(ResourceError::Internal)?;
+        provider.list_directory(&resolved.address).await
+    }
+
+    /// rename/copy 的目标 URI 在册必需字段校验（缺失按语法级非法路径收口）。
+    fn require_target(&self, request: &FsOpRequest) -> ResourceResult<String> {
+        request
+            .target
+            .clone()
+            .ok_or_else(|| ResourceError::InvalidUri {
+                uri: request.source.clone(),
+                reason: crate::error::UriErrorReason::MalformedPath,
+            })
+    }
+
+    /// 写入族能力预检（《04》§3.3）：只读策略或 Provider 不支持写入 →
+    /// `RESOURCE_READ_ONLY`，Manager 层直接返回，不透传 Provider。
+    fn writable_provider(
+        &self,
+        resolved: &ResolvedResource,
+    ) -> ResourceResult<Arc<dyn ResourceProvider>> {
+        if resolved.registration.policy.read_only {
+            return Err(ResourceError::ReadOnly {
+                uri: resolved.address.uri.clone(),
+            });
+        }
+        let provider = self
+            .providers
+            .lookup(&resolved.registration.provider_id)
+            .ok_or(ResourceError::Internal)?;
+        if !provider.supports_write() {
+            return Err(ResourceError::ReadOnly {
+                uri: resolved.address.uri.clone(),
+            });
+        }
+        Ok(provider)
+    }
+
+    /// 删除/建目录的种类门（《04.04》§4.9）在 `delete` 中的复用面。
+    fn check_write_kind_gate(
+        &self,
+        resolved: &ResolvedResource,
+        operation: ScopeOperation,
+    ) -> ResourceResult<()> {
+        let allowed = match operation {
+            ScopeOperation::Delete => matches!(
+                resolved.registration.kind,
+                ScopeKind::Plugin | ScopeKind::Temporary | ScopeKind::Memory
+            ),
+            _ => true,
+        };
+        if allowed {
+            return Ok(());
+        }
+        Err(ResourceError::NotSupported {
+            uri: resolved.address.uri.clone(),
+            scope: resolved.registration.kind,
+            operation,
+        })
+    }
+
+    /// 创建者会话（含级联）关闭时摘除 Memory 挂载：条目整体清空（不落盘）、
+    /// 作用域注销（在册句柄级联失效由 `unregister_scope` 承担）。
+    fn evict_memory_mount(&self, closed_ids: &BTreeSet<SessionId>) {
+        let taken = {
+            let mut mount = self.memory_mount.lock().expect("挂载锁不得中毒");
+            match mount.as_ref() {
+                Some(record) if closed_ids.contains(&record.session) => mount.take(),
+                _ => None,
+            }
+        };
+        if let Some(mount) = taken {
+            mount.provider.clear();
+            let _ = self.unregister_scope(&MEMORY_SCOPE.to_owned());
+        }
     }
 }
 
@@ -909,5 +1280,342 @@ mod tests {
             .expect_err("缺失 Provider 必须按兜底口径拒绝");
         assert_eq!(error.code(), crate::error::RESOURCE_INTERNAL);
         assert_eq!(open_handle_count(&manager), 0, "兜底拒绝不得泄漏句柄");
+    }
+
+    fn writer_session(manager: &ResourceManager, scopes: &[&str]) -> SessionId {
+        let scopes: BTreeSet<String> = scopes.iter().map(|scope| (*scope).to_owned()).collect();
+        manager
+            .open_session(
+                SessionKind::Document,
+                &"chips.official.editor".into(),
+                scopes,
+                vec![crate::permission::PERMISSION_RESOURCES_WRITE.to_owned()],
+            )
+            .expect("写会话创建必须成功")
+    }
+
+    fn memory_manager() -> (ResourceManager, SessionId) {
+        let manager = manager_with_stub();
+        let session = writer_session(&manager, &["card-1"]);
+        let scope = manager.mount_memory(session).expect("挂载必须成功");
+        assert_eq!(scope, "memory");
+        (manager, session)
+    }
+
+    fn write_request(session: SessionId, path: &str, bytes: &[u8]) -> WriteRequest {
+        WriteRequest {
+            session,
+            scope: "memory".into(),
+            path: crate::path_guard::VirtualPath::from_validated(path.into()),
+            bytes: bytes.to_vec(),
+        }
+    }
+
+    #[test]
+    fn test_mount_memory_requires_existing_session() {
+        let manager = manager_with_stub();
+        let error = manager.mount_memory(4242).expect_err("未知会话不得挂载");
+        assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+        assert!(!manager.memory_mounted());
+    }
+
+    #[test]
+    fn test_mount_memory_twice_is_already_exists() {
+        let (manager, session) = memory_manager();
+        let error = manager.mount_memory(session).expect_err("作用域唯一");
+        assert_eq!(error.code(), crate::error::RESOURCE_ALREADY_EXISTS);
+        assert!(manager.memory_mounted());
+    }
+
+    #[tokio::test]
+    async fn test_memory_commit_open_read_roundtrip() {
+        let (manager, session) = memory_manager();
+        let metadata = manager
+            .commit_write(write_request(session, "scratch/memo.txt", b"mem-bytes"))
+            .await
+            .expect("会话内提交必须放行");
+        assert_eq!(metadata.size, 9);
+        assert_eq!(metadata.mime_type, "text/plain");
+        assert_eq!(metadata.scope, ScopeKind::Memory);
+        assert!(metadata.version.starts_with("mem-"));
+        let handle = manager
+            .open(OpenRequest {
+                uri: "chips-resource://memory/scratch/memo.txt".into(),
+                session,
+            })
+            .await
+            .expect("创建者会话读取免重复校验");
+        let bytes = manager
+            .read_range(
+                handle.id,
+                ByteRange {
+                    offset: 4,
+                    length: Some(5),
+                },
+            )
+            .await
+            .expect("范围读");
+        assert_eq!(bytes, b"bytes".to_vec());
+        let mut stream_total = 0usize;
+        while let Some(chunk) = manager.read_chunk(handle.id, 4).await.expect("流读") {
+            stream_total += chunk.len();
+        }
+        assert_eq!(stream_total, 9);
+        manager.release(handle.id).unwrap();
+        // 提交成功递增版本戳（《04.04》§4.10）。
+        let second = manager
+            .commit_write(write_request(session, "scratch/memo.txt", b"v2"))
+            .await
+            .expect("覆盖提交");
+        assert_ne!(second.version, metadata.version);
+    }
+
+    #[tokio::test]
+    async fn test_memory_commit_requires_resources_write() {
+        let manager = manager_with_stub();
+        let session = session_of(&manager, &["card-1"]);
+        manager.mount_memory(session).expect("挂载必须成功");
+        let error = manager
+            .commit_write(write_request(session, "a.txt", b"x"))
+            .await
+            .expect_err("缺 resources:write 不得提交");
+        assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+    }
+
+    #[test]
+    fn test_memory_cross_session_read_denied() {
+        let (manager, session) = memory_manager();
+        let outsider = session_of(&manager, &["card-1"]);
+        assert_ne!(outsider, session);
+        let error = manager
+            .resolve(
+                "chips-resource://memory/a.txt",
+                outsider,
+                ResourceOperation::Read,
+            )
+            .expect_err("禁止跨会话传递");
+        assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+        assert_eq!(error.details().unwrap()["reason"], "out_of_scope");
+    }
+
+    #[tokio::test]
+    async fn test_close_creator_session_evicts_memory() {
+        let (manager, session) = memory_manager();
+        manager
+            .commit_write(write_request(session, "a.txt", b"data"))
+            .await
+            .expect("提交");
+        let child = manager
+            .derive_session(session, &[], &BTreeSet::new())
+            .expect("派生");
+        let handle = manager
+            .open(OpenRequest {
+                uri: "chips-resource://memory/a.txt".into(),
+                session,
+            })
+            .await
+            .unwrap();
+        manager.close_session(child).expect("子会话关闭");
+        assert!(manager.memory_mounted(), "子会话关闭不得摘除父会话挂载");
+        manager.close_session(session).expect("创建者会话关闭");
+        assert!(!manager.memory_mounted(), "创建者关闭即整体失效");
+        // 条目清空且不落盘：重挂载后读旧路径返回 NOT_FOUND。
+        let fresh = writer_session(&manager, &["card-1"]);
+        manager.mount_memory(fresh).expect("重新挂载");
+        let error = manager
+            .open(OpenRequest {
+                uri: "chips-resource://memory/a.txt".into(),
+                session: fresh,
+            })
+            .await
+            .expect_err("旧条目必须已失效");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_FOUND);
+        assert_eq!(
+            open_handle_count(&manager),
+            0,
+            "级联失效后原句柄不得保留租约"
+        );
+        let _ = manager.release(handle.id);
+    }
+
+    #[tokio::test]
+    async fn test_commit_write_capability_prechecks() {
+        let (manager, session) = memory_manager();
+        // 只读能力 Provider（StubProvider supports_write=false）→ READ_ONLY。
+        let error = manager
+            .commit_write(WriteRequest {
+                session,
+                scope: "card-1".into(),
+                path: crate::path_guard::VirtualPath::from_validated("a.png".into()),
+                bytes: vec![1],
+            })
+            .await
+            .expect_err("能力预检不透传 Provider");
+        assert_eq!(error.code(), crate::error::RESOURCE_READ_ONLY);
+        // 单次提交超 max_inline_bytes → TOO_LARGE（《04.04》§4.8）。
+        let error = manager
+            .commit_write(write_request(
+                session,
+                "big.bin",
+                &vec![0u8; 16 * 1024 * 1024],
+            ))
+            .await
+            .expect_err("一次性写入超限");
+        assert_eq!(error.code(), crate::error::RESOURCE_TOO_LARGE);
+        assert_eq!(
+            error.details().unwrap()["limit"],
+            manager.limits().max_inline_bytes
+        );
+    }
+
+    #[tokio::test]
+    async fn test_memory_fs_ops_and_gates() {
+        let (manager, session) = memory_manager();
+        manager
+            .commit_write(write_request(session, "src.txt", b"payload"))
+            .await
+            .expect("提交");
+        // 目录列举：Memory 在册不支持，管理器层直接拒绝。
+        let error = manager
+            .list_directory(OpenRequest {
+                uri: "chips-resource://memory/src.txt".into(),
+                session,
+            })
+            .await
+            .expect_err("列举不支持");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_SUPPORTED);
+        assert_eq!(error.details().unwrap()["operation"], "list");
+        // create_directory：Memory 无目录层级。
+        let error = manager
+            .create_directory(FsOpRequest {
+                session,
+                source: "chips-resource://memory/dir".into(),
+                target: None,
+                recursive: false,
+            })
+            .await
+            .expect_err("建目录不支持");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_SUPPORTED);
+        assert_eq!(error.details().unwrap()["operation"], "create_directory");
+        // 同作用域 rename 放行并更新版本面。
+        let renamed = manager
+            .rename(FsOpRequest {
+                session,
+                source: "chips-resource://memory/src.txt".into(),
+                target: Some("chips-resource://memory/dst.txt".into()),
+                recursive: false,
+            })
+            .await
+            .expect("会话内 rename");
+        assert_eq!(renamed.uri, "chips-resource://memory/dst.txt");
+        // 出会话（跨作用域）rename → NOT_SUPPORTED（《04.04》§4.9 同作用域 only）。
+        let error = manager
+            .rename(FsOpRequest {
+                session,
+                source: "chips-resource://memory/dst.txt".into(),
+                target: Some("chips-resource://card-1/x.png".into()),
+                recursive: false,
+            })
+            .await
+            .expect_err("rename 出会话");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_SUPPORTED);
+        assert_eq!(error.details().unwrap()["operation"], "rename");
+        // 跨作用域 copy 缺目标写权限 → CROSS_SCOPE（《06》§7.2）。
+        let error = manager
+            .copy(FsOpRequest {
+                session,
+                source: "chips-resource://memory/dst.txt".into(),
+                target: Some("chips-resource://card-1/y.png".into()),
+                recursive: false,
+            })
+            .await
+            .expect_err("card-1 由只读能力 Provider 承载前先行鉴权");
+        // StubProvider supports_write=false：目标能力预检 READ_ONLY；
+        // 换 plugin 作用域验证真实 CROSS_SCOPE。
+        assert_eq!(error.code(), crate::error::RESOURCE_READ_ONLY);
+        let no_write = session_of(&manager, &["card-1"]);
+        let error = manager
+            .copy(FsOpRequest {
+                session: no_write,
+                source: "chips-resource://card-1/a.png".into(),
+                target: Some("chips-resource://memory/from-doc.txt".into()),
+                recursive: false,
+            })
+            .await
+            .expect_err("跨作用域缺目标权限");
+        assert_eq!(error.code(), crate::error::RESOURCE_CROSS_SCOPE);
+        assert_eq!(error.details().unwrap()["reason"], "out_of_scope");
+        assert_eq!(
+            error.details().unwrap()["target"],
+            "chips-resource://memory/from-doc.txt"
+        );
+        // 会话内 delete 放行（Memory 在删除种类白名单内）。
+        manager
+            .delete(FsOpRequest {
+                session,
+                source: "chips-resource://memory/dst.txt".into(),
+                target: None,
+                recursive: false,
+            })
+            .await
+            .expect("会话内删除");
+        let error = manager
+            .delete(FsOpRequest {
+                session,
+                source: "chips-resource://memory/dst.txt".into(),
+                target: None,
+                recursive: false,
+            })
+            .await
+            .expect_err("重复删除");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_delete_document_scope_kind_gate() {
+        let (manager, session) = memory_manager();
+        // Document 种类不在删除白名单（《04.04》§4.9）：即便能力可写也拒绝。
+        let error = manager
+            .delete(FsOpRequest {
+                session,
+                source: "chips-resource://card-1/a.png".into(),
+                target: None,
+                recursive: false,
+            })
+            .await
+            .expect_err("Document 删除不支持");
+        assert_eq!(error.code(), crate::error::RESOURCE_READ_ONLY);
+        // StubProvider supports_write=false 先行收口为 READ_ONLY；种类门
+        // （NOT_SUPPORTED）在能力预检之后，见 `check_write_kind_gate`。
+    }
+
+    #[tokio::test]
+    async fn test_copy_within_memory_scope_succeeds() {
+        let (manager, session) = memory_manager();
+        manager
+            .commit_write(write_request(session, "one.txt", b"abc"))
+            .await
+            .expect("提交");
+        let metadata = manager
+            .copy(FsOpRequest {
+                session,
+                source: "chips-resource://memory/one.txt".into(),
+                target: Some("chips-resource://memory/two.txt".into()),
+                recursive: false,
+            })
+            .await
+            .expect("会话内 copy");
+        assert_eq!(metadata.uri, "chips-resource://memory/two.txt");
+        assert_eq!(metadata.size, 3);
+        let error = manager
+            .copy(FsOpRequest {
+                session,
+                source: "chips-resource://memory/one.txt".into(),
+                target: Some("chips-resource://memory/two.txt".into()),
+                recursive: false,
+            })
+            .await
+            .expect_err("copy 不覆盖（《06》§7.2）");
+        assert_eq!(error.code(), crate::error::RESOURCE_ALREADY_EXISTS);
     }
 }

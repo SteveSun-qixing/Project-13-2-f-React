@@ -12,7 +12,8 @@ use thiserror::Error;
 // 在册错误码（《06》§7.2 错误码表，逐字一致）
 // ---------------------------------------------------------------------------
 
-/// URI 语法非法：scope 段、受管作用域出现查询串、fragment、非法编码、userinfo。
+/// URI 语法非法：scope 段、受管作用域出现查询串、fragment、非法编码、userinfo、
+/// 解码产物 Unicode 形态非法（`details.reason = unicode`，《06》§2.4）。
 pub const RESOURCE_INVALID_URI: &str = "RESOURCE_INVALID_URI";
 /// `resource()` 收到 `chips-resource://` 与 `http(s)://` 以外的 scheme。
 pub const RESOURCE_UNSUPPORTED_SCHEME: &str = "RESOURCE_UNSUPPORTED_SCHEME";
@@ -119,7 +120,9 @@ pub enum PathErrorReason {
     Encoding,
     /// 控制字符。
     Control,
-    /// Unicode 形态非法（词表在册；段一无触发规则，见 README 漂移登记第 4 条）。
+    /// Unicode 形态非法（《06》§2.4 Unicode 行，工单042 裁定④触发规则：百分号解码
+    /// 一次的字节序列须为合法 UTF-8 且不含非字符与替换字符 U+FFFD；段二 B1 已在
+    /// `path_guard` 落地触发臂，产生面锁测见 `tests/error_code_lock.rs`）。
     Unicode,
     /// 总长/单段/路径超限。
     Length,
@@ -179,6 +182,24 @@ pub enum PermissionDenyReason {
     Policy,
 }
 
+/// 作用域操作类别（《06》§7.3 `IResourceScopeErrorDetails.operation` 六词）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopeOperation {
+    /// 目录列举。
+    List,
+    /// 写入提交。
+    Write,
+    /// 删除。
+    Delete,
+    /// 重命名/移动。
+    Rename,
+    /// 复制。
+    Copy,
+    /// 创建目录。
+    CreateDirectory,
+}
+
 // ---------------------------------------------------------------------------
 // 强类型错误
 // ---------------------------------------------------------------------------
@@ -206,7 +227,10 @@ pub enum ResourceError {
         /// 规范 URI。
         uri: String,
     },
-    /// 路径非法（`RESOURCE_PATH_INVALID`）。
+    /// 路径非法（`RESOURCE_PATH_INVALID`；《06》§2.4 九词 reason 词表，
+    /// 含 Unicode 触发臂——主智能体 2026-09-21 码归属更正：工单042 裁定④
+    /// 初稿误记 `RESOURCE_INVALID_URI`，按 §7.3 词表归组与 §5.1 解析流水线
+    /// 判定序更正文本，unicode 归路径族）。
     #[error("资源路径非法：{path}")]
     PathInvalid {
         /// 规范 URI（若已成形）。
@@ -282,6 +306,35 @@ pub enum ResourceError {
         /// 冲突目标标识。
         uri: String,
     },
+    /// 操作不被当前 Provider/作用域支持（`RESOURCE_NOT_SUPPORTED`，
+    /// 《06》§7.2/§7.3 `IResourceScopeErrorDetails`；如 Platform/External/Memory
+    /// 不支持列举、Memory 形态 rename/copy 出会话）。
+    #[error("操作不被支持：{uri}")]
+    NotSupported {
+        /// 规范 URI。
+        uri: String,
+        /// 作用域种类。
+        scope: crate::scope::ScopeKind,
+        /// 被拒绝的操作类别。
+        operation: ScopeOperation,
+    },
+    /// 跨作用域且无目标作用域权限（`RESOURCE_CROSS_SCOPE`，《06》§7.2；
+    /// `details` 复用 `IPermissionDeniedDetails`，`target` 填目标规范 URI）。
+    #[error("跨作用域操作被拒绝：{target}")]
+    CrossScope {
+        /// 目标规范 URI（`details.target`）。
+        target: String,
+        /// 所需权限 ID。
+        permission: String,
+        /// 本次调用所需权限全集。
+        required: Vec<String>,
+        /// 缺失权限集。
+        missing: Vec<String>,
+        /// 调用方在册权限集。
+        granted: Vec<String>,
+        /// 拒绝原因。
+        reason: PermissionDenyReason,
+    },
     /// 未归一异常（`RESOURCE_INTERNAL`，协议层兜底，无 details）。
     #[error("资源操作内部错误")]
     Internal,
@@ -304,6 +357,8 @@ impl ResourceError {
             Self::PoolExhausted { .. } => RESOURCE_POOL_EXHAUSTED,
             Self::ReadOnly { .. } => RESOURCE_READ_ONLY,
             Self::AlreadyExists { .. } => RESOURCE_ALREADY_EXISTS,
+            Self::NotSupported { .. } => RESOURCE_NOT_SUPPORTED,
+            Self::CrossScope { .. } => RESOURCE_CROSS_SCOPE,
             Self::Internal => RESOURCE_INTERNAL,
         }
     }
@@ -369,6 +424,31 @@ impl ResourceError {
             })),
             Self::ReadOnly { uri } => Some(serde_json::json!({ "uri": uri })),
             Self::AlreadyExists { uri } => Some(serde_json::json!({ "uri": uri })),
+            Self::NotSupported {
+                uri,
+                scope,
+                operation,
+            } => Some(serde_json::json!({
+                "uri": uri,
+                "scope": scope,
+                "operation": operation,
+            })),
+            Self::CrossScope {
+                target,
+                permission,
+                required,
+                missing,
+                granted,
+                reason,
+            } => Some(serde_json::json!({
+                "capabilityId": serde_json::Value::Null,
+                "permission": permission,
+                "required": required,
+                "missing": missing,
+                "granted": granted,
+                "reason": reason,
+                "target": target,
+            })),
             Self::Internal => None,
         }
     }

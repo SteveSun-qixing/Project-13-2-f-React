@@ -1,9 +1,10 @@
 //! 文件系统抽象层在册抽象：地址模型与 `ResourceProvider` 契约
 //! （《04-资源管理设计》§3.1、§3.2）。
 //!
-//! 段一只交付 trait 与数据类型本身（在册抽象），不挂载任何具体 Provider
-//! （目录 / ZIP Store / 内存 / HTTP 属段二）。状态机测试以 `#[cfg(test)]`
-//! 测试替身驱动；集成测试经公开 trait 自带替身。
+//! 段一只交付 trait 与数据类型本身（在册抽象）；段二 B1 起挂载内置
+//! MemoryProvider（`memory` 模块），目录 / ZIP Store / HTTP 挂载属段二后续
+//! 波次。状态机测试以 `#[cfg(test)]` 测试替身驱动；集成测试经公开 trait
+//! 自带替身。
 
 use async_trait::async_trait;
 use chips_core::ChipsError;

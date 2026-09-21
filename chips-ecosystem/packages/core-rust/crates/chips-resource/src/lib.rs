@@ -16,7 +16,10 @@
 //!
 //! [`ResourceManager`] 把四个面串成《04》§5.1 的解析流水线，并对外提供
 //! `open` / `stat` / `read_range` / `read_chunk` / `release` 入口；
-//! [`ResourceProvider`] 是段二文件系统抽象层的在册契约（本段只有测试替身）。
+//! [`ResourceProvider`] 是文件系统抽象层的在册契约，段二 B1 起挂载内置
+//! [`MemoryProvider`]（运行时内存字节，《04》§3.3）并交付写入提交面
+//! （`commit_write` / `delete` / `rename` / `copy` / `create_directory` /
+//! `list_directory`）。
 //!
 //! # 错误口径
 //!
@@ -25,11 +28,13 @@
 //! 返回 [`ResourceError`]，触达 Provider 的异步入口以跨边界单形
 //! `ChipsError` 收口（`From<ResourceError> for ChipsError`）。
 //!
-//! # 段一边界
+//! # 段边界
 //!
-//! 具体 Provider 挂载（目录 / ZIP Store / 内存 / HTTP）、缓存与单一飞
-//! 行（§六之外的 P2/P3）、断点续传与 Range 合并、`file:*` / `resource:*`
-//! 能力面接线、Neon 绑定与 host TS 适配层均不在本段。
+//! 段一交付寻址内核四面。段二 B1 追加 MemoryProvider 挂载、写入提交面与
+//! Unicode 触发臂（工单042 裁定④）。目录 / ZIP Store / HTTP Provider 挂载、
+//! 缓存与单一飞行（§六之外的 P2/P3）、断点续传流提交（`commit_write_stream`）、
+//! `file:*` / `resource:*` 能力面接线、Neon 绑定与 host TS 适配层均不在
+//! 本段。
 //!
 //! # 示例
 //!
@@ -60,6 +65,7 @@ pub mod constants;
 pub mod error;
 pub mod handle;
 pub mod manager;
+pub mod memory;
 pub mod path_guard;
 pub mod permission;
 pub mod provider;
@@ -70,14 +76,18 @@ pub mod uri;
 pub use constants::ResourceLimits;
 pub use error::{
     HandleState, InvalidateReason, PathErrorReason, PermissionDenyReason, PoolKind, ResourceError,
-    UriErrorReason,
+    ScopeOperation, UriErrorReason,
 };
 pub use handle::{HandleEntrySnapshot, HandleTable, InvalidateListener, StreamSlot};
 pub use manager::{
-    external_origin_of, handles_of_session, open_handle_count, ManagerResult, OpenHandle,
-    OpenRequest, ProviderRegistry, ResolvedResource, ResourceManager,
+    external_origin_of, handles_of_session, open_handle_count, FsOpRequest, ManagerResult,
+    OpenHandle, OpenRequest, ProviderRegistry, ResolvedResource, ResourceManager, WriteRequest,
 };
-pub use path_guard::{resolve_within_root, VirtualPath};
+pub use memory::{guess_mime_type, MemoryProvider, MemoryStream};
+pub use path_guard::{
+    is_forbidden_unicode, percent_decode_checked, resolve_within_root, PercentDecodeFailure,
+    VirtualPath,
+};
 pub use permission::{
     Decision, PermissionChecker, ResourceOperation, PERMISSION_NETWORK_HTTP_PREFIX,
     PERMISSION_RESOURCES_READ, PERMISSION_RESOURCES_READ_EXTERNAL, PERMISSION_RESOURCES_WRITE,

@@ -47,11 +47,34 @@ impl VirtualPath {
                 reason: PathErrorReason::Length,
             });
         }
-        // 百分号解码仅一次；非法 `%` 序列属语法层（《06》§2.6 `invalid_encoding`）。
-        let decoded = percent_decode_once(raw).ok_or_else(|| ResourceError::InvalidUri {
-            uri: uri.to_owned(),
-            reason: crate::error::UriErrorReason::InvalidEncoding,
-        })?;
+        // 百分号解码仅一次；非法 `%` 序列（非两位十六进制）属语法层
+        // （《06》§2.6 `invalid_encoding`）；解码产物非合法 UTF-8 或含非字符/
+        // 替换字符属 Unicode 触发臂（《06》§2.4 Unicode 行，工单042 裁定④，
+        // 主智能体 2026-09-21 码归属更正：码走路径族 `RESOURCE_PATH_INVALID`、
+        // `details.reason = unicode`，与 §7.3 `IResourcePathErrorDetails` 同表）。
+        let decoded = match percent_decode_checked(raw) {
+            Ok(decoded) => decoded,
+            Err(PercentDecodeFailure::MalformedSequence) => {
+                return Err(ResourceError::InvalidUri {
+                    uri: uri.to_owned(),
+                    reason: crate::error::UriErrorReason::InvalidEncoding,
+                })
+            }
+            Err(PercentDecodeFailure::NotUnicode) => {
+                return Err(ResourceError::PathInvalid {
+                    uri: uri.to_owned(),
+                    path: truncate_for_details(raw),
+                    reason: PathErrorReason::Unicode,
+                })
+            }
+        };
+        if decoded.chars().any(is_forbidden_unicode) {
+            return Err(ResourceError::PathInvalid {
+                uri: uri.to_owned(),
+                path: truncate_for_details(&decoded),
+                reason: PathErrorReason::Unicode,
+            });
+        }
         // 解码后按 `/` 重新分段并重新执行全部校验（《06》§2.4 `encoding`）。
         if raw.len() != decoded.len() && decoded.len() > limits.max_path_bytes {
             return Err(ResourceError::PathInvalid {
@@ -156,11 +179,21 @@ pub fn to_nfc(input: &str) -> String {
     normalizer.normalize(input).into_owned()
 }
 
-/// 百分号解码仅一次；非法序列（`%` 不在串尾但后随非两位十六进制）返回 `None`。
-#[must_use]
-pub fn percent_decode_once(input: &str) -> Option<String> {
+/// 百分号解码的失败类别（《06》§2.4/§2.6 两臂分流）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PercentDecodeFailure {
+    /// `%` 后非两位十六进制、串尾截断等编码语法非法（`invalid_encoding`）。
+    MalformedSequence,
+    /// 解码字节序列不是合法 UTF-8（裸 `%FF`、overlong、代理区、越界码位等，
+    /// 属 Unicode 触发臂，`details.reason = unicode`，《06》§2.4 / 工单042 裁定④）。
+    NotUnicode,
+}
+
+/// 百分号解码仅一次并区分失败臂：语法非法与解码产物非合法 UTF-8 分开报告。
+/// 解码成功后仍需对产物执行 [`is_forbidden_unicode`] 非字符检查（§2.4 Unicode 行）。
+pub fn percent_decode_checked(input: &str) -> Result<String, PercentDecodeFailure> {
     if !input.contains('%') {
-        return Some(input.to_owned());
+        return Ok(input.to_owned());
     }
     let bytes = input.as_bytes();
     let mut output: Vec<u8> = Vec::with_capacity(bytes.len());
@@ -169,10 +202,14 @@ pub fn percent_decode_once(input: &str) -> Option<String> {
         match bytes[index] {
             b'%' => {
                 if index + 2 >= bytes.len() {
-                    return None;
+                    return Err(PercentDecodeFailure::MalformedSequence);
                 }
-                let hi = (bytes[index + 1] as char).to_digit(16)?;
-                let lo = (bytes[index + 2] as char).to_digit(16)?;
+                let hi = (bytes[index + 1] as char)
+                    .to_digit(16)
+                    .ok_or(PercentDecodeFailure::MalformedSequence)?;
+                let lo = (bytes[index + 2] as char)
+                    .to_digit(16)
+                    .ok_or(PercentDecodeFailure::MalformedSequence)?;
                 output.push((hi * 16 + lo) as u8);
                 index += 3;
             }
@@ -182,8 +219,26 @@ pub fn percent_decode_once(input: &str) -> Option<String> {
             }
         }
     }
-    // 解码产物必须是合法 UTF-8（非法按 `encoding` 处理）。
-    String::from_utf8(output).ok()
+    // 解码产物必须是合法 UTF-8：Rust `from_utf8` 同步拒绝 overlong、
+    // UTF-16 代理区编码与 U+10FFFF 之外的码位（Unicode 触发臂）。
+    String::from_utf8(output).map_err(|_| PercentDecodeFailure::NotUnicode)
+}
+
+/// 判定 Unicode 触发臂禁止出现的码位（《06》§2.4 Unicode 行，工单042 裁定④细则）：
+/// 替换字符 U+FFFD；非字符 U+FFFE/U+FFFF 与 U+nFFFE/U+nFFFF（n = 1..10，
+/// 即平面 0–10 的 `xxFFFE`/`xxFFFF` 形态）。NFC 归一差异本身不在此列
+/// （归一后校验与比较，永不因归一差异拒绝）。
+#[must_use]
+pub fn is_forbidden_unicode(c: char) -> bool {
+    let code_point = c as u32;
+    code_point == 0xFFFD || ((code_point & 0xFFFE) == 0xFFFE && (code_point >> 16) <= 10)
+}
+
+/// 百分号解码仅一次；非法序列（语法或产物非 UTF-8）返回 `None`。
+/// 需要区分失败臂的调用方使用 [`percent_decode_checked`]。
+#[must_use]
+pub fn percent_decode_once(input: &str) -> Option<String> {
+    percent_decode_checked(input).ok()
 }
 
 /// 规范 URI 输出的百分号编码：保留 RFC 3986 pchar 形态（unreserved 与
@@ -414,6 +469,88 @@ mod tests {
         let combined = "caf\u{65}\u{301}/note.txt";
         let path = validated(combined);
         assert_eq!(path.as_str(), "caf\u{e9}/note.txt");
+    }
+
+    #[test]
+    fn test_unicode_arm_invalid_utf8_rejected() {
+        // 《06》§2.4 Unicode 行（工单042 裁定④，2026-09-21 码归属更正）：
+        // 解码一次的字节序列非合法 UTF-8 → `RESOURCE_PATH_INVALID` +
+        // `details.reason = unicode`。
+        // 裸 %FF、overlong（%C0%AF）、UTF-16 代理区（%ED%A0%80）、越界码位（%F5…）。
+        for raw in ["a%FFb", "a%C0%AFb", "a%ED%A0%80b", "a%F5%80%80%80b"] {
+            let error = VirtualPath::validate(raw, "u", &limits()).expect_err("必须拒绝");
+            assert_eq!(error.code(), crate::error::RESOURCE_PATH_INVALID, "{raw}");
+            assert_eq!(
+                error.details().expect("必须携带 details")["reason"],
+                "unicode",
+                "{raw}"
+            );
+        }
+        // 非法 `%` 语法序列仍走 `invalid_encoding` 臂（段一分流不变）。
+        let error = VirtualPath::validate("a%zz", "u", &limits()).expect_err("必须拒绝");
+        assert_eq!(error.details().unwrap()["reason"], "invalid_encoding");
+    }
+
+    #[test]
+    fn test_unicode_arm_noncharacters_rejected() {
+        // 非字符与替换字符：U+FFFD（%EF%BF%BD）、U+FFFE（%EF%BF%BE）、
+        // U+FFFF（%EF%BF%BF）、U+1FFFE/U+1FFFF（平面 1–10 同形态）。
+        for raw in [
+            "a%EF%BF%BDb",
+            "a%EF%BF%BEb",
+            "a%EF%BF%BFb",
+            "a%F0%9F%BF%BEb",
+            "a%F0%9F%BF%BFb",
+            "a%F2%AF%BF%BFb",
+        ] {
+            let error = VirtualPath::validate(raw, "u", &limits()).expect_err("必须拒绝");
+            assert_eq!(error.code(), crate::error::RESOURCE_PATH_INVALID, "{raw}");
+            assert_eq!(
+                error.details().expect("必须携带 details")["reason"],
+                "unicode"
+            );
+        }
+        // 字面（未编码）替换字符同样触发。
+        let error = VirtualPath::validate("a\u{FFFD}b", "u", &limits()).expect_err("必须拒绝");
+        assert_eq!(error.details().unwrap()["reason"], "unicode");
+    }
+
+    #[test]
+    fn test_unicode_arm_nfc_difference_never_rejected() {
+        // NFC 差异本身永不构成拒绝：等价异字节序形态双双通过且归一相等。
+        let composed = validated("caf%C3%A9/note.txt");
+        let decomposed = validated("cafe%CC%81/note.txt");
+        assert_eq!(composed, decomposed);
+        // 合法多字节（CJK）编码形态通过。
+        assert_eq!(
+            validated("%E7%AC%94%E8%AE%B0/%E6%8A%A5%E5%91%8A.card").as_str(),
+            "笔记/报告.card"
+        );
+    }
+
+    #[test]
+    fn test_percent_decode_checked_arms() {
+        assert_eq!(percent_decode_checked("a%41"), Ok("aA".into()));
+        assert_eq!(
+            percent_decode_checked("a%zz"),
+            Err(PercentDecodeFailure::MalformedSequence)
+        );
+        assert_eq!(
+            percent_decode_checked("%E8%90%AC"),
+            Ok("萬".into()),
+            "既有逐字行为不变"
+        );
+        assert_eq!(
+            percent_decode_checked("%FF"),
+            Err(PercentDecodeFailure::NotUnicode)
+        );
+        assert!(is_forbidden_unicode('\u{FFFD}'));
+        assert!(is_forbidden_unicode('\u{FFFE}'));
+        assert!(is_forbidden_unicode('\u{FFFF}'));
+        assert!(is_forbidden_unicode('\u{1FFFE}'));
+        assert!(is_forbidden_unicode('\u{AFFFF}'));
+        assert!(!is_forbidden_unicode('é'));
+        assert!(!is_forbidden_unicode('\u{FDD0}'));
     }
 
     #[test]

@@ -10,7 +10,13 @@
 //!    （前缀 `RESOURCE_`，段名全大写 ASCII 加下划线连接）；
 //! 3. **形状锁**：`details` 键集与 reason 词表序列化逐字对照 §7.3
 //!    （URI 8 词、路径 9 词、句柄状态 3 词、失效原因 3 词 kebab-case、
-//!    池类别 2 词、权限拒绝 5 词）。
+//!    池类别 2 词、权限拒绝 5 词、作用域操作 6 词）。
+//!
+//! 段二 B1 随单：`unicode` reason 由「词表在册、零产生」翻为「有产生」
+//! （工单042 裁定④触发臂，见 [`test_unicode_reason_has_production`]）；
+//! `NotSupported` / `CrossScope` 两变体纳入变体→码映射锁（Unicode 触发臂按
+//! 主智能体 2026-09-21 码归属更正由 `PathInvalid{reason: unicode}` 承载，
+//! 复用既有 `PathInvalid → RESOURCE_PATH_INVALID` 映射锁，不另立变体）。
 
 use chips_resource::error::{
     http_status_for, retryable_for, RESOURCE_ALREADY_EXISTS, RESOURCE_BUSY, RESOURCE_CROSS_SCOPE,
@@ -21,7 +27,7 @@ use chips_resource::error::{
 };
 use chips_resource::{
     HandleState, InvalidateReason, PathErrorReason, PermissionDenyReason, PoolKind, ResourceError,
-    UriErrorReason,
+    ResourceLimits, ScopeOperation, UriErrorReason,
 };
 
 /// 全部在册码：(码值, retryable, 协议路径 HTTP)。数值逐字来自《06》§7.2 表。
@@ -198,6 +204,25 @@ fn test_error_variant_code_mapping_locked() {
             ResourceError::AlreadyExists { uri: "u".into() },
             RESOURCE_ALREADY_EXISTS,
         ),
+        (
+            ResourceError::NotSupported {
+                uri: "u".into(),
+                scope: chips_resource::ScopeKind::Memory,
+                operation: ScopeOperation::List,
+            },
+            RESOURCE_NOT_SUPPORTED,
+        ),
+        (
+            ResourceError::CrossScope {
+                target: "u".into(),
+                permission: "p".into(),
+                required: Vec::new(),
+                missing: Vec::new(),
+                granted: Vec::new(),
+                reason: PermissionDenyReason::NotGranted,
+            },
+            RESOURCE_CROSS_SCOPE,
+        ),
         (ResourceError::Internal, RESOURCE_INTERNAL),
     ];
     for (error, expected) in &variants {
@@ -344,6 +369,96 @@ fn test_details_key_shapes_locked() {
     assert!(
         ResourceError::Internal.details().is_none(),
         "RESOURCE_INTERNAL 无 details（诊断写宿主日志，《06》§7.3）"
+    );
+    // 段二 B1 新增两变体的 details 形状锁（Unicode 臂已由 PathInvalid 键形锁
+    // {path, reason, uri} 覆盖，见上）。
+    assert_eq!(
+        keys(&ResourceError::NotSupported {
+            uri: "u".into(),
+            scope: chips_resource::ScopeKind::Memory,
+            operation: ScopeOperation::List,
+        }),
+        ["operation", "scope", "uri"],
+        "NotSupported 对齐 IResourceScopeErrorDetails"
+    );
+    let cross = ResourceError::CrossScope {
+        target: "u".into(),
+        permission: "p".into(),
+        required: Vec::new(),
+        missing: Vec::new(),
+        granted: Vec::new(),
+        reason: PermissionDenyReason::OutOfScope,
+    };
+    assert_eq!(
+        keys(&cross),
+        [
+            "capabilityId",
+            "granted",
+            "missing",
+            "permission",
+            "reason",
+            "required",
+            "target"
+        ],
+        "CrossScope 复用 IPermissionDeniedDetails（《06》§7.2）"
+    );
+}
+
+#[test]
+fn test_scope_operation_wordlist_complete() {
+    // 《06》§7.3 IResourceScopeErrorDetails.operation 全 6 词逐字。
+    let words: Vec<(ScopeOperation, &str)> = vec![
+        (ScopeOperation::List, "list"),
+        (ScopeOperation::Write, "write"),
+        (ScopeOperation::Delete, "delete"),
+        (ScopeOperation::Rename, "rename"),
+        (ScopeOperation::Copy, "copy"),
+        (ScopeOperation::CreateDirectory, "create_directory"),
+    ];
+    assert_eq!(words.len(), 6, "作用域操作词表在册 6 词");
+    for (operation, word) in words {
+        assert_eq!(serde_json::to_value(operation).unwrap(), word);
+    }
+}
+
+#[test]
+fn test_unicode_reason_has_production() {
+    // 工单042 裁定④触发臂在册产生面锁：段二 B1 起 `unicode` reason 由
+    // 「零产生」翻为「有产生」（触发实现 src/path_guard.rs:54-77；
+    // 单测 src/path_guard.rs:470 / :489 / :510 / :523）。此处经公开 URI
+    // 入口逐字锁码值与 reason（2026-09-21 码归属更正：路径族
+    // `RESOURCE_PATH_INVALID` + `IResourcePathErrorDetails{uri, path, reason}`）：
+    let limits = ResourceLimits::default();
+    for input in [
+        "chips-resource://card-1/a%FFb",          // 裸 %FF：非法 UTF-8
+        "chips-resource://card-1/a%C0%AFb",       // overlong 编码
+        "chips-resource://card-1/a%ED%A0%80b",    // UTF-16 代理区
+        "chips-resource://card-1/a%F5%80%80%80b", // 越界码位
+        "chips-resource://card-1/a%EF%BF%BDb",    // U+FFFD 替换字符
+        "chips-resource://card-1/a%EF%BF%BEb",    // U+FFFE 非字符
+        "chips-resource://card-1/a%F2%AF%BF%BFb", // U+AFFFF（平面 10）
+    ] {
+        let error = chips_resource::resolve_input(input, &limits)
+            .expect_err("{input} 必须触发 Unicode 臂拒绝");
+        assert_eq!(error.code(), RESOURCE_PATH_INVALID, "{input}");
+        let details = error.details().expect("必须携带 details");
+        assert_eq!(details["reason"], "unicode", "{input}");
+        assert_eq!(details["uri"], input, "{input}");
+        assert!(details.get("path").is_some(), "{input} 路径族必携 path 键");
+    }
+    // 分流不变：%zz 语法非法仍走 invalid_encoding（URI 8 词表不扩词）。
+    let error = chips_resource::resolve_input("chips-resource://card-1/a%zzb", &limits)
+        .expect_err("语法非法必须拒绝");
+    assert_eq!(error.code(), RESOURCE_INVALID_URI);
+    assert_eq!(error.details().unwrap()["reason"], "invalid_encoding");
+    // NFC 差异永不构成拒绝：等价异字节序双双通过。
+    let composed = chips_resource::resolve_input("chips-resource://card-1/caf%C3%A9", &limits)
+        .expect("NFC 预组合形态必须放行");
+    let decomposed = chips_resource::resolve_input("chips-resource://card-1/cafe%CC%81", &limits)
+        .expect("NFC 分解形态必须放行");
+    assert_eq!(
+        composed.to_canonical_string(),
+        decomposed.to_canonical_string()
     );
 }
 
