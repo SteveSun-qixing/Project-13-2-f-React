@@ -40,8 +40,8 @@ import type {
   IFrameHandshakeTransfer,
 } from './frame-protocol.js';
 import { createRenderError, RENDER_ERROR_CODES } from './codes.js';
-import { ChipsError } from '../preload/chips-error.js';
-import type { IChipsErrorShape } from '../preload/chips-error.js';
+import { ChipsError, isChipsError } from '@chips/bridge';
+import type { IChipsError } from '@chips/bridge';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 
 /** 端口事件形状（与 DOM `MessagePort` 同构的子集）。 */
@@ -110,7 +110,7 @@ type HostOutboundSend =
   | { readonly type: 'host:height-ack'; readonly payload: { readonly epoch: number } }
   | {
       readonly type: 'host:action-error';
-      readonly payload: { readonly requestId: string; readonly error: IChipsErrorShape };
+      readonly payload: { readonly requestId: string; readonly error: IChipsError };
     }
   | { readonly type: 'host:dispose'; readonly payload: null };
 /** 动作请求的挂起登记。 */
@@ -179,7 +179,7 @@ export class FrameChannel {
   }
 
   /** 回执动作失败（动作执行器失败或超时，requestId 必须与请求对应）。 */
-  sendActionError(requestId: string, error: IChipsErrorShape): void {
+  sendActionError(requestId: string, error: IChipsError): void {
     this.sendHostMessage({ type: 'host:action-error', payload: { requestId, error } });
   }
 
@@ -370,23 +370,13 @@ export interface IFrameChannelEvents {
   readonly onProtocolViolation: (error: ChipsError) => void;
 }
 
-/** 把任意异常归一为结构化错误形状（未知异常按插件执行失败兜底）。 */
-function toChipsErrorShapeOf(error: unknown): IChipsErrorShape {
+/** 把任意异常归一为结构化错误形状（唯一类实例直接序列化；同构普通对象经 `fromPlain` 还原后序列化；未知异常按插件执行失败兜底）。 */
+function toChipsErrorShapeOf(error: unknown): IChipsError {
   if (error instanceof ChipsError) {
     return error.toPlain();
   }
-  const shape = error as { code?: unknown; message?: unknown; retryable?: unknown } | null;
-  if (
-    typeof shape === 'object' &&
-    shape !== null &&
-    typeof shape['code'] === 'string' &&
-    typeof shape['message'] === 'string'
-  ) {
-    return {
-      code: shape['code'],
-      message: shape['message'],
-      retryable: shape['retryable'] === true,
-    };
+  if (isChipsError(error)) {
+    return ChipsError.fromPlain(error).toPlain();
   }
   return createRenderError({ code: RENDER_ERROR_CODES.pluginFailed, message: '帧动作执行失败' }).toPlain();
 }

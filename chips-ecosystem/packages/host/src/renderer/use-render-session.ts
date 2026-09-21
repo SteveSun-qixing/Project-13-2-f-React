@@ -11,6 +11,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { normalizeError } from '@chips/bridge';
+import type { ChipsError } from '@chips/bridge';
+
 import type {
   IRenderEngine,
   IRenderSession,
@@ -19,8 +22,6 @@ import type {
   RenderRequest,
   RenderSessionState,
 } from './render-engine.js';
-import { toChipsError } from '../preload/chips-error.js';
-import type { ChipsError } from '../preload/chips-error.js';
 
 /** Hook 返回面。 */
 export interface IUseRenderSessionResult {
@@ -78,8 +79,10 @@ export function useRenderSession(engine: IRenderEngine, request: RenderRequest):
           return;
         }
         // 会话创建（请求校验）阶段的失败：无会话可挂，直接进入错误态。
+        // 唯一类错误原样透传；未识别异常经 bridge `normalizeError` 归一为 `BRIDGE_INTERNAL`
+        //（码表文案「平台内部错误」；私有文案「渲染会话创建失败」随工单024 §4.5 条 4 废弃）。
         setState('error');
-        setError(toChipsError(openError, 'BRIDGE_INTERNAL', '渲染会话创建失败'));
+        setError(normalizeError(openError));
       });
     return () => {
       cancelled = true;

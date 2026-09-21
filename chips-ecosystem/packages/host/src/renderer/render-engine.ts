@@ -15,11 +15,11 @@
 import { CardFrameHost } from './card-frame-host.js';
 import type { ICardFrameHostLike, ICardFrameHostOptions } from './card-frame-host.js';
 import { FrameHeightCache, frameHeightCacheKey } from './frame-height.js';
-import { createRenderError, RENDER_ERROR_CODES } from './codes.js';
+import { createRenderError, RENDER_ERROR_CODES, toRenderFallbackError } from './codes.js';
 import type { RenderErrorCode } from './codes.js';
 import { normalizeDocumentFailure } from './document-gateway.js';
 import type { IRenderDocumentGateway } from './document-gateway.js';
-import { ChipsError, toChipsError } from '../preload/chips-error.js';
+import { ChipsError, normalizeError } from '@chips/bridge';
 import type { DocumentKind } from '../capabilities/document/contract.js';
 import type { FrameActionPayload, FrameLimits, FrameRole, ICardRenderView } from './frame-protocol.js';
 import type { DesignTokens } from './frame-protocol.js';
@@ -279,8 +279,16 @@ class CardRenderSession implements IRenderSession {
       this.applyUpdate(view, revision);
       return Promise.resolve();
     } catch (error) {
-      // applyUpdate 的全部抛出路径均为 ChipsError；toChipsError 对其原样透传，不重复包装。
-      return Promise.reject(toChipsError(error, RENDER_ERROR_CODES.updateFailed, '渲染会话更新失败'));
+      // applyUpdate 的全部抛出路径均为 ChipsError；域兜底口对其原样透传，不重复包装。
+      // 未识别异常按 §4.5 条 3 收敛为 `RENDER_UPDATE_FAILED`（码表文案，原始文本入诊断）。
+      return Promise.reject(
+        toRenderFallbackError(error, RENDER_ERROR_CODES.updateFailed, (cause) => {
+          this.diagnostics.error('render.session', '渲染会话更新出现未识别异常', {
+            sessionId: this.id,
+            reason: cause instanceof Error ? cause.message : String(cause),
+          });
+        }),
+      );
     }
   }
 
@@ -405,7 +413,15 @@ class CardRenderSession implements IRenderSession {
       });
     host.beginHandshake().catch((error: unknown) => {
       // 帧加载失败（URL 不可达等）：按渲染失败收敛，不悬挂在 opening。
-      this.fail(toChipsError(error, RENDER_ERROR_CODES.frameTimeout, '渲染帧加载失败'));
+      // 未识别异常按 §4.5 条 3 收敛为 `RENDER_FRAME_TIMEOUT`（码表文案，原始文本入诊断）。
+      this.fail(
+        toRenderFallbackError(error, RENDER_ERROR_CODES.frameTimeout, (cause) => {
+          this.diagnostics.error('render.session', '渲染帧加载出现未识别异常', {
+            sessionId: this.id,
+            reason: cause instanceof Error ? cause.message : String(cause),
+          });
+        }),
+      );
     });
   }
 
@@ -470,12 +486,12 @@ class AbortError extends Error {
   }
 }
 
-/** 提取错误摘要（诊断用，不含敏感内容）。 */
+/** 提取错误摘要（诊断用，不含敏感内容；唯一类还原后经 bridge `normalizeError` 取在册码）。 */
 function describeError(error: unknown): string {
   if (error instanceof ChipsError) {
     return error.code;
   }
-  return toChipsError(error).code;
+  return normalizeError(error).code;
 }
 
 /** 渲染错误码重导出（本层错误面唯一入口）。 */

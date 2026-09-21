@@ -2,15 +2,17 @@
  * 渲染错误码常量与构造（壳渲染进程结构视图）。
  *
  * 权威：`05-渲染引擎设计` §11（错误模型九码、retryable 口径、简体中文文案规则）、
- * `src/preload/chips-error.ts`（`ChipsError` 唯一错误类）。
+ * `@chips/bridge` 协议层（`ChipsError` 唯一错误类，工单024《RFC-ChipsError统一裁定》§3.2）。
  *
  * @remarks
  * - 错误码在本模块内只出现于常量定义处；业务路径一律引用常量，不得散落硬编码字符串。
  * - 与文档的逐码一致性由 `tests/renderer-frame-protocol.test.ts` 漂移锁锁定（读取 §11 分册
  *   原文比对，任一侧漂移即红）。
+ * - 渲染面对错误类的消费直连 `@chips/bridge`（工单024 §八.3 渲染面收敛波），不再经
+ *   `src/preload/chips-error.ts` 包裹层（该包裹层已归档）。
  */
 
-import { ChipsError } from '../preload/chips-error.js';
+import { ChipsError, isChipsError, normalizeError } from '@chips/bridge';
 
 /** 渲染错误码（§11 错误模型全表）。 */
 export const RENDER_ERROR_CODES = {
@@ -79,4 +81,35 @@ export function createRenderError(options: IRenderErrorOptions): ChipsError {
     retryable: RENDER_ERROR_RETRYABLE[options.code],
     ...(options.details === undefined ? {} : { details: options.details }),
   });
+}
+
+/** 未识别异常的脱敏诊断形态（§4.5 条 3：`{ name?, cause }`，不含堆栈与内部路径）。 */
+function fallbackCauseDetails(error: unknown): Readonly<Record<string, unknown>> {
+  if (error instanceof Error) {
+    return { name: error.name, cause: error.message };
+  }
+  return { cause: String(error) };
+}
+
+/**
+ * 渲染域兜底归一（工单024《RFC-ChipsError统一裁定》§4.5 条 3 在渲染层的落地口）。
+ *
+ * - 已识别错误（唯一类实例或同构普通对象）委托 bridge `normalizeError`：原样透传 /
+ *   `fromPlain` 同构还原，Host 业务码原样保留，不重复包装；
+ * - 未识别异常归一为本层渲染域兜底码（调用点传入已登记 `RENDER_*` 码）：`message` 取
+ *   域码表文案（{@link RENDER_ERROR_MESSAGES}），`retryable` 取域码表口径（§4.5 条 1，
+ *   取值权威在各域码表），原始文本只进 `details.cause`（不泄漏进 `message`），完整原始
+ *   信息经 `onDiagnostic` 回调写宿主诊断日志、不进入返回值；
+ * - 渲染域私有兜底文案（「渲染会话更新失败」「渲染帧加载失败」等）随本口废弃（§4.5 条 4 同型口径）。
+ */
+export function toRenderFallbackError(
+  error: unknown,
+  fallbackCode: RenderErrorCode,
+  onDiagnostic?: (error: unknown) => void,
+): ChipsError {
+  if (error instanceof ChipsError || isChipsError(error)) {
+    return normalizeError(error, onDiagnostic === undefined ? {} : { onDiagnostic });
+  }
+  onDiagnostic?.(error);
+  return createRenderError({ code: fallbackCode, details: fallbackCauseDetails(error) });
 }

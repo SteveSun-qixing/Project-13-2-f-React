@@ -34,7 +34,7 @@ import {
   createRenderError,
   isRenderErrorCode,
 } from '../src/renderer/codes.js';
-import { ChipsError } from '../src/preload/chips-error.js';
+import { ChipsError } from '@chips/bridge';
 
 /** 读取文档库分册原文（不建立包依赖边，只读比对）。 */
 function readDocSource(relativeFromTests: string): string {

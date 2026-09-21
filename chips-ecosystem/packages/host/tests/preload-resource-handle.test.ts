@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { BRIDGE_RESOURCE_CHANNEL } from '../src/protocol/channels.js';
-import { ChipsError } from '../src/preload/chips-error.js';
+import { ChipsError } from '@chips/bridge';
 import { SessionPermissionCache } from '../src/preload/permission-cache.js';
 import {
   createResourceHandle,

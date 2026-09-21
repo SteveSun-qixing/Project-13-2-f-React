@@ -14,7 +14,7 @@ import { FrameChannel } from './frame-channel.js';
 import type { IFrameChannelEnvironment } from './frame-channel.js';
 import { FrameHeightController, FrameHeightCache, frameHeightCacheKey } from './frame-height.js';
 import { createRenderError, RENDER_ERROR_CODES } from './codes.js';
-import { ChipsError } from '../preload/chips-error.js';
+import type { ChipsError } from '@chips/bridge';
 import type {
   DesignTokens,
   FrameActionPayload,

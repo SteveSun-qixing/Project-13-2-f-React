@@ -11,7 +11,7 @@
  *   转移端口与令牌），不是 §9.3 端口消息清单成员，子帧校验令牌后即弃。
  */
 
-import type { ChipsError } from '../preload/chips-error.js';
+import type { ChipsError } from '@chips/bridge';
 
 /** 帧协议版本号；协议升级走版本号协商，不允许特性探测式分支。 */
 export const FRAME_PROTOCOL = 'chips-frame/1';

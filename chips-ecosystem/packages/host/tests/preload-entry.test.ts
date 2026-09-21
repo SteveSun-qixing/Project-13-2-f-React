@@ -9,7 +9,8 @@ import {
 } from '../src/shared/card-window-init-surface.js';
 import { HOST_VIEW_CHANNEL_SURFACE_KEY } from '../src/shared/host-view-channel-surface.js';
 import { DOCUMENT_VIEW_REQUEST_CHANNEL, DOCUMENT_VIEW_PROTOCOL } from '../src/renderer/document-view-channel.js';
-import { isChipsError, type IChipsErrorShape } from '../src/preload/chips-error.js';
+import { isChipsError } from '@chips/bridge';
+import type { IChipsError } from '@chips/bridge';
 import type { IResourceHandle } from '../src/preload/resource-handle.js';
 
 const mocks = vi.hoisted(() => ({
@@ -163,7 +164,7 @@ describe('preload 入口', () => {
     };
     const error = await surface.requestInit({}).then(
       () => undefined,
-      (reason: IChipsErrorShape) => reason,
+      (reason: IChipsError) => reason,
     );
     expect(error).toBeDefined();
     expect(isChipsError(error)).toBe(true);
@@ -181,13 +182,13 @@ describe('preload 入口', () => {
  */
 describe('preload 桥面错误归一（工单038）', () => {
   /** 取回归一后的拒绝/抛出值并钉「不得 resolve」；返回捕获值供字段级断言。 */
-  async function captureRejection(promise: Promise<unknown>): Promise<IChipsErrorShape> {
+  async function captureRejection(promise: Promise<unknown>): Promise<IChipsError> {
     const outcome = await promise.then(
       () => ({ resolved: true as const, reason: undefined }),
       (reason: unknown) => ({ resolved: false as const, reason }),
     );
     expect(outcome.resolved, '失败臂必须以拒绝送达，不得 resolve').toBe(false);
-    const error = outcome.reason as IChipsErrorShape;
+    const error = outcome.reason as IChipsError;
     // 结构守卫（《RFC-ChipsError统一裁定》§4.2 条 3：跨界判定唯一权威）必须放行。
     expect(isChipsError(error)).toBe(true);
     // 序列化边界模拟：纯数据形态可结构化克隆且字段逐一保真（工单038 缺陷形态 Error('') 不可）。
@@ -266,7 +267,7 @@ describe('preload 桥面错误归一（工单038）', () => {
       thrown = error;
     }
     expect(thrown, '非法 URI 必须同步抛出').toBeDefined();
-    const error = thrown as IChipsErrorShape;
+    const error = thrown as IChipsError;
     expect(isChipsError(error)).toBe(true);
     expect(error.code).toBe('RESOURCE_UNSUPPORTED_SCHEME');
     expect(error.message.length).toBeGreaterThan(0);

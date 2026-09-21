@@ -28,7 +28,7 @@ import type {
 import { createServiceDocumentGateway, normalizeDocumentFailure } from '../src/renderer/document-gateway.js';
 import type { IRenderDocumentGateway } from '../src/renderer/document-gateway.js';
 import { createDocumentService } from '../src/capabilities/document/service.js';
-import { ChipsError } from '../src/preload/chips-error.js';
+import { ChipsError } from '@chips/bridge';
 import { CARD_ID, SESSION_A, createHarness, portFailure } from './helpers/document-fake-ports.js';
 import type { ICardFrameHostOptions } from '../src/renderer/card-frame-host.js';
 import type { FrameActionPayload, FrameLimits, ICardRenderView } from '../src/renderer/frame-protocol.js';

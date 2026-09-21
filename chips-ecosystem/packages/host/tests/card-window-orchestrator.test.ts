@@ -22,7 +22,7 @@ import { WindowRegistry } from '../src/main/window-registry.js';
 import { createElectronRuntime } from '../src/main/electron-adapter.js';
 import { HostApplication } from '../src/main/application.js';
 import { parseResourceUri } from '../src/protocol/resource-uri.js';
-import { ChipsError } from '../src/preload/chips-error.js';
+import { ChipsError } from '@chips/bridge';
 import type { IResourceBackend } from '../src/runtime/contracts.js';
 import { createFakeElectron, type FakeBrowserWindow } from './helpers/shell-electron.js';
 import { createWireError } from './helpers/wire-error.js';

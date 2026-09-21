@@ -25,7 +25,8 @@ import type {
 } from '../capabilities/document/contract.js';
 import type { IDocumentService } from '../capabilities/document/service.js';
 import { DOCUMENT_BUSINESS_ERROR_CODES, DOCUMENT_PARSER_ERROR_CODES } from '../capabilities/document/errors.js';
-import { ChipsError, toChipsError } from '../preload/chips-error.js';
+import { normalizeError } from '@chips/bridge';
+import type { ChipsError } from '@chips/bridge';
 import { createRenderError, RENDER_ERROR_CODES } from './codes.js';
 
 /** 渲染进程文档网关面（查看态两动作）。 */
@@ -58,7 +59,7 @@ const DOCUMENT_INVALID_CODES: ReadonlySet<string> = new Set<string>([
  * 解析/结构域 → `RENDER_DOCUMENT_INVALID`；权限拒绝 → `RENDER_RESOURCE_DENIED`；其余码原样透传。
  */
 export function normalizeDocumentFailure(error: unknown): ChipsError {
-  const normalized = toChipsError(error);
+  const normalized = normalizeError(error);
   if (normalized.code === 'BRIDGE_PERMISSION_DENIED') {
     return createRenderError({ code: RENDER_ERROR_CODES.resourceDenied, details: { code: normalized.code } });
   }

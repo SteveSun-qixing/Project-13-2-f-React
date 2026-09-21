@@ -18,7 +18,7 @@ import type { Root } from 'react-dom/client';
 
 import { CardRenderer } from '../src/renderer/card-renderer.js';
 import type { IRenderEngine, RenderRequest } from '../src/renderer/render-engine.js';
-import { ChipsError } from '../src/preload/chips-error.js';
+import { ChipsError } from '@chips/bridge';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

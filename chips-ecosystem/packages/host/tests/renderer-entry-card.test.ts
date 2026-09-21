@@ -24,7 +24,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ChipsError } from '../src/preload/chips-error.js';
+import { ChipsError } from '@chips/bridge';
 import { RENDER_ERROR_CODES } from '../src/renderer/codes.js';
 import { PLATFORM_ENTRY_URLS } from '../src/main/window-entries.js';
 import {

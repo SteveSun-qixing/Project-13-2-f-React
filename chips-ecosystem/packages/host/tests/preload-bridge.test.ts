@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { BRIDGE_REQUEST_CHANNEL, SESSION_PERMISSIONS_CHANNEL } from '../src/protocol/channels.js';
 import { createPreloadBridge } from '../src/preload/bridge.js';
-import { ChipsError } from '../src/preload/chips-error.js';
+import { ChipsError } from '@chips/bridge';
 import { FakeTransport } from './helpers/fake-transport.js';
 
 function createBridge(responder?: FakeTransport['responder']): {

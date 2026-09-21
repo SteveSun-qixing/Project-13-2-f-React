@@ -39,14 +39,13 @@
  *   在途队列自然收敛（更新落到已 disposed 会话时由会话层守卫拒绝，不产生半更新态）。
  */
 
-import { BRIDGE_ERROR_CODES, createBridgeError } from '@chips/bridge';
+import { BRIDGE_ERROR_CODES, createBridgeError, normalizeError } from '@chips/bridge';
 
 import { DOCUMENT_CAPABILITY_IDS, DOCUMENT_EVENT_IDS } from '../capabilities/document/contract.js';
 import type { DocumentKind, IDocumentWriteInput, IDocumentWriteOutput } from '../capabilities/document/contract.js';
 import { normalizeDocumentFailure } from './document-gateway.js';
 import type { IChipsRequestFacade } from './document-gateway.js';
 import { createRenderError, RENDER_ERROR_CODES } from './codes.js';
-import { toChipsError } from '../preload/chips-error.js';
 import type { IDocumentViewBuilder, IRenderSession } from './render-engine.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 
@@ -262,7 +261,7 @@ export function createDocumentReflowCoordinator(bindings: IDocumentReflowBinding
   };
 }
 
-/** 提取错误摘要（诊断用，不含敏感内容；唯一类还原后取在册码，与渲染面既有口径同形）。 */
+/** 提取错误摘要（诊断用，不含敏感内容；唯一类还原后经 bridge `normalizeError` 取在册码，与渲染面既有口径同形）。 */
 function describeError(error: unknown): string {
-  return toChipsError(error).code;
+  return normalizeError(error).code;
 }

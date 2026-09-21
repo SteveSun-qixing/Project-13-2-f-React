@@ -16,7 +16,7 @@ import {
   createFrameEnvelope,
 } from '../src/renderer/frame-protocol.js';
 import type { FrameInitPayload, IFrameHandshakeTransfer } from '../src/renderer/frame-protocol.js';
-import type { ChipsError } from '../src/preload/chips-error.js';
+import type { ChipsError } from '@chips/bridge';
 import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 
 /** 内存端口对替身：捕获父帧发出的消息，测试以子帧身份注入入站消息。 */
