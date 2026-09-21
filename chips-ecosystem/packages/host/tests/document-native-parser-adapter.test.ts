@@ -39,7 +39,10 @@ import {
 } from '../src/capabilities/document/adapters/native-parser-module.js';
 import { createDocumentService } from '../src/capabilities/document/service.js';
 import type { IDocumentHandle } from '../src/capabilities/document/ports.js';
-import type { INativeDocumentHandle, INativeDocumentParserModule } from '../src/capabilities/document/adapters/native-parser-module.js';
+import type {
+  INativeDocumentHandle,
+  INativeDocumentParserModule,
+} from '../src/capabilities/document/adapters/native-parser-module.js';
 import {
   BOX_ID,
   CARD_ID,
@@ -103,7 +106,8 @@ interface IFakeDocument {
 }
 
 interface IFakeNativeOptions {
-  readonly failures: Record<string, unknown>;
+  /** 失败注入面板：backing 抛出的 §12.2 同构错误一律为 `Error` 实例（`bindingError` / `new Error`）。 */
+  readonly failures: Record<string, Error>;
   readonly overrides: Record<string, unknown>;
   readonly hooks: Record<string, () => void>;
 }
@@ -120,9 +124,10 @@ interface IFakeNative {
 function bindingError(
   code: string,
   message: string,
-  extra: { readonly details?: unknown; readonly retryable?: boolean } = {}
+  extra: { readonly details?: unknown; readonly retryable?: boolean } = {},
 ): Error {
-  return Object.assign(new Error(message), {
+  // 显式泛型：内联字面量含 `unknown ?? 默认值` 联合成员时 `Object.assign` 会落入 any 重载。
+  return Object.assign<Error, { code: string; details: unknown; retryable: boolean }>(new Error(message), {
     code,
     details: extra.details ?? { origin: 'chips-parser' },
     retryable: extra.retryable ?? false,
@@ -263,7 +268,11 @@ function createFakeNative(docs: Map<string, IFakeDocument>): IFakeNative {
       });
     },
     documentReadResource(handle, path, range) {
-      return dispatch('documentReadResource', [handle, path, ...(range === undefined ? [] : [range])], () => new Uint8Array(0));
+      return dispatch(
+        'documentReadResource',
+        [handle, path, ...(range === undefined ? [] : [range])],
+        () => new Uint8Array(0),
+      );
     },
     documentValidate(handle) {
       return dispatch('documentValidate', [handle], () => {
@@ -354,7 +363,7 @@ function adapterFixture(): {
     new Map([
       [cardPath, cardDocument()],
       [boxPath, boxDocument()],
-    ])
+    ]),
   );
   return { fake, port: createNativeDocumentParserPort(fake.module), cardPath, boxPath };
 }
@@ -369,14 +378,15 @@ function freshSignal(): AbortSignal {
 
 describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 清单 ↔ .d.ts', () => {
   const frozenDoc = readWorkspaceSource(
-    '../../../../薯片生态文档库/05-接口与契约/03.06-03-核心接口规范-六、文档解析入口（chips-parser）.md'
+    '../../../../薯片生态文档库/05-接口与契约/03.06-03-核心接口规范-六、文档解析入口（chips-parser）.md',
   );
   const parserDoc = readWorkspaceSource(
-    '../../../../薯片生态文档库/01-架构设计/01-子系统设计/06.12-06-文档解析器设计-十二、Neon 暴露.md'
+    '../../../../薯片生态文档库/01-架构设计/01-子系统设计/06.12-06-文档解析器设计-十二、Neon 暴露.md',
   );
-  const manifest = JSON.parse(
-    readWorkspaceSource('../../native/abi/export-surface.json')
-  ) as { abiVersion: number; exports: { name: string }[] };
+  const manifest = JSON.parse(readWorkspaceSource('../../native/abi/export-surface.json')) as {
+    abiVersion: number;
+    exports: { name: string }[];
+  };
   const declaration = readWorkspaceSource('../../native/types/chips-native.d.ts');
 
   it('§6.4 表原文 15 行导出名与适配器解析域全集面常量逐项一致（面漂移即翻红）', () => {
@@ -391,14 +401,11 @@ describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 
   });
 
   it('工单034 正式化名清单与注入面声明一致（documentRevision / documentLayoutConfig）', () => {
-    expect(NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS).toEqual([
-      'documentRevision',
-      'documentLayoutConfig',
-    ]);
+    expect(NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS).toEqual(['documentRevision', 'documentLayoutConfig']);
     expect(NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS.length).toBe(
       NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS.length +
         NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS.length +
-        2 /* 元信息两项 */
+        2 /* 元信息两项 */,
     );
   });
 
@@ -497,7 +504,7 @@ describe('刀2装载闸：loadNativeDocumentParserBinding（fail-closed 四分�
 
   it('defaultNativeDocumentParserModulePath 与 Bridge 域同落位口径（上溯两级进 native/）', () => {
     expect(defaultNativeDocumentParserModulePath(join('/app', 'dist', 'renderer'))).toBe(
-      resolve('/app', 'native', 'chips-native.node')
+      resolve('/app', 'native', 'chips-native.node'),
     );
   });
 });
@@ -545,9 +552,7 @@ describe('刀2适配器 open：严格 kind / 自动识别逐导出映射（§6.4
     const { fake, port, cardPath } = adapterFixture();
     const controller = new AbortController();
     controller.abort();
-    const error = await rejectAsChipsError(
-      port.open({ localPath: cardPath, kind: 'card', signal: controller.signal })
-    );
+    const error = await rejectAsChipsError(port.open({ localPath: cardPath, kind: 'card', signal: controller.signal }));
     expect(error.code).toBe('DOCUMENT_PARSE_CANCELLED');
     expect(error.retryable).toBe(true);
     expect(fake.calls).toEqual([]);
@@ -559,9 +564,7 @@ describe('刀2适配器 open：严格 kind / 自动识别逐导出映射（§6.4
     fake.options.hooks.openCard = () => {
       controller.abort();
     };
-    const error = await rejectAsChipsError(
-      port.open({ localPath: cardPath, kind: 'card', signal: controller.signal })
-    );
+    const error = await rejectAsChipsError(port.open({ localPath: cardPath, kind: 'card', signal: controller.signal }));
     expect(error.code).toBe('DOCUMENT_PARSE_CANCELLED');
     expect(fake.calls.map((call) => call.fn)).toEqual(['openCard', 'documentClose']);
     expect(fake.closeCountOf(cardPath)).toBe(1);
@@ -573,9 +576,7 @@ describe('刀2适配器 open：严格 kind / 自动识别逐导出映射（§6.4
       details: { path: cardPath },
       retryable: true,
     });
-    const error = await rejectAsChipsError(
-      port.open({ localPath: cardPath, kind: 'card', signal: freshSignal() })
-    );
+    const error = await rejectAsChipsError(port.open({ localPath: cardPath, kind: 'card', signal: freshSignal() }));
     expect(error.code).toBe('DOCUMENT_IO');
     expect(error.retryable).toBe(true);
     expect(error.details).toEqual({ path: cardPath });
@@ -595,9 +596,7 @@ describe('刀2适配器 open：严格 kind / 自动识别逐导出映射（§6.4
   it('元数据缺稳定标识：DOCUMENT_METADATA_INVALID 且回收句柄', async () => {
     const { fake, port, cardPath } = adapterFixture();
     fake.docs.get(cardPath)!.metadata = { name: '无标识卡片' };
-    const error = await rejectAsChipsError(
-      port.open({ localPath: cardPath, kind: 'card', signal: freshSignal() })
-    );
+    const error = await rejectAsChipsError(port.open({ localPath: cardPath, kind: 'card', signal: freshSignal() }));
     expect(error.code).toBe('DOCUMENT_METADATA_INVALID');
     expect(error.retryable).toBe(false);
     expect(fake.calls.map((call) => call.fn)).toEqual([
@@ -611,9 +610,7 @@ describe('刀2适配器 open：严格 kind / 自动识别逐导出映射（§6.4
   it('信封形状违约：BRIDGE_INTERNAL 且 details 点名导出与原因（含句柄回收）', async () => {
     const { fake, port, cardPath } = adapterFixture();
     fake.options.overrides.documentMetadata = { kind: 'scroll', value: {}, diagnostics: [] };
-    const error = await rejectAsChipsError(
-      port.open({ localPath: cardPath, kind: 'card', signal: freshSignal() })
-    );
+    const error = await rejectAsChipsError(port.open({ localPath: cardPath, kind: 'card', signal: freshSignal() }));
     expect(error.code).toBe('BRIDGE_INTERNAL');
     expect(error.details).toEqual({ export: 'documentMetadata', reason: '信封 kind 判别字段非法' });
     expect(fake.closeCountOf(cardPath)).toBe(1);
@@ -626,9 +623,7 @@ describe('刀2适配器 open：严格 kind / 自动识别逐导出映射（§6.4
       chipStandardsVersion: '1.0.0',
       indexDigest: 'sha256:index',
     };
-    const error = await rejectAsChipsError(
-      port.open({ localPath: cardPath, kind: 'card', signal: freshSignal() })
-    );
+    const error = await rejectAsChipsError(port.open({ localPath: cardPath, kind: 'card', signal: freshSignal() }));
     expect(error.code).toBe('BRIDGE_INTERNAL');
     expect((error.details as Record<string, unknown>).reason).toBe('成员缺少修改时间');
     expect(fake.closeCountOf(cardPath)).toBe(1);
@@ -636,7 +631,12 @@ describe('刀2适配器 open：严格 kind / 自动识别逐导出映射（§6.4
 });
 
 describe('刀2适配器 readPart / release / fingerprint：四臂逐导出映射锁', () => {
-  async function openedCard(): Promise<{ fake: IFakeNative; port: ReturnType<typeof createNativeDocumentParserPort>; handle: IDocumentHandle; cardPath: string }> {
+  async function openedCard(): Promise<{
+    fake: IFakeNative;
+    port: ReturnType<typeof createNativeDocumentParserPort>;
+    handle: IDocumentHandle;
+    cardPath: string;
+  }> {
     const fixture = adapterFixture();
     const outcome = await fixture.port.open({
       localPath: fixture.cardPath,
@@ -687,11 +687,7 @@ describe('刀2适配器 readPart / release / fingerprint：四臂逐导出映射
     const { fake, port, boxPath } = adapterFixture();
     const box = await port.open({ localPath: boxPath, kind: 'box', signal: freshSignal() });
     fake.calls.length = 0;
-    const paged = await port.readPart(
-      box.handle,
-      { part: 'entries', range: { offset: 1, limit: 1 } },
-      freshSignal()
-    );
+    const paged = await port.readPart(box.handle, { part: 'entries', range: { offset: 1, limit: 1 } }, freshSignal());
     expect(paged.value).toEqual(boxDocument().entries.slice(1, 2));
     const all = await port.readPart(box.handle, { part: 'entries' }, freshSignal());
     expect(all.value).toEqual(boxDocument().entries);
@@ -782,8 +778,8 @@ describe('刀2适配器 serialize：刀6 裁决下的诚实失败（逐码断言
           changedParts: ['metadata'],
           removedNodeIds: [],
         },
-        freshSignal()
-      )
+        freshSignal(),
+      ),
     );
     expect(error.code).toBe('BRIDGE_CAPABILITY_NOT_FOUND');
     expect(error.retryable).toBe(false);
@@ -810,7 +806,7 @@ describe('刀2真实链路：document:* 服务经适配器跑通', () => {
       new Map([
         [harness.cardPath, cardDocument()],
         [harness.boxPath, boxDocument()],
-      ])
+      ]),
     );
     const service = createDocumentService({
       ...harness.dependencies,
@@ -835,21 +831,18 @@ describe('刀2真实链路：document:* 服务经适配器跑通', () => {
           modifiedAtMs: member.modifiedMillis ?? 0,
           crc32: member.crc32,
         })),
-      })
+      }),
     );
   });
 
   it('executeRead：structure / content(nodeId) 经端口映射，box content 走 documentLayoutConfig 布局臂', async () => {
     const { fake, harness, service } = serviceFixture();
     await service.executeOpen({ source: harness.cardUri }, ctxFor(SESSION_A));
-    const structure = await service.executeRead(
-      { documentId: CARD_ID, part: 'structure' },
-      ctxFor(SESSION_A)
-    );
+    const structure = await service.executeRead({ documentId: CARD_ID, part: 'structure' }, ctxFor(SESSION_A));
     expect(structure.value).toEqual(cardStructure());
     const content = await service.executeRead(
       { documentId: CARD_ID, part: 'content', nodeId: NODE_ID_ONE },
-      ctxFor(SESSION_A)
+      ctxFor(SESSION_A),
     );
     expect(content.value).toEqual({ node_id: NODE_ID_ONE, card_type: 'text', value: { text: '第一块内容' } });
 
@@ -858,7 +851,7 @@ describe('刀2真实链路：document:* 服务经适配器跑通', () => {
     // documentEntries 的逐字映射由 C 组适配器直连用例锁定。
     const entries = await service.executeRead(
       { documentId: BOX_ID, part: 'entries', range: { offset: 0, limit: 1 } },
-      ctxFor(SESSION_A)
+      ctxFor(SESSION_A),
     );
     expect(entries.value).toEqual(boxDocument().entries.slice(0, 1));
     expect(fake.calls.some((call) => call.fn === 'documentEntries')).toBe(false);
@@ -874,7 +867,7 @@ describe('刀2真实链路：document:* 服务经适配器跑通', () => {
     fake.calls.length = 0;
     const output = await service.executeWrite(
       { documentId: CARD_ID, part: 'metadata', value: cardMetadata('改名卡片') },
-      ctxFor(SESSION_A)
+      ctxFor(SESSION_A),
     );
     expect(output.revision).toBe(1);
     expect(fake.calls.map((call) => call.fn)).toEqual(['openDocument', 'documentRevision', 'documentClose']);
@@ -901,7 +894,7 @@ describe('刀2真实链路：document:* 服务经适配器跑通', () => {
     await service.executeOpen({ source: harness.cardUri }, ctxFor(SESSION_A));
     await service.executeWrite(
       { documentId: CARD_ID, part: 'metadata', value: cardMetadata('待保存') },
-      ctxFor(SESSION_A)
+      ctxFor(SESSION_A),
     );
     const error = await service
       .executeSave({ documentId: CARD_ID }, ctxFor(SESSION_A))

@@ -64,7 +64,11 @@ function baseView(): Record<string, unknown> {
     cover: { entry: '.card/cover.html', ratio: '3:4' },
     content_nodes: [
       { node_id: NODE_ID_ONE, card_type: 'base.image', content: { src: 'image.jpg', alt: null, zoom: 1.5 } },
-      { node_id: NODE_ID_TWO, card_type: 'base.richtext', content: { md: 'richtext/a.md', blocks: [{ type: 'p', text: '正文' }] } },
+      {
+        node_id: NODE_ID_TWO,
+        card_type: 'base.richtext',
+        content: { md: 'richtext/a.md', blocks: [{ type: 'p', text: '正文' }] },
+      },
     ],
   };
 }
@@ -73,9 +77,10 @@ function baseView(): Record<string, unknown> {
 function bindingError(
   code: string,
   message: string,
-  extra: { readonly details?: unknown; readonly retryable?: boolean } = {}
+  extra: { readonly details?: unknown; readonly retryable?: boolean } = {},
 ): Error {
-  return Object.assign(new Error(message), {
+  // 显式泛型：内联字面量含 `unknown ?? 默认值` 联合成员时 `Object.assign` 会落入 any 重载。
+  return Object.assign<Error, { code: string; details: unknown; retryable: boolean }>(new Error(message), {
     code,
     details: extra.details ?? { origin: 'chips-parser' },
     retryable: extra.retryable ?? false,
@@ -100,7 +105,8 @@ function createFakeNativeViewModule(): IFakeNativeTrack {
     }
     const failure = panel.failure[fn];
     if (failure !== undefined) {
-      throw failure;
+      // 注入值即被测还原对象（含「非 Error 实例」的结构化对象臂）：仅类型形变，运行期原样抛出。
+      throw failure as Error;
     }
     return Promise.resolve(produce());
   }
@@ -113,7 +119,7 @@ function createFakeNativeViewModule(): IFakeNativeTrack {
       return dispatch(
         'documentReadResource',
         [handleArg, path, ...(range === undefined ? [] : [range])],
-        () => panel.resource
+        () => panel.resource,
       );
     },
   };
@@ -143,7 +149,7 @@ interface IBuilderFixture {
   readonly native: IFakeNativeTrack;
   readonly sessionCalls: IDocumentViewBuildInput[];
   setBinding(binding: Partial<IDocumentViewSessionBinding> | null): void;
-  failResolver(error: unknown): void;
+  failResolver(error: Error): void;
 }
 
 /** 会话绑定基线（测试侧替身解析入口；生产由刀4 组合根绑定文档服务）。 */
@@ -156,7 +162,7 @@ function createBuilderFixture(): IBuilderFixture {
   const native = createFakeNativeViewModule();
   const sessionCalls: IDocumentViewBuildInput[] = [];
   let binding: IDocumentViewSessionBinding | null = defaultBinding(native.handle);
-  let resolverFailure: unknown;
+  let resolverFailure: Error | undefined;
   const builder = createDocumentViewBuilder({
     native: native.module,
     resolveSession: (input) => {
@@ -217,14 +223,26 @@ describe('正向：卡片视图构建（§6.6 / §2.6）', () => {
       cover: { entry: '.card/cover.html', ratio: '3:4' },
       content_nodes: [
         { node_id: NODE_ID_ONE, card_type: 'base.image', content: { src: 'image.jpg', alt: null, zoom: 1.5 } },
-        { node_id: NODE_ID_TWO, card_type: 'base.richtext', content: { md: 'richtext/a.md', blocks: [{ type: 'p', text: '正文' }] } },
+        {
+          node_id: NODE_ID_TWO,
+          card_type: 'base.richtext',
+          content: { md: 'richtext/a.md', blocks: [{ type: 'p', text: '正文' }] },
+        },
       ],
     } as const;
     const view = await fixture.builder.buildView(CARD_INPUT);
     expect(view).toStrictEqual(expected);
-    expect(Object.keys(view).sort()).toStrictEqual(
-      ['card_id', 'chip_standards_version', 'content_nodes', 'cover', 'cover_ratio', 'kind', 'name', 'revision', 'tags']
-    );
+    expect(Object.keys(view).sort()).toStrictEqual([
+      'card_id',
+      'chip_standards_version',
+      'content_nodes',
+      'cover',
+      'cover_ratio',
+      'kind',
+      'name',
+      'revision',
+      'tags',
+    ]);
     // 可结构化克隆（§6.6 规则 3）：克隆往返与本体逐字段一致。
     expect(structuredClone(view)).toStrictEqual(view);
     // 逐调用把句柄与数值会话按 §6.4 位次交 backing。
@@ -280,7 +298,7 @@ describe('负向：输入与会话闸', () => {
     const fixture = createBuilderFixture();
     await expectChipsError(
       fixture.builder.buildView({ source: CARD_INPUT.source, documentId: 'Zz9Yy8Xx7W', kind: 'box' }),
-      'BRIDGE_INVALID_INPUT'
+      'BRIDGE_INVALID_INPUT',
     );
     expect(fixture.native.calls).toHaveLength(0);
   });
@@ -349,24 +367,61 @@ describe('负向：backing 错误还原与视图守门', () => {
 
   it('视图形状违约逐面拒绝：缺字段 / 多字段 / 非法 revision / 节点键集漂移 / cover 键集漂移', async () => {
     const mutations: readonly { readonly name: string; readonly mutate: (view: Record<string, unknown>) => void }[] = [
-      { name: '缺 card_id', mutate: (view) => { delete view['card_id']; } },
-      { name: '多未知字段', mutate: (view) => { view['extra'] = 1; } },
-      { name: 'revision 非整数', mutate: (view) => { view['revision'] = 1.5; } },
-      { name: 'revision 超安全整数（u64 越界）', mutate: (view) => { view['revision'] = 2 ** 53; } },
-      { name: '节点多出未知键', mutate: (view) => { (view['content_nodes'] as Record<string, unknown>[])[0]!['drift'] = true; } },
-      { name: 'cover 缺 ratio', mutate: (view) => { delete (view['cover'] as Record<string, unknown>)['ratio']; } },
-      { name: 'tags 成员非法', mutate: (view) => { view['tags'] = [{ bad: 1 }]; } },
-      { name: 'name 非字符串', mutate: (view) => { view['name'] = 42; } },
+      {
+        name: '缺 card_id',
+        mutate: (view) => {
+          delete view['card_id'];
+        },
+      },
+      {
+        name: '多未知字段',
+        mutate: (view) => {
+          view['extra'] = 1;
+        },
+      },
+      {
+        name: 'revision 非整数',
+        mutate: (view) => {
+          view['revision'] = 1.5;
+        },
+      },
+      {
+        name: 'revision 超安全整数（u64 越界）',
+        mutate: (view) => {
+          view['revision'] = 2 ** 53;
+        },
+      },
+      {
+        name: '节点多出未知键',
+        mutate: (view) => {
+          (view['content_nodes'] as Record<string, unknown>[])[0]!['drift'] = true;
+        },
+      },
+      {
+        name: 'cover 缺 ratio',
+        mutate: (view) => {
+          delete (view['cover'] as Record<string, unknown>)['ratio'];
+        },
+      },
+      {
+        name: 'tags 成员非法',
+        mutate: (view) => {
+          view['tags'] = [{ bad: 1 }];
+        },
+      },
+      {
+        name: 'name 非字符串',
+        mutate: (view) => {
+          view['name'] = 42;
+        },
+      },
     ];
     for (const mutation of mutations) {
       const fixture = createBuilderFixture();
       const view = baseView();
       mutation.mutate(view);
       fixture.native.setView(view);
-      const error = await expectChipsError(
-        fixture.builder.buildView(CARD_INPUT),
-        'BRIDGE_INTERNAL'
-      );
+      const error = await expectChipsError(fixture.builder.buildView(CARD_INPUT), 'BRIDGE_INTERNAL');
       expect(error.details, mutation.name).toMatchObject({ source: 'buildDocumentView' });
     }
   });
@@ -396,11 +451,11 @@ describe('负向：资源臂 URI 与作用域闸', () => {
     const fixture = createBuilderFixture();
     await expectChipsError(
       fixture.builder.readResource({ ...CARD_INPUT, reference: 'chips-resource://box-2c91/.box/cover.html' }),
-      'RESOURCE_CROSS_SCOPE'
+      'RESOURCE_CROSS_SCOPE',
     );
     await expectChipsError(
       fixture.builder.readResource({ ...CARD_INPUT, reference: 'chips-resource://external/https/example.com/a.png' }),
-      'RESOURCE_NOT_SUPPORTED'
+      'RESOURCE_NOT_SUPPORTED',
     );
     expect(fixture.native.calls).toHaveLength(0);
   });
@@ -409,19 +464,19 @@ describe('负向：资源臂 URI 与作用域闸', () => {
     const fixture = createBuilderFixture();
     await expectChipsError(
       fixture.builder.readResource({ ...CARD_INPUT, reference: 'chips-resource://card-7f3a/../../etc/passwd' }),
-      'RESOURCE_PATH_INVALID'
+      'RESOURCE_PATH_INVALID',
     );
     await expectChipsError(
       fixture.builder.readResource({ ...CARD_INPUT, reference: 'content/../secret.yaml' }),
-      'RESOURCE_PATH_INVALID'
+      'RESOURCE_PATH_INVALID',
     );
     await expectChipsError(
       fixture.builder.readResource({ ...CARD_INPUT, reference: 'chips-resource://card-7f3a' }),
-      'RESOURCE_PATH_INVALID'
+      'RESOURCE_PATH_INVALID',
     );
     const invalidUri = await expectChipsError(
       fixture.builder.readResource({ ...CARD_INPUT, reference: 'CHIPS-RESOURCE://card-7f3a/%ZZ.png' }),
-      'RESOURCE_INVALID_URI'
+      'RESOURCE_INVALID_URI',
     );
     expect(invalidUri.details).toMatchObject({ reason: 'invalid_encoding' });
     expect(fixture.native.calls).toHaveLength(0);
@@ -431,10 +486,13 @@ describe('负向：资源臂 URI 与作用域闸', () => {
     const fixture = createBuilderFixture();
     await expectChipsError(
       fixture.builder.readResource({ ...CARD_INPUT, reference: 'video.mp4', range: { offset: -1, length: 10 } }),
-      'BRIDGE_INVALID_INPUT'
+      'BRIDGE_INVALID_INPUT',
     );
     fixture.native.failWith('documentReadResource', bindingError('RESOURCE_NOT_FOUND', '包内成员不存在'));
-    await expectChipsError(fixture.builder.readResource({ ...CARD_INPUT, reference: 'gone.png' }), 'RESOURCE_NOT_FOUND');
+    await expectChipsError(
+      fixture.builder.readResource({ ...CARD_INPUT, reference: 'gone.png' }),
+      'RESOURCE_NOT_FOUND',
+    );
   });
 
   it('backing 读资源返回非字节以 BRIDGE_INTERNAL 违约拒绝', async () => {
@@ -455,12 +513,18 @@ describe('负向：注入面缺导出 fail-closed（刀2 装载闸同范式）',
     const native = createFakeNativeViewModule();
 
     const missingRead = { ...native.module, documentReadResource: undefined } as unknown as INativeDocumentViewModule;
-    let error = createBuilderError({ native: missingRead, resolveSession: () => Promise.resolve(defaultBinding(native.handle)) });
+    let error = createBuilderError({
+      native: missingRead,
+      resolveSession: () => Promise.resolve(defaultBinding(native.handle)),
+    });
     expect(error.code).toBe('BRIDGE_INTERNAL');
     expect(error.details).toStrictEqual({ export: 'documentReadResource' });
 
     const missingBuild = { ...native.module, buildDocumentView: undefined } as unknown as INativeDocumentViewModule;
-    error = createBuilderError({ native: missingBuild, resolveSession: () => Promise.resolve(defaultBinding(native.handle)) });
+    error = createBuilderError({
+      native: missingBuild,
+      resolveSession: () => Promise.resolve(defaultBinding(native.handle)),
+    });
     expect(error.details).toStrictEqual({ export: 'buildDocumentView' });
 
     error = createBuilderError({ native: native.module, resolveSession: undefined as never });
