@@ -55,3 +55,8 @@ target/
 # SQLite WAL/SHM 临时文件不入库
 *.db-shm
 *.db-wal
+
+# 永不入库红线目录显式条目（W3-P1-3 勘查稿 #137 §3.3④ / 第七节裁定④，锚定目录写法；
+# preflight NEVER-INGEST-IGNORE 断言④的核对对象）
+cordis-main/
+deepseek-harness-master/

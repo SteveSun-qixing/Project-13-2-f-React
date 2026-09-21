@@ -44,15 +44,37 @@
   python3 重构大计划/工具/重构台账.py symbol-sweep --owner sweep-host-expand [--repo R]
       # 本 owner 已认领的“继承类”符号批量镜像文件裁决落库；默认 dry-run，--write 才落库；展开类一律拒绝并计数报告
 
+迁移波三段生命周期通道（W3-P1-3 波1：勘查稿 #137 第七节裁定「方案 C：三独立只读通道+回执即闸，
+set-status 为唯一新增最小写通道」；W4 逐仓准出=preflight+closure 该仓 0 红，W7 终验=全库 closure --strict 0 红+回执归档）：
+  python3 重构台账.py preflight --repo Chips-BaseCardPlugin[,Chips-Ui] [--json] [--receipt /tmp/r.json]
+      # 迁移前核对（只读库+只读磁盘）：双零前置/源仓快照漂移/target 归一化/02 映射一致性
+      # （常量↔02 表自检，两处分叉即红）/两红线机检（凭据三段断言+永不入库四断言）/verify 同源判据仓级切片；
+      # 红项退出码 3，--json 出机读回执、--receipt 落回执文件（人审闭环载体）
+  python3 重构台账.py migrate-manifest --repo Chips-BaseCardPlugin [--out DIR] [--check-dest]
+      # 迁移中执行清单（只读库、可写清单文件）：按仓导出 迁移+重写 files 行+展开符号计数，
+      # 经归一化产 canonical 落点，出 TSV/JSON/by-zone 分组；头部嵌行数=DB 命中自检行；
+      # --check-dest 做同名/多源同目标冲突预检（server/ 未建落点降 WARN）
+  python3 重构台账.py closure [--repo R] [--matrix GLOB] [--json] [--strict]
+      # 迁移后闭环校验+矩阵闭合闸（只读）：(a)落点实落（含符号锚段，重写行点名任务豁免）
+      # (b)矩阵 §一 计数勾稽+证据路径存在性 (c)残留扫描（凭据/废弃归档同名/未在册顶层目录）
+      # (d)--strict 下迁移/重写未到已验证计红；双零残留终口径=待评估0+幻想target0+残留0
+  python3 重构台账.py set-status --owner exec-wave-x --id-file /tmp/ids.txt --status 已验证 --evidence "包级测试通过"
+      # 执行波回写的唯一最小写通道：仅 owner 原路回写 status（进行中/已完成/已验证）与 notes 追加，
+      # 禁碰 disposition/target；命中行含任何非本 owner 行即越权整批拒绝（零写入、退出码 5）
+
 退出码：0 成功；2 参数错误；3 verify 发现异常；4 数据库锁定重试失败；5 无匹配行 / 越权 / 安全闸口拒绝。
 过程留痕：所有写操作追加记录到 `重构大计划/台账操作.log`。
 """
 
 import argparse
+import glob
 import hashlib
+import json
 import os
 import re
+import shutil
 import sqlite3
+import subprocess
 import sys
 import time
 
@@ -158,6 +180,66 @@ EXIT_NOOP = 5
 
 LOCK_RETRY_ATTEMPTS = 8
 LOCK_RETRY_BASE_DELAY = 0.25
+
+# ---- 迁移波三段生命周期工具常量（W3-P1-3 波1 落地，勘查稿 #137 第七节裁定「方案 C：独立通道+回执即闸」）----
+
+#: 消灭流程步骤 [5][6] 执行波回写的合法状态（`set-status` 唯一写通道的作用域；
+#: 与 dispose-batch 的 DISPOSE_STATUSES 同源但不含「已裁决」——回写通道只推进执行态，不回退裁决态）
+SET_STATUS_VALUES = ("进行中", "已完成", "已验证")
+
+#: 《02-仓库映射与新工作区》§一「新归属」列的机读镜像（权威在 02 文档，本常量为其仓级投影）：
+#: repo_id → 允许的 canonical target 前缀集。canonical 均已展开为 `chips-ecosystem/…` 形态；
+#: 家族通配（`plugins/apps/*` 等）归一到其目录前缀；W6 服务端 `server/…` 归到 `chips-ecosystem/server/…`。
+#: 资产/素材仓（design-assets、scripts、打包、OpenSource、Product）与 doclib 不在 02 §一，故不入本表——
+#: 映射一致性检查对其落 WARN（02 未登记，非矛盾）。`map_prefixes_self_check()` 断言本表与 02 §一 零分叉。
+REPO_TARGET_PREFIXES = {
+    "Chips-Host": ("chips-ecosystem/packages/host", "chips-ecosystem/packages/core-rust", "chips-ecosystem/packages/native"),
+    "Chips-SDK": ("chips-ecosystem/packages/sdk",),
+    "Chips-Ui": ("chips-ecosystem/packages/ui", "chips-ecosystem/packages/antd"),
+    "Chips-Scaffold": ("chips-ecosystem/tools/scaffold",),
+    "Chips-EditingEngine": ("chips-ecosystem/plugins/apps/editor",),
+    "Chips-Notes": ("chips-ecosystem/plugins/apps/notes",),
+    "Chips-Office": ("chips-ecosystem/plugins/apps/office",),
+    "Chips-MusicPlayer": ("chips-ecosystem/plugins/apps",),
+    "Chips-VideoPlayer": ("chips-ecosystem/plugins/apps",),
+    "Chips-BookReader": ("chips-ecosystem/plugins/apps",),
+    "Chips-PhotoViewer": ("chips-ecosystem/plugins/apps",),
+    "Chips-RichTextEditor": ("chips-ecosystem/plugins/apps",),
+    "Chips-UniversalFileViewer": ("chips-ecosystem/plugins/apps",),
+    "Chips-CardViewer": ("chips-ecosystem/plugins/apps/viewer",),
+    "Chips-EcoSettingsPanel": ("chips-ecosystem/plugins/apps/settings",),
+    "Chip-iconMaker": ("chips-ecosystem/plugins/apps/icon-maker",),
+    "Chips-CommunityClient": ("chips-ecosystem/plugins/apps/community-client",),
+    "Chips-BaseCardPlugin": ("chips-ecosystem/plugins/basecards",),
+    "Chips-BoxLayoutPlugin": ("chips-ecosystem/plugins/layouts",),
+    "Chips-ModulePlugin": ("chips-ecosystem/plugins/services",),
+    "Chips-CommunityPlatformServer": ("chips-ecosystem/server/community",),
+    "Chips-PersonalServer": ("chips-ecosystem/server/personal",),
+}
+#: 任意仓都可能合法的说明性/文档落点前缀（重写/保留设计指向权威文档库或台账产物），映射一致性对其放行
+MAP_UNIVERSAL_PREFIXES = ("薯片生态文档库/", "重构大计划/")
+
+#: 凭据模式集（勘查稿 §3.3 凭据红线）：命中即要求 disposition∈(废弃,归档) 且禁落新仓。
+#: 仅匹配 basename，`.env.example`/`.envrc` 命名面显式排除（示例/环境脚本非真值凭据）。
+CRED_EXACT_BASENAMES = (".env",)
+CRED_SUFFIX_BASENAMES = (".pem", ".key")
+CRED_PREFIX_BASENAMES = ("id_rsa",)
+CRED_DOTTED_PREFIXES = ("secrets.",)
+CRED_NAME_EXCLUSIONS = (".env.example", ".envrc")
+
+#: 永不入库红线（勘查稿 §3.3）：两目录名在台账/git/manifest 三面的四段断言对象
+NEVER_INGEST_DIRS = ("cordis-main", "deepseek-harness-master")
+#: 断言④：根 .gitignore 显式条目（锚定目录写法），缺失即降 WARN（本轮已由波1 落地两行）
+NEVER_INGEST_IGNORE_ENTRIES = ("cordis-main/", "deepseek-harness-master/")
+
+#: 覆盖式落点存在性豁免写法（与 TARGET_ALLOW_VIRTUAL 同义，closure 复用）
+_MAP_TARGET_VIRTUAL = TARGET_ALLOW_VIRTUAL
+
+#: 覆盖矩阵 §一 计数表可勾稽的裁决列名 → DB disposition 值（按表头列名动态映射，不假设列序）
+MATRIX_DISPOSITION_COLS = {
+    "废弃": "废弃", "重写": "重写", "迁移": "迁移",
+    "保留设计": "保留设计", "归档": "归档",
+}
 
 
 def now():
@@ -1485,6 +1567,765 @@ def report(repo_id):
     conn.close()
 
 
+# ============================================================================
+# 迁移波三段生命周期工具：preflight / migrate-manifest / closure / set-status
+# 勘查稿 #137 第七节裁定「方案 C：独立通道+回执即闸」落地；三只读 + 一最小写；
+# 真库只读纪律：preflight/migrate-manifest/closure 一律 connect()（不写库、不落 --write）。
+# ============================================================================
+
+_PAREN_RE = re.compile(r"（[^（）]*）|\([^()]*\)")
+
+
+def normalize_target(raw):
+    """target 归一化文法（勘查稿 §3.1 通道① / 第七节裁定 3）。
+
+    返回 (canonical, anchor, kind)：kind ∈
+      "path"（canonical 为归一路径）/ "virtual"（只读参考/不搬运/就近归档等合法不落盘写法）/
+      "empty"（空 target，如废弃/归档）/ "unparsed"（解析失败，交人工裁）。
+    文法（依序）：剥 `#锚点` 尾段 → 剥「计划归属：/计划归属:」前缀 → 剥波次前缀 `W\\d+ ` →
+      去全/半角括注 `（…）`/`(…)` → 截「；/。」句读 → 取首个空白分隔 token 为路径主体 →
+      W6 别名 `server/…`→`chips-ecosystem/server/…` → 通配 `*`/`?` 归到其目录前缀。
+    """
+    if raw is None:
+        return ("", "", "empty")
+    s = str(raw).strip()
+    if not s:
+        return ("", "", "empty")
+    anchor = ""
+    if "#" in s:
+        head, _, tail = s.partition("#")
+        s = head
+        anchor = tail.strip()
+    s = re.sub(r"^计划归属[:：]\s*", "", s)
+    s = re.sub(r"^W\d+\s+", "", s)
+    s = _PAREN_RE.sub("", s)
+    s = re.split(r"[；。]", s)[0]
+    virtual = any(k in s for k in _MAP_TARGET_VIRTUAL)
+    tokens = s.split()
+    token = tokens[0] if tokens else ""
+    if not token:
+        return ("", anchor, "virtual" if virtual else "unparsed")
+    path = re.split(r"[*?]", token)[0].rstrip("/：:，, ")
+    if path.startswith("server/") or path == "server":
+        path = "chips-ecosystem/" + path
+    path = path.rstrip("/")
+    if not path:
+        return ("", anchor, "virtual" if virtual else "unparsed")
+    if virtual and not path.startswith(TARGET_CHECK_PREFIXES):
+        return (path, anchor, "virtual")
+    return (path, anchor, "path")
+
+
+def _cred_basename(rel_path):
+    return rel_path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def is_credential_path(rel_path):
+    """凭据模式判定（勘查稿 §3.3 凭据红线）：仅匹配 basename，排除 .env.example/.envrc。"""
+    b = _cred_basename(rel_path)
+    if b in CRED_NAME_EXCLUSIONS:
+        return False
+    if b in CRED_EXACT_BASENAMES:
+        return True
+    if b.endswith(CRED_SUFFIX_BASENAMES):
+        return True
+    if b.startswith(CRED_PREFIX_BASENAMES):
+        return True
+    if b.startswith(CRED_DOTTED_PREFIXES):
+        return True
+    return False
+
+
+def _expand_02_repo_cell(cell):
+    """把 02 §一 首格（可含家族 `/` 分隔、裸名）展开为 repo_id 列表（只保留 Chip* 平台仓）。
+
+    doclib 行（`旧版-*`、`-2` 后缀等）无代码落点、只读参考，一律跳过——机读镜像只覆盖有落点的仓。
+    """
+    out = []
+    for tok in re.split(r"\s*/\s*", cell.strip()):
+        tok = tok.strip().strip("`")
+        if not tok or tok.startswith("旧版") or tok.startswith("-"):
+            continue
+        rid = tok if tok.startswith("Chip") else "Chips-" + tok
+        if rid.startswith("Chip"):
+            out.append(rid)
+    return out
+
+
+def _canon_02_token(tok):
+    t = _PAREN_RE.sub("", tok.strip()).strip()
+    t = re.sub(r"[*?]+$", "", t).strip(" /")
+    if not t or t == "只读参考":
+        return ""
+    if t.startswith(TARGET_CHECK_PREFIXES):
+        return t.rstrip("/")
+    if t.startswith("server/") or t == "server":
+        return ("chips-ecosystem/" + t).rstrip("/")
+    if t.startswith(("packages/", "plugins/", "tools/")):
+        return ("chips-ecosystem/" + t).rstrip("/")
+    return t.rstrip("/")
+
+
+def parse_02_repo_prefixes(md_path):
+    """解析《02-仓库映射与新工作区》§一表：repo_id → 允许 canonical 前缀集合（与常量同构，供自检比对）。"""
+    try:
+        with open(md_path, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError as e:
+        die("无法读取 02 映射文档：%s（%s）" % (md_path, e))
+    mapping = {}
+    in_sec1 = False
+    for ln in lines:
+        stripped = ln.strip()
+        if stripped.startswith("## "):
+            if stripped.lstrip("# ").startswith("一") and "仓库" in stripped:
+                in_sec1 = True
+                continue
+            if in_sec1:
+                break  # 越过 §一 之后的下一个 ## 标题即停
+        if not in_sec1 or not stripped.startswith("|"):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if len(cells) < 3:
+            continue
+        repo_cell, owner_cell = cells[0], cells[-1]
+        if repo_cell in ("旧仓库", "") or set(repo_cell) <= set("-: "):
+            continue
+        prefixes = sorted({_canon_02_token(t) for t in re.findall(r"`([^`]+)`", owner_cell)} - {""})
+        for rid in _expand_02_repo_cell(repo_cell):
+            mapping[rid] = tuple(prefixes)
+    return mapping
+
+
+def map_prefixes_self_check(md_path):
+    """常量↔02 表一致性自检（第七节裁定 3）：两处分叉即返回 issue 列表（空=一致）。"""
+    derived = parse_02_repo_prefixes(md_path)
+    issues = []
+    const_repos, doc_repos = set(REPO_TARGET_PREFIXES), set(derived)
+    for rid in sorted(const_repos - doc_repos):
+        issues.append("REPO-MAP-DRIFT: 常量含仓 %s 但 02 §一 无对应行" % rid)
+    for rid in sorted(doc_repos - const_repos):
+        issues.append("REPO-MAP-DRIFT: 02 §一 含仓 %s 但常量未镜像" % rid)
+    for rid in sorted(const_repos & doc_repos):
+        if tuple(sorted(REPO_TARGET_PREFIXES[rid])) != tuple(derived[rid]):
+            issues.append("REPO-MAP-DRIFT: 仓 %s 前缀集分叉 常量=%s 02=%s"
+                          % (rid, list(REPO_TARGET_PREFIXES[rid]), list(derived[rid])))
+    return issues
+
+
+def _map_allowed_prefixes(repo_id):
+    return tuple(REPO_TARGET_PREFIXES.get(repo_id, ())) + MAP_UNIVERSAL_PREFIXES
+
+
+def _target_matches_repo_map(repo_id, canonical):
+    """仓级映射一致性：canonical target 是否落在本仓允许前缀集内。"""
+    return any(canonical == p or canonical.startswith(p.rstrip("/") + "/") or canonical.startswith(p)
+               for p in _map_allowed_prefixes(repo_id) if p)
+
+
+def walk_source_snapshot(repo_id):
+    """只读 walk 旧仓磁盘（沿用 EXCLUDE_DIRS 与 .DS_Store 跳过），返回 rel_path → sha1（与 files.sha1 同口径）。"""
+    base = os.path.join(ROOT, repo_id)
+    out = {}
+    if not os.path.isdir(base):
+        return out
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+        for fn in filenames:
+            if fn == ".DS_Store":
+                continue
+            full = os.path.join(dirpath, fn)
+            rel = os.path.relpath(full, base).replace("\\", "/")
+            try:
+                with open(full, "rb") as f:
+                    out[rel] = hashlib.sha1(f.read()).hexdigest()
+            except OSError:
+                continue
+    return out
+
+
+def _git_ls_files(paths):
+    """只读子进程 `git ls-files -- <paths>`（勘查稿 §3.3 永不入库②）；异常/无仓时返回 None 表不确定。"""
+    try:
+        proc = subprocess.run(["git", "ls-files", "--"] + list(paths),
+                              cwd=ROOT, capture_output=True, text=True)
+        if proc.returncode != 0:
+            return None
+        return [x for x in proc.stdout.splitlines() if x.strip()]
+    except (OSError, ValueError):
+        return None
+
+
+def _new_issue(bucket, code, level, repo, detail, requires_ack=False):
+    bucket.append({"code": code, "level": level, "repo": repo or "-",
+                   "detail": detail, "requires_ack": requires_ack})
+
+
+def _expand_rows(conn, repo_ids=None):
+    """files 表 disposition∈(迁移,重写) 行（可选按仓过滤）：[(id,repo,rel,disp,target,status,sha1,notes)]。"""
+    where = "disposition IN ('%s')" % "','".join(EXPAND_DISPOSITIONS)
+    params = []
+    if repo_ids:
+        where += " AND repo_id " + in_clause(repo_ids)
+        params += list(repo_ids)
+    return conn.execute(
+        "SELECT id, repo_id, rel_path, disposition, target_path, status, sha1, COALESCE(notes,'')"
+        " FROM files WHERE %s ORDER BY repo_id, rel_path" % where, params).fetchall()
+
+
+def _cred_rows(conn, repo_ids=None):
+    """台账面凭据模式命中行：[(repo, rel, disposition, target_path)]。"""
+    rows = conn.execute(
+        "SELECT repo_id, rel_path, disposition, COALESCE(target_path,'') FROM files").fetchall()
+    return [(r[0], r[1], r[2], r[3]) for r in rows
+            if is_credential_path(r[1]) and (not repo_ids or r[0] in repo_ids)]
+
+
+def _zone_of(canonical):
+    parts = [p for p in canonical.split("/") if p]
+    return "/".join(parts[:4]) if len(parts) > 4 else (canonical or "(未归类)")
+
+
+def preflight(args):
+    """迁移前核对（只读库+只读磁盘）：六检查序列 + 两红线机检，红项退出码 3。"""
+    repos = []
+    for chunk in (args.repo if isinstance(args.repo, list) else [args.repo]) or []:
+        for r in str(chunk).split(","):
+            r = r.strip()
+            if r and r not in repos:
+                repos.append(r)
+    if not repos:
+        die("preflight 必须带 --repo <id>[,<id>...]")
+    for r in repos:
+        if r in NEVER_INGEST_DIRS:
+            die("preflight 拒绝为『永不入库』目录 %s 出工单（勘查稿 §3.3 红线）" % r, EXIT_NOOP)
+    conn = connect()
+    issues, warnings, checks = [], [], {}
+
+    # 0) 常量↔02 表一致性自检（镜像腐化即红，第七节裁定 3）
+    map_issues = map_prefixes_self_check(os.path.join(BASE, "02-仓库映射与新工作区.md"))
+    for it in map_issues:
+        _new_issue(issues, "REPO-MAP-DRIFT", "red", None, it)
+    checks["map_self_check"] = "红" if map_issues else "绿"
+
+    unparsed, map_unregistered = [], set()
+    for rid in repos:
+        # 1) 双零前置
+        pending = conn.execute(
+            "SELECT COUNT(*) FROM files WHERE repo_id=? AND status<>'已裁决'", (rid,)).fetchone()[0]
+        empty_target = conn.execute(
+            "SELECT COUNT(*) FROM files WHERE repo_id=? AND disposition IN ('%s')"
+            " AND (target_path IS NULL OR target_path='')" % "','".join(EXPAND_DISPOSITIONS),
+            (rid,)).fetchone()[0]
+        if pending:
+            _new_issue(issues, "PENDING-NOT-ZERO", "red", rid, "待评估/未裁决行 %d（双零前置未成立）" % pending)
+        if empty_target:
+            _new_issue(issues, "EXPAND-EMPTY-TARGET", "red", rid, "迁移/重写空 target %d 行" % empty_target)
+        checks.setdefault("double_zero", {})[rid] = "绿" if not (pending or empty_target) else "红"
+
+        # 2) 快照漂移（沿用 EXCLUDE_DIRS walk）
+        db_map = {rel: (sha1 or "") for rel, sha1 in conn.execute(
+            "SELECT rel_path, sha1 FROM files WHERE repo_id=?", (rid,)).fetchall()}
+        disk_map = walk_source_snapshot(rid)
+        added = sorted(set(disk_map) - set(db_map))
+        deleted = sorted(set(db_map) - set(disk_map))
+        changed = sorted(rel for rel in set(db_map) & set(disk_map) if db_map[rel] != disk_map[rel])
+        for rel in changed:
+            _new_issue(issues, "SNAPSHOT-DRIFT", "red", rid, "源仓变更（违规改动）：%s" % rel)
+        for rel in added:
+            _new_issue(warnings, "SNAPSHOT-ADD", "warn", rid, "磁盘新增未登记：%s" % rel)
+        for rel in deleted:
+            _new_issue(warnings, "SNAPSHOT-DEL", "warn", rid, "台账有磁盘无：%s" % rel)
+        checks.setdefault("snapshot", {})[rid] = ("红" if changed
+            else ("WARN(增%d/删%d)" % (len(added), len(deleted)) if (added or deleted) else "绿"))
+
+        # 3) target 归一化 + 4) 映射一致性（本仓展开行）
+        allowed = REPO_TARGET_PREFIXES.get(rid)
+        for fid, rel, disp, raw in conn.execute(
+                "SELECT id, rel_path, disposition, target_path FROM files"
+                " WHERE repo_id=? AND disposition IN ('%s')" % "','".join(EXPAND_DISPOSITIONS), (rid,)):
+            canon, _a, kind = normalize_target(raw)
+            if kind == "unparsed":
+                unparsed.append({"repo": rid, "file_id": fid, "rel_path": rel, "raw": raw})
+                continue
+            if kind in ("virtual", "empty"):
+                continue
+            if allowed is None:
+                map_unregistered.add(rid)
+                continue
+            if not _target_matches_repo_map(rid, canon):
+                _new_issue(issues, "MAP-MISMATCH", "red", rid,
+                           "files.id=%s %s canonical=%s 不在 02 允许前缀集" % (fid, rel, canon))
+
+        # 6) verify 同源判据的仓级切片（sweep 一致性 + 孤儿行）
+        sweep_bad = conn.execute(
+            "SELECT COUNT(*) FROM symbols s JOIN files f ON f.id=s.file_id"
+            " WHERE f.repo_id=? AND s.disposition IS NOT NULL AND f.disposition IS NOT NULL"
+            " AND f.disposition NOT IN ('%s') AND s.disposition <> f.disposition"
+            % "','".join(EXPAND_DISPOSITIONS), (rid,)).fetchone()[0]
+        orphans = conn.execute(
+            "SELECT COUNT(*) FROM files WHERE repo_id=? AND disposition IS NOT NULL AND status='待评估'",
+            (rid,)).fetchone()[0]
+        if sweep_bad:
+            _new_issue(issues, "SWEEP-MISMATCH", "red", rid, "继承类符号与文件裁决不一致 %d 个" % sweep_bad)
+        if orphans:
+            _new_issue(issues, "ORPHAN-ROW", "red", rid, "孤儿行（有裁决却待评估）%d 行" % orphans)
+        checks.setdefault("slice", {})[rid] = "绿" if not (sweep_bad or orphans) else "红"
+
+    # 5) 两条红线机检
+    #   凭据三段断言（①台账面 ②新仓面=closure ③轮换签收位）
+    cred_hit = 0
+    cred_rotation = []
+    for repo, rel, disp, tp in _cred_rows(conn, set(repos)):
+        cred_hit += 1
+        canon, _a, _k = normalize_target(tp)
+        if disp not in ("废弃", "归档") or canon.startswith("chips-ecosystem/"):
+            _new_issue(issues, "CRED-LEDGER", "red", repo,
+                       "凭据行 %s/%s disposition=%s canonical=%s（须废弃/归档且禁落新仓）"
+                       % (repo, rel, disp, canon or "-"))
+        _new_issue(cred_rotation, "CRED-ROTATION", "ack", repo,
+                   "须由主智能体在 W6 完成轮换并签收：%s/%s" % (repo, rel), requires_ack=True)
+    checks["cred_ledger"] = ("绿（命中 %d 行，全部废弃/归档且未落新仓）" % cred_hit) if cred_hit else "绿（无命中）"
+
+    #   永不入库四断言（①DB无行 ②git无跟踪 ③manifest入口=preflight/manifest 前置拦截 ④gitignore显式条目）
+    for d in NEVER_INGEST_DIRS:
+        n = conn.execute("SELECT COUNT(*) FROM repos WHERE id=?", (d,)).fetchone()[0] + \
+            conn.execute("SELECT COUNT(*) FROM files WHERE repo_id=?", (d,)).fetchone()[0]
+        if n:
+            _new_issue(issues, "NEVER-INGEST-DB", "red", d, "台账面出现 %d 行（断言①破）" % n)
+    tracked = _git_ls_files(list(NEVER_INGEST_DIRS))
+    if tracked is None:
+        _new_issue(warnings, "NEVER-INGEST-GIT", "warn", None, "git ls-files 不可判定（断言②跳过）")
+    elif tracked:
+        _new_issue(issues, "NEVER-INGEST-GIT", "red", None,
+                   "git 已跟踪 %d 项（断言②破）：%s" % (len(tracked), ", ".join(tracked[:5])))
+    gi_path = os.path.join(ROOT, ".gitignore")
+    gi = ""
+    if os.path.exists(gi_path):
+        with open(gi_path, "r", encoding="utf-8") as f:
+            gi = f.read()
+    for entry in NEVER_INGEST_IGNORE_ENTRIES:
+        if entry not in gi:
+            _new_issue(warnings, "NEVER-INGEST-IGNORE", "warn", None,
+                       "根 .gitignore 缺显式条目 %s（断言④未落地）" % entry)
+    checks["never_ingest"] = "绿" if not any(
+        i["code"].startswith("NEVER-INGEST") and i["level"] == "red" for i in issues) else "红"
+
+    for rid in sorted(map_unregistered):
+        _new_issue(warnings, "MAP-UNREGISTERED", "warn", rid, "该仓未在 02 §一 登记，映射一致性跳过（非矛盾）")
+
+    reds = [i for i in issues if i["level"] == "red"]
+    result = {"channel": "preflight", "repos": repos, "red": len(reds), "warn": len(warnings),
+              "unparsed": unparsed, "issues": issues, "warnings": warnings, "checks": checks,
+              "cred_rotation_ack": cred_rotation}
+    if args.json:
+        payload = json.dumps(result, ensure_ascii=False, indent=2)
+        if args.receipt:
+            with open(args.receipt, "w", encoding="utf-8") as f:
+                f.write(payload + "\n")
+            print("preflight 回执已写入：%s" % args.receipt)
+        print(payload)
+    else:
+        print("== preflight（迁移前核对，只读）==")
+        for k, v in checks.items():
+            print("  %-16s %s" % (k, " ".join("%s=%s" % (a, b) for a, b in v.items())
+                                  if isinstance(v, dict) else v))
+        print("  红项 %d / 警告 %d / 归一化失败 %d / 凭据轮换签收项 %d"
+              % (len(reds), len(warnings), len(unparsed), len(cred_rotation)))
+        for it in (issues + warnings)[:50]:
+            print("   [%s|%s] %s: %s" % (it["level"], it["code"], it["repo"], it["detail"]))
+        if len(issues) + len(warnings) > 50:
+            print("   …（其余 %d 项从略，用 --json 看全量）" % (len(issues) + len(warnings) - 50))
+        if unparsed:
+            print("  归一化失败待人工裁（unparsed）%d 行：" % len(unparsed))
+            for u in unparsed[:20]:
+                print("    files.id=%s %s/%s raw=%s" % (u["file_id"], u["repo"], u["rel_path"], u["raw"]))
+    conn.close()
+    if reds:
+        sys.exit(EXIT_VERIFY)
+
+
+def migrate_manifest(args):
+    """迁移中执行清单（只读库、可写清单文件）：TSV+JSON+by-zone，行数=DB 命中自检行入头部。"""
+    repo = (args.repo or "").strip()
+    if not repo:
+        die("migrate-manifest 必须带 --repo <id>")
+    if repo in NEVER_INGEST_DIRS:
+        die("migrate-manifest 拒绝为『永不入库』目录 %s 出清单（勘查稿 §3.3 断言③入口拦截）" % repo, EXIT_NOOP)
+    if args.class_ != "expand":
+        die("migrate-manifest --class 目前仅支持 expand（迁移+重写执行清单）；实际取值=%s" % args.class_, EXIT_ARGS)
+    conn = connect()
+    rows = _expand_rows(conn, [repo])
+    symcount = {r[0]: (r[1], r[2]) for r in conn.execute(
+        "SELECT s.file_id,"
+        " SUM(CASE WHEN s.disposition IN ('%s') THEN 1 ELSE 0 END),"
+        " SUM(CASE WHEN s.target LIKE '%%#%%' THEN 1 ELSE 0 END)"
+        " FROM symbols s JOIN files f ON f.id=s.file_id WHERE f.repo_id=? GROUP BY s.file_id"
+        % "','".join(EXPAND_DISPOSITIONS), (repo,)).fetchall()}
+    conn.close()
+    entries = []
+    for fid, rrepo, rel, disp, raw_target, status, sha1, notes in rows:
+        canon, anchor, kind = normalize_target(raw_target)
+        exp, anc = symcount.get(fid, (0, 0))
+        entries.append({"file_id": fid, "repo_id": rrepo, "rel_path": rel, "sha1": sha1 or "",
+                        "disposition": disp, "canonical_target": canon, "target_kind": kind,
+                        "anchor": anchor, "expand_symbol_count": int(exp or 0),
+                        "anchor_count": int(anc or 0), "status": status, "notes": (notes or "")[:80]})
+    anchor_total = sum(e["anchor_count"] for e in entries)
+
+    outdir = args.out or os.path.join("/tmp", "manifest-%s" % repo)
+    os.makedirs(outdir, exist_ok=True)
+    tsv_path = os.path.join(outdir, "manifest-%s.tsv" % repo)
+    json_path = os.path.join(outdir, "manifest-%s.json" % repo)
+    header = "# repo=%s rows=%d (DB命中自检) anchor_total=%d generated=%s" % (
+        repo, len(entries), anchor_total, now())
+    cols = ["file_id", "repo_id", "rel_path", "sha1", "disposition", "canonical_target",
+            "target_kind", "expand_symbol_count", "anchor_count", "status", "notes"]
+    with open(tsv_path, "w", encoding="utf-8") as f:
+        f.write(header + "\n")
+        f.write("\t".join(cols) + "\n")
+        for e in entries:
+            f.write("\t".join(str(e.get(c, "")).replace("\t", " ") for c in cols) + "\n")
+
+    conflict_issues = []
+    if args.check_dest:
+        by_target = {}
+        for e in entries:
+            if e["target_kind"] == "path" and e["canonical_target"]:
+                by_target.setdefault(e["canonical_target"], []).append(e["rel_path"])
+        for ct, srcs in sorted(by_target.items()):
+            if len(srcs) > 1:
+                conflict_issues.append("MULTI-SOURCE %s ← %d 源（%s…）" % (ct, len(srcs), ", ".join(srcs[:3])))
+            full = os.path.join(ROOT, ct)
+            if ct.startswith("chips-ecosystem/server/") and not os.path.isdir(full):
+                conflict_issues.append("WARN-DEST-MISSING（W6 未创建，降级）%s" % ct)
+            elif os.path.isfile(full) and not any(ct.endswith(ext) for ext in
+                     (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json", ".md", ".css", ".scss", ".html")):
+                conflict_issues.append("DEST-COLLIDE 目标已存在同名文件：%s" % ct)
+
+    receipt = {"channel": "migrate-manifest", "repo": repo, "row_count": len(entries),
+               "db_count": len(rows), "db_count_matches": len(entries) == len(rows),
+               "anchor_total": anchor_total,
+               "check_dest": ({"issues": conflict_issues} if args.check_dest else None),
+               "entries": entries}
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(receipt, f, ensure_ascii=False, indent=2)
+
+    zonedir = os.path.join(outdir, "by-zone")
+    if os.path.isdir(zonedir):
+        shutil.rmtree(zonedir)
+    os.makedirs(zonedir, exist_ok=True)
+    zones = {}
+    for e in entries:
+        zones.setdefault(_zone_of(e["canonical_target"]), []).append(e)
+    for zone, es in sorted(zones.items()):
+        safe = zone.replace("/", "_") or "(root)"
+        with open(os.path.join(zonedir, "zone-%s.tsv" % safe), "w", encoding="utf-8") as f:
+            f.write("# zone=%s rows=%d\n" % (zone, len(es)))
+            for e in sorted(es, key=lambda x: x["rel_path"]):
+                f.write("%s\t%s\t%s\n" % (e["disposition"], e["rel_path"], e["canonical_target"]))
+
+    print("migrate-manifest: repo=%s 行数=%d（=DB 命中 %d，自检 %s）展开符号锚点合计=%d"
+          % (repo, len(entries), len(rows), "OK" if len(entries) == len(rows) else "MISMATCH", anchor_total))
+    print("  TSV: %s\n  JSON: %s\n  by-zone: %s（%d 个落点分组）" % (tsv_path, json_path, zonedir, len(zones)))
+    if args.check_dest:
+        if conflict_issues:
+            print("  落点冲突预检：WARN %d 项（不改变退出码）" % len(conflict_issues))
+            for c in conflict_issues[:30]:
+                print("    " + c)
+        else:
+            print("  落点冲突预检：无冲突")
+    if len(entries) != len(rows):
+        sys.exit(EXIT_VERIFY)
+
+
+def _matrix_parse(path):
+    """解析矩阵 §一 计数表：返回 (repo → {disposition:count})，按表头列名动态映射（不假设列序）。"""
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    in_sec1 = False
+    header_cols = None
+    got_data = False
+    data = {}
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith("## "):
+            # §一 即计数表所在节；实测 11 份矩阵标题写法不一（裁决计数总览/裁决统计/真实计数），
+            # 一律以「一、」定位，行级再以表头首格「仓库」把关，误入他节也不会误读。
+            if s.lstrip("# ").startswith("一"):
+                in_sec1 = True
+                continue
+            if in_sec1:
+                break
+        if not in_sec1:
+            continue
+        if not s.startswith("|"):
+            # 只勾稽 §一 的文件级计数表（契约「files GROUP BY repo_id, disposition 逐项比对」）；
+            # 部分矩阵 §一 还含符号级等后续表（如服务端两仓），首表数据段后即收口，防串表误读。
+            if got_data:
+                break
+            continue
+        cells = [c.strip().strip("*").strip() for c in s.strip("|").split("|")]
+        if header_cols is None:
+            if cells and cells[0] == "仓库":
+                header_cols = cells
+            continue
+        if set("".join(cells)) <= set("-: "):
+            continue
+        repo = cells[0]
+        if repo in ("合计", "总计", ""):
+            continue
+        counts = {}
+        for i, col in enumerate(header_cols):
+            if i == 0 or i >= len(cells):
+                continue
+            disp = MATRIX_DISPOSITION_COLS.get(col.replace("*", "").strip())
+            if disp and re.fullmatch(r"\d+", cells[i] or ""):
+                counts[disp] = int(cells[i])
+        if counts:
+            data[repo] = counts
+            got_data = True
+    return data
+
+
+def _extract_path_tokens(text):
+    """从证据列抽取路径 token（带扩展名），供存在性抽样复核（只核路径、不核行号）。"""
+    toks = set()
+    for m in re.finditer(r"[\w.\-/\u4e00-\u9fff]+/[\w.\-/\u4e00-\u9fff]+", text):
+        t = m.group(0).strip(".,;:、（）()")
+        t = re.sub(r":\d+.*$", "", t)
+        if re.search(r"\.(ts|tsx|js|jsx|mjs|cjs|rs|json|md|css|scss|html|yaml|yml|py)$", t):
+            toks.add(t)
+    return toks
+
+
+def closure(args):
+    """迁移后闭环校验 + 矩阵闭合闸（只读）：落点实落 / 矩阵勾稽 / 残留扫描 / strict 终验。"""
+    repos = None
+    if args.repo:
+        repos = []
+        for chunk in (args.repo if isinstance(args.repo, list) else [args.repo]):
+            for r in str(chunk).split(","):
+                r = r.strip()
+                if r and r not in repos:
+                    repos.append(r)
+    matrix_glob = args.matrix or os.path.join(ROOT, "项目日志与笔记/重构计划/旧功能覆盖矩阵-*.md")
+    issues, warnings = [], []
+    conn = connect()
+
+    # (a) 落点实落（含符号 target 锚前段；重写行 `#点名任务`/尾注豁免至波次结束）
+    landed = planned = exempt = 0
+    for fid, repo, rel, disp, raw_target, status, _s, _n in _expand_rows(conn, repos):
+        canon, _a, kind = normalize_target(raw_target)
+        if kind in ("virtual", "empty") or not canon.startswith(TARGET_CHECK_PREFIXES):
+            continue
+        if os.path.exists(os.path.join(ROOT, canon)):
+            landed += 1
+            continue
+        if disp == "重写" and ("点名任务" in (raw_target or "")):
+            exempt += 1
+            continue
+        planned += 1
+        _new_issue(issues if args.strict else warnings, "LANDING-MISSING",
+                   "red" if args.strict else "warn", repo,
+                   "files.id=%s %s canonical=%s 落点未实落" % (fid, rel, canon))
+    symbol_checked = symbol_missing = 0
+    sym_where = ("SELECT s.id, f.repo_id, s.target FROM symbols s JOIN files f ON f.id=s.file_id"
+                 " WHERE f.disposition IN ('%s') AND s.target IS NOT NULL AND s.target<>''"
+                 % "','".join(EXPAND_DISPOSITIONS))
+    sym_params = []
+    if repos:
+        sym_where += " AND f.repo_id " + in_clause(repos)
+        sym_params = list(repos)
+    for sid, repo, starget in conn.execute(sym_where, sym_params).fetchall():
+        canon, _a, kind = normalize_target(starget)
+        if kind != "path" or not canon.startswith(TARGET_CHECK_PREFIXES):
+            continue
+        symbol_checked += 1
+        if not os.path.exists(os.path.join(ROOT, canon)):
+            symbol_missing += 1
+            if args.strict:
+                _new_issue(issues, "SYM-TARGET-MISSING", "red", repo,
+                           "symbols.id=%d 锚前段 canonical=%s 未实落" % (sid, canon))
+
+    # (b) 矩阵勾稽
+    matrix_files = sorted(glob.glob(matrix_glob))
+    if matrix_files:
+        db_counts = {}
+        for repo, disp, n in conn.execute(
+                "SELECT repo_id, disposition, COUNT(*) FROM files WHERE disposition IS NOT NULL"
+                " GROUP BY repo_id, disposition"):
+            db_counts.setdefault(repo, {})[disp] = n
+        for mf in matrix_files:
+            name = os.path.basename(mf)
+            for repo, counts in sorted(_matrix_parse(mf).items()):
+                for disp, declared in counts.items():
+                    actual = db_counts.get(repo, {}).get(disp, 0)
+                    if declared != actual:
+                        _new_issue(issues, "MATRIX-COUNT", "red", repo,
+                                   "矩阵 %s 声明 %s=%d 但 DB=%d" % (name, disp, declared, actual))
+            with open(mf, "r", encoding="utf-8") as f:
+                for line in f:
+                    if "|" not in line:
+                        continue
+                    for tok in _extract_path_tokens(line):
+                        if not tok.startswith(("packages/", "plugins/", "tools/", "tests/", "crates/", "examples/")):
+                            continue
+                        cand = "chips-ecosystem/" + tok
+                        if not os.path.exists(os.path.join(ROOT, cand)):
+                            _new_issue(issues if args.strict else warnings, "MATRIX-EVIDENCE",
+                                       "red" if args.strict else "warn", repo,
+                                       "矩阵 %s 证据路径缺失：%s" % (name, cand))
+
+    # (c) 残留扫描
+    #   契约 §3.1(c)(ii)：命中「废弃/归档行的 repo_id/rel_path 同名尾部」才计红——
+    #   即新仓路径以 <repo_id>/<rel_path> 结尾（旧仓整目录被连根搬进新仓的形态）；
+    #   裸 rel_path 相等不算（README.md/package.json 等通用根文件在新仓自有、与旧仓裁决无关）。
+    retired_tails = {r[0] + "/" + r[1] for r in conn.execute(
+        "SELECT repo_id, rel_path FROM files WHERE disposition IN ('废弃','归档')").fetchall()}
+    residual_cred = residual_dup = residual_top = 0
+    for dirpath, dirnames, filenames in os.walk(NEW_WS):
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+        for fn in filenames:
+            rel = os.path.relpath(os.path.join(dirpath, fn), NEW_WS).replace("\\", "/")
+            if is_credential_path(rel):
+                residual_cred += 1
+                _new_issue(issues, "RESIDUAL-CRED", "red", None,
+                           "新仓凭据残留（断言②）：chips-ecosystem/%s" % rel)
+            hit = next((rp for rp in retired_tails
+                        if rel == rp or rel.endswith("/" + rp)), None)
+            if hit:
+                residual_dup += 1
+                _new_issue(issues, "RESIDUAL-DUP", "red", None,
+                           "新仓出现废弃/归档行同名尾部（契约 §3.1(c)(ii)）：chips-ecosystem/%s ← %s" % (rel, hit))
+    known_top = {"packages", "plugins", "tools", "tests", "examples", "docs",
+                 "node_modules", "coverage", "reports", "target", "dist", "归档", ".git"}
+    for name in sorted(os.listdir(NEW_WS)):
+        if os.path.isdir(os.path.join(NEW_WS, name)) and name not in known_top:
+            residual_top += 1
+            _new_issue(issues, "RESIDUAL-TOPDIR", "red", None, "新工作区顶层未在册目录：%s" % name)
+    for d in NEVER_INGEST_DIRS:
+        n = conn.execute("SELECT COUNT(*) FROM repos WHERE id=?", (d,)).fetchone()[0] + \
+            conn.execute("SELECT COUNT(*) FROM files WHERE repo_id=?", (d,)).fetchone()[0]
+        if n:
+            _new_issue(issues, "NEVER-INGEST-DB", "red", d, "台账面出现 %d 行（断言①破）" % n)
+        if os.path.isdir(os.path.join(NEW_WS, d)):
+            _new_issue(issues, "NEVER-INGEST-WS", "red", d, "新工作区出现 %s/（断言破）" % d)
+
+    # (d) status 终验：strict 下迁移/重写未到「已验证」计红
+    not_verified = 0
+    if args.strict:
+        where = "disposition IN ('%s') AND status <> '已验证'" % "','".join(EXPAND_DISPOSITIONS)
+        params = []
+        if repos:
+            where += " AND repo_id " + in_clause(repos)
+            params = list(repos)
+        for fid, repo, rel, status in conn.execute(
+                "SELECT id, repo_id, rel_path, status FROM files WHERE %s" % where, params).fetchall():
+            not_verified += 1
+            _new_issue(issues, "STATUS-NOT-VERIFIED", "red", repo,
+                       "files.id=%s %s status=%s（未到已验证）" % (fid, rel, status))
+
+    # 双零残留终口径：待评估 0 + 幻想 target 0 + 残留 0
+    pending_all = conn.execute("SELECT COUNT(*) FROM files WHERE status<>'已裁决'").fetchone()[0]
+    fantasy = 0
+    all_rows = conn.execute(
+        "SELECT repo_id, rel_path, disposition, target_path, status FROM files"
+        " WHERE target_path IS NOT NULL AND target_path<>''").fetchall()
+    for repo, rel, disp, raw, status in all_rows:
+        canon, _a, kind = normalize_target(raw)
+        if kind == "path" and canon.startswith(TARGET_CHECK_PREFIXES) and not os.path.exists(os.path.join(ROOT, canon)):
+            if disp in ("废弃", "归档", "保留设计") or status in ("进行中", "已完成", "已验证"):
+                fantasy += 1
+    residual_total = residual_cred + residual_dup + residual_top
+    reds = [i for i in issues if i["level"] == "red"]
+    conn.close()
+    result = {"channel": "closure", "repos": repos or "ALL", "strict": bool(args.strict),
+              "red": len(reds), "warn": len(warnings),
+              "double_zero_residual": {"待评估": pending_all, "幻想target": fantasy,
+                                       "残留": residual_total},
+              "landing": {"landed": landed, "planned_missing": planned, "exempt": exempt,
+                          "symbol_checked": symbol_checked, "symbol_missing": symbol_missing},
+              "matrix_files": len(matrix_files), "not_verified": not_verified,
+              "issues": issues, "warnings": warnings}
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print("== closure（迁移后闭环校验，只读%s）==" % ("，--strict 终验" if args.strict else ""))
+        print("  落点实落：已落 %d / 未落 %d / 重写点名任务豁免 %d；符号锚段 检 %d 缺 %d"
+              % (landed, planned, exempt, symbol_checked, symbol_missing))
+        print("  矩阵勾稽：%d 份分表" % len(matrix_files))
+        print("  残留扫描：凭据 %d / 同名 %d / 未在册顶层目录 %d" % (residual_cred, residual_dup, residual_top))
+        print("  双零残留终口径：待评估=%d 幻想target=%d 残留=%d（三项全 0 即终口径达成）"
+              % (pending_all, fantasy, residual_total))
+        if args.strict:
+            print("  status 终验：迁移/重写未到已验证 %d 行" % not_verified)
+        print("  红项 %d / 警告 %d" % (len(reds), len(warnings)))
+        for it in (issues + warnings)[:50]:
+            print("   [%s|%s] %s: %s" % (it["level"], it["code"], it["repo"], it["detail"]))
+        if len(issues) + len(warnings) > 50:
+            print("   …（其余 %d 项从略，用 --json 看全量）" % (len(issues) + len(warnings) - 50))
+    if reds:
+        sys.exit(EXIT_VERIFY)
+
+
+def set_status(args):
+    """执行波回写的唯一最小写通道：仅 owner 原路回写 status 与 notes 追加，禁碰 disposition/target。
+
+    复用 run_write()（BEGIN IMMEDIATE + 退避重试）与 log_operation()；批次内混入任何
+    owner 不匹配的行即整批越权拒绝（零写入），执行波必须把清单洗净后重发。
+    """
+    owner = (args.owner or "").strip()
+    if not owner:
+        die("--owner 不能为空（只回写本 owner 名下行；越权改写一律拒绝）")
+    if args.status not in SET_STATUS_VALUES:
+        die("--status 取值非法：%r（可选：%s）" % (args.status, "/".join(SET_STATUS_VALUES)))
+    ids = read_id_file(args.id_file)
+    append_text = ("执行回写 %s" % args.status if not args.evidence
+                   else "执行回写 %s：%s" % (args.status, args.evidence.strip()))
+
+    def work(conn):
+        rows = conn.execute(
+            "SELECT id, repo_id, rel_path, owner, disposition FROM files WHERE id " + in_clause(ids),
+            ids).fetchall()
+        mine = [r for r in rows if r[3] == owner]
+        foreign = [r for r in rows if r[3] != owner]
+        # 越权整批拒绝（全有或全无）：命中行里只要有一行不属于本 owner，
+        # 本事务不回写任何行——混合批次绝不部分落库，避免执行波账目半推进。
+        if not foreign and mine:
+            conn.executemany(
+                "UPDATE files SET status=?,"
+                " notes=CASE WHEN notes IS NULL OR notes='' THEN ? ELSE notes || '；' || ? END"
+                " WHERE id=? AND owner=?",
+                [(args.status, append_text, append_text, r[0], owner) for r in mine],
+            )
+            updated = len(mine)
+        else:
+            updated = 0
+        return rows, mine, foreign, updated
+
+    rows, mine, foreign, updated = run_write("set-status", work)
+    if not rows:
+        die("没有命中的行：--id-file 点名的 files.id 在库内均不存在（无可回写）", EXIT_NOOP)
+    if foreign:
+        print("越权整批拒绝：命中 %d 行中 %d 行非 owner=%s 名下（执行波只能原路回写自己认领的行；"
+              "含任一越权行则整批零回写）：" % (len(rows), len(foreign), owner), file=sys.stderr)
+        for r in foreign[:20]:
+            print("    %d\t%s/%s\towner=%s" % (r[0], r[1], r[2], r[3] or "(空)"), file=sys.stderr)
+        if len(foreign) > 20:
+            print("    …（其余 %d 行省略）" % (len(foreign) - 20), file=sys.stderr)
+        die("set-status 越权整批拒绝，本批次回写 0 行", EXIT_NOOP)
+    for r in mine[:50]:
+        print("%d\t%s/%s\t→%s" % (r[0], r[1], r[2], args.status))
+    if len(mine) > 50:
+        print("…（其余 %d 行省略）" % (len(mine) - 50))
+    print("set-status: owner=%s 回写 %d 行 status=%s（disposition/target 零触碰）"
+          % (owner, updated, args.status))
+    log_operation("set-status", owner, updated,
+                  "status=%s evidence=%s 越权整批拒绝=0"
+                  % (args.status, (args.evidence or "-")[:60]))
+
+
 def add_scope_args(p, with_dir=True):
     """认领/裁决/归还共用的过滤面：--repo（可多值）/--category/--ext（可多值）/[--dir]。"""
     p.add_argument("--repo", action="append", metavar="REPO_ID",
@@ -1628,6 +2469,45 @@ def main():
                        help="只归还认领（status→待评估、owner 清空），保留已有裁决")
     p_rel.add_argument("--force", action="store_true", help="连已落裁决的行一起清空 disposition/target/notes/wave")
 
+    p_pre = sub.add_parser("preflight",
+                           help="迁移前核对（只读库+只读磁盘，波1 通道①）：双零前置/源仓快照漂移/target 归一化/"
+                                "02 映射一致性（含常量↔02 自检）/两红线机检（凭据三段+永不入库四断言）/"
+                                "verify 同源判据仓级切片；红项退出码 3。--repo 逗号或多值，--json 出回执，"
+                                "--receipt <file> 落回执文件")
+    p_pre.add_argument("--repo", action="append", required=True, metavar="REPO_ID",
+                       help="待核对仓库（可逗号分隔或重复传）")
+    p_pre.add_argument("--json", action="store_true", help="以 JSON 输出机读回执")
+    p_pre.add_argument("--receipt", metavar="FILE", help="把 JSON 回执写入指定文件（人审闭环载体）")
+
+    p_mm = sub.add_parser("migrate-manifest",
+                          help="迁移中执行清单（只读库、可写清单文件，波1 通道②）：按仓导出 迁移+重写 files 行"
+                               "+名下展开符号计数，经归一化产 canonical 落点，出 TSV/JSON/by-zone 分组；"
+                               "行数=DB 命中自检行入头部；--check-dest 同名/多源冲突预检（server/ 未建落点降 WARN）")
+    p_mm.add_argument("--repo", required=True, metavar="REPO_ID", help="出清单的仓库（单个）")
+    p_mm.add_argument("--class", dest="class_", default="expand", choices=("expand",),
+                      help="清单类别（当前仅 expand=迁移+重写）")
+    p_mm.add_argument("--out", metavar="DIR", help="清单输出目录（默认 /tmp/manifest-<repo>）")
+    p_mm.add_argument("--check-dest", action="store_true", help="目标区同名冲突+多源同目标合并冲突检测")
+
+    p_cl = sub.add_parser("closure",
+                          help="迁移后闭环校验+矩阵闭合闸（只读，波1 通道③）：(a)落点实落（含符号锚段，重写行"
+                               "点名任务豁免）(b)矩阵 §一 计数勾稽+证据路径抽样存在性 (c)残留扫描（凭据/废弃归档"
+                               "同名/未在册顶层目录三红）(d)--strict 下迁移/重写未到已验证计红。"
+                               "双零残留终口径=待评估0+幻想target0+残留0")
+    p_cl.add_argument("--repo", action="append", metavar="REPO_ID", help="限定仓库（可逗号或多值；默认全库）")
+    p_cl.add_argument("--matrix", metavar="GLOB", help="覆盖矩阵 md 的 glob（默认 项目日志与笔记/重构计划/旧功能覆盖矩阵-*.md）")
+    p_cl.add_argument("--json", action="store_true", help="以 JSON 输出机读回执")
+    p_cl.add_argument("--strict", action="store_true", help="收口终验：落点未实落/证据缺失/未到已验证均计红")
+
+    p_ss = sub.add_parser("set-status",
+                          help="执行波回写的唯一最小写通道（波1 通道④）：仅 owner 原路回写 status（进行中/已完成/已验证）"
+                               "与 notes 追加，禁碰 disposition/target；复用 run_write+log_operation；越权整批拒绝")
+    p_ss.add_argument("--owner", required=True, help="本路执行者标识（须与行 owner 一致，否则越权拒绝）")
+    p_ss.add_argument("--id-file", required=True, help="每行一个 files.id 的清单文件")
+    p_ss.add_argument("--status", required=True, choices=SET_STATUS_VALUES,
+                      help="回写的执行态（进行中/已完成/已验证；不含已裁决，不回退裁决态）")
+    p_ss.add_argument("--evidence", default="", help="执行证据（追加到 notes 末尾，「；」分隔，保留历史判定理由）")
+
     args = ap.parse_args()
     os.makedirs(os.path.dirname(DB), exist_ok=True)
     # 增量列/索引统一由 ensure_indexes() 幂等补建（scan 也先补建：
@@ -1668,6 +2548,14 @@ def main():
         verify(args)
     elif args.cmd == "release":
         release(args)
+    elif args.cmd == "preflight":
+        preflight(args)
+    elif args.cmd == "migrate-manifest":
+        migrate_manifest(args)
+    elif args.cmd == "closure":
+        closure(args)
+    elif args.cmd == "set-status":
+        set_status(args)
     else:
         ap.print_help()
 
