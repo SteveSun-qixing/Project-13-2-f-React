@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  CARD_WINDOW_INIT_MESSAGE_TYPES,
+  CARD_WINDOW_INIT_PROTOCOL,
+  CARD_WINDOW_INIT_REQUEST_CHANNEL,
+  CARD_WINDOW_INIT_SURFACE_KEY,
+  createCardWindowInitFetchRequest,
+} from '../src/shared/card-window-init-surface.js';
 import { HOST_VIEW_CHANNEL_SURFACE_KEY } from '../src/shared/host-view-channel-surface.js';
 import { DOCUMENT_VIEW_REQUEST_CHANNEL, DOCUMENT_VIEW_PROTOCOL } from '../src/renderer/document-view-channel.js';
 import { isChipsError, type IChipsErrorShape } from '../src/preload/chips-error.js';
@@ -20,7 +27,7 @@ vi.mock('electron', () => ({
 
 vi.stubGlobal('window', { addEventListener: mocks.addEventListener });
 
-/** 从两次 `exposeInMainWorld` 调用里按世界名取回挂载面。 */
+/** 从三次 `exposeInMainWorld` 调用里按世界名取回挂载面。 */
 function exposedWorld(worldName: string): Record<string, unknown> {
   const call = mocks.exposeInMainWorld.mock.calls.find(([name]) => name === worldName);
   expect(call, `contextBridge 未挂载世界：${worldName}`).toBeDefined();
@@ -29,9 +36,9 @@ function exposedWorld(worldName: string): Record<string, unknown> {
 }
 
 describe('preload 入口', () => {
-  it('挂载两个彼此独立的世界：`chips` 三方法冻结面 + 宿主内部取视图通道面', async () => {
+  it('挂载三个彼此独立的世界：`chips` 三方法冻结面 + 宿主内部取视图通道面 + 装载输入投递面', async () => {
     await import('../src/preload/index.js');
-    expect(mocks.exposeInMainWorld).toHaveBeenCalledTimes(2);
+    expect(mocks.exposeInMainWorld).toHaveBeenCalledTimes(3);
     const worldNames: string[] = mocks.exposeInMainWorld.mock.calls.map((call) => call[0] as string);
     expect(worldNames).toContain('chips');
     expect(worldNames).toContain(HOST_VIEW_CHANNEL_SURFACE_KEY);
@@ -113,6 +120,56 @@ describe('preload 入口', () => {
       requestView: (payload: unknown) => Promise<unknown>;
     };
     await expect(surface.requestView({})).rejects.toThrow('应用未注册视图通道处理器');
+  });
+
+  it('装载输入投递世界只暴露单方法 `requestInit`（键集精确锁），不泄漏 ipcRenderer 原始对象', async () => {
+    await import('../src/preload/index.js');
+    const surface = exposedWorld(CARD_WINDOW_INIT_SURFACE_KEY);
+    expect(Object.keys(surface)).toEqual(['requestInit']);
+    expect(surface['requestInit']).toBeTypeOf('function');
+    expect(Object.keys(surface)).not.toContain('ipcRenderer');
+    expect(Object.keys(surface)).not.toContain('invoke');
+    expect(Object.keys(surface)).not.toContain('on');
+    // 第三世界独立挂载：不挤进取视图通道世界（其冻结键集 `['requestView']` 零扩面，上一用例逐名锁死）。
+  });
+
+  it('装载输入投递通路：requestInit 经钉定通道往返（通道在实现侧钉死、纯转发不解释负载）', async () => {
+    mocks.invoke.mockImplementation((channel: string, payload: { requestId?: unknown }) => {
+      expect(channel).toBe(CARD_WINDOW_INIT_REQUEST_CHANNEL);
+      return Promise.resolve({
+        protocol: CARD_WINDOW_INIT_PROTOCOL,
+        type: CARD_WINDOW_INIT_MESSAGE_TYPES.pending,
+        requestId: payload.requestId,
+        windowId: 42,
+      });
+    });
+    await import('../src/preload/index.js');
+    const surface = exposedWorld(CARD_WINDOW_INIT_SURFACE_KEY) as {
+      requestInit: (payload: unknown) => Promise<unknown>;
+    };
+    const request = createCardWindowInitFetchRequest('init-7');
+    const response = (await surface.requestInit(request)) as { type: string; requestId: string; windowId: number };
+    expect(mocks.invoke).toHaveBeenCalledWith(CARD_WINDOW_INIT_REQUEST_CHANNEL, request);
+    expect(response.type).toBe(CARD_WINDOW_INIT_MESSAGE_TYPES.pending);
+    expect(response.requestId).toBe('init-7');
+    expect(response.windowId).toBe(42);
+  });
+
+  it('装载输入投递通路：传输拒绝经工单038 归一为纯数据错误送达（跨界不丢字段）', async () => {
+    mocks.invoke.mockImplementation(() => Promise.reject(new Error('应用未注册装载投递处理器')));
+    await import('../src/preload/index.js');
+    const surface = exposedWorld(CARD_WINDOW_INIT_SURFACE_KEY) as {
+      requestInit: (payload: unknown) => Promise<unknown>;
+    };
+    const error = await surface.requestInit({}).then(
+      () => undefined,
+      (reason: IChipsErrorShape) => reason,
+    );
+    expect(error).toBeDefined();
+    expect(isChipsError(error)).toBe(true);
+    expect(error?.code).toBe('BRIDGE_INTERNAL');
+    expect(error?.message.length).toBeGreaterThan(0);
+    expect(error?.retryable).toBe(false);
   });
 });
 

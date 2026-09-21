@@ -23,10 +23,12 @@
  *   每次 `engine.open` 得到会话即按该会话构造协调器（写臂 `createBridgeDocumentWritePort` 经
  *   `window.chips`、视图重建经同一取视图通道消费臂、变更订阅经 `window.chips.subscribe`），
  *   `handle.executeAction` 承载 §8.3 唯一时序；随会话 dispose 幂等收口。
- * - 窗口装载描述的主进程投递臂（`CardWindowOrchestrator` 登记表 → 本入口的触发通道）依赖
- *   `document:*` 能力接线（#99 在途），是已登记集成缝：本波真实启动的卡片窗口呈现诚实的
- *   空载等待态（不伪造请求、不发空数据调用），装载臂接线后经 `bootCardWindow` 的注入位
- *   接入正式通道，组合逻辑零改动。
+ * - 窗口装载描述的投递臂（任务 #120 接线，契约 #119 冻结）：经第三 contextBridge 世界
+ *   `window[CARD_WINDOW_INIT_SURFACE_KEY]` 的 `requestInit` 往返主进程登记表——请求封套发送侧
+ *   自检 `validateCardWindowInitRequest`、到达侧权威闸 `validateCardWindowInitResponse`，
+ *   `payload` 与 `ICardWindowInit` 逐字段同形（编译期互派生锁保证零适配直传 `mountCardWindow`）；
+ *   pending/绑定未就绪为合法瞬态——有上限的诚实空闲重试（`setTimeout` 节奏），终态码落诊断收口，
+ *   全程不伪造装载（工单035 §10.3 待办 3）。
  * - 空载态与降级占位全部经 `@chips/ui` `StateBoundary`；界面文案简体中文直写；
  *   视觉走 `@chips/ui` / antd token，本文件不写样式。
  */
@@ -36,6 +38,7 @@
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { normalizeError } from '@chips/bridge';
 import { StateBoundary } from '@chips/ui';
 
 import {
@@ -61,6 +64,16 @@ import type {
   RenderRequest,
 } from '../index.js';
 import type { DiagnosticsSink } from '../../shared/diagnostics.js';
+import {
+  CARD_WINDOW_INIT_CHANNEL_ERROR_CODES,
+  CARD_WINDOW_INIT_SURFACE_KEY,
+  createCardWindowInitFetchRequest,
+  isCardWindowInitPending,
+  isCardWindowInitResult,
+  validateCardWindowInitRequest,
+  validateCardWindowInitResponse,
+} from '../../shared/card-window-init-surface.js';
+import type { ICardWindowInitSurface } from '../../shared/card-window-init-surface.js';
 import { HOST_VIEW_CHANNEL_SURFACE_KEY } from '../../shared/host-view-channel-surface.js';
 import type { IHostViewChannelSurface } from '../../shared/host-view-channel-surface.js';
 import { createFrameActionForwarder } from './bridge-data-plane.js';
@@ -118,7 +131,7 @@ export function createCardWindowBindings(
   chips: IChipsRequestFacade,
   init: ICardWindowInit,
   diagnostics: IRenderEngineBindings['diagnostics'],
-  viewChannel: IDocumentViewChannelInvoke
+  viewChannel: IDocumentViewChannelInvoke,
 ): IRenderEngineBindings {
   return buildBindings(chips, init, diagnostics, createDocumentViewChannelBuilder({ invoke: viewChannel }));
 }
@@ -128,7 +141,7 @@ function buildBindings(
   chips: IChipsRequestFacade,
   init: ICardWindowInit,
   diagnostics: IRenderEngineBindings['diagnostics'],
-  viewBuilder: IDocumentViewBuilder
+  viewBuilder: IDocumentViewBuilder,
 ): IRenderEngineBindings {
   return {
     document: createBridgeDocumentGateway(chips),
@@ -164,7 +177,7 @@ export function createCardReflowCoordinator(
   init: ICardWindowInit,
   viewBuilder: IDocumentViewBuilder,
   session: IRenderSession,
-  diagnostics: IRenderEngineBindings['diagnostics']
+  diagnostics: IRenderEngineBindings['diagnostics'],
 ): IDocumentReflowCoordinator {
   return createDocumentReflowCoordinator({
     source: init.source,
@@ -205,7 +218,7 @@ export function mountCardWindow(
   chips: IChipsCardWindowFacade,
   init: ICardWindowInit,
   diagnostics: IRenderEngineBindings['diagnostics'],
-  viewChannel: IDocumentViewChannelInvoke
+  viewChannel: IDocumentViewChannelInvoke,
 ): ICardWindowHandle {
   const viewBuilder = createDocumentViewChannelBuilder({ invoke: viewChannel });
   const baseEngine = createRenderEngine(buildBindings(chips, init, diagnostics, viewBuilder));
@@ -239,7 +252,7 @@ export function mountCardWindow(
             code: RENDER_ERROR_CODES.sessionDisposed,
             message: '卡片窗口渲染会话尚未建立，编辑动作被拒绝',
             details: { documentId: init.documentId, source: init.source },
-          })
+          }),
         );
       }
       return coordinator.executeAction(action);
@@ -247,15 +260,29 @@ export function mountCardWindow(
   };
 }
 
-/** 空载态视图：等待主进程装载输入（加载态占位，不伪造任何数据请求）。 */
-export function renderIdleState(container: HTMLElement): void {
+/**
+ * 空载态视图：等待主进程装载输入（加载态占位，不伪造任何数据请求）。
+ *
+ * @returns 卸载句柄——挂载真实组合前必须先卸载空闲根（同一容器上 React 根互斥）。
+ */
+export function renderIdleState(container: HTMLElement): { unmount(): void } {
   const root = createRoot(container);
   root.render(createElement(StateBoundary, { loading: true, error: null }, null));
+  return {
+    unmount(): void {
+      root.unmount();
+    },
+  };
 }
 
 /** 渲染侧最小诊断口（console 承载；平台日志子系统接入前不外露细节）。 */
 export function createRendererDiagnostics(): IRenderEngineBindings['diagnostics'] {
-  const emit = (level: 'warn' | 'error', scope: string, message: string, details?: Readonly<Record<string, unknown>>): void => {
+  const emit = (
+    level: 'warn' | 'error',
+    scope: string,
+    message: string,
+    details?: Readonly<Record<string, unknown>>,
+  ): void => {
     const line = `[chips-renderer] [${scope}] ${message}`;
     if (level === 'warn') {
       console.warn(line, details ?? '');
@@ -273,11 +300,7 @@ export function createRendererDiagnostics(): IRenderEngineBindings['diagnostics'
 /** 读取 `window.chips` 方法面（preload 桥缺席时为 `null`）。 */
 export function readChipsFacade(): IChipsCardWindowFacade | null {
   const chips = (window as unknown as { chips?: IChipsCardWindowFacade }).chips;
-  if (
-    chips === undefined ||
-    typeof chips.request !== 'function' ||
-    typeof chips.subscribe !== 'function'
-  ) {
+  if (chips === undefined || typeof chips.request !== 'function' || typeof chips.subscribe !== 'function') {
     return null;
   }
   return chips;
@@ -311,25 +334,176 @@ export function createViewChannelInvoke(surface: IHostViewChannelSurface): IDocu
 }
 
 /**
+ * 读取卡片窗口装载输入投递的窗口装载面（preload 第三 contextBridge 世界缺席时为 `null`）。
+ *
+ * @remarks 缺席即投递通路未就绪——本入口据此进入诚实空载态（与取视图装载面同一纪律）。
+ */
+export function readCardWindowInitSurface(): ICardWindowInitSurface | null {
+  const surface = (window as unknown as Record<string, unknown>)[CARD_WINDOW_INIT_SURFACE_KEY];
+  if (
+    typeof surface === 'object' &&
+    surface !== null &&
+    typeof (surface as ICardWindowInitSurface).requestInit === 'function'
+  ) {
+    return surface as ICardWindowInitSurface;
+  }
+  return null;
+}
+
+/** 装载输入投递轮询的缺省节奏与上限（工单035 §10.3 待办 3：重试节奏归接线波——本波钉此值）。 */
+export const CARD_WINDOW_INIT_DEFAULTS = Object.freeze({
+  /** 相邻两次取回请求的最小间隔（毫秒）。 */
+  retryDelayMs: 400,
+  /** 诚实空载重试的次数上限（耗尽即收口空闲态并落一次诊断，不无限轮询）。 */
+  maxAttempts: 30,
+});
+
+/** 装载输入提供器可调项（测试注入口；生产走缺省节奏）。 */
+export interface ICardWindowInitProviderOptions {
+  readonly retryDelayMs?: number;
+  readonly maxAttempts?: number;
+  /** 排程注入位（缺省 `setTimeout`；测试以即时排程驱动重试环）。 */
+  readonly schedule?: (callback: () => void, delayMs: number) => void;
+  /** 关联标识铸造注入位（缺省为本提供器实例的单调序列；契约闸只要求非空字符串）。 */
+  readonly mintRequestId?: () => string;
+}
+
+/**
+ * 构造经投递通道的窗口装载描述提供臂（正式投递腿，工单035 §10.3 待办 3）。
+ *
+ * @remarks 每轮一次的完整语义：铸造 `requestId` → 请求封套发送侧自检
+ * （{@link validateCardWindowInitRequest}，契约明载发送侧复用同一函数）→ `surface.requestInit`
+ * 往返 → 到达侧权威闸（{@link validateCardWindowInitResponse}，`requestId` 逐字关联）。
+ * 竞态收敛（契约三臂语义的渲染侧消费口径）：
+ * - `pending`（登记表未命中的合法瞬态）与 `DOCUMENT_NOT_OPEN`（绑定腿未就绪）→ 诚实空闲重试
+ *   （`setTimeout` 节奏、{@link ICardWindowInitProviderOptions.maxAttempts} 上限，耗尽落诊断收口）；
+ * - 其余终态码（`BRIDGE_SESSION_UNKNOWN` / `BRIDGE_INVALID_INPUT` / `BRIDGE_INTERNAL` 与闸违约、
+ *   传输拒绝）→ 收口空闲态并落诊断（不无限轮询死窗口、不采信破损封套）；
+ * - 就绪臂 → `payload` 原样直传（与 `ICardWindowInit` 逐字段同形由契约编译期互派生锁钉死，
+ *   本臂零适配、零改写）。
+ * 本函数不抛出：一切失败路径以 `null` 收口（调用方维持空载态）。
+ *
+ * @param surface 第三世界的投递暴露面（{@link readCardWindowInitSurface} 产出）。
+ * @param diagnostics 诊断口（终态收口与重试耗尽各落一次，逐轮 pending 静默——与桥面同纪律）。
+ * @param options 节奏与铸造可调项。
+ */
+export function createCardWindowInitProvider(
+  surface: ICardWindowInitSurface,
+  diagnostics: DiagnosticsSink,
+  options: ICardWindowInitProviderOptions = {},
+): () => Promise<ICardWindowInit | null> {
+  const retryDelayMs = options.retryDelayMs ?? CARD_WINDOW_INIT_DEFAULTS.retryDelayMs;
+  const maxAttempts = options.maxAttempts ?? CARD_WINDOW_INIT_DEFAULTS.maxAttempts;
+  const schedule =
+    options.schedule ?? ((callback: () => void, delay: number): void => void setTimeout(callback, delay));
+  let sequence = 0;
+  const mintRequestId = options.mintRequestId ?? ((): string => `card-window-init-${(sequence += 1)}`);
+  const wait = (): Promise<void> =>
+    new Promise((resolve) => {
+      schedule(resolve, retryDelayMs);
+    });
+  return async (): Promise<ICardWindowInit | null> => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const requestId = mintRequestId();
+      let data: unknown;
+      try {
+        const request = validateCardWindowInitRequest(createCardWindowInitFetchRequest(requestId));
+        data = await surface.requestInit(request);
+      } catch (error: unknown) {
+        const normalized = normalizeError(error);
+        if (normalized.code === CARD_WINDOW_INIT_CHANNEL_ERROR_CODES.documentNotOpen) {
+          await wait();
+          continue;
+        }
+        diagnostics.error('card-window-init', '装载输入取回传输失败，维持空载态', { code: normalized.code });
+        return null;
+      }
+      let response;
+      try {
+        response = validateCardWindowInitResponse(data, requestId);
+      } catch (error: unknown) {
+        // 到达闸违约 = 主进程回包契约漂移（闸内已归一 BRIDGE_INTERNAL），渲染侧不采信。
+        diagnostics.error('card-window-init', '装载输入回包未过契约闸，维持空载态', {
+          code: normalizeError(error).code,
+        });
+        return null;
+      }
+      if (isCardWindowInitResult(response)) {
+        return response.payload;
+      }
+      if (isCardWindowInitPending(response)) {
+        // 登记表未命中的合法瞬态（结构性时窗）：诚实空闲重试（末轮不空转等待）。
+        if (attempt < maxAttempts) {
+          await wait();
+        }
+        continue;
+      }
+      // 其余为失败臂（到达闸已把判别收敛为三臂）：绑定未就绪继续等待，终态码收口落诊断。
+      if (response.error.code === CARD_WINDOW_INIT_CHANNEL_ERROR_CODES.documentNotOpen) {
+        if (attempt < maxAttempts) {
+          await wait();
+        }
+        continue;
+      }
+      diagnostics.error('card-window-init', '装载输入投递被通道在册错误面拒绝，维持空载态', {
+        code: response.error.code,
+      });
+      return null;
+    }
+    diagnostics.warn('card-window-init', '装载输入在重试上限内未就绪，维持空载态', { maxAttempts });
+    return null;
+  };
+}
+
+/**
  * 入口自举：桥可用、取视图通道面就绪且已收到装载输入时挂载完整组合；否则呈现诚实空载态。
  *
- * @param initProvider 窗口装载描述提供臂的注入位——正式投递通道（主进程登记表 → 渲染侧）
- *   随文档链路接线波次转正后由入口装载层接入；缺省空载。集成波次接入本臂即全链路生效。
+ * @param initProvider 窗口装载描述提供臂的注入位——同步提供（既有测试/嵌入方口径）直接挂载；
+ *   异步提供臂（投递通道 `createCardWindowInitProvider` 形态）先渲染空闲根、就绪后卸载空闲根
+ *   再挂真实组合（同一容器 React 根互斥）；缺省且第三世界装载面在位时自动接入正式投递臂。
  */
-export function bootCardWindow(initProvider?: () => ICardWindowInit | null): void {
+export function bootCardWindow(initProvider?: () => ICardWindowInit | null | Promise<ICardWindowInit | null>): void {
   const container = document.getElementById('chips-card-root');
   if (container === null) {
     return;
   }
   const chips = readChipsFacade();
   const surface = readHostViewChannelSurface();
-  const init = chips === null || surface === null ? null : (initProvider?.() ?? null);
-  if (chips === null || surface === null || init === null) {
+  if (chips === null || surface === null) {
     renderIdleState(container);
     return;
   }
-  mountCardWindow(container, chips, init, createRendererDiagnostics(), createViewChannelInvoke(surface));
+  const initSurface = readCardWindowInitSurface();
+  const provider: (() => ICardWindowInit | null | Promise<ICardWindowInit | null>) | null =
+    initProvider ??
+    (initSurface === null ? null : createCardWindowInitProvider(initSurface, createRendererDiagnostics()));
+  if (provider === null) {
+    renderIdleState(container);
+    return;
+  }
+  const outcome = provider();
+  if (typeof outcome === 'object' && outcome !== null && 'then' in outcome) {
+    const idle = renderIdleState(container);
+    outcome.then(
+      (init) => {
+        if (init === null) {
+          return;
+        }
+        idle.unmount();
+        mountCardWindow(container, chips, init, createRendererDiagnostics(), createViewChannelInvoke(surface));
+      },
+      () => {
+        // 正式提供臂内部不拒绝；此臂兜底外部注入提供的异步腿——拒绝即维持空闲态。
+      },
+    );
+    return;
+  }
+  if (outcome === null) {
+    renderIdleState(container);
+    return;
+  }
+  mountCardWindow(container, chips, outcome, createRendererDiagnostics(), createViewChannelInvoke(surface));
 }
 
-// 构建产物自举：真实卡片窗口装载本脚本即进入空载等待态（装载输入投递臂转正后经注入位生效）。
+// 构建产物自举：真实卡片窗口装载本脚本即接入投递通道（第三世界缺席时维持诚实空载等待态）。
 bootCardWindow();

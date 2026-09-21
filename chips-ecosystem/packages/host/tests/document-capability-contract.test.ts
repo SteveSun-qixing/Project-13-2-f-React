@@ -226,6 +226,7 @@ describe('注册单元 ↔ 镜像常量与预留槽位（descriptors.ts）', () 
       executeWrite: recorder('write', calls),
       executeSave: recorder('save', calls),
       resolveViewSession: (): DocumentViewSessionResolution => ({ status: 'not-found' }),
+      resolveWindowDocument: (): null => null,
       releaseSessions: (): Promise<void> => Promise.resolve(),
       activeRecordCount: (): number => 0,
     };

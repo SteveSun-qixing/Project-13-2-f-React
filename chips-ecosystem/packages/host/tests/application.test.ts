@@ -35,7 +35,12 @@ describe('HostApplication.start', () => {
     expect(application.state).toBe('running');
     expect(runtime.calls.start).toHaveLength(1);
     expect(runtime.calls.start[0]?.host.info.shell).toBe('desktop');
-    expect([...fake.ipcMain.handlers.keys()].sort()).toEqual(['bridge:request', 'bridge:resource', 'event:control']);
+    expect([...fake.ipcMain.handlers.keys()].sort()).toEqual([
+      'bridge:request',
+      'bridge:resource',
+      'card-window-init:request',
+      'event:control',
+    ]);
     expect(fake.windows).toHaveLength(1);
     expect(fake.windows[0]?.options['title']).toBe('薯片 · 壳自检');
     expect(runtime.calls.forwarded).toBe(1);

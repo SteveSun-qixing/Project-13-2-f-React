@@ -30,7 +30,7 @@
 import { join } from 'node:path';
 
 import type { IPalHost } from '../platform/contracts/index.js';
-import type { IDocumentViewChannelEndpoint } from '../runtime/contracts.js';
+import type { CardWindowDocumentBindingResolver, IDocumentViewChannelEndpoint } from '../runtime/contracts.js';
 import type { IHostCapabilityDescriptor } from '../runtime/capability/contracts.js';
 import type { IHostCapabilityRegistryOptions } from '../runtime/capability/registry.js';
 import type { IHostSessionProvisioner } from '../runtime/capability/session.js';
@@ -103,6 +103,13 @@ export interface ProductionRuntimeOptions {
    */
   readonly documentViewChannel?: IDocumentViewChannelEndpoint;
   /**
+   * 卡片窗口装载投递的文档绑定解析端口（刀7 接线波，任务 #120）：由组合根文档装载段以
+   * `document:open` 回包同源的 `IDocumentService.resolveWindowDocument` 交付，透传给宿主运行时
+   * 供壳 `ipc` 段构造 `card-window-init:request` 投递处理函数。装载段诚实回退（`document:*`
+   * 未注册）时缺位——投递臂按在册码 `DOCUMENT_NOT_OPEN` 如实拒收。
+   */
+  readonly cardWindowDocumentBinding?: CardWindowDocumentBindingResolver;
+  /**
    * Bridge 会话关闭联动（刀4 缝②）：透传给宿主运行时，在会话订阅/句柄清理完成后
    * 通知文档服务释放该会话的文档会话与记录（§4.6）。
    */
@@ -166,6 +173,9 @@ export function createProductionRuntime(
     ...(options.registryOptions === undefined ? {} : { registryOptions: options.registryOptions }),
     ...(options.pluginLoaderFactory === undefined ? {} : { pluginLoaderFactory: options.pluginLoaderFactory }),
     ...(options.documentViewChannel === undefined ? {} : { documentViewChannel: options.documentViewChannel }),
+    ...(options.cardWindowDocumentBinding === undefined
+      ? {}
+      : { cardWindowDocumentBinding: options.cardWindowDocumentBinding }),
     ...(options.onBridgeSessionClosed === undefined ? {} : { onBridgeSessionClosed: options.onBridgeSessionClosed }),
     ...(options.diagnostics === undefined ? {} : { diagnostics: options.diagnostics }),
   });
@@ -270,6 +280,11 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
       // 释放链内部完成事件发布与诊断留痕；此处兜底 catch 防异步拒绝逃逸（fire-and-forget
       // 口径见 `host-runtime.ts` `onBridgeSessionClosed` 选项头注）。
       const documentService = documentAssembly.service;
+      // 刀7 接线波（任务 #120）：装载投递通道的绑定腿端口——与 `document:open` 回包同源
+      // （同一 `findRecord(source)` 会话键口径），钉死 `windowId ↔ source ↔ documentId`
+      // 一致性（工单035 §九待裁随账收口）。装载段回退态（service 缺位）不注入，投递臂如实拒收。
+      const cardWindowDocumentBinding: CardWindowDocumentBindingResolver | undefined =
+        documentService === undefined ? undefined : (source) => documentService.resolveWindowDocument(source);
       const onBridgeSessionClosed =
         documentService === undefined
           ? undefined
@@ -289,6 +304,7 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
         // 刀5 段A：视图通道端点两臂恒在（wired = 真实构建臂，unavailable = 诚实拒绝臂），
         // 交壳 `ipc` 段注册 `document-view:request`。
         documentViewChannel: documentAssembly.viewChannel,
+        ...(cardWindowDocumentBinding === undefined ? {} : { cardWindowDocumentBinding }),
         ...(onBridgeSessionClosed === undefined ? {} : { onBridgeSessionClosed }),
         ...(diagnostics === undefined ? {} : { diagnostics }),
       });

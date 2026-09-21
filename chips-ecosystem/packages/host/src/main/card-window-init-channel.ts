@@ -65,6 +65,29 @@ import type { CardWindowOrchestrator } from './card-window-orchestrator.js';
  */
 export const CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID = 'card-window-init:uncorrelated-request';
 
+/**
+ * 请求闸拒绝后的关联标识尽力恢复（失败臂回带口径）：
+ *
+ * - 封套键集恰为在册请求三键（`protocol`/`requestId`/`type`）且 `requestId` 为非空字符串 →
+ *   逐字回带（判别值漂移不消灭关联——与取视图通道回包同纪律）；
+ * - 其余形态（非对象、键集漂移含自报 windowId、requestId 缺失/非字符串）→ 关联确实取不出，
+ *   以 {@link CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID} 如实回包。
+ *
+ * @remarks 只读恢复、不采信任何语义：恢复值仅用于回包关联，不进入投递腿。
+ */
+function recoverRequestId(data: unknown): string {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID;
+  }
+  const record = data as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (keys.length !== 3 || keys[0] !== 'protocol' || keys[1] !== 'requestId' || keys[2] !== 'type') {
+    return CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID;
+  }
+  const requestId = record['requestId'];
+  return typeof requestId === 'string' && requestId.length > 0 ? requestId : CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID;
+}
+
 /** 投递臂依赖（组合根装载段与壳 `ipc` 段共同闭合）。 */
 export interface CardWindowInitHandlerDeps {
   /** 卡片窗口编排器（登记表：装载输入 `source` 与 `documentId` 承载位的权威上游）。 */
@@ -86,14 +109,12 @@ export type CardWindowInitHandler = (event: ShellIpcInvokeEvent, data: unknown) 
 /**
  * 登记表命中后的投递腿（第 2~4 步）。
  *
+ * 投递腿各步同步完成，监听器契约的 Promise 形态由 {@link createCardWindowInitHandler} 承载。
+ *
  * @throws 契约在册错误（`DOCUMENT_NOT_OPEN` / `DOCUMENT_ID_CONFLICT` / 回包自检违约），由
  * {@link createCardWindowInitHandler} 统一收敛为失败臂。
  */
-function deliverInit(
-  deps: CardWindowInitHandlerDeps,
-  windowId: number,
-  requestId: string
-): unknown {
+function deliverInit(deps: CardWindowInitHandlerDeps, windowId: number, requestId: string): unknown {
   const record = deps.orchestrator.recordOf(windowId);
   if (record === null) {
     if (deps.isWindowAlive(windowId)) {
@@ -157,16 +178,19 @@ function deliverInit(
  * @returns `ipcMain.handle(CARD_WINDOW_INIT_REQUEST_CHANNEL, …)` 直接可注册的监听器。
  */
 export function createCardWindowInitHandler(deps: CardWindowInitHandlerDeps): CardWindowInitHandler {
-  return async (event: ShellIpcInvokeEvent, data: unknown): Promise<unknown> => {
+  return (event: ShellIpcInvokeEvent, data: unknown): Promise<unknown> => {
     // 身份取证单点：`event.sender.id` = `webContents.id`（§7.4），渲染侧无自报入口。
     const windowId = event.sender.id;
     let requestId = CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID;
     try {
       const request = validateCardWindowInitRequest(data);
       requestId = request.requestId;
-      return deliverInit(deps, windowId, requestId);
+      return Promise.resolve(deliverInit(deps, windowId, requestId));
     } catch (error: unknown) {
-      return createCardWindowInitFailure(requestId, windowId, error);
+      // 关联标识尽力恢复：投递腿未运行、请求闸即拒时，封套键集完好则逐字回带（见
+      // {@link recoverRequestId}）；破损到取不出的形态才落未关联标识。
+      const correlated = requestId === CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID ? recoverRequestId(data) : requestId;
+      return Promise.resolve(createCardWindowInitFailure(correlated, windowId, error));
     }
   };
 }
@@ -189,9 +213,7 @@ export interface CardWindowInitRegistrationDeps {
  */
 export function registerCardWindowInitChannel(deps: CardWindowInitRegistrationDeps): () => void {
   const channel = deps.channel ?? CARD_WINDOW_INIT_REQUEST_CHANNEL;
-  deps.ipcMain.handle(channel, (event, ...args: readonly unknown[]): Promise<unknown> =>
-    deps.handler(event, args[0])
-  );
+  deps.ipcMain.handle(channel, (event, ...args: readonly unknown[]): Promise<unknown> => deps.handler(event, args[0]));
   let disposed = false;
   return () => {
     if (disposed) {

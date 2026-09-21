@@ -45,7 +45,6 @@ import { WindowRegistry } from '../src/main/window-registry.js';
 import { createElectronRuntime } from '../src/main/electron-adapter.js';
 import { HostApplication } from '../src/main/application.js';
 import { createDocumentService } from '../src/capabilities/document/service.js';
-import type { IDocumentService } from '../src/capabilities/document/service.js';
 import { DOCUMENT_BUSINESS_ERROR_CODES } from '../src/capabilities/document/errors.js';
 import type { ShellIpcInvokeEvent, ShellIpcMain } from '../src/main/shell-api.js';
 import type { IResourceBackend } from '../src/runtime/contracts.js';
@@ -85,9 +84,17 @@ interface HandlerProbe {
   readonly bindingCalls: string[];
 }
 
+/**
+ * 测试替位覆写面：`resolveDocument` 允许显式置 `undefined`，用于模拟「绑定端口未接线」的
+ * 生产回退态（`exactOptionalPropertyTypes` 下契约deps位本身只省略不传，此替位不入契约面）。
+ */
+interface HandlerOverrides extends Partial<Omit<CardWindowInitHandlerDeps, 'resolveDocument'>> {
+  resolveDocument?: CardWindowInitHandlerDeps['resolveDocument'] | undefined;
+}
+
 function makeHandler(
   windows: readonly { id: number; source: string; destroyed?: boolean; documentId?: string | null }[],
-  overrides: Partial<CardWindowInitHandlerDeps> = {}
+  overrides: HandlerOverrides = {},
 ): { handler: ReturnType<typeof createCardWindowInitHandler>; probe: HandlerProbe } {
   const records: FakeWindow[] = windows.map((window) => ({
     id: window.id,
@@ -126,20 +133,21 @@ function makeHandler(
     },
   } as unknown as CardWindowOrchestrator;
 
-  const bindingCallsOf = (probeBindings: boolean): CardWindowInitHandlerDeps['resolveDocument'] =>
-    probeBindings === false
-      ? undefined
-      : (source: string) => {
-          bindingCalls.push(source);
-          return { documentId: CARD_ID, resourceBase: RESOURCE_BASE };
-        };
+  const bindingCallsOf = (): CardWindowInitHandlerDeps['resolveDocument'] => {
+    return (source: string) => {
+      bindingCalls.push(source);
+      return { documentId: CARD_ID, resourceBase: RESOURCE_BASE };
+    };
+  };
 
-  const handler = createCardWindowInitHandler({
-    orchestrator,
-    isWindowAlive: alive,
-    ...bindingCallsOf(overrides.resolveDocument === undefined),
-    ...overrides,
-  });
+  // `in` 判别两态：键缺省 = 接探针绑定腿；显式置 `undefined` = 模拟生产「绑定端口未接线」。
+  const resolveDocument = 'resolveDocument' in overrides ? overrides.resolveDocument : bindingCallsOf();
+  const deps: CardWindowInitHandlerDeps = {
+    orchestrator: overrides.orchestrator ?? orchestrator,
+    isWindowAlive: overrides.isWindowAlive ?? alive,
+    ...(resolveDocument === undefined ? {} : { resolveDocument }),
+  };
+  const handler = createCardWindowInitHandler(deps);
   return { handler, probe: { records, bindCalls, bindingCalls } };
 }
 
@@ -148,7 +156,12 @@ function eventFrom(windowId: number): ShellIpcInvokeEvent {
 }
 
 function fetchPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { protocol: CARD_WINDOW_INIT_PROTOCOL, type: CARD_WINDOW_INIT_MESSAGE_TYPES.fetch, requestId: 'init-1', ...overrides };
+  return {
+    protocol: CARD_WINDOW_INIT_PROTOCOL,
+    type: CARD_WINDOW_INIT_MESSAGE_TYPES.fetch,
+    requestId: 'init-1',
+    ...overrides,
+  };
 }
 
 /** 回包过契约响应权威闸（渲染侧到达闸同一函数）：投递漂移即闸红。 */
@@ -156,7 +169,7 @@ async function deliver(
   handler: ReturnType<typeof createCardWindowInitHandler>,
   windowId: number,
   data: unknown,
-  expectedRequestId = 'init-1'
+  expectedRequestId = 'init-1',
 ): Promise<ReturnType<typeof validateCardWindowInitResponse>> {
   return validateCardWindowInitResponse(await handler(eventFrom(windowId), data), expectedRequestId);
 }
@@ -306,7 +319,13 @@ describe('卡片窗口装载投递 · 竞态与绑定臂（pending / 销毁后�
   it('error：绑定命中后窗口在竞态中解绑 → 投递臂以 BRIDGE_SESSION_UNKNOWN 收尾（不投递给死窗口）', async () => {
     const { handler, probe } = makeHandler([{ id: WINDOW_ID, source: SOURCE }], {
       orchestrator: {
-        recordOf: () => ({ windowId: WINDOW_ID, source: SOURCE, entryUrl: CARD_WINDOW_ENTRY_URL, openedAt: 0, documentId: null }),
+        recordOf: () => ({
+          windowId: WINDOW_ID,
+          source: SOURCE,
+          entryUrl: CARD_WINDOW_ENTRY_URL,
+          openedAt: 0,
+          documentId: null,
+        }),
         bindDocument: () => ({ status: 'unregistered' }),
       } as unknown as CardWindowOrchestrator,
     });
@@ -333,7 +352,10 @@ describe('卡片窗口装载投递 · 请求闸与回包发送前自检', () => 
       ['缺 requestId', { protocol: CARD_WINDOW_INIT_PROTOCOL, type: CARD_WINDOW_INIT_MESSAGE_TYPES.fetch }],
     ] as const) {
       const raw = await handler(eventFrom(WINDOW_ID), data);
-      const expected = label === '缺 requestId' ? CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID : 'init-1';
+      // 尽力恢复口径：封套键集完好（恰三在册键）时逐字回带；非对象封套与缺 requestId 同样
+      // 破损到取不出——以固定未关联标识回包（用例标题「关联可取时逐字回带」的如实镜像）。
+      const expected =
+        label === '缺 requestId' || label === '非对象封套' ? CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID : 'init-1';
       const validated = validateCardWindowInitResponse(raw, expected);
       if (!isCardWindowInitFailure(validated)) {
         throw new Error(`预期失败臂：${label}`);
@@ -384,7 +406,15 @@ describe('卡片窗口装载投递 · 请求闸与回包发送前自检', () => 
   it('跨进程封套键集锁：就绪臂不携带任何主进程内部字段（绑定腿视图不外泄）', async () => {
     const { handler } = makeHandler([{ id: WINDOW_ID, source: SOURCE }]);
     const raw = JSON.stringify(await handler(eventFrom(WINDOW_ID), fetchPayload()));
-    for (const internal of ['managedUri', 'resourceBaseRaw', 'nativeSession', 'handle', 'webContents', 'entryUrl', 'openedAt']) {
+    for (const internal of [
+      'managedUri',
+      'resourceBaseRaw',
+      'nativeSession',
+      'handle',
+      'webContents',
+      'entryUrl',
+      'openedAt',
+    ]) {
       expect(raw, internal).not.toContain(internal);
     }
   });
@@ -396,6 +426,7 @@ describe('卡片窗口装载投递 · 请求闸与回包发送前自检', () => 
 
 function realOrchestratorHarness(): {
   orchestrator: CardWindowOrchestrator;
+  manager: ShellWindowManager;
   registry: WindowRegistry;
   fake: ReturnType<typeof createFakeElectron>;
 } {
@@ -423,10 +454,13 @@ function realOrchestratorHarness(): {
     diagnostics,
     now: () => 1_727_000_000_000,
   });
-  return { orchestrator, registry, fake };
+  return { orchestrator, manager, registry, fake };
 }
 
-function handlerWith(orchestrator: CardWindowOrchestrator, isWindowAlive: (windowId: number) => boolean) {
+function handlerWith(
+  orchestrator: CardWindowOrchestrator,
+  isWindowAlive: (windowId: number) => boolean,
+): ReturnType<typeof createCardWindowInitHandler> {
   return createCardWindowInitHandler({
     orchestrator,
     isWindowAlive,
@@ -482,7 +516,11 @@ describe('ICardWindowRecord 文档绑定承载位 · 生命周期（工单035 §
   it('就绪臂经真实编排器：承载位由投递腿写入并回带取证 windowId', async () => {
     const { orchestrator, registry } = realOrchestratorHarness();
     const record = await orchestrator.open({ source: SOURCE });
-    const response = await deliver(handlerWith(orchestrator, (windowId) => registry.isAlive(windowId)), record.windowId, fetchPayload());
+    const response = await deliver(
+      handlerWith(orchestrator, (windowId) => registry.isAlive(windowId)),
+      record.windowId,
+      fetchPayload(),
+    );
     if (!isCardWindowInitResult(response)) {
       throw new Error('预期就绪臂');
     }
@@ -493,8 +531,21 @@ describe('ICardWindowRecord 文档绑定承载位 · 生命周期（工单035 §
   });
 
   it('open 未完成的结构性时窗：窗口已创建而登记表未命中 → pending（渲染侧继续空载）', async () => {
-    const { orchestrator, registry } = realOrchestratorHarness();
-    const response = await deliver(handlerWith(orchestrator, (windowId) => registry.isAlive(windowId)), 9999, fetchPayload());
+    const { orchestrator, manager, registry } = realOrchestratorHarness();
+    // 真实「窗口已创建」的取证窗口：经窗口管理器创建（注册表在册且存活），而编排器登记表
+    // 尚未命中（`createWindow` 返回与 map 写入之间的结构性时窗的同构复现）。
+    const created = await manager.createWindow({
+      title: '薯片 · 卡片（登记前）',
+      width: 480,
+      height: 720,
+      url: CARD_WINDOW_ENTRY_URL,
+    });
+    expect(orchestrator.recordOf(created.windowId)).toBeNull();
+    const response = await deliver(
+      handlerWith(orchestrator, (windowId) => registry.isAlive(windowId)),
+      created.windowId,
+      fetchPayload(),
+    );
     expect(isCardWindowInitPending(response)).toBe(true);
   });
 
@@ -502,7 +553,11 @@ describe('ICardWindowRecord 文档绑定承载位 · 生命周期（工单035 §
     const { orchestrator, registry, fake } = realOrchestratorHarness();
     const record = await orchestrator.open({ source: SOURCE });
     fake.windows[0]!.webContents.destroy();
-    const response = await deliver(handlerWith(orchestrator, (windowId) => registry.isAlive(windowId)), record.windowId, fetchPayload());
+    const response = await deliver(
+      handlerWith(orchestrator, (windowId) => registry.isAlive(windowId)),
+      record.windowId,
+      fetchPayload(),
+    );
     expect(isCardWindowInitFailure(response)).toBe(true);
     if (isCardWindowInitFailure(response)) {
       expect(response.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
@@ -553,11 +608,15 @@ describe('resolveWindowDocument · 与 document:open 回包同源（真实文档
   });
 
   it('端到端（真实文档服务 + 真实编排器）：打开文档 → 投递就绪臂字段逐项同源', async () => {
+    // 编排器登记表的来源闸是资源 URI 语法闸（夹具缺省的 `default` 段非受管作用域合法形态），
+    // 端到端腿以真实受管作用域（`workspace-a`）登记并打开卡片——「同一来源引用」的同源论断
+    // 在合法来源引用上同样成立且更强（两侧经逐字同一字符串命中）。
     const harness = createHarness();
+    const windowCardUri = harness.addCard('chips-resource://workspace-a/投递端到端.card');
     const service = createDocumentService(harness.dependencies);
-    const opened = await service.executeOpen({ source: harness.cardUri }, ctxFor(SESSION_A));
+    const opened = await service.executeOpen({ source: windowCardUri }, ctxFor(SESSION_A));
     const { orchestrator, registry } = realOrchestratorHarness();
-    const record = await orchestrator.open({ source: harness.cardUri });
+    const record = await orchestrator.open({ source: windowCardUri });
     const handler = createCardWindowInitHandler({
       orchestrator,
       isWindowAlive: (windowId) => registry.isAlive(windowId),
@@ -568,16 +627,18 @@ describe('resolveWindowDocument · 与 document:open 回包同源（真实文档
       throw new Error('预期就绪臂');
     }
     expect(response.payload).toEqual({
-      source: harness.cardUri,
+      source: windowCardUri,
       documentId: opened.documentId,
-      resourceBase: 'chips-resource://default/',
+      resourceBase: 'chips-resource://workspace-a/',
       pluginEntries: {},
       tokens: {},
     });
     expect(record.documentId).toBe(opened.documentId);
     // 同一窗口二次投递（承载位已钉）幂等复用同一标识，不重复绑定。
     const again = await deliver(handler, record.windowId, fetchPayload({ requestId: 'init-2' }), 'init-2');
-    expect(isCardWindowInitResult(again)).toBe(true);
+    if (!isCardWindowInitResult(again)) {
+      throw new Error('预期就绪臂');
+    }
     expect(again.payload.documentId).toBe(opened.documentId);
   });
 
@@ -585,7 +646,8 @@ describe('resolveWindowDocument · 与 document:open 回包同源（真实文档
     const harness = createHarness();
     const service = createDocumentService(harness.dependencies);
     const { orchestrator, registry } = realOrchestratorHarness();
-    const record = await orchestrator.open({ source: harness.cardUri });
+    // 受管作用域合法而会话记录缺席（从未打开）——同上注的来源闸口径。
+    const record = await orchestrator.open({ source: 'chips-resource://workspace-a/未打开.card' });
     const handler = createCardWindowInitHandler({
       orchestrator,
       isWindowAlive: (windowId) => registry.isAlive(windowId),
@@ -604,7 +666,9 @@ describe('resolveWindowDocument · 与 document:open 回包同源（真实文档
  * 通道注册与壳启动装载
  * ------------------------------------------------------------------ */
 
-function makeFakeIpcMain(): ShellIpcMain & { handlers: Map<string, (event: ShellIpcInvokeEvent, ...args: readonly unknown[]) => unknown> } {
+function makeFakeIpcMain(): ShellIpcMain & {
+  handlers: Map<string, (event: ShellIpcInvokeEvent, ...args: readonly unknown[]) => unknown>;
+} {
   const handlers = new Map<string, (event: ShellIpcInvokeEvent, ...args: readonly unknown[]) => unknown>();
   return {
     handlers,
@@ -623,9 +687,9 @@ describe('registerCardWindowInitChannel：ipcMain 切片注册与幂等注销', 
     const calls: { windowId: number; data: unknown }[] = [];
     const detach = registerCardWindowInitChannel({
       ipcMain,
-      handler: async (event, data) => {
+      handler: (event, data) => {
         calls.push({ windowId: event.sender.id, data });
-        return { ack: true };
+        return Promise.resolve({ ack: true });
       },
     });
     expect(ipcMain.handlers.has(CARD_WINDOW_INIT_REQUEST_CHANNEL)).toBe(true);
@@ -644,7 +708,7 @@ describe('registerCardWindowInitChannel：ipcMain 切片注册与幂等注销', 
     const ipcMain = makeFakeIpcMain();
     registerCardWindowInitChannel({
       ipcMain,
-      handler: async () => undefined,
+      handler: () => Promise.resolve(undefined),
       channel: 'card-window-init:test-only',
     });
     expect(ipcMain.handlers.has('card-window-init:test-only')).toBe(true);
@@ -659,7 +723,10 @@ describe('HostApplication：装载投递通道随壳启动注册、随停机与�
   } {
     const fake = createFakeElectron();
     const base = createFakeRuntime();
-    const runtime = { ...base.runtime, ...(cardWindowDocumentBinding === undefined ? {} : { cardWindowDocumentBinding }) };
+    const runtime = {
+      ...base.runtime,
+      ...(cardWindowDocumentBinding === undefined ? {} : { cardWindowDocumentBinding }),
+    };
     const application = new HostApplication({
       electron: createElectronRuntime(fake.module),
       palHost: createFakePalHost(),
@@ -685,7 +752,9 @@ describe('HostApplication：装载投递通道随壳启动注册、随停机与�
   });
 
   it('端到端：真实壳 + 启动参数开卡 + 替身 webContents 投递 → 空载 pending（登记表时窗口径）', async () => {
-    const { application, fake } = createApplication((source) => (source.length > 0 ? { documentId: CARD_ID, resourceBase: RESOURCE_BASE } : null));
+    const { application, fake } = createApplication((source) =>
+      source.length > 0 ? { documentId: CARD_ID, resourceBase: RESOURCE_BASE } : null,
+    );
     await application.start();
     const record = await application.cardWindowOrchestrator.open({ source: SOURCE });
     const listener = fake.ipcMain.handlers.get(CARD_WINDOW_INIT_REQUEST_CHANNEL);
@@ -698,7 +767,10 @@ describe('HostApplication：装载投递通道随壳启动注册、随停机与�
     expect(validated.windowId).toBe(record.windowId);
     expect(record.documentId).toBe(CARD_ID);
     // 以替身 webContents 的真实 ID 自报身份投递：非卡片窗口即未命中登记表（窗口存活则 pending）。
-    const stranger = await listener({ sender: { id: fake.windows[0]!.webContents.id + 5_000 }, senderFrame: null }, fetchPayload());
+    const stranger = await listener(
+      { sender: { id: fake.windows[0]!.webContents.id + 5_000 }, senderFrame: null },
+      fetchPayload(),
+    );
     const strangerValidated = validateCardWindowInitResponse(stranger, 'init-1');
     expect(isCardWindowInitPending(strangerValidated) || isCardWindowInitFailure(strangerValidated)).toBe(true);
     await application.shutdown();

@@ -22,6 +22,7 @@ import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import { HostStartupError, type HostStartupStage } from '../shared/errors.js';
 import type { ShellElectronRuntime } from './electron-adapter.js';
 import { registerDocumentViewChannel } from '../capabilities/document/adapters/view-channel.js';
+import { createCardWindowInitHandler, registerCardWindowInitChannel } from './card-window-init-channel.js';
 import { registerIpcChannels } from './ipc-channels.js';
 import { CardWindowOrchestrator } from './card-window-orchestrator.js';
 import { pushSessionPermissions } from './session-resolver.js';
@@ -77,6 +78,7 @@ export class HostApplication {
   private readonly cardWindows: CardWindowOrchestrator;
   private detachIpc: (() => void) | null = null;
   private detachViewChannel: (() => void) | null = null;
+  private detachCardWindowInit: (() => void) | null = null;
   private detachEvents: (() => void) | null = null;
   private coreStarted = false;
   private currentState: HostApplicationState = 'idle';
@@ -160,6 +162,20 @@ export class HostApplication {
           endpoint: viewChannelEndpoint,
         });
       }
+      // 刀7 投递臂（工单035 §10.3 待办 1）：卡片窗口装载输入投递通道与取视图通道同段注册。
+      // 通道恒在册（两端均为平台自身代码，权限判定不适用）；绑定腿（组合根
+      // `cardWindowDocumentBinding`）缺位即未就绪态——投递臂按在册码 DOCUMENT_NOT_OPEN
+      // 如实拒收，不静默、不伪造装载。
+      this.detachCardWindowInit = registerCardWindowInitChannel({
+        ipcMain: this.options.electron.ipcMain,
+        handler: createCardWindowInitHandler({
+          orchestrator: this.cardWindows,
+          isWindowAlive: (windowId) => this.registry.isAlive(windowId),
+          ...(this.options.runtime.cardWindowDocumentBinding === undefined
+            ? {}
+            : { resolveDocument: this.options.runtime.cardWindowDocumentBinding }),
+        }),
+      });
       stage = 'protocol';
       this.options.electron.app.onWebContentsCreated((webContents) => {
         this.binder.bind(webContents);
@@ -229,6 +245,7 @@ export class HostApplication {
     await this.stopPlugins();
     this.unregisterEvents();
     this.closeWindows();
+    this.unregisterCardWindowInit();
     this.unregisterViewChannel();
     this.unregisterIpc();
     await this.shutdownCore();
@@ -327,6 +344,20 @@ export class HostApplication {
     }
   }
 
+  /** 注销卡片窗口装载输入投递通道（逆序收口：后注册先注销）。 */
+  private unregisterCardWindowInit(): void {
+    const detach = this.detachCardWindowInit;
+    this.detachCardWindowInit = null;
+    if (detach === null) {
+      return;
+    }
+    try {
+      detach();
+    } catch (error) {
+      this.diagnostics.error('shutdown', '装载投递通道注销失败', { reason: describe(error) });
+    }
+  }
+
   /** 核心停机。 */
   private async shutdownCore(): Promise<void> {
     if (!this.coreStarted) {
@@ -357,6 +388,7 @@ export class HostApplication {
   private async rollback(): Promise<void> {
     this.unregisterEvents();
     this.closeWindows();
+    this.unregisterCardWindowInit();
     this.unregisterViewChannel();
     this.unregisterIpc();
     await this.shutdownCore();

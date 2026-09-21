@@ -3,7 +3,9 @@
  *
  * 权威：
  * - 封套与通道名的唯一契约权威在 `src/shared/card-window-init-surface.ts`（任务 #119 冻结件，
- *   头注明示「可安全 import 于主 / 渲染 / preload 任一侧」——本模块只取其通道名常量与世界键）；
+ *   头注明示「可安全 import 于主 / 渲染 / preload 任一侧」——本模块只取其通道名常量；
+ *   世界键 `CARD_WINDOW_INIT_SURFACE_KEY` 由 preload 入口按 `HOST_VIEW_CHANNEL_SURFACE_KEY`
+ *   先例直接从 shared 契约面导入挂载，本模块不转出）；
  * - 工单035 裁定一（通道 = 壳渲染进程↔主进程 IPC 契约、非插件能力、不经 `window.chips`）与
  *   §10.3 待办 2（第三独立 contextBridge 世界、单方法 `requestInit`、通道钉死、纯转发不解释负载；
  *   `window.chips` 三方法面与 `__chipsHostViewChannel` 世界键集零改动）；
@@ -53,6 +55,3 @@ export function createCardWindowInitSurface(ipcRenderer: ElectronIpcRendererLike
     },
   };
 }
-
-/** 世界键（唯一名字来源在契约面；本模块转出以便 preload 入口不重复触达 shared 常量）。 */
-export { CARD_WINDOW_INIT_SURFACE_KEY };
