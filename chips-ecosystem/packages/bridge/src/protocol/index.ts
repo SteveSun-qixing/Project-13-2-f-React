@@ -20,6 +20,34 @@ export {
   type IPermissionTargetRule,
 } from './capability-contracts.js';
 export { type IBinaryEnvelope, type IBinaryFieldDescriptor } from './envelope.js';
+
+export {
+  CARRIER_DISABLE_ENV,
+  CARRIER_DISABLE_VALUE,
+  CARRIER_DISCOVERY_FILE_NAME,
+  CARRIER_ENDPOINT_DIR_MODE,
+  CARRIER_ENDPOINT_FILE_MODE,
+  CARRIER_HANDSHAKE_REASON_VALUES,
+  CARRIER_HANDSHAKE_REASONS,
+  CARRIER_HANDSHAKE_TIMEOUT_MS,
+  CARRIER_PIPE_NAME_PREFIX,
+  CARRIER_PROTOCOL,
+  CARRIER_SOCKET_ENV,
+  CARRIER_SOCKET_FILE_NAME,
+  CARRIER_SOCKET_PATH_MAX_BYTES,
+  CARRIER_SOCKET_SHORT_PREFIX,
+  type CarrierHandshakeReason,
+  type CarrierProtocol,
+  type DeriveCarrierEndpoints,
+  type ICarrierDiscoveryRecord,
+  type ICarrierEndpoints,
+  type ICarrierHandshakeFailure,
+  type ICarrierHandshakeRequest,
+  type ICarrierHandshakeResponse,
+  type ICarrierHandshakeSuccess,
+  type ICarrierRequest,
+  type ICarrierResponse,
+} from './carrier.js';
 export {
   BRIDGE_ERROR_CODES,
   BRIDGE_ERROR_MESSAGES,
