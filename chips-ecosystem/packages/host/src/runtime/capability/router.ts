@@ -149,7 +149,8 @@ export function createHostCapabilityRouter(deps: IHostCapabilityRouterDeps): IHo
       sessionId: session.sessionId,
       callerId: session.pluginId,
       emit(eventId: string, payload: unknown): void {
-        if (!controller.signal.aborted) {
+        // 承载会话无窗口推送腿（《17》§3.6：CLI 侧请求-响应，无服务端推送帧）。
+        if (!controller.signal.aborted && session.windowId !== null) {
           deps.publishEvent(session.sessionId, session.windowId, eventId, payload);
         }
       },

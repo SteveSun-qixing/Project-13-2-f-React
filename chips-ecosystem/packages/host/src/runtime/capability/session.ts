@@ -68,20 +68,21 @@ export interface IHostSessionRegistry {
   list(): readonly IHostSessionView[];
 }
 
-function sourceKey(source: { windowId: number; frameId: number | null }): string {
+function sourceKey(source: {
+  windowId: number | null;
+  frameId: number | null;
+  kind?: 'window' | 'carrier';
+  carrierId?: string;
+}): string {
+  // 承载会话与窗口会话共用同一登记表（禁止第二会话表，《17》§4.4 红线）；
+  // 承载键独立命名空间 `carrier:`，与 `<windowId>:<frameId>` 天然不相交。
+  if (source.kind === 'carrier') {
+    return `carrier:${String(source.carrierId)}`;
+  }
   return `${String(source.windowId)}:${String(source.frameId)}`;
 }
 
-function freezeSession(input: {
-  sessionId: string;
-  pluginId: string;
-  windowId: number;
-  frameId: number | null;
-  grantedPermissions: ReadonlySet<string>;
-  openedDocuments: ReadonlySet<string>;
-  state: 'active' | 'closed';
-  permissionVersion: number;
-}): IHostSession {
+function freezeSession(input: IHostSession): IHostSession {
   return Object.freeze(input);
 }
 
@@ -105,7 +106,7 @@ export function createHostSessionRegistry(): IHostSessionRegistry {
 
   return {
     open(input: IHostSessionCreateInput): IHostSession {
-      const key = sourceKey({ windowId: input.windowId, frameId: input.frameId });
+      const key = sourceKey(input);
       const bound = bindings.get(key);
       if (bound !== undefined) {
         const existing = sessions.get(bound);
@@ -118,6 +119,8 @@ export function createHostSessionRegistry(): IHostSessionRegistry {
         pluginId: input.pluginId,
         windowId: input.windowId,
         frameId: input.frameId,
+        ...(input.kind === undefined ? {} : { kind: input.kind }),
+        ...(input.carrierId === undefined ? {} : { carrierId: input.carrierId }),
         grantedPermissions: Object.freeze(new Set(input.grantedPermissions ?? [])),
         openedDocuments: Object.freeze(new Set(input.openedDocuments ?? [])),
         state: 'active',
@@ -239,6 +242,8 @@ export function createHostSessionRegistry(): IHostSessionRegistry {
           grantedCount: record.session.grantedPermissions.size,
           openedDocumentCount: record.session.openedDocuments.size,
           state: record.session.state,
+          ...(record.session.kind === undefined ? {} : { kind: record.session.kind }),
+          ...(record.session.carrierId === undefined ? {} : { carrierId: record.session.carrierId }),
         });
       }
       return views;

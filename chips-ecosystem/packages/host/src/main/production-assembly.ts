@@ -178,6 +178,11 @@ export function createProductionRuntime(
       : { cardWindowDocumentBinding: options.cardWindowDocumentBinding }),
     ...(options.onBridgeSessionClosed === undefined ? {} : { onBridgeSessionClosed: options.onBridgeSessionClosed }),
     ...(options.diagnostics === undefined ? {} : { diagnostics: options.diagnostics }),
+    // 生产装配恒开承载面（《17》§2.6 的 socket 覆盖/离线条款属 CLI 侧消费面，波 2）。
+    carrier: {
+      userDataPath: context.userDataPath,
+      hostVersion: context.palHost.info.appVersion,
+    },
   });
 }
 

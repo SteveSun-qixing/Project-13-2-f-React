@@ -15,6 +15,8 @@
  *   单一事实源常量提供（`@chips/sdk` 生成常量），杜绝在框架内散落字面量。
  */
 
+import type { ICarrierServiceReport } from '../../carrier/index.js';
+
 /** 并发策略：`parallel` 默认；`serial` 时同一能力 ID 全局 FIFO 串行（02-Bridge三层设计 §4.1、§8.3）。 */
 export type HostCapabilityConcurrency = 'parallel' | 'serial';
 
@@ -164,8 +166,20 @@ export interface IHostSession {
   readonly sessionId: string;
   /** 反向域名插件 ID；平台会话为 `platform`。 */
   readonly pluginId: string;
-  readonly windowId: number;
+  /**
+   * 会话来源窗口；承载（carrier）会话无窗口，恒为 `null`。
+   *
+   * 《17》波 1 裁定（主智能体，2026-09-21，工单039）：`ISessionSource` 判别分片采纳**内部注册表
+   * 最小扩展**形态——carrier 判别只落本壳侧 `IHostSession`（`kind`/`carrierId`），壳侧 IPC 的
+   * `ISessionSource` 公共形状与 bridge 发布面不动，故 RFC §4.1 公开面流程未触发；
+   * `kind` 缺省视同 `window` 是该形态的构造约定，非兼容包袱。
+   */
+  readonly windowId: number | null;
   readonly frameId: number | null;
+  /** 会话来源类别；缺省视同 `window`（内部注册表最小扩展形态，见上裁定）。 */
+  readonly kind?: 'window' | 'carrier';
+  /** 承载会话实例键（`<instanceId>#<连接序号>`；窗口会话不设）。 */
+  readonly carrierId?: string;
   readonly grantedPermissions: ReadonlySet<string>;
   readonly openedDocuments: ReadonlySet<string>;
   readonly state: 'active' | 'closed';
@@ -176,22 +190,28 @@ export interface IHostSession {
 export interface IHostSessionCreateInput {
   readonly sessionId: string;
   readonly pluginId: string;
-  readonly windowId: number;
+  readonly windowId: number | null;
   readonly frameId: number | null;
   readonly grantedPermissions?: readonly string[];
   readonly openedDocuments?: readonly string[];
+  /** 承载会话判别（见 {@link IHostSession.kind} 的【待主智能体裁定】标记）。 */
+  readonly kind?: 'window' | 'carrier';
+  readonly carrierId?: string;
 }
 
 /** 会话诊断视图（不暴露授权原文之外的内部状态）。 */
 export interface IHostSessionView {
   readonly sessionId: string;
   readonly pluginId: string;
-  readonly windowId: number;
+  readonly windowId: number | null;
   readonly frameId: number | null;
   readonly permissionVersion: number;
   readonly grantedCount: number;
   readonly openedDocumentCount: number;
   readonly state: 'active' | 'closed';
+  /** 承载会话才出现的扩展键（窗口会话视图零变化，兼容既有诊断断言）。 */
+  readonly kind?: 'window' | 'carrier';
+  readonly carrierId?: string;
 }
 
 /**
@@ -225,4 +245,6 @@ export interface IHostRuntimeReport {
   readonly resourceHandles: number;
   /** 预留槽位面（"已预留、待接线"）。 */
   readonly reserved: readonly IHostReservedCapabilityView[];
+  /** 承载链路服务端面（未装配承载选项时键缺位）。 */
+  readonly carrier?: ICarrierServiceReport;
 }

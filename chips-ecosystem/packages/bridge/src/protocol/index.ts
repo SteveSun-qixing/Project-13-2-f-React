@@ -36,6 +36,7 @@ export {
   CARRIER_SOCKET_FILE_NAME,
   CARRIER_SOCKET_PATH_MAX_BYTES,
   CARRIER_SOCKET_SHORT_PREFIX,
+  deriveCarrierEndpoints,
   type CarrierHandshakeReason,
   type CarrierProtocol,
   type DeriveCarrierEndpoints,

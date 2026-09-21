@@ -64,7 +64,8 @@ import type {
   IHostRuntimeReport,
   IHostSession,
 } from './capability/contracts.js';
-import type { IRestoreReport } from '../loader/index.js';
+import type { IRestoreReport, IPluginRecord } from '../loader/index.js';
+import { createCarrierService, type ICarrierPluginView, type ICarrierService } from '../carrier/index.js';
 
 /** 生产运行时选项。 */
 export interface HostRuntimeOptions {
@@ -121,6 +122,13 @@ export interface HostRuntimeOptions {
    * 同步抛出在本运行时兜底捕获，不阻断其余会话清理。
    */
   readonly onBridgeSessionClosed?: (sessionId: string) => void;
+  /**
+   * 承载链路服务端选项（《17-CLI承载链路契约》波 1；组合根注入 `userData` 根与宿主版本）。
+   *
+   * @remarks 缺位即不装配承载面；装配后监听在 `start()` 成功后打开、`shutdown()` 最先关闭
+   * （§2.5-5 顺序锁定）；端点路径超 `sun_path` 等场景承载面 fail-closed，宿主正常启动。
+   */
+  readonly carrier?: { readonly userDataPath: string; readonly hostVersion: string };
 }
 
 /** 生产运行时端口（附带诊断快照查询）。 */
@@ -146,6 +154,12 @@ export interface IPluginLoaderSurface {
   restore(): Promise<IRestoreReport>;
   /** 全部运行态插件停用（宿主停机面）。 */
   stopAll(): Promise<void>;
+  /**
+   * 装载记录全量快照（承载发现索引数据源，《17》§5.8/波 1 四事件重建）。
+   *
+   * @remarks 可选面：缺位即发现索引以空插件集构建（自检/测试运行时不承载发现面）。
+   */
+  list?(): readonly IPluginRecord[];
 }
 
 /**
@@ -232,20 +246,64 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
   });
 
   // 装载器生命周期事件（`plugin:*`）向全部已订阅该事件的活动会话广播（05.05 下行口径）。
+  let carrierService: ICarrierService | null = null;
   const pluginLoader = options.pluginLoaderFactory?.({
     hostCapabilityRegistry: registry,
     emitEvent: (eventId: string, payload: unknown): void => {
+      // 承载发现索引四事件重建入口（《17》§5.8 + 波 1 派单；非重建事件即忽略）。
+      carrierService?.handlePluginEvent(eventId);
       for (const session of sessions.list()) {
         if (session.state === 'active') {
+          if (session.windowId === null) {
+            continue; // 承载会话无窗口推送腿（《17》§3.6）。
+          }
           publishEvent(session.sessionId, session.windowId, eventId, payload);
         }
       }
     },
   });
 
+  // 承载链路服务端总装（波 1）：会话登记走统一注册表（禁止第二会话表），承载会话
+  // `windowId: null`、无授权位（三门门三按《17》§4.4 独立路由面语义判定，不走能力权限链）。
+  if (options.carrier !== undefined) {
+    carrierService = createCarrierService({
+      userDataPath: options.carrier.userDataPath,
+      hostVersion: options.carrier.hostVersion,
+      diagnostics,
+      sessions: {
+        open(input: { carrierId: string; clientId: string }): { sessionId: string; signal: AbortSignal } {
+          const opened = sessions.open({
+            sessionId: `session:carrier:${input.carrierId}`,
+            pluginId: PLATFORM_SESSION_PLUGIN_ID,
+            windowId: null,
+            frameId: null,
+            kind: 'carrier',
+            carrierId: input.carrierId,
+            grantedPermissions: [],
+          });
+          return {
+            sessionId: opened.sessionId,
+            signal: sessions.signalFor(opened.sessionId) ?? new AbortController().signal,
+          };
+        },
+        close(sessionId: string): void {
+          sessions.close(sessionId);
+        },
+      },
+      plugins: (): readonly ICarrierPluginView[] =>
+        (pluginLoader?.list?.() ?? []).map((record) => ({
+          pluginId: record.id,
+          role: record.role,
+          state: record.state,
+          path: record.path,
+          enabled: record.state === 'active',
+        })),
+    });
+  }
+
   const pushSnapshot = (session: IHostSession): void => {
-    if (channel === null) {
-      return;
+    if (channel === null || session.windowId === null) {
+      return; // 承载会话无窗口权限推送腿（《17》§3.6）。
     }
     const update: ISessionPermissionsUpdate = {
       sessionId: session.sessionId,
@@ -388,7 +446,16 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       registry.registerAll(options.capabilities ?? []);
       channel = runtimeChannel;
       state = 'running';
-      return Promise.resolve();
+      if (carrierService === null) {
+        return Promise.resolve();
+      }
+      // 承载监听在 `start()` 成功后打开（生命周期接线条款）；实现面 fail-closed，
+      // open() 不抛出，异常兜底只落诊断、不改变宿主启动结果。
+      return carrierService.open().catch((error: unknown): void => {
+        diagnostics.error('carrier', '承载面打开异常（宿主正常启动）', {
+          reason: error instanceof Error ? error.message : typeof error,
+        });
+      });
     },
     async restorePlugins(): Promise<void> {
       // 装载器已注入：启动恢复走 §4.6 正式链路；缺省保持 #27 组合根缺位无操作。
@@ -414,6 +481,11 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
         return Promise.resolve();
       }
       state = 'stopped';
+      // §2.5-5 顺序锁定：承载面最先关（关监听→移除 socket→移除发现文件；在途经会话
+      // 关闭链触发取消），其后才是既有会话清扫。
+      if (carrierService !== null) {
+        await carrierService.close();
+      }
       for (const view of sessions.list()) {
         if (view.state === 'active') {
           sessions.close(view.sessionId);
@@ -459,6 +531,7 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
         eventSubscriptions: events.size,
         resourceHandles: handles.size,
         reserved,
+        ...(carrierService === null ? {} : { carrier: carrierService.report() }),
       };
     },
   };
