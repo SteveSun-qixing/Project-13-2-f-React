@@ -25,6 +25,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import { HOST_VIEW_CHANNEL_SURFACE_KEY } from '../shared/host-view-channel-surface.js';
 import { createPreloadBridge } from './bridge.js';
+import { createContextBridgeSurface } from './error-surface.js';
 import { createHostViewChannelSurface } from './host-view-channel.js';
 import { createElectronPreloadTransport } from './transport.js';
 
@@ -32,11 +33,10 @@ const bridge = createPreloadBridge({
   transport: createElectronPreloadTransport(ipcRenderer),
 });
 
-contextBridge.exposeInMainWorld('chips', {
-  request: (capabilityId: string, input?: unknown): Promise<unknown> => bridge.request(capabilityId, input),
-  subscribe: (eventId: string, handler: (payload: unknown) => void) => bridge.subscribe(eventId, handler),
-  resource: (uri: string) => bridge.resource(uri),
-});
+// 工单038 修复：挂载面经 `createContextBridgeSurface` 归一失败臂——一切异常在跨 contextBridge 前
+// 收敛为 `ChipsError.toPlain()` 同构的纯数据错误（`code`/`message`/`retryable` 恒输出、`details`
+// 有值时输出），渲染侧按 `isChipsError` 结构守卫判定、`code` 分支。键集仍恰为三方法冻结面。
+contextBridge.exposeInMainWorld('chips', createContextBridgeSurface(bridge));
 
 // 宿主内部取视图通道：独立于 `window.chips` 的第二 contextBridge 世界（工单035 裁定「非 chips 链路」承载）。
 contextBridge.exposeInMainWorld(HOST_VIEW_CHANNEL_SURFACE_KEY, createHostViewChannelSurface(ipcRenderer));

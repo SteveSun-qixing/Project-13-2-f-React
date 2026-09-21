@@ -291,7 +291,7 @@ async function buildSignedProbeCpk(
   const cpkFile = join(workspace, `${PROBE.id}-${PROBE.version}.cpk`);
   await writeFile(cpkFile, archive);
   // 装后目录合并摘要 = 全成员（含 signature.json）口径（`plugin-activation.ts` O1 再锚定期望值）。
-  const mergedHash = computeContentHash(membersToZipEntries([...members.entries()]));
+  const mergedHash = computeContentHash(membersToZipEntries(members));
   return { cpkFile, mergedHash };
 }
 
@@ -434,18 +434,18 @@ describe('臂 A：真实签名 .cpk 插件链全环（原生子进程 × 生产�
         grantedPermissions: [],
         permissions: ['resources:read'],
       });
-      expect(String(persistedAfterInstall.plugins[0].hash)).toMatch(/^sha256:[0-9a-f]{64}$/);
+      expect(String(persistedAfterInstall.plugins[0]?.hash)).toMatch(/^sha256:[0-9a-f]{64}$/);
       // O1 两口径关系锁定：注册表 `record.hash` 为整包归档摘要，激活期望为装后目录合并
       // 摘要，逐字节不同源（口径区分本身即在册契约，见 `plugin-activation.ts` 头注）；
       // 激活期再锚定期望值 = 装后目录全成员合并摘要复算值。
-      expect(String(persistedAfterInstall.plugins[0].hash)).not.toBe(mergedHash);
+      expect(String(persistedAfterInstall.plugins[0]?.hash)).not.toBe(mergedHash);
       expect(results.packageHashAfterInstall).toBe(mergedHash);
 
       // ---- 环 2：enable（T2→Starting→Active；真通道受管求值 + 角色形状） ----
       expect(results.enable?.ok).toBe(true);
       expect(results.enable!.value!.state).toBe('active');
       expect(results.checkpoints.stateAfterEnable).toBe('active');
-      expect(results.checkpoints.registryAfterEnable.plugins[0].enabled).toBe(true);
+      expect(results.checkpoints.registryAfterEnable.plugins[0]?.enabled).toBe(true);
       expect(results.activatedEntry).toMatchObject({
         pluginId: PROBE.id,
         version: PROBE.version,
@@ -508,13 +508,13 @@ describe('臂 A：真实签名 .cpk 插件链全环（原生子进程 × 生产�
         expect(items!.every((item) => typeof item.envelope.emittedAt === 'number')).toBe(true);
       }
       const loadedEnvelope = deliveredByEvent.get(PLUGIN_LIFECYCLE_EVENTS.loaded)!;
-      expect(loadedEnvelope[0].envelope.payload).toEqual({
+      expect(loadedEnvelope[0]?.envelope.payload).toEqual({
         pluginId: PROBE.id,
         version: PROBE.version,
         role: 'service',
       });
       const stoppedEnvelope = deliveredByEvent.get(PROBE.stoppedEvent)!;
-      expect(stoppedEnvelope[0].envelope.payload).toEqual({ pluginId: PROBE.id, stops: 1 });
+      expect(stoppedEnvelope[0]?.envelope.payload).toEqual({ pluginId: PROBE.id, stops: 1 });
       // 链路无失败事件发生：failed 虽已订阅但不得出现。
       expect(deliveredByEvent.get(PLUGIN_LIFECYCLE_EVENTS.failed)).toBeUndefined();
 
@@ -523,7 +523,7 @@ describe('臂 A：真实签名 .cpk 插件链全环（原生子进程 × 生产�
       expect(results.disable!.value!.record.state).toBe('installed');
       expect(results.disable!.value!.stopError).toBeUndefined();
       expect(results.checkpoints.stateAfterDisable).toBe('installed');
-      expect(results.checkpoints.registryAfterDisable.plugins[0].enabled).toBe(false);
+      expect(results.checkpoints.registryAfterDisable.plugins[0]?.enabled).toBe(false);
       expect(results.checkpoints.reportAfterDisable.capabilities.byOwner[PROBE.id]).toBeUndefined();
       expect(results.activatedEntryAfterDisable).toBeNull();
       expect(results.checkpoints.globals.stops).toBe(1);

@@ -67,12 +67,17 @@ async function checkIpc(): Promise<void> {
     await chips.request('system:info');
     renderCheck('IPC 通道', 'ok', '能力调用返回结果');
   } catch (error) {
-    const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+    const record =
+      typeof error === 'object' && error !== null ? (error as { code?: unknown; message?: unknown }) : null;
+    const code = record?.code;
     if (typeof code === 'string' && code.startsWith('BRIDGE_')) {
       renderCheck('IPC 通道', 'ok', `链路可用（${code}）`);
       return;
     }
-    renderCheck('IPC 通道', 'fail', error instanceof Error ? error.message : '调用失败');
+    // 工单038 随动：桥面失败臂跨 contextBridge 后为 `toPlain()` 同构纯数据错误（非 Error 实例），
+    // 文案取同源 `message`；仅在消息缺失时兜底固定文案。
+    const message = typeof record?.message === 'string' && record.message.length > 0 ? record.message : '调用失败';
+    renderCheck('IPC 通道', 'fail', message);
   }
 }
 
