@@ -8,8 +8,10 @@
 //!   保留（不透明值顺序稳定，《基础卡片插件接口》§3 约束 4）；
 //! - 不读取资源字节、不拼接资源 URI：视图内资源引用保持文件原样
 //!   （§6.6 规则 3、规则 4），引用归一由解析器在视图构建之前完成；
-//! - 无自有缓存：同一解析句柄与同一 `revision` 下输出确定（§6.6 规则 5），
-//!   确定性由 [`crate::model::DocumentRevision::revision_number`] 保证；
+//! - 无自有缓存：字段投影对同一层级产物输出确定（§6.6 规则 5）；视图
+//!   修订号取自 [`crate::DocumentHandle::next_view_revision`]——句柄会话内
+//!   单调序列源（首开 0、每次构建 +1，工单037 裁定，满足《05-渲染引擎
+//!   设计》§2.4 第 5 条严格递增与 `<2^53` 线格式契约）；
 //! - 惰性层级在视图上的可见性（《06-文档解析器设计》§5.1）：构建视图按需
 //!   触达其依赖层级——卡片视图触达 L1 结构并为每个结构节点解析 L2 内容，
 //!   箱子视图触达 L2 条目集合与 `.box/content.yaml` 布局配置单元；L3 资源
@@ -28,8 +30,8 @@ use chips_core::{ChipsError, SessionId};
 
 use crate::error::DocumentError;
 use crate::model::{
-    BoxMetadata, CardMetadata, ContentNode, DocumentKind, DocumentMetadata, DocumentRevision,
-    DocumentValue, Entry, StructureEntry, StructureModel, Tag,
+    BoxMetadata, CardMetadata, ContentNode, DocumentKind, DocumentMetadata, DocumentValue, Entry,
+    StructureEntry, StructureModel, Tag,
 };
 use crate::parser::DocumentHandle;
 
@@ -93,7 +95,9 @@ pub struct CardNodeView {
 /// `{ kind: 'card', ... }` 形状一致）。
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CardRenderView {
-    /// 渲染会话修订号（数据源指纹与标准版本的确定性投影，单调演进）。
+    /// 渲染会话修订号（解析句柄会话内单调序列源投影：首开 0、每次构建
+    /// +1，与文档服务会话修订同序列；《05-渲染引擎设计》§2.4 第 5 条
+    /// 严格递增，工单037 裁定）。
     pub revision: u64,
     /// 卡片 ID（`metadata.yaml → card_id`）。
     pub card_id: String,
@@ -213,8 +217,8 @@ pub enum DocumentView {
 /// - 两侧均不触达 L3 资源字节。
 ///
 /// `session` 为渲染会话标识（《11-文档服务设计》§3.2），只作为失败路径
-/// `details` 的关联上下文参与错误归一；视图内容不依赖 `session`，
-/// 同一解析句柄与同一 `revision` 下输出确定（§6.6 规则 5）。
+/// `details` 的关联上下文参与错误归一；视图字段内容不依赖 `session`
+/// （§6.6 规则 5），修订号按句柄会话单调序列逐次取号（工单037）。
 ///
 /// 致命错误经 `From<DocumentError> for ChipsError` 归一并附加会话上下文；
 /// 非致命诊断不阻断构建（§8.4 部分成功矩阵：占位模型进入投影，
@@ -226,22 +230,27 @@ pub fn build_document_view(
     handle: &DocumentHandle,
     session: SessionId,
 ) -> Result<DocumentView, ChipsError> {
-    project_document_view(handle, handle.metadata(), handle.revision(), session)
+    project_document_view(
+        handle,
+        handle.metadata(),
+        handle.next_view_revision(),
+        session,
+    )
 }
 
 /// 视图投影主体：句柄取回的层级产物经类型化边界进入本函数后逐字段投影。
 ///
 /// 参数标注即本模块与 `parser` 模块的接口契约（《核心接口规范》§6.3
-/// 句柄面 + `layout_config` 布局配置单元），与惰性层级表（§5.1）对应：
+/// 句柄面 + `layout_config` 布局配置单元 + 修订号取号面
+/// [`DocumentHandle::next_view_revision`]），与惰性层级表（§5.1）对应：
 /// 卡片 L0 → L1 → 逐节点 L2，箱子 L0 → L2 条目与布局配置单元，
 /// 两侧均不触达 L3。
 fn project_document_view(
     handle: &DocumentHandle,
     metadata: Arc<DocumentMetadata>,
-    revision: DocumentRevision,
+    revision_number: u64,
     session: SessionId,
 ) -> Result<DocumentView, ChipsError> {
-    let revision_number: u64 = revision.revision_number();
     match metadata.as_ref() {
         DocumentMetadata::Card(card) => {
             let structure: Arc<StructureModel> = map_fatal(handle.structure(), session)?;

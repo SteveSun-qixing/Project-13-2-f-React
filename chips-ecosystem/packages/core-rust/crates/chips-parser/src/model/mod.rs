@@ -570,7 +570,12 @@ pub struct DocumentStatistics {
 
 /// 文档修订：数据源指纹 + `chip_standards_version` + 索引摘要（§3.7）。
 ///
-/// 构建为常数时间，不读取资源正文。
+/// 构建为常数时间，不读取资源正文。本类型是修订身份的**无序指纹**载体，
+/// 承担缓存失效、增量重解析与外部修改复查（§5.4、《11-文档服务设计》§7.2）；
+/// 不作视图数值修订的取值源——视图投影修订号是解析句柄会话内的单调序列源
+/// （[`crate::DocumentHandle::next_view_revision`]，《05-渲染引擎设计》§2.4
+/// 第 5 条严格递增语义，工单037 裁定：指纹摘要族取值无序，任何由指纹派生的
+/// 数值形态都不满足递增，禁止回退为指纹投影）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DocumentRevision {
     /// 数据源指纹。
@@ -592,28 +597,6 @@ impl DocumentRevision {
             index_digest,
         }
     }
-
-    /// 视图投影用的数值修订（《核心接口规范》§6.6 `revision: number`）。
-    ///
-    /// 同一指纹与版本必得同一取值；指纹或版本任何变化都会改变取值。
-    #[must_use]
-    pub fn revision_number(&self) -> u64 {
-        let tail = u64::try_from(self.source.members.len()).unwrap_or(u64::MAX);
-        let mut bytes = self.index_digest.clone().into_bytes();
-        bytes.extend(self.chip_standards_version.as_bytes());
-        bytes.extend(tail.to_le_bytes());
-        fn_digest_u64(&bytes)
-    }
-}
-
-/// FNV-1a 64 位聚合（仅用于修订号投影，不承担安全职责）。
-fn fn_digest_u64(bytes: &[u8]) -> u64 {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in bytes {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
 }
 
 /// 索引摘要：对「路径 + 尺寸 + 修改时间 + CRC」有序序列做 SHA-256。

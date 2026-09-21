@@ -92,6 +92,10 @@ cargo clippy -p chips-native --all-targets -- -D warnings
 - 二进制一律 `Uint8Array`（主进程 `Buffer` 为其子类），禁止 base64；输入输出
   各一次拷贝。
 - ID 与整数跨边界必须 `< 2^53`，否则 `NATIVE_VALUE_OUT_OF_RANGE`。
+  视图投影修订号（`buildDocumentView` 回包 `revision`）为解析句柄会话内的
+  构建单调源（首开基线 0、逐次构建 +1，工单037 裁定），构造性恒落该契约内；
+  越界判闸保留为 fail-closed 兜底（《06-文档解析器设计》§5.2、
+  《05-渲染引擎设计》§2.4 第 5 条）。
 - `contextProvide` 的服务值只接受普通对象与函数；`contextGet` 对 Rust 注册的
   服务返回 `KERNEL_SERVICE_TYPE_MISMATCH`，不尝试跨语言下转。
 

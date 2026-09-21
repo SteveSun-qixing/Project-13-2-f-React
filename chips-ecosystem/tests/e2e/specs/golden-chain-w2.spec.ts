@@ -36,8 +36,9 @@ import type { DocumentOpenOutput, DocumentWriteOutput, RichTextContent } from '.
  *   与 `05-事件契约规范` 在册事件——不读取实现私有状态、不注入调试脚本；
  * - 保存落盘与保存后事件（`document:changed` / `document:saved`）权威归 W3（金链路刀6），
  *   不在本单断言面内——本单**反向坐实**该在册语义：`document:write` 只改内存模型、不落盘、
- *   不发布事件（`11-文档服务设计` §4.2），故写后取视图仍为解析基线（同一句柄同一修订输出
- *   确定，§6.6 规则 5）、`document:changed` 观察不到；
+ *   不发布事件（`11-文档服务设计` §4.2），故写后取视图字段内容仍为解析基线（§6.6 规则 5
+ *   字段投影确定）、`document:changed` 观察不到；视图修订号是解析句柄会话内的构建单调源
+ *   （《05-渲染引擎设计》§2.4 第 5 条严格递增、工单037 裁定），逐次构建严格前进、与落盘解耦；
  * - 卡片窗口 DOM 回流（executeAction → session.update 渲染臂）的主进程 → 渲染侧文档绑定
  *   投递为在册集成缝（#99，`card-window-orchestrator.ts` 头注），本单不触达渲染层私有面。
  */
@@ -244,7 +245,8 @@ test.describe('W2 金链路：真进程 document:* 与宿主内部取视图通�
       });
       expect(editedRead.value.content_text, '覆盖层回读反映编辑值').toBe(editedText);
 
-      // ── 环⑥ 再取视图（同一通道、同一句柄：未落盘 → 基线内容与修订不动，§6.6 规则 5 确定性）。
+      // ── 环⑥ 再取视图（同一通道、同一句柄：未落盘 → 基线内容不动，§6.6 规则 5；
+      //    修订号按句柄会话构建序列严格前进——工单037 转正臂，FNV 直投 era 本环构建恒拒）。
       const secondView = await requestView(page, 'e2e-chain-view-2', {
         source: opened.source,
         documentId: opened.documentId,
@@ -255,7 +257,10 @@ test.describe('W2 金链路：真进程 document:* 与宿主内部取视图通�
       if (view2 === undefined) {
         throw new Error('第二次成功臂回包缺少 view。');
       }
-      expect(view2.revision, '磁盘未变 → 句柄修订稳定（保存落盘归 W3，刀6）').toBe(view.revision);
+      expect(
+        view2.revision,
+        '视图修订句柄会话内严格递增（05.02 §2.4 第 5 条、工单037 裁定：首开 0 基线、逐构建 +1）'
+      ).toBeGreaterThan(view.revision);
       expect(
         contentTextOf(view2.content_nodes[0]),
         '视图通道消费解析基线（覆盖层只经 document:read 观察，不落盘即不入视图）'

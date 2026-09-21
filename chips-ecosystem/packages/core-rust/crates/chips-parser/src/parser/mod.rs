@@ -90,6 +90,9 @@ pub struct DocumentHandle {
     layout: OnceLock<Fatal<Arc<DocumentValue>>>,
     /// 诊断集合（未排序；快照读取时排序去重，§3.7）。
     diagnostics: RwLock<Vec<Diagnostic>>,
+    /// 视图投影修订序列源：句柄会话内单调计数，每取一号前进 1
+    /// （《05-渲染引擎设计》§2.4 第 5 条、工单037 裁定）。
+    view_sequence: AtomicU64,
 }
 
 impl DocumentHandle {
@@ -132,6 +135,7 @@ impl DocumentHandle {
             entries: RwLock::new(None),
             layout: OnceLock::new(),
             diagnostics: RwLock::new(opened.diagnostics),
+            view_sequence: AtomicU64::new(0),
         })
     }
 
@@ -335,6 +339,31 @@ impl DocumentHandle {
             self.source.fingerprint(),
             self.metadata.chip_standards_version().to_owned(),
         )
+    }
+
+    /// 视图投影修订号（《05-渲染引擎设计》§2.4 第 5 条、《核心接口规范》
+    /// §6.6 `revision: number`、工单037 裁定）。
+    ///
+    /// 句柄会话内单调序列源：每取一号前进 1，首开基线取值为 0——与文档
+    /// 服务会话修订基线同序列（《11-文档服务设计》§3.4：首次成功写入产出
+    /// 1；回流唯一时序 `document:write → 写后重建 → update(view, revision)`
+    /// 下，第 k 次重建恒得 k-1，写臂交付值恒大于渲染会话现值）。
+    ///
+    /// 语义保证：
+    /// - **严格递增**：同一句柄跨连续调用恒增 1，任一写事务提交后的重建
+    ///   视图修订必然大于前值（宿主渲染会话锁 `revision <= lastRevision`
+    ///   拒绝臂因此恒不误伤合法回流）；
+    /// - **有界**：取值 = 句柄会话内已完成的视图构建数，进入 JS 线格式
+    ///   `< 2^53` 安全整数契约（《核心接口规范》§8.2、packages/native
+    ///   README §五）；达到边界的病态会话由绑定层判闸 fail-closed 拒绝，
+    ///   不静默截断。
+    ///
+    /// 数据源修订身份（缓存失效、外部修改复查）由 [`Self::revision`] 的
+    /// 无序指纹承载，与本序列解耦（工单037：禁止以指纹摘要数值充当视图
+    /// 修订，无序性与越界性双重不成立）。
+    #[must_use]
+    pub fn next_view_revision(&self) -> u64 {
+        self.view_sequence.fetch_add(1, Ordering::Relaxed)
     }
 
     /// 全量内容摘要：对「成员路径升序 + 内容字节」序列做 SHA-256，

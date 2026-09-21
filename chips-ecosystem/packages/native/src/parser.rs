@@ -929,6 +929,38 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+    /// 工单037 回归锁（/tmp/w115-repro native-probe 转正进 native 波测试面）：
+    /// 真夹具视图修订恒落 `<2^53` 线格式契约、跨连续构建严格递增、经
+    /// `settle_json` 同一条 JSON→JS 数值转换判闸恒可通过。
+    #[test]
+    fn test_build_document_view_revision_within_wire_boundary_and_monotonic() {
+        let root = temp_root("view-revision");
+        write_minimal_card(&root);
+        let handle = open_card_fixture(&root);
+        // 探针双臂：同一句柄 session 1 / session 2 连续构建（复现器交错的
+        // 正是两个渲染会话的 buildDocumentView）。
+        let mut previous: Option<u64> = None;
+        for session in [1_u64, 2] {
+            let view = view_result(&handle, session)
+                .expect("真夹具视图构建必须成功（工单037 修复前恒 NATIVE_VALUE_OUT_OF_RANGE）");
+            let raw = view["revision"].as_u64().expect("修订号必须是 u64 数值");
+            assert!(
+                raw < crate::convert::MAX_SAFE_INTEGER,
+                "视图修订越出 JS 安全整数契约：{raw}"
+            );
+            // 与 settle_json 同一判闸路径：`/revision` 指针臂过界即拒。
+            let number = serde_json::Number::from(raw);
+            crate::convert::json_number_to_js(&number, "/revision")
+                .expect("视图修订跨 JS 边界必须通过 <2^53 判闸");
+            if let Some(last) = previous {
+                assert!(raw > last, "同一句柄跨连续构建修订必须严格递增");
+            }
+            previous = Some(raw);
+        }
+        assert_eq!(previous, Some(1), "首开基线 0、写后再取 1 的会话序列对位");
+        let _ = fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn test_card_entries_misuse_maps_contract_code() {
         let root = temp_root("misuse");
