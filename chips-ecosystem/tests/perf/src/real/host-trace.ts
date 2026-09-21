@@ -143,10 +143,10 @@ export async function readHostTraceRecords(
   return records;
 }
 
-/** 视图构建段导出相位名（与宿主 `view-channel.ts` `DOCUMENT_VIEW_TRACE_PHASES` 字面量对齐；建议名在册化归 findings）。 */
-export const VIEW_BUILT_PHASE = 'render:view-built';
+/** 视图构建段导出相位名（工单041 验收裁定②已入在册标记表 `scenarios.ts` `MARKERS`，与宿主 `view-channel.ts` `DOCUMENT_VIEW_TRACE_PHASES` 字面逐字一致）。 */
+export const VIEW_BUILT_PHASE = MARKERS.viewBuilt;
 /** 视图构建失败段导出相位名（同上）。 */
-export const VIEW_BUILD_FAILED_PHASE = 'render:view-build-failed';
+export const VIEW_BUILD_FAILED_PHASE = MARKERS.viewBuildFailed;
 
 /** open-card 阶段分解的宿主导出结果。 */
 export interface OpenCardStageDurations {

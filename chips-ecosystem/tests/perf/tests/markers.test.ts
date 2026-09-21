@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PerfError } from '../src/errors';
 import { MarkerTimeline, parseMarkerTrace, timelineFromMarkers } from '../src/markers';
+import { MARKERS } from '../src/scenarios';
+import { VIEW_BUILT_PHASE, VIEW_BUILD_FAILED_PHASE } from '../src/real/host-trace';
 
 describe('标记点时间线（markers）', () => {
   it('按跨度计算时长', () => {
@@ -59,5 +61,17 @@ describe('标记点时间线（markers）', () => {
     const exported = timeline.toJSON();
     expect(exported).toEqual([{ name: 'a', at: 1 }]);
     expect(timeline.markers()).not.toBe(exported);
+  });
+});
+
+describe('规范标记在册表（MARKERS）', () => {
+  it('在册表含 render:view-built / render:view-build-failed，与宿主导出名逐字一致（工单041 验收裁定②）', () => {
+    // 宿主事实源：packages/host/src/capabilities/document/adapters/view-channel.ts
+    // `DOCUMENT_VIEW_TRACE_PHASES = { viewBuilt: 'render:view-built', viewBuildFailed: 'render:view-build-failed' }`。
+    expect(MARKERS.viewBuilt).toBe('render:view-built');
+    expect(MARKERS.viewBuildFailed).toBe('render:view-build-failed');
+    // perf 消费侧导出相位名从在册表派生，杜绝字面量漂移。
+    expect(VIEW_BUILT_PHASE).toBe(MARKERS.viewBuilt);
+    expect(VIEW_BUILD_FAILED_PHASE).toBe(MARKERS.viewBuildFailed);
   });
 });

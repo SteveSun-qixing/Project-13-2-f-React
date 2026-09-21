@@ -17,7 +17,7 @@ export type MetricUnit = 'ms' | 'fps' | 'mb' | 'us' | 'count';
 /** 指标优劣方向：延迟/占用越小越好，帧率越大越好。 */
 export type MetricDirection = 'lower-is-better' | 'higher-is-better';
 
-/** 与门禁值的比较运算符，逐指标映射文档原文的 `<` / `≤` / `>` 口径。 */
+/** 与门禁值的比较运算符，逐指标映射文档原文的 `<` / `≤` / `>` / `≥` 口径。 */
 export type GateComparison = 'lt' | 'lte' | 'gt' | 'gte';
 
 /** 指标分组，用于报告归类与场景归属。 */
@@ -188,7 +188,10 @@ export const METRICS: Readonly<Record<MetricId, MetricDefinition>> = {
     group: 'render',
     direction: 'higher-is-better',
     gateStatistic: 'mean',
-    gateComparison: 'gt',
+    // 工单045 算子修口：权威文本比较算子 `>` 翻正为 `≥`（60Hz VSync 参考机零掉帧流
+    // 均值上限恰为 60.00，字面严格大于数学不可达）；门禁值 60/30、统计量 mean、
+    // 1 s 分桶协议零改动。
+    gateComparison: 'gte',
     formalGate: 60,
     phase2Gate: 30,
     citation: `${CITATIONS.architecturePrinciples}；测量口径见 ${CITATIONS.cicdGate}`,

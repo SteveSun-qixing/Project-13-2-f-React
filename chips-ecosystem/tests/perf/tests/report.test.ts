@@ -8,6 +8,7 @@ import {
   reportFileName,
   reportToJson,
   reportToMarkdown,
+  satisfiesComparison,
   summarizeMetrics,
   type MetricResult,
 } from '../src/report';
@@ -43,6 +44,31 @@ describe('报告（report）', () => {
     expect(build('frame_pool_size', [24, 30, 40]).verdict).toBe('fail');
     expect(build('kernel_event_emit_us', [0.5, 0.6, 0.7, 0.8]).verdict).toBe('pass');
     expect(build('kernel_event_emit_us', [0.5, 0.6, 0.7, 1.4]).verdict).toBe('fail');
+  });
+
+  it('sustained_fps 门禁边界锁定：均值恰 60.00 判过、59.99 判红（工单045 gte 算子修口）', () => {
+    // 60Hz VSync 参考机零掉帧流的均值上限恰为 60.00：gte 语义下恰好达标判过。
+    const boundary = build('sustained_fps', [60, 60, 60, 60, 60, 60, 60, 60, 60, 60]);
+    expect(boundary.stats?.mean).toBe(60);
+    expect(boundary.verdict).toBe('pass');
+    expect(boundary.failures).toHaveLength(0);
+    // 红面锁定：59.99 仍严格不满足 ≥ 60，修口不是放宽门禁。
+    const below = build('sustained_fps', [59.99, 59.99, 59.99, 59.99, 59.99, 59.99, 59.99]);
+    expect(below.verdict).toBe('fail');
+    expect(below.failures[0]).toContain('未满足 ≥');
+    expect(below.failures[0]).toContain('R18');
+    // 算子原语两面：边界值 60 对 bound 60 判真，59.99 判假。
+    expect(satisfiesComparison(60, 'gte', 60)).toBe(true);
+    expect(satisfiesComparison(59.99, 'gte', 60)).toBe(false);
+    // Phase 2 放宽值 30 同口径为 ≥：恰 30.00 判过。
+    const phase2 = buildMetricResult(
+      metricDefinition('sustained_fps'),
+      [30, 30],
+      resolveThreshold('sustained_fps', { ...DEFAULT_CONFIG, phase: 2 })
+    );
+    expect(phase2.gate.value).toBe(30);
+    expect(phase2.gate.comparison).toBe('gte');
+    expect(phase2.verdict).toBe('pass');
   });
 
   it('空样本记为 no-data', () => {

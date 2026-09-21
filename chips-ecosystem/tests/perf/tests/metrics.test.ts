@@ -89,9 +89,25 @@ describe('指标注册表（metrics）', () => {
       if (definition.direction === 'lower-is-better') {
         expect(['lt', 'lte']).toContain(definition.gateComparison);
       } else {
-        expect(['gt', 'gte']).toContain(definition.gateComparison);
+        // 工单045 算子修口后，越高越好指标一律 `≥` 口径，全表不再使用严格大于 `gt`。
+        expect(definition.gateComparison, metricId).toBe('gte');
       }
     }
+  });
+
+  it('sustained_fps 门禁算子为 ≥（工单045 文面修口；值与统计量零改动）', () => {
+    const definition = metricDefinition('sustained_fps');
+    expect(definition.gateComparison).toBe('gte');
+    expect(definition.formalGate).toBe(60);
+    expect(definition.phase2Gate).toBe(30);
+    expect(definition.gateStatistic).toBe('mean');
+    // 全表唯一 fps 单位指标即 sustained_fps；修口后注册表内任何指标不得使用 'gt'。
+    for (const metricId of METRIC_IDS) {
+      expect(METRICS[metricId].gateComparison, metricId).not.toBe('gt');
+    }
+    expect(METRIC_IDS.filter((metricId) => METRICS[metricId].unit === 'fps')).toEqual([
+      'sustained_fps',
+    ]);
   });
 
   it('gateValueFor 按 Phase 解析', () => {

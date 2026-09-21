@@ -73,6 +73,10 @@ export const MARKERS = {
   firstFrameCommit: 'render:first-frame-commit',
   firstScreenCommit: 'render:first-screen-commit',
   entriesFirstScreenCommit: 'render:entries-first-screen-commit',
+  // 工单041 验收裁定②（工单045 随波在册）：主进程视图通道导出面在册相位名，
+  // 与宿主 `view-channel.ts` `DOCUMENT_VIEW_TRACE_PHASES` 字面逐字一致。
+  viewBuilt: 'render:view-built',
+  viewBuildFailed: 'render:view-build-failed',
 } as const;
 
 /**

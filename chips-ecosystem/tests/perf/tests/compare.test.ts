@@ -80,7 +80,7 @@ describe('回归比较（compare）', () => {
     expect(statusOf(withinTolerance, 'sustained_fps')).toBe('pass');
     const improved = compare({ sustained_fps: spread(62) }, { sustained_fps: spread(70) });
     expect(statusOf(improved, 'sustained_fps')).toBe('pass');
-    // 候选仍满足绝对门禁（> 60 fps）但相对基线劣化超过 5%：判 regression。
+    // 候选仍满足绝对门禁（≥ 60 fps，工单045 算子修口）但相对基线劣化超过 5%：判 regression。
     const regression = compare({ sustained_fps: spread(70) }, { sustained_fps: spread(62) });
     expect(statusOf(regression, 'sustained_fps')).toBe('regression');
     // 候选同时跌破绝对门禁：gate-fail 优先，不降级为 regression。

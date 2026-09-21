@@ -92,7 +92,7 @@ describe('测量编排（runner）', () => {
   });
 
   it('帧场景按分桶帧率判定并可携带显式样本', async () => {
-    // 门禁为严格 > 60 fps：夹具取 62 fps（620 个帧间隔恰好覆盖 10 s，分桶 10 个）。
+    // 门禁为 ≥ 60 fps（工单045 算子修口，值不变）：夹具取 62 fps（620 个帧间隔恰好覆盖 10 s，分桶 10 个）。
     const timestamps = Array.from({ length: 621 }, (_, index) => index * (1000 / 62));
     const adapter = adapterOf({
       id: 'frames',
@@ -109,6 +109,28 @@ describe('测量编排（runner）', () => {
     expect(fps?.verdict).toBe('pass');
     expect(fps?.samples).toHaveLength(10);
     expect(update?.verdict).toBe('pass');
+    expect(report.summary.verdict).toBe('pass');
+  });
+
+  it('60Hz 零掉帧流全管线终判：10 桶均值恰 60.00 按 ≥ 60 判过（工单045 gte 算子修口）', async () => {
+    // 60Hz VSync 参考机上限事实：600 个帧间隔（间隔 1000/60 ms）恰好覆盖 10 s，
+    // 1 s 分桶 10 桶 × 60 fps，均值恰为 60.00——gte 语义下终判达标。
+    const timestamps = Array.from({ length: 601 }, (_, index) => index * (1000 / 60));
+    const adapter = adapterOf({
+      id: 'frames-60hz',
+      provides: ['scroll-fps'],
+      run: (): Promise<AdapterRunResult> =>
+        Promise.resolve({
+          frameTimestampsMs: timestamps,
+          metricSamples: { render_update_ms: [9, 9.5, 10] },
+        }),
+    });
+    const report = await measureScenario(runOptions(adapter, 'scroll-fps'));
+    const fps = report.metrics.find((metric) => metric.metricId === 'sustained_fps');
+    expect(fps?.samples).toEqual([60, 60, 60, 60, 60, 60, 60, 60, 60, 60]);
+    expect(fps?.stats?.mean).toBe(60);
+    expect(fps?.gate.comparison).toBe('gte');
+    expect(fps?.verdict).toBe('pass');
     expect(report.summary.verdict).toBe('pass');
   });
 
