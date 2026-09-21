@@ -14,18 +14,18 @@
 
 ## 模块导览
 
-| 模块 | 职责 | 权威条目 |
-|---|---|---|
-| `error` | 18 个在册 `RESOURCE_*` 错误码常量、`ResourceError` 强类型枚举、`details` 形状、`ChipsError` 归一 | 《06》§7 |
-| `constants` | 默认限额（8 MiB / 2 GiB / 256 KiB / 64 / 4096 等）与 `ResourceLimits` | 《04》§12、《06》§9.3 |
-| `uri` | 语法解析与归一化（scheme/scope/path/query、External origin、大小写、百分号、punycode、IPv6） | 《06》§2 |
-| `path_guard` | 解码一次 + NFC + 分段 + 控制字符 + 平台特例 + 长度 + 符号链接根内校验 | 《04》§9、《06》§2.4/§9.1 |
-| `scope` | `ScopeKind`/`ScopeRegistration`/`ScopePolicy`/`ScopeRegistry`（含 External 按 origin 惰性注册） | 《04》§5.2、《06》§3 |
-| `session` | `ResourceSession`/`SessionKind`/会话注册表：派生不扩权、关闭级联 | 《04》§11.2、《03》§7.2 |
-| `permission` | 作用域×能力面管理器侧在册判定矩阵与 `IPermissionDeniedDetails` | 《04》§5.3（口径）、《06》§4 |
-| `provider` | 在册 `ResourceProvider` trait 与地址模型类型（仅抽象，无任何内置实现=段二） | 《04》§3.1/§3.2 |
-| `handle` | `open`/`invalidated`/`released` 三态状态机、句柄表、租约归属与归还、失效订阅、池上限 | 《04》§4、《06》§6 |
-| `manager` | `ResourceManager` 门面：`resolve` 流水线与 `open/stat/read_range/read_chunk/release`、会话与作用域级联 | 《04》§5.1/§11、《03》§7 |
+| 模块         | 职责                                                                                                   | 权威条目                     |
+| ------------ | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `error`      | 18 个在册 `RESOURCE_*` 错误码常量、`ResourceError` 强类型枚举、`details` 形状、`ChipsError` 归一       | 《06》§7                     |
+| `constants`  | 默认限额（8 MiB / 2 GiB / 256 KiB / 64 / 4096 等）与 `ResourceLimits`                                  | 《04》§12、《06》§9.3        |
+| `uri`        | 语法解析与归一化（scheme/scope/path/query、External origin、大小写、百分号、punycode、IPv6）           | 《06》§2                     |
+| `path_guard` | 解码一次 + NFC + 分段 + 控制字符 + 平台特例 + 长度 + 符号链接根内校验                                  | 《04》§9、《06》§2.4/§9.1    |
+| `scope`      | `ScopeKind`/`ScopeRegistration`/`ScopePolicy`/`ScopeRegistry`（含 External 按 origin 惰性注册）        | 《04》§5.2、《06》§3         |
+| `session`    | `ResourceSession`/`SessionKind`/会话注册表：派生不扩权、关闭级联                                       | 《04》§11.2、《03》§7.2      |
+| `permission` | 作用域×能力面管理器侧在册判定矩阵与 `IPermissionDeniedDetails`                                         | 《04》§5.3（口径）、《06》§4 |
+| `provider`   | 在册 `ResourceProvider` trait 与地址模型类型（仅抽象，无任何内置实现=段二）                            | 《04》§3.1/§3.2              |
+| `handle`     | `open`/`invalidated`/`released` 三态状态机、句柄表、租约归属与归还、失效订阅、池上限                   | 《04》§4、《06》§6           |
+| `manager`    | `ResourceManager` 门面：`resolve` 流水线与 `open/stat/read_range/read_chunk/release`、会话与作用域级联 | 《04》§5.1/§11、《03》§7     |
 
 ## 段一边界（明确不做）
 
@@ -36,29 +36,29 @@
 
 ## 在册错误码 ↔ 用例对照（段一产生面）
 
-| 错误码 | 段一产生点 | 锁测 |
-|---|---|---|
-| `RESOURCE_INVALID_URI` | 语法矩阵：query/fragment/编码/userinfo/origin/scheme 前缀、无路径分隔符的裸 origin | `src/uri.rs` 单测矩阵 + `tests/uri_syntax_matrix.rs` + `tests/error_code_lock.rs` |
-| `RESOURCE_UNSUPPORTED_SCHEME` | `resolve_input` 收到 `file://`、`webdav://`、未知 scheme | `src/uri.rs` + `tests/uri_syntax_matrix.rs` |
-| `RESOURCE_PATH_INVALID` | PathGuard 攻击面全量（9 类 reason 中 `absolute/separator/segment/encoding/control/length/platform/symlink` 8 类） | `src/path_guard.rs` 单测 + `tests/error_code_lock.rs` 形状锁 |
-| `RESOURCE_NOT_FOUND` | 作用域未注册；直接请求作用域根（空路径基址） | `src/scope.rs` / `src/manager.rs` 流水线单测 |
-| `RESOURCE_PERMISSION_DENIED` | 判定矩阵拒绝面 + 会话未解析 | `src/permission.rs` / `src/manager.rs` 单测 |
-| `RESOURCE_TOO_LARGE` | `open` 超过作用域 `max_resource_bytes` | `src/manager.rs` 单测 |
-| `RESOURCE_BUSY` | 流游标占用期间 `read_range` | `src/manager.rs` / `src/handle.rs` 单测 |
-| `RESOURCE_HANDLE_RELEASED` | 已释放句柄使用（含 ID 陈旧命中墓碑） | `src/handle.rs` 单测 |
-| `RESOURCE_HANDLE_INVALIDATED` | 已失效句柄读操作 | `src/handle.rs` / `src/manager.rs` 单测 |
-| `RESOURCE_POOL_EXHAUSTED` | 单插件 64 / 全局 4096 超限（`kind: handles`） | `src/handle.rs` 单测 |
-| `RESOURCE_READ_ONLY` | 只读策略作用域写入能力预检（Platform/External/归档来源/Document 挂载直写） | `src/permission.rs` 单测 |
-| `RESOURCE_ALREADY_EXISTS` | 作用域 / Provider 重复注册 | `src/scope.rs` / `src/manager.rs` 单测 |
-| `RESOURCE_INTERNAL` | 兜底：作用域注册项指向未注册 Provider（装配错误，协议层兜底口径《06》§7.2） | `src/manager.rs` 兜底单测 + `tests/error_code_lock.rs` 形状锁（无 details） |
-| 其余 5 码（`NOT_EMPTY`/`NOT_SUPPORTED`/`CROSS_SCOPE`/`WRITE_FAILED`/`NETWORK_FAILED`） | 段一不产生（依赖 Provider 写路径/外部代理，段二/三接入）；常量与 `retryable`、HTTP 映射表由 `tests/error_code_lock.rs` 三方锁钉住 | `tests/error_code_lock.rs` |
+| 错误码                                                                                 | 段一产生点                                                                                                                        | 锁测                                                                              |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `RESOURCE_INVALID_URI`                                                                 | 语法矩阵：query/fragment/编码/userinfo/origin/scheme 前缀、无路径分隔符的裸 origin                                                | `src/uri.rs` 单测矩阵 + `tests/uri_syntax_matrix.rs` + `tests/error_code_lock.rs` |
+| `RESOURCE_UNSUPPORTED_SCHEME`                                                          | `resolve_input` 收到 `file://`、`webdav://`、未知 scheme                                                                          | `src/uri.rs` + `tests/uri_syntax_matrix.rs`                                       |
+| `RESOURCE_PATH_INVALID`                                                                | PathGuard 攻击面全量（9 类 reason 中 `absolute/separator/segment/encoding/control/length/platform/symlink` 8 类）                 | `src/path_guard.rs` 单测 + `tests/error_code_lock.rs` 形状锁                      |
+| `RESOURCE_NOT_FOUND`                                                                   | 作用域未注册；直接请求作用域根（空路径基址）                                                                                      | `src/scope.rs` / `src/manager.rs` 流水线单测                                      |
+| `RESOURCE_PERMISSION_DENIED`                                                           | 判定矩阵拒绝面 + 会话未解析                                                                                                       | `src/permission.rs` / `src/manager.rs` 单测                                       |
+| `RESOURCE_TOO_LARGE`                                                                   | `open` 超过作用域 `max_resource_bytes`                                                                                            | `src/manager.rs` 单测                                                             |
+| `RESOURCE_BUSY`                                                                        | 流游标占用期间 `read_range`                                                                                                       | `src/manager.rs` / `src/handle.rs` 单测                                           |
+| `RESOURCE_HANDLE_RELEASED`                                                             | 已释放句柄使用（含 ID 陈旧命中墓碑）                                                                                              | `src/handle.rs` 单测                                                              |
+| `RESOURCE_HANDLE_INVALIDATED`                                                          | 已失效句柄读操作                                                                                                                  | `src/handle.rs` / `src/manager.rs` 单测                                           |
+| `RESOURCE_POOL_EXHAUSTED`                                                              | 单插件 64 / 全局 4096 超限（`kind: handles`）                                                                                     | `src/handle.rs` 单测                                                              |
+| `RESOURCE_READ_ONLY`                                                                   | 只读策略作用域写入能力预检（Platform/External/归档来源/Document 挂载直写）                                                        | `src/permission.rs` 单测                                                          |
+| `RESOURCE_ALREADY_EXISTS`                                                              | 作用域 / Provider 重复注册                                                                                                        | `src/scope.rs` / `src/manager.rs` 单测                                            |
+| `RESOURCE_INTERNAL`                                                                    | 兜底：作用域注册项指向未注册 Provider（装配错误，协议层兜底口径《06》§7.2）                                                       | `src/manager.rs` 兜底单测 + `tests/error_code_lock.rs` 形状锁（无 details）       |
+| 其余 5 码（`NOT_EMPTY`/`NOT_SUPPORTED`/`CROSS_SCOPE`/`WRITE_FAILED`/`NETWORK_FAILED`） | 段一不产生（依赖 Provider 写路径/外部代理，段二/三接入）；常量与 `retryable`、HTTP 映射表由 `tests/error_code_lock.rs` 三方锁钉住 | `tests/error_code_lock.rs`                                                        |
 
 ## 发现的文档漂移（只登记，未改任何文档）
 
-1. 《04.05》§5.3 Platform 读取要求 `resources:read:platform`，与《06.04》§4.3「Platform 免权限（公开只读）」矛盾。按协议规范 §4.3 实现（免权限），待裁决。
-2. 《04.09》§9.2 示例代码使用 `ChipsError::ResourcePathInvalid(..)` 枚举变体，但《核心接口规范》§3.3 落地的 `chips_core::ChipsError` 是单形结构体（`new/with_details/with_retryable`）。示例与实码不符，实现按实码 API。
-3. 《04.03》§3.2 `ResourceProvider::open_stream` 返回 `ResourceStream`，其形状在全部在册文档中未定义。段一定义为在册流读取抽象 trait（`next_chunk`），待文档补形。
-4. 《06.02》§2.4 `details.reason = unicode` 在全部文档中无触发规则（NFC 归一即通过）。段一保留词表成员但不产生；待补规则。
+1. 《04.05》§5.3 Platform 读取要求 `resources:read:platform`，与《06.04》§4.3「Platform 免权限（公开只读）」矛盾。按协议规范 §4.3 实现（免权限），待裁决。已裁定收口（工单042，2026-09-21）。
+2. 《04.09》§9.2 示例代码使用 `ChipsError::ResourcePathInvalid(..)` 枚举变体，但《核心接口规范》§3.3 落地的 `chips_core::ChipsError` 是单形结构体（`new/with_details/with_retryable`）。示例与实码不符，实现按实码 API。已裁定收口（工单042，2026-09-21）。
+3. 《04.03》§3.2 `ResourceProvider::open_stream` 返回 `ResourceStream`，其形状在全部在册文档中未定义。段一定义为在册流读取抽象 trait（`next_chunk`），待文档补形。已裁定收口（工单042，2026-09-21）。
+4. 《06.02》§2.4 `details.reason = unicode` 在全部文档中无触发规则（NFC 归一即通过）。段一保留词表成员但不产生；待补规则。已裁定收口（工单042，2026-09-21）。触发臂实现随动归段二波。
 5. 《04》§12 默认配置缺 URI/路径长度上限与「读取队列上限」的具体数值（§2.4 `length` 与 §7.2 `pool.kind = queue` 依赖它）。段一以 `ResourceLimits` 可配置项落地（默认 8192/4096/255 字节），队列上限面不做。
 6. 《04.12》`maxResourceBytes` 2 GiB 与《06.06》§6.6「read() ≤8 MiB」共同决定 TOO_LARGE 两档；`resolve` 阶段无法预知大小，段一在 `open/stat` 处由 Provider 元数据触发。
 
@@ -104,13 +104,13 @@
 
 ### 四闸 + workspace 收口数字（真实输出）
 
-| 闸 | 命令 | EXIT |
-|---|---|---|
-| 编译 | `cargo check -p chips-resource` | 0 |
-| 格式 | `cargo fmt -p chips-resource -- --check` | 0 |
-| 静态 | `cargo clippy -p chips-resource --all-targets -- -D warnings` | 0 |
-| 测试 | `cargo test -p chips-resource` | 0（lib 71 + error_code_lock 9 + uri_syntax_matrix 9 + doctest 1，共 90 用例，零 skip 零忽略） |
-| 构建 | `cargo build -p chips-resource` | 0 |
-| 卫生 | `cargo check --workspace` | 0（不毒化兄弟面） |
+| 闸   | 命令                                                          | EXIT                                                                                          |
+| ---- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 编译 | `cargo check -p chips-resource`                               | 0                                                                                             |
+| 格式 | `cargo fmt -p chips-resource -- --check`                      | 0                                                                                             |
+| 静态 | `cargo clippy -p chips-resource --all-targets -- -D warnings` | 0                                                                                             |
+| 测试 | `cargo test -p chips-resource`                                | 0（lib 71 + error_code_lock 9 + uri_syntax_matrix 9 + doctest 1，共 90 用例，零 skip 零忽略） |
+| 构建 | `cargo build -p chips-resource`                               | 0                                                                                             |
+| 卫生 | `cargo check --workspace`                                     | 0（不毒化兄弟面）                                                                             |
 
 （lib 用例数 71 = 前任 70 + 本次补 manager 兜底 1。）
