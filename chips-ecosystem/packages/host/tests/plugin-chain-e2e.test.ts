@@ -83,9 +83,7 @@ function fixtureAsset(relative: string): string {
   return fileURLToPath(new URL(`../../../tests/e2e/fixtures/cpk/${relative}`, import.meta.url));
 }
 
-const HARNESS_PATH = fileURLToPath(
-  new URL('./fixtures/plugin-chain-e2e/run-chain.mjs', import.meta.url),
-);
+const HARNESS_PATH = fileURLToPath(new URL('./fixtures/plugin-chain-e2e/run-chain.mjs', import.meta.url));
 const SOURCE_PATHS = {
   loaderIndex: fileURLToPath(new URL('../src/loader/index.ts', import.meta.url)),
   activation: fileURLToPath(new URL('../src/main/plugin-activation.ts', import.meta.url)),
@@ -136,12 +134,8 @@ async function captureRejection(action: Promise<unknown>): Promise<unknown> {
 // 无 extra、成员按路径字节序；归档由生产读取面 `loadCpkArchive` 消化）
 // ---------------------------------------------------------------------------
 
-function buildZipStore(
-  entries: readonly { readonly path: string; readonly data: Uint8Array }[],
-): Uint8Array {
-  const sorted = [...entries].sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
-  );
+function buildZipStore(entries: readonly { readonly path: string; readonly data: Uint8Array }[]): Uint8Array {
+  const sorted = [...entries].sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
   const localParts: Buffer[] = [];
   const centralParts: Buffer[] = [];
   let offset = 0;
@@ -279,9 +273,7 @@ function signProbeMembers(members: Map<string, Uint8Array>): void {
 }
 
 /** 生成签名后的探针 `.cpk`（归档态）与装后目录合并摘要（O1 两口径对照锚）。 */
-async function buildSignedProbeCpk(
-  workspace: string,
-): Promise<{ cpkFile: string; mergedHash: string }> {
+async function buildSignedProbeCpk(workspace: string): Promise<{ cpkFile: string; mergedHash: string }> {
   const members = new Map<string, Uint8Array>([
     ['manifest.yaml', new TextEncoder().encode(PROBE_MANIFEST)],
     ['dist/index.js', new TextEncoder().encode(probeEntrySource())],
@@ -344,202 +336,198 @@ interface ChainResults {
 }
 
 describe('臂 A：真实签名 .cpk 插件链全环（原生子进程 × 生产接线）', () => {
-  it(
-    'A1 install→registry→enable（真求值）→能力调用→事件总线→disable→uninstall 全链逐环',
-    async () => {
-      const workspace = await makeWorkspace('chips-chain-e2e-');
-      const pluginsRoot = join(workspace, 'plugins');
-      await mkdir(pluginsRoot, { recursive: true });
-      const { cpkFile, mergedHash } = await buildSignedProbeCpk(workspace);
-      const runToken = randomUUID();
-      const invokeToken = `invoke-${randomUUID()}`;
+  it('A1 install→registry→enable（真求值）→能力调用→事件总线→disable→uninstall 全链逐环', async () => {
+    const workspace = await makeWorkspace('chips-chain-e2e-');
+    const pluginsRoot = join(workspace, 'plugins');
+    await mkdir(pluginsRoot, { recursive: true });
+    const { cpkFile, mergedHash } = await buildSignedProbeCpk(workspace);
+    const runToken = randomUUID();
+    const invokeToken = `invoke-${randomUUID()}`;
 
-      const argsPath = join(workspace, 'chain-args.json');
-      const outFile = join(workspace, 'chain-out.json');
-      await writeFile(
-        argsPath,
-        JSON.stringify({
-          sources: SOURCE_PATHS,
-          outFile,
-          pluginsRoot,
-          registryFile: join(pluginsRoot, 'registry.json'),
-          sessionRoot: join(workspace, 'sessions'),
-          platformRoot: workspace,
-          trustRootsFile: fixtureAsset('keys/trust-roots.json'),
-          hostVersion: HOST_VERSION,
-          cpkFile,
-          pluginId: PROBE.id,
-          capabilityId: PROBE.capabilityId,
-          invokeInput: { token: invokeToken },
-          subscribe: [
-            PLUGIN_LIFECYCLE_EVENTS.installed,
-            PLUGIN_LIFECYCLE_EVENTS.loaded,
-            PLUGIN_LIFECYCLE_EVENTS.enabled,
-            PLUGIN_LIFECYCLE_EVENTS.disabled,
-            PLUGIN_LIFECYCLE_EVENTS.unloaded,
-            PLUGIN_LIFECYCLE_EVENTS.uninstalled,
-            PLUGIN_LIFECYCLE_EVENTS.failed,
-            PROBE.readyEvent,
-            PROBE.stoppedEvent,
-          ],
-          runToken,
-        }),
-      );
-      try {
-        await execFileAsync(process.execPath, [HARNESS_PATH, argsPath], {
-          env: {},
-          timeout: 150_000,
-          maxBuffer: 8 * 1024 * 1024,
-        });
-      } catch (error) {
-        if (!existsSync(outFile)) {
-          const detail =
-            error instanceof Error
-              ? `${error.message}\nstderr: ${(error as { stderr?: string }).stderr ?? ''}`
-              : String(error);
-          throw new Error(`插件链 E2E 子进程未产出结果文件：${detail}`);
-        }
-      }
-      const doc = JSON.parse(readFileSync(outFile, 'utf8')) as {
-        fatal: unknown;
-        results: Omit<ChainResults, 'fatal'>;
-      };
-      expect(doc.fatal, `子进程链路级致命错误：${JSON.stringify(doc.fatal)}`).toBeNull();
-      const results: ChainResults = { ...doc.results, fatal: doc.fatal };
-
-      // ---- 环 1：install（T1；原子落盘 + 注册表持久化 + plugin:installed） ----
-      expect(results.install?.ok).toBe(true);
-      const installRecord = results.install!.value!;
-      expect(installRecord).toMatchObject({
-        id: PROBE.id,
-        version: PROBE.version,
-        role: 'service',
-        state: 'installed',
-        source: 'user',
-        permissions: ['resources:read'],
-        grantedPermissions: [],
-      });
-      expect(installRecord.path).toBe(join(pluginsRoot, PROBE.id, PROBE.version));
-      expect(results.checkpoints.diskAfterInstall).toBe(true);
-      expect(results.checkpoints.stateAfterInstall).toBe('installed');
-      const persistedAfterInstall = results.checkpoints.registryAfterInstall;
-      expect(persistedAfterInstall.version).toBe(1);
-      expect(persistedAfterInstall.plugins).toHaveLength(1);
-      expect(persistedAfterInstall.plugins[0]).toMatchObject({
-        id: PROBE.id,
-        version: PROBE.version,
-        role: 'service',
-        source: 'user',
-        enabled: false,
-        grantedPermissions: [],
-        permissions: ['resources:read'],
-      });
-      expect(String(persistedAfterInstall.plugins[0]?.hash)).toMatch(/^sha256:[0-9a-f]{64}$/);
-      // O1 两口径关系锁定：注册表 `record.hash` 为整包归档摘要，激活期望为装后目录合并
-      // 摘要，逐字节不同源（口径区分本身即在册契约，见 `plugin-activation.ts` 头注）；
-      // 激活期再锚定期望值 = 装后目录全成员合并摘要复算值。
-      expect(String(persistedAfterInstall.plugins[0]?.hash)).not.toBe(mergedHash);
-      expect(results.packageHashAfterInstall).toBe(mergedHash);
-
-      // ---- 环 2：enable（T2→Starting→Active；真通道受管求值 + 角色形状） ----
-      expect(results.enable?.ok).toBe(true);
-      expect(results.enable!.value!.state).toBe('active');
-      expect(results.checkpoints.stateAfterEnable).toBe('active');
-      expect(results.checkpoints.registryAfterEnable.plugins[0]?.enabled).toBe(true);
-      expect(results.activatedEntry).toMatchObject({
+    const argsPath = join(workspace, 'chain-args.json');
+    const outFile = join(workspace, 'chain-out.json');
+    await writeFile(
+      argsPath,
+      JSON.stringify({
+        sources: SOURCE_PATHS,
+        outFile,
+        pluginsRoot,
+        registryFile: join(pluginsRoot, 'registry.json'),
+        sessionRoot: join(workspace, 'sessions'),
+        platformRoot: workspace,
+        trustRootsFile: fixtureAsset('keys/trust-roots.json'),
+        hostVersion: HOST_VERSION,
+        cpkFile,
         pluginId: PROBE.id,
-        version: PROBE.version,
-        role: 'service',
-      });
-      expect(results.activatedEntry!.nonce).toMatch(/^[0-9a-f-]{36}$/);
-      expect(results.activatedEntry!.entryUrl).toContain('?chips-nonce=');
-      expect(results.activatedEntry!.entryKeys).toEqual(['start', 'stop']);
-      expect(results.checkpoints.reportAfterEnable.capabilities.byOwner[PROBE.id]).toBe(1);
-      // 插件体真实求值恰好一次（ModuleLoader 门禁内执行）。
-      expect(results.checkpoints.globals.starts).toBe(1);
-      // service 激活不自动授权：授权快照维持注册表空集（§4.3[3]）。
-      expect(results.enable!.value!.grantedPermissions).toEqual([]);
-
-      // ---- 环 3：能力调用（Bridge 会话 → 真实路由 → 插件 handler 真执行） ----
-      expect(results.invoke?.ok).toBe(true);
-      expect(results.invoke!.value!.ok).toBe(true);
-      expect(results.invoke!.value!.result).toEqual({
-        pong: invokeToken,
-        callerId: 'platform',
-        sessionId: 'session:77:main',
+        capabilityId: PROBE.capabilityId,
+        invokeInput: { token: invokeToken },
+        subscribe: [
+          PLUGIN_LIFECYCLE_EVENTS.installed,
+          PLUGIN_LIFECYCLE_EVENTS.loaded,
+          PLUGIN_LIFECYCLE_EVENTS.enabled,
+          PLUGIN_LIFECYCLE_EVENTS.disabled,
+          PLUGIN_LIFECYCLE_EVENTS.unloaded,
+          PLUGIN_LIFECYCLE_EVENTS.uninstalled,
+          PLUGIN_LIFECYCLE_EVENTS.failed,
+          PROBE.readyEvent,
+          PROBE.stoppedEvent,
+        ],
         runToken,
-        starts: 1,
+      }),
+    );
+    try {
+      await execFileAsync(process.execPath, [HARNESS_PATH, argsPath], {
+        env: {},
+        timeout: 150_000,
+        maxBuffer: 8 * 1024 * 1024,
       });
-
-      // ---- 环 4：事件总线（发布台账序 + 订阅会话投递序双留痕） ----
-      expect(results.events.map((entry) => entry.eventId)).toEqual([
-        PLUGIN_LIFECYCLE_EVENTS.installed,
-        PROBE.readyEvent,
-        PLUGIN_LIFECYCLE_EVENTS.loaded,
-        PLUGIN_LIFECYCLE_EVENTS.enabled,
-        PROBE.stoppedEvent,
-        PLUGIN_LIFECYCLE_EVENTS.disabled,
-        PLUGIN_LIFECYCLE_EVENTS.unloaded,
-        PLUGIN_LIFECYCLE_EVENTS.unloaded,
-        PLUGIN_LIFECYCLE_EVENTS.uninstalled,
-      ]);
-      const ready = results.events.find((entry) => entry.eventId === PROBE.readyEvent);
-      expect(ready!.payload).toEqual({ pluginId: PROBE.id, version: PROBE.version, role: 'service' });
-      const deliveredByEvent = new Map<string, { windowId: number; envelope: IEventEnvelope }[]>();
-      for (const item of results.delivered) {
-        const list = deliveredByEvent.get(item.envelope.eventId) ?? [];
-        list.push(item);
-        deliveredByEvent.set(item.envelope.eventId, list);
+    } catch (error) {
+      if (!existsSync(outFile)) {
+        const detail =
+          error instanceof Error
+            ? `${error.message}\nstderr: ${(error as { stderr?: string }).stderr ?? ''}`
+            : String(error);
+        throw new Error(`插件链 E2E 子进程未产出结果文件：${detail}`);
       }
-      // 订阅会话（window 77）逐事件真收到：生命周期 6 事件 + 插件自定义 2 事件。
-      for (const eventId of [
-        PLUGIN_LIFECYCLE_EVENTS.installed,
-        PLUGIN_LIFECYCLE_EVENTS.loaded,
-        PLUGIN_LIFECYCLE_EVENTS.enabled,
-        PLUGIN_LIFECYCLE_EVENTS.disabled,
-        PLUGIN_LIFECYCLE_EVENTS.unloaded,
-        PLUGIN_LIFECYCLE_EVENTS.uninstalled,
-        PROBE.readyEvent,
-        PROBE.stoppedEvent,
-      ]) {
-        const items = deliveredByEvent.get(eventId);
-        expect(items, `事件 ${eventId} 应经总线投递给订阅会话`).toBeTruthy();
-        expect(items!.every((item) => item.windowId === 77)).toBe(true);
-        expect(items!.every((item) => typeof item.envelope.emittedAt === 'number')).toBe(true);
-      }
-      const loadedEnvelope = deliveredByEvent.get(PLUGIN_LIFECYCLE_EVENTS.loaded)!;
-      expect(loadedEnvelope[0]?.envelope.payload).toEqual({
-        pluginId: PROBE.id,
-        version: PROBE.version,
-        role: 'service',
-      });
-      const stoppedEnvelope = deliveredByEvent.get(PROBE.stoppedEvent)!;
-      expect(stoppedEnvelope[0]?.envelope.payload).toEqual({ pluginId: PROBE.id, stops: 1 });
-      // 链路无失败事件发生：failed 虽已订阅但不得出现。
-      expect(deliveredByEvent.get(PLUGIN_LIFECYCLE_EVENTS.failed)).toBeUndefined();
+    }
+    const doc = JSON.parse(readFileSync(outFile, 'utf8')) as {
+      fatal: unknown;
+      results: Omit<ChainResults, 'fatal'>;
+    };
+    expect(doc.fatal, `子进程链路级致命错误：${JSON.stringify(doc.fatal)}`).toBeNull();
+    const results: ChainResults = { ...doc.results, fatal: doc.fatal };
 
-      // ---- 环 5：disable（stop 真执行 + 能力撤销 + T9 落 installed） ----
-      expect(results.disable?.ok).toBe(true);
-      expect(results.disable!.value!.record.state).toBe('installed');
-      expect(results.disable!.value!.stopError).toBeUndefined();
-      expect(results.checkpoints.stateAfterDisable).toBe('installed');
-      expect(results.checkpoints.registryAfterDisable.plugins[0]?.enabled).toBe(false);
-      expect(results.checkpoints.reportAfterDisable.capabilities.byOwner[PROBE.id]).toBeUndefined();
-      expect(results.activatedEntryAfterDisable).toBeNull();
-      expect(results.checkpoints.globals.stops).toBe(1);
-      // 停用后能力已摘除：真实注册表未命中语义（非空壳占位）。
-      expect(results.invokeAfterDisable?.ok).toBe(true);
-      expect(results.invokeAfterDisable!.value!.ok).toBe(false);
-      expect(results.invokeAfterDisable!.value!.error!.code).toBe(BRIDGE_ERROR_CODES.capabilityNotFound);
+    // ---- 环 1：install（T1；原子落盘 + 注册表持久化 + plugin:installed） ----
+    expect(results.install?.ok).toBe(true);
+    const installRecord = results.install!.value!;
+    expect(installRecord).toMatchObject({
+      id: PROBE.id,
+      version: PROBE.version,
+      role: 'service',
+      state: 'installed',
+      source: 'user',
+      permissions: ['resources:read'],
+      grantedPermissions: [],
+    });
+    expect(installRecord.path).toBe(join(pluginsRoot, PROBE.id, PROBE.version));
+    expect(results.checkpoints.diskAfterInstall).toBe(true);
+    expect(results.checkpoints.stateAfterInstall).toBe('installed');
+    const persistedAfterInstall = results.checkpoints.registryAfterInstall;
+    expect(persistedAfterInstall.version).toBe(1);
+    expect(persistedAfterInstall.plugins).toHaveLength(1);
+    expect(persistedAfterInstall.plugins[0]).toMatchObject({
+      id: PROBE.id,
+      version: PROBE.version,
+      role: 'service',
+      source: 'user',
+      enabled: false,
+      grantedPermissions: [],
+      permissions: ['resources:read'],
+    });
+    expect(String(persistedAfterInstall.plugins[0]?.hash)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    // O1 两口径关系锁定：注册表 `record.hash` 为整包归档摘要，激活期望为装后目录合并
+    // 摘要，逐字节不同源（口径区分本身即在册契约，见 `plugin-activation.ts` 头注）；
+    // 激活期再锚定期望值 = 装后目录全成员合并摘要复算值。
+    expect(String(persistedAfterInstall.plugins[0]?.hash)).not.toBe(mergedHash);
+    expect(results.packageHashAfterInstall).toBe(mergedHash);
 
-      // ---- 环 6：uninstall（T12 善后：目录移除 + 注册表清账 + 事件） ----
-      expect(results.uninstall?.ok).toBe(true);
-      expect(results.checkpoints.diskAfterUninstall).toBe(false);
-      expect(results.checkpoints.registryAfterUninstall.plugins).toEqual([]);
-      expect(results.checkpoints.listAfterUninstall).toEqual([]);
-    },
-    200_000,
-  );
+    // ---- 环 2：enable（T2→Starting→Active；真通道受管求值 + 角色形状） ----
+    expect(results.enable?.ok).toBe(true);
+    expect(results.enable!.value!.state).toBe('active');
+    expect(results.checkpoints.stateAfterEnable).toBe('active');
+    expect(results.checkpoints.registryAfterEnable.plugins[0]?.enabled).toBe(true);
+    expect(results.activatedEntry).toMatchObject({
+      pluginId: PROBE.id,
+      version: PROBE.version,
+      role: 'service',
+    });
+    expect(results.activatedEntry!.nonce).toMatch(/^[0-9a-f-]{36}$/);
+    expect(results.activatedEntry!.entryUrl).toContain('?chips-nonce=');
+    expect(results.activatedEntry!.entryKeys).toEqual(['start', 'stop']);
+    expect(results.checkpoints.reportAfterEnable.capabilities.byOwner[PROBE.id]).toBe(1);
+    // 插件体真实求值恰好一次（ModuleLoader 门禁内执行）。
+    expect(results.checkpoints.globals.starts).toBe(1);
+    // service 激活不自动授权：授权快照维持注册表空集（§4.3[3]）。
+    expect(results.enable!.value!.grantedPermissions).toEqual([]);
+
+    // ---- 环 3：能力调用（Bridge 会话 → 真实路由 → 插件 handler 真执行） ----
+    expect(results.invoke?.ok).toBe(true);
+    expect(results.invoke!.value!.ok).toBe(true);
+    expect(results.invoke!.value!.result).toEqual({
+      pong: invokeToken,
+      callerId: 'platform',
+      sessionId: 'session:77:main',
+      runToken,
+      starts: 1,
+    });
+
+    // ---- 环 4：事件总线（发布台账序 + 订阅会话投递序双留痕） ----
+    expect(results.events.map((entry) => entry.eventId)).toEqual([
+      PLUGIN_LIFECYCLE_EVENTS.installed,
+      PROBE.readyEvent,
+      PLUGIN_LIFECYCLE_EVENTS.loaded,
+      PLUGIN_LIFECYCLE_EVENTS.enabled,
+      PROBE.stoppedEvent,
+      PLUGIN_LIFECYCLE_EVENTS.disabled,
+      PLUGIN_LIFECYCLE_EVENTS.unloaded,
+      PLUGIN_LIFECYCLE_EVENTS.unloaded,
+      PLUGIN_LIFECYCLE_EVENTS.uninstalled,
+    ]);
+    const ready = results.events.find((entry) => entry.eventId === PROBE.readyEvent);
+    expect(ready!.payload).toEqual({ pluginId: PROBE.id, version: PROBE.version, role: 'service' });
+    const deliveredByEvent = new Map<string, { windowId: number; envelope: IEventEnvelope }[]>();
+    for (const item of results.delivered) {
+      const list = deliveredByEvent.get(item.envelope.eventId) ?? [];
+      list.push(item);
+      deliveredByEvent.set(item.envelope.eventId, list);
+    }
+    // 订阅会话（window 77）逐事件真收到：生命周期 6 事件 + 插件自定义 2 事件。
+    for (const eventId of [
+      PLUGIN_LIFECYCLE_EVENTS.installed,
+      PLUGIN_LIFECYCLE_EVENTS.loaded,
+      PLUGIN_LIFECYCLE_EVENTS.enabled,
+      PLUGIN_LIFECYCLE_EVENTS.disabled,
+      PLUGIN_LIFECYCLE_EVENTS.unloaded,
+      PLUGIN_LIFECYCLE_EVENTS.uninstalled,
+      PROBE.readyEvent,
+      PROBE.stoppedEvent,
+    ]) {
+      const items = deliveredByEvent.get(eventId);
+      expect(items, `事件 ${eventId} 应经总线投递给订阅会话`).toBeTruthy();
+      expect(items!.every((item) => item.windowId === 77)).toBe(true);
+      expect(items!.every((item) => typeof item.envelope.emittedAt === 'number')).toBe(true);
+    }
+    const loadedEnvelope = deliveredByEvent.get(PLUGIN_LIFECYCLE_EVENTS.loaded)!;
+    expect(loadedEnvelope[0]?.envelope.payload).toEqual({
+      pluginId: PROBE.id,
+      version: PROBE.version,
+      role: 'service',
+    });
+    const stoppedEnvelope = deliveredByEvent.get(PROBE.stoppedEvent)!;
+    expect(stoppedEnvelope[0]?.envelope.payload).toEqual({ pluginId: PROBE.id, stops: 1 });
+    // 链路无失败事件发生：failed 虽已订阅但不得出现。
+    expect(deliveredByEvent.get(PLUGIN_LIFECYCLE_EVENTS.failed)).toBeUndefined();
+
+    // ---- 环 5：disable（stop 真执行 + 能力撤销 + T9 落 installed） ----
+    expect(results.disable?.ok).toBe(true);
+    expect(results.disable!.value!.record.state).toBe('installed');
+    expect(results.disable!.value!.stopError).toBeUndefined();
+    expect(results.checkpoints.stateAfterDisable).toBe('installed');
+    expect(results.checkpoints.registryAfterDisable.plugins[0]?.enabled).toBe(false);
+    expect(results.checkpoints.reportAfterDisable.capabilities.byOwner[PROBE.id]).toBeUndefined();
+    expect(results.activatedEntryAfterDisable).toBeNull();
+    expect(results.checkpoints.globals.stops).toBe(1);
+    // 停用后能力已摘除：真实注册表未命中语义（非空壳占位）。
+    expect(results.invokeAfterDisable?.ok).toBe(true);
+    expect(results.invokeAfterDisable!.value!.ok).toBe(false);
+    expect(results.invokeAfterDisable!.value!.error!.code).toBe(BRIDGE_ERROR_CODES.capabilityNotFound);
+
+    // ---- 环 6：uninstall（T12 善后：目录移除 + 注册表清账 + 事件） ----
+    expect(results.uninstall?.ok).toBe(true);
+    expect(results.checkpoints.diskAfterUninstall).toBe(false);
+    expect(results.checkpoints.registryAfterUninstall.plugins).toEqual([]);
+    expect(results.checkpoints.listAfterUninstall).toEqual([]);
+  }, 200_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -555,10 +543,7 @@ interface InProcessHarness {
 }
 
 /** 与生产组合根同构的进程内接线（`production-assembly.ts` 缺省臂形态 + 运行时总线）。 */
-async function createBusHarness(
-  workspace: string,
-  subscribe: readonly string[],
-): Promise<InProcessHarness> {
+async function createBusHarness(workspace: string, subscribe: readonly string[]): Promise<InProcessHarness> {
   const pluginsRoot = join(workspace, 'plugins');
   await mkdir(pluginsRoot, { recursive: true });
   const registry = await openPluginRegistry({ filePath: join(pluginsRoot, 'registry.json') });

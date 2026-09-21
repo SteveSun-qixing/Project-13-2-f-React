@@ -41,8 +41,12 @@ function readDocSource(relativeFromTests: string): string {
   return readFileSync(fileURLToPath(new URL(relativeFromTests, import.meta.url)), 'utf8');
 }
 
-const DOC_05_11 = readDocSource('../../../../薯片生态文档库/01-架构设计/01-子系统设计/05.11-05-渲染引擎设计-十一、错误模型.md');
-const DOC_05_09 = readDocSource('../../../../薯片生态文档库/01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md');
+const DOC_05_11 = readDocSource(
+  '../../../../薯片生态文档库/01-架构设计/01-子系统设计/05.11-05-渲染引擎设计-十一、错误模型.md',
+);
+const DOC_05_09 = readDocSource(
+  '../../../../薯片生态文档库/01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md',
+);
 
 /** 一条 `frame:ready` 入站封套基线（host:* 为父帧出站方向，不在端口入站清单内）。 */
 function readyEnvelope(sessionId = 'session-1', frameId = 'frame-1'): unknown {
@@ -95,7 +99,7 @@ describe('帧协议封套（05.09 §9.2）', () => {
         sessionId: 's',
         frameId: 'f',
         message: { type: 'frame:ready', payload: null },
-      })
+      }),
     ).toBeNull();
     expect(parseFrameEnvelope(readyEnvelope('s1', 'f1'))).not.toBeNull();
 
@@ -108,7 +112,7 @@ describe('帧协议封套（05.09 §9.2）', () => {
 
   it('frame:dispose-ack 允许 null 载荷（§9.2 消息清单）', () => {
     const ack = parseFrameEnvelope(
-      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:dispose-ack', payload: null })
+      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:dispose-ack', payload: null }),
     );
     expect(ack).not.toBeNull();
     expect(isFrameDisposeAck(ack?.message as never)).toBe(true);
@@ -116,17 +120,23 @@ describe('帧协议封套（05.09 §9.2）', () => {
 
   it('握手转移消息携带一次性令牌', () => {
     const transfer = createHandshakeTransfer('s', 'f', 'token-1');
-    expect(transfer).toEqual({ protocol: 'chips-frame/1', type: 'host:handshake', sessionId: 's', frameId: 'f', token: 'token-1' });
+    expect(transfer).toEqual({
+      protocol: 'chips-frame/1',
+      type: 'host:handshake',
+      sessionId: 's',
+      frameId: 'f',
+      token: 'token-1',
+    });
   });
 
   it('高度与动作载荷提取按形状收口', () => {
     const heightEnvelope = parseFrameEnvelope(
-      createFrameEnvelope('s', 'f', { type: 'frame:height', payload: { height: 320, epoch: 2 } })
+      createFrameEnvelope('s', 'f', { type: 'frame:height', payload: { height: 320, epoch: 2 } }),
     );
     expect(asFrameHeight(heightEnvelope?.message as never)).toEqual({ height: 320, epoch: 2 });
 
     const badHeight = parseFrameEnvelope(
-      createFrameEnvelope('s', 'f', { type: 'frame:height', payload: { height: '320', epoch: 2 } })
+      createFrameEnvelope('s', 'f', { type: 'frame:height', payload: { height: '320', epoch: 2 } }),
     );
     expect(asFrameHeight(badHeight?.message as never)).toBeNull();
 
@@ -134,7 +144,7 @@ describe('帧协议封套（05.09 §9.2）', () => {
       createFrameEnvelope('s', 'f', {
         type: 'frame:action',
         payload: { requestId: 'req-1', action: { kind: 'copy-text', text: '文本' } },
-      })
+      }),
     );
     expect(asFrameAction(actionEnvelope?.message as never)?.requestId).toBe('req-1');
     expect(isFrameEntryRequest({ type: 'frame:entry-request', payload: {} } as never)).toBe(true);

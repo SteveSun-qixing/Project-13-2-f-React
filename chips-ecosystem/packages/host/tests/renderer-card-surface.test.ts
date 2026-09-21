@@ -35,7 +35,10 @@ interface ISessionStub {
 }
 
 /** 会话替身夹具：记录订阅处理器供测试逐步驱动事件。 */
-const createSessionStub = (): { readonly session: ISessionStub; readonly emit: (event: string, payload: unknown) => void } => {
+const createSessionStub = (): {
+  readonly session: ISessionStub;
+  readonly emit: (event: string, payload: unknown) => void;
+} => {
   const handlers = new Map<string, (payload: never) => void>();
   const session: ISessionStub = {
     id: 'render-test',
@@ -71,7 +74,7 @@ interface IRenderFixture {
 /** 渲染夹具：容器 + 根 + 事件驱动入口（act 异步收口，冲刷 open 链路与状态更新的微任务）。 */
 const createRenderFixture = (
   engine: IRenderEngine,
-  emit: (event: string, payload: unknown) => void
+  emit: (event: string, payload: unknown) => void,
 ): IRenderFixture => {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -144,7 +147,7 @@ describe('卡片渲染入口（05.09 §3.2/§6.4，工单002）', () => {
     await fixture.render();
     await fixture.emitEvent(
       'error',
-      new ChipsError({ code: 'RENDER_DOCUMENT_INVALID', message: '文档内容损坏，无法渲染', retryable: false })
+      new ChipsError({ code: 'RENDER_DOCUMENT_INVALID', message: '文档内容损坏，无法渲染', retryable: false }),
     );
     const text = fixture.container.textContent ?? '';
     expect(text).toContain('文档内容损坏，无法渲染');
@@ -158,7 +161,7 @@ describe('卡片渲染入口（05.09 §3.2/§6.4，工单002）', () => {
     await fixture.render();
     await fixture.emitEvent(
       'error',
-      new ChipsError({ code: 'RENDER_FRAME_TIMEOUT', message: '渲染帧启动超时，可重试', retryable: true })
+      new ChipsError({ code: 'RENDER_FRAME_TIMEOUT', message: '渲染帧启动超时，可重试', retryable: true }),
     );
     const retryButton = fixture.container.querySelector<HTMLButtonElement>('.ant-btn');
     if (retryButton === null || retryButton.textContent !== '重试') {
@@ -187,10 +190,7 @@ describe('卡片渲染入口（05.09 §3.2/§6.4，工单002）', () => {
     const source = readFileSync(path.resolve(import.meta.dirname, '../src/renderer/card-renderer.tsx'), 'utf8');
     expect(source).not.toContain('ChipsProvider');
     expect(source).not.toContain('CommandProvider');
-    const hookSource = readFileSync(
-      path.resolve(import.meta.dirname, '../src/renderer/use-render-session.ts'),
-      'utf8'
-    );
+    const hookSource = readFileSync(path.resolve(import.meta.dirname, '../src/renderer/use-render-session.ts'), 'utf8');
     expect(hookSource).not.toContain('ChipsProvider');
     expect(hookSource).not.toContain('CommandProvider');
   });

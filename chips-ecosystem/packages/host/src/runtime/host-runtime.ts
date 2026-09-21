@@ -58,7 +58,12 @@ import { createEventSubscriptionCenter, createResourceHandleCenter } from './cap
 import { createPlatformResourceBackend } from './platform-resource.js';
 import { RESERVED_CAPABILITIES } from './capabilities/reserved.js';
 import type { IReservedCapabilityDeclaration } from './capabilities/reserved.js';
-import type { IHostCapabilityDescriptor, IHostReservedCapabilityView, IHostRuntimeReport, IHostSession } from './capability/contracts.js';
+import type {
+  IHostCapabilityDescriptor,
+  IHostReservedCapabilityView,
+  IHostRuntimeReport,
+  IHostSession,
+} from './capability/contracts.js';
 import type { IRestoreReport } from '../loader/index.js';
 
 /** 生产运行时选项。 */
@@ -421,7 +426,9 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
     ipc,
     resources,
     ...(options.documentViewChannel === undefined ? {} : { documentViewChannel: options.documentViewChannel }),
-    ...(options.cardWindowDocumentBinding === undefined ? {} : { cardWindowDocumentBinding: options.cardWindowDocumentBinding }),
+    ...(options.cardWindowDocumentBinding === undefined
+      ? {}
+      : { cardWindowDocumentBinding: options.cardWindowDocumentBinding }),
     forwardEvents(sink: IEventSink): () => void {
       sinks.add(sink);
       let disposed = false;

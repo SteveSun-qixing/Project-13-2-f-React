@@ -61,9 +61,7 @@ function buildSignedPackageMembers(keyId: string, signer: (data: Buffer) => Buff
   const encoder = new TextEncoder();
   members.set('manifest.yaml', encoder.encode('id: chips.demo.signed\n'));
   members.set('dist/index.js', encoder.encode('export const apply = () => undefined;\n'));
-  const hash = computeContentHash(
-    [...members.entries()].map(([path, data]) => ({ path, data })),
-  );
+  const hash = computeContentHash([...members.entries()].map(([path, data]) => ({ path, data })));
   const signature = signer(Buffer.from(hash, 'utf8')).toString('base64');
   members.set(
     'signature.json',
@@ -169,16 +167,14 @@ describe('验签闭环', () => {
   });
 
   it('错误签名（伪造私钥冒用 keyId）被拒', async () => {
-    const pkg = await loadCpkArchive(
-      fixtureAsset('packages/hello-0.1.0-wrong-signature.cpk'),
-    );
+    const pkg = await loadCpkArchive(fixtureAsset('packages/hello-0.1.0-wrong-signature.cpk'));
     const registry = createTrustRootRegistryFromDocument(
       JSON.parse(readFileSync(fixtureAsset('keys/trust-roots.json'), 'utf8')) as unknown,
       'fixture',
     );
-    expect(() =>
-      verifySignature({ members: pkg.members, source: 'user', trustRoots: registry }),
-    ).toThrowError(LoaderError);
+    expect(() => verifySignature({ members: pkg.members, source: 'user', trustRoots: registry })).toThrowError(
+      LoaderError,
+    );
     try {
       verifySignature({ members: pkg.members, source: 'user', trustRoots: registry });
     } catch (error) {
@@ -206,9 +202,9 @@ describe('空表失效关闭（内嵌注册表面）', () => {
   it('签名正夹具对内嵌空表按未注册 keyId 拒绝（失效关闭）', async () => {
     const pkg = await loadCpkArchive(fixtureAsset('packages/hello-0.1.0.cpk'));
     const registry = createEmbeddedTrustRootRegistry();
-    expect(() =>
-      verifySignature({ members: pkg.members, source: 'builtin', trustRoots: registry }),
-    ).toThrowError(/CPK_SIGNATURE_INVALID|信任根未注册/);
+    expect(() => verifySignature({ members: pkg.members, source: 'builtin', trustRoots: registry })).toThrowError(
+      /CPK_SIGNATURE_INVALID|信任根未注册/,
+    );
     try {
       verifySignature({ members: pkg.members, source: 'builtin', trustRoots: registry });
     } catch (error) {
@@ -226,9 +222,7 @@ describe('空表失效关闭（内嵌注册表面）', () => {
     expect(registry.size).toBe(0);
     const pair = generateFixtureKeyPair();
     const members = buildSignedPackageMembers('any-key', pair.sign);
-    expect(() =>
-      verifySignature({ members, source: 'user', trustRoots: registry }),
-    ).toThrowError(LoaderError);
+    expect(() => verifySignature({ members, source: 'user', trustRoots: registry })).toThrowError(LoaderError);
   });
 });
 
@@ -278,9 +272,7 @@ describe('非法信任根文档整表拒绝', () => {
       name: '编译期形态 publicKey 非规范 Base64',
       document: {
         format: HOST_TRUST_ROOTS_FORMAT,
-        keys: [
-          { keyId: 'bad-b64', algorithm: 'ed25519', publicKey: '###', source: 'builtin' },
-        ],
+        keys: [{ keyId: 'bad-b64', algorithm: 'ed25519', publicKey: '###', source: 'builtin' }],
       },
     },
     {
@@ -335,9 +327,7 @@ describe('非法信任根文档整表拒绝', () => {
 
   for (const testCase of cases) {
     it(`拒绝：${testCase.name}`, () => {
-      expect(() => normalizeTrustRootsDocument(testCase.document, 'unit')).toThrowError(
-        LoaderError,
-      );
+      expect(() => normalizeTrustRootsDocument(testCase.document, 'unit')).toThrowError(LoaderError);
       try {
         normalizeTrustRootsDocument(testCase.document, 'unit');
       } catch (error) {

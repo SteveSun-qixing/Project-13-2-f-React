@@ -6,7 +6,13 @@
  * §11（错误模型）。
  */
 
-export { RENDER_ERROR_CODES, RENDER_ERROR_MESSAGES, RENDER_ERROR_RETRYABLE, createRenderError, isRenderErrorCode } from './codes.js';
+export {
+  RENDER_ERROR_CODES,
+  RENDER_ERROR_MESSAGES,
+  RENDER_ERROR_RETRYABLE,
+  createRenderError,
+  isRenderErrorCode,
+} from './codes.js';
 export type { RenderErrorCode } from './codes.js';
 
 export {
@@ -65,7 +71,11 @@ export {
   createServiceDocumentGateway,
   normalizeDocumentFailure,
 } from './document-gateway.js';
-export type { IChipsRequestFacade, IRenderDocumentGateway, IServiceDocumentGatewayOptions } from './document-gateway.js';
+export type {
+  IChipsRequestFacade,
+  IRenderDocumentGateway,
+  IServiceDocumentGatewayOptions,
+} from './document-gateway.js';
 
 export { CardFrameHost } from './card-frame-host.js';
 export type { ICardFrameHostLike, ICardFrameHostOptions } from './card-frame-host.js';
@@ -127,15 +137,9 @@ export type {
 } from './document-view-channel.js';
 
 export { createDocumentViewChannelBuilder } from './document-view-channel-client.js';
-export type {
-  IDocumentViewChannelInvoke,
-  IDocumentViewChannelClientOptions,
-} from './document-view-channel-client.js';
+export type { IDocumentViewChannelInvoke, IDocumentViewChannelClientOptions } from './document-view-channel-client.js';
 
-export {
-  createBridgeDocumentWritePort,
-  createDocumentReflowCoordinator,
-} from './document-reflow.js';
+export { createBridgeDocumentWritePort, createDocumentReflowCoordinator } from './document-reflow.js';
 export type {
   IDocumentWritePort,
   IDocumentReflowSubscription,

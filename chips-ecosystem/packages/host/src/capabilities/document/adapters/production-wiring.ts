@@ -120,7 +120,7 @@ export const DOCUMENT_WIRING_DIAGNOSTIC_SCOPE = 'document-capability';
 export function createDocumentCapabilityWiring(
   options: IDocumentCapabilityWiringOptions | undefined,
   context: { readonly platformRoot: string },
-  diagnostics: DiagnosticsSink
+  diagnostics: DiagnosticsSink,
 ): IDocumentCapabilityWiring {
   const modulePath = options?.parserModulePath ?? defaultNativeDocumentParserModulePath(context.platformRoot);
   const parserBinding: INativeDocumentParserBinding = loadNativeDocumentParserBinding(modulePath);
@@ -163,7 +163,7 @@ export function createDocumentCapabilityWiring(
       diagnostics.warn(
         DOCUMENT_WIRING_DIAGNOSTIC_SCOPE,
         'document:* 未装载：硬依赖缺位，维持真实注册表未命中语义（诚实回退臂）',
-        { missing, modulePath }
+        { missing, modulePath },
       );
     }
     return {

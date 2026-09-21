@@ -14,7 +14,11 @@ import { FrameHeightCache, FrameHeightController, frameHeightCacheKey } from '..
 import { createRenderEngine } from '../src/renderer/render-engine.js';
 import type { IRenderEngineBindings } from '../src/renderer/render-engine.js';
 import { createDocumentViewBuilder } from '../src/renderer/document-view-builder.js';
-import type { IDocumentViewBuildInput, INativeDocumentViewHandle, INativeDocumentViewModule } from '../src/renderer/document-view-builder.js';
+import type {
+  IDocumentViewBuildInput,
+  INativeDocumentViewHandle,
+  INativeDocumentViewModule,
+} from '../src/renderer/document-view-builder.js';
 import type { ICardFrameHostOptions } from '../src/renderer/card-frame-host.js';
 import { FRAME_HEIGHT_MIN_DELTA_PX } from '../src/renderer/frame-protocol.js';
 import type { FrameLimits, ICardRenderView } from '../src/renderer/frame-protocol.js';
@@ -60,7 +64,7 @@ const createController = (limits: FrameLimits = LIMITS): IHeightControllerFixtur
     diagnostics,
   });
   return { controller, diagnostics, applied, acks };
-}
+};
 
 describe('父帧侧高度控制器（05.09 §9.4/§9.6）', () => {
   it('正常上报：clamp 后应用高度并回执 ack', () => {

@@ -353,11 +353,7 @@ export function createCpkPluginLoader(deps: ICpkPluginLoaderDeps): ICpkPluginLoa
     }
   };
 
-  const withTimeout = async <T>(
-    action: () => Promise<T>,
-    timeoutMs: number,
-    build: () => LoaderError,
-  ): Promise<T> => {
+  const withTimeout = async <T>(action: () => Promise<T>, timeoutMs: number, build: () => LoaderError): Promise<T> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(build()), timeoutMs);
@@ -484,10 +480,7 @@ export function createCpkPluginLoader(deps: ICpkPluginLoaderDeps): ICpkPluginLoa
       }
       const current = requireRecord(id);
       rollbackCapabilities(context);
-      markFailed(
-        current,
-        normalized instanceof LoaderError ? normalized.toWireError() : toWireError(normalized),
-      );
+      markFailed(current, normalized instanceof LoaderError ? normalized.toWireError() : toWireError(normalized));
       throw normalized;
     }
   };
@@ -555,9 +548,7 @@ export function createCpkPluginLoader(deps: ICpkPluginLoaderDeps): ICpkPluginLoa
       markFailed(record, error);
       throw new LoaderError(LIFECYCLE_ERROR_CODES.dependencyCycle, { details: { pluginId: id } });
     }
-    const missing = record.dependencies.filter(
-      (dependency) => records.get(dependency.id) === undefined,
-    );
+    const missing = record.dependencies.filter((dependency) => records.get(dependency.id) === undefined);
     if (missing.length > 0) {
       // 依赖暂缺不是失败：转入 pending 等待（T3；不执行任何插件代码）。
       return patch(record, { state: 'pending' });
@@ -681,10 +672,7 @@ export function createCpkPluginLoader(deps: ICpkPluginLoaderDeps): ICpkPluginLoa
       return await resolveAndStart(record);
     },
 
-    async disable(
-      id: string,
-      options: { readonly cascade?: boolean } = {},
-    ): Promise<IPluginDisableResult> {
+    async disable(id: string, options: { readonly cascade?: boolean } = {}): Promise<IPluginDisableResult> {
       const inFlightStop = stopInFlight.get(id);
       if (inFlightStop !== undefined) {
         return await inFlightStop;
@@ -765,10 +753,7 @@ export function createCpkPluginLoader(deps: ICpkPluginLoaderDeps): ICpkPluginLoa
         });
       }
       const dependents = [...records.values()]
-        .filter(
-          (candidate) =>
-            candidate.id !== id && candidate.dependencies.some((dependency) => dependency.id === id),
-        )
+        .filter((candidate) => candidate.id !== id && candidate.dependencies.some((dependency) => dependency.id === id))
         .map((candidate) => candidate.id);
       if (dependents.length > 0) {
         throw new LoaderError(LIFECYCLE_ERROR_CODES.dependencyConflict, {
@@ -847,9 +832,7 @@ export function createCpkPluginLoader(deps: ICpkPluginLoaderDeps): ICpkPluginLoa
 
     async stopAll(): Promise<void> {
       const runtimeIds = [...records.values()]
-        .filter((record) =>
-          ['active', 'starting', 'pending', 'stopping'].includes(record.state),
-        )
+        .filter((record) => ['active', 'starting', 'pending', 'stopping'].includes(record.state))
         .map((record) => record.id);
       const { order } = topologicalOrder(runtimeIds, records);
       for (const id of [...order].reverse()) {

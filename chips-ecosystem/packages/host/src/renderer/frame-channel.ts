@@ -108,7 +108,10 @@ type HostOutboundSend =
   | HostInit
   | HostUpdate
   | { readonly type: 'host:height-ack'; readonly payload: { readonly epoch: number } }
-  | { readonly type: 'host:action-error'; readonly payload: { readonly requestId: string; readonly error: IChipsErrorShape } }
+  | {
+      readonly type: 'host:action-error';
+      readonly payload: { readonly requestId: string; readonly error: IChipsErrorShape };
+    }
   | { readonly type: 'host:dispose'; readonly payload: null };
 /** 动作请求的挂起登记。 */
 interface IPendingAction {
@@ -150,7 +153,7 @@ export class FrameChannel {
     });
     this.deps.environment.postToFrame(
       createHandshakeTransfer(this.deps.sessionId, this.deps.frameId, this.deps.token),
-      pair.remote
+      pair.remote,
     );
     this.readyTimer = setTimeout(() => {
       if (this.readyConfirmed || this.disposed) {
@@ -245,7 +248,7 @@ export class FrameChannel {
         createRenderError({
           code: RENDER_ERROR_CODES.protocolViolation,
           details: { reason: 'session-mismatch' },
-        })
+        }),
       );
       return;
     }
@@ -288,7 +291,7 @@ export class FrameChannel {
         createRenderError({
           code: RENDER_ERROR_CODES.protocolViolation,
           details: { reason: 'entry-request-from-non-layout-frame' },
-        })
+        }),
       );
       return;
     }
@@ -302,7 +305,7 @@ export class FrameChannel {
         createRenderError({
           code: RENDER_ERROR_CODES.protocolViolation,
           details: { reason: 'frame-ready-resend' },
-        })
+        }),
       );
       return;
     }

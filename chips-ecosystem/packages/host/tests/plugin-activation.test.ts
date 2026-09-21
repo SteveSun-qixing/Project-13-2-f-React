@@ -61,26 +61,23 @@ import {
   type ICpkPluginLoader,
   type ICpkPluginLoaderDeps,
 } from '../src/loader/lifecycle.js';
-import { MODULE_LOADER_ENTRY_FILE, type ICpkModuleLoader, type ICpkModuleLoadTarget } from '../src/loader/module-loader.js';
+import {
+  MODULE_LOADER_ENTRY_FILE,
+  type ICpkModuleLoader,
+  type ICpkModuleLoadTarget,
+} from '../src/loader/module-loader.js';
 import { loadCpkDirectory, membersToZipEntries } from '../src/loader/provider.js';
 import { openPluginRegistry } from '../src/loader/registry.js';
 import { computeContentHash, sha256Hex, SIGNATURE_FILE } from '../src/loader/signature.js';
 import { createTrustRootRegistry, type ITrustRootRegistry } from '../src/loader/trust-roots.js';
 import type { IPersistedPluginEntry, PluginRole } from '../src/loader/types.js';
 import type { IHostCapabilityDescriptor } from '../src/runtime/capability/contracts.js';
-import {
-  createHostPluginActivationChannel,
-  type IHostPluginActivationChannel,
-} from '../src/main/plugin-activation.js';
+import { createHostPluginActivationChannel, type IHostPluginActivationChannel } from '../src/main/plugin-activation.js';
 
 const execFileAsync = promisify(execFile);
 
-const HARNESS_PATH = fileURLToPath(
-  new URL('./fixtures/plugin-activation/run-native-cases.mjs', import.meta.url),
-);
-const ACTIVATION_SOURCE_PATH = fileURLToPath(
-  new URL('../src/main/plugin-activation.ts', import.meta.url),
-);
+const HARNESS_PATH = fileURLToPath(new URL('./fixtures/plugin-activation/run-native-cases.mjs', import.meta.url));
+const ACTIVATION_SOURCE_PATH = fileURLToPath(new URL('../src/main/plugin-activation.ts', import.meta.url));
 const LOADER_INDEX_PATH = fileURLToPath(new URL('../src/loader/index.ts', import.meta.url));
 
 /** 剥离块注释与行注释，得到代码面（纪律锁只对代码断言，JSDoc 允许提及码名）。 */
@@ -348,7 +345,12 @@ describe('B 组 角色形状：default 导出契约逐项判定与入口保管',
       entries: [DEV_ENTRY],
       exportsFor: () => ({ marker: 1 }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext().context)));
     expect(caught.code).toBe(LIFECYCLE_ERROR_CODES.applyFailed);
     expect(caught.retryable).toBe(true);
@@ -375,7 +377,12 @@ describe('B 组 角色形状：default 导出契约逐项判定与入口保管',
         default: { validateConfig: () => ({}), collectResourcePaths: () => [] },
       }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'basecard', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'basecard',
+      path: DEV_ENTRY.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext({ role: 'basecard' }).context)));
     expect(caught.code).toBe(LIFECYCLE_ERROR_CODES.applyFailed);
     expect(detailsOf(caught)).toMatchObject({
@@ -391,7 +398,12 @@ describe('B 组 角色形状：default 导出契约逐项判定与入口保管',
       entries: [DEV_ENTRY],
       exportsFor: () => ({ default: { validateConfig: true } }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'boxlayout', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'boxlayout',
+      path: DEV_ENTRY.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext({ role: 'boxlayout' }).context)));
     expect(detailsOf(caught)).toMatchObject({ stage: 'role', reason: 'method-not-function', method: 'validateConfig' });
   });
@@ -414,7 +426,12 @@ describe('B 组 角色形状：default 导出契约逐项判定与入口保管',
       entries: [DEV_ENTRY],
       exportsFor: () => ({ default: { ...EMPTY_SERVICE_DEFAULT, health: 42 } }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext().context)));
     expect(detailsOf(caught)).toMatchObject({ stage: 'role', reason: 'method-not-function', method: 'health' });
     expect(channel.activatedEntry(DEV_ENTRY.id)).toBeUndefined();
@@ -438,7 +455,12 @@ describe('B 组 角色形状：default 导出契约逐项判定与入口保管',
         },
       }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const { context } = makeContext();
     await port.apply(context);
     expect(startCount).toBe(1);
@@ -470,7 +492,12 @@ describe('B 组 角色形状：default 导出契约逐项判定与入口保管',
         },
       }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'basecard', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'basecard',
+      path: DEV_ENTRY.path,
+    });
     await port.apply(makeContext({ role: 'basecard' }).context);
     expect(calls).toBe(0);
     expect(channel.activatedEntry(DEV_ENTRY.id)?.role).toBe('basecard');
@@ -480,7 +507,10 @@ describe('B 组 角色形状：default 导出契约逐项判定与入口保管',
   });
 
   it('B9 signal 预中止：激活取消（stage=activation reason=cancelled），取数与装载零触达', async () => {
-    const { channel, calls } = makeChannel({ entries: [DEV_ENTRY], exportsFor: () => ({ default: { ...APP_OK_DEFAULT } }) });
+    const { channel, calls } = makeChannel({
+      entries: [DEV_ENTRY],
+      exportsFor: () => ({ default: { ...APP_OK_DEFAULT } }),
+    });
     const controller = new AbortController();
     controller.abort();
     const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'app', path: DEV_ENTRY.path });
@@ -494,14 +524,27 @@ describe('B 组 角色形状：default 导出契约逐项判定与入口保管',
 
   it('B10 端口绑定与上下文身份不一致 → 确定性拒绝（装配错位不吞）', async () => {
     const { channel } = makeChannel({ entries: [DEV_ENTRY] });
-    const port = channel.activationPortFor({ id: 'chips.test.other', version: '0.1.0', role: 'service', path: '/tmp/other' });
+    const port = channel.activationPortFor({
+      id: 'chips.test.other',
+      version: '0.1.0',
+      role: 'service',
+      path: '/tmp/other',
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext({ pluginId: DEV_ENTRY.id }).context)));
     expect(detailsOf(caught)).toMatchObject({ stage: 'role', reason: 'context-plugin-mismatch' });
   });
 
   it('B11 通道释放：apply 拒（stage=channel reason=channel-disposed）、stop 幂等空操作、注入装载器不代释放', async () => {
-    const { channel, stubDispose } = makeChannel({ entries: [DEV_ENTRY], exportsFor: () => ({ default: { ...APP_OK_DEFAULT } }) });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const { channel, stubDispose } = makeChannel({
+      entries: [DEV_ENTRY],
+      exportsFor: () => ({ default: { ...APP_OK_DEFAULT } }),
+    });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const { context } = makeContext();
     channel.dispose();
     channel.dispose(); // 幂等
@@ -523,14 +566,24 @@ describe('C 组 §5.1 失败语义：逐码归一、在册插件码原样保留�
       details: { stage: 'whitelist', reason: 'node-builtin' },
     });
     const { channel } = makeChannel({ entries: [DEV_ENTRY], loaderOptions: { failure: boom } });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const caught = await captureError(port.apply(makeContext().context));
     expect(caught).toBe(boom);
   });
 
   it('C2 注册表未命中 → KERNEL_PLUGIN_NOT_FOUND（retryable=false 确定性失败，不伪装可重试）', async () => {
     const { channel, calls } = makeChannel({ entries: [] });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext().context)));
     expect(caught.code).toBe(LIFECYCLE_ERROR_CODES.pluginNotFound);
     expect(caught.retryable).toBe(false);
@@ -555,7 +608,12 @@ describe('C 组 §5.1 失败语义：逐码归一、在册插件码原样保留�
         },
       }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const caught = await captureError(port.apply(makeContext().context));
     expect(caught).toBe(refusal);
     // 失败即无会话残留（可重试语义由码主自证）。
@@ -574,7 +632,12 @@ describe('C 组 §5.1 失败语义：逐码归一、在册插件码原样保留�
         },
       }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext().context)));
     expect(caught.code).toBe(LIFECYCLE_ERROR_CODES.applyFailed);
     expect(caught.message).not.toContain('插件内部炸了');
@@ -603,7 +666,12 @@ describe('C 组 §5.1 失败语义：逐码归一、在册插件码原样保留�
         },
       }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const { context } = makeContext();
     await port.apply(context);
     const caught = await captureError(port.stop(context));
@@ -621,7 +689,12 @@ describe('C 组 §5.1 失败语义：逐码归一、在册插件码原样保留�
         },
       }),
     });
-    const port2 = channel2.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port2 = channel2.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const context2 = makeContext().context;
     await port2.apply(context2);
     const caught2 = loaderErrorOf(await captureError(port2.stop(context2)));
@@ -643,7 +716,12 @@ describe('C 组 §5.1 失败语义：逐码归一、在册插件码原样保留�
         },
       }),
     });
-    const port = channel.activationPortFor({ id: DEV_ENTRY.id, version: '0.1.0', role: 'service', path: DEV_ENTRY.path });
+    const port = channel.activationPortFor({
+      id: DEV_ENTRY.id,
+      version: '0.1.0',
+      role: 'service',
+      path: DEV_ENTRY.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext().context)));
     expect(caught.code).toBe(LIFECYCLE_ERROR_CODES.applyFailed);
     expect(detailsOf(caught)).toMatchObject({ stage: 'plugin', reason: 'apply-threw' });
@@ -653,8 +731,7 @@ describe('C 组 §5.1 失败语义：逐码归一、在册插件码原样保留�
     const workspace = await makeWorkspace('chips-w2-c7-');
     const root = join(workspace, 'plugins', 'real-loader');
     await writeTree(root, {
-      [MODULE_LOADER_ENTRY_FILE]:
-        'export default { async start() {}, async stop() {} };\n',
+      [MODULE_LOADER_ENTRY_FILE]: 'export default { async start() {}, async stop() {} };\n',
     });
     const hash = await packageHashOf(root);
     const entry = persistedEntry({ id: 'chips.test.real-loader', path: root, hash });
@@ -665,9 +742,7 @@ describe('C 组 §5.1 失败语义：逐码归一、在册插件码原样保留�
     });
     try {
       const port = channel.activationPortFor({ id: entry.id, version: '0.1.0', role: 'service', path: root });
-      const caught = loaderErrorOf(
-        await captureError(port.apply(makeContext({ pluginId: entry.id }).context)),
-      );
+      const caught = loaderErrorOf(await captureError(port.apply(makeContext({ pluginId: entry.id }).context)));
       expect(caught.code).toBe(LIFECYCLE_ERROR_CODES.applyFailed);
       // 被代管的 import 不经 ESM 钩子链 → 波 1 fail-closed 口径原样透传（§5.1 通道行）。
       expect(detailsOf(caught)).toMatchObject({ stage: 'channel', reason: 'not-live' });
@@ -748,7 +823,11 @@ describe('D 组 O1 归档再锚定：激活取数路径按来源归一期望摘�
       await signPluginDir(dir, key);
     }
     if (options.tamperAfterSign === true) {
-      await writeFile(join(dir, MODULE_LOADER_ENTRY_FILE), 'export default { async start() {}, async stop() {}, tampered: true };\n', 'utf8');
+      await writeFile(
+        join(dir, MODULE_LOADER_ENTRY_FILE),
+        'export default { async start() {}, async stop() {}, tampered: true };\n',
+        'utf8',
+      );
     }
     const registryFilePath = join(workspace, 'registry.json');
     const registry = await openPluginRegistry({ filePath: registryFilePath });
@@ -777,7 +856,10 @@ describe('D 组 O1 归档再锚定：激活取数路径按来源归一期望摘�
     return { entry, dir, channel, calls: stub.calls, registryHash: mergedHash };
   }
 
-  async function applyEntry(setup: { entry: IPersistedPluginEntry; channel: IHostPluginActivationChannel }): Promise<void> {
+  async function applyEntry(setup: {
+    entry: IPersistedPluginEntry;
+    channel: IHostPluginActivationChannel;
+  }): Promise<void> {
     const port = setup.channel.activationPortFor({
       id: setup.entry.id,
       version: setup.entry.version,
@@ -808,8 +890,18 @@ describe('D 组 O1 归档再锚定：激活取数路径按来源归一期望摘�
   });
 
   it('D3 builtin 签名后篡改文件 → 确定性拒装（integrity + causeCode=CPK_SIGNATURE_INVALID），装载零触达', async () => {
-    const setup = await setupD({ source: 'builtin', signed: true, recordHash: archiveDigestSentinel('tampered'), tamperAfterSign: true });
-    const port = setup.channel.activationPortFor({ id: setup.entry.id, version: '0.1.0', role: 'service', path: setup.entry.path });
+    const setup = await setupD({
+      source: 'builtin',
+      signed: true,
+      recordHash: archiveDigestSentinel('tampered'),
+      tamperAfterSign: true,
+    });
+    const port = setup.channel.activationPortFor({
+      id: setup.entry.id,
+      version: '0.1.0',
+      role: 'service',
+      path: setup.entry.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext().context)));
     expect(caught.code).toBe(LIFECYCLE_ERROR_CODES.applyFailed);
     const details = detailsOf(caught);
@@ -825,8 +917,17 @@ describe('D 组 O1 归档再锚定：激活取数路径按来源归一期望摘�
   });
 
   it('D4 builtin 缺 signature.json → causeCode=CPK_SIGNATURE_REQUIRED 归一（确定性拒绝不伪装可重试面）', async () => {
-    const setup = await setupD({ source: 'builtin', signed: false, recordHash: archiveDigestSentinel('unsigned-builtin') });
-    const port = setup.channel.activationPortFor({ id: setup.entry.id, version: '0.1.0', role: 'service', path: setup.entry.path });
+    const setup = await setupD({
+      source: 'builtin',
+      signed: false,
+      recordHash: archiveDigestSentinel('unsigned-builtin'),
+    });
+    const port = setup.channel.activationPortFor({
+      id: setup.entry.id,
+      version: '0.1.0',
+      role: 'service',
+      path: setup.entry.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext().context)));
     expect(detailsOf(caught)).toMatchObject({
       stage: 'integrity',
@@ -837,11 +938,19 @@ describe('D 组 O1 归档再锚定：激活取数路径按来源归一期望摘�
   });
 
   it('D5 user：签名臂与未签名发布者臂均递交目录合并重算摘要', async () => {
-    const signedSetup = await setupD({ source: 'user', signed: true, recordHash: archiveDigestSentinel('user-signed') });
+    const signedSetup = await setupD({
+      source: 'user',
+      signed: true,
+      recordHash: archiveDigestSentinel('user-signed'),
+    });
     await applyEntry(signedSetup);
     expect(signedSetup.calls[0]?.expectedPackageHash).toBe(signedSetup.registryHash);
 
-    const unsignedSetup = await setupD({ source: 'user', signed: false, recordHash: archiveDigestSentinel('user-unsigned') });
+    const unsignedSetup = await setupD({
+      source: 'user',
+      signed: false,
+      recordHash: archiveDigestSentinel('user-unsigned'),
+    });
     await applyEntry(unsignedSetup);
     // 未签名发布者无持久摘要锚可用：取同一重算口径（O1 固有缝登记，非本层裁量）。
     expect(unsignedSetup.calls[0]?.expectedPackageHash).toBe(unsignedSetup.registryHash);
@@ -854,7 +963,12 @@ describe('D 组 O1 归档再锚定：激活取数路径按来源归一期望摘�
       recordHash: archiveDigestSentinel('unknown-key'),
       trustRootKeys: [],
     });
-    const port = setup.channel.activationPortFor({ id: setup.entry.id, version: '0.1.0', role: 'service', path: setup.entry.path });
+    const port = setup.channel.activationPortFor({
+      id: setup.entry.id,
+      version: '0.1.0',
+      role: 'service',
+      path: setup.entry.path,
+    });
     const caught = loaderErrorOf(await captureError(port.apply(makeContext().context)));
     expect(detailsOf(caught)).toMatchObject({
       stage: 'integrity',
@@ -871,12 +985,19 @@ describe('D 组 O1 归档再锚定：激活取数路径按来源归一期望摘�
     await writeFile(join(workspace, 'outside.txt'), 'outside\n', 'utf8');
     await symlink(join(workspace, 'outside.txt'), join(dir, 'link.txt'));
     const registry = await openPluginRegistry({ filePath: join(workspace, 'registry.json') });
-    const entry = persistedEntry({ id: 'chips.test.plugin', path: dir, source: 'builtin', hash: archiveDigestSentinel('symlink') });
+    const entry = persistedEntry({
+      id: 'chips.test.plugin',
+      path: dir,
+      source: 'builtin',
+      hash: archiveDigestSentinel('symlink'),
+    });
     await registry.upsert(entry);
     const stub = makeStubLoader({ exportsFor: () => ({}) });
     const channel = createHostPluginActivationChannel({
       pluginRegistry: registry,
-      trustRoots: createTrustRootRegistry([{ keyId: key.keyId, algorithm: 'ed25519', spkiPem: key.spkiPem, source: 'injected' }]),
+      trustRoots: createTrustRootRegistry([
+        { keyId: key.keyId, algorithm: 'ed25519', spkiPem: key.spkiPem, source: 'injected' },
+      ]),
       moduleLoader: stub.loader,
     });
     const port = channel.activationPortFor({ id: entry.id, version: '0.1.0', role: 'service', path: entry.path });
@@ -1084,7 +1205,12 @@ describe('E 组 lifecycle 集成：本通道经 activationPortFor 注入正式�
     await harness.loader.enable(harness.id);
     const context = makeContext().context;
     // 模拟 enable/disable 两侧各取端口的会话共享：disable 前经端口先行手动 stop。
-    const earlyPort = harness.channel.activationPortFor({ id: harness.id, version: '0.1.0', role: 'service', path: '' });
+    const earlyPort = harness.channel.activationPortFor({
+      id: harness.id,
+      version: '0.1.0',
+      role: 'service',
+      path: '',
+    });
     await earlyPort.stop({ ...context, pluginId: harness.id });
     expect(harness.record.stopCount).toBe(1);
     const disableResult = await harness.loader.disable(harness.id);
@@ -1145,7 +1271,12 @@ function resultOf(doc: NativeDoc, key: string): unknown {
   return value;
 }
 
-function expectWireFailure(wire: WireShape | undefined, code: string, stage: string, reason: string): Record<string, unknown> {
+function expectWireFailure(
+  wire: WireShape | undefined,
+  code: string,
+  stage: string,
+  reason: string,
+): Record<string, unknown> {
   expect(wire, '失败结果必须携带线协议序列化').toBeDefined();
   const error = wire as WireShape;
   expect(error.name).toBe('ChipsError');
@@ -1194,176 +1325,176 @@ export default { async start() { void readFileSync; }, async stop() {} };
 const TAMPER_ENTRY = `export default { async start() {}, async stop() {} };
 `;
 
-it(
-  'F1 原生真通道全链：service 真装载求值+start 执行+门面副作用逐痕 / 形状不符执行后拒 / node:* 零执行拒 / development 锚真篡改拒 / builtin 签名再锚定端到端 / 释放后拒装',
-  async () => {
-    const workspace = await makeWorkspace('chips-w2-f-');
-    const fKey = makeTestSigningKey('w2-f-key');
-    const roots: Record<string, string> = {};
-    for (const name of ['svc', 'shape', 'whitelist', 'tamper', 'signed']) {
-      roots[name] = join(workspace, 'plugins', name);
-    }
-    await writeTree(roots.svc ?? '', { [MODULE_LOADER_ENTRY_FILE]: SVC_ENTRY });
-    await writeTree(roots.shape ?? '', { [MODULE_LOADER_ENTRY_FILE]: SHAPE_ENTRY });
-    await writeTree(roots.whitelist ?? '', { [MODULE_LOADER_ENTRY_FILE]: WHITELIST_ENTRY });
-    await writeTree(roots.tamper ?? '', {
-      [MODULE_LOADER_ENTRY_FILE]: TAMPER_ENTRY,
-      'data.txt': 'original\n',
+it('F1 原生真通道全链：service 真装载求值+start 执行+门面副作用逐痕 / 形状不符执行后拒 / node:* 零执行拒 / development 锚真篡改拒 / builtin 签名再锚定端到端 / 释放后拒装', async () => {
+  const workspace = await makeWorkspace('chips-w2-f-');
+  const fKey = makeTestSigningKey('w2-f-key');
+  const roots: Record<string, string> = {};
+  for (const name of ['svc', 'shape', 'whitelist', 'tamper', 'signed']) {
+    roots[name] = join(workspace, 'plugins', name);
+  }
+  await writeTree(roots.svc ?? '', { [MODULE_LOADER_ENTRY_FILE]: SVC_ENTRY });
+  await writeTree(roots.shape ?? '', { [MODULE_LOADER_ENTRY_FILE]: SHAPE_ENTRY });
+  await writeTree(roots.whitelist ?? '', { [MODULE_LOADER_ENTRY_FILE]: WHITELIST_ENTRY });
+  await writeTree(roots.tamper ?? '', {
+    [MODULE_LOADER_ENTRY_FILE]: TAMPER_ENTRY,
+    'data.txt': 'original\n',
+  });
+  await writeTree(roots.signed ?? '', { [MODULE_LOADER_ENTRY_FILE]: SVC_ENTRY });
+  await signPluginDir(roots.signed ?? '', fKey);
+
+  const svcHash = await packageHashOf(roots.svc ?? '');
+  const shapeHash = await packageHashOf(roots.shape ?? '');
+  const whitelistHash = await packageHashOf(roots.whitelist ?? '');
+  const tamperHash = await packageHashOf(roots.tamper ?? ''); // 篡改前快照 = 注册表锚
+  // builtin 归档态 record.hash 不承载目录摘要（口径差即 O1 再锚定的对象），故此处只给哨兵。
+
+  const registryFilePath = join(workspace, 'registry.json');
+  const registry = await openPluginRegistry({ filePath: registryFilePath });
+  await registry.upsert(
+    persistedEntry({ id: F_PLUGIN.svc, path: roots.svc ?? '', source: 'development', hash: svcHash }),
+  );
+  await registry.upsert(
+    persistedEntry({
+      id: F_PLUGIN.shape,
+      path: roots.shape ?? '',
+      source: 'development',
+      hash: shapeHash,
+      role: 'basecard',
+    }),
+  );
+  await registry.upsert(
+    persistedEntry({ id: F_PLUGIN.whitelist, path: roots.whitelist ?? '', source: 'development', hash: whitelistHash }),
+  );
+  await registry.upsert(
+    persistedEntry({ id: F_PLUGIN.tamper, path: roots.tamper ?? '', source: 'development', hash: tamperHash }),
+  );
+  await registry.upsert(
+    persistedEntry({
+      id: F_PLUGIN.signed,
+      path: roots.signed ?? '',
+      source: 'builtin',
+      hash: archiveDigestSentinel('f-signed'),
+    }),
+  );
+
+  const ops: NativeOp[] = [
+    { op: 'channel', as: 'channel', sessionRoot: join(workspace, 'sessions') },
+    { op: 'apply', as: 'svcApply', pluginId: F_PLUGIN.svc },
+    { op: 'globals', as: 'svcPreStop', names: ['__F_SVC_STARTED__', '__F_SVC_STOPPED__'] },
+    { op: 'stop', as: 'svcStop', pluginId: F_PLUGIN.svc },
+    { op: 'globals', as: 'svcPostStop', names: ['__F_SVC_STOPPED__'] },
+    { op: 'apply', as: 'shapeApply', pluginId: F_PLUGIN.shape },
+    { op: 'apply', as: 'wlApply', pluginId: F_PLUGIN.whitelist },
+    { op: 'globals', as: 'execMarkers', names: ['__F_SHAPE_RAN__', '__F_WL_RAN__'] },
+    { op: 'writeFile', as: 'tamper', path: join(roots.tamper ?? '', 'data.txt'), text: 'tampered-after-install\n' },
+    { op: 'apply', as: 'tamperApply', pluginId: F_PLUGIN.tamper },
+    { op: 'apply', as: 'signedApply', pluginId: F_PLUGIN.signed },
+    { op: 'globals', as: 'signedGlobals', names: ['__F_SVC_STARTED__'] },
+    { op: 'stop', as: 'signedStop', pluginId: F_PLUGIN.signed },
+    { op: 'dispose', as: 'dispose', pluginId: F_PLUGIN.svc },
+    { op: 'apply', as: 'afterDispose', pluginId: F_PLUGIN.svc },
+  ];
+
+  const argsPath = join(workspace, 'args.json');
+  const outFile = join(workspace, 'out.json');
+  await writeFile(
+    argsPath,
+    JSON.stringify({
+      outFile,
+      registryFile: registryFilePath,
+      sources: { activation: ACTIVATION_SOURCE_PATH, loaderIndex: LOADER_INDEX_PATH },
+      trustRootKeys: [{ keyId: fKey.keyId, algorithm: 'ed25519', spkiPem: fKey.spkiPem, source: 'injected' }],
+      ops,
+    }),
+    'utf8',
+  );
+  try {
+    await execFileAsync(process.execPath, [HARNESS_PATH, argsPath], {
+      env: {},
+      timeout: 100_000,
+      maxBuffer: 8 * 1024 * 1024,
     });
-    await writeTree(roots.signed ?? '', { [MODULE_LOADER_ENTRY_FILE]: SVC_ENTRY });
-    await signPluginDir(roots.signed ?? '', fKey);
-
-    const svcHash = await packageHashOf(roots.svc ?? '');
-    const shapeHash = await packageHashOf(roots.shape ?? '');
-    const whitelistHash = await packageHashOf(roots.whitelist ?? '');
-    const tamperHash = await packageHashOf(roots.tamper ?? ''); // 篡改前快照 = 注册表锚
-    // builtin 归档态 record.hash 不承载目录摘要（口径差即 O1 再锚定的对象），故此处只给哨兵。
-
-    const registryFilePath = join(workspace, 'registry.json');
-    const registry = await openPluginRegistry({ filePath: registryFilePath });
-    await registry.upsert(persistedEntry({ id: F_PLUGIN.svc, path: roots.svc ?? '', source: 'development', hash: svcHash }));
-    await registry.upsert(persistedEntry({ id: F_PLUGIN.shape, path: roots.shape ?? '', source: 'development', hash: shapeHash, role: 'basecard' }));
-    await registry.upsert(persistedEntry({ id: F_PLUGIN.whitelist, path: roots.whitelist ?? '', source: 'development', hash: whitelistHash }));
-    await registry.upsert(persistedEntry({ id: F_PLUGIN.tamper, path: roots.tamper ?? '', source: 'development', hash: tamperHash }));
-    await registry.upsert(
-      persistedEntry({ id: F_PLUGIN.signed, path: roots.signed ?? '', source: 'builtin', hash: archiveDigestSentinel('f-signed') }),
-    );
-
-    const ops: NativeOp[] = [
-      { op: 'channel', as: 'channel', sessionRoot: join(workspace, 'sessions') },
-      { op: 'apply', as: 'svcApply', pluginId: F_PLUGIN.svc },
-      { op: 'globals', as: 'svcPreStop', names: ['__F_SVC_STARTED__', '__F_SVC_STOPPED__'] },
-      { op: 'stop', as: 'svcStop', pluginId: F_PLUGIN.svc },
-      { op: 'globals', as: 'svcPostStop', names: ['__F_SVC_STOPPED__'] },
-      { op: 'apply', as: 'shapeApply', pluginId: F_PLUGIN.shape },
-      { op: 'apply', as: 'wlApply', pluginId: F_PLUGIN.whitelist },
-      { op: 'globals', as: 'execMarkers', names: ['__F_SHAPE_RAN__', '__F_WL_RAN__'] },
-      { op: 'writeFile', as: 'tamper', path: join(roots.tamper ?? '', 'data.txt'), text: 'tampered-after-install\n' },
-      { op: 'apply', as: 'tamperApply', pluginId: F_PLUGIN.tamper },
-      { op: 'apply', as: 'signedApply', pluginId: F_PLUGIN.signed },
-      { op: 'globals', as: 'signedGlobals', names: ['__F_SVC_STARTED__'] },
-      { op: 'stop', as: 'signedStop', pluginId: F_PLUGIN.signed },
-      { op: 'dispose', as: 'dispose', pluginId: F_PLUGIN.svc },
-      { op: 'apply', as: 'afterDispose', pluginId: F_PLUGIN.svc },
-    ];
-
-    const argsPath = join(workspace, 'args.json');
-    const outFile = join(workspace, 'out.json');
-    await writeFile(
-      argsPath,
-      JSON.stringify({
-        outFile,
-        registryFile: registryFilePath,
-        sources: { activation: ACTIVATION_SOURCE_PATH, loaderIndex: LOADER_INDEX_PATH },
-        trustRootKeys: [{ keyId: fKey.keyId, algorithm: 'ed25519', spkiPem: fKey.spkiPem, source: 'injected' }],
-        ops,
-      }),
-      'utf8',
-    );
-    try {
-      await execFileAsync(process.execPath, [HARNESS_PATH, argsPath], {
-        env: {},
-        timeout: 100_000,
-        maxBuffer: 8 * 1024 * 1024,
-      });
-    } catch (error) {
-      if (!existsSync(outFile)) {
-        const detail =
-          error instanceof Error
-            ? `${error.message}\nstderr: ${(error as { stderr?: string }).stderr ?? ''}`
-            : String(error);
-        throw new Error(`原生实测子进程未产出结果文件：${detail}`);
-      }
+  } catch (error) {
+    if (!existsSync(outFile)) {
+      const detail =
+        error instanceof Error
+          ? `${error.message}\nstderr: ${(error as { stderr?: string }).stderr ?? ''}`
+          : String(error);
+      throw new Error(`原生实测子进程未产出结果文件：${detail}`);
     }
-    const doc: NativeDoc = JSON.parse(await readFile(outFile, 'utf8')) as NativeDoc;
-    expect(doc.fatal, `子进程夹具级致命错误：${JSON.stringify(doc.fatal)}`).toBeNull();
+  }
+  const doc: NativeDoc = JSON.parse(await readFile(outFile, 'utf8')) as NativeDoc;
+  expect(doc.fatal, `子进程夹具级致命错误：${JSON.stringify(doc.fatal)}`).toBeNull();
 
-    // 真 service 激活：模块求值 + start 执行 + 门面副作用（事件/配置冻结快照/能力 owner 预绑定）。
-    const svcApply = resultOf(doc, 'svcApply') as ApplyOutcome;
-    expect(svcApply.ok).toBe(true);
-    expect(svcApply.activatedEntry).toMatchObject({
-      pluginId: F_PLUGIN.svc,
-      role: 'service',
-      version: '0.1.0',
-    });
-    expect(svcApply.activatedEntry?.entryKeys).toEqual(['start', 'stop']);
-    expect(svcApply.activatedEntry?.entryUrl).toContain(`?chips-nonce=${svcApply.activatedEntry?.nonce}`);
-    expect(svcApply.events).toEqual([
-      { eventId: 'demo:started', payload: { v: 1 } },
-      { eventId: 'demo:config', payload: { greeting: 'hi', frozen: true } },
-    ]);
-    expect(svcApply.capabilities).toEqual([{ id: 'demo:fsvc', owner: F_PLUGIN.svc }]);
-    const svcPreStop = resultOf(doc, 'svcPreStop') as Record<string, unknown>;
-    expect(svcPreStop.__F_SVC_STARTED__).toBe(F_PLUGIN.svc);
-    expect(svcPreStop.__F_SVC_STOPPED__).toBeNull();
-    const svcStop = resultOf(doc, 'svcStop') as ApplyOutcome;
-    expect(svcStop.ok).toBe(true);
-    expect(svcStop.activatedEntry).toBeNull();
-    const svcPostStop = resultOf(doc, 'svcPostStop') as Record<string, unknown>;
-    expect(svcPostStop.__F_SVC_STOPPED__).toBe(true);
+  // 真 service 激活：模块求值 + start 执行 + 门面副作用（事件/配置冻结快照/能力 owner 预绑定）。
+  const svcApply = resultOf(doc, 'svcApply') as ApplyOutcome;
+  expect(svcApply.ok).toBe(true);
+  expect(svcApply.activatedEntry).toMatchObject({
+    pluginId: F_PLUGIN.svc,
+    role: 'service',
+    version: '0.1.0',
+  });
+  expect(svcApply.activatedEntry?.entryKeys).toEqual(['start', 'stop']);
+  expect(svcApply.activatedEntry?.entryUrl).toContain(`?chips-nonce=${svcApply.activatedEntry?.nonce}`);
+  expect(svcApply.events).toEqual([
+    { eventId: 'demo:started', payload: { v: 1 } },
+    { eventId: 'demo:config', payload: { greeting: 'hi', frozen: true } },
+  ]);
+  expect(svcApply.capabilities).toEqual([{ id: 'demo:fsvc', owner: F_PLUGIN.svc }]);
+  const svcPreStop = resultOf(doc, 'svcPreStop') as Record<string, unknown>;
+  expect(svcPreStop.__F_SVC_STARTED__).toBe(F_PLUGIN.svc);
+  expect(svcPreStop.__F_SVC_STOPPED__).toBeNull();
+  const svcStop = resultOf(doc, 'svcStop') as ApplyOutcome;
+  expect(svcStop.ok).toBe(true);
+  expect(svcStop.activatedEntry).toBeNull();
+  const svcPostStop = resultOf(doc, 'svcPostStop') as Record<string, unknown>;
+  expect(svcPostStop.__F_SVC_STOPPED__).toBe(true);
 
-    // 形状不符（真模块执行后判定）：插件体已求值（执行后拒是诚实语义），入口不保管。
-    const shapeApply = resultOf(doc, 'shapeApply') as ApplyOutcome;
-    expect(shapeApply.ok).toBe(false);
-    const shapeDetails = expectWireFailure(
-      shapeApply.wire,
-      LIFECYCLE_ERROR_CODES.applyFailed,
-      'role',
-      'required-method-missing',
-    );
-    expect(shapeDetails.method).toBe('createInitialContent');
-    expect(shapeApply.activatedEntry).toBeNull();
+  // 形状不符（真模块执行后判定）：插件体已求值（执行后拒是诚实语义），入口不保管。
+  const shapeApply = resultOf(doc, 'shapeApply') as ApplyOutcome;
+  expect(shapeApply.ok).toBe(false);
+  const shapeDetails = expectWireFailure(
+    shapeApply.wire,
+    LIFECYCLE_ERROR_CODES.applyFailed,
+    'role',
+    'required-method-missing',
+  );
+  expect(shapeDetails.method).toBe('createInitialContent');
+  expect(shapeApply.activatedEntry).toBeNull();
 
-    // 白名单真越界（node:*）：resolve 钩确定性拒、插件体零执行（§5.1 行 1）。
-    const wlApply = resultOf(doc, 'wlApply') as ApplyOutcome;
-    expect(wlApply.ok).toBe(false);
-    const wlDetails = expectWireFailure(
-      wlApply.wire,
-      LIFECYCLE_ERROR_CODES.applyFailed,
-      'whitelist',
-      'node-builtin',
-    );
-    expect(wlDetails.gateStats).toMatchObject({ resolveReject: 1, loadReject: 0 });
-    expect(wlApply.activatedEntry).toBeNull();
+  // 白名单真越界（node:*）：resolve 钩确定性拒、插件体零执行（§5.1 行 1）。
+  const wlApply = resultOf(doc, 'wlApply') as ApplyOutcome;
+  expect(wlApply.ok).toBe(false);
+  const wlDetails = expectWireFailure(wlApply.wire, LIFECYCLE_ERROR_CODES.applyFailed, 'whitelist', 'node-builtin');
+  expect(wlDetails.gateStats).toMatchObject({ resolveReject: 1, loadReject: 0 });
+  expect(wlApply.activatedEntry).toBeNull();
 
-    // 执行痕语义：形状不符 = 真模块求值后拒（标记置位）；白名单越界 = 插件体零执行（标记缺席）。
-    const execMarkers = resultOf(doc, 'execMarkers') as Record<string, unknown>;
-    expect(execMarkers.__F_SHAPE_RAN__).toBe(1);
-    expect(execMarkers.__F_WL_RAN__).toBeNull();
+  // 执行痕语义：形状不符 = 真模块求值后拒（标记置位）；白名单越界 = 插件体零执行（标记缺席）。
+  const execMarkers = resultOf(doc, 'execMarkers') as Record<string, unknown>;
+  expect(execMarkers.__F_SHAPE_RAN__).toBe(1);
+  expect(execMarkers.__F_WL_RAN__).toBeNull();
 
-    // development 真锚篡改拒：注册表锚原样递交，装载器包级复算拒（防篡改锚未被再锚定臂稀释）。
-    const tamperApply = resultOf(doc, 'tamperApply') as ApplyOutcome;
-    expect(tamperApply.ok).toBe(false);
-    expectWireFailure(
-      tamperApply.wire,
-      LIFECYCLE_ERROR_CODES.applyFailed,
-      'integrity',
-      'package-hash-mismatch',
-    );
-    expect(tamperApply.activatedEntry).toBeNull();
+  // development 真锚篡改拒：注册表锚原样递交，装载器包级复算拒（防篡改锚未被再锚定臂稀释）。
+  const tamperApply = resultOf(doc, 'tamperApply') as ApplyOutcome;
+  expect(tamperApply.ok).toBe(false);
+  expectWireFailure(tamperApply.wire, LIFECYCLE_ERROR_CODES.applyFailed, 'integrity', 'package-hash-mismatch');
+  expect(tamperApply.activatedEntry).toBeNull();
 
-    // builtin 归档态端到端：签名再锚定 × 真装载 × start 执行（同一 ESM 求值进程内
-    // `__F_SVC_STARTED__` 被 f5 重新置位——nonce 复加载重执行模块体）。
-    const signedApply = resultOf(doc, 'signedApply') as ApplyOutcome;
-    expect(signedApply.ok, `builtin 再锚定端到端必须成功：${JSON.stringify(signedApply.wire)}`).toBe(true);
-    expect(signedApply.activatedEntry?.pluginId).toBe(F_PLUGIN.signed);
-    const signedGlobals = resultOf(doc, 'signedGlobals') as Record<string, unknown>;
-    expect(signedGlobals.__F_SVC_STARTED__).toBe(F_PLUGIN.signed);
-    const signedStop = resultOf(doc, 'signedStop') as ApplyOutcome;
-    expect(signedStop.ok).toBe(true);
+  // builtin 归档态端到端：签名再锚定 × 真装载 × start 执行（同一 ESM 求值进程内
+  // `__F_SVC_STARTED__` 被 f5 重新置位——nonce 复加载重执行模块体）。
+  const signedApply = resultOf(doc, 'signedApply') as ApplyOutcome;
+  expect(signedApply.ok, `builtin 再锚定端到端必须成功：${JSON.stringify(signedApply.wire)}`).toBe(true);
+  expect(signedApply.activatedEntry?.pluginId).toBe(F_PLUGIN.signed);
+  const signedGlobals = resultOf(doc, 'signedGlobals') as Record<string, unknown>;
+  expect(signedGlobals.__F_SVC_STARTED__).toBe(F_PLUGIN.signed);
+  const signedStop = resultOf(doc, 'signedStop') as ApplyOutcome;
+  expect(signedStop.ok).toBe(true);
 
-    // 通道释放：会话清空、后续激活确定性拒。
-    const disposed = resultOf(doc, 'dispose') as { ok: boolean; activated: ActivatedSnapshot | null };
-    expect(disposed.ok).toBe(true);
-    expect(disposed.activated).toBeNull();
-    const afterDispose = resultOf(doc, 'afterDispose') as ApplyOutcome;
-    expect(afterDispose.ok).toBe(false);
-    expectWireFailure(
-      afterDispose.wire,
-      LIFECYCLE_ERROR_CODES.applyFailed,
-      'channel',
-      'channel-disposed',
-    );
-  },
-  120_000,
-);
+  // 通道释放：会话清空、后续激活确定性拒。
+  const disposed = resultOf(doc, 'dispose') as { ok: boolean; activated: ActivatedSnapshot | null };
+  expect(disposed.ok).toBe(true);
+  expect(disposed.activated).toBeNull();
+  const afterDispose = resultOf(doc, 'afterDispose') as ApplyOutcome;
+  expect(afterDispose.ok).toBe(false);
+  expectWireFailure(afterDispose.wire, LIFECYCLE_ERROR_CODES.applyFailed, 'channel', 'channel-disposed');
+}, 120_000);

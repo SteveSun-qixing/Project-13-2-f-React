@@ -133,9 +133,12 @@ export const DOCUMENT_VIEW_CHANNEL_ERROR_CODES = {
 } as const;
 
 /** 本通道在册错误码联合。 */
-export type DocumentViewChannelErrorCode = (typeof DOCUMENT_VIEW_CHANNEL_ERROR_CODES)[keyof typeof DOCUMENT_VIEW_CHANNEL_ERROR_CODES];
+export type DocumentViewChannelErrorCode =
+  (typeof DOCUMENT_VIEW_CHANNEL_ERROR_CODES)[keyof typeof DOCUMENT_VIEW_CHANNEL_ERROR_CODES];
 
-const DOCUMENT_VIEW_CHANNEL_ERROR_CODE_SET: ReadonlySet<string> = new Set<string>(Object.values(DOCUMENT_VIEW_CHANNEL_ERROR_CODES));
+const DOCUMENT_VIEW_CHANNEL_ERROR_CODE_SET: ReadonlySet<string> = new Set<string>(
+  Object.values(DOCUMENT_VIEW_CHANNEL_ERROR_CODES),
+);
 
 /** 判断错误码是否属于本通道在册错误面。 */
 export function isDocumentViewChannelErrorCode(value: string): value is DocumentViewChannelErrorCode {
@@ -197,7 +200,7 @@ export type DocumentViewChannelMessage = IDocumentViewBuildRequest | DocumentVie
  */
 export function createDocumentViewBuildRequest(
   requestId: string,
-  input: IDocumentViewChannelInput
+  input: IDocumentViewChannelInput,
 ): IDocumentViewBuildRequest {
   return { protocol: DOCUMENT_VIEW_PROTOCOL, type: DOCUMENT_VIEW_MESSAGE_TYPES.build, requestId, input };
 }
@@ -422,7 +425,7 @@ export function guardDocumentViewCardRenderView(view: unknown): ICardRenderView 
   assertWireExactKeys(
     view,
     ['kind', 'revision', 'card_id', 'name', 'chip_standards_version', 'cover_ratio', 'tags', 'cover', 'content_nodes'],
-    'CardRenderView'
+    'CardRenderView',
   );
   if (view['kind'] !== 'card') {
     // 端口返回类型为 §6.6 联合的卡片支；非 card 判别即回包契约违约。

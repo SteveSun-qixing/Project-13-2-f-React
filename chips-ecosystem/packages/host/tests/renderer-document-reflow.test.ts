@@ -66,7 +66,10 @@ class FakeRenderSession implements IRenderSession {
     return this.updateOutcome();
   }
 
-  subscribe<TEvent extends RenderEventName>(_event: TEvent, _handler: (payload: RenderEventMap[TEvent]) => void): { dispose(): void } {
+  subscribe<TEvent extends RenderEventName>(
+    _event: TEvent,
+    _handler: (payload: RenderEventMap[TEvent]) => void,
+  ): { dispose(): void } {
     return { dispose: () => undefined };
   }
 
@@ -184,10 +187,12 @@ interface CoordinatorHarness {
   emitChanged(payload: unknown): void;
 }
 
-function makeCoordinator(overrides: {
-  kind?: DocumentKind;
-  revisionOf?: (index: number) => number;
-} = {}): CoordinatorHarness {
+function makeCoordinator(
+  overrides: {
+    kind?: DocumentKind;
+    revisionOf?: (index: number) => number;
+  } = {},
+): CoordinatorHarness {
   const session = new FakeRenderSession();
   const write = makeWrite(1);
   const views = makeViewBuilder(overrides.revisionOf);
@@ -251,7 +256,9 @@ describe('createBridgeDocumentWritePort：document:write 正式能力通路', ()
         calls.push({ capabilityId, input });
         const handler = handlers[capabilityId];
         if (handler === undefined) {
-          return Promise.reject(new ChipsError({ code: 'BRIDGE_CAPABILITY_NOT_REGISTERED', message: '能力未注册', retryable: false }));
+          return Promise.reject(
+            new ChipsError({ code: 'BRIDGE_CAPABILITY_NOT_REGISTERED', message: '能力未注册', retryable: false }),
+          );
         }
         return Promise.resolve(handler(input) as TOutput);
       },
@@ -278,9 +285,7 @@ describe('createBridgeDocumentWritePort：document:write 正式能力通路', ()
 
   it('权限拒绝经既有归一链路 → RENDER_RESOURCE_DENIED', async () => {
     const { facade } = makeFacade({});
-    await expect(
-      createBridgeDocumentWritePort(facade).write(metadataAction())
-    ).rejects.toBeInstanceOf(ChipsError);
+    await expect(createBridgeDocumentWritePort(facade).write(metadataAction())).rejects.toBeInstanceOf(ChipsError);
     // 未注册该能力：透传契约码（不发明映射）。
     const { facade: deniedFacade } = makeFacade({
       'document:write': () => {
@@ -291,7 +296,7 @@ describe('createBridgeDocumentWritePort：document:write 正式能力通路', ()
       .write(metadataAction())
       .then(
         () => null,
-        (rejection: unknown) => rejection as ChipsError
+        (rejection: unknown) => rejection as ChipsError,
       );
     expect(error?.code).toBe(RENDER_ERROR_CODES.resourceDenied);
   });
@@ -303,7 +308,7 @@ describe('createBridgeDocumentWritePort：document:write 正式能力通路', ()
       },
     });
     await expect(createBridgeDocumentWritePort(notOpen).write(metadataAction())).rejects.toSatisfy(
-      (error: unknown) => (error as ChipsError).code === RENDER_ERROR_CODES.documentInvalid
+      (error: unknown) => (error as ChipsError).code === RENDER_ERROR_CODES.documentInvalid,
     );
     const { facade: timeout } = makeFacade({
       'document:write': () => {
@@ -311,7 +316,7 @@ describe('createBridgeDocumentWritePort：document:write 正式能力通路', ()
       },
     });
     await expect(createBridgeDocumentWritePort(timeout).write(metadataAction())).rejects.toSatisfy(
-      (error: unknown) => (error as ChipsError).code === 'BRIDGE_TIMEOUT'
+      (error: unknown) => (error as ChipsError).code === 'BRIDGE_TIMEOUT',
     );
   });
 
@@ -340,7 +345,12 @@ describe('编辑回流·executeAction 写后重建臂', () => {
   it('唯一时序闭环：write → buildView（取视图通道端口）→ update(view, write 返回的 revision)', async () => {
     const harness = makeCoordinator({ revisionOf: () => 5 });
     harness.write.outcome = () => Promise.resolve({ revision: 7 });
-    const action: DocumentReflowAction = { documentId: CARD_ID, part: 'content', nodeId: NODE_ID, value: { text: '编辑后' } };
+    const action: DocumentReflowAction = {
+      documentId: CARD_ID,
+      part: 'content',
+      nodeId: NODE_ID,
+      value: { text: '编辑后' },
+    };
     await harness.coordinator.executeAction(action);
     expect(harness.write.inputs).toEqual([
       { documentId: CARD_ID, part: 'content', nodeId: NODE_ID, value: { text: '编辑后' } },
@@ -368,7 +378,7 @@ describe('编辑回流·executeAction 写后重建臂', () => {
       .executeAction({ documentId: 'Zz9yXw8Vu7', part: 'metadata', value: {} })
       .then(
         () => null,
-        (rejection: unknown) => rejection as ChipsError
+        (rejection: unknown) => rejection as ChipsError,
       );
     expect(error).toBeInstanceOf(ChipsError);
     expect(error?.code).toBe('BRIDGE_INVALID_INPUT');
@@ -389,9 +399,10 @@ describe('编辑回流·executeAction 写后重建臂', () => {
 
   it('buildView 失败（通道失败臂）：不更新，错误原码上抛（旧帧由会话层保留）', async () => {
     const harness = makeCoordinator();
-    harness.views.outcome = () => Promise.reject(new ChipsError({ code: 'DOCUMENT_NOT_OPEN', message: '会话不存在', retryable: false }));
+    harness.views.outcome = () =>
+      Promise.reject(new ChipsError({ code: 'DOCUMENT_NOT_OPEN', message: '会话不存在', retryable: false }));
     await expect(harness.coordinator.executeAction(metadataAction())).rejects.toSatisfy(
-      (error: unknown) => (error as ChipsError).code === 'DOCUMENT_NOT_OPEN'
+      (error: unknown) => (error as ChipsError).code === 'DOCUMENT_NOT_OPEN',
     );
     expect(harness.session.updateCalls).toHaveLength(0);
     harness.coordinator.dispose();
@@ -401,7 +412,7 @@ describe('编辑回流·executeAction 写后重建臂', () => {
     const harness = makeCoordinator();
     harness.session.updateOutcome = () => Promise.reject(createRenderError({ code: RENDER_ERROR_CODES.updateFailed }));
     await expect(harness.coordinator.executeAction(metadataAction())).rejects.toSatisfy(
-      (error: unknown) => (error as ChipsError).code === RENDER_ERROR_CODES.updateFailed
+      (error: unknown) => (error as ChipsError).code === RENDER_ERROR_CODES.updateFailed,
     );
     harness.coordinator.dispose();
   });
@@ -435,7 +446,9 @@ describe('编辑回流·executeAction 写后重建臂', () => {
       (input.value as { fail?: boolean }).fail === true
         ? Promise.reject(new ChipsError({ code: 'DOCUMENT_SOURCE_CHANGED', message: '来源已变', retryable: false }))
         : Promise.resolve({ revision: 2 });
-    await expect(harness.coordinator.executeAction({ documentId: CARD_ID, part: 'metadata', value: { fail: true } })).rejects.toBeInstanceOf(ChipsError);
+    await expect(
+      harness.coordinator.executeAction({ documentId: CARD_ID, part: 'metadata', value: { fail: true } }),
+    ).rejects.toBeInstanceOf(ChipsError);
     await harness.coordinator.executeAction({ documentId: CARD_ID, part: 'metadata', value: { fail: false } });
     expect(harness.session.updateCalls).toHaveLength(1);
     harness.coordinator.dispose();
@@ -445,7 +458,7 @@ describe('编辑回流·executeAction 写后重建臂', () => {
     const harness = makeCoordinator();
     harness.coordinator.dispose();
     await expect(harness.coordinator.executeAction(metadataAction())).rejects.toSatisfy(
-      (error: unknown) => (error as ChipsError).code === RENDER_ERROR_CODES.sessionDisposed
+      (error: unknown) => (error as ChipsError).code === RENDER_ERROR_CODES.sessionDisposed,
     );
     expect(harness.write.inputs).toHaveLength(0);
   });
@@ -505,7 +518,8 @@ describe('编辑回流·document:changed 事件臂', () => {
 
   it('事件臂重建失败：落诊断保留旧帧，不向事件总线抛出（事件是通知不是状态）', async () => {
     const harness = makeCoordinator();
-    harness.views.outcome = () => Promise.reject(new ChipsError({ code: 'BRIDGE_INTERNAL', message: '回包违约', retryable: false }));
+    harness.views.outcome = () =>
+      Promise.reject(new ChipsError({ code: 'BRIDGE_INTERNAL', message: '回包违约', retryable: false }));
     expect(() => harness.emitChanged(changedPayload())).not.toThrow();
     await vi.waitFor(() => {
       expect(harness.diagnostics.warn).toHaveBeenCalledTimes(1);

@@ -29,8 +29,7 @@ export interface IComparator {
   readonly hasPrerelease: boolean;
 }
 
-const VERSION_PATTERN =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 
 /** 解析版本字符串；非法返回 undefined。 */
 export function parseSemver(text: string): ISemverVersion | undefined {
@@ -172,8 +171,7 @@ function parseComparator(token: string): IComparator | undefined {
       return {
         version,
         hasPrerelease,
-        matches: (candidate) =>
-          compareSemver(candidate, version) >= 0 && compareSemver(candidate, upper) < 0,
+        matches: (candidate) => compareSemver(candidate, version) >= 0 && compareSemver(candidate, upper) < 0,
       };
     }
     case '>':
@@ -205,8 +203,7 @@ function parseComparator(token: string): IComparator | undefined {
       return {
         version,
         hasPrerelease,
-        matches: (candidate) =>
-          compareSemver(candidate, version) >= 0 && compareSemver(candidate, upper) < 0,
+        matches: (candidate) => compareSemver(candidate, version) >= 0 && compareSemver(candidate, upper) < 0,
       };
     }
     case '~': {
@@ -217,8 +214,7 @@ function parseComparator(token: string): IComparator | undefined {
       return {
         version,
         hasPrerelease,
-        matches: (candidate) =>
-          compareSemver(candidate, version) >= 0 && compareSemver(candidate, upper) < 0,
+        matches: (candidate) => compareSemver(candidate, version) >= 0 && compareSemver(candidate, upper) < 0,
       };
     }
     default:

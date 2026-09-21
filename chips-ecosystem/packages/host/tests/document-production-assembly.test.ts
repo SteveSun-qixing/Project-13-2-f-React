@@ -179,7 +179,7 @@ function makeResourcePorts(): IDocumentResourcePorts & {
     normalizeSource(source: string): Promise<IResolvedDocumentSource> {
       if (source !== CARD_URI) {
         return Promise.reject(
-          Object.assign(new Error('夹具未登记该来源'), { code: 'RESOURCE_NOT_FOUND', retryable: false })
+          Object.assign(new Error('夹具未登记该来源'), { code: 'RESOURCE_NOT_FOUND', retryable: false }),
         );
       }
       return Promise.resolve({ managedUri: CARD_URI, localPath: CARD_PATH, form: 'directory' });
@@ -197,16 +197,16 @@ function makeResourcePorts(): IDocumentResourcePorts & {
     listMembers(localPath: string): Promise<readonly { packagePath: string; bytes: Uint8Array }[]> {
       if (localPath !== CARD_PATH) {
         return Promise.reject(
-          Object.assign(new Error('夹具未登记该包根'), { code: 'RESOURCE_NOT_FOUND', retryable: false })
+          Object.assign(new Error('夹具未登记该包根'), { code: 'RESOURCE_NOT_FOUND', retryable: false }),
         );
       }
       return Promise.resolve(
-        DISK_MEMBERS.map((member) => ({ packagePath: member.packagePath, bytes: ENCODER.encode(member.text) }))
+        DISK_MEMBERS.map((member) => ({ packagePath: member.packagePath, bytes: ENCODER.encode(member.text) })),
       );
     },
     readFileBytes(): Promise<Uint8Array> {
       return Promise.reject(
-        Object.assign(new Error('归档态读取未用出'), { code: 'RESOURCE_PATH_INVALID', retryable: false })
+        Object.assign(new Error('归档态读取未用出'), { code: 'RESOURCE_PATH_INVALID', retryable: false }),
       );
     },
   };
@@ -259,7 +259,11 @@ async function collectEventEnvelopes(runtime: IHostRuntime): Promise<{
   };
   const stop = runtime.forwardEvents(sink);
   for (const eventId of Object.values(DOCUMENT_EVENT_IDS)) {
-    const control = await runtime.ipc.handleEventControl(SENDER, { controlId: `sub-${eventId}`, action: 'subscribe', eventId });
+    const control = await runtime.ipc.handleEventControl(SENDER, {
+      controlId: `sub-${eventId}`,
+      action: 'subscribe',
+      eventId,
+    });
     expect(control.ok).toBe(true);
   }
   return { envelopes, stop };
@@ -275,7 +279,7 @@ describe('组合根文档装载段：装载闸负臂（逐项缺位，诚实呈�
         resourcePorts: makeResourcePorts(),
       },
       context,
-      diagnostics
+      diagnostics,
     );
     expect(wiring.status).toBe('unavailable');
     expect(wiring.descriptors).toEqual([]);
@@ -297,7 +301,7 @@ describe('组合根文档装载段：装载闸负臂（逐项缺位，诚实呈�
         resourcePorts: makeResourcePorts(),
       },
       context,
-      collectDiagnostics()
+      collectDiagnostics(),
     );
     expect(wiring.status).toBe('unavailable');
     expect(wiring.missing.map((entry) => entry.port)).toEqual(['parser']);
@@ -312,7 +316,7 @@ describe('组合根文档装载段：装载闸负臂（逐项缺位，诚实呈�
     const wiring = createDocumentCapabilityWiring(
       { parserModulePath: PARSER_BEHAVIOR_FIXTURE, resourcePorts: makeResourcePorts() },
       context,
-      collectDiagnostics()
+      collectDiagnostics(),
     );
     expect(wiring.status).toBe('unavailable');
     expect(wiring.missing.map((entry) => entry.port)).toEqual(['guard']);
@@ -323,7 +327,7 @@ describe('组合根文档装载段：装载闸负臂（逐项缺位，诚实呈�
     const wiring = createDocumentCapabilityWiring(
       { parserModulePath: PARSER_BEHAVIOR_FIXTURE, guardSessionSource: activeGuard() },
       context,
-      collectDiagnostics()
+      collectDiagnostics(),
     );
     expect(wiring.status).toBe('unavailable');
     expect(wiring.missing.map((entry) => entry.port)).toEqual(['scope', 'storage']);
@@ -349,7 +353,7 @@ describe('组合根文档装载段：装载闸正臂（依赖齐备即装配）'
         resourcePorts: makeResourcePorts(),
       },
       context,
-      collectDiagnostics()
+      collectDiagnostics(),
     );
     expect(wiring.status).toBe('wired');
     expect(wiring.missing).toEqual([]);
@@ -423,7 +427,12 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
     });
     expect(opened.ok).toBe(true);
     if (opened.ok) {
-      expect(opened.result).toMatchObject({ documentId: CARD_ID, source: CARD_URI, kind: 'card', title: '生产接线卡片' });
+      expect(opened.result).toMatchObject({
+        documentId: CARD_ID,
+        source: CARD_URI,
+        kind: 'card',
+        title: '生产接线卡片',
+      });
       expect(typeof (opened.result as { digest: unknown }).digest).toBe('string');
     }
     expect(resourcePorts.registrations).toEqual([{ documentId: CARD_ID, managedUri: CARD_URI, kind: 'card' }]);
@@ -457,8 +466,8 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
       expect((noOpSave.result as { source: unknown }).source).toBe(CARD_URI);
       expect((noOpSave.result as { digest: unknown }).digest).toBe(
         computePackageContentDigest(
-          DISK_MEMBERS.map((member) => ({ packagePath: member.packagePath, bytes: ENCODER.encode(member.text) }))
-        )
+          DISK_MEMBERS.map((member) => ({ packagePath: member.packagePath, bytes: ENCODER.encode(member.text) })),
+        ),
       );
     }
     expect(resourcePorts.commits).toEqual([]);
@@ -512,7 +521,9 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
   it('守卫判定接线锁：快照无活跃会话 → 服务第二线拒绝 BRIDGE_SESSION_UNKNOWN（路由准入不替代服务复查）', async () => {
     const { runtime } = await startAssemblyRuntime({
       parserModulePath: PARSER_BEHAVIOR_FIXTURE,
-      guardSessionSource: guardSource([{ sessionId: 'session:1:main', state: 'closed', grantedPermissions: new Set<string>(['*']) }]),
+      guardSessionSource: guardSource([
+        { sessionId: 'session:1:main', state: 'closed', grantedPermissions: new Set<string>(['*']) },
+      ]),
       resourcePorts: makeResourcePorts(),
     });
     const response = await runtime.ipc.handleRequest(SENDER, {
@@ -599,7 +610,9 @@ describe('文档事件端口适配器：宿主事件总线绑定语义', () => {
   it('未绑定总线：发布以在册码 BRIDGE_INTERNAL 诚实拒绝，不静默丢弃', async () => {
     const bus = createDocumentHostEventBusPort();
     expect(bus.bound).toBe(false);
-    const failure = await bus.port.publish(DOCUMENT_EVENT_IDS.opened, { uri: 'x', kind: 'card', title: 't' }).catch((error: unknown) => error as { code: string });
+    const failure = await bus.port
+      .publish(DOCUMENT_EVENT_IDS.opened, { uri: 'x', kind: 'card', title: 't' })
+      .catch((error: unknown) => error as { code: string });
     expect((failure as { code: string }).code).toBe('BRIDGE_INTERNAL');
   });
 
@@ -617,7 +630,7 @@ describe('文档事件端口适配器：宿主事件总线绑定语义', () => {
       throw new Error('总线投递故障');
     });
     await expect(bus.port.publish(DOCUMENT_EVENT_IDS.saved, { uri: CARD_URI, kind: 'card' })).rejects.toThrow(
-      '总线投递故障'
+      '总线投递故障',
     );
   });
 });

@@ -175,12 +175,7 @@ export interface FrameDisposeAck {
 
 /** 子帧 → 父帧出站消息联合（§9.2 `FrameOutboundMessage`）。 */
 export type FrameOutboundMessage =
-  | FrameReady
-  | FrameHeight
-  | FrameEntryRequest
-  | FrameActionRequest
-  | FrameError
-  | FrameDisposeAck;
+  FrameReady | FrameHeight | FrameEntryRequest | FrameActionRequest | FrameError | FrameDisposeAck;
 
 // --- 父帧 → 子帧（§9.2 逐字镜像） ---
 
@@ -224,13 +219,7 @@ export interface HostDispose {
 }
 
 /** 父帧 → 子帧出站消息联合（§9.2 `HostOutboundMessage`）。 */
-export type HostOutboundMessage =
-  | HostInit
-  | HostUpdate
-  | HostEntries
-  | HostHeightAck
-  | HostActionError
-  | HostDispose;
+export type HostOutboundMessage = HostInit | HostUpdate | HostEntries | HostHeightAck | HostActionError | HostDispose;
 
 /** 端口上的子帧入站消息联合。 */
 export type FrameInboundMessage = FrameOutboundMessage;
@@ -256,7 +245,7 @@ export interface IFrameHandshakeTransfer {
 export function createFrameEnvelope<TMessage>(
   sessionId: string,
   frameId: string,
-  message: TMessage
+  message: TMessage,
 ): FrameEnvelope<TMessage> {
   return { protocol: FRAME_PROTOCOL, sessionId, frameId, message };
 }
@@ -291,7 +280,12 @@ const FRAME_INBOUND_TYPES: ReadonlySet<string> = new Set<string>([
  * （调用方据此忽略并记录诊断，不抛错）。
  */
 export function parseFrameEnvelope(data: unknown): FrameEnvelope<FrameInboundMessage> | null {
-  if (!isRecord(data) || data['protocol'] !== FRAME_PROTOCOL || !isString(data['sessionId']) || !isString(data['frameId'])) {
+  if (
+    !isRecord(data) ||
+    data['protocol'] !== FRAME_PROTOCOL ||
+    !isString(data['sessionId']) ||
+    !isString(data['frameId'])
+  ) {
     return null;
   }
   const message = data['message'];
@@ -314,25 +308,25 @@ export function parseFrameEnvelope(data: unknown): FrameEnvelope<FrameInboundMes
 export function envelopeMatchesSession(
   envelope: FrameEnvelope<FrameInboundMessage>,
   sessionId: string,
-  frameId: string
+  frameId: string,
 ): boolean {
   return envelope.sessionId === sessionId && envelope.frameId === frameId;
 }
 
 /** 提取 `frame:height` 载荷（形状不符返回 `null`，由调用方拒绝）。 */
-export function asFrameHeight(message: FrameInboundMessage): { readonly height: number; readonly epoch: number } | null {
+export function asFrameHeight(
+  message: FrameInboundMessage,
+): { readonly height: number; readonly epoch: number } | null {
   if (message.type !== 'frame:height') {
     return null;
   }
   const { height, epoch } = message.payload;
-  return typeof height === 'number' && Number.isFinite(height) && typeof epoch === 'number'
-    ? { height, epoch }
-    : null;
+  return typeof height === 'number' && Number.isFinite(height) && typeof epoch === 'number' ? { height, epoch } : null;
 }
 
 /** 提取 `frame:action` 载荷（形状不符返回 `null`，由调用方拒绝）。 */
 export function asFrameAction(
-  message: FrameInboundMessage
+  message: FrameInboundMessage,
 ): { readonly requestId: string; readonly action: FrameActionPayload } | null {
   if (message.type !== 'frame:action') {
     return null;

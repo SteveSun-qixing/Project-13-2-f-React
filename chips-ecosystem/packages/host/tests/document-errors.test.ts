@@ -83,9 +83,7 @@ describe('登记码表', () => {
 
   it('retryable 口径：超时 / 写冲突 / 保存失败可重试，其余不可', () => {
     const retryable = ALL_CODES.filter((code) => DOCUMENT_ERROR_RETRYABLE[code]);
-    expect(retryable.sort()).toEqual(
-      ['BRIDGE_TIMEOUT', 'DOCUMENT_SAVE_FAILED', 'DOCUMENT_WRITE_CONFLICT'].sort()
-    );
+    expect(retryable.sort()).toEqual(['BRIDGE_TIMEOUT', 'DOCUMENT_SAVE_FAILED', 'DOCUMENT_WRITE_CONFLICT'].sort());
   });
 
   it('isDocumentCapabilityErrorCode 只认登记码', () => {

@@ -44,11 +44,7 @@ export class LoaderError extends Error {
 }
 
 /** 校验阶段失败的快捷构造（抛出自 `codes.ts` 登记码）。 */
-export function throwCpkError(
-  code: LoaderErrorCode,
-  message: string,
-  details: Record<string, unknown>,
-): never {
+export function throwCpkError(code: LoaderErrorCode, message: string, details: Record<string, unknown>): never {
   throw new LoaderError(code, { message, details });
 }
 

@@ -74,9 +74,7 @@ interface InvokeRecorder {
   readonly calls: Array<{ channel: string; payload: unknown }>;
 }
 
-function createInvoke(
-  script: Array<(payload: unknown) => unknown>
-): InvokeRecorder {
+function createInvoke(script: Array<(payload: unknown) => unknown>): InvokeRecorder {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   let index = 0;
   return {
@@ -105,13 +103,10 @@ function requestIdOf(payload: unknown): string {
 }
 
 /** 断言 `ChipsError` 拒绝并回传实例（逐码/逐闸位细断言由各用例补充）。 */
-async function expectChannelRejection(
-  run: () => Promise<unknown>,
-  code: string
-): Promise<ChipsError> {
+async function expectChannelRejection(run: () => Promise<unknown>, code: string): Promise<ChipsError> {
   const error = await run().then(
     () => null,
-    (rejection: unknown) => rejection
+    (rejection: unknown) => rejection,
   );
   expect(error).toBeInstanceOf(ChipsError);
   const chipsError = error as ChipsError;
@@ -195,24 +190,21 @@ describe('取视图通道消费臂·出站封套', () => {
     const builder = createDocumentViewChannelBuilder({ invoke: recorder.invoke });
     const error = await expectChannelRejection(
       () => builder.buildView(input as IDocumentViewChannelInput),
-      'BRIDGE_INVALID_INPUT'
+      'BRIDGE_INVALID_INPUT',
     );
     expect(error.details).toSatisfy(
       (details: unknown) =>
-        typeof details === 'object' &&
-        details !== null &&
-        (details as { gate: unknown }).gate === 'request'
+        typeof details === 'object' && details !== null && (details as { gate: unknown }).gate === 'request',
     );
     expect(recorder.calls).toHaveLength(0);
   });
 
   it('box 请求形状合法（契约不提前承载拒绝）：照常出站，拒绝语义由主进程回包臂透传', async () => {
-    const recorder = createInvoke([(payload) => failureEnvelope(requestIdOf(payload), 'BRIDGE_INVALID_INPUT', '当前交付面仅支持卡片视图')]);
+    const recorder = createInvoke([
+      (payload) => failureEnvelope(requestIdOf(payload), 'BRIDGE_INVALID_INPUT', '当前交付面仅支持卡片视图'),
+    ]);
     const builder = createDocumentViewChannelBuilder({ invoke: recorder.invoke });
-    await expectChannelRejection(
-      () => builder.buildView({ ...validInput(), kind: 'box' }),
-      'BRIDGE_INVALID_INPUT'
-    );
+    await expectChannelRejection(() => builder.buildView({ ...validInput(), kind: 'box' }), 'BRIDGE_INVALID_INPUT');
     expect(recorder.calls).toHaveLength(1);
     expect((recorder.calls[0]?.payload as { input: { kind: string } }).input.kind).toBe('box');
   });
@@ -260,10 +252,13 @@ describe('取视图通道消费臂·成功臂', () => {
   });
 
   it('视图 content 含函数成员：可结构化克隆深校验拒绝', async () => {
-    const recorder = createInvoke([() => resultEnvelope('r1', {
-      ...wireView(),
-      content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'basic.note', content: { fn: (): number => 1 } }],
-    })]);
+    const recorder = createInvoke([
+      () =>
+        resultEnvelope('r1', {
+          ...wireView(),
+          content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'basic.note', content: { fn: (): number => 1 } }],
+        }),
+    ]);
     const builder = createDocumentViewChannelBuilder({ invoke: recorder.invoke });
     await expectChannelRejection(() => builder.buildView(validInput()), 'BRIDGE_INTERNAL');
   });
@@ -313,7 +308,7 @@ describe('取视图通道消费臂·失败臂错误面', () => {
     const error = await expectChannelRejection(() => builder.buildView(validInput()), 'BRIDGE_INTERNAL');
     expect(error.details).toSatisfy(
       (details: unknown) =>
-        typeof details === 'object' && details !== null && (details as { cause: unknown }).cause === code
+        typeof details === 'object' && details !== null && (details as { cause: unknown }).cause === code,
     );
   });
 
@@ -323,13 +318,18 @@ describe('取视图通道消费臂·失败臂错误面', () => {
     const error = await expectChannelRejection(() => builder.buildView(validInput()), 'BRIDGE_INTERNAL');
     expect(error.details).toSatisfy(
       (details: unknown) =>
-        !(typeof details === 'object' && details !== null && 'cause' in (details as Record<string, unknown>))
+        !(typeof details === 'object' && details !== null && 'cause' in (details as Record<string, unknown>)),
     );
   });
 
   it('error 载荷非 IChipsError 同构形状（缺 code）：回包契约违约 BRIDGE_INTERNAL', async () => {
     const recorder = createInvoke([
-      () => ({ protocol: DOCUMENT_VIEW_PROTOCOL, type: 'document-view:error', requestId: 'r', error: { message: '没有码' } }),
+      () => ({
+        protocol: DOCUMENT_VIEW_PROTOCOL,
+        type: 'document-view:error',
+        requestId: 'r',
+        error: { message: '没有码' },
+      }),
     ]);
     const builder = createDocumentViewChannelBuilder({ invoke: recorder.invoke });
     await expectChannelRejection(() => builder.buildView(validInput()), 'BRIDGE_INTERNAL');
@@ -342,19 +342,23 @@ describe('取视图通道消费臂·失败臂错误面', () => {
 
 describe('取视图通道消费臂·传输层与确定性', () => {
   it('传输裸异常：归一 BRIDGE_INTERNAL（不裸抛非契约异常）', async () => {
-    const recorder = createInvoke([() => {
-      throw new Error('Error invoking remote method document-view:request: 通道未注册');
-    }]);
+    const recorder = createInvoke([
+      () => {
+        throw new Error('Error invoking remote method document-view:request: 通道未注册');
+      },
+    ]);
     const builder = createDocumentViewChannelBuilder({ invoke: recorder.invoke });
     await expectChannelRejection(() => builder.buildView(validInput()), 'BRIDGE_INTERNAL');
   });
 
   it('传输 AbortError：归一 BRIDGE_CANCELLED（在册口径）', async () => {
-    const recorder = createInvoke([() => {
-      const abort = new Error('已取消');
-      abort.name = 'AbortError';
-      throw abort;
-    }]);
+    const recorder = createInvoke([
+      () => {
+        const abort = new Error('已取消');
+        abort.name = 'AbortError';
+        throw abort;
+      },
+    ]);
     const builder = createDocumentViewChannelBuilder({ invoke: recorder.invoke });
     await expectChannelRejection(() => builder.buildView(validInput()), 'BRIDGE_CANCELLED');
   });

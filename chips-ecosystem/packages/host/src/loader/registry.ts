@@ -33,13 +33,7 @@ export interface IPersistedRegistryDocument {
 const ROLES: readonly PluginRole[] = ['basecard', 'boxlayout', 'app', 'service'];
 const SOURCES: readonly PluginSource[] = ['builtin', 'user', 'development'];
 /** 运行态痕迹集合（§3.4 残留回滚口径；`installed` 为唯一合法持久化状态）。 */
-const RUNTIME_STATE_RESIDUE: ReadonlySet<string> = new Set([
-  'pending',
-  'starting',
-  'active',
-  'stopping',
-  'failed',
-]);
+const RUNTIME_STATE_RESIDUE: ReadonlySet<string> = new Set(['pending', 'starting', 'active', 'stopping', 'failed']);
 
 /** 注册表持久化失败（基础设施错误；非 `CPK_*`/`KERNEL_*` 域，不伪造登记码）。 */
 export class PluginRegistryPersistenceError extends Error {
@@ -148,10 +142,7 @@ function normalizeEntry(
     hash: record.hash as string,
     dependencies: expectDependencies(record.dependencies ?? [], `${pointer}.dependencies`),
     permissions: expectStringArray(record.permissions ?? [], `${pointer}.permissions`),
-    grantedPermissions: expectStringArray(
-      record.grantedPermissions ?? [],
-      `${pointer}.grantedPermissions`,
-    ),
+    grantedPermissions: expectStringArray(record.grantedPermissions ?? [], `${pointer}.grantedPermissions`),
     installedAt: record.installedAt as string,
     enabled: record.enabled,
   };

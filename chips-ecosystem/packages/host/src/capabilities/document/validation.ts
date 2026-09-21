@@ -204,7 +204,7 @@ export function assertPartCombination(
   part: DocumentPart,
   nodeId: string | null,
   range: IDocumentReadRange | null,
-  capabilityId: string
+  capabilityId: string,
 ): void {
   const reason = combinationReason(kind, part, nodeId, range);
   if (reason !== null) {
@@ -218,7 +218,7 @@ function combinationReason(
   kind: DocumentKind,
   part: DocumentPart,
   nodeId: string | null,
-  range: IDocumentReadRange | null
+  range: IDocumentReadRange | null,
 ): string | null {
   if (kind === 'card' && part === 'entries') {
     return '卡片不支持 entries 切片';
@@ -253,7 +253,11 @@ function readRecordField(value: Record<string, unknown>, key: string): Record<st
   return isPlainRecord(field) ? field : null;
 }
 
-function invalidBusiness(code: typeof DOCUMENT_BUSINESS_ERROR_CODES.metadataInvalid | typeof DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid, reason: string, pointer: string): never {
+function invalidBusiness(
+  code: typeof DOCUMENT_BUSINESS_ERROR_CODES.metadataInvalid | typeof DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid,
+  reason: string,
+  pointer: string,
+): never {
   throw documentError(code, { details: { reason, pointer } });
 }
 
@@ -276,7 +280,7 @@ export function validateMetadataSlice(kind: DocumentKind, value: DocumentValue):
     invalidBusiness(
       DOCUMENT_BUSINESS_ERROR_CODES.metadataInvalid,
       'chip_standards_version 必须是严格三段式语义化版本',
-      'chip_standards_version'
+      'chip_standards_version',
     );
   }
   const idKey = kind === 'card' ? 'card_id' : 'box_id';
@@ -293,7 +297,11 @@ export function validateMetadataSlice(kind: DocumentKind, value: DocumentValue):
     }
   }
   if (kind === 'box' && typeof value.active_layout_type !== 'string') {
-    invalidBusiness(DOCUMENT_BUSINESS_ERROR_CODES.metadataInvalid, '箱子 active_layout_type 必填且为字符串', 'active_layout_type');
+    invalidBusiness(
+      DOCUMENT_BUSINESS_ERROR_CODES.metadataInvalid,
+      '箱子 active_layout_type 必填且为字符串',
+      'active_layout_type',
+    );
   }
 }
 
@@ -311,7 +319,7 @@ export function validateStructureSlice(kind: DocumentKind, value: DocumentValue)
     invalidBusiness(
       DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid,
       kind === 'card' ? '缺少 structure 数组' : '缺少 entries 数组',
-      'structure'
+      'structure',
     );
   }
   const seen = new Set<string>();
@@ -324,7 +332,7 @@ export function validateStructureSlice(kind: DocumentKind, value: DocumentValue)
       invalidBusiness(
         DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid,
         kind === 'card' ? 'structure[].id 必须为 10 位 Base62' : 'entry_id 必须为 10 位 Base62',
-        'structure'
+        'structure',
       );
     }
     if (seen.has(id)) {
@@ -333,7 +341,11 @@ export function validateStructureSlice(kind: DocumentKind, value: DocumentValue)
     seen.add(id);
     if (kind === 'card') {
       if (typeof node.type !== 'string' || node.type.length === 0) {
-        invalidBusiness(DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid, 'structure[].type 必填且为非空字符串', 'structure');
+        invalidBusiness(
+          DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid,
+          'structure[].type 必填且为非空字符串',
+          'structure',
+        );
       }
       continue;
     }
@@ -352,14 +364,18 @@ export function validateStructureSlice(kind: DocumentKind, value: DocumentValue)
     invalidBusiness(DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid, '缺少 manifest 对象', 'manifest');
   }
   if (manifest.card_count !== nodes.length) {
-    invalidBusiness(DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid, 'manifest.card_count 必须等于 structure 数组长度', 'manifest');
+    invalidBusiness(
+      DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid,
+      'manifest.card_count 必须等于 structure 数组长度',
+      'manifest',
+    );
   }
   const resources = readArrayField(manifest, 'resources');
   if (resources !== null && manifest.resource_count !== resources.length) {
     invalidBusiness(
       DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid,
       'manifest.resource_count 必须等于 manifest.resources 条目数',
-      'manifest'
+      'manifest',
     );
   }
 }
@@ -376,7 +392,11 @@ export function validateEntriesSlice(value: DocumentValue): void {
 export function assertSerializedMemberPaths(members: readonly string[]): void {
   for (const packagePath of members) {
     if (!isSafePackagePath(packagePath)) {
-      invalidBusiness(DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid, `序列化产出的包内路径不安全：${packagePath}`, 'manifest');
+      invalidBusiness(
+        DOCUMENT_BUSINESS_ERROR_CODES.structureInvalid,
+        `序列化产出的包内路径不安全：${packagePath}`,
+        'manifest',
+      );
     }
   }
 }

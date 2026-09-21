@@ -95,10 +95,9 @@ function assertEd25519Spki(spkiPem: string, origin: string): void {
       });
     }
   } catch (error) {
-    trustRootsError(
-      `信任根公钥不是可解析的 SPKI PEM：${error instanceof Error ? error.message : String(error)}`,
-      { publicKeyOrigin: origin },
-    );
+    trustRootsError(`信任根公钥不是可解析的 SPKI PEM：${error instanceof Error ? error.message : String(error)}`, {
+      publicKeyOrigin: origin,
+    });
   }
 }
 
@@ -137,10 +136,7 @@ function dedupeKeyIds(keys: readonly ITrustRootKey[], origin: string): ITrustRoo
 }
 
 /** 解析宿主编译期形态 `chips-trust-roots-v1`（Base64 原始公钥 → SPKI PEM 归一）。 */
-function parseBuiltinTrustRoots(
-  record: Record<string, unknown>,
-  origin: string,
-): ITrustRootKey[] {
+function parseBuiltinTrustRoots(record: Record<string, unknown>, origin: string): ITrustRootKey[] {
   assertKnownKeys(record, ['format', 'description', 'keys'], origin, '');
   if (record.format !== HOST_TRUST_ROOTS_FORMAT) {
     trustRootsError(`信任根文档 format 非法：期望 ${HOST_TRUST_ROOTS_FORMAT}`, { origin });
@@ -194,10 +190,7 @@ function parseBuiltinTrustRoots(
 }
 
 /** 解析夹具 / 库面注入形态 `{ version: 1, trustRoots: { keyId: SPKI PEM } }`。 */
-function parseInjectedTrustRoots(
-  record: Record<string, unknown>,
-  origin: string,
-): ITrustRootKey[] {
+function parseInjectedTrustRoots(record: Record<string, unknown>, origin: string): ITrustRootKey[] {
   assertKnownKeys(record, ['version', 'description', 'trustRoots'], origin, '');
   if (record.version !== 1) {
     trustRootsError('信任根文档 version 必须为数值 1', { origin, field: 'version' });
@@ -271,10 +264,7 @@ export function createTrustRootRegistry(keys: Iterable<ITrustRootKey>): ITrustRo
 }
 
 /** 由未归一文档构造注册表（两形态自动判别；非法文档整表拒绝）。 */
-export function createTrustRootRegistryFromDocument(
-  document: unknown,
-  origin = 'inline',
-): ITrustRootRegistry {
+export function createTrustRootRegistryFromDocument(document: unknown, origin = 'inline'): ITrustRootRegistry {
   return createTrustRootRegistry(normalizeTrustRootsDocument(document, origin));
 }
 

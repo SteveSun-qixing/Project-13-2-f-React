@@ -73,7 +73,7 @@ export interface IRenderSession {
   update(view: ICardRenderView, revision: number): Promise<void>;
   subscribe<TEvent extends RenderEventName>(
     event: TEvent,
-    handler: (payload: RenderEventMap[TEvent]) => void
+    handler: (payload: RenderEventMap[TEvent]) => void,
   ): IRenderSubscription;
   dispose(): Promise<void>;
 }
@@ -323,7 +323,7 @@ class CardRenderSession implements IRenderSession {
   /** 订阅会话事件。 */
   subscribe<TEvent extends RenderEventName>(
     event: TEvent,
-    handler: (payload: RenderEventMap[TEvent]) => void
+    handler: (payload: RenderEventMap[TEvent]) => void,
   ): IRenderSubscription {
     const set = this.listeners[event] as Set<(payload: RenderEventMap[TEvent]) => void>;
     set.add(handler);
@@ -385,7 +385,7 @@ class CardRenderSession implements IRenderSession {
     host.onHeightChanged((heightPx) => {
       this.bindings.heightCache?.remember(
         frameHeightCacheKey({ role: 'card', source: this.request.source, revision: this.lastRevision }),
-        heightPx
+        heightPx,
       );
       this.emit('height-changed', { height: heightPx });
     });

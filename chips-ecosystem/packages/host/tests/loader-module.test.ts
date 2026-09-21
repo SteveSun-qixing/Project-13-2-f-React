@@ -41,28 +41,16 @@ import { LIFECYCLE_ERROR_CODES } from '../src/loader/codes.js';
 import { LoaderError } from '../src/loader/errors.js';
 import { CPK_LIMITS } from '../src/loader/limits.js';
 import * as loaderIndex from '../src/loader/index.js';
-import {
-  MODULE_LOADER_ENTRY_FILE,
-  createCpkModuleLoader,
-  type ICpkModuleLoader,
-} from '../src/loader/module-loader.js';
-import {
-  loadCpkDirectory,
-  membersToZipEntries,
-} from '../src/loader/provider.js';
+import { MODULE_LOADER_ENTRY_FILE, createCpkModuleLoader, type ICpkModuleLoader } from '../src/loader/module-loader.js';
+import { loadCpkDirectory, membersToZipEntries } from '../src/loader/provider.js';
 import { computeContentHash, sha256Hex } from '../src/loader/signature.js';
 
 const execFileAsync = promisify(execFile);
 
-const HARNESS_PATH = fileURLToPath(
-  new URL('./fixtures/module-loader/run-native-cases.mjs', import.meta.url),
-);
+const HARNESS_PATH = fileURLToPath(new URL('./fixtures/module-loader/run-native-cases.mjs', import.meta.url));
 const LOADER_SOURCE_PATH = fileURLToPath(new URL('../src/loader/module-loader.ts', import.meta.url));
 const MODULE_LOADER_TEXT = readFileSync(LOADER_SOURCE_PATH, 'utf8');
-const VALIDATE_TEXT = readFileSync(
-  fileURLToPath(new URL('../src/loader/validate.ts', import.meta.url)),
-  'utf8',
-);
+const VALIDATE_TEXT = readFileSync(fileURLToPath(new URL('../src/loader/validate.ts', import.meta.url)), 'utf8');
 
 /** 剥离块注释与行注释，得到代码面（纪律锁只对代码断言，JSDoc 允许提及码名）。 */
 function stripComments(text: string): string {
@@ -202,11 +190,7 @@ function expectGateFailure(error: unknown, stage: string, reason: string): Recor
 }
 
 /** 断言子进程 wire 形态为在册码并取回 details。 */
-function expectWireFailure(
-  wire: WireShape,
-  stage: string,
-  reason: string,
-): Record<string, unknown> {
+function expectWireFailure(wire: WireShape, stage: string, reason: string): Record<string, unknown> {
   expect(wire.name).toBe('ChipsError');
   expect(wire.code).toBe(LIFECYCLE_ERROR_CODES.applyFailed);
   expect(wire.retryable).toBe(true);
@@ -279,9 +263,7 @@ it('A5 限额取数单点：8 MiB 来自 CPK_LIMITS（零二处定义）', () =>
 // B 组：宿主侧预检门禁（先于任何通道动作，确定性拒装）
 // ---------------------------------------------------------------------------
 
-async function withLoader(
-  fn: (loader: ICpkModuleLoader, sessionRoot: string) => Promise<void>,
-): Promise<void> {
+async function withLoader(fn: (loader: ICpkModuleLoader, sessionRoot: string) => Promise<void>): Promise<void> {
   const workspace = await makeWorkspace('chips-w1-prep-');
   const sessionRoot = join(workspace, 'sessions');
   const loader = createCpkModuleLoader({ sessionRoot });
@@ -498,10 +480,7 @@ async function runNativeCases(ops: readonly NativeOp[]): Promise<NativeDoc> {
   const workspace = await makeWorkspace('chips-w1-native-');
   const argsPath = join(workspace, 'args.json');
   const outFile = join(workspace, 'out.json');
-  await writeFile(
-    argsPath,
-    JSON.stringify({ loaderSource: LOADER_SOURCE_PATH, outFile, ops }),
-  );
+  await writeFile(argsPath, JSON.stringify({ loaderSource: LOADER_SOURCE_PATH, outFile, ops }));
   try {
     await execFileAsync(process.execPath, [HARNESS_PATH, argsPath], {
       env: {},
@@ -510,7 +489,10 @@ async function runNativeCases(ops: readonly NativeOp[]): Promise<NativeDoc> {
     });
   } catch (error) {
     if (!existsSync(outFile)) {
-      const detail = error instanceof Error ? `${error.message}\nstderr: ${(error as { stderr?: string }).stderr ?? ''}` : String(error);
+      const detail =
+        error instanceof Error
+          ? `${error.message}\nstderr: ${(error as { stderr?: string }).stderr ?? ''}`
+          : String(error);
       throw new Error(`原生实测子进程未产出结果文件：${detail}`);
     }
   }
@@ -519,193 +501,185 @@ async function runNativeCases(ops: readonly NativeOp[]): Promise<NativeDoc> {
   return doc;
 }
 
-it(
-  'D1 正向装载求值 + nonce 复加载重门禁 + 篡改双层拒 + 门面封顶 + dispose 拒装（原生机制）',
-  async () => {
-    const workspace = await makeWorkspace('chips-w1-d1-');
-    const root = join(workspace, 'plugins', 'positive');
-    await writeTree(root, positiveTree());
-    const hash = await packageHashOf(root);
-    const entryFsPath = join(root, MODULE_LOADER_ENTRY_FILE);
-    const helperFsPath = join(root, 'dist', 'helper.js');
+it('D1 正向装载求值 + nonce 复加载重门禁 + 篡改双层拒 + 门面封顶 + dispose 拒装（原生机制）', async () => {
+  const workspace = await makeWorkspace('chips-w1-d1-');
+  const root = join(workspace, 'plugins', 'positive');
+  await writeTree(root, positiveTree());
+  const hash = await packageHashOf(root);
+  const entryFsPath = join(root, MODULE_LOADER_ENTRY_FILE);
+  const helperFsPath = join(root, 'dist', 'helper.js');
 
-    const ops: NativeOp[] = [
-      { op: 'create', as: 'create', sessionRoot: join(workspace, 'sessions') },
-      { op: 'load', as: 'load1', pluginId: 'com.chips.wave1.positive', rootDir: root, expectedPackageHash: hash },
-      { op: 'load', as: 'load2', pluginId: 'com.chips.wave1.positive', rootDir: root, expectedPackageHash: hash },
-      { op: 'appendFile', as: 'tamper', path: helperFsPath, text: '\nexport const injected = 1;\n' },
-      { op: 'load', as: 'load3', pluginId: 'com.chips.wave1.positive', rootDir: root, expectedPackageHash: hash },
-      { op: 'rawImport', as: 'rogueEntry', url: `${pathToFileURL(entryFsPath).href}?chips-nonce=rogue-1` },
-      { op: 'writeFile', as: 'addExtra', path: join(root, 'dist', 'extra.js'), text: 'export const extra = 1;\n' },
-      {
-        op: 'rawImport',
-        as: 'rogueExtra',
-        url: `${pathToFileURL(join(root, 'dist', 'extra.js')).href}?chips-nonce=rogue-2`,
-      },
-      { op: 'snapshotGlobals', as: 'markers', names: ['__POS_EVAL__'] },
-      { op: 'dispose', as: 'dispose' },
-      { op: 'load', as: 'loadDisposed', pluginId: 'com.chips.wave1.positive', rootDir: root, expectedPackageHash: hash },
-    ];
-    const doc = await runNativeCases(ops);
+  const ops: NativeOp[] = [
+    { op: 'create', as: 'create', sessionRoot: join(workspace, 'sessions') },
+    { op: 'load', as: 'load1', pluginId: 'com.chips.wave1.positive', rootDir: root, expectedPackageHash: hash },
+    { op: 'load', as: 'load2', pluginId: 'com.chips.wave1.positive', rootDir: root, expectedPackageHash: hash },
+    { op: 'appendFile', as: 'tamper', path: helperFsPath, text: '\nexport const injected = 1;\n' },
+    { op: 'load', as: 'load3', pluginId: 'com.chips.wave1.positive', rootDir: root, expectedPackageHash: hash },
+    { op: 'rawImport', as: 'rogueEntry', url: `${pathToFileURL(entryFsPath).href}?chips-nonce=rogue-1` },
+    { op: 'writeFile', as: 'addExtra', path: join(root, 'dist', 'extra.js'), text: 'export const extra = 1;\n' },
+    {
+      op: 'rawImport',
+      as: 'rogueExtra',
+      url: `${pathToFileURL(join(root, 'dist', 'extra.js')).href}?chips-nonce=rogue-2`,
+    },
+    { op: 'snapshotGlobals', as: 'markers', names: ['__POS_EVAL__'] },
+    { op: 'dispose', as: 'dispose' },
+    { op: 'load', as: 'loadDisposed', pluginId: 'com.chips.wave1.positive', rootDir: root, expectedPackageHash: hash },
+  ];
+  const doc = await runNativeCases(ops);
 
-    // 正向装载：入口求值、命名空间冻结快照（门面封顶：只含插件自身导出；
-    // ESM 作用域无 require/module/exports/__dirname）。
-    const load1 = resultOf(doc, 'load1') as LoadOk;
-    expect(load1.ok).toBe(true);
-    expect(load1.exportKeys).toEqual(['default', 'marker']);
-    expect(load1.exportsFrozen).toBe(true);
-    expect(load1.defaultKind).toBe('function');
-    expect(load1.defaultResult).toEqual({
-      token: 'positive',
-      evalCount: 1,
-      helper: 'h',
-      typeofRequire: 'undefined',
-      typeofModule: 'undefined',
-      typeofExports: 'undefined',
-      typeofDirname: 'undefined',
-    });
-    // 双门禁计数：entry + helper 各过一次 resolve/load（8 项之内的图规模）。
-    expect(load1.gateStats).toEqual({ resolveAllow: 2, resolveReject: 0, loadAllow: 2, loadReject: 0 });
-    expect(load1.entryUrl).toContain(`?chips-nonce=${load1.nonce}`);
+  // 正向装载：入口求值、命名空间冻结快照（门面封顶：只含插件自身导出；
+  // ESM 作用域无 require/module/exports/__dirname）。
+  const load1 = resultOf(doc, 'load1') as LoadOk;
+  expect(load1.ok).toBe(true);
+  expect(load1.exportKeys).toEqual(['default', 'marker']);
+  expect(load1.exportsFrozen).toBe(true);
+  expect(load1.defaultKind).toBe('function');
+  expect(load1.defaultResult).toEqual({
+    token: 'positive',
+    evalCount: 1,
+    helper: 'h',
+    typeofRequire: 'undefined',
+    typeofModule: 'undefined',
+    typeofExports: 'undefined',
+    typeofDirname: 'undefined',
+  });
+  // 双门禁计数：entry + helper 各过一次 resolve/load（8 项之内的图规模）。
+  expect(load1.gateStats).toEqual({ resolveAllow: 2, resolveReject: 0, loadAllow: 2, loadReject: 0 });
+  expect(load1.entryUrl).toContain(`?chips-nonce=${load1.nonce}`);
 
-    // nonce 复加载：新缓存键、模块体重执行、每个模块重新过 resolve/load 双门禁。
-    const load2 = resultOf(doc, 'load2') as LoadOk;
-    expect(load2.ok).toBe(true);
-    expect(load2.nonce).not.toBe(load1.nonce);
-    expect(load2.defaultResult?.evalCount).toBe(2);
-    expect(load2.gateStats).toEqual({ resolveAllow: 2, resolveReject: 0, loadAllow: 2, loadReject: 0 });
+  // nonce 复加载：新缓存键、模块体重执行、每个模块重新过 resolve/load 双门禁。
+  const load2 = resultOf(doc, 'load2') as LoadOk;
+  expect(load2.ok).toBe(true);
+  expect(load2.nonce).not.toBe(load1.nonce);
+  expect(load2.defaultResult?.evalCount).toBe(2);
+  expect(load2.gateStats).toEqual({ resolveAllow: 2, resolveReject: 0, loadAllow: 2, loadReject: 0 });
 
-    // 篡改后复装载：宿主侧包级复算先行拒（integrity 层），无任何半执行。
-    const load3 = resultOf(doc, 'load3') as LoadFail;
-    expect(load3.ok).toBe(false);
-    expectWireFailure(load3.wire, 'integrity', 'package-hash-mismatch');
+  // 篡改后复装载：宿主侧包级复算先行拒（integrity 层），无任何半执行。
+  const load3 = resultOf(doc, 'load3') as LoadFail;
+  expect(load3.ok).toBe(false);
+  expectWireFailure(load3.wire, 'integrity', 'package-hash-mismatch');
 
-    // 钩子级复算（TOCTOU 防层的真实触发）：绕过 loadModule 直 import 已登记作用域，
-    // load 钩逐文件复算仍拒（file-hash-mismatch）——门禁不因「激活期已结束」失效。
-    const rogueEntry = resultOf(doc, 'rogueEntry') as { ok: boolean; wire?: WireShape; keys?: string[] };
-    expect(rogueEntry.ok).toBe(false);
-    expect(rogueEntry.wire?.message).toContain('file-hash-mismatch');
+  // 钩子级复算（TOCTOU 防层的真实触发）：绕过 loadModule 直 import 已登记作用域，
+  // load 钩逐文件复算仍拒（file-hash-mismatch）——门禁不因「激活期已结束」失效。
+  const rogueEntry = resultOf(doc, 'rogueEntry') as { ok: boolean; wire?: WireShape; keys?: string[] };
+  expect(rogueEntry.ok).toBe(false);
+  expect(rogueEntry.wire?.message).toContain('file-hash-mismatch');
 
-    // 清单外新文件（安装后插入）：未登记摘要即拒（unmanifested-file）。
-    const rogueExtra = resultOf(doc, 'rogueExtra') as { ok: boolean; wire?: WireShape };
-    expect(rogueExtra.ok).toBe(false);
-    expect(rogueExtra.wire?.message).toContain('unmanifested-file');
+  // 清单外新文件（安装后插入）：未登记摘要即拒（unmanifested-file）。
+  const rogueExtra = resultOf(doc, 'rogueExtra') as { ok: boolean; wire?: WireShape };
+  expect(rogueExtra.ok).toBe(false);
+  expect(rogueExtra.wire?.message).toContain('unmanifested-file');
 
-    // 篡改后三次装载全部失败：模块体执行计数停在 2（无半执行、无额外执行）。
-    const markers = resultOf(doc, 'markers') as Record<string, unknown>;
-    expect(markers.__POS_EVAL__).toBe(2);
+  // 篡改后三次装载全部失败：模块体执行计数停在 2（无半执行、无额外执行）。
+  const markers = resultOf(doc, 'markers') as Record<string, unknown>;
+  expect(markers.__POS_EVAL__).toBe(2);
 
-    // dispose 后拒装：stage=channel / reason=disposed。
-    const loadDisposed = resultOf(doc, 'loadDisposed') as LoadFail;
-    expect(loadDisposed.ok).toBe(false);
-    expectWireFailure(loadDisposed.wire, 'channel', 'disposed');
-  },
-  120_000,
-);
+  // dispose 后拒装：stage=channel / reason=disposed。
+  const loadDisposed = resultOf(doc, 'loadDisposed') as LoadFail;
+  expect(loadDisposed.ok).toBe(false);
+  expectWireFailure(loadDisposed.wire, 'channel', 'disposed');
+}, 120_000);
 
-it(
-  'D2 四越界 specifier 逐码拒 + 绝对路径/非 JS 模块/缺子模块/语法错误（原生机制，插件体零执行）',
-  async () => {
-    const workspace = await makeWorkspace('chips-w1-d2-');
-    await writeTree(join(workspace, 'outside-scope'), { 'escape-target.mjs': OUTSIDE_TARGET });
-    const pluginDirs: Record<string, Record<string, string | Buffer>> = {
-      'wl-node': {
-        [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_WL_NODE__', "import { readFileSync } from 'node:fs';"),
-      },
-      'wl-electron': {
-        [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_WL_ELECTRON__', "import { app } from 'electron';"),
-      },
-      'wl-bare': {
-        [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_WL_BARE__', "import { pick } from 'lodash-es';"),
-      },
-      'wl-escape': {
-        [MODULE_LOADER_ENTRY_FILE]: gatedEntry(
-          '__RAN_WL_ESCAPE__',
-          "import escape from '../../../outside-scope/escape-target.mjs';",
-        ),
-      },
-      'wl-abs': {
-        [MODULE_LOADER_ENTRY_FILE]: gatedEntry(
-          '__RAN_WL_ABS__',
-          "import victim from '/chips-w1-abs-definitely-outside-target.js';",
-        ),
-      },
-      'wl-json': {
-        [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_WL_JSON__', "import data from './data.json';"),
-        'dist/data.json': '{"a":1}\n',
-      },
-      'missing-child': {
-        [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_MISSING_CHILD__', "import './nope.js';"),
-      },
-      'parse-error': {
-        [MODULE_LOADER_ENTRY_FILE]: 'export const broken = ;\n',
-      },
-    };
-
-    const ops: NativeOp[] = [{ op: 'create', as: 'create', sessionRoot: join(workspace, 'sessions') }];
-    for (const [name, files] of Object.entries(pluginDirs)) {
-      const root = join(workspace, 'plugins', name);
-      await writeTree(root, files);
-      ops.push({
-        op: 'load',
-        as: name,
-        pluginId: `com.chips.wave1.${name}`,
-        rootDir: root,
-        expectedPackageHash: await packageHashOf(root),
-      });
-    }
-    ops.push({
-      op: 'snapshotGlobals',
-      as: 'markers',
-      names: [
-        '__RAN_WL_NODE__',
-        '__RAN_WL_ELECTRON__',
-        '__RAN_WL_BARE__',
+it('D2 四越界 specifier 逐码拒 + 绝对路径/非 JS 模块/缺子模块/语法错误（原生机制，插件体零执行）', async () => {
+  const workspace = await makeWorkspace('chips-w1-d2-');
+  await writeTree(join(workspace, 'outside-scope'), { 'escape-target.mjs': OUTSIDE_TARGET });
+  const pluginDirs: Record<string, Record<string, string | Buffer>> = {
+    'wl-node': {
+      [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_WL_NODE__', "import { readFileSync } from 'node:fs';"),
+    },
+    'wl-electron': {
+      [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_WL_ELECTRON__', "import { app } from 'electron';"),
+    },
+    'wl-bare': {
+      [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_WL_BARE__', "import { pick } from 'lodash-es';"),
+    },
+    'wl-escape': {
+      [MODULE_LOADER_ENTRY_FILE]: gatedEntry(
         '__RAN_WL_ESCAPE__',
+        "import escape from '../../../outside-scope/escape-target.mjs';",
+      ),
+    },
+    'wl-abs': {
+      [MODULE_LOADER_ENTRY_FILE]: gatedEntry(
         '__RAN_WL_ABS__',
-        '__RAN_WL_JSON__',
-        '__RAN_MISSING_CHILD__',
-        '__RAN_ESCAPE__',
-      ],
+        "import victim from '/chips-w1-abs-definitely-outside-target.js';",
+      ),
+    },
+    'wl-json': {
+      [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_WL_JSON__', "import data from './data.json';"),
+      'dist/data.json': '{"a":1}\n',
+    },
+    'missing-child': {
+      [MODULE_LOADER_ENTRY_FILE]: gatedEntry('__RAN_MISSING_CHILD__', "import './nope.js';"),
+    },
+    'parse-error': {
+      [MODULE_LOADER_ENTRY_FILE]: 'export const broken = ;\n',
+    },
+  };
+
+  const ops: NativeOp[] = [{ op: 'create', as: 'create', sessionRoot: join(workspace, 'sessions') }];
+  for (const [name, files] of Object.entries(pluginDirs)) {
+    const root = join(workspace, 'plugins', name);
+    await writeTree(root, files);
+    ops.push({
+      op: 'load',
+      as: name,
+      pluginId: `com.chips.wave1.${name}`,
+      rootDir: root,
+      expectedPackageHash: await packageHashOf(root),
     });
-    const doc = await runNativeCases(ops);
+  }
+  ops.push({
+    op: 'snapshotGlobals',
+    as: 'markers',
+    names: [
+      '__RAN_WL_NODE__',
+      '__RAN_WL_ELECTRON__',
+      '__RAN_WL_BARE__',
+      '__RAN_WL_ESCAPE__',
+      '__RAN_WL_ABS__',
+      '__RAN_WL_JSON__',
+      '__RAN_MISSING_CHILD__',
+      '__RAN_ESCAPE__',
+    ],
+  });
+  const doc = await runNativeCases(ops);
 
-    // RFC §5.1 行 1：白名单越界 specifier → KERNEL_APPLY_FAILED + stage=whitelist，
-    // details 携带 pluginId 与 specifier，进门禁即失败路径。
-    const cases: readonly [name: string, reason: string, specifier?: string][] = [
-      ['wl-node', 'node-builtin', 'node:fs'],
-      ['wl-electron', 'electron', 'electron'],
-      ['wl-bare', 'bare-specifier', 'lodash-es'],
-      ['wl-escape', 'scope-escape', "../../../outside-scope/escape-target.mjs"],
-      ['wl-abs', 'absolute-path', '/chips-w1-abs-definitely-outside-target.js'],
-      ['wl-json', 'unsupported-module-type', "./data.json"],
-    ];
-    for (const [name, reason, specifier] of cases) {
-      const outcome = resultOf(doc, name) as LoadFail;
-      expect(outcome.ok, `${name} 必须拒装`).toBe(false);
-      const details = expectWireFailure(outcome.wire, 'whitelist', reason);
-      expect(details.pluginId).toBe(`com.chips.wave1.${name}`);
-      if (specifier !== undefined) {
-        expect(details.specifier).toBe(specifier);
-      }
-      const stats = details.gateStats as GateStats;
-      expect(stats.resolveReject).toBe(1);
-      expect(stats.loadReject).toBe(0); // resolve 层拦截，尚未走到 load。
+  // RFC §5.1 行 1：白名单越界 specifier → KERNEL_APPLY_FAILED + stage=whitelist，
+  // details 携带 pluginId 与 specifier，进门禁即失败路径。
+  const cases: readonly [name: string, reason: string, specifier?: string][] = [
+    ['wl-node', 'node-builtin', 'node:fs'],
+    ['wl-electron', 'electron', 'electron'],
+    ['wl-bare', 'bare-specifier', 'lodash-es'],
+    ['wl-escape', 'scope-escape', '../../../outside-scope/escape-target.mjs'],
+    ['wl-abs', 'absolute-path', '/chips-w1-abs-definitely-outside-target.js'],
+    ['wl-json', 'unsupported-module-type', './data.json'],
+  ];
+  for (const [name, reason, specifier] of cases) {
+    const outcome = resultOf(doc, name) as LoadFail;
+    expect(outcome.ok, `${name} 必须拒装`).toBe(false);
+    const details = expectWireFailure(outcome.wire, 'whitelist', reason);
+    expect(details.pluginId).toBe(`com.chips.wave1.${name}`);
+    if (specifier !== undefined) {
+      expect(details.specifier).toBe(specifier);
     }
+    const stats = details.gateStats as GateStats;
+    expect(stats.resolveReject).toBe(1);
+    expect(stats.loadReject).toBe(0); // resolve 层拦截，尚未走到 load。
+  }
 
-    // RFC §5.1 行 3：入口不可解析（子模块缺失、ESM 语法错误）→ stage=entry。
-    const missing = resultOf(doc, 'missing-child') as LoadFail;
-    expect(missing.ok).toBe(false);
-    expectWireFailure(missing.wire, 'entry', 'module-not-found');
-    const parse = resultOf(doc, 'parse-error') as LoadFail;
-    expect(parse.ok).toBe(false);
-    expectWireFailure(parse.wire, 'entry', 'parse-failure');
+  // RFC §5.1 行 3：入口不可解析（子模块缺失、ESM 语法错误）→ stage=entry。
+  const missing = resultOf(doc, 'missing-child') as LoadFail;
+  expect(missing.ok).toBe(false);
+  expectWireFailure(missing.wire, 'entry', 'module-not-found');
+  const parse = resultOf(doc, 'parse-error') as LoadFail;
+  expect(parse.ok).toBe(false);
+  expectWireFailure(parse.wire, 'entry', 'parse-failure');
 
-    // 「本次启用失败且不执行任何插件代码」（03.05:24）：全部越界体标记与逃逸目标零执行。
-    const markers = resultOf(doc, 'markers') as Record<string, unknown>;
-    for (const marker of Object.keys(markers)) {
-      expect(markers[marker], `越界插件体不得执行：${marker}`).toBeNull();
-    }
-  },
-  120_000,
-);
+  // 「本次启用失败且不执行任何插件代码」（03.05:24）：全部越界体标记与逃逸目标零执行。
+  const markers = resultOf(doc, 'markers') as Record<string, unknown>;
+  for (const marker of Object.keys(markers)) {
+    expect(markers[marker], `越界插件体不得执行：${marker}`).toBeNull();
+  }
+}, 120_000);

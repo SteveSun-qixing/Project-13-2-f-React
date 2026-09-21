@@ -167,7 +167,7 @@ function createLazyParts(): IRecordLazyParts {
  * @param releaseHandle 解析句柄释放入口（chips-parser 端口的 `release`）。
  */
 export function createDocumentSessionStore(
-  releaseHandle: (handle: IDocumentHandle) => Promise<void>
+  releaseHandle: (handle: IDocumentHandle) => Promise<void>,
 ): IDocumentSessionStore {
   const recordsByUri = new Map<string, IDocumentRecord>();
   /** 会话 → 文档标识 → 受管 URI（§3.1 冲突判定索引）。 */
@@ -221,7 +221,9 @@ export function createDocumentSessionStore(
     getOrCreateSession(record, sessionId) {
       if (releasingSessions.has(sessionId)) {
         // §4.6：`closing` 期间拒绝新请求；会话已不可用按 `BRIDGE_SESSION_UNKNOWN` 返回。
-        throw documentError(DOCUMENT_CHANNEL_ERROR_CODES.sessionUnknown, { details: { documentId: record.documentId } });
+        throw documentError(DOCUMENT_CHANNEL_ERROR_CODES.sessionUnknown, {
+          details: { documentId: record.documentId },
+        });
       }
       const existing = record.sessions.get(sessionId);
       if (existing !== undefined) {
@@ -296,8 +298,8 @@ export function createDocumentSessionStore(
         record,
         next.then(
           () => undefined,
-          () => undefined
-        )
+          () => undefined,
+        ),
       );
       return next;
     },

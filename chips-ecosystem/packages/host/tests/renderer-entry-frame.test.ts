@@ -161,14 +161,19 @@ function createHarness(token: string = TOKEN): Harness {
 }
 
 function hostMessage(harness: Harness, type: string, payload: unknown): void {
-  harness.firePort(
-    createFrameEnvelope(SESSION_ID, FRAME_ID, { type, payload })
-  );
+  harness.firePort(createFrameEnvelope(SESSION_ID, FRAME_ID, { type, payload }));
 }
 
-function handshake(harness: Harness, overrides: Partial<{ sessionId: string; frameId: string; token: string }> = {}): void {
+function handshake(
+  harness: Harness,
+  overrides: Partial<{ sessionId: string; frameId: string; token: string }> = {},
+): void {
   harness.fireHandshake({
-    data: createHandshakeTransfer(overrides.sessionId ?? SESSION_ID, overrides.frameId ?? FRAME_ID, overrides.token ?? TOKEN),
+    data: createHandshakeTransfer(
+      overrides.sessionId ?? SESSION_ID,
+      overrides.frameId ?? FRAME_ID,
+      overrides.token ?? TOKEN,
+    ),
     ports: [harness.port],
   });
 }
@@ -209,7 +214,10 @@ describe('握手与令牌闸', () => {
     const harness = createHarness();
     const handle = startFrameRuntime(harness.env);
     harness.fireHandshake({ data: createHandshakeTransfer(SESSION_ID, FRAME_ID, 'wrong'), ports: [harness.port] });
-    harness.fireHandshake({ data: { protocol: 'other', type: 'host:handshake', sessionId: SESSION_ID, frameId: FRAME_ID, token: TOKEN }, ports: [harness.port] });
+    harness.fireHandshake({
+      data: { protocol: 'other', type: 'host:handshake', sessionId: SESSION_ID, frameId: FRAME_ID, token: TOKEN },
+      ports: [harness.port],
+    });
     harness.fireHandshake({ data: 'not-a-record', ports: [] });
     expect(handle.session).toBeNull();
     expect(harness.calls.warn).toHaveBeenCalledTimes(3);
@@ -355,8 +363,18 @@ describe('入站清单与登记一致性（§9.3 / §9.6）', () => {
   it('封套与会话登记不符：忽略并记录', () => {
     const harness = initializedHarness();
     const before = harness.posted.length;
-    harness.firePort(createFrameEnvelope('other-session', FRAME_ID, { type: 'host:update', payload: { view: INIT_PAYLOAD.view, revision: 9 } }));
-    harness.firePort(createFrameEnvelope(SESSION_ID, 'other-frame', { type: 'host:update', payload: { view: INIT_PAYLOAD.view, revision: 9 } }));
+    harness.firePort(
+      createFrameEnvelope('other-session', FRAME_ID, {
+        type: 'host:update',
+        payload: { view: INIT_PAYLOAD.view, revision: 9 },
+      }),
+    );
+    harness.firePort(
+      createFrameEnvelope(SESSION_ID, 'other-frame', {
+        type: 'host:update',
+        payload: { view: INIT_PAYLOAD.view, revision: 9 },
+      }),
+    );
     expect(harness.posted).toHaveLength(before);
     expect(harness.calls.clearNodeContainers).not.toHaveBeenCalled();
     expect(harness.calls.warn).toHaveBeenCalledTimes(2);
@@ -377,7 +395,7 @@ describe('入站清单与登记一致性（§9.3 / §9.6）', () => {
     });
     expect(harness.calls.warn).toHaveBeenCalledWith(
       '父帧拒绝了帧动作',
-      expect.objectContaining({ requestId: 'req-1', code: 'BRIDGE_PERMISSION_DENIED' })
+      expect.objectContaining({ requestId: 'req-1', code: 'BRIDGE_PERMISSION_DENIED' }),
     );
   });
 
@@ -432,13 +450,24 @@ describe('销毁收口', () => {
 describe('parseHostEnvelope：子帧入站封套闸', () => {
   it('host:* 清单与 null 载荷规则', () => {
     expect(
-      parseHostEnvelope(createFrameEnvelope('s', 'f', { type: 'host:height-ack', payload: { epoch: 1 } }))
+      parseHostEnvelope(createFrameEnvelope('s', 'f', { type: 'host:height-ack', payload: { epoch: 1 } })),
     ).not.toBeNull();
     expect(parseHostEnvelope(createFrameEnvelope('s', 'f', { type: 'host:dispose', payload: null }))).not.toBeNull();
     expect(parseHostEnvelope(createFrameEnvelope('s', 'f', { type: 'host:update', payload: null }))).toBeNull();
-    expect(parseHostEnvelope({ protocol: 'chips-frame/2', sessionId: 's', frameId: 'f', message: { type: 'host:dispose', payload: null } })).toBeNull();
-    expect(parseHostEnvelope(createFrameEnvelope('s', 'f', { type: 'frame:ready', payload: { capabilities: [] } }))).toBeNull();
-    expect(parseHostEnvelope({ protocol: 'chips-frame/1', message: { type: 'host:dispose', payload: null } })).toBeNull();
+    expect(
+      parseHostEnvelope({
+        protocol: 'chips-frame/2',
+        sessionId: 's',
+        frameId: 'f',
+        message: { type: 'host:dispose', payload: null },
+      }),
+    ).toBeNull();
+    expect(
+      parseHostEnvelope(createFrameEnvelope('s', 'f', { type: 'frame:ready', payload: { capabilities: [] } })),
+    ).toBeNull();
+    expect(
+      parseHostEnvelope({ protocol: 'chips-frame/1', message: { type: 'host:dispose', payload: null } }),
+    ).toBeNull();
     expect(parseHostEnvelope(null)).toBeNull();
   });
 });

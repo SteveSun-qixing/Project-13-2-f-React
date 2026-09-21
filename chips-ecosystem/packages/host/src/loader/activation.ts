@@ -93,9 +93,7 @@ export interface IPluginActivationContextOptions {
  * @param options 插件身份、能力注册表、事件出口、配置快照与取消信号。
  * @returns 激活上下文（配置快照只读冻结；能力 owner 预绑定本插件）。
  */
-export function createPluginActivationContext(
-  options: IPluginActivationContextOptions,
-): IPluginActivationContext {
+export function createPluginActivationContext(options: IPluginActivationContextOptions): IPluginActivationContext {
   const registered: string[] = [];
   const config: Readonly<Record<string, unknown>> = Object.freeze(
     options.config === undefined ? {} : { ...options.config },
@@ -127,11 +125,11 @@ export function createPluginActivationContext(
     unregisterCapability(capabilityId: string): void {
       const entry = options.hostCapabilityRegistry.getRegistered(capabilityId);
       if (entry !== undefined && entry.owner !== options.pluginId) {
-        throwCpkError(
-          LIFECYCLE_ERROR_CODES.applyFailed,
-          `不得注销其他提供方注册的能力：${capabilityId}`,
-          { pluginId: options.pluginId, capabilityId, owner: entry.owner },
-        );
+        throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `不得注销其他提供方注册的能力：${capabilityId}`, {
+          pluginId: options.pluginId,
+          capabilityId,
+          owner: entry.owner,
+        });
       }
       options.hostCapabilityRegistry.unregister(capabilityId);
       const index = registered.indexOf(capabilityId);

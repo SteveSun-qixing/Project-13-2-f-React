@@ -18,14 +18,7 @@ import { createDocumentService } from '../src/capabilities/document/service.js';
 import type { IDocumentService } from '../src/capabilities/document/service.js';
 import { DOCUMENT_CHANNEL_ERROR_CODES, DocumentCapabilityError } from '../src/capabilities/document/errors.js';
 import type { IDocumentServiceDependencies } from '../src/capabilities/document/ports.js';
-import {
-  CARD_ID,
-  createHarness,
-  ctxFor,
-  NODE_ID_ONE,
-  portFailure,
-  SESSION_A,
-} from './helpers/document-fake-ports.js';
+import { CARD_ID, createHarness, ctxFor, NODE_ID_ONE, portFailure, SESSION_A } from './helpers/document-fake-ports.js';
 
 describe('阶段异常归一', () => {
   it('端口抛出的登记码原样透传，不落内部错误', async () => {
@@ -99,7 +92,7 @@ describe('事件发布失败（§7.3：事件是通知不是状态）', () => {
     await service.executeOpen({ source: harness.cardUri }, ctx);
     await service.executeWrite(
       { documentId: CARD_ID, part: 'content', nodeId: NODE_ID_ONE, value: { text: '改写' } },
-      ctx
+      ctx,
     );
     // 写入只改内存模型、不发布事件（§4.2）：打开阶段的 opened 是唯一已发布事件。
     expect(harness.eventIds()).toEqual(['document:opened']);
@@ -142,9 +135,7 @@ describe('权限与会话判定入口（§9.1：每调用查询、不缓存）',
     const ctx = ctxFor(SESSION_A);
     await service.executeOpen({ source: harness.cardUri }, ctx);
     harness.closeSession(SESSION_A);
-    const error = await service
-      .executeSave({ documentId: CARD_ID }, ctx)
-      .catch((caught: unknown) => caught);
+    const error = await service.executeSave({ documentId: CARD_ID }, ctx).catch((caught: unknown) => caught);
     expect((error as DocumentCapabilityError).code).toBe(DOCUMENT_CHANNEL_ERROR_CODES.sessionUnknown);
     expect((error as DocumentCapabilityError).details?.capabilityId).toBe('document:save');
   });

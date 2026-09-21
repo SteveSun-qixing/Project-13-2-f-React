@@ -115,7 +115,11 @@ test('boundaries：自引用豁免——exports 登记子路径放行、未登�
     flags: noFlags,
   });
   const undeclared = report.violations.filter((item) => item.code === 'BOUNDARY021');
-  assert.equal(undeclared.length, 1, `仅未登记子路径应报 BOUNDARY021：${JSON.stringify(report.violations)}`);
+  assert.equal(
+    undeclared.length,
+    1,
+    `仅未登记子路径应报 BOUNDARY021：${JSON.stringify(report.violations)}`
+  );
   assert.ok(undeclared[0].message.includes('@chips/self/ghost'), '未登记子路径应被点名');
   assert.ok(undeclared[0].file.endsWith('packages/self/src/index.ts'));
   // 登记子路径 `@chips/self/sub` 零违规（连同归档排除后全包无其他违规码）。

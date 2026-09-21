@@ -65,7 +65,11 @@ export class FrameHeightController {
       return 'rejected';
     }
     if (!Number.isFinite(epoch) || epoch <= this.lastEpoch) {
-      this.deps.diagnostics.warn(this.deps.scope ?? 'render.height', '拒绝非递增高度代数', { height, epoch, lastEpoch: this.lastEpoch });
+      this.deps.diagnostics.warn(this.deps.scope ?? 'render.height', '拒绝非递增高度代数', {
+        height,
+        epoch,
+        lastEpoch: this.lastEpoch,
+      });
       return 'rejected';
     }
     this.lastEpoch = epoch;

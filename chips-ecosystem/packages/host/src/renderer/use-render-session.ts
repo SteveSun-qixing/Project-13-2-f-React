@@ -11,7 +11,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import type { IRenderEngine, IRenderSession, RenderEventMap, RenderEventName, RenderRequest, RenderSessionState } from './render-engine.js';
+import type {
+  IRenderEngine,
+  IRenderSession,
+  RenderEventMap,
+  RenderEventName,
+  RenderRequest,
+  RenderSessionState,
+} from './render-engine.js';
 import { toChipsError } from '../preload/chips-error.js';
 import type { ChipsError } from '../preload/chips-error.js';
 

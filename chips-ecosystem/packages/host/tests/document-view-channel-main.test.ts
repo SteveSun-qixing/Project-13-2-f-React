@@ -23,7 +23,16 @@ import { describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
-import { createHarness, ctxFor, CARD_ID, BOX_ID, NODE_ID_ONE, NODE_ID_TWO, SESSION_A, SESSION_B } from './helpers/document-fake-ports.js';
+import {
+  createHarness,
+  ctxFor,
+  CARD_ID,
+  BOX_ID,
+  NODE_ID_ONE,
+  NODE_ID_TWO,
+  SESSION_A,
+  SESSION_B,
+} from './helpers/document-fake-ports.js';
 import { createDocumentService } from '../src/capabilities/document/service.js';
 import type { IDocumentService } from '../src/capabilities/document/service.js';
 import {
@@ -38,8 +47,16 @@ import {
   createDocumentCapabilityWiring,
   type IDocumentResourcePorts,
 } from '../src/capabilities/document/adapters/production-wiring.js';
-import type { DocumentGuardSessionSource, IDocumentGuardSessionView } from '../src/capabilities/document/adapters/bridge-session-guard.js';
-import type { IDocumentCommitRequest, IDocumentScopePort, IDocumentStoragePort, IResolvedDocumentSource } from '../src/capabilities/document/ports.js';
+import type {
+  DocumentGuardSessionSource,
+  IDocumentGuardSessionView,
+} from '../src/capabilities/document/adapters/bridge-session-guard.js';
+import type {
+  IDocumentCommitRequest,
+  IDocumentScopePort,
+  IDocumentStoragePort,
+  IResolvedDocumentSource,
+} from '../src/capabilities/document/ports.js';
 import {
   DOCUMENT_VIEW_PROTOCOL,
   DOCUMENT_VIEW_REQUEST_CHANNEL,
@@ -90,9 +107,10 @@ function baseCardView(revision = 0): Record<string, unknown> {
 }
 
 /** 视图构建域替身注入面（逐调用记录句柄身份与数值会话；资源臂不在段A消费面）。 */
-function makeFakeNative(
-  behavior?: (handle: unknown, session: number) => Promise<Record<string, unknown>>
-): { readonly native: INativeDocumentViewModule; readonly calls: { handle: unknown; session: number }[] } {
+function makeFakeNative(behavior?: (handle: unknown, session: number) => Promise<Record<string, unknown>>): {
+  readonly native: INativeDocumentViewModule;
+  readonly calls: { handle: unknown; session: number }[];
+} {
   const calls: { handle: unknown; session: number }[] = [];
   return {
     calls,
@@ -119,7 +137,10 @@ function assertNoInternalLeak(value: unknown, path = 'root'): void {
   }
   if (typeof value === 'object' && value !== null) {
     for (const [key, item] of Object.entries(value)) {
-      expect(['handle', 'nativeSession', 'sessionId', 'documentHandleBrand', 'managedUri'], `${path} 泄露内部键 ${key}`).not.toContain(key);
+      expect(
+        ['handle', 'nativeSession', 'sessionId', 'documentHandleBrand', 'managedUri'],
+        `${path} 泄露内部键 ${key}`,
+      ).not.toContain(key);
       assertNoInternalLeak(item, `${path}.${key}`);
     }
   }
@@ -129,7 +150,12 @@ function assertNoInternalLeak(value: unknown, path = 'root'): void {
 function collectDiagnostics(): DiagnosticsSink & {
   entries: { level: 'warn' | 'error'; scope: string; message: string; details?: Readonly<Record<string, unknown>> }[];
 } {
-  const entries: { level: 'warn' | 'error'; scope: string; message: string; details?: Readonly<Record<string, unknown>> }[] = [];
+  const entries: {
+    level: 'warn' | 'error';
+    scope: string;
+    message: string;
+    details?: Readonly<Record<string, unknown>>;
+  }[] = [];
   return {
     entries,
     warn(scope, message, details) {
@@ -203,7 +229,10 @@ describe('resolveViewSession：记录级数值会话生成与会话定位（段A
 
   it('not-found 臂：来源从未打开 / 记录已随会话释放移除', async () => {
     const { harness, service } = await openHarnessCard();
-    expect(service.resolveViewSession({ source: 'chips-resource://default/card/Gg7Hh8Ij9K.card', documentId: 'Gg7Hh8Ij9K' }).status).toBe('not-found');
+    expect(
+      service.resolveViewSession({ source: 'chips-resource://default/card/Gg7Hh8Ij9K.card', documentId: 'Gg7Hh8Ij9K' })
+        .status,
+    ).toBe('not-found');
     await service.releaseSessions(SESSION_A);
     expect(service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID }).status).toBe('not-found');
   });
@@ -264,7 +293,9 @@ describe('createDocumentViewSessionResolver：string↔u64 归一单点', () => 
   it('not-found / conflict 以在册会话域码拒绝（DOCUMENT_NOT_OPEN / DOCUMENT_ID_CONFLICT）', async () => {
     const { harness, service } = await openHarnessCard();
     const resolver = createDocumentViewSessionResolver(service);
-    await expect(resolver({ source: 'chips-resource://default/card/Gg7Hh8Ij9K.card', documentId: 'Gg7Hh8Ij9K', kind: 'card' })).rejects.toMatchObject({
+    await expect(
+      resolver({ source: 'chips-resource://default/card/Gg7Hh8Ij9K.card', documentId: 'Gg7Hh8Ij9K', kind: 'card' }),
+    ).rejects.toMatchObject({
       code: 'DOCUMENT_NOT_OPEN',
     });
     await expect(resolver({ source: harness.cardUri, documentId: BOX_ID, kind: 'card' })).rejects.toMatchObject({
@@ -282,9 +313,11 @@ describe('createDocumentViewSessionResolver：string↔u64 归一单点', () => 
       }),
     } as unknown as IDocumentService;
     const resolver = createDocumentViewSessionResolver(service);
-    await expect(resolver({ source: 'chips://not-resource', documentId: CARD_ID, kind: 'card' })).rejects.toMatchObject({
-      code: 'BRIDGE_INTERNAL',
-    });
+    await expect(resolver({ source: 'chips://not-resource', documentId: CARD_ID, kind: 'card' })).rejects.toMatchObject(
+      {
+        code: 'BRIDGE_INTERNAL',
+      },
+    );
   });
 });
 
@@ -298,7 +331,9 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     const fake = makeFakeNative();
     const endpoint = createDocumentViewChannelHandler({ service, native: fake.native });
     const response = validateDocumentViewChannelResponse(
-      await endpoint.handleRequest(createDocumentViewBuildRequest('req-ok', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }))
+      await endpoint.handleRequest(
+        createDocumentViewBuildRequest('req-ok', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildResult(response)).toBe(true);
     if (!isDocumentViewBuildResult(response)) {
@@ -324,14 +359,27 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
       null,
       'not-an-envelope',
       { ...createDocumentViewBuildRequest('req-a', { source: 'x', documentId: CARD_ID, kind: 'card' }), extra: true },
-      { ...createDocumentViewBuildRequest('req-b', { source: 'x', documentId: CARD_ID, kind: 'card' }), protocol: 'chips-document-view/2' },
-      { ...createDocumentViewBuildRequest('req-c', { source: 'x', documentId: CARD_ID, kind: 'card' }), type: 'document-view:result' },
+      {
+        ...createDocumentViewBuildRequest('req-b', { source: 'x', documentId: CARD_ID, kind: 'card' }),
+        protocol: 'chips-document-view/2',
+      },
+      {
+        ...createDocumentViewBuildRequest('req-c', { source: 'x', documentId: CARD_ID, kind: 'card' }),
+        type: 'document-view:result',
+      },
       { ...createDocumentViewBuildRequest('', { source: 'x', documentId: CARD_ID, kind: 'card' }) },
       { ...createDocumentViewBuildRequest('req-d', { source: '', documentId: CARD_ID, kind: 'card' }) },
       { ...createDocumentViewBuildRequest('req-e', { source: 'x', documentId: 'short', kind: 'card' }) },
       { ...createDocumentViewBuildRequest('req-f', { source: 'x', documentId: 'Ab3dEf6Gh8!', kind: 'card' }) },
       { ...createDocumentViewBuildRequest('req-g', { source: 'x', documentId: CARD_ID, kind: 'sheet' as 'card' }) },
-      { ...createDocumentViewBuildRequest('req-h', { source: 'x', documentId: CARD_ID, kind: 'card', extra: 1 } as unknown as Parameters<typeof createDocumentViewBuildRequest>[1]) },
+      {
+        ...createDocumentViewBuildRequest('req-h', {
+          source: 'x',
+          documentId: CARD_ID,
+          kind: 'card',
+          extra: 1,
+        } as unknown as Parameters<typeof createDocumentViewBuildRequest>[1]),
+      },
     ];
     for (const payload of malformed) {
       const raw = await endpoint.handleRequest(payload);
@@ -349,7 +397,9 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     const { harness, service } = await openHarnessCard();
     const endpoint = createDocumentViewChannelHandler({ service, native: makeFakeNative().native });
     const response = validateDocumentViewChannelResponse(
-      await endpoint.handleRequest(createDocumentViewBuildRequest('req-box', { source: harness.cardUri, documentId: CARD_ID, kind: 'box' }))
+      await endpoint.handleRequest(
+        createDocumentViewBuildRequest('req-box', { source: harness.cardUri, documentId: CARD_ID, kind: 'box' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(response)).toBe(true);
     if (isDocumentViewBuildFailure(response)) {
@@ -362,7 +412,13 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     const { harness, service } = await openHarnessCard();
     const endpoint = createDocumentViewChannelHandler({ service, native: makeFakeNative().native });
     const ghost = validateDocumentViewChannelResponse(
-      await endpoint.handleRequest(createDocumentViewBuildRequest('req-ghost', { source: 'chips-resource://default/card/Gg7Hh8Ij9K.card', documentId: 'Gg7Hh8Ij9K', kind: 'card' }))
+      await endpoint.handleRequest(
+        createDocumentViewBuildRequest('req-ghost', {
+          source: 'chips-resource://default/card/Gg7Hh8Ij9K.card',
+          documentId: 'Gg7Hh8Ij9K',
+          kind: 'card',
+        }),
+      ),
     );
     expect(isDocumentViewBuildFailure(ghost)).toBe(true);
     if (isDocumentViewBuildFailure(ghost)) {
@@ -370,7 +426,9 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
       expect(ghost.error.code).toBe('DOCUMENT_NOT_OPEN');
     }
     const drift = validateDocumentViewChannelResponse(
-      await endpoint.handleRequest(createDocumentViewBuildRequest('req-drift', { source: harness.cardUri, documentId: BOX_ID, kind: 'card' }))
+      await endpoint.handleRequest(
+        createDocumentViewBuildRequest('req-drift', { source: harness.cardUri, documentId: BOX_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(drift)).toBe(true);
     if (isDocumentViewBuildFailure(drift)) {
@@ -382,10 +440,14 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     const { harness, service } = await openHarnessCard();
     const notFound = createDocumentViewChannelHandler({
       service,
-      native: makeFakeNative(() => Promise.reject(Object.assign(new Error('句柄已释放'), { code: 'DOCUMENT_NOT_FOUND', retryable: false }))).native,
+      native: makeFakeNative(() =>
+        Promise.reject(Object.assign(new Error('句柄已释放'), { code: 'DOCUMENT_NOT_FOUND', retryable: false })),
+      ).native,
     });
     const response1 = validateDocumentViewChannelResponse(
-      await notFound.handleRequest(createDocumentViewBuildRequest('req-nf', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }))
+      await notFound.handleRequest(
+        createDocumentViewBuildRequest('req-nf', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(response1)).toBe(true);
     if (isDocumentViewBuildFailure(response1)) {
@@ -393,10 +455,16 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     }
     const drift = createDocumentViewChannelHandler({
       service,
-      native: makeFakeNative(() => Promise.reject(Object.assign(new Error('渲染域码不应出现在本链路'), { code: 'RENDER_INTERNAL', retryable: false }))).native,
+      native: makeFakeNative(() =>
+        Promise.reject(
+          Object.assign(new Error('渲染域码不应出现在本链路'), { code: 'RENDER_INTERNAL', retryable: false }),
+        ),
+      ).native,
     });
     const response2 = validateDocumentViewChannelResponse(
-      await drift.handleRequest(createDocumentViewBuildRequest('req-drift2', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }))
+      await drift.handleRequest(
+        createDocumentViewBuildRequest('req-drift2', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(response2)).toBe(true);
     if (isDocumentViewBuildFailure(response2)) {
@@ -412,7 +480,9 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
       native: makeFakeNative(() => Promise.resolve({ kind: 'card', revision: 0 })).native,
     });
     const response1 = validateDocumentViewChannelResponse(
-      await missingKeys.handleRequest(createDocumentViewBuildRequest('req-shape', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }))
+      await missingKeys.handleRequest(
+        createDocumentViewBuildRequest('req-shape', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(response1)).toBe(true);
     if (isDocumentViewBuildFailure(response1)) {
@@ -423,7 +493,9 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
       native: makeFakeNative(() => Promise.resolve({ ...baseCardView(), extra: () => undefined })).native,
     });
     const response2 = validateDocumentViewChannelResponse(
-      await withFunction.handleRequest(createDocumentViewBuildRequest('req-fn', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }))
+      await withFunction.handleRequest(
+        createDocumentViewBuildRequest('req-fn', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(response2)).toBe(true);
   });
@@ -431,7 +503,9 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
   it('句柄与数值会话不出回包：成功臂递归巡检泄露防线 + JSON 往返无内部字段', async () => {
     const { harness, service } = await openHarnessCard();
     const endpoint = createDocumentViewChannelHandler({ service, native: makeFakeNative().native });
-    const raw = await endpoint.handleRequest(createDocumentViewBuildRequest('req-leak', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }));
+    const raw = await endpoint.handleRequest(
+      createDocumentViewBuildRequest('req-leak', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+    );
     assertNoInternalLeak(raw);
     const roundTripped = JSON.parse(JSON.stringify(raw)) as DocumentViewBuildResponse;
     expect(isDocumentViewBuildResult(roundTripped)).toBe(true);
@@ -443,7 +517,9 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
  * ------------------------------------------------------------------ */
 
 describe('registerDocumentViewChannel：ipcMain 切片注册与幂等注销', () => {
-  function makeFakeIpcMain(): ShellIpcMain & { handlers: Map<string, (event: ShellIpcInvokeEvent, ...args: readonly unknown[]) => unknown> } {
+  function makeFakeIpcMain(): ShellIpcMain & {
+    handlers: Map<string, (event: ShellIpcInvokeEvent, ...args: readonly unknown[]) => unknown>;
+  } {
     const handlers = new Map<string, (event: ShellIpcInvokeEvent, ...args: readonly unknown[]) => unknown>();
     return {
       handlers,
@@ -467,7 +543,11 @@ describe('registerDocumentViewChannel：ipcMain 切片注册与幂等注销', ()
     if (listener === undefined) {
       return;
     }
-    const returned = await listener(EVENT, createDocumentViewBuildRequest('req-ipc', { source: 'chips-resource://x', documentId: CARD_ID, kind: 'card' }), '多余实参被忽略');
+    const returned = await listener(
+      EVENT,
+      createDocumentViewBuildRequest('req-ipc', { source: 'chips-resource://x', documentId: CARD_ID, kind: 'card' }),
+      '多余实参被忽略',
+    );
     const response = validateDocumentViewChannelResponse(returned);
     expect(isDocumentViewBuildFailure(response)).toBe(true);
     if (isDocumentViewBuildFailure(response)) {
@@ -481,7 +561,11 @@ describe('registerDocumentViewChannel：ipcMain 切片注册与幂等注销', ()
 
   it('通道名覆写注入位可用（缺省恒为契约唯一名字来源）', () => {
     const ipcMain = makeFakeIpcMain();
-    registerDocumentViewChannel({ ipcMain, endpoint: createUnavailableDocumentViewChannelEndpoint(), channel: 'document-view:test-only' });
+    registerDocumentViewChannel({
+      ipcMain,
+      endpoint: createUnavailableDocumentViewChannelEndpoint(),
+      channel: 'document-view:test-only',
+    });
     expect(ipcMain.handlers.has('document-view:test-only')).toBe(true);
     expect(ipcMain.handlers.has(DOCUMENT_VIEW_REQUEST_CHANNEL)).toBe(false);
   });
@@ -491,7 +575,13 @@ describe('未接线诚实拒绝臂（当前生产恒回退态，工单036）', (
   it('合法请求 → BRIDGE_INTERNAL 失败臂回显 requestId；破损请求 → 回退标识 + BRIDGE_INVALID_INPUT；全程不抛出', async () => {
     const endpoint = createUnavailableDocumentViewChannelEndpoint();
     const valid = validateDocumentViewChannelResponse(
-      await endpoint.handleRequest(createDocumentViewBuildRequest('req-unwired', { source: 'chips-resource://default/card/x.card', documentId: CARD_ID, kind: 'card' }))
+      await endpoint.handleRequest(
+        createDocumentViewBuildRequest('req-unwired', {
+          source: 'chips-resource://default/card/x.card',
+          documentId: CARD_ID,
+          kind: 'card',
+        }),
+      ),
     );
     expect(isDocumentViewBuildFailure(valid)).toBe(true);
     if (isDocumentViewBuildFailure(valid)) {
@@ -499,7 +589,9 @@ describe('未接线诚实拒绝臂（当前生产恒回退态，工单036）', (
       expect(valid.error.code).toBe('BRIDGE_INTERNAL');
       expect(valid.error.details).toMatchObject({ gate: 'wiring' });
     }
-    const invalid = validateDocumentViewChannelResponse(await endpoint.handleRequest({ protocol: DOCUMENT_VIEW_PROTOCOL }));
+    const invalid = validateDocumentViewChannelResponse(
+      await endpoint.handleRequest({ protocol: DOCUMENT_VIEW_PROTOCOL }),
+    );
     expect(isDocumentViewBuildFailure(invalid)).toBe(true);
     if (isDocumentViewBuildFailure(invalid)) {
       expect(invalid.error.code).toBe('BRIDGE_INVALID_INPUT');
@@ -571,13 +663,19 @@ describe('生产装载段：viewChannel 两臂恒在（缝③收口）', () => {
       __calls: { export: string; args: Record<string, unknown> }[];
     };
     const wiring = createDocumentCapabilityWiring(
-      { parserModulePath: PARSER_BEHAVIOR_FIXTURE, guardSessionSource: activeGuard(), resourcePorts: makeResourcePorts() },
+      {
+        parserModulePath: PARSER_BEHAVIOR_FIXTURE,
+        guardSessionSource: activeGuard(),
+        resourcePorts: makeResourcePorts(),
+      },
       WIRING_CONTEXT,
-      collectDiagnostics()
+      collectDiagnostics(),
     );
     expect(wiring.status).toBe('wired');
     expect(wiring.service).toBeDefined();
-    const openDescriptor = wiring.descriptors.find((descriptor: IHostCapabilityDescriptor) => descriptor.id === 'document:open');
+    const openDescriptor = wiring.descriptors.find(
+      (descriptor: IHostCapabilityDescriptor) => descriptor.id === 'document:open',
+    );
     expect(openDescriptor).toBeDefined();
     await openDescriptor?.handler({ source: WIRING_CARD_URI }, hostCtxFor(SESSION_A));
     if (!wiring.service) {
@@ -588,7 +686,9 @@ describe('生产装载段：viewChannel 两臂恒在（缝③收口）', () => {
 
     const callsBefore = fixtureModule.__calls.length;
     const response = validateDocumentViewChannelResponse(
-      await wiring.viewChannel.handleRequest(createDocumentViewBuildRequest('req-wired', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }))
+      await wiring.viewChannel.handleRequest(
+        createDocumentViewBuildRequest('req-wired', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildResult(response)).toBe(true);
     if (isDocumentViewBuildResult(response) && resolution.status === 'found') {
@@ -601,17 +701,26 @@ describe('生产装载段：viewChannel 两臂恒在（缝③收口）', () => {
     expect(viewCalls).toHaveLength(1);
     // 句柄侧归一：夹具登记路径可查 → 传入的是 WeakMap 还原后的真实原生句柄，
     // 服务侧 token 直达夹具会在 `requireHandle` 处即 `DOCUMENT_NOT_FOUND`。
-    expect(viewCalls[0]?.args).toMatchObject({ path: '/fake/prod-card.card', session: resolution.status === 'found' ? resolution.nativeSession : undefined });
+    expect(viewCalls[0]?.args).toMatchObject({
+      path: '/fake/prod-card.card',
+      session: resolution.status === 'found' ? resolution.nativeSession : undefined,
+    });
   });
 
   it('wired 臂未打开即请求：DOCUMENT_NOT_OPEN 如实失败（不伪造成功）', async () => {
     const wiring = createDocumentCapabilityWiring(
-      { parserModulePath: PARSER_BEHAVIOR_FIXTURE, guardSessionSource: activeGuard(), resourcePorts: makeResourcePorts() },
+      {
+        parserModulePath: PARSER_BEHAVIOR_FIXTURE,
+        guardSessionSource: activeGuard(),
+        resourcePorts: makeResourcePorts(),
+      },
       WIRING_CONTEXT,
-      collectDiagnostics()
+      collectDiagnostics(),
     );
     const response = validateDocumentViewChannelResponse(
-      await wiring.viewChannel.handleRequest(createDocumentViewBuildRequest('req-cold', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }))
+      await wiring.viewChannel.handleRequest(
+        createDocumentViewBuildRequest('req-cold', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(response)).toBe(true);
     if (isDocumentViewBuildFailure(response)) {
@@ -627,7 +736,9 @@ describe('生产装载段：viewChannel 两臂恒在（缝③收口）', () => {
     expect(wiring.descriptors).toEqual([]);
     expect(diagnostics.entries.some((entry) => entry.scope === DOCUMENT_WIRING_DIAGNOSTIC_SCOPE)).toBe(true);
     const response = validateDocumentViewChannelResponse(
-      await wiring.viewChannel.handleRequest(createDocumentViewBuildRequest('req-fallback', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }))
+      await wiring.viewChannel.handleRequest(
+        createDocumentViewBuildRequest('req-fallback', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(response)).toBe(true);
     if (isDocumentViewBuildFailure(response)) {
@@ -662,17 +773,25 @@ describe('createHostRuntime：取视图通道端点透传与 onBridgeSessionClos
       diagnostics,
     });
     await runtime.start({} as IPalHost, { pushSessionPermissions: () => undefined });
-    await runtime.ipc.handleRequest({ windowId: 7, frameId: null }, { requestId: 'seed-1', capabilityId: 'no:such', input: {} });
+    await runtime.ipc.handleRequest(
+      { windowId: 7, frameId: null },
+      { requestId: 'seed-1', capabilityId: 'no:such', input: {} },
+    );
     expect(() => runtime.ipc.handleWindowClosed(7)).not.toThrow();
     expect(closed).toEqual(['session:7:main']);
-    expect(diagnostics.entries.some((entry) => entry.level === 'error' && entry.message.includes('会话关闭联动回调抛出'))).toBe(true);
+    expect(
+      diagnostics.entries.some((entry) => entry.level === 'error' && entry.message.includes('会话关闭联动回调抛出')),
+    ).toBe(true);
     await runtime.shutdown();
   });
 
   it('未注入联动：会话关闭路径保持原语义（不新增调用面）', async () => {
     const runtime = createHostRuntime({});
     await runtime.start({} as IPalHost, { pushSessionPermissions: () => undefined });
-    await runtime.ipc.handleRequest({ windowId: 8, frameId: null }, { requestId: 'seed-2', capabilityId: 'no:such', input: {} });
+    await runtime.ipc.handleRequest(
+      { windowId: 8, frameId: null },
+      { requestId: 'seed-2', capabilityId: 'no:such', input: {} },
+    );
     expect(() => runtime.ipc.handleWindowClosed(8)).not.toThrow();
     expect(runtime.report().activeSessions).toBe(0);
     await runtime.shutdown();
@@ -736,7 +855,9 @@ const assemblyContext: HostRuntimeContext = { palHost: host, platformRoot: '/tmp
 const SENDER = { windowId: 1, frameId: null };
 const ROUTE_SESSION_ID = 'session:1:main';
 
-async function startAssemblyRuntime(documentWiring?: Parameters<typeof createProductionAssembly>[0]['documentWiring']): Promise<IHostRuntimeLike> {
+async function startAssemblyRuntime(
+  documentWiring?: Parameters<typeof createProductionAssembly>[0]['documentWiring'],
+): Promise<IHostRuntimeLike> {
   const diagnostics = collectDiagnostics();
   const assembly = createProductionAssembly({
     createPalHost: () => host,
@@ -763,7 +884,11 @@ type IHostRuntimeLike = {
 describe('组合根端到端：wired 运行时取视图 + 关窗释放联动收口（缝②③合龙）', () => {
   it('document:open 经 Bridge 路由成功后端点取回视图；窗口关闭会话释放后同一请求如实 DOCUMENT_NOT_OPEN', async () => {
     const wiringGuard: DocumentGuardSessionSource = () => [
-      { sessionId: ROUTE_SESSION_ID, state: 'active', grantedPermissions: new Set<string>(['resources:read', 'resources:write']) },
+      {
+        sessionId: ROUTE_SESSION_ID,
+        state: 'active',
+        grantedPermissions: new Set<string>(['resources:read', 'resources:write']),
+      },
     ];
     const runtime = await startAssemblyRuntime({
       parserModulePath: PARSER_BEHAVIOR_FIXTURE,
@@ -778,7 +903,11 @@ describe('组合根端到端：wired 运行时取视图 + 关窗释放联动收�
     });
     expect(opened).toMatchObject({ ok: true });
 
-    const request = createDocumentViewBuildRequest('e2e-view', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' });
+    const request = createDocumentViewBuildRequest('e2e-view', {
+      source: WIRING_CARD_URI,
+      documentId: CARD_ID,
+      kind: 'card',
+    });
     const endpoint = runtime.documentViewChannel;
     if (endpoint === undefined) {
       return;
@@ -790,7 +919,9 @@ describe('组合根端到端：wired 运行时取视图 + 关窗释放联动收�
     // 释放链为 fire-and-forget：轮询直至会话释放联动收口（超时即测试失败）。
     const startedAt = Date.now();
     for (;;) {
-      const after = validateDocumentViewChannelResponse(await endpoint.handleRequest({ ...request, requestId: `e2e-view-${String(startedAt)}` }));
+      const after = validateDocumentViewChannelResponse(
+        await endpoint.handleRequest({ ...request, requestId: `e2e-view-${String(startedAt)}` }),
+      );
       if (isDocumentViewBuildFailure(after) && after.error.code === 'DOCUMENT_NOT_OPEN') {
         break;
       }
@@ -810,7 +941,9 @@ describe('组合根端到端：wired 运行时取视图 + 关窗释放联动收�
       return;
     }
     const response = validateDocumentViewChannelResponse(
-      await endpoint.handleRequest(createDocumentViewBuildRequest('e2e-unwired', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }))
+      await endpoint.handleRequest(
+        createDocumentViewBuildRequest('e2e-unwired', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }),
+      ),
     );
     expect(isDocumentViewBuildFailure(response)).toBe(true);
     if (isDocumentViewBuildFailure(response)) {

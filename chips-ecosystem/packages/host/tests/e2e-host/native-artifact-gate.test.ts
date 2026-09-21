@@ -69,14 +69,14 @@ describeGate('真 chips-native.node 产物装载闸（CHIPS_HOST_SMOKE / CHIPS_E
   it('判据①：产物存在且即宿主运行时生产解析路径所指（落位零漂移）', () => {
     expect(derivedArtifactPath).toBe(artifactPath);
     expect(existsSync(artifactPath), `原生产物缺失：${artifactPath}（先执行 pnpm --filter @chips/native build）`).toBe(
-      true
+      true,
     );
   });
 
   it('判据②：解析域装载闸 available，17 必备名逐项在位且为函数', () => {
     const binding = loadNativeDocumentParserBinding(artifactPath);
     expect(binding.status, `解析域装载失败：${binding.status === 'unavailable' ? binding.detail : ''}`).toBe(
-      'available'
+      'available',
     );
     if (binding.status !== 'available') {
       return;
@@ -93,7 +93,7 @@ describeGate('真 chips-native.node 产物装载闸（CHIPS_HOST_SMOKE / CHIPS_E
   it('判据③：Bridge 域装载闸同产物 available（同一 .node 内核单例）', () => {
     const bridge = loadNativeBridgeBinding(artifactPath);
     expect(bridge.status, `Bridge 域装载失败：${bridge.status === 'unavailable' ? bridge.detail : ''}`).toBe(
-      'available'
+      'available',
     );
     if (bridge.status === 'available') {
       expect(bridge.abiVersion).toBe(NATIVE_BRIDGE_ABI_VERSION);
@@ -120,10 +120,10 @@ describeGate('真 chips-native.node 产物装载闸（CHIPS_HOST_SMOKE / CHIPS_E
     const native = requireArtifact(artifactPath);
     const openCard = native.openCard as (path: string) => Promise<unknown>;
     const documentMetadata = native.documentMetadata as (
-      handle: unknown
+      handle: unknown,
     ) => Promise<{ kind: string; value: Record<string, unknown> }>;
     const documentRevision = native.documentRevision as (
-      handle: unknown
+      handle: unknown,
     ) => Promise<{ indexDigest: string; source: { members: unknown[] } }>;
     const documentClose = native.documentClose as (handle: unknown) => Promise<void>;
     const handle = await openCard(cardFixture);

@@ -109,7 +109,11 @@ function createFacade(handlers: Record<string, (input: unknown) => unknown>): {
       const handler = handlers[capabilityId];
       if (handler === undefined) {
         return Promise.reject(
-          new ChipsError({ code: 'BRIDGE_CAPABILITY_NOT_REGISTERED', message: `能力未注册：${capabilityId}`, retryable: false })
+          new ChipsError({
+            code: 'BRIDGE_CAPABILITY_NOT_REGISTERED',
+            message: `能力未注册：${capabilityId}`,
+            retryable: false,
+          }),
         );
       }
       return Promise.resolve(handler(input) as TOutput);
@@ -123,9 +127,10 @@ function createFacade(handlers: Record<string, (input: unknown) => unknown>): {
 }
 
 /** 记录型取视图通道注入端口：登记触达的通道名与载荷，回包由 response 工厂决定。 */
-function createViewChannelStub(
-  response: (request: unknown) => unknown
-): { invoke: IDocumentViewChannelInvoke; calls: Array<{ channel: string; payload: unknown }> } {
+function createViewChannelStub(response: (request: unknown) => unknown): {
+  invoke: IDocumentViewChannelInvoke;
+  calls: Array<{ channel: string; payload: unknown }>;
+} {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   return {
     calls,
@@ -187,15 +192,14 @@ describe('createCardWindowBindings：组合根接线', () => {
     const { invoke } = createViewChannelStub(() => ({}));
     const bindings = createCardWindowBindings(facade, INIT, diagnosticsStub(), invoke);
     await expect(bindings.document.open({ source: SOURCE, kind: 'card' })).rejects.toSatisfy(
-      (error: unknown) =>
-        error instanceof ChipsError && error.code === RENDER_ERROR_CODES.resourceDenied,
+      (error: unknown) => error instanceof ChipsError && error.code === RENDER_ERROR_CODES.resourceDenied,
     );
   });
 
   it('视图臂（缝②切换后）：经注入端口触达钉定通道、请求过 #105 发送侧权威闸', async () => {
     const { facade } = createFacade({});
     const { invoke, calls } = createViewChannelStub((request) =>
-      createDocumentViewBuildResult((request as { requestId: string }).requestId, VIEW)
+      createDocumentViewBuildResult((request as { requestId: string }).requestId, VIEW),
     );
     const bindings = createCardWindowBindings(facade, INIT, diagnosticsStub(), invoke);
     const view = await bindings.viewBuilder.buildView({ source: SOURCE, documentId: DOC_ID, kind: 'card' });
@@ -215,13 +219,13 @@ describe('createCardWindowBindings：组合根接线', () => {
     const { invoke } = createViewChannelStub((request) =>
       createDocumentViewBuildFailure(
         (request as { requestId: string }).requestId,
-        new ChipsError({ code: 'BRIDGE_INTERNAL', message: '文档能力未接线（#99 诚实回退）', retryable: false })
-      )
+        new ChipsError({ code: 'BRIDGE_INTERNAL', message: '文档能力未接线（#99 诚实回退）', retryable: false }),
+      ),
     );
     const bindings = createCardWindowBindings(facade, INIT, diagnosticsStub(), invoke);
-    await expect(bindings.viewBuilder.buildView({ source: SOURCE, documentId: DOC_ID, kind: 'card' })).rejects.toSatisfy(
-      (error: unknown) => error instanceof ChipsError && error.code === 'BRIDGE_INTERNAL',
-    );
+    await expect(
+      bindings.viewBuilder.buildView({ source: SOURCE, documentId: DOC_ID, kind: 'card' }),
+    ).rejects.toSatisfy((error: unknown) => error instanceof ChipsError && error.code === 'BRIDGE_INTERNAL');
     // 视图臂不再触碰任何 Bridge capability（旧结构分片臂已退役）。
     expect(calls).toHaveLength(0);
   });
@@ -299,7 +303,7 @@ describe('#100 流程锁（任务 #112 口径改写）：装载臂生效完整�
           message: '文档能力未接线',
           retryable: false,
           details: {},
-        })
+        }),
       );
     };
     (globalThis as Record<string, unknown>)[HOST_VIEW_CHANNEL_SURFACE_KEY] = { requestView };
@@ -322,9 +326,7 @@ describe('#100 流程锁（任务 #112 口径改写）：装载臂生效完整�
     const { facade } = createFacade({ 'document:open': () => OPEN_OUTPUT });
     (globalThis as { chips?: unknown }).chips = facade;
     const requestView = (_payload: unknown): Promise<unknown> =>
-      Promise.resolve(
-        createDocumentViewBuildResult('req-mismatch', VIEW)
-      );
+      Promise.resolve(createDocumentViewBuildResult('req-mismatch', VIEW));
     (globalThis as Record<string, unknown>)[HOST_VIEW_CHANNEL_SURFACE_KEY] = { requestView };
     const container = document.createElement('main');
     container.id = 'chips-card-root';
@@ -397,8 +399,8 @@ describe('mountCardWindow：生产组合 + 回流协调器接线（缝③）', (
     const { invoke, calls: channelCalls } = createViewChannelStub((request) =>
       createDocumentViewBuildFailure(
         (request as { requestId: string }).requestId,
-        new ChipsError({ code: 'BRIDGE_INTERNAL', message: '视图端点未接线（#99）', retryable: false })
-      )
+        new ChipsError({ code: 'BRIDGE_INTERNAL', message: '视图端点未接线（#99）', retryable: false }),
+      ),
     );
     const handle = mountCardWindow(container, facade, INIT, diagnosticsStub(), invoke);
     return { container, facade, calls, subscribed, invoke, channelCalls, handle };
@@ -420,8 +422,7 @@ describe('mountCardWindow：生产组合 + 回流协调器接线（缝③）', (
     const { handle } = mountWithFakeChannel();
     const action: DocumentReflowAction = { documentId: DOC_ID, part: 'structure', value: null };
     await expect(handle.executeAction(action)).rejects.toSatisfy(
-      (error: unknown) =>
-        error instanceof ChipsError && error.code === RENDER_ERROR_CODES.sessionDisposed,
+      (error: unknown) => error instanceof ChipsError && error.code === RENDER_ERROR_CODES.sessionDisposed,
     );
     // 无会话时写臂不触达。
     expect(handle).toBeDefined();
@@ -467,7 +468,10 @@ describe('createCardReflowCoordinator：§8.3 唯一时序生产组合（缝③ 
 
     // §8.3：revision 只取自 document:write 返回值（会话推进不自算）。
     expect(calls).toEqual([
-      { capabilityId: 'document:write', input: { documentId: DOC_ID, part: 'structure', nodeId: 'n-1', value: { text: '改后文本' } } },
+      {
+        capabilityId: 'document:write',
+        input: { documentId: DOC_ID, part: 'structure', nodeId: 'n-1', value: { text: '改后文本' } },
+      },
     ]);
     expect(buildView).toHaveBeenCalledWith({ source: SOURCE, documentId: DOC_ID, kind: 'card' });
     expect(updateMock).toHaveBeenCalledTimes(1);
@@ -481,15 +485,9 @@ describe('createCardReflowCoordinator：§8.3 唯一时序生产组合（缝③ 
     const { facade, calls } = createFacade({ 'document:write': () => ({ revision: 4 }) });
     const { session, updateMock } = createFakeSession();
     const buildView = vi.fn(() => Promise.resolve(VIEW));
-    const coordinator = createCardReflowCoordinator(
-      facade,
-      INIT,
-      { buildView },
-      session,
-      diagnosticsStub()
-    );
+    const coordinator = createCardReflowCoordinator(facade, INIT, { buildView }, session, diagnosticsStub());
     await expect(
-      coordinator.executeAction({ documentId: 'De9fGh0Ij2', part: 'structure', value: null })
+      coordinator.executeAction({ documentId: 'De9fGh0Ij2', part: 'structure', value: null }),
     ).rejects.toBeInstanceOf(ChipsError);
     expect(calls).toHaveLength(0);
     expect(buildView).not.toHaveBeenCalled();
@@ -506,9 +504,9 @@ describe('createCardReflowCoordinator：§8.3 唯一时序生产组合（缝③ 
     const { session, updateMock } = createFakeSession();
     const buildView = vi.fn(() => Promise.resolve(VIEW));
     const coordinator = createCardReflowCoordinator(facade, INIT, { buildView }, session, diagnosticsStub());
-    await expect(
-      coordinator.executeAction({ documentId: DOC_ID, part: 'structure', value: null })
-    ).rejects.toSatisfy((error: unknown) => error instanceof ChipsError && error.code === 'DOCUMENT_WRITE_CONFLICT');
+    await expect(coordinator.executeAction({ documentId: DOC_ID, part: 'structure', value: null })).rejects.toSatisfy(
+      (error: unknown) => error instanceof ChipsError && error.code === 'DOCUMENT_WRITE_CONFLICT',
+    );
     expect(buildView).not.toHaveBeenCalled();
     expect(updateMock).not.toHaveBeenCalled();
     coordinator.dispose();
@@ -545,7 +543,7 @@ describe('createCardReflowCoordinator：§8.3 唯一时序生产组合（缝③ 
     expect(updateMock).toHaveBeenCalledTimes(1);
     // dispose 幂等：后续 executeAction 拒绝（会话层已注销订阅）。
     await expect(
-      coordinator.executeAction({ documentId: DOC_ID, part: 'structure', value: null })
+      coordinator.executeAction({ documentId: DOC_ID, part: 'structure', value: null }),
     ).rejects.toBeInstanceOf(ChipsError);
   });
 });

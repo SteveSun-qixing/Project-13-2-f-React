@@ -25,11 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHostCapabilityRegistry } from '../src/runtime/capability/registry.js';
 import { LoaderError } from '../src/loader/errors.js';
 import { installCpkPackage } from '../src/loader/install.js';
-import {
-  createCpkPluginLoader,
-  PLUGIN_LIFECYCLE_EVENTS,
-  type ICpkPluginLoader,
-} from '../src/loader/lifecycle.js';
+import { createCpkPluginLoader, PLUGIN_LIFECYCLE_EVENTS, type ICpkPluginLoader } from '../src/loader/lifecycle.js';
 import { openPluginRegistry } from '../src/loader/registry.js';
 import { loadCpkArchive, loadCpkDirectory, type ICpkPackage } from '../src/loader/provider.js';
 import {
@@ -88,11 +84,7 @@ async function createHarness(): Promise<ILoaderHarness> {
 }
 
 /** 开发目录态最小 service 插件（跳过归档与签名两阶段）。 */
-async function writeServicePluginDirectory(
-  root: string,
-  id: string,
-  version: string,
-): Promise<string> {
+async function writeServicePluginDirectory(root: string, id: string, version: string): Promise<string> {
   const pluginRoot = join(root, `${id}-${version}`);
   await mkdir(join(pluginRoot, 'dist'), { recursive: true });
   await writeFile(
@@ -108,9 +100,7 @@ async function writeServicePluginDirectory(
 async function expectNoResidue(pluginsRoot: string): Promise<void> {
   const rootEntries = await readdir(pluginsRoot).catch(() => [] as string[]);
   expect(rootEntries.filter((name) => name !== '.cpk-install-tmp')).toEqual([]);
-  const tempEntries = await readdir(join(pluginsRoot, '.cpk-install-tmp')).catch(
-    () => [] as string[],
-  );
+  const tempEntries = await readdir(join(pluginsRoot, '.cpk-install-tmp')).catch(() => [] as string[]);
   expect(tempEntries).toEqual([]);
 }
 
@@ -149,9 +139,7 @@ describe('正夹具全链安装（解包 → 五阶段 → 原子落盘 → 注�
     });
 
     // 事件：plugin:installed（05.05 §4.1 payload）。
-    const installedEvents = harness.events.filter(
-      (event) => event.id === PLUGIN_LIFECYCLE_EVENTS.installed,
-    );
+    const installedEvents = harness.events.filter((event) => event.id === PLUGIN_LIFECYCLE_EVENTS.installed);
     expect(installedEvents).toHaveLength(1);
     expect(installedEvents[0]?.payload).toEqual({
       pluginId: 'chips.example.hello',
@@ -183,12 +171,8 @@ describe('正夹具全链安装（解包 → 五阶段 → 原子落盘 → 注�
     const harness = await createHarness();
     const base = await mkdtemp(join(tmpdir(), 'cpk-variants-'));
     tempRoots.push(base);
-    const newer = await loadCpkDirectory(
-      await writeServicePluginDirectory(base, 'chips.example.svc', '0.1.0'),
-    );
-    const older = await loadCpkDirectory(
-      await writeServicePluginDirectory(base, 'chips.example.svc', '0.0.9'),
-    );
+    const newer = await loadCpkDirectory(await writeServicePluginDirectory(base, 'chips.example.svc', '0.1.0'));
+    const older = await loadCpkDirectory(await writeServicePluginDirectory(base, 'chips.example.svc', '0.0.9'));
     await harness.loader.install({ pkg: newer, source: 'development' });
     let caught: unknown;
     try {
@@ -206,9 +190,7 @@ describe('正夹具全链安装（解包 → 五阶段 → 原子落盘 → 注�
     // 拒绝后注册表仍只有首个版本，无事件产生。
     expect(harness.loader.list()).toHaveLength(1);
     expect(harness.loader.get('chips.example.svc')?.version).toBe('0.1.0');
-    expect(
-      harness.events.filter((event) => event.id === PLUGIN_LIFECYCLE_EVENTS.installed),
-    ).toHaveLength(1);
+    expect(harness.events.filter((event) => event.id === PLUGIN_LIFECYCLE_EVENTS.installed)).toHaveLength(1);
   });
 });
 
@@ -261,9 +243,7 @@ describe('安装期撤销与失败无残留', () => {
     const harness = await createHarness();
     let caught: unknown;
     try {
-      const crcTampered = await loadCpkArchive(
-        fixtureAsset('packages/hello-0.1.0-crc-tampered.cpk'),
-      );
+      const crcTampered = await loadCpkArchive(fixtureAsset('packages/hello-0.1.0-crc-tampered.cpk'));
       await harness.loader.install({ pkg: crcTampered, source: 'user' });
     } catch (error) {
       caught = error;

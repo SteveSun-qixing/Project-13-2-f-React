@@ -42,11 +42,7 @@
 import { BRIDGE_ERROR_CODES, createBridgeError } from '@chips/bridge';
 
 import { DOCUMENT_CAPABILITY_IDS, DOCUMENT_EVENT_IDS } from '../capabilities/document/contract.js';
-import type {
-  DocumentKind,
-  IDocumentWriteInput,
-  IDocumentWriteOutput,
-} from '../capabilities/document/contract.js';
+import type { DocumentKind, IDocumentWriteInput, IDocumentWriteOutput } from '../capabilities/document/contract.js';
 import { normalizeDocumentFailure } from './document-gateway.js';
 import type { IChipsRequestFacade } from './document-gateway.js';
 import { createRenderError, RENDER_ERROR_CODES } from './codes.js';
@@ -86,7 +82,7 @@ export interface IDocumentReflowSubscription {
  */
 export type DocumentReflowEventSubscribe = (
   eventId: string,
-  handler: (payload: unknown) => void
+  handler: (payload: unknown) => void,
 ) => IDocumentReflowSubscription;
 
 /**
@@ -146,7 +142,7 @@ function classifyChangedPayload(
   payload: unknown,
   source: string,
   documentId: string,
-  kind: DocumentKind
+  kind: DocumentKind,
 ): ChangedOutcome {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
     return 'malformed';
@@ -230,7 +226,7 @@ export function createDocumentReflowCoordinator(bindings: IDocumentReflowBinding
           createRenderError({
             code: RENDER_ERROR_CODES.sessionDisposed,
             details: { documentId, source },
-          })
+          }),
         );
       }
       if (action.documentId !== documentId) {
@@ -239,7 +235,7 @@ export function createDocumentReflowCoordinator(bindings: IDocumentReflowBinding
           createBridgeError(BRIDGE_ERROR_CODES.invalidInput, {
             message: '编辑动作的文档标识与渲染会话绑定的文档不一致',
             details: { gate: 'reflow', field: 'documentId', sessionId: session.id },
-          })
+          }),
         );
       }
       // §8.3 唯一时序：write 成功 → 经取视图通道写后重建 → update(view, write 返回的 revision)。

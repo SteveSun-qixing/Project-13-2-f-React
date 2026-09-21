@@ -45,12 +45,8 @@ function readWorkspaceSource(relativeFromTests: string): string {
   return readFileSync(fileURLToPath(new URL(relativeFromTests, import.meta.url)), 'utf8');
 }
 
-const SDK_ERROR_CODES_SOURCE = readWorkspaceSource(
-  '../../../packages/sdk/src/generated/error-codes.ts',
-);
-const CLI_CPK_VALIDATE_SOURCE = readWorkspaceSource(
-  '../../../packages/cli/src/artifacts/cpk-validate.ts',
-);
+const SDK_ERROR_CODES_SOURCE = readWorkspaceSource('../../../packages/sdk/src/generated/error-codes.ts');
+const CLI_CPK_VALIDATE_SOURCE = readWorkspaceSource('../../../packages/cli/src/artifacts/cpk-validate.ts');
 
 /** 提取 `export const ERROR_CODES = [...]` 数组中的全部字符串字面量。 */
 function extractGeneratedErrorCodes(source: string): readonly string[] {
@@ -108,9 +104,7 @@ describe('CPK 错误码漂移锁（codes.ts ↔ @chips/sdk 生成表）', () => 
     for (const code of allCodes) {
       const message = LOADER_ERROR_MESSAGES[code];
       expect(message.length, `错误码 ${code} 缺少文案`).toBeGreaterThan(0);
-      expect(typeof LOADER_ERROR_RETRYABLE[code], `错误码 ${code} 缺少 retryable`).toBe(
-        'boolean',
-      );
+      expect(typeof LOADER_ERROR_RETRYABLE[code], `错误码 ${code} 缺少 retryable`).toBe('boolean');
     }
   });
 });
@@ -172,19 +166,13 @@ describe('CPK_LIMITS 与超时常量漂移锁', () => {
 /* ------------------------------------------------------------------ */
 
 /** 编译期恒等断言助手（漂移时 tsc 闸红）。 */
-type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
-  ? true
-  : false;
+type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
 type Expect<T extends true> = T;
 
 /** 编译期锁：各事件 payload 字段面与 05.05 §4.1 文档一致（导出以免 no-unused-vars）。 */
-export type DriftLockInstalledPayload = Expect<
-  Equal<keyof IPluginInstalledPayload, 'pluginId' | 'version'>
->;
+export type DriftLockInstalledPayload = Expect<Equal<keyof IPluginInstalledPayload, 'pluginId' | 'version'>>;
 export type DriftLockUninstalledPayload = Expect<Equal<keyof IPluginUninstalledPayload, 'pluginId'>>;
-export type DriftLockLoadedPayload = Expect<
-  Equal<keyof IPluginLoadedPayload, 'pluginId' | 'version' | 'role'>
->;
+export type DriftLockLoadedPayload = Expect<Equal<keyof IPluginLoadedPayload, 'pluginId' | 'version' | 'role'>>;
 export type DriftLockStatePayload = Expect<Equal<keyof IPluginStatePayload, 'pluginId'>>;
 export type DriftLockFailedPayload = Expect<Equal<keyof IPluginFailedPayload, 'pluginId' | 'error'>>;
 

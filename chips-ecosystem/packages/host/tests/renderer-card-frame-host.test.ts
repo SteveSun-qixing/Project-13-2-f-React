@@ -183,7 +183,16 @@ describe('卡片帧宿主（05.09 §4.2/§9.1/§6.2）', () => {
     const initEnvelope = context.pair.sent[0] as {
       sessionId: string;
       frameId: string;
-      message: { type: string; payload: { nodes: { node_id: string; card_type: string; containerId: string }[]; tokens: DesignTokens; pluginEntries: Record<string, string>; resourceBase: string; limits: FrameLimits } };
+      message: {
+        type: string;
+        payload: {
+          nodes: { node_id: string; card_type: string; containerId: string }[];
+          tokens: DesignTokens;
+          pluginEntries: Record<string, string>;
+          resourceBase: string;
+          limits: FrameLimits;
+        };
+      };
     };
     expect(initEnvelope.sessionId).toBe('session-1');
     expect(initEnvelope.frameId).toBe(context.frameId);

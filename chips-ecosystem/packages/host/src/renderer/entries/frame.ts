@@ -208,11 +208,7 @@ export function startFrameRuntime(environment: IFrameRuntimeEnvironment): IFrame
       return;
     }
     const envelope = parseHostEnvelope(event.data);
-    if (
-      envelope === null ||
-      envelope.sessionId !== session.sessionId ||
-      envelope.frameId !== session.frameId
-    ) {
+    if (envelope === null || envelope.sessionId !== session.sessionId || envelope.frameId !== session.frameId) {
       diagnostics.warn('入站消息未列入 host:* 清单或封套与登记不一致，忽略并记录');
       return;
     }
@@ -269,7 +265,10 @@ export function startFrameRuntime(environment: IFrameRuntimeEnvironment): IFrame
         return;
       }
       case 'host:action-error': {
-        diagnostics.warn('父帧拒绝了帧动作', { requestId: message.payload.requestId, code: message.payload.error.code });
+        diagnostics.warn('父帧拒绝了帧动作', {
+          requestId: message.payload.requestId,
+          code: message.payload.error.code,
+        });
         return;
       }
       case 'host:entries': {
@@ -360,7 +359,7 @@ export function startFrameRuntime(environment: IFrameRuntimeEnvironment): IFrame
 /** 构造生产形态帧运行时环境（DOM / MessagePort / ResizeObserver / rAF 直连）。 */
 export function createDefaultFrameRuntimeEnvironment(
   win: Window & typeof globalThis,
-  doc: Document
+  doc: Document,
 ): IFrameRuntimeEnvironment {
   const rootScroller = (): HTMLElement => doc.body;
   return {

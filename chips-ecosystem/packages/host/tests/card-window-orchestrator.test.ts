@@ -35,7 +35,8 @@ const backend: IResourceBackend = {
   },
 };
 
-interface Harness {  readonly manager: ShellWindowManager;
+interface Harness {
+  readonly manager: ShellWindowManager;
   readonly orchestrator: CardWindowOrchestrator;
   readonly registry: WindowRegistry;
   readonly fake: ReturnType<typeof createFakeElectron>;

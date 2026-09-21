@@ -21,12 +21,7 @@ vi.mock('../src/main/production-assembly.js', () => ({
 }));
 vi.mock('../src/platform/mac/index.js', () => ({ createMacPalHost: mocks.createMacPalHost }));
 
-import {
-  OPEN_CARD_FLAG,
-  createAppPalHost,
-  launchHostApplication,
-  parseAppLaunchArgs,
-} from '../src/main/app-launch.js';
+import { OPEN_CARD_FLAG, createAppPalHost, launchHostApplication, parseAppLaunchArgs } from '../src/main/app-launch.js';
 import type { PalHostContext } from '../src/main/runtime-provider.js';
 import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 
@@ -75,7 +70,7 @@ describe('parseAppLaunchArgs', () => {
         'positional',
         OPEN_CARD_FLAG,
         'chips-resource://platform/docs/c.card',
-      ])
+      ]),
     ).toEqual(['/docs/a.card', '/docs/b.card', 'chips-resource://platform/docs/c.card']);
   });
 
@@ -147,9 +142,7 @@ describe('launchHostApplication', () => {
       openCards: ['/docs/a.card', '/docs/b.card'],
     });
     expect(mocks.createProductionAssembly).toHaveBeenCalledTimes(1);
-    const assemblyArg = mocks.createProductionAssembly.mock.calls[0] as [
-      { createPalHost: unknown },
-    ];
+    const assemblyArg = mocks.createProductionAssembly.mock.calls[0] as [{ createPalHost: unknown }];
     expect(typeof assemblyArg[0].createPalHost).toBe('function');
     expect(mocks.startHostMain).toHaveBeenCalledTimes(1);
     const mainArg = (mocks.startHostMain.mock.calls[0] as [{ application?: unknown }])[0] as Record<string, unknown>;

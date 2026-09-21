@@ -18,11 +18,7 @@
  * - 事件是通知不是状态：发布失败不回滚已完成的写入，落宿主诊断日志（§7.3）。
  */
 
-import {
-  DOCUMENT_CAPABILITY_IDS,
-  DOCUMENT_CAPABILITY_PERMISSIONS,
-  DOCUMENT_EVENT_IDS,
-} from './contract.js';
+import { DOCUMENT_CAPABILITY_IDS, DOCUMENT_CAPABILITY_PERMISSIONS, DOCUMENT_EVENT_IDS } from './contract.js';
 import type {
   DocumentCapabilityId,
   DocumentKind,
@@ -246,7 +242,11 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   }
 
   /** 读取会话有效 structure 切片（覆盖层优先，未覆盖时按需触发解析器惰性层级，§4.3）。 */
-  async function ensureStructure(record: IDocumentRecord, session: IDocumentSession, signal: AbortSignal): Promise<DocumentValue> {
+  async function ensureStructure(
+    record: IDocumentRecord,
+    session: IDocumentSession,
+    signal: AbortSignal,
+  ): Promise<DocumentValue> {
     if (session.overlays.structure !== undefined) {
       return session.overlays.structure;
     }
@@ -257,7 +257,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   async function ensureLayoutConfig(
     record: IDocumentRecord,
     session: IDocumentSession,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<{ value: DocumentValue; diagnostics: readonly IDocumentDiagnostic[] }> {
     if (session.overlays.layoutConfig !== undefined) {
       return { value: session.overlays.layoutConfig, diagnostics: [] };
@@ -276,7 +276,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     record: IDocumentRecord,
     session: IDocumentSession,
     nodeId: string,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<{ value: DocumentValue; diagnostics: readonly IDocumentDiagnostic[] }> {
     const overlay = session.overlays.contentNodes.get(nodeId);
     if (overlay !== undefined && overlay !== null) {
@@ -309,7 +309,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     session: IDocumentSession,
     structure: DocumentValue,
     baselineIds: Set<string>,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<{ nodes: { nodeId: string; value: DocumentValue }[]; removed: string[] }> {
     const ids = cardStructureNodeIds(structure);
     const idSet = new Set(ids);
@@ -352,7 +352,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     record: IDocumentRecord,
     session: IDocumentSession,
     changedParts: ChangedParts,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<IDocumentSerializeRequest> {
     const metadata = metadataOf(record, session);
     const structure = await ensureStructure(record, session, signal);
@@ -400,11 +400,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   }
 
   /** 声明会话身份：同会话内不同来源解析出同一稳定标识即冲突（§3.1 步骤 3）。 */
-  function claimSessionIdentityOrThrow(
-    ctx: IDocumentCapabilityContext,
-    documentId: string,
-    managedUri: string
-  ): void {
+  function claimSessionIdentityOrThrow(ctx: IDocumentCapabilityContext, documentId: string, managedUri: string): void {
     if (store.claimSessionIdentity(ctx.sessionId, documentId, managedUri) === 'conflict') {
       throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.idConflict, {
         details: { documentId, source: managedUri, capabilityId: DOCUMENT_CAPABILITY_IDS.open },
@@ -421,7 +417,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   async function establishRecord(
     resolved: IResolvedDocumentSource,
     requestedKind: DocumentKind | null,
-    ctx: IDocumentCapabilityContext
+    ctx: IDocumentCapabilityContext,
   ): Promise<IDocumentRecord> {
     const parsed = await deps.parser.open({
       localPath: resolved.localPath,
@@ -553,7 +549,11 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
         const nodeId = checked.nodeId;
         if (nodeId === null) {
           throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.partUnsupported, {
-            details: { capabilityId: DOCUMENT_CAPABILITY_IDS.read, part: 'content', reason: '卡片 content 切片必须携带 nodeId' },
+            details: {
+              capabilityId: DOCUMENT_CAPABILITY_IDS.read,
+              part: 'content',
+              reason: '卡片 content 切片必须携带 nodeId',
+            },
           });
         }
         const structure = await ensureStructure(record, session, ctx.signal);
@@ -584,7 +584,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   function locateSession(
     capabilityId: DocumentCapabilityId,
     documentId: string,
-    ctx: IDocumentCapabilityContext
+    ctx: IDocumentCapabilityContext,
   ): { record: IDocumentRecord; session: IDocumentSession } {
     const session = store.findSession(ctx.sessionId, documentId);
     if (session === undefined) {
@@ -601,7 +601,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   async function assertWritable(
     record: IDocumentRecord,
     session: IDocumentSession,
-    capabilityId: DocumentCapabilityId
+    capabilityId: DocumentCapabilityId,
   ): Promise<void> {
     if (record.leaseHolderSessionId !== null && record.leaseHolderSessionId !== session.sessionId) {
       throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.writeConflict, {
@@ -638,7 +638,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     record: IDocumentRecord,
     session: IDocumentSession,
     checked: { part: DocumentPart; nodeId: string | null; value: DocumentValue | null },
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<void> {
     const { part, nodeId, value } = checked;
     switch (part) {
@@ -690,7 +690,11 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
         }
         if (nodeId === null) {
           throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.partUnsupported, {
-            details: { capabilityId: DOCUMENT_CAPABILITY_IDS.write, part: 'content', reason: '卡片 content 切片必须携带 nodeId' },
+            details: {
+              capabilityId: DOCUMENT_CAPABILITY_IDS.write,
+              part: 'content',
+              reason: '卡片 content 切片必须携带 nodeId',
+            },
           });
         }
         if (value === null) {
@@ -721,7 +725,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     record: IDocumentRecord,
     session: IDocumentSession,
     nodeId: string,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<void> {
     const structure = await ensureStructure(record, session, signal);
     const known =
@@ -802,7 +806,10 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       await deps.parser.release(record.handle);
     } catch (error: unknown) {
       // 旧句柄释放失败不影响已完成的保存：新句柄已建立，失败落宿主诊断日志。
-      deps.diagnostics?.warn('document', '旧解析句柄释放失败', { documentId: record.documentId, cause: asDocumentCapabilityError(error).code });
+      deps.diagnostics?.warn('document', '旧解析句柄释放失败', {
+        documentId: record.documentId,
+        cause: asDocumentCapabilityError(error).code,
+      });
     }
     record.handle = reloaded.handle;
     record.baselineMetadata = reloaded.metadata;
@@ -815,7 +822,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     record: IDocumentRecord,
     session: IDocumentSession,
     newFingerprint: ISourceFingerprint,
-    digest: string
+    digest: string,
   ): void {
     clearLazyParts(record);
     session.overlays.contentNodes.clear();

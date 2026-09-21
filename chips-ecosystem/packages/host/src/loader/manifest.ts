@@ -25,12 +25,7 @@ import { parse as parseYaml } from 'yaml';
 import { isHostPermissionId } from '../runtime/capability/contracts.js';
 import { CPK_ERROR_CODES } from './codes.js';
 import { throwCpkError } from './errors.js';
-import {
-  isValidRange,
-  parseRange,
-  parseSemver,
-  satisfiesRange,
-} from './semver.js';
+import { isValidRange, parseRange, parseSemver, satisfiesRange } from './semver.js';
 import type { IPluginDependency, PluginRole } from './types.js';
 
 const PLUGIN_ID_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
@@ -60,15 +55,7 @@ export const FIXED_COMMAND_ROOTS: readonly string[] = [
   'host',
 ];
 
-const RESERVED_DEEP_LINK_SCHEMES = new Set([
-  'http',
-  'https',
-  'file',
-  'mailto',
-  'tel',
-  'data',
-  'javascript',
-]);
+const RESERVED_DEEP_LINK_SCHEMES = new Set(['http', 'https', 'file', 'mailto', 'tel', 'data', 'javascript']);
 const PARAMETER_TYPES = new Set([
   'string',
   'stringList',
@@ -264,50 +251,26 @@ export function validatePermissionRequest(input: {
 }): string {
   const parsed = splitPermissionRequest(input.request);
   if (parsed === undefined) {
-    permissionFail(
-      `权限 ID 非法：${input.request}`,
-      input.pointer,
-      PERMISSION_DIAGNOSTICS.unknown,
-    );
+    permissionFail(`权限 ID 非法：${input.request}`, input.pointer, PERMISSION_DIAGNOSTICS.unknown);
   }
   const rule = input.catalog.find(parsed.base);
   if (rule === undefined) {
-    permissionFail(
-      `未登记的权限 ID：${input.request}`,
-      input.pointer,
-      PERMISSION_DIAGNOSTICS.unknown,
-    );
+    permissionFail(`未登记的权限 ID：${input.request}`, input.pointer, PERMISSION_DIAGNOSTICS.unknown);
   }
   if (rule.roles !== 'all' && !rule.roles.includes(input.role)) {
-    permissionFail(
-      `${input.role} 角色不得申请权限：${rule.id}`,
-      input.pointer,
-      PERMISSION_DIAGNOSTICS.roleNotAllowed,
-    );
+    permissionFail(`${input.role} 角色不得申请权限：${rule.id}`, input.pointer, PERMISSION_DIAGNOSTICS.roleNotAllowed);
   }
   const qualifier = parsed.qualifier;
   if (rule.qualifier === 'required' && (qualifier === undefined || qualifier.length === 0)) {
-    permissionFail(
-      `权限 ${rule.id} 必须携带限定值`,
-      input.pointer,
-      PERMISSION_DIAGNOSTICS.invalid,
-    );
+    permissionFail(`权限 ${rule.id} 必须携带限定值`, input.pointer, PERMISSION_DIAGNOSTICS.invalid);
   }
   if (rule.qualifier === 'forbidden' && qualifier !== undefined) {
-    permissionFail(
-      `权限 ${rule.id} 禁止携带限定值`,
-      input.pointer,
-      PERMISSION_DIAGNOSTICS.invalid,
-    );
+    permissionFail(`权限 ${rule.id} 禁止携带限定值`, input.pointer, PERMISSION_DIAGNOSTICS.invalid);
   }
   if (qualifier !== undefined) {
     const domain = parsed.base.split(':')[0] ?? '';
     if (qualifierInvalid(domain, qualifier)) {
-      permissionFail(
-        `权限 ${rule.id} 的限定值非法：${qualifier}`,
-        input.pointer,
-        PERMISSION_DIAGNOSTICS.invalid,
-      );
+      permissionFail(`权限 ${rule.id} 的限定值非法：${qualifier}`, input.pointer, PERMISSION_DIAGNOSTICS.invalid);
     }
   }
   return qualifier === undefined ? parsed.base : `${parsed.base}:${qualifier}`;
@@ -335,11 +298,7 @@ function expectArray(value: unknown, pointer: string): readonly unknown[] {
   return value;
 }
 
-function expectString(
-  value: unknown,
-  pointer: string,
-  options?: { readonly allowEmpty?: boolean },
-): string {
+function expectString(value: unknown, pointer: string, options?: { readonly allowEmpty?: boolean }): string {
   if (typeof value !== 'string') {
     fail(`应为字符串：${pointer}`, pointer);
   }
@@ -369,12 +328,7 @@ function expectNonNegativeInteger(value: unknown, pointer: string): number {
  * @remarks 不做 `String(value)` 隐式字符串化——清单里写成对象/数组的取值会被字符串化成
  * `[object Object]` 这类伪值，必须先按字符串收紧再比对候选。
  */
-function expectEnum(
-  value: unknown,
-  allowed: ReadonlySet<string>,
-  pointer: string,
-  message: string,
-): string {
+function expectEnum(value: unknown, allowed: ReadonlySet<string>, pointer: string, message: string): string {
   const text = expectString(value, pointer);
   if (!allowed.has(text)) {
     fail(message, pointer);
@@ -387,17 +341,10 @@ function isUnknownArray(value: unknown): value is readonly unknown[] {
   return Array.isArray(value);
 }
 
-function rejectUnknownKeys(
-  object: Record<string, unknown>,
-  allowed: readonly string[],
-  pointer: string,
-): void {
+function rejectUnknownKeys(object: Record<string, unknown>, allowed: readonly string[], pointer: string): void {
   for (const key of Object.keys(object)) {
     if (!allowed.includes(key)) {
-      fail(
-        `出现未登记字段：${pointer === '' ? key : `${pointer}.${key}`}`,
-        pointer === '' ? key : `${pointer}.${key}`,
-      );
+      fail(`出现未登记字段：${pointer === '' ? key : `${pointer}.${key}`}`, pointer === '' ? key : `${pointer}.${key}`);
     }
   }
 }
@@ -454,11 +401,7 @@ function validateJsonSchemaRef(
   validateJsonSchemaDocument(value, pointer, contents);
 }
 
-function validateJsonSchemaDocument(
-  path: string,
-  pointer: string,
-  contents: ReadonlyMap<string, Uint8Array>,
-): void {
+function validateJsonSchemaDocument(path: string, pointer: string, contents: ReadonlyMap<string, Uint8Array>): void {
   const bytes = contents.get(path);
   if (bytes === undefined) {
     return;
@@ -467,10 +410,7 @@ function validateJsonSchemaDocument(
   try {
     schema = JSON.parse(new TextDecoder('utf-8', { fatal: false }).decode(bytes)) as unknown;
   } catch (error) {
-    fail(
-      `configSchema 不是合法 JSON：${path}（${error instanceof Error ? error.message : String(error)}）`,
-      pointer,
-    );
+    fail(`configSchema 不是合法 JSON：${path}（${error instanceof Error ? error.message : String(error)}）`, pointer);
   }
   const object = expectObject(schema, pointer);
   if (object.type !== 'object') {
@@ -568,11 +508,7 @@ function validateParameter(
   }
   if (parameter.validation !== undefined) {
     const validation = expectObject(parameter.validation, `${pointer}.validation`);
-    rejectUnknownKeys(
-      validation,
-      ['min', 'max', 'minLength', 'maxLength', 'pattern'],
-      `${pointer}.validation`,
-    );
+    rejectUnknownKeys(validation, ['min', 'max', 'minLength', 'maxLength', 'pattern'], `${pointer}.validation`);
     if (validation.pattern !== undefined) {
       const pattern = expectString(validation.pattern, `${pointer}.validation.pattern`);
       try {
@@ -584,11 +520,7 @@ function validateParameter(
   }
   if (parameter.path !== undefined) {
     const path = expectObject(parameter.path, `${pointer}.path`);
-    rejectUnknownKeys(
-      path,
-      ['kind', 'role', 'exists', 'create', 'extensions', 'overwrite'],
-      `${pointer}.path`,
-    );
+    rejectUnknownKeys(path, ['kind', 'role', 'exists', 'create', 'extensions', 'overwrite'], `${pointer}.path`);
     if (path.role !== undefined && path.role !== 'input' && path.role !== 'output') {
       fail('path.role 只能为 input 或 output', `${pointer}.path.role`);
     }
@@ -596,12 +528,7 @@ function validateParameter(
       if (path.role !== 'output') {
         fail('path.overwrite 只允许 path.role: output', `${pointer}.path.overwrite`);
       }
-      expectEnum(
-        path.overwrite,
-        PATH_OVERWRITE_POLICIES,
-        `${pointer}.path.overwrite`,
-        'path.overwrite 取值非法',
-      );
+      expectEnum(path.overwrite, PATH_OVERWRITE_POLICIES, `${pointer}.path.overwrite`, 'path.overwrite 取值非法');
     }
     if (path.role === 'output' && type !== 'path') {
       fail('path.role: output 只允许 type: path', `${pointer}.path.role`);
@@ -627,11 +554,7 @@ function validateParameter(
   }
   if (parameter.ui !== undefined) {
     const ui = expectObject(parameter.ui, `${pointer}.ui`);
-    rejectUnknownKeys(
-      ui,
-      ['control', 'choices', 'min', 'max', 'step', 'placeholder'],
-      `${pointer}.ui`,
-    );
+    rejectUnknownKeys(ui, ['control', 'choices', 'min', 'max', 'step', 'placeholder'], `${pointer}.ui`);
     if (ui.control !== undefined) {
       const control = expectString(ui.control, `${pointer}.ui.control`);
       if (!UI_CONTROLS.has(control)) {
@@ -723,11 +646,7 @@ function validateCliCommands(
     }
 
     const target = expectObject(command.target, `${commandPointer}.target`);
-    rejectUnknownKeys(
-      target,
-      ['type', 'pluginId', 'capability', 'surface'],
-      `${commandPointer}.target`,
-    );
+    rejectUnknownKeys(target, ['type', 'pluginId', 'capability', 'surface'], `${commandPointer}.target`);
     const targetType = expectString(target.type, `${commandPointer}.target.type`);
     if (targetType !== role) {
       fail(`target.type 必须等于插件角色：${role}`, `${commandPointer}.target.type`);
@@ -775,10 +694,7 @@ function validateCliCommands(
       if (command.job !== undefined) {
         fail('service 目标禁止声明 job', `${commandPointer}.job`);
       }
-      const capability = expectString(
-        target.capability ?? '',
-        `${commandPointer}.target.capability`,
-      );
+      const capability = expectString(target.capability ?? '', `${commandPointer}.target.capability`);
       if (!CAPABILITY_ID_PATTERN.test(capability)) {
         fail(`capability 文法非法：${capability}`, `${commandPointer}.target.capability`);
       }
@@ -824,12 +740,7 @@ function validateCliCommands(
         fail('output.mode 取值非法', `${commandPointer}.output.mode`);
       }
       if (output.json !== undefined) {
-        expectEnum(
-          output.json,
-          OUTPUT_JSON_POLICIES,
-          `${commandPointer}.output.json`,
-          'output.json 取值非法',
-        );
+        expectEnum(output.json, OUTPUT_JSON_POLICIES, `${commandPointer}.output.json`, 'output.json 取值非法');
       }
       if (output.artifacts !== undefined) {
         expectArray(output.artifacts, `${commandPointer}.output.artifacts`);
@@ -900,16 +811,7 @@ function validateCardTypes(
     const card = expectObject(item, cardPointer);
     rejectUnknownKeys(
       card,
-      [
-        'id',
-        'name',
-        'description',
-        'icon',
-        'extensions',
-        'configSchema',
-        'aliases',
-        'exportFormats',
-      ],
+      ['id', 'name', 'description', 'icon', 'extensions', 'configSchema', 'aliases', 'exportFormats'],
       cardPointer,
     );
     const id = expectString(card.id, `${cardPointer}.id`);
@@ -928,12 +830,9 @@ function validateCardTypes(
       expectString(card.description, `${cardPointer}.description`);
     }
     if (card.icon !== undefined) {
-      validateAssetRef(
-        expectString(card.icon, `${cardPointer}.icon`),
-        `${cardPointer}.icon`,
-        members,
-        { imageOnly: true },
-      );
+      validateAssetRef(expectString(card.icon, `${cardPointer}.icon`), `${cardPointer}.icon`, members, {
+        imageOnly: true,
+      });
     }
     if (card.configSchema !== undefined) {
       validateJsonSchemaRef(
@@ -962,11 +861,7 @@ function validateCardTypes(
     if (card.exportFormats !== undefined) {
       for (const format of expectArray(card.exportFormats, `${cardPointer}.exportFormats`)) {
         const formatObject = expectObject(format, `${cardPointer}.exportFormats[]`);
-        rejectUnknownKeys(
-          formatObject,
-          ['id', 'name', 'extension', 'mimeType'],
-          `${cardPointer}.exportFormats[]`,
-        );
+        rejectUnknownKeys(formatObject, ['id', 'name', 'extension', 'mimeType'], `${cardPointer}.exportFormats[]`);
         expectString(formatObject.id, `${cardPointer}.exportFormats[].id`);
         expectString(formatObject.name, `${cardPointer}.exportFormats[].name`);
         expectString(formatObject.extension, `${cardPointer}.exportFormats[].extension`);
@@ -991,11 +886,7 @@ function validateLayouts(
   layouts.forEach((item, index) => {
     const layoutPointer = `${pointer}.layouts[${index}]`;
     const layout = expectObject(item, layoutPointer);
-    rejectUnknownKeys(
-      layout,
-      ['id', 'name', 'icon', 'description', 'configSchema', 'schemaVersions'],
-      layoutPointer,
-    );
+    rejectUnknownKeys(layout, ['id', 'name', 'icon', 'description', 'configSchema', 'schemaVersions'], layoutPointer);
     const id = expectString(layout.id, `${layoutPointer}.id`);
     if (!LAYOUT_TYPE_ID_PATTERN.test(id)) {
       fail(`布局类型 ID 必须为 chips.layout.<name>：${id}`, `${layoutPointer}.id`);
@@ -1009,12 +900,9 @@ function validateLayouts(
     }
     expectString(layout.name, `${layoutPointer}.name`);
     if (layout.icon !== undefined) {
-      validateAssetRef(
-        expectString(layout.icon, `${layoutPointer}.icon`),
-        `${layoutPointer}.icon`,
-        members,
-        { imageOnly: true },
-      );
+      validateAssetRef(expectString(layout.icon, `${layoutPointer}.icon`), `${layoutPointer}.icon`, members, {
+        imageOnly: true,
+      });
     }
     validateJsonSchemaRef(
       expectString(layout.configSchema ?? '', `${layoutPointer}.configSchema`),
@@ -1022,10 +910,7 @@ function validateLayouts(
       members,
       contents,
     );
-    const schemaVersions = expectString(
-      layout.schemaVersions ?? '',
-      `${layoutPointer}.schemaVersions`,
-    );
+    const schemaVersions = expectString(layout.schemaVersions ?? '', `${layoutPointer}.schemaVersions`);
     if (!isValidRange(schemaVersions)) {
       fail(`schemaVersions 版本范围非法：${schemaVersions}`, `${layoutPointer}.schemaVersions`);
     }
@@ -1037,11 +922,7 @@ function validateFileAssociations(value: unknown, pointer: string): void {
   associations.forEach((item, index) => {
     const associationPointer = `${pointer}[${index}]`;
     const association = expectObject(item, associationPointer);
-    rejectUnknownKeys(
-      association,
-      ['extensions', 'mimeTypes', 'tier', 'action'],
-      associationPointer,
-    );
+    rejectUnknownKeys(association, ['extensions', 'mimeTypes', 'tier', 'action'], associationPointer);
     const extensions = expectArray(association.extensions, `${associationPointer}.extensions`);
     const seen = new Set<string>();
     let hasExtension = false;
@@ -1054,10 +935,7 @@ function validateFileAssociations(value: unknown, pointer: string): void {
       }
       hasExtension = true;
       if (!/^\.[a-z0-9]+$/.test(text)) {
-        fail(
-          `扩展名必须含点且小写：${text}`,
-          `${associationPointer}.extensions[${extensionIndex}]`,
-        );
+        fail(`扩展名必须含点且小写：${text}`, `${associationPointer}.extensions[${extensionIndex}]`);
       }
       if (seen.has(text)) {
         fail(`扩展名重复：${text}`, `${associationPointer}.extensions[${extensionIndex}]`);
@@ -1065,28 +943,19 @@ function validateFileAssociations(value: unknown, pointer: string): void {
       seen.add(text);
     });
     const mimeTypes =
-      association.mimeTypes === undefined
-        ? []
-        : expectArray(association.mimeTypes, `${associationPointer}.mimeTypes`);
+      association.mimeTypes === undefined ? [] : expectArray(association.mimeTypes, `${associationPointer}.mimeTypes`);
     let hasMime = false;
     mimeTypes.forEach((mime, mimeIndex) => {
       const text = expectString(mime, `${associationPointer}.mimeTypes[${mimeIndex}]`);
       hasMime = true;
-      if (
-        text === '*/*' ||
-        (!/^[a-z0-9.+-]+\/[a-z0-9.+*-]+$/.test(text) && !/^[a-z0-9.+-]+\/\*$/.test(text))
-      ) {
+      if (text === '*/*' || (!/^[a-z0-9.+-]+\/[a-z0-9.+*-]+$/.test(text) && !/^[a-z0-9.+-]+\/\*$/.test(text))) {
         fail(`MIME 声明非法：${text}`, `${associationPointer}.mimeTypes[${mimeIndex}]`);
       }
     });
     if (!hasExtension && !hasMime) {
       fail('extensions 与 mimeTypes 至少一项非空', associationPointer);
     }
-    if (
-      association.tier !== undefined &&
-      association.tier !== 'primary' &&
-      association.tier !== 'fallback'
-    ) {
+    if (association.tier !== undefined && association.tier !== 'primary' && association.tier !== 'fallback') {
       fail('tier 只能为 primary 或 fallback', `${associationPointer}.tier`);
     }
     if (association.action !== 'open') {
@@ -1139,13 +1008,9 @@ function validateHealthCheck(value: unknown, pointer: string): void {
   const healthCheck = expectObject(value, pointer);
   rejectUnknownKeys(healthCheck, ['interval', 'timeout'], pointer);
   const intervalText =
-    healthCheck.interval === undefined
-      ? '30s'
-      : expectString(healthCheck.interval, `${pointer}.interval`);
+    healthCheck.interval === undefined ? '30s' : expectString(healthCheck.interval, `${pointer}.interval`);
   const timeoutText =
-    healthCheck.timeout === undefined
-      ? '5s'
-      : expectString(healthCheck.timeout, `${pointer}.timeout`);
+    healthCheck.timeout === undefined ? '5s' : expectString(healthCheck.timeout, `${pointer}.timeout`);
   const interval = parseDuration(intervalText);
   const timeout = parseDuration(timeoutText);
   if (interval === undefined) {
@@ -1173,12 +1038,9 @@ function validateUi(value: unknown, pointer: string, members: ReadonlySet<string
     const launcher = expectObject(ui.launcher, `${pointer}.launcher`);
     rejectUnknownKeys(launcher, ['icon', 'name', 'description'], `${pointer}.launcher`);
     if (launcher.icon !== undefined) {
-      validateAssetRef(
-        expectString(launcher.icon, `${pointer}.launcher.icon`),
-        `${pointer}.launcher.icon`,
-        members,
-        { imageOnly: true },
-      );
+      validateAssetRef(expectString(launcher.icon, `${pointer}.launcher.icon`), `${pointer}.launcher.icon`, members, {
+        imageOnly: true,
+      });
     }
     if (launcher.name !== undefined) {
       expectString(launcher.name, `${pointer}.launcher.name`);
@@ -1216,9 +1078,7 @@ export interface IHostManifestValidationResult {
 }
 
 /** 校验清单（《02-插件清单规范》全部域字段；失败抛 `CPK_MANIFEST_INVALID` / `CPK_ENGINE_UNSUPPORTED`）。 */
-export function validateManifest(
-  input: IManifestValidationInput,
-): IHostManifestValidationResult {
+export function validateManifest(input: IManifestValidationInput): IHostManifestValidationResult {
   const members = input.members;
   const contents = input.contents;
   const root = expectObject(input.manifest, '');
@@ -1271,10 +1131,7 @@ export function validateManifest(
     expectString(root.license, 'license');
   }
   if (input.packageVersion !== undefined && input.packageVersion !== versionText) {
-    fail(
-      `manifest.version 与 package.json 的 version 不一致：${versionText} / ${input.packageVersion}`,
-      'version',
-    );
+    fail(`manifest.version 与 package.json 的 version 不一致：${versionText} / ${input.packageVersion}`, 'version');
   }
 
   validateRuntime(root.runtime, role, 'runtime');

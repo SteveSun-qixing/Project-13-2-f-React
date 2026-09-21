@@ -26,7 +26,13 @@
 
 import { BRIDGE_ERROR_CODES, createBridgeError } from '@chips/bridge';
 
-import { DOCUMENT_VIEW_REQUEST_CHANNEL, createDocumentViewBuildFailure, createDocumentViewBuildResult, guardDocumentViewCardRenderView, validateDocumentViewChannelRequest } from '../../../renderer/document-view-channel.js';
+import {
+  DOCUMENT_VIEW_REQUEST_CHANNEL,
+  createDocumentViewBuildFailure,
+  createDocumentViewBuildResult,
+  guardDocumentViewCardRenderView,
+  validateDocumentViewChannelRequest,
+} from '../../../renderer/document-view-channel.js';
 import { createDocumentViewBuilder } from '../../../renderer/document-view-builder.js';
 import type {
   DocumentViewSessionResolver,
@@ -80,7 +86,10 @@ function scopeSegmentOf(managedUri: string): string | null {
  * @throws `DOCUMENT_NOT_OPEN`（来源无存活记录）、`DOCUMENT_ID_CONFLICT`（`{source, documentId}`
  *   对与会话存储声明冲突）；受管引用的作用域段词法违约（构造性漂移）以 `BRIDGE_INTERNAL` 抛出。
  */
-function resolveViewSessionBinding(service: IDocumentService, input: IDocumentViewBuildInput): IDocumentViewSessionBinding {
+function resolveViewSessionBinding(
+  service: IDocumentService,
+  input: IDocumentViewBuildInput,
+): IDocumentViewSessionBinding {
   const resolution = service.resolveViewSession({ source: input.source, documentId: input.documentId });
   if (resolution.status === 'not-found') {
     throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.notOpen, {
@@ -144,7 +153,9 @@ export interface IDocumentViewChannelHandlerOptions {
  * 构造真实构建臂端点（文档服务已接线）：请求闸 → 刀3 构建器（主进程执行位）→
  * 发送侧视图守门 → 结果臂；链路任一失败以失败臂回包（本函数不抛出）。
  */
-export function createDocumentViewChannelHandler(options: IDocumentViewChannelHandlerOptions): IDocumentViewChannelEndpoint {
+export function createDocumentViewChannelHandler(
+  options: IDocumentViewChannelHandlerOptions,
+): IDocumentViewChannelEndpoint {
   const builder = createDocumentViewBuilder({
     native: options.native,
     resolveSession: createDocumentViewSessionResolver(options.service),
@@ -207,7 +218,7 @@ export interface IDocumentViewChannelRegistrationDeps {
 export function registerDocumentViewChannel(deps: IDocumentViewChannelRegistrationDeps): () => void {
   const channel = deps.channel ?? DOCUMENT_VIEW_REQUEST_CHANNEL;
   deps.ipcMain.handle(channel, async (_event, ...args: readonly unknown[]): Promise<unknown> =>
-    deps.endpoint.handleRequest(args[0])
+    deps.endpoint.handleRequest(args[0]),
   );
   let disposed = false;
   return () => {

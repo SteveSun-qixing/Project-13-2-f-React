@@ -44,7 +44,9 @@ function readWorkspaceSource(relativeFromTests: string): string {
 }
 
 const SDK_CAPABILITY_IDS_SOURCE = readWorkspaceSource('../../../packages/sdk/src/generated/capability-ids.ts');
-const SDK_CAPABILITY_PERMISSIONS_SOURCE = readWorkspaceSource('../../../packages/sdk/src/generated/capability-permissions.ts');
+const SDK_CAPABILITY_PERMISSIONS_SOURCE = readWorkspaceSource(
+  '../../../packages/sdk/src/generated/capability-permissions.ts',
+);
 const SDK_EVENT_IDS_SOURCE = readWorkspaceSource('../../../packages/sdk/src/generated/event-ids.ts');
 const BRIDGE_CONTRACTS_SOURCE = readWorkspaceSource('../../../packages/bridge/src/protocol/capability-contracts.ts');
 
@@ -108,9 +110,7 @@ function extractBridgeContracts(source: string, idPrefix: string): Map<string, I
     if (id !== undefined && id.startsWith(idPrefix)) {
       const permissionsMatch = /\[\s*([^\]]*)\]/.exec(call.slice('contract('.length));
       const permissions = [...(permissionsMatch?.[1] ?? '').matchAll(/'([^']+)'/g)].map((item) => item[1] ?? '');
-      const targets = [
-        ...call.matchAll(/target\('([^']+)'((?:\s*,\s*'[^']*')*)\)/g),
-      ].map((match) => ({
+      const targets = [...call.matchAll(/target\('([^']+)'((?:\s*,\s*'[^']*')*)\)/g)].map((match) => ({
         permission: match[1] ?? '',
         targetFields: [...(match[2] ?? '').matchAll(/'([^']+)'/g)].map((field) => field[1] ?? ''),
       }));
@@ -135,7 +135,9 @@ describe('壳侧镜像 ↔ @chips/sdk 生成常量', () => {
   it('R19 权限映射逐能力一致（open/read → resources:read，write/save → resources:write）', () => {
     const sdkPermissions = extractPermissionMap(SDK_CAPABILITY_PERMISSIONS_SOURCE);
     for (const id of MIRRORED_IDS) {
-      expect(sdkPermissions.get(id), `SDK 权限映射缺少 ${id}`).toEqual([...(DOCUMENT_CAPABILITY_PERMISSIONS[id] ?? [])]);
+      expect(sdkPermissions.get(id), `SDK 权限映射缺少 ${id}`).toEqual([
+        ...(DOCUMENT_CAPABILITY_PERMISSIONS[id] ?? []),
+      ]);
     }
   });
 
@@ -281,7 +283,7 @@ describe('注册单元 ↔ 镜像常量与预留槽位（descriptors.ts）', () 
   it('与 runtime/capabilities/reserved.ts 预留槽位逐项一致（ID、权限、数量）', () => {
     const { descriptors } = createDescriptors();
     expect(RESERVED_DOCUMENT_CAPABILITIES.map((entry) => entry.id)).toEqual(
-      descriptors.map((descriptor) => descriptor.id)
+      descriptors.map((descriptor) => descriptor.id),
     );
     for (const reserved of RESERVED_DOCUMENT_CAPABILITIES) {
       const id = reserved.id as DocumentCapabilityId;

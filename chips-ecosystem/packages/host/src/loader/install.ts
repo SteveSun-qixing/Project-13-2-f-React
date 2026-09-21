@@ -79,10 +79,7 @@ export interface IInstallCpkResult {
  *   （`KERNEL_INVALID_TRANSITION`）、安装期撤销核查未通过（`CPK_SIGNATURE_INVALID`）；
  *   失败不落盘、不留临时目录。
  */
-export async function installCpkPackage(
-  pkg: ICpkPackage,
-  options: IInstallCpkOptions,
-): Promise<IInstallCpkResult> {
+export async function installCpkPackage(pkg: ICpkPackage, options: IInstallCpkOptions): Promise<IInstallCpkResult> {
   // [1]~[3]/[5] 全量校验（archive → layout → manifest → signature → hash）。
   const validation = validateCpkPackage({
     pkg,
@@ -118,11 +115,11 @@ export async function installCpkPackage(
     ];
     for (const table of tables) {
       if (table.registry.find(keyId) === undefined) {
-        throwCpkError(
-          CPK_ERROR_CODES.signatureInvalid,
-          `安装期信任根撤销核查未通过：keyId 不在 ${table.name} 表`,
-          { stage: 'signature', keyId, table: table.name },
-        );
+        throwCpkError(CPK_ERROR_CODES.signatureInvalid, `安装期信任根撤销核查未通过：keyId 不在 ${table.name} 表`, {
+          stage: 'signature',
+          keyId,
+          table: table.name,
+        });
       }
     }
   }
@@ -152,15 +149,11 @@ export async function installCpkPackage(
     try {
       await rename(tempDir, target);
     } catch (error) {
-      throwCpkError(
-        CPK_ERROR_CODES.layoutInvalid,
-        `落盘目标不可用（目录已存在或重命名失败）：${target}`,
-        {
-          stage: 'layout',
-          target,
-          cause: error instanceof Error ? error.message : String(error),
-        },
-      );
+      throwCpkError(CPK_ERROR_CODES.layoutInvalid, `落盘目标不可用（目录已存在或重命名失败）：${target}`, {
+        stage: 'layout',
+        target,
+        cause: error instanceof Error ? error.message : String(error),
+      });
     }
   } catch (error) {
     await rm(tempDir, { recursive: true, force: true });
@@ -201,11 +194,7 @@ export async function installCpkPackage(
 }
 
 /** 安装失败后的落盘清理（注册表写入失败时调用；幂等）。 */
-export async function removeInstalledPluginDirectory(
-  pluginsRoot: string,
-  id: string,
-  version: string,
-): Promise<void> {
+export async function removeInstalledPluginDirectory(pluginsRoot: string, id: string, version: string): Promise<void> {
   const target = join(pluginsRoot.replace(/[/\\]+$/, ''), id, version);
   await rm(target, { recursive: true, force: true });
 }

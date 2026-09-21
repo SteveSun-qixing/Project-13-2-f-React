@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ChipsError as BridgeChipsError,
-  isChipsError as bridgeIsChipsError,
-} from '@chips/bridge';
+import { ChipsError as BridgeChipsError, isChipsError as bridgeIsChipsError } from '@chips/bridge';
 
 import { ChipsError, isChipsError, toChipsError } from '../src/preload/chips-error.js';
 

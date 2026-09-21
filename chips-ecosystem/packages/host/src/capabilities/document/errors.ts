@@ -130,11 +130,11 @@ export class DocumentCapabilityError extends Error {
 
   constructor(
     code: string,
-    options: { readonly message?: string; readonly details?: IDocumentErrorDetails; readonly retryable?: boolean } = {}
+    options: { readonly message?: string; readonly details?: IDocumentErrorDetails; readonly retryable?: boolean } = {},
   ) {
     super(
       options.message ??
-        (isDocumentCapabilityErrorCode(code) ? DOCUMENT_ERROR_MESSAGES[code] : PASSTHROUGH_FALLBACK_MESSAGE)
+        (isDocumentCapabilityErrorCode(code) ? DOCUMENT_ERROR_MESSAGES[code] : PASSTHROUGH_FALLBACK_MESSAGE),
     );
     this.name = 'ChipsError';
     this.code = code;
@@ -165,7 +165,7 @@ export function isDocumentCapabilityErrorCode(code: string): code is DocumentCap
 /** 构造文档能力错误（限本模块登记码；端口透传码走 {@link asDocumentCapabilityError}）。 */
 export function documentError(
   code: DocumentCapabilityErrorCode,
-  options: { readonly message?: string; readonly details?: IDocumentErrorDetails; readonly retryable?: boolean } = {}
+  options: { readonly message?: string; readonly details?: IDocumentErrorDetails; readonly retryable?: boolean } = {},
 ): DocumentCapabilityError {
   return new DocumentCapabilityError(code, options);
 }
@@ -189,7 +189,8 @@ export function asDocumentCapabilityError(error: unknown): DocumentCapabilityErr
   if (typeof error === 'object' && error !== null) {
     const candidate = error as { code?: unknown; message?: unknown; details?: unknown; retryable?: unknown };
     if (typeof candidate.code === 'string' && REGISTERED_CODE_PATTERN.test(candidate.code)) {
-      const message = typeof candidate.message === 'string' && candidate.message.length > 0 ? candidate.message : undefined;
+      const message =
+        typeof candidate.message === 'string' && candidate.message.length > 0 ? candidate.message : undefined;
       const details =
         typeof candidate.details === 'object' && candidate.details !== null
           ? (candidate.details as IDocumentErrorDetails)

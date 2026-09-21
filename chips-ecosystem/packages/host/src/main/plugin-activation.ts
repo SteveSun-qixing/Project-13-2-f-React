@@ -167,12 +167,7 @@ async function resolveExpectedPackageHash(
     const pkg = await loadCpkDirectory(entry.path);
     members = pkg.members;
   } catch (error) {
-    reanchorFailure(
-      entry,
-      'unsafe-source-tree',
-      '插件目录源树不可信或不可读，激活取数失败',
-      error,
-    );
+    reanchorFailure(entry, 'unsafe-source-tree', '插件目录源树不可信或不可读，激活取数失败', error);
   }
   try {
     // Ed25519 再验签 = 归档态信任锚：签名声明的 contentHash 覆盖除 signature.json 外
@@ -274,11 +269,11 @@ export function createHostPluginActivationChannel(
 
   const ensureLive = (pluginId: string): void => {
     if (disposed) {
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `激活通道已释放，拒绝装载：${pluginId}`,
-        { pluginId, stage: 'channel', reason: 'channel-disposed' },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `激活通道已释放，拒绝装载：${pluginId}`, {
+        pluginId,
+        stage: 'channel',
+        reason: 'channel-disposed',
+      });
     }
   };
 
@@ -290,19 +285,20 @@ export function createHostPluginActivationChannel(
     ensureLive(pluginId);
     // 端口按插件创建，上下文与端口身份必须一致（不一致即装配错位，确定性拒绝）。
     if (pluginId !== bound.id) {
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `激活上下文与端口绑定身份不一致：${pluginId}`,
-        { pluginId, boundPluginId: bound.id, stage: 'role', reason: 'context-plugin-mismatch' },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `激活上下文与端口绑定身份不一致：${pluginId}`, {
+        pluginId,
+        boundPluginId: bound.id,
+        stage: 'role',
+        reason: 'context-plugin-mismatch',
+      });
     }
     // 超时强制撤销由 lifecycle 触发 signal；本实现只协作式响应，不自设时限。
     if (context.signal.aborted) {
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `激活在取数前已被取消：${pluginId}`,
-        { pluginId, stage: 'activation', reason: 'cancelled' },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `激活在取数前已被取消：${pluginId}`, {
+        pluginId,
+        stage: 'activation',
+        reason: 'cancelled',
+      });
     }
     const entry = options.pluginRegistry.get(pluginId);
     if (entry === undefined) {
@@ -319,11 +315,11 @@ export function createHostPluginActivationChannel(
     });
     if (context.signal.aborted) {
       // 装载与求值窗口内被取消（超时撤销/停用竞态）：拒绝对已求值模块继续登记副作用。
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `激活在装载后已被取消：${pluginId}`,
-        { pluginId, stage: 'activation', reason: 'cancelled' },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `激活在装载后已被取消：${pluginId}`, {
+        pluginId,
+        stage: 'activation',
+        reason: 'cancelled',
+      });
     }
     const shaped = assertRoleShape(pluginId, context.role, loaded.exports);
     sessions.set(pluginId, {

@@ -210,5 +210,5 @@ export interface IDocumentServiceDependencies {
  */
 export type DocumentCapabilityExecutor<TInput, TOutput> = (
   input: TInput,
-  ctx: IDocumentCapabilityContext
+  ctx: IDocumentCapabilityContext,
 ) => Promise<TOutput>;

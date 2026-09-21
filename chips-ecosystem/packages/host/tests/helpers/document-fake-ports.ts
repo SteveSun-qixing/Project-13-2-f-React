@@ -18,7 +18,12 @@ import { expect } from 'vitest';
 import { comparePackagePath } from '../../src/capabilities/document/digest.js';
 import { DocumentCapabilityError } from '../../src/capabilities/document/errors.js';
 import type { IDocumentService } from '../../src/capabilities/document/service.js';
-import type { DocumentForm, DocumentKind, IDocumentCapabilityContext, IDocumentDiagnostic } from '../../src/capabilities/document/contract.js';
+import type {
+  DocumentForm,
+  DocumentKind,
+  IDocumentCapabilityContext,
+  IDocumentDiagnostic,
+} from '../../src/capabilities/document/contract.js';
 import type {
   IDocumentCommitRequest,
   IDocumentHandle,
@@ -69,7 +74,7 @@ export function portFailure(code: string, message = '端口调用失败'): Error
 /** 构造能力调用上下文。 */
 export function ctxFor(
   sessionId: string,
-  options: { readonly signal?: AbortSignal; readonly deadline?: number; readonly callerId?: string } = {}
+  options: { readonly signal?: AbortSignal; readonly deadline?: number; readonly callerId?: string } = {},
 ): IDocumentCapabilityContext {
   return {
     signal: options.signal ?? new AbortController().signal,
@@ -283,7 +288,7 @@ export function createHarness(): IDocumentTestHarness {
     documentId: string,
     title: string,
     form: DocumentForm,
-    disk: Map<string, string>
+    disk: Map<string, string>,
   ): string {
     sources.set(managedUri, {
       resolved: { managedUri, localPath: localPathOf(managedUri), form },
@@ -562,8 +567,22 @@ export function createHarness(): IDocumentTestHarness {
     },
   };
 
-  const cardUri = registerSource(`chips-resource://default/card/${CARD_ID}.card`, 'card', CARD_ID, '测试卡片', 'directory', cardDisk());
-  const boxUri = registerSource(`chips-resource://default/box/${BOX_ID}.box`, 'box', BOX_ID, '测试箱子', 'directory', boxDisk());
+  const cardUri = registerSource(
+    `chips-resource://default/card/${CARD_ID}.card`,
+    'card',
+    CARD_ID,
+    '测试卡片',
+    'directory',
+    cardDisk(),
+  );
+  const boxUri = registerSource(
+    `chips-resource://default/box/${BOX_ID}.box`,
+    'box',
+    BOX_ID,
+    '测试箱子',
+    'directory',
+    boxDisk(),
+  );
 
   const harness: IDocumentTestHarness = {
     dependencies: { scope, parser, storage, events, guard, diagnostics },
@@ -586,10 +605,24 @@ export function createHarness(): IDocumentTestHarness {
     readPartCalls,
 
     addCard(managedUri, form) {
-      return registerSource(managedUri ?? `chips-resource://default/card/${CARD_ID}.card`, 'card', CARD_ID, '测试卡片', form ?? 'directory', cardDisk());
+      return registerSource(
+        managedUri ?? `chips-resource://default/card/${CARD_ID}.card`,
+        'card',
+        CARD_ID,
+        '测试卡片',
+        form ?? 'directory',
+        cardDisk(),
+      );
     },
     addBox(managedUri, form) {
-      return registerSource(managedUri ?? `chips-resource://default/box/${BOX_ID}.box`, 'box', BOX_ID, '测试箱子', form ?? 'directory', boxDisk());
+      return registerSource(
+        managedUri ?? `chips-resource://default/box/${BOX_ID}.box`,
+        'box',
+        BOX_ID,
+        '测试箱子',
+        form ?? 'directory',
+        boxDisk(),
+      );
     },
     aliasSource(alias, managedUri) {
       aliases.set(alias, managedUri);

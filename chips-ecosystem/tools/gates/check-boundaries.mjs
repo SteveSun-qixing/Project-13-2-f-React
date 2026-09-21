@@ -350,7 +350,11 @@ function checkSource(report, pkg, rules, config, scope, devAllowed) {
       // 子路径（Node ESM self-reference，单一事实源为该包 `exports` 映射）不构成跨包
       // 内部依赖，豁免 BOUNDARY020/021；由门禁配置 `selfReferenceViaExports` 显式
       // 开启（缺省关闭，fail-closed），子路径未在该包 `exports` 登记时维持原违规判定。
-      if (selfRefViaExports && packageName === selfName && hasOwnExportsSubpath(pkg.json, specifier, selfName)) {
+      if (
+        selfRefViaExports &&
+        packageName === selfName &&
+        hasOwnExportsSubpath(pkg.json, specifier, selfName)
+      ) {
         continue;
       }
       if (!declared.has(specifier) && !declared.has(packageName)) {

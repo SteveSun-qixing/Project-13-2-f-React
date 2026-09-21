@@ -79,9 +79,7 @@ export function createDocumentViewChannelBuilder(options: IDocumentViewChannelCl
   return {
     async buildView(input: IDocumentViewChannelInput): Promise<ICardRenderView> {
       // ① 发送侧自检：请求闸的在册抛出（`BRIDGE_INVALID_INPUT`）直通，非法请求不触达 IPC。
-      const request = validateDocumentViewChannelRequest(
-        createDocumentViewBuildRequest(createRequestId(), input)
-      );
+      const request = validateDocumentViewChannelRequest(createDocumentViewBuildRequest(createRequestId(), input));
       let raw: unknown;
       try {
         raw = await options.invoke.invoke(DOCUMENT_VIEW_REQUEST_CHANNEL, request);

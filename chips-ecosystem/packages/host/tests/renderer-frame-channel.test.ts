@@ -20,7 +20,11 @@ import type { ChipsError } from '../src/preload/chips-error.js';
 import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 
 /** 内存端口对替身：捕获父帧发出的消息，测试以子帧身份注入入站消息。 */
-function createFakePortPair(): IFramePortPair & { readonly sent: unknown[]; deliver(message: unknown): void; closeCount(): number } {
+function createFakePortPair(): IFramePortPair & {
+  readonly sent: unknown[];
+  deliver(message: unknown): void;
+  closeCount(): number;
+} {
   let listener: ((event: { readonly data: unknown }) => void) | null = null;
   let closed = 0;
   const sent: unknown[] = [];
@@ -116,11 +120,22 @@ const createChannel = (overrides?: { role?: 'card' | 'box-layout' }): IChannelFi
       onProtocolViolation: (error) => {
         violation(error);
       },
-    }
+    },
   );
   const heightReports: { readonly height: number; readonly epoch: number }[] = [];
-  return { channel, pair, diagnostics, transfers, ready, readyTimeout, violation, frameError, executeAction, heightReports };
-}
+  return {
+    channel,
+    pair,
+    diagnostics,
+    transfers,
+    ready,
+    readyTimeout,
+    violation,
+    frameError,
+    executeAction,
+    heightReports,
+  };
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -154,7 +169,11 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
       token: 'token-1',
     });
     expect(context.pair.sent).toHaveLength(1);
-    const envelope = context.pair.sent[0] as { sessionId: string; frameId: string; message: { type: string; payload: FrameInitPayload } };
+    const envelope = context.pair.sent[0] as {
+      sessionId: string;
+      frameId: string;
+      message: { type: string; payload: FrameInitPayload };
+    };
     expect(envelope.sessionId).toBe('session-1');
     expect(envelope.frameId).toBe('frame-1');
     expect(envelope.message.type).toBe('host:init');
@@ -166,7 +185,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
     const context = createChannel();
     context.channel.start();
     context.pair.deliver(
-      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:ready', payload: { capabilities: ['measure'] } })
+      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:ready', payload: { capabilities: ['measure'] } }),
     );
     expect(context.ready).toHaveBeenCalledWith({ capabilities: ['measure'] });
 
@@ -187,7 +206,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
     const context = createChannel();
     context.channel.start();
     context.pair.deliver(
-      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:height', payload: { height: 300, epoch: 1 } })
+      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:height', payload: { height: 300, epoch: 1 } }),
     );
     expect(context.heightReports).toEqual([{ height: 300, epoch: 1 }]);
   });
@@ -201,7 +220,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
       createFrameEnvelope('session-1', 'frame-1', {
         type: 'frame:action',
         payload: { requestId: 'ok-1', action: { kind: 'copy-text', text: '文本' } },
-      })
+      }),
     );
     await vi.waitFor(() => {
       expect(context.executeAction).toHaveBeenCalledTimes(1);
@@ -214,7 +233,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
       createFrameEnvelope('session-1', 'frame-1', {
         type: 'frame:action',
         payload: { requestId: 'fail-1', action: { kind: 'open-external', url: 'https://example.com' } },
-      })
+      }),
     );
     await vi.waitFor(() => {
       const errorEnvelope = context.pair.sent[0] as {
@@ -235,7 +254,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
       createFrameEnvelope('session-1', 'frame-1', {
         type: 'frame:action',
         payload: { requestId: 'slow-1', action: { kind: 'copy-text', text: '文本' } },
-      })
+      }),
     );
     await vi.waitFor(() => {
       expect(context.executeAction).toHaveBeenCalledTimes(1);
@@ -253,7 +272,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
     const context = createChannel();
     context.channel.start();
     context.pair.deliver(
-      createFrameEnvelope('session-evil', 'frame-1', { type: 'frame:ready', payload: { capabilities: [] } })
+      createFrameEnvelope('session-evil', 'frame-1', { type: 'frame:ready', payload: { capabilities: [] } }),
     );
     expect(context.violation).toHaveBeenCalledTimes(1);
     expect(context.violation.mock.calls[0]?.[0].code).toBe('RENDER_PROTOCOL_VIOLATION');
@@ -263,9 +282,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
   it('未列入清单的消息类型忽略并记录诊断（§9.3）', () => {
     const context = createChannel();
     context.channel.start();
-    context.pair.deliver(
-      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:future', payload: {} } as never)
-    );
+    context.pair.deliver(createFrameEnvelope('session-1', 'frame-1', { type: 'frame:future', payload: {} } as never));
     expect(context.violation).not.toHaveBeenCalled();
     expect(context.diagnostics.lines.some((line) => line.message.includes('忽略'))).toBe(true);
   });
@@ -277,7 +294,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
       createFrameEnvelope('session-1', 'frame-1', {
         type: 'frame:entry-request',
         payload: { requestId: 'r', entry_ids: [], firstVisible: 0, lastVisible: 0 },
-      })
+      }),
     );
     expect(card.violation).toHaveBeenCalledTimes(1);
 
@@ -287,7 +304,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
       createFrameEnvelope('session-1', 'frame-1', {
         type: 'frame:entry-request',
         payload: { requestId: 'r', entry_ids: [], firstVisible: 0, lastVisible: 0 },
-      })
+      }),
     );
     expect(layout.violation).not.toHaveBeenCalled();
     expect(layout.diagnostics.lines.some((line) => line.message.includes('条目请求'))).toBe(true);
@@ -316,7 +333,7 @@ describe('父帧通道（05.09 §9.1/§9.3/§9.5/§9.6）', () => {
     context.channel.start();
     context.channel.closePort();
     context.pair.deliver(
-      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:ready', payload: { capabilities: [] } })
+      createFrameEnvelope('session-1', 'frame-1', { type: 'frame:ready', payload: { capabilities: [] } }),
     );
     context.channel.sendInit({
       role: 'card',

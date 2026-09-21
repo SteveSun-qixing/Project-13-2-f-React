@@ -49,10 +49,7 @@ import {
   validateCardWindowInitRequest,
   validateCardWindowInitResponse,
 } from '../src/shared/card-window-init-surface.js';
-import type {
-  CardWindowInitResponse,
-  ICardWindowInitPayload,
-} from '../src/shared/card-window-init-surface.js';
+import type { CardWindowInitResponse, ICardWindowInitPayload } from '../src/shared/card-window-init-surface.js';
 import { HOST_VIEW_CHANNEL_SURFACE_KEY } from '../src/shared/host-view-channel-surface.js';
 import {
   BRIDGE_REQUEST_CHANNEL,
@@ -115,7 +112,13 @@ describe('卡片窗口装载输入投递 · 常量与漂移锁（#119 契约冻�
   });
 
   it('payload 字段名清单与 ICardWindowInit 消费五字段逐字一致', () => {
-    expect([...CARD_WINDOW_INIT_PAYLOAD_FIELDS]).toEqual(['source', 'documentId', 'resourceBase', 'pluginEntries', 'tokens']);
+    expect([...CARD_WINDOW_INIT_PAYLOAD_FIELDS]).toEqual([
+      'source',
+      'documentId',
+      'resourceBase',
+      'pluginEntries',
+      'tokens',
+    ]);
   });
 
   /**
@@ -275,28 +278,28 @@ describe('卡片窗口装载输入投递 · payload 闸（消费形状逐字段�
 
   it('source 词法闸与编排器 assertSource 同口径镜像（空/空白/超长拒绝，4096 边界通过）', () => {
     for (const bad of ['', '   ', 'a b', 'chips-resource://a b/c', 'tail\n']) {
-      const rejection = captureRejection(() =>
-        validateCardWindowInitPayload({ ...validPayload(), source: bad })
-      );
+      const rejection = captureRejection(() => validateCardWindowInitPayload({ ...validPayload(), source: bad }));
       expect(rejection.code, `source=${JSON.stringify(bad)}`).toBe('BRIDGE_INTERNAL');
       expect(rejection.details).toMatchObject({ gate: 'response', field: 'source' });
     }
     expect(validateCardWindowInitPayload({ ...validPayload(), source: 'x'.repeat(4096) }).source).toHaveLength(4096);
     const tooLong = captureRejection(() =>
-      validateCardWindowInitPayload({ ...validPayload(), source: 'x'.repeat(4097) })
+      validateCardWindowInitPayload({ ...validPayload(), source: 'x'.repeat(4097) }),
     );
     expect(tooLong.details).toMatchObject({ field: 'source' });
   });
 
   it('documentId 十位 Base62 边界（9 位 / 11 位 / 非 Base62 字符拒绝；大小写字母+数字通过）', () => {
     for (const bad of ['Ab3dEf6Gh', 'Ab3dEf6Gh89', 'Ab3dEf6Gh_', '短标识0123456789ab']) {
-      const rejection = captureRejection(() =>
-        validateCardWindowInitPayload({ ...validPayload(), documentId: bad })
-      );
+      const rejection = captureRejection(() => validateCardWindowInitPayload({ ...validPayload(), documentId: bad }));
       expect(rejection.details, `documentId=${bad}`).toMatchObject({ field: 'documentId' });
     }
-    expect(validateCardWindowInitPayload({ ...validPayload(), documentId: '0000000000' }).documentId).toBe('0000000000');
-    expect(validateCardWindowInitPayload({ ...validPayload(), documentId: 'zzzzZZZZ99' }).documentId).toBe('zzzzZZZZ99');
+    expect(validateCardWindowInitPayload({ ...validPayload(), documentId: '0000000000' }).documentId).toBe(
+      '0000000000',
+    );
+    expect(validateCardWindowInitPayload({ ...validPayload(), documentId: 'zzzzZZZZ99' }).documentId).toBe(
+      'zzzzZZZZ99',
+    );
   });
 
   it('resourceBase 非空字符串闸（语法权威在资源协议侧，本闸不解析 URI）', () => {
@@ -308,7 +311,7 @@ describe('卡片窗口装载输入投递 · payload 闸（消费形状逐字段�
   it('pluginEntries 映射闸：非普通对象 / 非字符串值 / 空串值 / 空键拒绝；空映射合法', () => {
     for (const bad of [null, [], ['a'], { k: 1 }, { '': 'v' }, { k: '' }, { k: 'v', k2: 3 }]) {
       const rejection = captureRejection(() =>
-        validateCardWindowInitPayload({ ...validPayload(), pluginEntries: bad as unknown as Record<string, string> })
+        validateCardWindowInitPayload({ ...validPayload(), pluginEntries: bad as unknown as Record<string, string> }),
       );
       expect(rejection.details).toMatchObject({ gate: 'response', field: 'pluginEntries' });
     }
@@ -318,7 +321,7 @@ describe('卡片窗口装载输入投递 · payload 闸（消费形状逐字段�
   it('tokens 映射闸：键必须 `--` 前缀、值必须字符串；空集合法（CSS 变量表口径）', () => {
     for (const bad of [{ color: 'red' }, { '--chips-x': 1 }, null, 'x']) {
       const rejection = captureRejection(() =>
-        validateCardWindowInitPayload({ ...validPayload(), tokens: bad as unknown as Record<string, string> })
+        validateCardWindowInitPayload({ ...validPayload(), tokens: bad as unknown as Record<string, string> }),
       );
       expect(rejection.details).toMatchObject({ field: 'tokens' });
     }
@@ -369,7 +372,11 @@ describe('卡片窗口装载输入投递 · 响应闸（result / pending / error
 
   it('失败臂：在册码逐码经普通对象形态还原（销毁竞态 / 绑定未就绪 / 非法请求转化腿）', () => {
     for (const code of Object.values(CARD_WINDOW_INIT_CHANNEL_ERROR_CODES)) {
-      const built = createCardWindowInitFailure(REQUEST_ID, WINDOW_ID, { code, message: '装载输入投递失败', retryable: false });
+      const built = createCardWindowInitFailure(REQUEST_ID, WINDOW_ID, {
+        code,
+        message: '装载输入投递失败',
+        retryable: false,
+      });
       // 线上形态纪律：构造器入包必须是跨边界普通对象（不得传输 Error 实例，《01-Bridge-API规范》§2.5）。
       expect(built.error, code).not.toBeInstanceOf(Error);
       const validated = validateCardWindowInitResponse(built, REQUEST_ID);
@@ -398,7 +405,15 @@ describe('卡片窗口装载输入投递 · 响应闸（result / pending / error
       ['请求侧未回 requestId 一致（关联锁）', { ...result, requestId: 'other-id' }],
       ['消息类型不是响应臂（fetch 混入）', { ...result, type: 'card-window-init:fetch' }],
       ['消息类型未知', { ...result, type: 'card-window:init' }],
-      ['就绪臂缺 payload', { protocol: CARD_WINDOW_INIT_PROTOCOL, type: 'card-window-init:result', requestId: REQUEST_ID, windowId: WINDOW_ID }],
+      [
+        '就绪臂缺 payload',
+        {
+          protocol: CARD_WINDOW_INIT_PROTOCOL,
+          type: 'card-window-init:result',
+          requestId: REQUEST_ID,
+          windowId: WINDOW_ID,
+        },
+      ],
       ['就绪臂多字段', { ...result, extra: true }],
       ['空载臂带 payload', { ...createCardWindowInitPending(REQUEST_ID, WINDOW_ID), payload: validPayload() }],
       ['失败臂 error 非 IChipsError 同构', { ...result, type: 'card-window-init:error', error: { code: 1 } }],
@@ -413,7 +428,10 @@ describe('卡片窗口装载输入投递 · 响应闸（result / pending / error
   it('windowId 正安全整数闸（§7.4 webContents.id；0/负数/小数/NaN/字符串全拒）', () => {
     for (const bad of [0, -1, 1.5, Number.NaN, '42', Number.MAX_SAFE_INTEGER + 1]) {
       const rejection = captureRejection(() =>
-        validateCardWindowInitResponse({ ...createCardWindowInitPending(REQUEST_ID, WINDOW_ID), windowId: bad }, REQUEST_ID)
+        validateCardWindowInitResponse(
+          { ...createCardWindowInitPending(REQUEST_ID, WINDOW_ID), windowId: bad },
+          REQUEST_ID,
+        ),
       );
       expect(rejection.code).toBe('BRIDGE_INTERNAL');
       expect(rejection.details).toMatchObject({ field: 'windowId' });
@@ -423,7 +441,7 @@ describe('卡片窗口装载输入投递 · 响应闸（result / pending / error
   it('expectedRequestId 自身非法即拒（关联锁前置防线）', () => {
     for (const bad of ['', 7]) {
       const rejection = captureRejection(() =>
-        validateCardWindowInitResponse(createCardWindowInitPending(REQUEST_ID, WINDOW_ID), bad as string)
+        validateCardWindowInitResponse(createCardWindowInitPending(REQUEST_ID, WINDOW_ID), bad as string),
       );
       expect(rejection.code).toBe('BRIDGE_INTERNAL');
     }
@@ -433,8 +451,8 @@ describe('卡片窗口装载输入投递 · 响应闸（result / pending / error
     const rejection = captureRejection(() =>
       validateCardWindowInitResponse(
         createCardWindowInitResult(REQUEST_ID, WINDOW_ID, { ...validPayload(), documentId: 'bad' }),
-        REQUEST_ID
-      )
+        REQUEST_ID,
+      ),
     );
     expect(rejection.code).toBe('BRIDGE_INTERNAL');
   });
@@ -453,7 +471,9 @@ export type PayloadAssignableToCardWindowInit = Expect<ICardWindowInitPayload ex
 export type CardWindowInitAssignableToPayload = Expect<ICardWindowInit extends ICardWindowInitPayload ? true : false>;
 export type PayloadKeysIdenticalLock = Expect<Equal<keyof ICardWindowInitPayload, keyof ICardWindowInit>>;
 /** 编译期键集锁：窗口装载层最小面只暴露单方法 `requestInit`（新独立世界键集冻结）。 */
-export type SurfaceKeySetLock = Expect<Equal<keyof import('../src/shared/card-window-init-surface.js').ICardWindowInitSurface, 'requestInit'>>;
+export type SurfaceKeySetLock = Expect<
+  Equal<keyof import('../src/shared/card-window-init-surface.js').ICardWindowInitSurface, 'requestInit'>
+>;
 
 describe('卡片窗口装载输入投递 · 消费形状与键集漂移锁', () => {
   it('card.ts `ICardWindowInit` 源文本字段面与 payload 键集清单逐字一致', () => {
@@ -477,14 +497,19 @@ describe('卡片窗口装载输入投递 · 消费形状与键集漂移锁', () 
 describe('卡片窗口装载输入投递 · import 面纯净（契约零实现体）', () => {
   const source = readFileSync(
     fileURLToPath(new URL('../src/shared/card-window-init-surface.ts', import.meta.url)),
-    'utf8'
+    'utf8',
   );
 
   /** 全部静态 import 来源（含 type-only）。 */
-  const importSpecifiers: readonly string[] = [...source.matchAll(/from\s+'([^']+)'/g)].map((match) => match[1] as string);
+  const importSpecifiers: readonly string[] = [...source.matchAll(/from\s+'([^']+)'/g)].map(
+    (match) => match[1] as string,
+  );
 
   it('运行期依赖仅 @chips/bridge（错误归一）与文档域在册码表常量', () => {
-    expect([...new Set(importSpecifiers)].sort()).toStrictEqual(['../capabilities/document/errors.js', '@chips/bridge']);
+    expect([...new Set(importSpecifiers)].sort()).toStrictEqual([
+      '../capabilities/document/errors.js',
+      '@chips/bridge',
+    ]);
   });
 
   it('零宿主进程能力：无 IPC / DOM / 定时器 / 订阅标识符（import 白名单由上一用例锁定）', () => {

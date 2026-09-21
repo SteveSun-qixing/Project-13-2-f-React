@@ -77,11 +77,11 @@ interface RunResult {
 
 async function runAppSmoke(): Promise<RunResult> {
   const electronBin = resolveElectronBin();
-  const child = spawn(
-    electronBin,
-    [appEntry, '--chips-open-card', SMOKE_CARD_SOURCE],
-    { cwd: packageRoot, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env } }
-  );
+  const child = spawn(electronBin, [appEntry, '--chips-open-card', SMOKE_CARD_SOURCE], {
+    cwd: packageRoot,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env },
+  });
   const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
   child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
@@ -156,7 +156,7 @@ describeSmoke('薯片宿主正式应用冒烟闸（CHIPS_HOST_SMOKE=1）', () =>
       process.stdout.write(
         `[smoke:app] earlyExit=${result.earlyExit} stderrBytes=${result.stderrBytes} ` +
           `exemptLines=${exempt.length} remainderBytes=${Buffer.byteLength(remainder, 'utf8')} ` +
-          `exitCode=${String(result.exitCode)} signal=${String(result.signal)}\n`
+          `exitCode=${String(result.exitCode)} signal=${String(result.signal)}\n`,
       );
       if (remainder.length > 0) {
         process.stdout.write(`[smoke:app] 非豁免 stderr 内容（判据要求为空）：\n${remainder}\n`);
@@ -168,6 +168,6 @@ describeSmoke('薯片宿主正式应用冒烟闸（CHIPS_HOST_SMOKE=1）', () =>
       expect(result.signal, 'SIGTERM 应被优雅处理而非信号终止残留').toBeNull();
       expect(result.exitCode, '优雅收口退出码').toBe(0);
     },
-    ALIVE_WINDOW_MS + TERM_EXIT_MS + 30_000
+    ALIVE_WINDOW_MS + TERM_EXIT_MS + 30_000,
   );
 });

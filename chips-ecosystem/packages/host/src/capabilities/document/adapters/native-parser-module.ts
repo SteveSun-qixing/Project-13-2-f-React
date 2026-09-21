@@ -77,10 +77,7 @@ export const NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS = [
  * v1.0.1），本文件面的表解析锁随跨单合缝（提交 06aa8b576）收紧为全集面比对
  * （§6.4 表 15 项、§12.1 表 14 项）。
  */
-export const NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS = [
-  'documentRevision',
-  'documentLayoutConfig',
-] as const;
+export const NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS = ['documentRevision', 'documentLayoutConfig'] as const;
 
 /**
  * 装载闸要求的解析域导出名集合（13 冻结 + 2 正式化，共 15 项）。
@@ -234,11 +231,7 @@ export interface INativeDocumentParserModule {
   /** L2 条目分页读取（箱子句柄）。 */
   documentEntries(handle: INativeDocumentHandle, range?: INativeEntriesRange): Promise<INativeEntriesResult>;
   /** L3 资源字节窗口（本适配器不消费；端口无对应臂，签名冻结在案）。 */
-  documentReadResource(
-    handle: INativeDocumentHandle,
-    path: string,
-    range?: INativeResourceRange
-  ): Promise<Uint8Array>;
+  documentReadResource(handle: INativeDocumentHandle, path: string, range?: INativeResourceRange): Promise<Uint8Array>;
   /** 严格校验报告（本适配器不消费；签名冻结在案）。 */
   documentValidate(handle: INativeDocumentHandle): Promise<INativeValidationReport>;
   /** 文档视图构建器（§6.6；渲染路消费，本适配器不消费，签名冻结在案）。 */
@@ -300,7 +293,7 @@ export function defaultNativeDocumentParserModulePath(platformRoot: string): str
 function unavailable(
   reason: NativeDocumentParserUnavailableReason,
   modulePath: string,
-  detail: string
+  detail: string,
 ): INativeDocumentParserUnavailable {
   return { status: 'unavailable', reason, modulePath, detail };
 }
@@ -332,14 +325,12 @@ export function loadNativeDocumentParserBinding(modulePath: string): INativeDocu
     return unavailable('load-failed', modulePath, `原生绑定加载失败：${message}`);
   }
 
-  const missing = NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS.filter(
-    (name) => typeof moduleValue[name] !== 'function'
-  );
+  const missing = NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS.filter((name) => typeof moduleValue[name] !== 'function');
   if (missing.length > 0) {
     return unavailable(
       'surface-mismatch',
       modulePath,
-      `§6.4/工单034 必备导出缺位或非函数：${missing.join('、')}（疑似旧构建产物，请重新构建 @chips/native）`
+      `§6.4/工单034 必备导出缺位或非函数：${missing.join('、')}（疑似旧构建产物，请重新构建 @chips/native）`,
     );
   }
   const parser = moduleValue as unknown as INativeDocumentParserModule & {
@@ -367,7 +358,7 @@ export function loadNativeDocumentParserBinding(modulePath: string): INativeDocu
     return unavailable(
       'abi-mismatch',
       modulePath,
-      `coreAbiVersion()=${String(abiVersion)} 与宿主期望 ${String(NATIVE_DOCUMENT_PARSER_ABI_VERSION)} 不等`
+      `coreAbiVersion()=${String(abiVersion)} 与宿主期望 ${String(NATIVE_DOCUMENT_PARSER_ABI_VERSION)} 不等`,
     );
   }
 

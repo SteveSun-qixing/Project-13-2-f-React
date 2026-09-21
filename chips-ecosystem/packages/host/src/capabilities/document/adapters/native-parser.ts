@@ -81,7 +81,7 @@ const PARSER_CODE_RETRYABLE: Readonly<Record<(typeof PARSER_CODE)[keyof typeof P
 function parserError(
   code: (typeof PARSER_CODE)[keyof typeof PARSER_CODE],
   message: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): ChipsError {
   return new ChipsError({
     code,
@@ -136,7 +136,7 @@ function isDiagnostic(value: unknown): value is INativeDiagnostic {
 function checkEnvelope(
   exportName: string,
   envelope: unknown,
-  valueShape: 'record' | 'array'
+  valueShape: 'record' | 'array',
 ): INativeDocumentEnvelope<DocumentValue> {
   if (!isRecord(envelope)) {
     throw shapeViolation(exportName, '结果信封不是对象');
@@ -252,20 +252,16 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
   /** 按切片分发原生导出并过信封守卫。 */
   async function dispatchPart(
     record: IHandleRecord,
-    request: IDocumentPartRequest
+    request: IDocumentPartRequest,
   ): Promise<INativeDocumentEnvelope<DocumentValue>> {
     switch (request.part) {
       case 'metadata':
-        return checkEnvelope(
-          'documentMetadata',
-          await attempt(() => module.documentMetadata(record.native)),
-          'record'
-        );
+        return checkEnvelope('documentMetadata', await attempt(() => module.documentMetadata(record.native)), 'record');
       case 'structure':
         return checkEnvelope(
           'documentStructure',
           await attempt(() => module.documentStructure(record.native)),
-          'record'
+          'record',
         );
       case 'content': {
         const nodeId = request.nodeId;
@@ -274,13 +270,13 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
           return checkEnvelope(
             'documentLayoutConfig',
             await attempt(() => module.documentLayoutConfig(record.native)),
-            'record'
+            'record',
           );
         }
         return checkEnvelope(
           'documentContent',
           await attempt(() => module.documentContent(record.native, nodeId)),
-          'record'
+          'record',
         );
       }
       case 'entries': {
@@ -312,7 +308,7 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
       metadataEnvelope = checkEnvelope(
         'documentMetadata',
         await attempt(() => module.documentMetadata(native)),
-        'record'
+        'record',
       );
       ensureNotAborted(input.signal, 'open/revision');
       fingerprint = mapRevision('documentRevision', await attempt(() => module.documentRevision(native)));
@@ -353,7 +349,7 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
   async function readPart(
     handle: IDocumentHandle,
     request: IDocumentPartRequest,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<IDocumentPartOutcome> {
     const record = requireLive(handle, 'readPart');
     ensureNotAborted(signal, `readPart/${request.part}`);
@@ -372,7 +368,7 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
       return attempt(() =>
         range === undefined
           ? module.documentReadResource(record.native, path)
-          : module.documentReadResource(record.native, path, range)
+          : module.documentReadResource(record.native, path, range),
       );
     },
   };
@@ -402,7 +398,7 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
             port: 'IDocumentParserPort.serialize',
             adjudication: '金链路集成七刀定案·刀6：落盘序列化权威归 W3 chips-resource 波',
           },
-        })
+        }),
       );
     },
 

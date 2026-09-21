@@ -146,8 +146,7 @@ async function writeServicePlugin(
   const dependencyLines = dependencies
     .map((dependency) => `  - id: ${dependency.id}\n    version: "${dependency.version}"`)
     .join('\n');
-  const dependencyBlock =
-    dependencies.length > 0 ? `dependencies:\n${dependencyLines}\n` : '';
+  const dependencyBlock = dependencies.length > 0 ? `dependencies:\n${dependencyLines}\n` : '';
   await writeFile(
     join(pluginRoot, 'manifest.yaml'),
     `id: ${id}\nversion: ${version}\ntype: service\nname: 示例服务\nruntime:\n  targets: [host]\n  background: true\n${dependencyBlock}`,
@@ -268,9 +267,7 @@ describe('T2/T6/T8/T9：启用 → active → 停用 → installed', () => {
       },
     });
     const enablePromise = harness.loader.enable(id);
-    await expect
-      .poll(() => harness.loader.get(id)?.state, { timeout: 2_000 })
-      .toBe('starting');
+    await expect.poll(() => harness.loader.get(id)?.state, { timeout: 2_000 }).toBe('starting');
     const disableResult = await harness.loader.disable(id);
     expect(disableResult.record.state).toBe('installed');
     const settled = await enablePromise;
@@ -482,9 +479,7 @@ describe('T12/T13：卸载前置与 builtin 拒绝', () => {
     await installServicePlugin(harness, id, '0.1.0');
     await harness.loader.uninstall(id);
     expect(harness.loader.get(id)).toBeUndefined();
-    const rootEntries = (await readdir(harness.pluginsRoot)).filter(
-      (name) => name !== '.cpk-install-tmp',
-    );
+    const rootEntries = (await readdir(harness.pluginsRoot)).filter((name) => name !== '.cpk-install-tmp');
     expect(rootEntries).toEqual([]);
     expect(harness.events.slice(-2).map((event) => event.id)).toEqual([
       PLUGIN_LIFECYCLE_EVENTS.unloaded,
@@ -702,8 +697,7 @@ describe('激活上下文：角色约束、配置快照与事件发布', () => {
 
   it('configReader 提供命名空间生效值：apply 期间快照只读', async () => {
     const harness = await createHarness({
-      configReader: (pluginId) =>
-        pluginId === 'chips.example.svc' ? { greeting: '你好' } : {},
+      configReader: (pluginId) => (pluginId === 'chips.example.svc' ? { greeting: '你好' } : {}),
     });
     const id = 'chips.example.svc';
     await installServicePlugin(harness, id, '0.1.0');
@@ -828,12 +822,8 @@ describe('§4.6 启动恢复', () => {
     expect(restoreLoader.get(c)?.state).toBe('installed');
     expect(restoreLoader.get(d)).toBeUndefined();
     // 残留回滚诊断（§3.4）与失效清理诊断（§4.6 矩阵末行）。
-    expect(report.diagnostics.some((line) => line.includes(a) && line.includes('starting'))).toBe(
-      true,
-    );
-    expect(report.diagnostics.some((line) => line.includes(c) && line.includes('stopping'))).toBe(
-      true,
-    );
+    expect(report.diagnostics.some((line) => line.includes(a) && line.includes('starting'))).toBe(true);
+    expect(report.diagnostics.some((line) => line.includes(c) && line.includes('stopping'))).toBe(true);
     expect(report.diagnostics.some((line) => line.includes(d) && line.includes('清理'))).toBe(true);
     // 拓扑序：loaded 事件 A 先于 B。
     const loadedOrder = restoreEvents
@@ -870,9 +860,7 @@ describe('§4.6 启动恢复', () => {
     expect(report.failed[0]?.error).toMatchObject({ code: 'CARD_EXPORT_FAILED', retryable: false });
     expect(harness.loader.get(f)?.state).toBe('failed');
     expect(harness.loader.get(e)?.state).toBe('pending');
-    expect(report.diagnostics.some((line) => line.includes(e) && line.includes('pending'))).toBe(
-      true,
-    );
+    expect(report.diagnostics.some((line) => line.includes(e) && line.includes('pending'))).toBe(true);
   });
 
   it('启用偏好成环：环成员整组 failed（KERNEL_DEPENDENCY_CYCLE），不阻塞恢复其余', async () => {
@@ -888,9 +876,7 @@ describe('§4.6 启动恢复', () => {
     const report = await harness.loader.restore();
     expect(report.enabled).toEqual([g]);
     expect(report.failed.map((failure) => failure.id).sort()).toEqual([a, b].sort());
-    expect(report.failed.every((failure) => failure.error.code === 'KERNEL_DEPENDENCY_CYCLE')).toBe(
-      true,
-    );
+    expect(report.failed.every((failure) => failure.error.code === 'KERNEL_DEPENDENCY_CYCLE')).toBe(true);
   });
 });
 
@@ -912,9 +898,7 @@ describe('createPluginActivationContext 直构面', () => {
       hostCapabilityRegistry: harness.capabilityRegistry,
       publishEvent: () => undefined,
     });
-    expect(() => context.unregisterCapability('other:capability')).toThrowError(
-      /不得注销其他提供方注册的能力/,
-    );
+    expect(() => context.unregisterCapability('other:capability')).toThrowError(/不得注销其他提供方注册的能力/);
     context.registerCapability({ id: 'owner:capability', permissions: [], handler: () => Promise.resolve({}) });
     expect(context.registeredCapabilities()).toEqual(['owner:capability']);
     context.unregisterCapability('owner:capability');

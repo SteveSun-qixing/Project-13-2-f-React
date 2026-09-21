@@ -78,7 +78,7 @@ export interface INativeDocumentViewModule {
   documentReadResource(
     handle: INativeDocumentViewHandle,
     path: string,
-    range?: INativeDocumentViewResourceRange
+    range?: INativeDocumentViewResourceRange,
   ): Promise<Uint8Array>;
 }
 
@@ -272,7 +272,10 @@ function asCoverView(value: unknown, path: string): ICardRenderView['cover'] {
   }
   assertCloneableValue(value, path, new Set<unknown>());
   assertExactKeys(value, ['entry', 'ratio'], path);
-  return { entry: requireNonEmptyString(value['entry'], `${path}.entry`), ratio: requireString(value['ratio'], `${path}.ratio`) };
+  return {
+    entry: requireNonEmptyString(value['entry'], `${path}.entry`),
+    ratio: requireString(value['ratio'], `${path}.ratio`),
+  };
 }
 
 /**
@@ -286,7 +289,7 @@ function guardCardRenderView(view: unknown): ICardRenderView {
   assertExactKeys(
     view,
     ['kind', 'revision', 'card_id', 'name', 'chip_standards_version', 'cover_ratio', 'tags', 'cover', 'content_nodes'],
-    'CardRenderView'
+    'CardRenderView',
   );
   if (view['kind'] !== 'card') {
     // §2.1：链路分支点在 `DocumentKind`；当前交付面端口返回卡片视图，非 card 判别即形状违约。
@@ -333,7 +336,11 @@ function guardCardRenderView(view: unknown): ICardRenderView {
  * ------------------------------------------------------------------ */
 
 /** 资源域已登记码的构造（简体中文消息；码本体全部在册，不发明）。 */
-function resourceError(code: (typeof RESOURCE_CODE)[keyof typeof RESOURCE_CODE], message: string, details?: Record<string, unknown>): ChipsError {
+function resourceError(
+  code: (typeof RESOURCE_CODE)[keyof typeof RESOURCE_CODE],
+  message: string,
+  details?: Record<string, unknown>,
+): ChipsError {
   return new ChipsError({ code, message, retryable: false, ...(details === undefined ? {} : { details }) });
 }
 
@@ -362,7 +369,7 @@ function packagePathFromManagedUri(parsed: ResourceUriParseSuccess, binding: IDo
     throw resourceError(
       RESOURCE_CODE.notSupported,
       '外部起源资源不经文档句柄读取（由渲染帧与资源管理器直连通路承载）',
-      { reason: 'external-origin' }
+      { reason: 'external-origin' },
     );
   }
   if (parsed.scope !== binding.managedScope) {
@@ -378,7 +385,10 @@ function packagePathFromManagedUri(parsed: ResourceUriParseSuccess, binding: IDo
 }
 
 /** 把视图内原样引用归一为 backing `documentReadResource` 的包内路径。 */
-function normalizeResourceReference(request: IDocumentViewResourceRequest, binding: IDocumentViewSessionBinding): string {
+function normalizeResourceReference(
+  request: IDocumentViewResourceRequest,
+  binding: IDocumentViewSessionBinding,
+): string {
   if (request.reference.length === 0) {
     throw resourceError(RESOURCE_CODE.pathInvalid, '资源引用为空', { reason: 'empty' });
   }
@@ -400,7 +410,9 @@ function normalizeResourceReference(request: IDocumentViewResourceRequest, bindi
 }
 
 /** 字节窗口校验（§12.1 `{ offset, length }`：非负安全整数）。 */
-function validatedRange(range: INativeDocumentViewResourceRange | undefined): INativeDocumentViewResourceRange | undefined {
+function validatedRange(
+  range: INativeDocumentViewResourceRange | undefined,
+): INativeDocumentViewResourceRange | undefined {
   if (range === undefined) {
     return undefined;
   }
@@ -519,7 +531,7 @@ export function createDocumentViewBuilder(options: IDocumentViewBuilderOptions):
       const bytes = await attempt(() =>
         range === undefined
           ? native.documentReadResource(binding.handle, packagePath)
-          : native.documentReadResource(binding.handle, packagePath, range)
+          : native.documentReadResource(binding.handle, packagePath, range),
       );
       if (!(bytes instanceof Uint8Array)) {
         throw contractViolation('documentReadResource', '资源字节返回值不是 Uint8Array');

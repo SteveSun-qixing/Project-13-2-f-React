@@ -70,7 +70,9 @@ export interface IDocumentPermissionTargetRule {
  * @remarks 只有 `document:open` 的 `resources:read` 需要与输入 `source` 比对限定值；
  * `read` / `write` / `save` 以 `documentId` 定位既有会话，作用域归属在打开时已经判定。
  */
-export const DOCUMENT_CAPABILITY_TARGETS: Readonly<Record<DocumentCapabilityId, readonly IDocumentPermissionTargetRule[]>> = {
+export const DOCUMENT_CAPABILITY_TARGETS: Readonly<
+  Record<DocumentCapabilityId, readonly IDocumentPermissionTargetRule[]>
+> = {
   'document:open': [{ permission: DOCUMENT_PERMISSION_IDS.resourcesRead, targetFields: ['source'] }],
   'document:read': [],
   'document:write': [],

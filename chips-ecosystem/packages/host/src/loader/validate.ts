@@ -140,11 +140,7 @@ export interface ICpkValidationResult {
   readonly warnings: readonly string[];
 }
 
-function stageResult(
-  stage: CpkValidationStage,
-  status: 'passed' | 'skipped',
-  detail: string,
-): ICpkStageResult {
+function stageResult(stage: CpkValidationStage, status: 'passed' | 'skipped', detail: string): ICpkStageResult {
   return { stage, status, detail };
 }
 
@@ -219,11 +215,10 @@ function assertNoNestedArchive(path: string): void {
 function assertNoNativePayload(path: string, data: Uint8Array): void {
   const extension = posix.extname(path).toLowerCase();
   if (NATIVE_PAYLOAD_EXTENSIONS.includes(extension)) {
-    throwCpkError(
-      CPK_ERROR_CODES.nativePayload,
-      `插件包包含不受支持的原生可执行文件：${path}`,
-      { stage: 'layout', file: path },
-    );
+    throwCpkError(CPK_ERROR_CODES.nativePayload, `插件包包含不受支持的原生可执行文件：${path}`, {
+      stage: 'layout',
+      file: path,
+    });
   }
   const magic = (offset: number, bytes: readonly number[]): boolean =>
     bytes.every((byte, index) => data[offset + index] === byte);
@@ -239,11 +234,7 @@ function assertNoNativePayload(path: string, data: Uint8Array): void {
       file: path,
     });
   }
-  if (
-    magic(0, [0xfe, 0xed, 0xfa, 0xce]) ||
-    magic(0, [0xfe, 0xed, 0xfa, 0xcf]) ||
-    magic(0, [0xca, 0xfe, 0xba, 0xbe])
-  ) {
+  if (magic(0, [0xfe, 0xed, 0xfa, 0xce]) || magic(0, [0xfe, 0xed, 0xfa, 0xcf]) || magic(0, [0xca, 0xfe, 0xba, 0xbe])) {
     throwCpkError(CPK_ERROR_CODES.nativePayload, `插件包包含原生载荷（Mach-O）：${path}`, {
       stage: 'layout',
       file: path,
@@ -359,11 +350,10 @@ export function validateLayout(members: ReadonlyMap<string, Uint8Array>, role: P
       }
     } else if (path !== 'render.js' && !path.startsWith('dist/')) {
       if (CODE_EXTENSIONS.includes(extension)) {
-        throwCpkError(
-          CPK_ERROR_CODES.layoutInvalid,
-          `除 dist/ 与 render.js 外不得出现代码文件：${path}`,
-          { stage: 'layout', file: path },
-        );
+        throwCpkError(CPK_ERROR_CODES.layoutInvalid, `除 dist/ 与 render.js 外不得出现代码文件：${path}`, {
+          stage: 'layout',
+          file: path,
+        });
       }
     }
   }
@@ -392,11 +382,10 @@ export function validateLayout(members: ReadonlyMap<string, Uint8Array>, role: P
       if (path.startsWith('assets/')) {
         const extension = posix.extname(path).toLowerCase();
         if (!['.json', '.yaml', '.yml', '.md', '.txt'].includes(extension)) {
-          throwCpkError(
-            CPK_ERROR_CODES.layoutInvalid,
-            `service 角色 assets/ 只允许数据文件：${path}`,
-            { stage: 'layout', file: path },
-          );
+          throwCpkError(CPK_ERROR_CODES.layoutInvalid, `service 角色 assets/ 只允许数据文件：${path}`, {
+            stage: 'layout',
+            file: path,
+          });
         }
       }
     }
@@ -406,10 +395,7 @@ export function validateLayout(members: ReadonlyMap<string, Uint8Array>, role: P
       file: 'render.js',
     });
   }
-  assertEntryModule(
-    'dist/index.js',
-    members.get('dist/index.js') ?? new Uint8Array(),
-  );
+  assertEntryModule('dist/index.js', members.get('dist/index.js') ?? new Uint8Array());
   if (renderData !== undefined && role !== 'service') {
     assertEntryModule('render.js', renderData);
   }
@@ -435,9 +421,7 @@ export function validateCpkPackage(input: ICpkValidationInput): ICpkValidationRe
     } catch (error) {
       if (error instanceof LoaderError) {
         const baseDetails =
-          typeof error.details === 'object' && error.details !== null
-            ? (error.details as Record<string, unknown>)
-            : {};
+          typeof error.details === 'object' && error.details !== null ? (error.details as Record<string, unknown>) : {};
         throw new LoaderError(error.code, {
           message: error.message,
           details: { ...baseDetails, stages: [...stages] },
@@ -486,11 +470,7 @@ export function validateCpkPackage(input: ICpkValidationInput): ICpkValidationRe
 
   // [3] 清单阶段（判定已在先行步骤完成，此处落阶段记录）。
   stages.push(
-    stageResult(
-      'manifest',
-      'passed',
-      `${manifestResult.id}@${manifestResult.version}（${manifestResult.role}）`,
-    ),
+    stageResult('manifest', 'passed', `${manifestResult.id}@${manifestResult.version}（${manifestResult.role}）`),
   );
 
   // [4] 签名阶段：渠道规则与信任根判定（development 渠道跳过验签，《03-插件包格式》§6.3）。

@@ -57,7 +57,7 @@ function toDocumentContext(ctx: IHostCapabilityContext): IDocumentCapabilityCont
 /** 以契约常量组装一条注册单元。 */
 function describeDocumentCapability(
   id: DocumentCapabilityId,
-  execute: DocumentCapabilityExecutor<unknown, unknown>
+  execute: DocumentCapabilityExecutor<unknown, unknown>,
 ): IHostCapabilityDescriptor {
   return {
     id,

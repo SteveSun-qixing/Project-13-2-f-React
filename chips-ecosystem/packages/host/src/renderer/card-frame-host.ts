@@ -167,13 +167,13 @@ export class CardFrameHost implements ICardFrameHostLike {
       {
         onReadyTimeout: () => {
           this.settleFailed?.(
-            createRenderError({ code: RENDER_ERROR_CODES.frameTimeout, details: { frameId: this.frameId } })
+            createRenderError({ code: RENDER_ERROR_CODES.frameTimeout, details: { frameId: this.frameId } }),
           );
         },
         onProtocolViolation: (error) => {
           this.settleFailed?.(error);
         },
-      }
+      },
     );
 
     this.heightController = new FrameHeightController({

@@ -47,12 +47,12 @@ packages/native/
 
 已注册（`CORE_ABI_VERSION = 1`）：
 
-| 域               | 导出                                                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 元信息           | `coreVersion`、`coreAbiVersion`                                                                                    |
-| Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect` |
-| 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                           |
-| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`、`bridgeActivateProvider`、`bridgeDeactivateProvider`、`bridgeGrantCapabilityId`、`bridgeOpenSession`、`bridgeCloseSession`、`bridgeShutdown` |
+| 域               | 导出                                                                                                                                                                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 元信息           | `coreVersion`、`coreAbiVersion`                                                                                                                                                                                                                    |
+| Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect`                                                                                                                                 |
+| 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                                                                                                                                                           |
+| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`、`bridgeActivateProvider`、`bridgeDeactivateProvider`、`bridgeGrantCapabilityId`、`bridgeOpenSession`、`bridgeCloseSession`、`bridgeShutdown`                         |
 | 文档解析         | `openDocument`、`openCard`、`openBox`、`documentMetadata`、`documentStructure`、`documentContent`、`documentEntries`、`documentLayoutConfig`、`documentRevision`、`documentReadResource`、`documentValidate`、`buildDocumentView`、`documentClose` |
 
 十个 Bridge 导出全部转发 `chips-bridge` 内核（工单005，《问题工单》）：

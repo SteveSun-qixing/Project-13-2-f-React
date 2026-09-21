@@ -106,13 +106,20 @@ export const CARD_WINDOW_INIT_MESSAGE_TYPES = {
 } as const;
 
 /** 封套 `type` 联合。 */
-export type CardWindowInitMessageType = (typeof CARD_WINDOW_INIT_MESSAGE_TYPES)[keyof typeof CARD_WINDOW_INIT_MESSAGE_TYPES];
+export type CardWindowInitMessageType =
+  (typeof CARD_WINDOW_INIT_MESSAGE_TYPES)[keyof typeof CARD_WINDOW_INIT_MESSAGE_TYPES];
 
 /**
  * 装载输入 `payload` 精确字段名清单（与 `card.ts` `ICardWindowInit` 逐字段同形的键集侧
  * 镜像；消费形状一致性由契约测试编译期互赋锁钉死）。
  */
-export const CARD_WINDOW_INIT_PAYLOAD_FIELDS = ['source', 'documentId', 'resourceBase', 'pluginEntries', 'tokens'] as const;
+export const CARD_WINDOW_INIT_PAYLOAD_FIELDS = [
+  'source',
+  'documentId',
+  'resourceBase',
+  'pluginEntries',
+  'tokens',
+] as const;
 
 /**
  * 稳定文档标识闸（《05-ID生成规范》§二.1/§七.1 在册口径：十位 Base62、大小写精确——
@@ -155,10 +162,11 @@ export const CARD_WINDOW_INIT_CHANNEL_ERROR_CODES = {
 } as const;
 
 /** 本通道在册错误码联合。 */
-export type CardWindowInitChannelErrorCode = (typeof CARD_WINDOW_INIT_CHANNEL_ERROR_CODES)[keyof typeof CARD_WINDOW_INIT_CHANNEL_ERROR_CODES];
+export type CardWindowInitChannelErrorCode =
+  (typeof CARD_WINDOW_INIT_CHANNEL_ERROR_CODES)[keyof typeof CARD_WINDOW_INIT_CHANNEL_ERROR_CODES];
 
 const CARD_WINDOW_INIT_CHANNEL_ERROR_CODE_SET: ReadonlySet<string> = new Set<string>(
-  Object.values(CARD_WINDOW_INIT_CHANNEL_ERROR_CODES)
+  Object.values(CARD_WINDOW_INIT_CHANNEL_ERROR_CODES),
 );
 
 /** 判断错误码是否属于本通道在册错误面。 */
@@ -268,9 +276,15 @@ export function createCardWindowInitFetchRequest(requestId: string): ICardWindow
 export function createCardWindowInitResult(
   requestId: string,
   windowId: number,
-  payload: ICardWindowInitPayload
+  payload: ICardWindowInitPayload,
 ): ICardWindowInitResult {
-  return { protocol: CARD_WINDOW_INIT_PROTOCOL, type: CARD_WINDOW_INIT_MESSAGE_TYPES.result, requestId, windowId, payload };
+  return {
+    protocol: CARD_WINDOW_INIT_PROTOCOL,
+    type: CARD_WINDOW_INIT_MESSAGE_TYPES.result,
+    requestId,
+    windowId,
+    payload,
+  };
 }
 
 /** 构造空载回包（登记表未命中的合法瞬态；语义见文件头注）。 */
@@ -283,7 +297,11 @@ export function createCardWindowInitPending(requestId: string, windowId: number)
  * 映射为在册码后以 `toPlain()` 普通对象形态入包——跨边界不得传输 `Error` 实例，
  * 《01-Bridge-API规范》§2.5 在册口径）。
  */
-export function createCardWindowInitFailure(requestId: string, windowId: number, error: unknown): ICardWindowInitFailure {
+export function createCardWindowInitFailure(
+  requestId: string,
+  windowId: number,
+  error: unknown,
+): ICardWindowInitFailure {
   return {
     protocol: CARD_WINDOW_INIT_PROTOCOL,
     type: CARD_WINDOW_INIT_MESSAGE_TYPES.error,
@@ -365,7 +383,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function assertExactKeys(
   record: Record<string, unknown>,
   expected: readonly string[],
-  onMismatch: (actual: string, expectedKeys: string) => ChipsError
+  onMismatch: (actual: string, expectedKeys: string) => ChipsError,
 ): void {
   const actual = Object.keys(record).sort();
   const want = [...expected].sort();
@@ -376,7 +394,8 @@ function assertExactKeys(
 
 /** 键集漂移拒绝件（请求侧：`BRIDGE_INVALID_INPUT`，envelope 闸位）。 */
 function rejectEnvelopeDrift(what: string): (actual: string, expectedKeys: string) => ChipsError {
-  return (actual, expectedKeys) => rejectRequest('envelope', `${what} 字段集与通道契约不一致（actual=${actual} expected=${expectedKeys}）`);
+  return (actual, expectedKeys) =>
+    rejectRequest('envelope', `${what} 字段集与通道契约不一致（actual=${actual} expected=${expectedKeys}）`);
 }
 
 /** 键集漂移拒绝件（响应侧：`BRIDGE_INTERNAL`）。 */
@@ -385,7 +404,10 @@ function rejectResponseDrift(what: string): (actual: string, expectedKeys: strin
 }
 
 /** 窗口 ID 闸（§7.4：`webContents.id` 为正安全整数）。 */
-function requireWindowId(value: unknown, reject: (reason: string, extra?: Record<string, unknown>) => ChipsError): number {
+function requireWindowId(
+  value: unknown,
+  reject: (reason: string, extra?: Record<string, unknown>) => ChipsError,
+): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
     throw reject('windowId 不是正安全整数（窗口身份取证值，04-能力契约规范 §7.4）', { field: 'windowId' });
   }
@@ -436,7 +458,7 @@ export function validateCardWindowInitPayload(data: unknown): ICardWindowInitPay
 function validateStringMap(
   value: unknown,
   field: string,
-  options?: { readonly keyPattern?: RegExp; readonly nonEmptyValue?: boolean }
+  options?: { readonly keyPattern?: RegExp; readonly nonEmptyValue?: boolean },
 ): Readonly<Record<string, string>> {
   if (!isRecord(value) || Object.getPrototypeOf(value) !== Object.prototype) {
     throw rejectResponse(`${field} 不是普通对象映射`, { field });
@@ -542,7 +564,12 @@ export function validateCardWindowInitResponse(data: unknown, expectedRequestId:
   }
   if (type === CARD_WINDOW_INIT_MESSAGE_TYPES.pending) {
     assertExactKeys(data, ['protocol', 'type', 'requestId', 'windowId'], rejectResponseDrift('空载封套'));
-    return { protocol: CARD_WINDOW_INIT_PROTOCOL, type: CARD_WINDOW_INIT_MESSAGE_TYPES.pending, requestId: expectedRequestId, windowId };
+    return {
+      protocol: CARD_WINDOW_INIT_PROTOCOL,
+      type: CARD_WINDOW_INIT_MESSAGE_TYPES.pending,
+      requestId: expectedRequestId,
+      windowId,
+    };
   }
   assertExactKeys(data, ['protocol', 'type', 'requestId', 'windowId', 'error'], rejectResponseDrift('失败封套'));
   const error = data['error'];

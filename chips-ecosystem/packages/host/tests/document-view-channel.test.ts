@@ -21,12 +21,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
-import {
-  BRIDGE_ERROR_CODES,
-  BRIDGE_ERROR_MESSAGES,
-  ChipsError,
-  isChipsError,
-} from '@chips/bridge';
+import { BRIDGE_ERROR_CODES, BRIDGE_ERROR_MESSAGES, ChipsError, isChipsError } from '@chips/bridge';
 
 import * as documentViewChannel from '../src/renderer/document-view-channel.js';
 import {
@@ -52,10 +47,7 @@ import type {
   IDocumentViewBuildResult,
   IDocumentViewChannelInput,
 } from '../src/renderer/document-view-channel.js';
-import {
-  DOCUMENT_BUSINESS_ERROR_CODES,
-  DOCUMENT_PARSER_ERROR_CODES,
-} from '../src/capabilities/document/errors.js';
+import { DOCUMENT_BUSINESS_ERROR_CODES, DOCUMENT_PARSER_ERROR_CODES } from '../src/capabilities/document/errors.js';
 import { CARD_ID, NODE_ID_ONE, NODE_ID_TWO } from './helpers/document-fake-ports.js';
 
 /* ------------------------------------------------------------------ *
@@ -90,7 +82,11 @@ function wireView(): Record<string, unknown> {
     cover: { entry: '.card/cover.html', ratio: '3:4' },
     content_nodes: [
       { node_id: NODE_ID_ONE, card_type: 'base.image', content: { src: 'image.jpg', alt: null, zoom: 1.5 } },
-      { node_id: NODE_ID_TWO, card_type: 'base.richtext', content: { md: 'richtext/a.md', blocks: [{ type: 'p', text: '正文' }] } },
+      {
+        node_id: NODE_ID_TWO,
+        card_type: 'base.richtext',
+        content: { md: 'richtext/a.md', blocks: [{ type: 'p', text: '正文' }] },
+      },
     ],
   };
 }
@@ -188,7 +184,12 @@ describe('文档视图通道 · 错误面在册锁', () => {
   });
 
   it('面内每一码：词法合规（<DOMAIN>_<REASON>）且属于 bridge ∪ 文档域在册码集合', () => {
-    const registered = new Set<string>([...bridgeCodes, ...documentCodes, 'DOCUMENT_NOT_FOUND', 'DOCUMENT_PARSE_CANCELLED']);
+    const registered = new Set<string>([
+      ...bridgeCodes,
+      ...documentCodes,
+      'DOCUMENT_NOT_FOUND',
+      'DOCUMENT_PARSE_CANCELLED',
+    ]);
     for (const code of Object.values(DOCUMENT_VIEW_CHANNEL_ERROR_CODES)) {
       expect(code).toMatch(/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/);
       expect(registered.has(code)).toBe(true);
@@ -202,7 +203,12 @@ describe('文档视图通道 · 错误面在册锁', () => {
   });
 
   it('他域在册码不入本通道面（RESOURCE_* / RENDER_* / PERMISSION_* 即接线漂移）', () => {
-    for (const code of ['RESOURCE_CROSS_SCOPE', 'RESOURCE_NOT_SUPPORTED', 'RENDER_DOCUMENT_INVALID', 'PERMISSION_UNKNOWN']) {
+    for (const code of [
+      'RESOURCE_CROSS_SCOPE',
+      'RESOURCE_NOT_SUPPORTED',
+      'RENDER_DOCUMENT_INVALID',
+      'PERMISSION_UNKNOWN',
+    ]) {
       expect(isDocumentViewChannelErrorCode(code)).toBe(false);
     }
   });
@@ -258,7 +264,10 @@ describe('文档视图通道 · 请求闸（BRIDGE_INVALID_INPUT 逐面）', () 
     ['documentId 九位', { ...validRequest(), input: { ...validInput(), documentId: 'Ab3dEf6Gh' } }],
     ['documentId 十一位', { ...validRequest(), input: { ...validInput(), documentId: `${CARD_ID}x` } }],
     ['documentId 含下划线', { ...validRequest(), input: { ...validInput(), documentId: 'Ab3d_E6Gh8' } }],
-    ['documentId 含连字符（渲染层历史替身形）', { ...validRequest(), input: { ...validInput(), documentId: 'card-7f3a' } }],
+    [
+      'documentId 含连字符（渲染层历史替身形）',
+      { ...validRequest(), input: { ...validInput(), documentId: 'card-7f3a' } },
+    ],
     ['documentId 含非 ASCII', { ...validRequest(), input: { ...validInput(), documentId: 'Ａb3dEf6Gh8' } }],
     ['documentId 非字符串', { ...validRequest(), input: { ...validInput(), documentId: 1234567890 } }],
     ['kind 非判别成员（box-layout）', { ...validRequest(), input: { ...validInput(), kind: 'box-layout' } }],
@@ -267,7 +276,11 @@ describe('文档视图通道 · 请求闸（BRIDGE_INVALID_INPUT 逐面）', () 
     ['kind 非字符串', { ...validRequest(), input: { ...validInput(), kind: 0 } }],
     ['kind 缺失', { ...validRequest(), input: Object.assign({}, validInput(), { kind: undefined }) }],
   ] as const)('非法形状逐码：%s → BRIDGE_INVALID_INPUT', (_label, payload) => {
-    const rejection = expectRejection(() => validateDocumentViewChannelRequest(payload), BRIDGE_ERROR_CODES.invalidInput, 'request');
+    const rejection = expectRejection(
+      () => validateDocumentViewChannelRequest(payload),
+      BRIDGE_ERROR_CODES.invalidInput,
+      'request',
+    );
     const details = rejection.details as { field: string };
     expect(typeof details.field).toBe('string');
     expect(details.field.length).toBeGreaterThan(0);
@@ -275,7 +288,10 @@ describe('文档视图通道 · 请求闸（BRIDGE_INVALID_INPUT 逐面）', () 
 
   it('documentId 大小写精确：十位 Base62 全字符集合法（数字开头/全数字均受理）', () => {
     for (const id of ['0123456789', 'aB3dEf6Gh8', 'ABCDEFGHIJ', 'zzzzzzzzzz']) {
-      expect(validateDocumentViewChannelRequest({ ...validRequest(), input: { ...validInput(), documentId: id } }).input.documentId).toBe(id);
+      expect(
+        validateDocumentViewChannelRequest({ ...validRequest(), input: { ...validInput(), documentId: id } }).input
+          .documentId,
+      ).toBe(id);
     }
   });
 });
@@ -299,7 +315,10 @@ describe('文档视图通道 · 响应闸（BRIDGE_INTERNAL 逐面）', () => {
       { ...validResult(), protocol: 'chips-document-view/2' },
       { ...validResult(), requestId: '' },
       { ...validResult(), extra: 1 },
-      Object.assign({}, validResult(), { view: undefined, error: validFailure(DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen).error }),
+      Object.assign({}, validResult(), {
+        view: undefined,
+        error: validFailure(DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen).error,
+      }),
       'not-an-envelope',
       null,
     ];
@@ -347,7 +366,18 @@ describe('文档视图通道 · 响应闸（BRIDGE_INTERNAL 逐面）', () => {
   });
 
   it('失败臂 error 载荷形状非在册（非对象/缺码/码非串/消息缺省/retryable 非布尔）→ BRIDGE_INTERNAL', () => {
-    const badErrors: unknown[] = [null, 'oops', 7, [], {}, { code: 7, message: 'x' }, { code: '', message: 'x' }, { code: DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen }, { code: DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen, message: 1 }, { code: DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen, message: 'x', retryable: 'true' }];
+    const badErrors: unknown[] = [
+      null,
+      'oops',
+      7,
+      [],
+      {},
+      { code: 7, message: 'x' },
+      { code: '', message: 'x' },
+      { code: DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen },
+      { code: DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen, message: 1 },
+      { code: DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen, message: 'x', retryable: 'true' },
+    ];
     for (const error of badErrors) {
       const payload = { protocol: DOCUMENT_VIEW_PROTOCOL, type: 'document-view:error', requestId: 'req-0001', error };
       expectRejection(() => validateDocumentViewChannelResponse(payload), BRIDGE_ERROR_CODES.internal, 'response');
@@ -357,12 +387,23 @@ describe('文档视图通道 · 响应闸（BRIDGE_INTERNAL 逐面）', () => {
 
 describe('文档视图通道 · 回包视图深校验闸（§6.6 逐面 BRIDGE_INTERNAL）', () => {
   it('成功臂视图违约直接触达响应闸', () => {
-    expectRejection(() => validateDocumentViewChannelResponse(validResult({ ...wireView(), revision: -1 })), BRIDGE_ERROR_CODES.internal, 'response');
+    expectRejection(
+      () => validateDocumentViewChannelResponse(validResult({ ...wireView(), revision: -1 })),
+      BRIDGE_ERROR_CODES.internal,
+      'response',
+    );
   });
 
   const mutations: readonly (readonly [string, (view: Record<string, unknown>) => unknown])[] = [
     ['视图根非对象', () => 'view'],
-    ['缺字段（cover_ratio 真实缺失）', (v) => { const copy = { ...v }; delete copy['cover_ratio']; return copy; }],
+    [
+      '缺字段（cover_ratio 真实缺失）',
+      (v) => {
+        const copy = { ...v };
+        delete copy['cover_ratio'];
+        return copy;
+      },
+    ],
     ['字段值为 undefined', (v) => Object.assign({}, v, { cover_ratio: undefined })],
     ['多字段（漂移防线）', (v) => ({ ...v, extra: 1 })],
     ['kind 判别非 card', (v) => ({ ...v, kind: 'box' })],
@@ -381,22 +422,65 @@ describe('文档视图通道 · 回包视图深校验闸（§6.6 逐面 BRIDGE_I
     ['cover.ratio 非字符串', (v) => ({ ...v, cover: { entry: 'x', ratio: 1 } })],
     ['content_nodes 非数组', (v) => ({ ...v, content_nodes: {} })],
     ['content_nodes 成员缺键', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image' }] })],
-    ['content_nodes 成员多键', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: {}, extra: 1 }] })],
+    [
+      'content_nodes 成员多键',
+      (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: {}, extra: 1 }] }),
+    ],
     ['node_id 空串', (v) => ({ ...v, content_nodes: [{ node_id: '', card_type: 'base.image', content: {} }] })],
     ['card_type 非字符串', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 2, content: {} }] })],
-    ['content 非映射（数组）', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: [] }] })],
-    ['content 含函数', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { fn: () => undefined } }] })],
-    ['content 含 undefined 成员', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { a: undefined } }] })],
-    ['content 含非有限数值', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { n: Number.POSITIVE_INFINITY } }] })],
-    ['content 含类实例', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { d: new Date(0) } }] })],
-    ['content 含二进制（文件字节不入视图）', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { b: new Uint8Array([1]) } }] })],
-    ['content 数组含 undefined 元素', (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { list: [undefined] } }] })],
+    [
+      'content 非映射（数组）',
+      (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: [] }] }),
+    ],
+    [
+      'content 含函数',
+      (v) => ({
+        ...v,
+        content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { fn: () => undefined } }],
+      }),
+    ],
+    [
+      'content 含 undefined 成员',
+      (v) => ({ ...v, content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { a: undefined } }] }),
+    ],
+    [
+      'content 含非有限数值',
+      (v) => ({
+        ...v,
+        content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { n: Number.POSITIVE_INFINITY } }],
+      }),
+    ],
+    [
+      'content 含类实例',
+      (v) => ({
+        ...v,
+        content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { d: new Date(0) } }],
+      }),
+    ],
+    [
+      'content 含二进制（文件字节不入视图）',
+      (v) => ({
+        ...v,
+        content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { b: new Uint8Array([1]) } }],
+      }),
+    ],
+    [
+      'content 数组含 undefined 元素',
+      (v) => ({
+        ...v,
+        content_nodes: [{ node_id: NODE_ID_ONE, card_type: 'base.image', content: { list: [undefined] } }],
+      }),
+    ],
   ] as const;
 
   it.each(mutations)('视图违约逐面：%s → BRIDGE_INTERNAL', (_label, mutate) => {
     const view = mutate({ ...wireView() });
     expectRejection(() => guardDocumentViewCardRenderView(view), BRIDGE_ERROR_CODES.internal, 'response');
-    expectRejection(() => validateDocumentViewChannelResponse(validResult(view)), BRIDGE_ERROR_CODES.internal, 'response');
+    expectRejection(
+      () => validateDocumentViewChannelResponse(validResult(view)),
+      BRIDGE_ERROR_CODES.internal,
+      'response',
+    );
   });
 
   it('循环引用视图 → BRIDGE_INTERNAL（活性路径检测）', () => {
@@ -450,7 +534,11 @@ describe('文档视图通道 · 回包视图深校验闸（§6.6 逐面 BRIDGE_I
 
 describe('文档视图通道 · 错误面映射', () => {
   it('面内 ChipsError 实例原样透传（不重复包装）', () => {
-    const original = new ChipsError({ code: DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen, message: '文档会话不存在，请重新打开文档', retryable: false });
+    const original = new ChipsError({
+      code: DOCUMENT_VIEW_CHANNEL_ERROR_CODES.notOpen,
+      message: '文档会话不存在，请重新打开文档',
+      retryable: false,
+    });
     expect(normalizeDocumentViewChannelError(original)).toBe(original);
   });
 
@@ -467,7 +555,11 @@ describe('文档视图通道 · 错误面映射', () => {
   });
 
   it('面外已登记码归一 BRIDGE_INTERNAL 且 details.cause 承载原码', () => {
-    const mapped = normalizeDocumentViewChannelError({ code: 'RESOURCE_PATH_INVALID', message: '路径非法', retryable: false });
+    const mapped = normalizeDocumentViewChannelError({
+      code: 'RESOURCE_PATH_INVALID',
+      message: '路径非法',
+      retryable: false,
+    });
     expect(mapped.code).toBe(BRIDGE_ERROR_CODES.internal);
     expect(mapped.details).toStrictEqual({ cause: 'RESOURCE_PATH_INVALID' });
     expect(mapped.retryable).toBe(false);
@@ -475,8 +567,12 @@ describe('文档视图通道 · 错误面映射', () => {
   });
 
   it('未登记词法与垃圾码不留诊断细节（不采信不可信字符串）', () => {
-    expect(normalizeDocumentViewChannelError({ code: 'lowercase_code', message: 'x', retryable: false }).details).toBeUndefined();
-    expect(normalizeDocumentViewChannelError({ code: 'ok then', message: 'x', retryable: false }).details).toBeUndefined();
+    expect(
+      normalizeDocumentViewChannelError({ code: 'lowercase_code', message: 'x', retryable: false }).details,
+    ).toBeUndefined();
+    expect(
+      normalizeDocumentViewChannelError({ code: 'ok then', message: 'x', retryable: false }).details,
+    ).toBeUndefined();
   });
 
   it('AbortError 归一 BRIDGE_CANCELLED（在册面内）', () => {
@@ -492,7 +588,10 @@ describe('文档视图通道 · 错误面映射', () => {
   });
 
   it('失败回包构造器：任意异常经映射后以普通对象形态入包（不传输 Error 实例）', () => {
-    const failure = createDocumentViewBuildFailure('req-1', new ChipsError({ code: 'DOCUMENT_SAVE_FAILED', message: '文档保存失败', retryable: true }));
+    const failure = createDocumentViewBuildFailure(
+      'req-1',
+      new ChipsError({ code: 'DOCUMENT_SAVE_FAILED', message: '文档保存失败', retryable: true }),
+    );
     expect(failure.type).toBe(DOCUMENT_VIEW_MESSAGE_TYPES.error);
     expect(failure.requestId).toBe('req-1');
     expect(failure.error).toStrictEqual({
@@ -519,11 +618,13 @@ describe('文档视图通道 · 错误面映射', () => {
 describe('文档视图通道 · import 面纯净（契约零实现体）', () => {
   const source = readFileSync(
     fileURLToPath(new URL('../src/renderer/document-view-channel.ts', import.meta.url)),
-    'utf8'
+    'utf8',
   );
 
   /** 全部静态 import 来源（含 type-only）。 */
-  const importSpecifiers: readonly string[] = [...source.matchAll(/from\s+'([^']+)'/g)].map((match) => match[1] as string);
+  const importSpecifiers: readonly string[] = [...source.matchAll(/from\s+'([^']+)'/g)].map(
+    (match) => match[1] as string,
+  );
 
   it('运行期依赖仅 @chips/bridge（纯 TS 协议层）与文档域在册码表', () => {
     expect([...new Set(importSpecifiers)].sort()).toStrictEqual([
@@ -563,7 +664,11 @@ describe('文档视图通道 · import 面纯净（契约零实现体）', () =>
   });
 
   it('零自有状态：同输入两次校验产出逐字段全等（幂等纯函数）', () => {
-    expect(validateDocumentViewChannelRequest(validRequest())).toStrictEqual(validateDocumentViewChannelRequest(validRequest()));
-    expect(validateDocumentViewChannelResponse(validResult())).toStrictEqual(validateDocumentViewChannelResponse(validResult()));
+    expect(validateDocumentViewChannelRequest(validRequest())).toStrictEqual(
+      validateDocumentViewChannelRequest(validRequest()),
+    );
+    expect(validateDocumentViewChannelResponse(validResult())).toStrictEqual(
+      validateDocumentViewChannelResponse(validResult()),
+    );
   });
 });

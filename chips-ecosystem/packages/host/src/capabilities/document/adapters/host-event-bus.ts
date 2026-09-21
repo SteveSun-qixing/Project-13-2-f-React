@@ -57,7 +57,7 @@ export function createDocumentHostEventBusPort(): IDocumentHostEventBusPort {
             createBridgeError(BRIDGE_ERROR_CODES.internal, {
               message: '宿主事件总线未绑定，文档事件发布被诚实拒绝',
               details: { eventId },
-            })
+            }),
           );
         }
         try {

@@ -108,19 +108,37 @@ describe('document:open 输入守卫', () => {
 
   it('拒绝非对象输入', () => {
     for (const input of [null, undefined, 'x', 42, []]) {
-      expectInvalidInput(captureError(() => assertOpenInput(input)), 'document:open');
+      expectInvalidInput(
+        captureError(() => assertOpenInput(input)),
+        'document:open',
+      );
     }
   });
 
   it('拒绝缺失或空 source', () => {
-    expectInvalidInput(captureError(() => assertOpenInput({})), 'document:open');
-    expectInvalidInput(captureError(() => assertOpenInput({ source: '' })), 'document:open');
-    expectInvalidInput(captureError(() => assertOpenInput({ source: 7 })), 'document:open');
+    expectInvalidInput(
+      captureError(() => assertOpenInput({})),
+      'document:open',
+    );
+    expectInvalidInput(
+      captureError(() => assertOpenInput({ source: '' })),
+      'document:open',
+    );
+    expectInvalidInput(
+      captureError(() => assertOpenInput({ source: 7 })),
+      'document:open',
+    );
   });
 
   it('拒绝非 card/box 的 kind', () => {
-    expectInvalidInput(captureError(() => assertOpenInput({ source: 'x', kind: 'cardd' })), 'document:open');
-    expectInvalidInput(captureError(() => assertOpenInput({ source: 'x', kind: 1 })), 'document:open');
+    expectInvalidInput(
+      captureError(() => assertOpenInput({ source: 'x', kind: 'cardd' })),
+      'document:open',
+    );
+    expectInvalidInput(
+      captureError(() => assertOpenInput({ source: 'x', kind: 1 })),
+      'document:open',
+    );
   });
 
   it('拒绝 schema 未声明字段（additionalProperties: false 同口径）', () => {
@@ -132,53 +150,71 @@ describe('document:open 输入守卫', () => {
 
 describe('document:read 输入守卫', () => {
   it('接受带 nodeId 与 range 的完整输入', () => {
-    expect(
-      assertReadInput({ documentId: NODE_ID, part: 'entries', range: { offset: 0, limit: 10 } })
-    ).toEqual({ documentId: NODE_ID, part: 'entries', nodeId: null, range: { offset: 0, limit: 10 } });
+    expect(assertReadInput({ documentId: NODE_ID, part: 'entries', range: { offset: 0, limit: 10 } })).toEqual({
+      documentId: NODE_ID,
+      part: 'entries',
+      nodeId: null,
+      range: { offset: 0, limit: 10 },
+    });
   });
 
   it('requireDocumentId 复用同一守卫并拒绝空标识', () => {
     expect(requireDocumentId('document:save', { documentId: NODE_ID })).toBe(NODE_ID);
-    expectInvalidInput(captureError(() => requireDocumentId('document:save', { documentId: '' })), 'document:save');
-    expectInvalidInput(captureError(() => requireDocumentId('document:save', {})), 'document:save');
+    expectInvalidInput(
+      captureError(() => requireDocumentId('document:save', { documentId: '' })),
+      'document:save',
+    );
+    expectInvalidInput(
+      captureError(() => requireDocumentId('document:save', {})),
+      'document:save',
+    );
   });
 
   it('拒绝 part 缺失与越界取值', () => {
-    expectInvalidInput(captureError(() => assertReadInput({ documentId: NODE_ID })), 'document:read');
+    expectInvalidInput(
+      captureError(() => assertReadInput({ documentId: NODE_ID })),
+      'document:read',
+    );
     expectInvalidInput(
       captureError(() => assertReadInput({ documentId: NODE_ID, part: 'layout' })),
-      'document:read'
+      'document:read',
     );
   });
 
   it('拒绝空 nodeId', () => {
-    expectInvalidInput(captureError(() => assertReadInput({ documentId: NODE_ID, part: 'content', nodeId: '' })), 'document:read');
+    expectInvalidInput(
+      captureError(() => assertReadInput({ documentId: NODE_ID, part: 'content', nodeId: '' })),
+      'document:read',
+    );
   });
 
   it('拒绝非对象 range 与越界 offset/limit', () => {
-    expectInvalidInput(captureError(() => assertReadInput({ documentId: NODE_ID, part: 'entries', range: 'x' })), 'document:read');
+    expectInvalidInput(
+      captureError(() => assertReadInput({ documentId: NODE_ID, part: 'entries', range: 'x' })),
+      'document:read',
+    );
     expectInvalidInput(
       captureError(() => assertReadInput({ documentId: NODE_ID, part: 'entries', range: { offset: -1, limit: 10 } })),
-      'document:read'
+      'document:read',
     );
     expectInvalidInput(
       captureError(() => assertReadInput({ documentId: NODE_ID, part: 'entries', range: { offset: 0.5, limit: 10 } })),
-      'document:read'
+      'document:read',
     );
     expectInvalidInput(
       captureError(() => assertReadInput({ documentId: NODE_ID, part: 'entries', range: { offset: 0, limit: 0 } })),
-      'document:read'
+      'document:read',
     );
     expectInvalidInput(
       captureError(() => assertReadInput({ documentId: NODE_ID, part: 'entries', range: { offset: 0, limit: 1001 } })),
-      'document:read'
+      'document:read',
     );
   });
 
   it('拒绝未声明字段', () => {
     expectInvalidInput(
       captureError(() => assertReadInput({ documentId: NODE_ID, part: 'metadata', nope: 1 })),
-      'document:read'
+      'document:read',
     );
   });
 });
@@ -191,35 +227,44 @@ describe('document:write 输入守卫', () => {
       nodeId: null,
       value: { a: 1 },
     });
-    expect(
-      assertWriteInput({ documentId: NODE_ID, part: 'content', nodeId: NODE_ID, value: null }).nodeId
-    ).toBe(NODE_ID);
+    expect(assertWriteInput({ documentId: NODE_ID, part: 'content', nodeId: NODE_ID, value: null }).nodeId).toBe(
+      NODE_ID,
+    );
     expect(assertWriteInput({ documentId: NODE_ID, part: 'entries', value: [] }).value).toEqual([]);
   });
 
   it('缺少 value 键即拒绝（value: null 是合法删除标记）', () => {
-    expectInvalidInput(captureError(() => assertWriteInput({ documentId: NODE_ID, part: 'metadata' })), 'document:write');
+    expectInvalidInput(
+      captureError(() => assertWriteInput({ documentId: NODE_ID, part: 'metadata' })),
+      'document:write',
+    );
   });
 
   it('拒绝标量 value', () => {
-    expectInvalidInput(captureError(() => assertWriteInput({ documentId: NODE_ID, part: 'metadata', value: 3 })), 'document:write');
-    expectInvalidInput(captureError(() => assertWriteInput({ documentId: NODE_ID, part: 'metadata', value: 'x' })), 'document:write');
+    expectInvalidInput(
+      captureError(() => assertWriteInput({ documentId: NODE_ID, part: 'metadata', value: 3 })),
+      'document:write',
+    );
+    expectInvalidInput(
+      captureError(() => assertWriteInput({ documentId: NODE_ID, part: 'metadata', value: 'x' })),
+      'document:write',
+    );
   });
 
   it('nodeId 与非 content 切片组合在输入守卫即拒绝', () => {
     expectInvalidInput(
       captureError(() => assertWriteInput({ documentId: NODE_ID, part: 'structure', nodeId: NODE_ID, value: {} })),
-      'document:write'
+      'document:write',
     );
     expectInvalidInput(
       captureError(() => assertWriteInput({ documentId: NODE_ID, part: 'metadata', value: null })),
-      'document:write'
+      'document:write',
     );
   });
 
   it('nodeId 不符合 10 位 Base62 时按业务码拒绝（非输入码）', () => {
-    const error = captureError(
-      () => assertWriteInput({ documentId: NODE_ID, part: 'content', nodeId: 'short', value: {} })
+    const error = captureError(() =>
+      assertWriteInput({ documentId: NODE_ID, part: 'content', nodeId: 'short', value: {} }),
     );
     expect(error.code).toBe(DOCUMENT_BUSINESS_ERROR_CODES.partUnsupported);
     expect(error.details?.nodeId).toBe('short');
@@ -241,13 +286,13 @@ describe('切片组合矩阵（§4.3）', () => {
 
   it('卡片 content 切片必须携带 nodeId', () => {
     expect(
-      captureError(() => assertPartCombination('card', 'content', null, null, 'document:read')).details?.reason
+      captureError(() => assertPartCombination('card', 'content', null, null, 'document:read')).details?.reason,
     ).toContain('必须携带 nodeId');
   });
 
   it('箱子 content 切片是布局配置，不接受 nodeId', () => {
     expect(
-      captureError(() => assertPartCombination('box', 'content', NODE_ID, null, 'document:read')).details?.reason
+      captureError(() => assertPartCombination('box', 'content', NODE_ID, null, 'document:read')).details?.reason,
     ).toContain('不接受 nodeId');
   });
 
@@ -260,14 +305,14 @@ describe('切片组合矩阵（§4.3）', () => {
   it('range 仅适用于 entries 切片', () => {
     expect(
       captureError(() => assertPartCombination('box', 'structure', null, { offset: 0, limit: 1 }, 'document:read'))
-        .details?.reason
+        .details?.reason,
     ).toContain('range 仅适用于 entries 切片');
     expect(() => assertPartCombination('box', 'entries', null, { offset: 0, limit: 1 }, 'document:read')).not.toThrow();
   });
 
   it('nodeId 仅适用于 content 切片', () => {
     expect(
-      captureError(() => assertPartCombination('box', 'metadata', NODE_ID, null, 'document:read')).details?.reason
+      captureError(() => assertPartCombination('box', 'metadata', NODE_ID, null, 'document:read')).details?.reason,
     ).toContain('nodeId 仅适用于 content 切片');
   });
 });
@@ -279,12 +324,16 @@ describe('metadata 切片校验', () => {
   });
 
   it('拒绝数组形态', () => {
-    expect(captureError(() => validateMetadataSlice('card', [])).code).toBe(DOCUMENT_BUSINESS_ERROR_CODES.metadataInvalid);
+    expect(captureError(() => validateMetadataSlice('card', [])).code).toBe(
+      DOCUMENT_BUSINESS_ERROR_CODES.metadataInvalid,
+    );
   });
 
   it('拒绝非严格三段式标准版本', () => {
     for (const version of ['1.0', '1.0.0-beta', '1.0.0+build', 'v1.0.0', 1]) {
-      const error = captureError(() => validateMetadataSlice('card', { ...cardMetadata(), chip_standards_version: version }));
+      const error = captureError(() =>
+        validateMetadataSlice('card', { ...cardMetadata(), chip_standards_version: version }),
+      );
       expect(error.code).toBe(DOCUMENT_BUSINESS_ERROR_CODES.metadataInvalid);
       expect(error.details?.pointer).toBe('chip_standards_version');
     }
@@ -303,24 +352,28 @@ describe('metadata 切片校验', () => {
   });
 
   it('拒绝缺失或空 name', () => {
-    expect(captureError(() => validateMetadataSlice('card', { ...cardMetadata(), name: '' })).details?.pointer).toBe('name');
-    expect(captureError(() => validateMetadataSlice('card', { ...cardMetadata(), name: undefined })).details?.pointer).toBe('name');
+    expect(captureError(() => validateMetadataSlice('card', { ...cardMetadata(), name: '' })).details?.pointer).toBe(
+      'name',
+    );
+    expect(
+      captureError(() => validateMetadataSlice('card', { ...cardMetadata(), name: undefined })).details?.pointer,
+    ).toBe('name');
   });
 
   it('拒绝非 ISO 8601 UTC 时间戳', () => {
     for (const stamp of ['2026-01-02', '2026-01-02T03:04:05', '2026-01-02T03:04:05+08:00', 1735000000000]) {
       expect(
-        captureError(() => validateMetadataSlice('card', { ...cardMetadata(), created_at: stamp })).details?.pointer
+        captureError(() => validateMetadataSlice('card', { ...cardMetadata(), created_at: stamp })).details?.pointer,
       ).toBe('created_at');
       expect(
-        captureError(() => validateMetadataSlice('card', { ...cardMetadata(), modified_at: stamp })).details?.pointer
+        captureError(() => validateMetadataSlice('card', { ...cardMetadata(), modified_at: stamp })).details?.pointer,
       ).toBe('modified_at');
     }
   });
 
   it('接受带小数秒的 UTC 时间戳', () => {
     expect(() =>
-      validateMetadataSlice('card', { ...cardMetadata(), created_at: '2026-01-02T03:04:05.123456789Z' })
+      validateMetadataSlice('card', { ...cardMetadata(), created_at: '2026-01-02T03:04:05.123456789Z' }),
     ).not.toThrow();
   });
 
@@ -341,7 +394,7 @@ describe('structure 切片校验', () => {
     expect(() =>
       validateStructureSlice('box', {
         entries: [{ entry_id: NODE_ID, url: 'chips-resource://a/card/Ab3dEf6Gh8.card', enabled: true }],
-      })
+      }),
     ).not.toThrow();
   });
 
@@ -357,15 +410,16 @@ describe('structure 切片校验', () => {
 
   it('结构成员必须是对象', () => {
     expect(
-      captureError(() => validateStructureSlice('card', { structure: ['x'], manifest: { card_count: 1 } })).details?.reason
+      captureError(() => validateStructureSlice('card', { structure: ['x'], manifest: { card_count: 1 } })).details
+        ?.reason,
     ).toContain('结构成员必须是对象');
   });
 
   it('结构成员编号必须为 10 位 Base62 且唯一', () => {
     expect(
       captureError(() =>
-        validateStructureSlice('card', { structure: [{ id: 'bad', type: 'text' }], manifest: { card_count: 1 } })
-      ).details?.reason
+        validateStructureSlice('card', { structure: [{ id: 'bad', type: 'text' }], manifest: { card_count: 1 } }),
+      ).details?.reason,
     ).toContain('10 位 Base62');
     expect(
       captureError(() =>
@@ -375,15 +429,15 @@ describe('structure 切片校验', () => {
             { id: NODE_ID, type: 'text' },
           ],
           manifest: { card_count: 2 },
-        })
-      ).details?.reason
+        }),
+      ).details?.reason,
     ).toContain('编号重复');
   });
 
   it('卡片结构成员必须有非空 type', () => {
     expect(
       captureError(() => validateStructureSlice('card', { structure: [{ id: NODE_ID }], manifest: { card_count: 1 } }))
-        .details?.reason
+        .details?.reason,
     ).toContain('type');
   });
 
@@ -394,8 +448,8 @@ describe('structure 切片校验', () => {
   it('manifest.card_count 必须等于结构长度', () => {
     expect(
       captureError(() =>
-        validateStructureSlice('card', { structure: [{ id: NODE_ID, type: 'text' }], manifest: { card_count: 2 } })
-      ).details?.reason
+        validateStructureSlice('card', { structure: [{ id: NODE_ID, type: 'text' }], manifest: { card_count: 2 } }),
+      ).details?.reason,
     ).toContain('card_count');
   });
 
@@ -405,17 +459,18 @@ describe('structure 切片校验', () => {
         validateStructureSlice('card', {
           structure: [{ id: NODE_ID, type: 'text' }],
           manifest: { card_count: 1, resource_count: 2, resources: ['a.png'] },
-        })
-      ).details?.reason
+        }),
+      ).details?.reason,
     ).toContain('resource_count');
   });
 
   it('箱子条目必须携带 url 与 enabled', () => {
     expect(
-      captureError(() => validateStructureSlice('box', { entries: [{ entry_id: NODE_ID, enabled: true }] })).details?.reason
+      captureError(() => validateStructureSlice('box', { entries: [{ entry_id: NODE_ID, enabled: true }] })).details
+        ?.reason,
     ).toContain('url');
     expect(
-      captureError(() => validateStructureSlice('box', { entries: [{ entry_id: NODE_ID, url: 'x' }] })).details?.reason
+      captureError(() => validateStructureSlice('box', { entries: [{ entry_id: NODE_ID, url: 'x' }] })).details?.reason,
     ).toContain('enabled');
     expect(
       captureError(() =>
@@ -424,8 +479,8 @@ describe('structure 切片校验', () => {
             { entry_id: NODE_ID, url: 'x', enabled: true },
             { entry_id: NODE_ID, url: 'y', enabled: false },
           ],
-        })
-      ).details?.reason
+        }),
+      ).details?.reason,
     ).toContain('编号重复');
   });
 });
@@ -453,7 +508,7 @@ describe('cardStructureNodeIds', () => {
           { id: NODE_ID, type: 'image' },
         ],
         manifest: { card_count: 2 },
-      })
+      }),
     ).toEqual([OTHER_ID, NODE_ID]);
   });
 

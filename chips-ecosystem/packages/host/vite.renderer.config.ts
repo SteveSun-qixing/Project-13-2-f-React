@@ -46,9 +46,7 @@ const SECTIONS: Readonly<Record<'shell' | 'card' | 'frame', RendererBuildSection
 export default defineConfig(({ mode }) => {
   const section = SECTIONS[mode as keyof typeof SECTIONS];
   if (section === undefined) {
-    throw new Error(
-      `渲染层构建必须以 --mode shell | card | frame 选择构建段（当前 mode=${JSON.stringify(mode)}）`
-    );
+    throw new Error(`渲染层构建必须以 --mode shell | card | frame 选择构建段（当前 mode=${JSON.stringify(mode)}）`);
   }
   return {
     build: {

@@ -40,15 +40,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { register } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -378,8 +370,7 @@ function decodeGateRejectionMessage(error: unknown): Record<string, unknown> | u
   let current: unknown = error;
   for (let depth = 0; depth < 4 && current !== null && current !== undefined; depth += 1) {
     // 仅消费 Error.message 与字符串节点；其他对象不做隐式串化（避免 [object Object]）。
-    const message =
-      current instanceof Error ? current.message : typeof current === 'string' ? current : '';
+    const message = current instanceof Error ? current.message : typeof current === 'string' ? current : '';
     const index = message.indexOf(GATE_REJECT_PREFIX);
     if (index >= 0) {
       try {
@@ -456,10 +447,7 @@ export function createCpkModuleLoader(options: ICreateCpkModuleLoaderOptions = {
     const token = randomUUID();
     const canaryName = `canary-${token}.mjs`;
     const canaryUrl = `${active.sessionUrl}${canaryName}`;
-    writeFileSync(
-      join(active.sessionDir, canaryName),
-      `export const chipsGateCanary = ${JSON.stringify(token)};\n`,
-    );
+    writeFileSync(join(active.sessionDir, canaryName), `export const chipsGateCanary = ${JSON.stringify(token)};\n`);
     try {
       await import(canaryUrl);
       const events = readFileSync(active.eventsFile, 'utf8');
@@ -494,11 +482,11 @@ export function createCpkModuleLoader(options: ICreateCpkModuleLoaderOptions = {
     try {
       rootReal = realpathSync(target.rootDir);
     } catch {
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `插件目录不可访问，拒绝装载：${target.pluginId}`,
-        { pluginId: target.pluginId, stage: 'entry', reason: 'root-missing' },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `插件目录不可访问，拒绝装载：${target.pluginId}`, {
+        pluginId: target.pluginId,
+        stage: 'entry',
+        reason: 'root-missing',
+      });
     }
     let pkg: ICpkPackage;
     try {
@@ -508,11 +496,12 @@ export function createCpkModuleLoader(options: ICreateCpkModuleLoaderOptions = {
         error instanceof LoaderError
           ? { causeCode: error.code, causeMessage: error.message }
           : { causeMessage: error instanceof Error ? error.message : String(error) };
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `插件目录源树不可信或不可读，拒绝装载：${target.pluginId}`,
-        { pluginId: target.pluginId, stage: 'integrity', reason: 'unsafe-source-tree', ...cause },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `插件目录源树不可信或不可读，拒绝装载：${target.pluginId}`, {
+        pluginId: target.pluginId,
+        stage: 'integrity',
+        reason: 'unsafe-source-tree',
+        ...cause,
+      });
     }
     const entryBytes = pkg.members.get(MODULE_LOADER_ENTRY_FILE);
     if (entryBytes === undefined) {
@@ -524,40 +513,32 @@ export function createCpkModuleLoader(options: ICreateCpkModuleLoaderOptions = {
     }
     const packageHash = computeContentHash(membersToZipEntries(pkg.members));
     if (packageHash !== target.expectedPackageHash) {
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `包级摘要复算不合（安装后篡改），拒绝装载：${target.pluginId}`,
-        {
-          pluginId: target.pluginId,
-          stage: 'integrity',
-          reason: 'package-hash-mismatch',
-          expected: target.expectedPackageHash,
-          actual: packageHash,
-        },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `包级摘要复算不合（安装后篡改），拒绝装载：${target.pluginId}`, {
+        pluginId: target.pluginId,
+        stage: 'integrity',
+        reason: 'package-hash-mismatch',
+        expected: target.expectedPackageHash,
+        actual: packageHash,
+      });
     }
     if (entryBytes.length > CPK_LIMITS.entryFileBytes) {
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `入口文件超过 8 MiB，拒绝装载：${target.pluginId}`,
-        {
-          pluginId: target.pluginId,
-          stage: 'entry',
-          reason: 'entry-too-large',
-          bytes: entryBytes.length,
-          limit: CPK_LIMITS.entryFileBytes,
-        },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `入口文件超过 8 MiB，拒绝装载：${target.pluginId}`, {
+        pluginId: target.pluginId,
+        stage: 'entry',
+        reason: 'entry-too-large',
+        bytes: entryBytes.length,
+        limit: CPK_LIMITS.entryFileBytes,
+      });
     }
     let entryText: string;
     try {
       entryText = new TextDecoder('utf-8', { fatal: true }).decode(entryBytes);
     } catch {
-      throwCpkError(
-        LIFECYCLE_ERROR_CODES.applyFailed,
-        `入口不是 UTF-8 文本，拒绝装载：${target.pluginId}`,
-        { pluginId: target.pluginId, stage: 'entry', reason: 'entry-not-utf8' },
-      );
+      throwCpkError(LIFECYCLE_ERROR_CODES.applyFailed, `入口不是 UTF-8 文本，拒绝装载：${target.pluginId}`, {
+        pluginId: target.pluginId,
+        stage: 'entry',
+        reason: 'entry-not-utf8',
+      });
     }
     if (!ESM_TOKEN_PATTERN.test(entryText)) {
       throwCpkError(
@@ -597,11 +578,7 @@ export function createCpkModuleLoader(options: ICreateCpkModuleLoaderOptions = {
     };
   };
 
-  const collectGateStats = (
-    eventsFile: string,
-    pluginId: string,
-    nonce: string,
-  ): ICpkModuleGateStats => {
+  const collectGateStats = (eventsFile: string, pluginId: string, nonce: string): ICpkModuleGateStats => {
     const stats = { resolveAllow: 0, resolveReject: 0, loadAllow: 0, loadReject: 0 };
     let text = '';
     try {
@@ -641,11 +618,7 @@ export function createCpkModuleLoader(options: ICreateCpkModuleLoaderOptions = {
     return stats;
   };
 
-  const normalizeLoadFailure = (
-    error: unknown,
-    activation: IPreparedActivation,
-    eventsFile: string,
-  ): never => {
+  const normalizeLoadFailure = (error: unknown, activation: IPreparedActivation, eventsFile: string): never => {
     const gateStats = collectGateStats(eventsFile, activation.pluginId, activation.nonce);
     const payload = decodeGateRejectionMessage(error);
     if (payload !== undefined) {

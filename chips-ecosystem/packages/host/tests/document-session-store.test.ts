@@ -19,7 +19,9 @@ const OTHER_URI = 'chips-resource://default/card/Zz9Yy8Xx7W.card';
 const DOCUMENT_ID = 'Ab3dEf6Gh8';
 
 /** 稳定的空指纹（存储层不解释指纹语义）。 */
-const FINGERPRINT: ISourceFingerprint = { members: [{ path: 'structure.yaml', size: 1, modifiedAtMs: 1, crc32: null }] };
+const FINGERPRINT: ISourceFingerprint = {
+  members: [{ path: 'structure.yaml', size: 1, modifiedAtMs: 1, crc32: null }],
+};
 
 /** 记录建立输入。 */
 function recordInput(managedUri: string, documentId = DOCUMENT_ID): IOpenRecordInput {
@@ -332,7 +334,7 @@ describe('拥有者会话释放（§4.6）', () => {
 
   it('句柄释放失败不阻断记录移除（记录已从在册集合摘除）', async () => {
     const store = createDocumentSessionStore(() =>
-      Promise.reject(Object.assign(new Error('句柄释放失败'), { code: 'DOCUMENT_IO' }))
+      Promise.reject(Object.assign(new Error('句柄释放失败'), { code: 'DOCUMENT_IO' })),
     );
     const record = store.openRecord(recordInput(URI));
     store.getOrCreateSession(record, 'session-a');

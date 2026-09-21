@@ -39,12 +39,8 @@ function fixtureAsset(relative: string): string {
 const HOST_VERSION = '0.1.0';
 
 /** 内联 ZIP Store 打包器（与读取面同口径：Store、无 extra、成员按路径字节序）。 */
-function buildZipStore(
-  entries: readonly { readonly path: string; readonly data: Uint8Array }[],
-): Uint8Array {
-  const sorted = [...entries].sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
-  );
+function buildZipStore(entries: readonly { readonly path: string; readonly data: Uint8Array }[]): Uint8Array {
+  const sorted = [...entries].sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
   const localParts: Buffer[] = [];
   const centralParts: Buffer[] = [];
   let offset = 0;
@@ -141,17 +137,11 @@ function withManifest(members: Map<string, Uint8Array>, edit: (text: string) => 
   if (manifest === undefined) {
     throw new Error('夹具缺少 manifest.yaml');
   }
-  members.set(
-    'manifest.yaml',
-    new TextEncoder().encode(edit(new TextDecoder('utf-8').decode(manifest))),
-  );
+  members.set('manifest.yaml', new TextEncoder().encode(edit(new TextDecoder('utf-8').decode(manifest))));
 }
 
 /** 改写 signature.json 文档字段。 */
-function withSignature(
-  members: Map<string, Uint8Array>,
-  edit: (document: Record<string, unknown>) => void,
-): void {
+function withSignature(members: Map<string, Uint8Array>, edit: (document: Record<string, unknown>) => void): void {
   const signature = members.get('signature.json');
   if (signature === undefined) {
     throw new Error('夹具缺少 signature.json');
@@ -162,11 +152,7 @@ function withSignature(
 }
 
 /** 断言流水线按登记码与阶段拒绝，并返回 `details` 供逐例深查。 */
-function expectLoaderFailure(
-  action: () => unknown,
-  code: string,
-  stage: string,
-): Record<string, unknown> {
+function expectLoaderFailure(action: () => unknown, code: string, stage: string): Record<string, unknown> {
   let caught: unknown;
   try {
     action();
@@ -212,9 +198,7 @@ describe('正夹具全链校验（五阶段通过）', () => {
       dependencies: [],
     });
     const fileBytes = readFileSync(fixtureAsset('packages/hello-0.1.0.cpk'));
-    expect(result.installHash).toBe(
-      `sha256:${createHash('sha256').update(fileBytes).digest('hex')}`,
-    );
+    expect(result.installHash).toBe(`sha256:${createHash('sha256').update(fileBytes).digest('hex')}`);
     expect(result.warnings).toEqual([]);
   });
 
@@ -269,10 +253,7 @@ describe('校验段负矩阵（逐码）', () => {
         validatePositiveVariant({
           mutate: (members) => {
             withManifest(members, (text) =>
-              text.replace(
-                '  - clipboard:access\n',
-                '  - clipboard:access\n  - totally:unknown\n',
-              ),
+              text.replace('  - clipboard:access\n', '  - clipboard:access\n  - totally:unknown\n'),
             );
           },
         }),
@@ -320,10 +301,7 @@ describe('校验段负矩阵（逐码）', () => {
       () =>
         validatePositiveVariant({
           mutate: (members) => {
-            members.set(
-              'README.md',
-              new TextEncoder().encode('# 包根白名单外条目\n'),
-            );
+            members.set('README.md', new TextEncoder().encode('# 包根白名单外条目\n'));
           },
         }),
       'CPK_LAYOUT_INVALID',
@@ -353,10 +331,7 @@ describe('校验段负矩阵（逐码）', () => {
       () =>
         validatePositiveVariant({
           mutate: (members) => {
-            members.set(
-              'dist/native.node',
-              new TextEncoder().encode('伪装成文本的原生载荷\n'),
-            );
+            members.set('dist/native.node', new TextEncoder().encode('伪装成文本的原生载荷\n'));
           },
         }),
       'CPK_NATIVE_PAYLOAD',
@@ -414,9 +389,7 @@ describe('校验段负矩阵（逐码）', () => {
   });
 
   it('篡改签名（伪造私钥冒用 keyId 夹具）→ CPK_SIGNATURE_INVALID（stage=signature）', async () => {
-    const pkg = await loadCpkArchive(
-      fixtureAsset('packages/hello-0.1.0-wrong-signature.cpk'),
-    );
+    const pkg = await loadCpkArchive(fixtureAsset('packages/hello-0.1.0-wrong-signature.cpk'));
     const details = expectLoaderFailure(
       () => validateCpkPackage({ pkg, source: 'user', trustRoots, hostVersion: HOST_VERSION }),
       'CPK_SIGNATURE_INVALID',

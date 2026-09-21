@@ -20,7 +20,11 @@ import type { Mock } from 'vitest';
 import { createRenderEngine } from '../src/renderer/render-engine.js';
 import type { IRenderEngineBindings, RenderRequest } from '../src/renderer/render-engine.js';
 import { createDocumentViewBuilder } from '../src/renderer/document-view-builder.js';
-import type { IDocumentViewBuildInput, INativeDocumentViewHandle, INativeDocumentViewModule } from '../src/renderer/document-view-builder.js';
+import type {
+  IDocumentViewBuildInput,
+  INativeDocumentViewHandle,
+  INativeDocumentViewModule,
+} from '../src/renderer/document-view-builder.js';
 import { createServiceDocumentGateway, normalizeDocumentFailure } from '../src/renderer/document-gateway.js';
 import type { IRenderDocumentGateway } from '../src/renderer/document-gateway.js';
 import { createDocumentService } from '../src/capabilities/document/service.js';
@@ -183,8 +187,8 @@ function createControlledGateway(): IRenderDocumentGateway & {
   releaseOpen(result: { documentId: string; kind: 'card' }): void;
   failOpen(error: unknown): void;
 } {
-  let resolveOpen: ((result: { documentId: string; kind: 'card' }) => void) = () => undefined;
-  let rejectOpen: ((error: unknown) => void) = () => undefined;
+  let resolveOpen: (result: { documentId: string; kind: 'card' }) => void = () => undefined;
+  let rejectOpen: (error: unknown) => void = () => undefined;
   const gate = new Promise<{ documentId: string; kind: 'card' }>((resolve, reject) => {
     resolveOpen = resolve;
     rejectOpen = reject;
@@ -394,16 +398,16 @@ describe('失败映射（§11）', () => {
 
   it('normalizeDocumentFailure 对 open/read 路径的结构域码逐项归一', () => {
     expect(normalizeDocumentFailure(portFailure('DOCUMENT_METADATA_INVALID', '元数据损坏')).code).toBe(
-      'RENDER_DOCUMENT_INVALID'
+      'RENDER_DOCUMENT_INVALID',
     );
     expect(normalizeDocumentFailure(portFailure('DOCUMENT_NOT_OPEN', '文档未打开')).code).toBe(
-      'RENDER_DOCUMENT_INVALID'
+      'RENDER_DOCUMENT_INVALID',
     );
     expect(normalizeDocumentFailure(portFailure('DOCUMENT_FORMAT_UNKNOWN', '格式未知')).code).toBe(
-      'RENDER_DOCUMENT_INVALID'
+      'RENDER_DOCUMENT_INVALID',
     );
     expect(normalizeDocumentFailure(portFailure('DOCUMENT_PART_UNSUPPORTED', '分片不支持')).code).toBe(
-      'DOCUMENT_PART_UNSUPPORTED'
+      'DOCUMENT_PART_UNSUPPORTED',
     );
   });
 

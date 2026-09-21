@@ -105,7 +105,7 @@ export interface IServiceDocumentGatewayOptions {
  */
 export function createServiceDocumentGateway(
   service: IDocumentService,
-  options: IServiceDocumentGatewayOptions
+  options: IServiceDocumentGatewayOptions,
 ): IRenderDocumentGateway {
   const callerId = options.callerId ?? 'platform.render-host';
   const context = (signal?: AbortSignal): IDocumentCapabilityContext => ({
