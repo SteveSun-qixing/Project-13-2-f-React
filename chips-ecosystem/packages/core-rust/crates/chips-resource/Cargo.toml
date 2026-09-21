@@ -1,0 +1,17 @@
+[package]
+name = "chips-resource"
+description = "薯片平台资源管理器内核：chips-resource:// URI 与作用域解析、管理器侧权限判定、PathGuard、资源句柄与租约状态机（《核心接口规范》§7、《04-资源管理设计》、《06-资源协议规范》）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.75"
+
+[dependencies]
+async-trait.workspace = true
+chips-core = { path = "../chips-core" }
+icu_normalizer = "2.3.0"
+idna = "1.1.0"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync"] }
