@@ -116,6 +116,19 @@ function contentTextOf(node: { readonly content: Record<string, unknown> } | und
   return typeof raw === 'string' ? raw : '';
 }
 
+/**
+ * `document:read` 的 content 切片回包形状 = ContentNode 投影（`04-能力契约规范` §7.3
+ * 「`value` 为对应模型切片」，绑定层 `IDocumentContentResult` 按《06-文档解析器设计》
+ * §11.3 冻结）：节点身份字段在外层，富文字段值在嵌套 `value` 内。
+ */
+interface ContentNodeProjection<TValue> {
+  readonly node_id: string;
+  readonly file: string;
+  readonly card_type: string;
+  readonly value: TValue;
+  readonly diagnostics: readonly unknown[];
+}
+
 /** E2E 入口构建产物与接线模块定位（缺失即如实抛错——REQUIRED 必跑对构建产物的硬判据）。 */
 function resolveE2EAppEntry(): { appEntry: string; wiringModulePath: string } {
   const { appPath } = resolveHostApp();
@@ -215,15 +228,18 @@ test.describe('W2 金链路：真进程 document:* 与宿主内部取视图通�
       const baselineText = contentTextOf(view.content_nodes[0]);
       expect(baselineText, '视图内容触达真实 L2 解析').toContain('document:open');
 
-      // ── 环③ 读取基线（document:read content 切片）。
-      const baselineRead = await readDocumentPart<RichTextContent>(page, {
+      // ── 环③ 读取基线（document:read content 切片 = ContentNode 投影，§11.3/工单034 冻结形状）。
+      const baselineRead = await readDocumentPart<ContentNodeProjection<RichTextContent>>(page, {
         documentId: opened.documentId,
         part: 'content',
         nodeId: manifest.card.nodeId,
       });
       expect(baselineRead.part).toBe('content');
+      expect(baselineRead.value.node_id, 'ContentNode 投影节点身份与结构同源').toBe(
+        manifest.card.nodeId
+      );
       expect(baselineRead.value.card_type, '内容节点类型').toBe(manifest.card.cardType);
-      expect(baselineRead.value.content_text, '基线内容与视图同源解析').toBe(baselineText);
+      expect(baselineRead.value.value.content_text, '基线内容与视图同源解析').toBe(baselineText);
 
       // ── 环④ 编辑写入（document:write → 真实 parser.fingerprint 复查 + 内存覆盖层，修订 +1）。
       const editedMark = '（金链路刀7 编辑回写）';
@@ -232,18 +248,22 @@ test.describe('W2 金链路：真进程 document:* 与宿主内部取视图通�
         documentId: opened.documentId,
         part: 'content',
         nodeId: manifest.card.nodeId,
-        value: { ...baselineRead.value, content_text: editedText },
+        // 写回与读回同形状（模型切片对称，§7.3）：编辑富文字段值在嵌套 value 内。
+        value: {
+          ...baselineRead.value,
+          value: { ...baselineRead.value.value, content_text: editedText },
+        },
       });
       expectRevisionAdvanced(0, writeOutput.revision);
       expect(writeOutput.revision, '会话首次写入修订恰前进 1（§3.4）').toBe(1);
 
       // ── 环⑤ 回读覆盖层（写入只改内存模型：document:read 立即反映新值）。
-      const editedRead = await readDocumentPart<RichTextContent>(page, {
+      const editedRead = await readDocumentPart<ContentNodeProjection<RichTextContent>>(page, {
         documentId: opened.documentId,
         part: 'content',
         nodeId: manifest.card.nodeId,
       });
-      expect(editedRead.value.content_text, '覆盖层回读反映编辑值').toBe(editedText);
+      expect(editedRead.value.value.content_text, '覆盖层回读反映编辑值').toBe(editedText);
 
       // ── 环⑥ 再取视图（同一通道、同一句柄：未落盘 → 基线内容不动，§6.6 规则 5；
       //    修订号按句柄会话构建序列严格前进——工单037 转正臂，FNV 直投 era 本环构建恒拒）。
@@ -304,12 +324,14 @@ test.describe('W2 金链路：真进程 document:* 与宿主内部取视图通�
       const reopened: DocumentOpenOutput = await openDocument(page, { source });
       expect(reopened.documentId, '同会话同源复用既有记录').toBe(opened.documentId);
       expect(reopened.source).toBe(opened.source);
-      const afterReopen = await readDocumentPart<RichTextContent>(page, {
+      const afterReopen = await readDocumentPart<ContentNodeProjection<RichTextContent>>(page, {
         documentId: reopened.documentId,
         part: 'content',
         nodeId: manifest.card.nodeId,
       });
-      expect(afterReopen.value.content_text, '复用记录后覆盖层仍在（记录级共享）').toBe(editedText);
+      expect(afterReopen.value.value.content_text, '复用记录后覆盖层仍在（记录级共享）').toBe(
+        editedText
+      );
     } finally {
       if (host !== null) {
         await closeHostApp(host);
