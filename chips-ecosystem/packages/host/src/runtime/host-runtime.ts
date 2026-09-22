@@ -67,6 +67,7 @@ import type {
 } from './capability/contracts.js';
 import type { IRestoreReport, IPluginRecord } from '../loader/index.js';
 import { createCarrierService, type ICarrierPluginView, type ICarrierService } from '../carrier/index.js';
+import { createPermissionAuditWriter, type IPermissionAuditWriter } from '../audit/index.js';
 
 /** 生产运行时选项。 */
 export interface HostRuntimeOptions {
@@ -130,12 +131,31 @@ export interface HostRuntimeOptions {
    * （§2.5-5 顺序锁定）；端点路径超 `sun_path` 等场景承载面 fail-closed，宿主正常启动。
    */
   readonly carrier?: { readonly userDataPath: string; readonly hostVersion: string };
+  /**
+   * 权限审计写入器装配选项（工单046 段二；组合根注入 `userData` 根，注入形比照
+   * {@link HostRuntimeOptions.carrier}，不新造配置面）。
+   *
+   * @remarks 装配后写入器**常开**（不受 `CHIPS_TRACE` 门控，工单041 隔离口径）：构造期
+   * 即挂启动期留存清理，`start()` 无监听段可开（纯落盘 sink，目录惰性创建），
+   * `shutdown()` 中最后关闭（终态可观察一致性——停机清理链任何环节投递的审计条目均在
+   * 同一 flush 收尾中落盘，见 `shutdown` 注）。本波生产接线形态为「writer 常开
+   * 待消费」：判定面挂钩发射位归段三（硬绑 025③，禁双挂点），native observer 抛帧
+   * 归接线波，两者均直连 {@link IHostRuntime.auditWriter} 的 `enqueue` 唯一入口。
+   */
+  readonly audit?: { readonly userDataPath: string };
 }
 
 /** 生产运行时端口（附带诊断快照查询）。 */
 export interface IHostRuntime extends IPlatformRuntime {
   /** 组合诊断快照（能力 / 会话 / 在途 / 订阅 / 句柄）。 */
   report(): IHostRuntimeReport;
+  /**
+   * 权限审计写入器（未装配审计选项时缺位）。
+   *
+   * @remarks 宿主 TS 单点消费入口：段三判定面挂钩与接线波 native observer 的 TS 消费
+   * 函数直对其 `enqueue`（RFC §九 9.2-2 单条目单落点）；本运行时之外不提供第二写入器实例。
+   */
+  readonly auditWriter: IPermissionAuditWriter | null;
 }
 
 /** 默认平台会话授权来源标识。 */
@@ -228,6 +248,13 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
   const events = createEventSubscriptionCenter();
   const handles = createResourceHandleCenter();
   const provisioner = options.sessionProvisioner ?? createPlatformSessionProvisioner();
+  // 权限审计写入器（工单046 段二）：装配即常开（无环境门控臂，工单041「诊断≠审计、
+  // 审计常开」），构造期即挂启动期留存清理；本波生产接线形态为「常开待消费」，
+  // 判定面挂钩发射位归段三（裁定三硬绑 025③，禁双挂点），此处不挂任何审计钩。
+  const auditWriter: IPermissionAuditWriter | null =
+    options.audit === undefined
+      ? null
+      : createPermissionAuditWriter({ userDataPath: options.audit.userDataPath, diagnostics });
 
   const resources: IResourceBackend =
     options.resources ??
@@ -526,6 +553,13 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       }
       channel = null;
       sinks.clear();
+      // 审计写入器最后关（工单046 段二裁量，依据「终态可观察一致性」）：承载面按
+      // §2.5-5 仍最先关；writer 是纯落盘 sink（无监听、无入站副作用），置于会话清扫
+      // 与通道摘除之后，停机清理链任何环节投递的审计条目都已入队，同一 `close()`
+      // flush 收尾保证终态落盘完整；close 幂等且自身不抛出（内部各步故障只落诊断）。
+      if (auditWriter !== null) {
+        await auditWriter.close();
+      }
       return Promise.resolve();
     },
     ipc,
@@ -565,7 +599,9 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
         resourceHandles: handles.size,
         reserved,
         ...(carrierService === null ? {} : { carrier: carrierService.report() }),
+        ...(auditWriter === null ? {} : { audit: auditWriter.report() }),
       };
     },
+    auditWriter,
   };
 }

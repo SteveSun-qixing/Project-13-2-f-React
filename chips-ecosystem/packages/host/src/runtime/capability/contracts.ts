@@ -16,6 +16,7 @@
  */
 
 import type { ICarrierServiceReport } from '../../carrier/index.js';
+import type { IPermissionAuditWriterReport } from '../../audit/types.js';
 
 /** 并发策略：`parallel` 默认；`serial` 时同一能力 ID 全局 FIFO 串行（02-Bridge三层设计 §4.1、§8.3）。 */
 export type HostCapabilityConcurrency = 'parallel' | 'serial';
@@ -264,4 +265,6 @@ export interface IHostRuntimeReport {
   readonly reserved: readonly IHostReservedCapabilityView[];
   /** 承载链路服务端面（未装配承载选项时键缺位）。 */
   readonly carrier?: ICarrierServiceReport;
+  /** 权限审计写入器面（工单046 段二；未装配审计选项时键缺位）。 */
+  readonly audit?: IPermissionAuditWriterReport;
 }

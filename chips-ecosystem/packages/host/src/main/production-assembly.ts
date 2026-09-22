@@ -183,6 +183,12 @@ export function createProductionRuntime(
       userDataPath: context.userDataPath,
       hostVersion: context.palHost.info.appVersion,
     },
+    // 生产装配恒开权限审计写入器（工单046 段二；《08.08》§8.3 落位
+    // `<userData>/logs/audit/`，userData 根沿用组合根上下文既有注入形，不新造配置面；
+    // 常开、不受 CHIPS_TRACE 门控，本波形态为「writer 常开待消费」）。
+    audit: {
+      userDataPath: context.userDataPath,
+    },
   });
 }
 
