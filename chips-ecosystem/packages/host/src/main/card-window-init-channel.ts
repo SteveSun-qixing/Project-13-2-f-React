@@ -38,6 +38,13 @@
  * - 每请求零日志：本通道两端均为平台自身代码，失败以回包呈现（渲染侧消费闸负责落诊断），
  *   处理函数不写任何诊断输出（与取视图通道 `adapters/view-channel.ts` 同纪律，壳冒烟 stderr
  *   洁净闸同口径）。
+ * - 收口期拒载臂（任务 #200）：壳 `stopping`/`rollback` 置旗后（{@link CardWindowInitHandlerDeps.isStopped}
+ *   为真），处理函数**不进入投递腿**，直接以在册终态码 `BRIDGE_SESSION_UNKNOWN`（§9.2，
+ *   retryable=false，渲染侧既有终态消费臂——据此停止重试）构造契约失败封套回包；关联标识
+ *   按 {@link recoverRequestId} 同一尽力恢复口径回带。通道**不注销**、handler 常驻至进程退出
+ *   （`app.exit` 随进程自然消亡）：壳收口尾段（SIGTERM 链 `removeHandler` 与进程退出之间）渲染侧
+ *   在途请求命中已注销 handler 时 Electron 抛 `No handler registered` 泄入 stderr 的空窗被确定性
+ *   消除——收口期一切请求 fail-closed 且零 IPC 层 throw、零 stderr 泄漏。
  */
 
 import { BRIDGE_ERROR_CODES, createBridgeError } from '@chips/bridge';
@@ -88,12 +95,31 @@ function recoverRequestId(data: unknown): string {
   return typeof requestId === 'string' && requestId.length > 0 ? requestId : CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID;
 }
 
+/**
+ * 收口期拒载错误（任务 #200）：在册终态码 `BRIDGE_SESSION_UNKNOWN`（§9.2，retryable=false）——
+ * 收口后任何窗口都不再是可达投递目标，与「销毁后投递竞态」同一语义族；渲染侧既有消费臂据此
+ * 停止重试并落诊断（`renderer/entries/card.ts` 终态码收口口径），不新造码、不静默。
+ */
+function shutdownRejection(): ReturnType<typeof createBridgeError> {
+  return createBridgeError(BRIDGE_ERROR_CODES.sessionUnknown, {
+    message: '壳收口阶段：卡片窗口装载输入投递通道已停止受理',
+    details: { stage: 'shell-shutdown' },
+  });
+}
+
 /** 投递臂依赖（组合根装载段与壳 `ipc` 段共同闭合）。 */
 export interface CardWindowInitHandlerDeps {
   /** 卡片窗口编排器（登记表：装载输入 `source` 与 `documentId` 承载位的权威上游）。 */
   readonly orchestrator: CardWindowOrchestrator;
   /** 窗口存活判定（壳 `ipc` 段以 `WindowRegistry.isAlive` 交付；pending 与销毁竞态的区分依据）。 */
   readonly isWindowAlive: (windowId: number) => boolean;
+  /**
+   * 收口拒载旗（壳 `stopping`/启动失败回滚时置真，任务 #200）。
+   *
+   * @remarks 为真时处理函数不进入投递腿，直接以 `BRIDGE_SESSION_UNKNOWN` 终态失败封套拒载
+   * （语义见文件头注「收口期拒载臂」）；判定单点、每次请求即时读取，不设恢复臂。
+   */
+  readonly isStopped: () => boolean;
   /**
    * 文档绑定解析端口（`document:open` 回包同源查询面，组合根文档能力装载段交付）。
    *
@@ -172,7 +198,8 @@ function deliverInit(deps: CardWindowInitHandlerDeps, windowId: number, requestI
 }
 
 /**
- * 构造卡片窗口装载输入投递处理函数（两臂恒在：就绪/空载/失败全部以封套交付，本函数不抛出）。
+ * 构造卡片窗口装载输入投递处理函数（两臂恒在：就绪/空载/失败全部以封套交付，本函数不抛出；
+ * 收口置旗后另走拒载臂终态封套，同样不抛出，见文件头注与 {@link CardWindowInitHandlerDeps.isStopped}）。
  *
  * @param deps 投递臂依赖。
  * @returns `ipcMain.handle(CARD_WINDOW_INIT_REQUEST_CHANNEL, …)` 直接可注册的监听器。
@@ -181,6 +208,11 @@ export function createCardWindowInitHandler(deps: CardWindowInitHandlerDeps): Ca
   return (event: ShellIpcInvokeEvent, data: unknown): Promise<unknown> => {
     // 身份取证单点：`event.sender.id` = `webContents.id`（§7.4），渲染侧无自报入口。
     const windowId = event.sender.id;
+    // 收口期拒载臂（任务 #200）：置旗后不进入投递腿——编排器与绑定腿可能已随核心停机失效，
+    // 且窗口全部关闭后任何投递都无承载意义；以在册终态码如实回包，零 IPC 层 throw、零日志。
+    if (deps.isStopped()) {
+      return Promise.resolve(createCardWindowInitFailure(recoverRequestId(data), windowId, shutdownRejection()));
+    }
     let requestId = CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID;
     try {
       const request = validateCardWindowInitRequest(data);
@@ -209,7 +241,12 @@ export interface CardWindowInitRegistrationDeps {
  * 注册卡片窗口装载输入投递通道（壳启动 `ipc` 段；权限判定不适用——两端均为平台自身代码）。
  *
  * @param deps 注册项。
- * @returns 注销函数（幂等，随壳逆序收口）。
+ * @returns 注销函数（幂等；`removeHandler` 切片清理能力，供单元与注入面消费）。
+ *
+ * @remarks 壳生产收口**不消费本函数**（任务 #200）：收口腿改为 {@link CardWindowInitHandlerDeps.isStopped}
+ * 置旗拒载，handler 常驻至进程退出——`removeHandler` 后、`app.exit` 前的空窗内渲染侧在途请求会命中
+ * 已注销通道并触发 Electron `No handler registered` stderr 抛错（壳冒烟 stderr 洁净闸判据②–⑤的
+ * 在册竞态源），拒载臂以契约失败封套 fail-closed，空窗零泄漏。
  */
 export function registerCardWindowInitChannel(deps: CardWindowInitRegistrationDeps): () => void {
   const channel = deps.channel ?? CARD_WINDOW_INIT_REQUEST_CHANNEL;

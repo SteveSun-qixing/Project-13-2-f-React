@@ -13,7 +13,9 @@
  *   绑定未接线 / 绑定漂移 / 承载位冲突 / 请求闸）→ 身份取证锁 → 回包权威闸发送前自检锁 →
  *   `ICardWindowRecord` 承载位生命周期（真实编排器 + Electron 替身窗口链：绑定幂等、异值拒收、
  *   销毁作废）→ `IDocumentService.resolveWindowDocument` 与 `document:open` 回包同源（真实文档
- *   服务 + 解析域夹具）→ `registerCardWindowInitChannel` 注册与幂等注销 → 壳启动装载与投递端到端。
+ *   服务 + 解析域夹具）→ `registerCardWindowInitChannel` 注册与幂等注销 → 收口期拒载臂（任务 #200：
+ *   置旗终态拒载、通道常驻零 `No handler registered` 空窗，投递臂与壳编排两路锁）→
+ *   壳启动装载与投递端到端。
  * - 零 skip、零弱化：错误码逐值断言取契约在册错误面常量与文档域码表常量，不新造码。
  */
 
@@ -145,6 +147,7 @@ function makeHandler(
   const deps: CardWindowInitHandlerDeps = {
     orchestrator: overrides.orchestrator ?? orchestrator,
     isWindowAlive: overrides.isWindowAlive ?? alive,
+    isStopped: overrides.isStopped ?? (() => false),
     ...(resolveDocument === undefined ? {} : { resolveDocument }),
   };
   const handler = createCardWindowInitHandler(deps);
@@ -421,6 +424,76 @@ describe('卡片窗口装载投递 · 请求闸与回包发送前自检', () => 
 });
 
 /* ------------------------------------------------------------------ *
+ * 收口期拒载臂（任务 #200：置旗终态拒载，通道不注销零 stderr 空窗）
+ * ------------------------------------------------------------------ */
+
+describe('卡片窗口装载投递 · 收口期拒载臂（任务 #200，置旗后 fail-closed 零 IPC 层 throw）', () => {
+  it('置旗即终态拒载：就绪态登记表与绑定腿零触达，回带在册码 BRIDGE_SESSION_UNKNOWN 的失败封套', async () => {
+    // 登记表与绑定腿全部就绪——拒载臂在投递腿之前短路，任何承载都不放行。
+    const { handler, probe } = makeHandler([{ id: WINDOW_ID, source: SOURCE }], { isStopped: () => true });
+    const response = await deliver(handler, WINDOW_ID, fetchPayload());
+    if (!isCardWindowInitFailure(response)) {
+      throw new Error('预期失败臂');
+    }
+    expect(response.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    expect(response.error.retryable).toBe(false);
+    expect(response.error.details).toEqual({ stage: 'shell-shutdown' });
+    expect(response.error.message).toContain('壳收口阶段');
+    // 关联标识与取证 windowId 照常回带；投递腿（绑定解析与承载位写入）零触达。
+    expect(response.requestId).toBe('init-1');
+    expect(response.windowId).toBe(WINDOW_ID);
+    expect(probe.bindCalls).toHaveLength(0);
+    expect(probe.bindingCalls).toHaveLength(0);
+    expect(probe.records[0]?.documentId).toBeNull();
+  });
+
+  it('置旗后破损封套同口径尽力恢复：键集完好逐字回带、取不出落未关联标识，任一形态封套完好', async () => {
+    const { handler } = makeHandler([{ id: WINDOW_ID, source: SOURCE }], { isStopped: () => true });
+    const drift = await handler(eventFrom(WINDOW_ID), fetchPayload({ protocol: 'chips-card-window-init/2' }));
+    const driftValidated = validateCardWindowInitResponse(drift, 'init-1');
+    expect(isCardWindowInitFailure(driftValidated)).toBe(true);
+    if (isCardWindowInitFailure(driftValidated)) {
+      expect(driftValidated.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    }
+    const broken = (await handler(eventFrom(WINDOW_ID), 'not-a-envelope')) as Record<string, unknown>;
+    expect(broken['requestId']).toBe(CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID);
+    expect(broken['type']).toBe(CARD_WINDOW_INIT_MESSAGE_TYPES.error);
+    expect(broken['windowId']).toBe(WINDOW_ID);
+    expect(() => validateCardWindowInitResponse(broken, CARD_WINDOW_INIT_UNCORRELATED_REQUEST_ID)).not.toThrow();
+  });
+
+  it('旗翻真即拒、无恢复臂：同一 handler 在途竞态（先就绪后置旗再投递）两态分立', async () => {
+    let stopped = false;
+    const { handler, probe } = makeHandler([{ id: WINDOW_ID, source: SOURCE }], { isStopped: () => stopped });
+    const before = await deliver(handler, WINDOW_ID, fetchPayload());
+    expect(isCardWindowInitResult(before)).toBe(true);
+    stopped = true;
+    const after = await deliver(handler, WINDOW_ID, fetchPayload({ requestId: 'init-2' }), 'init-2');
+    if (!isCardWindowInitFailure(after)) {
+      throw new Error('置旗后预期失败臂');
+    }
+    expect(after.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    // 就绪腿只发生在置旗前的一次投递：承载位写入一次、绑定解析两次（就绪臂一次 + 拒载臂零次）。
+    expect(probe.bindingCalls).toEqual([SOURCE]);
+    expect(probe.bindCalls).toEqual([WINDOW_ID]);
+  });
+
+  it('拒载臂封套经渲染侧到达闸全绿（与既有失败臂同构造路径，键集闸/回包自检零冲突）', async () => {
+    const { handler } = makeHandler([{ id: WINDOW_ID, source: SOURCE, destroyed: true }], {
+      isStopped: () => true,
+    });
+    const raw = await handler(eventFrom(WINDOW_ID), fetchPayload());
+    // JSON 往返模拟结构化克隆边界：封套为可克隆普通对象，error 为 IChipsError 普通形态。
+    const cloned = JSON.parse(JSON.stringify(raw)) as unknown;
+    const validated = validateCardWindowInitResponse(cloned, 'init-1');
+    expect(isCardWindowInitFailure(validated)).toBe(true);
+    if (isCardWindowInitFailure(validated)) {
+      expect(validated.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ *
  * 登记表承载位生命周期（真实编排器 + Electron 替身窗口链）
  * ------------------------------------------------------------------ */
 
@@ -464,6 +537,7 @@ function handlerWith(
   return createCardWindowInitHandler({
     orchestrator,
     isWindowAlive,
+    isStopped: () => false,
     resolveDocument: (source) => (source === SOURCE ? { documentId: CARD_ID, resourceBase: RESOURCE_BASE } : null),
   });
 }
@@ -620,6 +694,7 @@ describe('resolveWindowDocument · 与 document:open 回包同源（真实文档
     const handler = createCardWindowInitHandler({
       orchestrator,
       isWindowAlive: (windowId) => registry.isAlive(windowId),
+      isStopped: () => false,
       resolveDocument: (source) => service.resolveWindowDocument(source),
     });
     const response = await deliver(handler, record.windowId, fetchPayload());
@@ -651,6 +726,7 @@ describe('resolveWindowDocument · 与 document:open 回包同源（真实文档
     const handler = createCardWindowInitHandler({
       orchestrator,
       isWindowAlive: (windowId) => registry.isAlive(windowId),
+      isStopped: () => false,
       resolveDocument: (source) => service.resolveWindowDocument(source),
     });
     const response = await deliver(handler, record.windowId, fetchPayload());
@@ -716,7 +792,7 @@ describe('registerCardWindowInitChannel：ipcMain 切片注册与幂等注销', 
   });
 });
 
-describe('HostApplication：装载投递通道随壳启动注册、随停机与启动失败逆序注销', () => {
+describe('HostApplication：装载投递通道随壳启动注册、停机与启动失败置旗拒载常驻（任务 #200）', () => {
   function createApplication(cardWindowDocumentBinding?: CardWindowInitHandlerDeps['resolveDocument']): {
     application: HostApplication;
     fake: ReturnType<typeof createFakeElectron>;
@@ -738,7 +814,17 @@ describe('HostApplication：装载投递通道随壳启动注册、随停机与�
     return { application, fake };
   }
 
-  it('启动后通道在册（绑定腿缺位也注册，投递臂如实拒收）', async () => {
+  /** 经替身 `ipcMain` 投递一条在途请求（模拟渲染侧 invoke：通道未注册即 reject——`No handler` 空窗的替身形态）。 */
+  async function invokeChannel(
+    fake: ReturnType<typeof createFakeElectron>,
+    channel: string,
+    windowId: number,
+    data: unknown,
+  ): Promise<unknown> {
+    return fake.ipcMain.invoke(channel, { sender: { id: windowId }, senderFrame: { routingId: windowId * 10 } }, data);
+  }
+
+  it('启动后通道在册（绑定腿缺位也注册，投递臂如实拒收）；收口后装载通道常驻、其余通道注销', async () => {
     const { application, fake } = createApplication();
     await application.start();
     expect([...fake.ipcMain.handlers.keys()].sort()).toEqual([
@@ -748,7 +834,67 @@ describe('HostApplication：装载投递通道随壳启动注册、随停机与�
       'event:control',
     ]);
     await application.shutdown();
-    expect(fake.ipcMain.handlers.size).toBe(0);
+    // 任务 #200：装载投递通道不注销（在册键集恰余该一条，精确断言非放宽），其余 `ipc` 段通道照常逆序注销
+    // （注销实证：`bridge:request` 已无在册 handler，替身 invoke 即拒）。
+    expect([...fake.ipcMain.handlers.keys()]).toEqual([CARD_WINDOW_INIT_REQUEST_CHANNEL]);
+    await expect(invokeChannel(fake, 'bridge:request', WINDOW_ID, {})).rejects.toThrow('通道未注册');
+  });
+
+  it('收口尾段在途请求零空窗 fail-closed：停机后常驻通道以终态封套拒载，无 No handler 抛错路径', async () => {
+    const { application, fake } = createApplication((source) =>
+      source.length > 0 ? { documentId: CARD_ID, resourceBase: RESOURCE_BASE } : null,
+    );
+    await application.start();
+    const record = await application.cardWindowOrchestrator.open({ source: SOURCE });
+    // 停机前投递正常就绪（拒载臂只在置旗后生效，运行期投递腿零变化）。
+    const ready = await invokeChannel(fake, CARD_WINDOW_INIT_REQUEST_CHANNEL, record.windowId, fetchPayload());
+    expect(isCardWindowInitResult(validateCardWindowInitResponse(ready, 'init-1'))).toBe(true);
+    await application.shutdown();
+    // 收口后（SIGTERM 链尾部、进程退出前的空窗位置）在途请求命中常驻通道：
+    // 契约失败封套而非通道缺席异常，渲染侧到达闸可全绿消费。
+    const after = await invokeChannel(
+      fake,
+      CARD_WINDOW_INIT_REQUEST_CHANNEL,
+      record.windowId,
+      fetchPayload({ requestId: 'init-tail' }),
+    );
+    const validated = validateCardWindowInitResponse(after, 'init-tail');
+    if (!isCardWindowInitFailure(validated)) {
+      throw new Error('收口后预期失败臂封套');
+    }
+    expect(validated.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    expect(validated.error.retryable).toBe(false);
+    expect(validated.windowId).toBe(record.windowId);
+  });
+
+  it('启动失败回滚同臂：装载通道保留并拒载，其余通道照常注销', async () => {
+    const fake = createFakeElectron();
+    const base = createFakeRuntime();
+    const resolveDocument: NonNullable<CardWindowInitHandlerDeps['resolveDocument']> = (source) =>
+      source.length > 0 ? { documentId: CARD_ID, resourceBase: RESOURCE_BASE } : null;
+    // `plugin-restore` 段失败：`ipc` 段（含装载投递通道）已注册完成，触发逆序回滚。
+    const runtime = {
+      ...base.runtime,
+      restorePlugins: (): Promise<void> => Promise.reject(new Error('插件恢复失败（回滚臂夹具）')),
+      cardWindowDocumentBinding: resolveDocument,
+    };
+    const application = new HostApplication({
+      electron: createElectronRuntime(fake.module),
+      palHost: createFakePalHost(),
+      runtime,
+      preloadPath: '/app/dist/preload/index.js',
+      bootstrapWindow: { title: '薯片' },
+      diagnostics: { warn: vi.fn(), error: vi.fn() },
+    });
+    await expect(application.start()).rejects.toThrow();
+    expect(application.state).toBe('idle');
+    expect([...fake.ipcMain.handlers.keys()]).toEqual([CARD_WINDOW_INIT_REQUEST_CHANNEL]);
+    const raw = await invokeChannel(fake, CARD_WINDOW_INIT_REQUEST_CHANNEL, WINDOW_ID, fetchPayload());
+    const validated = validateCardWindowInitResponse(raw, 'init-1');
+    if (!isCardWindowInitFailure(validated)) {
+      throw new Error('回滚后预期失败臂封套');
+    }
+    expect(validated.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
   });
 
   it('端到端：真实壳 + 启动参数开卡 + 替身 webContents 投递 → 空载 pending（登记表时窗口径）', async () => {

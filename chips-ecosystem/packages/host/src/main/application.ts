@@ -10,6 +10,9 @@
  * - 平台核心经构造注入的 {@link IPlatformRuntime} 端口消费；壳不实现第二个能力注册表与
  *   第二套权限判定。
  * - 退出严格按逆序：停用插件 → 注销事件下行 → 关闭窗口 → 注销 IPC → 核心停机 → 释放 PAL。
+ *   唯一在册例外（任务 #200）：卡片窗口装载投递通道不注销、改为置旗拒载——渲染侧在途请求
+ *   命中已注销 handler 会触发 Electron `No handler registered` stderr 抛错（收口尾段空窗），
+ *   拒载臂以契约终态封套 fail-closed，见 `card-window-init-channel.ts` 头注。
  */
 
 import type { IPalHost } from '../platform/contracts/index.js';
@@ -78,7 +81,7 @@ export class HostApplication {
   private readonly cardWindows: CardWindowOrchestrator;
   private detachIpc: (() => void) | null = null;
   private detachViewChannel: (() => void) | null = null;
-  private detachCardWindowInit: (() => void) | null = null;
+  private cardWindowInitStopped = false;
   private detachEvents: (() => void) | null = null;
   private coreStarted = false;
   private currentState: HostApplicationState = 'idle';
@@ -166,11 +169,16 @@ export class HostApplication {
       // 通道恒在册（两端均为平台自身代码，权限判定不适用）；绑定腿（组合根
       // `cardWindowDocumentBinding`）缺位即未就绪态——投递臂按在册码 DOCUMENT_NOT_OPEN
       // 如实拒收，不静默、不伪造装载。
-      this.detachCardWindowInit = registerCardWindowInitChannel({
+      // 收口腿（任务 #200）：本通道不随逆序注销，改为置旗拒载（`stopCardWindowInit`）——
+      // 注销后、进程退出前的空窗内渲染侧在途请求会命中已注销 handler 并触发 Electron
+      // `No handler registered` stderr 抛错；注册返回的注销函数在此不消费，常驻至进程退出。
+      this.cardWindowInitStopped = false;
+      registerCardWindowInitChannel({
         ipcMain: this.options.electron.ipcMain,
         handler: createCardWindowInitHandler({
           orchestrator: this.cardWindows,
           isWindowAlive: (windowId) => this.registry.isAlive(windowId),
+          isStopped: () => this.cardWindowInitStopped,
           ...(this.options.runtime.cardWindowDocumentBinding === undefined
             ? {}
             : { resolveDocument: this.options.runtime.cardWindowDocumentBinding }),
@@ -245,7 +253,7 @@ export class HostApplication {
     await this.stopPlugins();
     this.unregisterEvents();
     this.closeWindows();
-    this.unregisterCardWindowInit();
+    this.stopCardWindowInit();
     this.unregisterViewChannel();
     this.unregisterIpc();
     await this.shutdownCore();
@@ -344,18 +352,15 @@ export class HostApplication {
     }
   }
 
-  /** 注销卡片窗口装载输入投递通道（逆序收口：后注册先注销）。 */
-  private unregisterCardWindowInit(): void {
-    const detach = this.detachCardWindowInit;
-    this.detachCardWindowInit = null;
-    if (detach === null) {
-      return;
-    }
-    try {
-      detach();
-    } catch (error) {
-      this.diagnostics.error('shutdown', '装载投递通道注销失败', { reason: describe(error) });
-    }
+  /**
+   * 置旗停止卡片窗口装载输入投递通道（收口腿，任务 #200）。
+   *
+   * @remarks 不注销 handler——`removeHandler` 与进程退出之间存在空窗，在途渲染侧请求命中已注销
+   * 通道会触发 Electron `No handler registered` stderr 抛错；置旗后投递臂以契约终态封套拒载
+   * （`BRIDGE_SESSION_UNKNOWN`，fail-closed、零 stderr），通道常驻至进程退出随进程自然消亡。
+   */
+  private stopCardWindowInit(): void {
+    this.cardWindowInitStopped = true;
   }
 
   /** 核心停机。 */
@@ -388,7 +393,7 @@ export class HostApplication {
   private async rollback(): Promise<void> {
     this.unregisterEvents();
     this.closeWindows();
-    this.unregisterCardWindowInit();
+    this.stopCardWindowInit();
     this.unregisterViewChannel();
     this.unregisterIpc();
     await this.shutdownCore();

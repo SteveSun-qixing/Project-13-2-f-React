@@ -222,7 +222,9 @@ describe('HostApplication.shutdown', () => {
     await application.shutdown();
     expect(calls).toEqual(['stop-plugins', 'core-shutdown', 'pal-dispose']);
     expect(runtime.calls.detached).toBe(1);
-    expect(fake.ipcMain.handlers.size).toBe(0);
+    // 任务 #200 收口口径：装载投递通道不注销、置旗拒载常驻（其余 `ipc` 段通道照常逆序注销，
+    // 在册键集恰为装载投递一条——精确键集断言，非空集放宽）。
+    expect([...fake.ipcMain.handlers.keys()]).toEqual(['card-window-init:request']);
     expect(application.state).toBe('stopped');
     expect(application.windows.size).toBe(0);
     await application.shutdown();
