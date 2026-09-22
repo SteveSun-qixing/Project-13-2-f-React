@@ -37,6 +37,55 @@ export function removeLineContaining(text: string, needle: string): string {
   return filtered.join('\n');
 }
 
+/** 去除全部空白（空格、制表符），用于与表格列宽填充形解耦的归一比较。 */
+function stripWhitespace(text: string): string {
+  return text.replace(/\s+/g, '');
+}
+
+/**
+ * 空格不敏感版 `removeLineContaining`：needle 与行双方先去空白再比对，锚点不再依赖
+ * prettier 表格列宽对齐的填充形（工单046 同根因判例：列宽归一必然击碎含空格整行锚）。
+ * 判定强度不降：目标行改名、整行删除或单元格缺失时归一后仍不命中，夹具照旧抛错，
+ * 杜绝静默失效。
+ */
+export function removeLineContainingIgnoringSpacing(text: string, needle: string): string {
+  const target = stripWhitespace(needle);
+  if (target.length === 0) {
+    throw new Error('偏差注入失败：needle 不能为空');
+  }
+  const lines = text.split('\n');
+  const filtered = lines.filter((line) => !stripWhitespace(line).includes(target));
+  if (filtered.length === lines.length) {
+    throw new Error(`偏差注入失败：空格归一后未找到包含 ${JSON.stringify(needle)} 的行`);
+  }
+  return filtered.join('\n');
+}
+
+/** 将字面文本转义为可嵌入 `RegExp` 的形。 */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * 空格不敏感版 `replaceOnce`：`find` 按空白切分为 token，token 之间允许任意行内空白
+ * （`[ \t]*`，不含换行、不跨行），命中列宽填充展开形的同时保持行内精确语义。
+ * 判定强度不降：token 序列被打断（改名、删行、单元格缺失、单元格插词）即不命中，
+ * 未命中照旧抛错，杜绝静默失效。`replace` 以给定形整体替换命中区段（偏差注入只在
+ * 内存中生效、不回写真实文档，列宽形不影响后续解析判定）。
+ */
+export function replaceOnceIgnoringSpacing(text: string, find: string, replace: string): string {
+  const tokens = find.split(/\s+/).filter((token) => token.length > 0);
+  if (tokens.length === 0) {
+    throw new Error('偏差注入失败：find 不能为空');
+  }
+  const pattern = new RegExp(tokens.map(escapeRegExp).join('[ \\t]*'));
+  const match = pattern.exec(text);
+  if (match === null) {
+    throw new Error(`偏差注入失败：空格归一后未找到目标文本 ${JSON.stringify(find)}`);
+  }
+  return `${text.slice(0, match.index)}${replace}${text.slice(match.index + match[0].length)}`;
+}
+
 /** 删除一个 `#### <heading>` 级章节（到下一个 `####`/`###` 标题为止）。 */
 export function removeHeadingSection(text: string, heading: string): string {
   const lines = text.split('\n');

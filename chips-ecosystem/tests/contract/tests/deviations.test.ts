@@ -7,6 +7,11 @@
  *
  * 快照类偏差使用 `deepDiff` 对「真实模型 vs 偏差模型」直接断言差异，
  * 不写回任何快照文件。
+ *
+ * 表格行锚一律走空格不敏感匹配（`removeLineContainingIgnoringSpacing` /
+ * `replaceOnceIgnoringSpacing`）：文档库表格随时可能经生态 prettier 列宽归一，
+ * 含空格整行锚会被列宽填充击碎（工单046 同根因判例）；锚点与排版解耦、
+ * 与语义偏差（改名/删行/缺失）保持必红，见「prettier 展开形锚点双向臂锁测」。
  */
 
 import { describe, it } from 'vitest';
@@ -19,7 +24,9 @@ import {
   loadDeviatedDocModels,
   removeHeadingSection,
   removeLineContaining,
+  removeLineContainingIgnoringSpacing,
   replaceOnce,
+  replaceOnceIgnoringSpacing,
   driftCodeCapabilityPermissions,
   driftEventVisibility,
   appendUnknownEvent,
@@ -49,6 +56,58 @@ const ROLE_APP_DOC = '05-接口与契约/07.02-07-应用插件接口-二、接�
 const SDK_EXPORT_DOC = '05-接口与契约/02.02-02-SDK-API规范-二、导出入口.md';
 const FRAME_DOC =
   '01-架构设计/01-子系统设计/05.09-05-渲染引擎设计-九、高度自适应与宿主-内容通信协议.md';
+
+/** 按未转义 `|` 切分表格行为区段（保留转义 `\|`，与 src/markdown.ts 的切分口径一致）。 */
+function splitTableCellSegments(line: string): string[] {
+  const segments: string[] = [];
+  let buffer = '';
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index] ?? '';
+    if (char === '\\' && line[index + 1] === '|') {
+      buffer += '\\|';
+      index += 1;
+      continue;
+    }
+    if (char === '|') {
+      segments.push(buffer);
+      buffer = '';
+      continue;
+    }
+    buffer += char;
+  }
+  segments.push(buffer);
+  return segments;
+}
+
+/**
+ * prettier 表格列宽展开形模拟器：对表格行（含分隔行）的每个单元格内容右侧补固定空格，
+ * 复刻「列宽对齐只增空白、不动语义」的击碎面；围栏代码块与表格外行原样保留。
+ * 仅供锚点双向臂锁测在内存中使用，不回写、不依赖真实文档当前排版。
+ */
+function padTableSpacing(text: string): string {
+  let inFence = false;
+  return text
+    .split('\n')
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence || !line.trim().startsWith('|')) {
+        return line;
+      }
+      return splitTableCellSegments(line)
+        .map((segment) => {
+          const trimmed = segment.trim();
+          if (trimmed === '') {
+            return segment;
+          }
+          return ` ${trimmed}${' '.repeat(5)} `;
+        })
+        .join('|');
+    })
+    .join('\n');
+}
 
 function expectViolation(
   violations: readonly ContractViolation[],
@@ -235,8 +294,10 @@ describe('事件表偏差注入', () => {
       {
         file: EVENT_DOC_DOCUMENT,
         description: 'document:opened title 类型改为 number',
+        // 表格行锚取空格不敏感匹配（#168 解耦）：锚不再依赖单元格两侧的列宽填充形，
+        // 改名/删行/单元格缺失等语义偏差形照样不命中、照样抛错，注入语义不变。
         mutate: (text) =>
-          replaceOnce(
+          replaceOnceIgnoringSpacing(
             text,
             '| `title` | string | 是 | 文档标题（metadata 声明） |',
             '| `title` | number | 是 | 文档标题（metadata 声明） |'
@@ -256,7 +317,9 @@ describe('错误码表偏差注入', () => {
       {
         file: BRIDGE_ERROR_DOC,
         description: 'BRIDGE_TIMEOUT 改名为 BRIDGE_TIMEOUT_V2',
-        mutate: (text) => replaceOnce(text, '| `BRIDGE_TIMEOUT` |', '| `BRIDGE_TIMEOUT_V2` |'),
+        // 表格单元格锚取空格不敏感匹配（#168 解耦），列宽填充形与紧凑形同命中。
+        mutate: (text) =>
+          replaceOnceIgnoringSpacing(text, '| `BRIDGE_TIMEOUT` |', '| `BRIDGE_TIMEOUT_V2` |'),
       },
     ]);
     const violations = checkErrors({
@@ -312,7 +375,10 @@ describe('角色接口与 SDK 导出偏差注入', () => {
       {
         file: SDK_EXPORT_DOC,
         description: '删除「插件角色」导出行',
-        mutate: (text) => removeLineContaining(text, '| 插件角色 |'),
+        // 含空格整行锚改空格不敏感匹配（#168，工单046 同根因判例）：02.02 经生态
+        // prettier 列宽归一后，旧锚「| 插件角色 |」的收尾空格必然与管道不相邻而失效；
+        // 归一比较下，行列缺失/改名/整行删除照样不命中并抛错，注入语义与强度不变。
+        mutate: (text) => removeLineContainingIgnoringSpacing(text, '| 插件角色 |'),
       },
     ]);
     const violations = checkRoles({ docs: deviated.roles, sdk: deviated.sdk });
@@ -326,8 +392,13 @@ describe('帧协议偏差注入', () => {
       {
         file: FRAME_DOC,
         description: 'frame:height 方向改为父 → 子',
+        // 表格方向列锚取空格不敏感匹配（#168 解耦），列宽填充形与紧凑形同命中。
         mutate: (text) =>
-          replaceOnce(text, '| `frame:height` | 子 → 父 |', '| `frame:height` | 父 → 子 |'),
+          replaceOnceIgnoringSpacing(
+            text,
+            '| `frame:height` | 子 → 父 |',
+            '| `frame:height` | 父 → 子 |'
+          ),
       },
     ]);
     const violations = checkFrameProtocol({ frame: deviated.frame });
@@ -359,7 +430,8 @@ describe('帧协议偏差注入', () => {
       {
         file: SDK_EXPORT_DOC,
         description: '删除 chips 值导出行',
-        mutate: (text) => removeLineContaining(text, '| `chips` | 常量 |'),
+        // 含空格整行锚改空格不敏感匹配（#168，同「插件角色」行注记）。
+        mutate: (text) => removeLineContainingIgnoringSpacing(text, '| `chips` | 常量 |'),
       },
     ]);
     const baseline = stableStringify(deviated.sdk.values);
@@ -368,6 +440,113 @@ describe('帧协议偏差注入', () => {
     }
     if (deviated.sdk.values.some((value) => value.name === 'chips')) {
       throw new Error('偏差注入未生效：chips 仍在导出清单');
+    }
+  });
+});
+
+describe('prettier 展开形锚点双向臂锁测', () => {
+  it('展开形模拟只动空白：02.02 列宽填充后 SDK 解析模型与真实文档逐项一致', () => {
+    const real = createDeviatedReader([]).read(SDK_EXPORT_DOC);
+    const padded = padTableSpacing(real);
+    if (padded === real) {
+      throw new Error('展开形模拟未生效：文本零变化');
+    }
+    if (padded.replace(/\s+/g, '') !== real.replace(/\s+/g, '')) {
+      throw new Error('展开形模拟改动了非空白内容');
+    }
+    const paddedModels = loadDeviatedDocModels([
+      { file: SDK_EXPORT_DOC, description: '展开形模拟（仅列宽填充）', mutate: padTableSpacing },
+    ]);
+    if (stableStringify(paddedModels.sdk) !== stableStringify(docs().sdk)) {
+      throw new Error('表格列宽填充改变了 SDK 导出解析模型（展开形应零扰动）');
+    }
+  });
+
+  it('展开形下删除「插件角色」行 → 入口缺失偏差仍被检出（空格不敏感锚仍绿）', () => {
+    const deviated = loadDeviatedDocModels([
+      {
+        file: SDK_EXPORT_DOC,
+        description: '展开形注入：删除「插件角色」导出行',
+        mutate: (text) =>
+          removeLineContainingIgnoringSpacing(padTableSpacing(text), '| 插件角色 |'),
+      },
+    ]);
+    const violations = checkRoles({ docs: deviated.roles, sdk: deviated.sdk });
+    expectViolation(violations, 'CONTRACT_SDK_ROLE_ENTRY_MISSING', 'IAppPlugin');
+  });
+
+  it('展开形下删除 chips 值导出行 → 值清单偏差仍被解析反映', () => {
+    const deviated = loadDeviatedDocModels([
+      {
+        file: SDK_EXPORT_DOC,
+        description: '展开形注入：删除 chips 值导出行',
+        mutate: (text) =>
+          removeLineContainingIgnoringSpacing(padTableSpacing(text), '| `chips` | 常量 |'),
+      },
+    ]);
+    if (stableStringify(deviated.sdk.values) === stableStringify(docs().sdk.values)) {
+      throw new Error('展开形注入的 SDK 值导出偏差未被解析结果反映');
+    }
+    if (deviated.sdk.values.some((value) => value.name === 'chips')) {
+      throw new Error('展开形偏差注入未生效：chips 仍在导出清单');
+    }
+  });
+
+  it('语义偏差形仍红：行列改名、目标缺失时空格不敏感整行锚抛错', () => {
+    const real = createDeviatedReader([]).read(SDK_EXPORT_DOC);
+    const padded = padTableSpacing(real);
+    const renamed = replaceOnceIgnoringSpacing(padded, '| 插件角色 |', '| 角色导出 |');
+    let renamedThrows = false;
+    try {
+      removeLineContainingIgnoringSpacing(renamed, '| 插件角色 |');
+    } catch {
+      renamedThrows = true;
+    }
+    if (!renamedThrows) {
+      throw new Error('行列改名后空格不敏感锚仍命中（判定强度下降）');
+    }
+    let missingThrows = false;
+    try {
+      removeLineContainingIgnoringSpacing(padded, '| 不存在的导出分类 |');
+    } catch {
+      missingThrows = true;
+    }
+    if (!missingThrows) {
+      throw new Error('目标行缺失时空格不敏感锚未抛错（静默失效）');
+    }
+  });
+
+  it('空格不敏感 replaceOnce：展开形命中、语义缺失抛错、锚不跨行', () => {
+    const table = '| 错误码 | 说明 |\n| --- | --- |\n| `BRIDGE_TIMEOUT` | 请求超时 |\n';
+    const paddedTable = padTableSpacing(table);
+    if (paddedTable === table) {
+      throw new Error('展开形模拟未生效');
+    }
+    const replaced = replaceOnceIgnoringSpacing(
+      paddedTable,
+      '| `BRIDGE_TIMEOUT` |',
+      '| `BRIDGE_TIMEOUT_V2` |'
+    );
+    if (!replaced.includes('| `BRIDGE_TIMEOUT_V2` |') || !replaced.includes('请求超时')) {
+      throw new Error('展开形单元格替换未命中或波及相邻列');
+    }
+    let missingThrows = false;
+    try {
+      replaceOnceIgnoringSpacing(replaced, '| `BRIDGE_TIMEOUT` |', '| X |');
+    } catch {
+      missingThrows = true;
+    }
+    if (!missingThrows) {
+      throw new Error('改名后原锚仍命中（判定强度下降）');
+    }
+    let crossRowThrows = false;
+    try {
+      replaceOnceIgnoringSpacing(table, '| 错误码 | `BRIDGE_TIMEOUT` |', '| X |');
+    } catch {
+      crossRowThrows = true;
+    }
+    if (!crossRowThrows) {
+      throw new Error('空格不敏感锚跨行命中（匹配域越界）');
     }
   });
 });

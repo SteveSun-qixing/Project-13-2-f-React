@@ -14,8 +14,8 @@ import type { SdkGeneratedCodeModel } from '../src/code/sdk.js';
 import { checkPermissionErrorCodes } from '../src/check/permission-errors.js';
 import {
   loadDeviatedDocModels,
-  removeLineContaining,
-  replaceOnce,
+  removeLineContainingIgnoringSpacing,
+  replaceOnceIgnoringSpacing,
 } from '../src/fixtures/deviations.js';
 import { PERMISSION_ERROR_SOURCE } from '../src/docs/sources.js';
 import { assertNoViolations, formatViolations, type ContractViolation } from '../src/violations.js';
@@ -108,7 +108,10 @@ describe('权限拒绝码三方一致性（工单013）', () => {
       {
         file: PERMISSION_ERROR_SOURCE.file,
         description: '删除 §9.1 的 PERMISSION_INVALID 登记行',
-        mutate: (text) => removeLineContaining(text, '| `PERMISSION_INVALID` | 安装校验'),
+        // 含空格表格行锚改空格不敏感匹配（#168 解耦，工单046 同根因判例）：
+        // 锚与 prettier 列宽填充形解耦，改名/删行/单元格缺失照样不命中并抛错。
+        mutate: (text) =>
+          removeLineContainingIgnoringSpacing(text, '| `PERMISSION_INVALID` | 安装校验'),
       },
     ]);
     const violations = checkPermissionErrorCodes({
@@ -127,8 +130,9 @@ describe('权限拒绝码三方一致性（工单013）', () => {
       {
         file: PERMISSION_ERROR_SOURCE.file,
         description: '§9.1 追加 PERMISSION_FUTURE_CODE 登记行',
+        // 整行锚同上走空格不敏感匹配（#168 解耦）。
         mutate: (text) =>
-          replaceOnce(
+          replaceOnceIgnoringSpacing(
             text,
             anchor,
             `${anchor}\n| \`PERMISSION_FUTURE_CODE\` | 安装校验 | 未来新增拒绝码（漂移注入） | false |`
