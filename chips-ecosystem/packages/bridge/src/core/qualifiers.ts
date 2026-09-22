@@ -5,7 +5,7 @@
  * 符号链接解析与真实路径核对是资源层的纵深防御，这里通过 `realpath` 接缝可选接入。
  */
 
-import { parseResourceUri } from '../protocol/resource-uri.js';
+import { normalizeResourceInput } from '../protocol/resource-uri.js';
 import { findPermissionDefinition, type PermissionQualifierKind } from '../protocol/permissions.js';
 import type { ISessionSnapshot } from '../protocol/session.js';
 import type { IPermissionGrant } from '../protocol/permission.js';
@@ -223,13 +223,13 @@ export function matchWindowQualifier(qualifier: string, targetWindowId: string):
 /**
  * 资源作用域限定匹配（08-权限系统设计 §7.5）：限定值为 `<scope>` 或 `<scope>/<path>`，
  * 目标为 `chips-resource://` URI（或可归一为 external 的裸 `http(s)://`）。
+ * 归一入口一律走包内唯一解析臂 `normalizeResourceInput`（任务 #198 D6 包内归一，
+ * 旧私有 `normalizeBareHttp` 复刻臂已退役——裸 http(s) 归一只认 `normalizeHttpReference` 单一定义位）。
  */
 export function matchResourceQualifier(qualifier: string, target: string): boolean {
   let composite: string;
   try {
-    const parsed = parseResourceUri(
-      target.startsWith('chips-resource://') ? target : normalizeBareHttp(target)
-    );
+    const parsed = normalizeResourceInput(target);
     composite =
       parsed.external !== undefined
         ? `external/${parsed.external.scheme}/${parsed.external.host}${
@@ -244,23 +244,6 @@ export function matchResourceQualifier(qualifier: string, target: string): boole
     return false;
   }
   return composite === normalizedQualifier || composite.startsWith(`${normalizedQualifier}/`);
-}
-
-function normalizeBareHttp(target: string): string {
-  const schemeIndex = target.indexOf('://');
-  if (schemeIndex < 0) {
-    return target;
-  }
-  const scheme = target.slice(0, schemeIndex).toLowerCase();
-  if (scheme !== 'http' && scheme !== 'https') {
-    return target;
-  }
-  const rest = target.slice(schemeIndex + 3);
-  const authorityEnd = rest.search(/[/?#]/u);
-  const authority = authorityEnd < 0 ? rest : rest.slice(0, authorityEnd);
-  const pathAndQuery = authorityEnd < 0 ? '' : rest.slice(authorityEnd);
-  const path = pathAndQuery.startsWith('/') ? pathAndQuery.slice(1) : pathAndQuery;
-  return `chips-resource://external/${scheme}/${authority}/${path}`;
 }
 
 /** 配置命名空间匹配：命名空间精确相等。 */

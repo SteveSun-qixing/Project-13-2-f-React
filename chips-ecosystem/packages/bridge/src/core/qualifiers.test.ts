@@ -171,6 +171,28 @@ describe('matchResourceQualifier', () => {
     ).toBe(false);
     expect(matchResourceQualifier('card-1', 'invalid-uri')).toBe(false);
   });
+
+  it('裸 http(s) 目标等值收敛（#198 消费位翻正到唯一解析臂 normalizeResourceInput）', () => {
+    // 归一行为与退役前复刻臂逐案等值：origin 大小写折叠、默认端口省略、userinfo 拒绝、
+    // 非 http(s) scheme 拒绝、裸根路径前缀匹配、query 不参与作用域归属、IPv6 字面量保留方括号。
+    expect(
+      matchResourceQualifier('external/https/example.com', 'HTTPS://Example.COM:443/a.png')
+    ).toBe(true);
+    expect(
+      matchResourceQualifier('external/https/example.com', 'https://user:pass@example.com/a')
+    ).toBe(false);
+    expect(matchResourceQualifier('external/https/example.com', 'webdav://example.com/a')).toBe(
+      false
+    );
+    expect(matchResourceQualifier('external/https/example.com', 'https:///a')).toBe(false);
+    expect(matchResourceQualifier('external/https/example.com', 'https://example.com')).toBe(true);
+    expect(
+      matchResourceQualifier('external/https/example.com', 'https://example.com/a.png?x=1')
+    ).toBe(true);
+    expect(matchResourceQualifier('external/http/[::1]:8080', 'http://[::1]:8080/a.png')).toBe(
+      true
+    );
+  });
 });
 
 describe('matchesQualifier', () => {
