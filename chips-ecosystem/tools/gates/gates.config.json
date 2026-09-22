@@ -132,7 +132,7 @@
         "chips-cordis": ["chips-core"],
         "chips-bridge": ["chips-core"],
         "chips-parser": ["chips-core"],
-        "chips-resource": ["chips-core"],
+        "chips-resource": ["chips-core", "chips-parser"],
         "chips-native": [
           "chips-core",
           "chips-cordis",
