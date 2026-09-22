@@ -3,7 +3,7 @@
  *
  * 权威：《03-核心接口规范》§6.4/§8.6（文档解析域与元信息导出名、ABI 递增规则）、
  * 《06-文档解析器设计》§12.1/§12.2、`packages/native/abi/export-surface.json`
- * （34 项在册导出面，与 `abi.rs` / `types/chips-native.d.ts` 三方锁由
+ * （49 项在册导出面，与 `abi.rs` / `types/chips-native.d.ts` 三方锁由
  * `packages/native/scripts/check-abi.mjs` 单点锁定）。
  *
  * @remarks
@@ -51,7 +51,7 @@ const derivedArtifactPath = defaultNativeDocumentParserModulePath(productionPlat
 /** 产物物理落位（构建脚本 `copy-native.mjs` 的落点）。 */
 const artifactPath = join(packageRoot, 'native', 'chips-native.node');
 
-/** `packages/native/abi/export-surface.json` 原文（34 项在册导出面权威镜像）。 */
+/** `packages/native/abi/export-surface.json` 原文（49 项在册导出面权威镜像）。 */
 function readExportSurface(): { abiVersion: number; exports: { name: string }[] } {
   const surfacePath = join(ecosystemRoot, 'packages', 'native', 'abi', 'export-surface.json');
   return JSON.parse(readFileSync(surfacePath, 'utf8')) as {
@@ -100,12 +100,12 @@ describeGate('真 chips-native.node 产物装载闸（CHIPS_HOST_SMOKE / CHIPS_E
     }
   });
 
-  it('判据④：产物导出面与 export-surface.json 逐项一致（34 项全等，零多余零缺位）', () => {
+  it('判据④：产物导出面与 export-surface.json 逐项一致（49 项全等，零多余零缺位）', () => {
     const surface = readExportSurface();
     expect(surface.abiVersion).toBe(NATIVE_DOCUMENT_PARSER_ABI_VERSION);
     expect(surface.abiVersion).toBe(NATIVE_BRIDGE_ABI_VERSION);
     const surfaceNames = surface.exports.map((entry) => entry.name).sort();
-    expect(surfaceNames.length).toBe(34);
+    expect(surfaceNames.length).toBe(49);
     const moduleValue = requireArtifact(artifactPath);
     const artifactNames = Object.keys(moduleValue).sort();
     expect(artifactNames).toEqual(surfaceNames);

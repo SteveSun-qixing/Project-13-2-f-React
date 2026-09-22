@@ -7,12 +7,13 @@
  * （刀2 A 组母型：源码/文档纯文本比对，零 import 编译依赖、零 fabricate）。
  *
  * @remarks
- * - 资源域导出面（34→49）由 Rust 侧波次（任务 #195，#192 触顶接管）交付；**本波禁改
- *   `packages/native` 面**，对在册导出表的互锁采「空集（未落位，现态在册事实）或恰等
- *   15 名镜像」两态判据——#195 落位即自动收紧为逐字互锁，漂移（部分落位 / 自造名）即红；
- * - 装载闸对「产物缺 resource* 导出」的现态必须 fail-closed 且诊断留痕：C 组以真实部署
- *   产物 `packages/host/native/chips-native.node`（现态 34 导出零资源名）实测闸判；
- *   部署产物翻正位候 #195 验收后另批随批翻正（生产判定逻辑零改动，见该臂注记）；
+ * - 资源域导出面（34→49）由 Rust 侧波次交付（#195 触顶链 → #199 段三主体收口批
+ *   a82bbbd6b 落位）；**本波禁改 `packages/native` 面**，对在册导出表的互锁采「空集
+ *   （未落位）或恰等 15 名镜像」两态判据——落位即自动收紧为逐字互锁，漂移（部分落位 /
+ *   自造名）即红；
+ * - 装载闸对「产物在位」的现态（49 导出、资源域 15 名在册）实测闸判判 available 并
+ *   交付 15 函数消费面（落位即收紧，主翻正批随 #199 交回承接执行，生产判定逻辑零改动，
+ *   见该臂注记）；产物缺位形态判 `module-missing`，任一形态绝不交付半截消费面；
  * - 装载闸 fail-closed 四分面（`module-missing` / `load-failed` / `surface-mismatch` /
  *   `abi-mismatch`）经 CJS 替身夹具全臂锁定（`broken.js` / `not-object.js` 为域无关
  *   共用夹具，其余为资源域替身夹具，测试注入替身仅限 `tests/` 面——工单036 §六）。
@@ -234,19 +235,19 @@ describe('§11.3 现态部署产物装载闸（生产恒缺省臂，任务 #194 
   });
 
   it(
-    '现态闸判留痕：产物在位则必判 surface-mismatch 并点名全部 15 名（34 导出零资源名在册事实）；' +
-      '缺位则判 module-missing——任一形态绝不交付消费面',
+    '落位即收紧：产物在位（49 导出在册，含资源域 15 名）则必判 available 并交付 15 函数消费面；' +
+      '缺位则判 module-missing——任一形态绝不交付半截消费面',
     () => {
-      // 本臂锁「resource* 导出未落位」的现态在册事实（任务 #194 M0 结论①）。候 #195 验收、
-      // 部署产物翻正位（34→49 导出）属另批随批翻正：届时本臂按 A 组互锁的「落位即收紧」形
-      // 改为断言 available；生产判定逻辑零改动，禁在本波预造翻正位断言（零 fabricate）。
+      // 本臂原锁「resource* 导出未落位」现态事实（任务 #194 M0 结论①），部署产物翻正位
+      // （34→49，#199 段三主体收口批 a82bbbd6b 交付、导出面重建）后按预登记口径改断
+      // available 收紧形（候翻正注记在册）；生产判定逻辑零改动。
       const binding = loadNativeResourceBinding(artifactPath);
       if (existsSync(artifactPath)) {
-        expect(binding.status).toBe('unavailable');
-        if (binding.status === 'unavailable') {
-          expect(binding.reason).toBe('surface-mismatch');
+        expect(binding.status).toBe('available');
+        if (binding.status === 'available') {
+          expect(binding.abiVersion).toBe(NATIVE_RESOURCE_ABI_VERSION);
           for (const name of ALL_FIFTEEN) {
-            expect(binding.detail).toContain(name);
+            expect(typeof (binding.resource as unknown as Record<string, unknown>)[name]).toBe('function');
           }
         }
       } else {
