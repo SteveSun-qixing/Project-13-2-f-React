@@ -54,6 +54,15 @@ export function isHostPermissionId(value: string): boolean {
   return HOST_PERMISSION_ID_PATTERN.test(value);
 }
 
+/**
+ * 事件下行横切关联键（工单046 段一）：请求上下文内 `ctx.emit` 下行时透传该次调用的
+ * `traceId` / `requestId`；非请求触发源缺省，禁另造关联键。
+ */
+export interface IHostEventCorrelation {
+  readonly traceId?: string;
+  readonly requestId?: string;
+}
+
 /** 能力执行上下文；由运行时组装并如实传递给提供方处理器（02-Bridge三层设计 §3.2、`03` §5.1）。 */
 export interface IHostCapabilityContext {
   /** 取消信号；会话销毁、超时、能力注销或运行时停机时触发。 */
@@ -64,6 +73,14 @@ export interface IHostCapabilityContext {
   readonly sessionId: string;
   /** 调用方标识（插件 ID 或 `platform`）；仅用于诊断与审计，不参与授权。 */
   readonly callerId: string;
+  /**
+   * 横切链路追踪 ID（工单046 段一）：由 `bridge:request` 请求帧透传
+   * （preload 生成，preload→`bridge:request`→router→事件下行四段贯通）；
+   * 仅用于诊断与审计关联，不参与授权判定。
+   */
+  readonly traceId?: string;
+  /** 本次调用的请求关联键（`requestId` 透传）；仅用于诊断与审计关联。 */
+  readonly requestId?: string;
   /**
    * 向本会话所在窗口投递一条事件（09-事件系统设计 §下行）。
    *

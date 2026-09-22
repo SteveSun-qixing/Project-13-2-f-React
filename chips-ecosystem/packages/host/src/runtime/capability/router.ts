@@ -16,7 +16,7 @@ import { toWireError, type IBridgeRequest, type IBridgeResponse, type IWireChips
 import type { IHostCallScheduler } from './scheduler.js';
 import type { IHostCapabilityRegistry } from './registry.js';
 import { evaluateHostPermissions } from './session.js';
-import type { IHostCapabilityContext, IHostSession } from './contracts.js';
+import type { IHostCapabilityContext, IHostEventCorrelation, IHostSession } from './contracts.js';
 
 /** 路由依赖。 */
 export interface IHostCapabilityRouterDeps {
@@ -26,8 +26,14 @@ export interface IHostCapabilityRouterDeps {
   readonly scheduler: IHostCallScheduler;
   /** 时钟（毫秒）；测试可注入。 */
   readonly now: () => number;
-  /** 向会话所在窗口投递事件（按订阅计数由运行时决定去留）。 */
-  readonly publishEvent: (sessionId: string, windowId: number, eventId: string, payload: unknown) => void;
+  /** 向会话所在窗口投递事件（按订阅计数由运行时决定去留；`correlation` 为横切关联键透传腿）。 */
+  readonly publishEvent: (
+    sessionId: string,
+    windowId: number,
+    eventId: string,
+    payload: unknown,
+    correlation?: IHostEventCorrelation,
+  ) => void;
   /** 会话取消信号（会话关闭 / 停机时触发）；不存在时返回 `undefined`。 */
   readonly sessionSignalFor: (sessionId: string) => AbortSignal | undefined;
 }
@@ -148,10 +154,17 @@ export function createHostCapabilityRouter(deps: IHostCapabilityRouterDeps): IHo
       deadline,
       sessionId: session.sessionId,
       callerId: session.pluginId,
+      ...(request.traceId === undefined ? {} : { traceId: request.traceId }),
+      requestId: request.requestId,
       emit(eventId: string, payload: unknown): void {
         // 承载会话无窗口推送腿（《17》§3.6：CLI 侧请求-响应，无服务端推送帧）。
         if (!controller.signal.aborted && session.windowId !== null) {
-          deps.publishEvent(session.sessionId, session.windowId, eventId, payload);
+          // 事件下行横切透传（工单046 段一）：本次调用的 traceId/requestId 随封套下行。
+          const correlation: IHostEventCorrelation = {
+            requestId: request.requestId,
+            ...(request.traceId === undefined ? {} : { traceId: request.traceId }),
+          };
+          deps.publishEvent(session.sessionId, session.windowId, eventId, payload, correlation);
         }
       },
     };

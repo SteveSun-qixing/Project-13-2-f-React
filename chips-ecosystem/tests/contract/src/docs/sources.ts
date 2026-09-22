@@ -36,6 +36,14 @@ export const PERMISSION_SOURCE = {
   section: '四、内置权限清单与映射§4.1 内置权限清单总表',
 } as const satisfies SectionSelector;
 
+/** 权限审计条目权威形状（《08.08 链路四：审计》§8.2 代码块 + 字段说明表）。 */
+export const PERMISSION_AUDIT_ENTRY_SOURCE = {
+  file: '01-架构设计/01-子系统设计/08.08-08-权限系统设计-八、链路四：审计.md',
+  level: 3,
+  heading: '8.2 审计记录字段',
+  section: '八、链路四：审计§8.2 审计记录字段',
+} as const satisfies SectionSelector;
+
 export const EVENT_RESERVED_DOMAIN_SOURCE = {
   file: '05-接口与契约/05.02-05-事件契约规范-二、命名契约.md',
   level: 3,

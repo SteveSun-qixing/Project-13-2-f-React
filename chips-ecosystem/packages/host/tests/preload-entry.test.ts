@@ -81,6 +81,7 @@ describe('preload 入口', () => {
     expect(mocks.invoke).toHaveBeenCalledWith('bridge:request', {
       // `expect.any` 返回 `any`：按被断言字段的真实类型标注，保持对象字面量的类型安全。
       requestId: expect.any(String) as string,
+      traceId: expect.any(String) as string,
       capabilityId: 'system:info',
     });
     expect(Object.keys(surface)).not.toContain('ipcRenderer');

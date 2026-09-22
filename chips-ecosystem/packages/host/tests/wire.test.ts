@@ -22,6 +22,20 @@ describe('IPC 消息守卫', () => {
     expect(isBridgeRequest([])).toBe(false);
   });
 
+  it('请求帧横切 traceId：可选但出现即须非空字符串（工单046 段一）', () => {
+    expect(isBridgeRequest({ requestId: 'r1', capabilityId: 'system:info', traceId: 't-1' })).toBe(true);
+    expect(isBridgeRequest({ requestId: 'r1', capabilityId: 'system:info', traceId: '' })).toBe(false);
+    expect(isBridgeRequest({ requestId: 'r1', capabilityId: 'system:info', traceId: 5 })).toBe(false);
+  });
+
+  it('事件信封横切关联键：可选但出现即须非空字符串', () => {
+    expect(
+      isEventEnvelope({ eventId: 'window:closed', payload: {}, emittedAt: 1, traceId: 't-1', requestId: 'r-1' }),
+    ).toBe(true);
+    expect(isEventEnvelope({ eventId: 'window:closed', payload: {}, emittedAt: 1, traceId: '' })).toBe(false);
+    expect(isEventEnvelope({ eventId: 'window:closed', payload: {}, emittedAt: 1, requestId: 9 })).toBe(false);
+  });
+
   it('区分能力调用响应成功与失败形态', () => {
     expect(isBridgeResponse({ requestId: 'r1', ok: true, result: { platform: 'darwin' } })).toBe(true);
     expect(

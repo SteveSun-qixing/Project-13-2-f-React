@@ -111,6 +111,13 @@ export interface IEventEnvelope {
   payload: unknown;
   /** 事件产生时间，Unix epoch 毫秒。 */
   emittedAt: number;
+  /**
+   * 横切链路追踪 ID（工单046 段一：请求上下文内 `ctx.emit` 下行时透传该次调用的
+   * `traceId`；非请求触发源（生命周期/平台广播）缺省）。
+   */
+  traceId?: string;
+  /** 触发事件的单次请求关联键；与 `traceId` 同源，非请求触发源缺省。 */
+  requestId?: string;
 }
 
 export type EventControlAction = 'subscribe' | 'unsubscribe';

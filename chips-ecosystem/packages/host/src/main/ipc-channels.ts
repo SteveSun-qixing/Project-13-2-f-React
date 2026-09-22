@@ -31,8 +31,10 @@ import { BRIDGE_SESSION_UNKNOWN_ERROR, resolveIpcSession } from './session-resol
 /**
  * 落一条 `bridge` 类别执行记录（《调试指南》§5.2 在册字段：`requestId` / `channel` /
  * `direction` / `capabilityId` / `phase` / `outcome` / `errorCode` / `retryable` /
- * `durationMs`＝收到请求到返回结果的耗时）。`sessionId` 在本层未解析（会话身份归
- * Bridge 核心段解析），按 §2.3「适用时」口径缺位。
+ * `durationMs`＝收到请求到返回结果的耗时；§2.3 公共字段 `traceId` 取自请求帧横切键，
+ * 工单046 段一链路贯通后以 `InvocationContext` 同源值落行，帧上缺位时按 §2.5
+ * 操作边界就地生成兜底）。`sessionId` 在本层未解析（会话身份归 Bridge 核心段解析），
+ * 按 §2.3「适用时」口径缺位。
  */
 function recordBridgeRequestTrace(
   trace: IHostTrace,
@@ -41,10 +43,12 @@ function recordBridgeRequestTrace(
   startedAtMs: number,
   response: IBridgeResponse,
 ): void {
+  const traceId = request.traceId ?? trace.newTraceId();
   if (response.ok) {
     trace.record({
       category: 'bridge',
       phase: 'execute',
+      traceId,
       windowId: session.windowId,
       requestId: request.requestId,
       channel: BRIDGE_REQUEST_CHANNEL,
@@ -58,6 +62,7 @@ function recordBridgeRequestTrace(
   trace.record({
     category: 'bridge',
     phase: 'execute',
+    traceId,
     windowId: session.windowId,
     requestId: request.requestId,
     channel: BRIDGE_REQUEST_CHANNEL,

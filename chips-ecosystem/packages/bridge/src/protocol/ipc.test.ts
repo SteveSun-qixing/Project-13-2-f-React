@@ -128,6 +128,40 @@ describe('bridge:request / bridge:response 编解码', () => {
     expectCode(() => decodeBridgeRequest({ requestId: 'r1', capabilityId: '' }), 'BRIDGE_INTERNAL');
   });
 
+  it('横切 traceId 随请求帧透传（工单046 段一）', () => {
+    expect(
+      decodeBridgeRequest({
+        requestId: 'r1',
+        capabilityId: 'file:read',
+        input: { path: '/x' },
+        traceId: 't-chain-1',
+      })
+    ).toEqual({
+      requestId: 'r1',
+      capabilityId: 'file:read',
+      input: { path: '/x' },
+      traceId: 't-chain-1',
+    });
+    // 缺省不造键：无 traceId 的请求解码后不含该字段。
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        decodeBridgeRequest({ requestId: 'r1', capabilityId: 'system:info' }),
+        'traceId'
+      )
+    ).toBe(false);
+  });
+
+  it('traceId 存在但非法（空串/非字符串）返回 BRIDGE_INTERNAL', () => {
+    expectCode(
+      () => decodeBridgeRequest({ requestId: 'r1', capabilityId: 'a:b', traceId: '' }),
+      'BRIDGE_INTERNAL'
+    );
+    expectCode(
+      () => decodeBridgeRequest({ requestId: 'r1', capabilityId: 'a:b', traceId: 7 }),
+      'BRIDGE_INTERNAL'
+    );
+  });
+
   it('编码响应：错误归一为普通对象', () => {
     const error = new ChipsError({
       code: 'BRIDGE_TIMEOUT',

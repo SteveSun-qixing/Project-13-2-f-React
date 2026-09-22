@@ -16,6 +16,13 @@ export interface ICapabilityContext {
   readonly sessionId: string;
   /** 调用方标识：插件 ID 或 `platform`；仅用于诊断与审计，不参与授权。 */
   readonly callerId: string;
+  /**
+   * 横切链路追踪 ID（工单046 段一）：由 `bridge:request` 请求帧透传；
+   * 仅用于诊断与审计关联，不参与授权判定。
+   */
+  readonly traceId?: string;
+  /** 本次调用的请求关联键（`requestId` 透传）；仅用于诊断与审计关联。 */
+  readonly requestId?: string;
 }
 
 export interface ICapability<TInput = unknown, TOutput = unknown> {

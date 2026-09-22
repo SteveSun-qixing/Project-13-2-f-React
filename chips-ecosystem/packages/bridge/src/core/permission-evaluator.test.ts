@@ -322,30 +322,56 @@ describe('evaluatePermissions 免权限范围', () => {
 });
 
 describe('toAuditRecord', () => {
-  it('记录放行与拒绝的判定结果', () => {
+  const CONTEXT = {
+    id: '01J8Z0M4N6Q7R8S9T0V1W2X3Y4',
+    timestamp: '2026-09-19T10:20:31.482Z',
+    traceId: 't-3b91',
+    requestId: 'r-5c02',
+    pluginVersion: '1.2.3',
+  } as const;
+
+  it('放行条目：action=allow、actor=system、permission=required 声明序首项（§8.2 补注）', () => {
     const allowedInput = request({
       session: snapshot({ grantedPermissions: new Set(['filesystem:read']) }),
     });
-    expect(toAuditRecord(allowedInput, evaluatePermissions(allowedInput, ENV))).toEqual({
-      sessionId: 's1',
+    expect(toAuditRecord(allowedInput, evaluatePermissions(allowedInput, ENV), CONTEXT)).toEqual({
+      id: CONTEXT.id,
+      timestamp: CONTEXT.timestamp,
+      action: 'allow',
+      actor: 'system',
       pluginId: 'editor',
+      pluginVersion: '1.2.3',
+      sessionId: 's1',
+      permission: 'filesystem:read',
       capabilityId: 'file:read',
-      allowed: true,
-      permission: '',
-      missing: [],
+      traceId: 't-3b91',
+      requestId: 'r-5c02',
     });
+  });
 
+  it('拒绝条目：action=deny、permission=首个缺失项、携 reason/target 与横切键', () => {
     const deniedInput = request({
       targetRules: [{ permission: 'filesystem:read', targetFields: ['path'] }],
       input: { path: '/secret/a' },
     });
-    const record = toAuditRecord(deniedInput, evaluatePermissions(deniedInput, ENV));
-    expect(record).toMatchObject({
-      allowed: false,
+    const entry = toAuditRecord(deniedInput, evaluatePermissions(deniedInput, ENV), CONTEXT);
+    expect(entry).toEqual({
+      id: CONTEXT.id,
+      timestamp: CONTEXT.timestamp,
+      action: 'deny',
+      actor: 'system',
+      pluginId: 'editor',
+      pluginVersion: '1.2.3',
+      sessionId: 's1',
       permission: 'filesystem:read',
-      missing: ['filesystem:read'],
-      reason: 'not_granted',
+      capabilityId: 'file:read',
       target: '/secret/a',
+      reason: 'not_granted',
+      traceId: 't-3b91',
+      requestId: 'r-5c02',
     });
+    expect(entry.source).toBeUndefined();
+    expect(entry.qualifier).toBeUndefined();
+    expect(entry.resourceUri).toBeUndefined();
   });
 });

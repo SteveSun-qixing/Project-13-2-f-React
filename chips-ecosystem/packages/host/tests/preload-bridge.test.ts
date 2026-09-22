@@ -30,7 +30,12 @@ describe('createPreloadBridge.request', () => {
   it('生成 requestId 并返回结果', async () => {
     const { bridge, transport } = createBridge((channel, payload) => {
       expect(channel).toBe(BRIDGE_REQUEST_CHANNEL);
-      expect(payload).toEqual({ requestId: 'r1', capabilityId: 'system:info', input: { a: 1 } });
+      expect(payload).toEqual({
+        requestId: 'r1',
+        traceId: 'r1',
+        capabilityId: 'system:info',
+        input: { a: 1 },
+      });
       return { requestId: 'r1', ok: true, result: { platform: 'darwin' } };
     });
     await expect(bridge.request('system:info', { a: 1 })).resolves.toEqual({ platform: 'darwin' });
@@ -39,11 +44,30 @@ describe('createPreloadBridge.request', () => {
 
   it('输入缺省时不携带 input 字段', async () => {
     const { bridge, transport } = createBridge((_channel, payload) => {
-      expect(payload).toEqual({ requestId: 'r1', capabilityId: 'window:list' });
+      expect(payload).toEqual({ requestId: 'r1', traceId: 'r1', capabilityId: 'window:list' });
       return { requestId: 'r1', ok: true, result: [] };
     });
     await bridge.request('window:list');
     expect(transport.invocations).toHaveLength(1);
+  });
+
+  it('traceId 与 requestId 为请求帧上的两个独立取值（工单046 段一）', async () => {
+    const transport = new FakeTransport();
+    let sequence = 0;
+    const bridge = createPreloadBridge({
+      transport,
+      generateId: () => `id-${(sequence += 1)}`,
+      onDiagnostic: () => undefined,
+    });
+    transport.responder = (_channel, payload) => {
+      expect(payload).toEqual({
+        requestId: 'id-1',
+        traceId: 'id-2',
+        capabilityId: 'system:info',
+      });
+      return { requestId: 'id-1', ok: true, result: null };
+    };
+    await expect(bridge.request('system:info')).resolves.toBeNull();
   });
 
   it('能力 ID 非法时本地快速失败且不发请求', async () => {

@@ -60,6 +60,7 @@ import { RESERVED_CAPABILITIES } from './capabilities/reserved.js';
 import type { IReservedCapabilityDeclaration } from './capabilities/reserved.js';
 import type {
   IHostCapabilityDescriptor,
+  IHostEventCorrelation,
   IHostReservedCapabilityView,
   IHostRuntimeReport,
   IHostSession,
@@ -246,11 +247,24 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
   let channel: IPlatformHostChannel | null = null;
   let state: IHostRuntimeReport['state'] = 'idle';
 
-  const publishEvent = (sessionId: string, windowId: number, eventId: string, payload: unknown): void => {
+  const publishEvent = (
+    sessionId: string,
+    windowId: number,
+    eventId: string,
+    payload: unknown,
+    correlation?: IHostEventCorrelation,
+  ): void => {
     if (!events.isSubscribed(sessionId, eventId) || sinks.size === 0) {
       return;
     }
-    const envelope: IEventEnvelope = { eventId, payload, emittedAt: now() };
+    // 事件下行帧透出横切关联键（工单046 段一）：非请求触发源缺省，禁另造关联键。
+    const envelope: IEventEnvelope = {
+      eventId,
+      payload,
+      emittedAt: now(),
+      ...(correlation?.traceId === undefined ? {} : { traceId: correlation.traceId }),
+      ...(correlation?.requestId === undefined ? {} : { requestId: correlation.requestId }),
+    };
     for (const sink of sinks) {
       sink.deliver(windowId, envelope);
     }

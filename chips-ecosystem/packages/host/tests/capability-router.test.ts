@@ -183,7 +183,62 @@ describe('能力路由管线（02 §5.2）', () => {
     );
     const response = await h.route(req('test:action'));
     expect(response.ok).toBe(true);
-    expect(h.publishEvent).toHaveBeenCalledWith('sess-1', 42, 'document:changed', { id: 'd1' });
+    expect(h.publishEvent).toHaveBeenCalledWith(
+      'sess-1',
+      42,
+      'document:changed',
+      { id: 'd1' },
+      {
+        requestId: 'r-1',
+      },
+    );
+  });
+
+  it('横切贯通：ctx 透出 traceId/requestId，emit 随关联键透传（工单046 段一）', async () => {
+    const h = harness();
+    let seen: { traceId: string | undefined; requestId: string | undefined } = {
+      traceId: undefined,
+      requestId: undefined,
+    };
+    h.registry.register(
+      descriptor({
+        handler: (_input, ctx) => {
+          seen = { traceId: ctx.traceId, requestId: ctx.requestId };
+          ctx.emit('document:changed', { id: 'd2' });
+          return Promise.resolve('done');
+        },
+      }),
+    );
+    const response = await h.route({
+      requestId: 'r-2',
+      capabilityId: 'test:action',
+      traceId: 't-77',
+    });
+    expect(response.ok).toBe(true);
+    expect(seen).toEqual({ traceId: 't-77', requestId: 'r-2' });
+    expect(h.publishEvent).toHaveBeenCalledWith(
+      'sess-1',
+      42,
+      'document:changed',
+      { id: 'd2' },
+      { traceId: 't-77', requestId: 'r-2' },
+    );
+  });
+
+  it('traceId 缺位时关联键只携 requestId，不造键', async () => {
+    const h = harness();
+    h.registry.register(
+      descriptor({
+        handler: (_input, ctx) => {
+          expect(ctx.traceId).toBeUndefined();
+          ctx.emit('document:changed', { id: 'd3' });
+          return Promise.resolve('done');
+        },
+      }),
+    );
+    const response = await h.route({ requestId: 'r-3', capabilityId: 'test:action' });
+    expect(response.ok).toBe(true);
+    expect(h.publishEvent).toHaveBeenCalledWith('sess-1', 42, 'document:changed', { id: 'd3' }, { requestId: 'r-3' });
   });
 
   it('deadline = now + timeoutMs 如实传递给上下文', async () => {

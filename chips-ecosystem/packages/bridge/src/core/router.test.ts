@@ -9,7 +9,8 @@ import { createCapabilityRegistry } from './capability-registry.js';
 import { createSessionRegistry } from './session-registry.js';
 import { createPermissionEnvironment } from './qualifiers.js';
 import { createBridgeRouter, type ICapabilityInvoker } from './router.js';
-import type { IPermissionAuditRecord } from './permission-evaluator.js';
+import { isUlid } from './ulid.js';
+import type { IPermissionAuditEntry } from '../protocol/permission.js';
 import type { IRegisteredCapability } from './capability-registry.js';
 
 const EMPTY_SCHEMA = { type: 'object', additionalProperties: false, properties: {} } as const;
@@ -21,6 +22,8 @@ interface IHarnessOptions {
   readonly sessionInFlightLimit?: number;
   readonly grantedPermissions?: readonly string[];
   readonly auditThrows?: boolean;
+  /** 缺省审计注入位（不装配条目组装的裸路由面）。 */
+  readonly auditOff?: boolean;
   readonly now?: () => number;
 }
 
@@ -29,7 +32,7 @@ interface IHarness {
   sessions: ReturnType<typeof createSessionRegistry>;
   registry: ReturnType<typeof createCapabilityRegistry>;
   calls: Array<{ input: unknown; ctx: ICapabilityContext; registration: IRegisteredCapability }>;
-  audits: IPermissionAuditRecord[];
+  audits: IPermissionAuditEntry[];
   diagnostics: unknown[];
   setExecutor(executor: (input: unknown, ctx: ICapabilityContext) => Promise<unknown>): void;
   register(id: string, schema?: Record<string, unknown>, permissions?: string[]): void;
@@ -66,7 +69,7 @@ function createHarness(options: IHarnessOptions = {}): IHarness {
   });
   const gate = createCapabilityGate();
   const calls: IHarness['calls'] = [];
-  const audits: IPermissionAuditRecord[] = [];
+  const audits: IPermissionAuditEntry[] = [];
   const diagnostics: unknown[] = [];
   let executor: (input: unknown, ctx: ICapabilityContext) => Promise<unknown> = () =>
     Promise.resolve(null);
@@ -88,12 +91,20 @@ function createHarness(options: IHarnessOptions = {}): IHarness {
       directories: { userDocuments: '/home/u/Documents' },
       pluginDataRoot: (pluginId) => `/data/plugins/${pluginId}`,
     }),
-    audit: (record) => {
-      if (options.auditThrows === true) {
-        throw new Error('审计写入失败');
-      }
-      audits.push(record);
-    },
+    ...(options.auditOff === true
+      ? {}
+      : {
+          audit: {
+            emit: (entry: IPermissionAuditEntry) => {
+              if (options.auditThrows === true) {
+                throw new Error('审计写入失败');
+              }
+              audits.push(entry);
+            },
+            resolvePluginVersion: () => '1.0.0',
+            newTraceId: () => 't-harness',
+          },
+        }),
     onDiagnostic: (error) => diagnostics.push(error),
     ...(options.now !== undefined ? { now: options.now } : {}),
   });
@@ -242,7 +253,23 @@ describe('createBridgeRouter 权限与校验', () => {
       },
     });
     expect(harness.calls).toHaveLength(0);
-    expect(harness.audits.at(-1)).toMatchObject({ allowed: false, capabilityId: 'demo:read' });
+    const denyAudit = harness.audits.at(-1);
+    expect(denyAudit).toMatchObject({
+      action: 'deny',
+      actor: 'system',
+      pluginId: 'chips.official.editor',
+      pluginVersion: '1.0.0',
+      sessionId: 's1',
+      permission: 'filesystem:read',
+      capabilityId: 'demo:read',
+      target: '/secret/a',
+      reason: 'not_granted',
+      traceId: 't-harness',
+      requestId: 'r1',
+    });
+    expect(denyAudit?.source).toBeUndefined();
+    expect(isUlid(denyAudit?.id ?? '')).toBe(true);
+    expect(Number.isNaN(Date.parse(denyAudit?.timestamp ?? ''))).toBe(false);
   });
 
   it('schema 校验失败返回 BRIDGE_INVALID_INPUT 且不执行', async () => {
@@ -277,7 +304,15 @@ describe('createBridgeRouter 权限与校验', () => {
     harness.setExecutor(() => Promise.resolve({ value: 1 }));
     const response = await harness.router.handleRequest(requestInput('demo:read', {}), SOURCE);
     expect(response).toMatchObject({ ok: true, result: { value: 1 } });
-    expect(harness.audits.at(-1)).toMatchObject({ allowed: true, capabilityId: 'demo:read' });
+    expect(harness.audits.at(-1)).toMatchObject({
+      action: 'allow',
+      actor: 'system',
+      permission: 'filesystem:read',
+      capabilityId: 'demo:read',
+      traceId: 't-harness',
+      requestId: 'r1',
+    });
+    expect(harness.audits.at(-1)?.reason).toBeUndefined();
   });
 
   it('审计写入失败不阻塞调用且记录诊断', async () => {
@@ -287,6 +322,45 @@ describe('createBridgeRouter 权限与校验', () => {
     const response = await harness.router.handleRequest(requestInput('system:info'), SOURCE);
     expect(response).toMatchObject({ ok: true, result: 'ok' });
     expect(harness.diagnostics).toHaveLength(1);
+  });
+});
+
+describe('createBridgeRouter 横切贯通（traceId/requestId，工单046 段一）', () => {
+  it('请求帧 traceId 贯通审计条目与能力调用上下文', async () => {
+    const harness = createHarness({ grantedPermissions: ['filesystem:read'] });
+    harness.register('demo:read', EMPTY_SCHEMA, ['filesystem:read']);
+    harness.setExecutor(() => Promise.resolve('ok'));
+    const response = await harness.router.handleRequest(
+      { requestId: 'r-trace', capabilityId: 'demo:read', input: {}, traceId: 't-chain-1' },
+      SOURCE
+    );
+    expect(response).toMatchObject({ ok: true, result: 'ok' });
+    expect(harness.audits.at(-1)).toMatchObject({ traceId: 't-chain-1', requestId: 'r-trace' });
+    expect(harness.calls.at(-1)?.ctx).toMatchObject({
+      traceId: 't-chain-1',
+      requestId: 'r-trace',
+    });
+  });
+
+  it('请求帧未携 traceId：上下文如实缺省，审计条目经 newTraceId 兜底', async () => {
+    const harness = createHarness({ grantedPermissions: ['filesystem:read'] });
+    harness.register('demo:read', EMPTY_SCHEMA, ['filesystem:read']);
+    harness.setExecutor(() => Promise.resolve('ok'));
+    const response = await harness.router.handleRequest(requestInput('demo:read', {}), SOURCE);
+    expect(response).toMatchObject({ ok: true });
+    expect(harness.calls.at(-1)?.ctx.traceId).toBeUndefined();
+    expect(harness.calls.at(-1)?.ctx.requestId).toBe('r1');
+    expect(harness.audits.at(-1)?.traceId).toBe('t-harness');
+  });
+
+  it('缺省审计注入位：判定照常放行且零条目组装副作用', async () => {
+    const harness = createHarness({ grantedPermissions: ['filesystem:read'], auditOff: true });
+    harness.register('demo:read', EMPTY_SCHEMA, ['filesystem:read']);
+    harness.setExecutor(() => Promise.resolve('ok'));
+    const response = await harness.router.handleRequest(requestInput('demo:read', {}), SOURCE);
+    expect(response).toMatchObject({ ok: true, result: 'ok' });
+    expect(harness.audits).toHaveLength(0);
+    expect(harness.diagnostics).toHaveLength(0);
   });
 });
 

@@ -8,6 +8,9 @@
  * - 方法面固定为 `request` / `subscribe` / `resource` 三项，不得增删。
  * - 只做转发与预检：会话有效性、权限、schema 与路由全部在核心（Bridge 层）。
  * - `requestId` 由 preload 生成并用于关联响应；迟到或格式非法的响应一律拒绝。
+ * - `traceId` 由 preload 在调用边界生成并随请求帧横切透传（工单046 段一：
+ *   preload→`bridge:request`→router→事件下行四段贯通，审计条目与下行封套以此为源，
+ *   禁另造关联键）；与 `requestId` 共用注入的 `generateId` 设施。
  */
 
 import { ChipsError, normalizeError } from '@chips/bridge';
@@ -22,7 +25,7 @@ import type { IPreloadTransport } from './transport.js';
 export interface PreloadBridgeDeps {
   /** 传输口。 */
   readonly transport: IPreloadTransport;
-  /** `requestId` / `controlId` 生成器；默认 `crypto.randomUUID()`。 */
+  /** `requestId` / `traceId` / `controlId` 生成器；默认 `crypto.randomUUID()`。 */
   readonly generateId?: () => string;
   /** `fetch` 实现透传（资源句柄）；默认全局 `fetch`。 */
   readonly fetchImpl?: typeof fetch;
@@ -84,7 +87,9 @@ export function createPreloadBridge(deps: PreloadBridgeDeps): IPreloadBridge {
         throw new ChipsError({ code: 'BRIDGE_INVALID_INPUT', message: '能力 ID 非法', retryable: false });
       }
       const requestId = generateId();
-      const request = input === undefined ? { requestId, capabilityId } : { requestId, capabilityId, input };
+      const traceId = generateId();
+      const request =
+        input === undefined ? { requestId, traceId, capabilityId } : { requestId, traceId, capabilityId, input };
       let response: unknown;
       try {
         response = await deps.transport.invoke(BRIDGE_REQUEST_CHANNEL, request);

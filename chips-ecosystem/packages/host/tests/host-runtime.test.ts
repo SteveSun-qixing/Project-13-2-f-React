@@ -162,6 +162,40 @@ describe('生产运行时：能力清单装配与路由', () => {
     await runtime.shutdown();
   });
 
+  it('横切贯通端到端：请求帧 traceId 随事件下行封套透出（工单046 段一）', async () => {
+    const emitter: IHostCapabilityDescriptor = {
+      id: 'demo:emit',
+      permissions: [],
+      handler: (_input, ctx) => {
+        ctx.emit('document:saved', { id: 'd9' });
+        return Promise.resolve('emitted');
+      },
+    };
+    const runtime = createHostRuntime({
+      capabilities: [emitter],
+      sessionProvisioner: provisioner(() => platformGrant),
+    });
+    await runtime.start(host, channel());
+    const deliver = vi.fn();
+    runtime.forwardEvents({ deliver });
+    await runtime.ipc.handleEventControl(
+      { windowId: 5, frameId: null },
+      { controlId: 'c1', action: 'subscribe', eventId: 'document:saved' },
+    );
+    await runtime.ipc.handleRequest(
+      { windowId: 5, frameId: null },
+      { requestId: 'r-tr', capabilityId: 'demo:emit', traceId: 't-tr' },
+    );
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(deliver.mock.calls[0]?.[1]).toMatchObject({
+      eventId: 'document:saved',
+      payload: { id: 'd9' },
+      traceId: 't-tr',
+      requestId: 'r-tr',
+    });
+    await runtime.shutdown();
+  });
+
   it('事件订阅 + 能力 emit 经 sink 下行到订阅窗口', async () => {
     const emitter: IHostCapabilityDescriptor = {
       id: 'demo:emit',

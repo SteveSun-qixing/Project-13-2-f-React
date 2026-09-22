@@ -43,6 +43,11 @@ export interface IBridgeRequest {
   requestId: string;
   capabilityId: string;
   input?: unknown;
+  /**
+   * 横切链路追踪 ID（工单046 段一：preload 生成，随 `bridge:request` 贯通至
+   * router / 审计条目 / 事件下行帧；缺省表示调用链入口未走 preload 桥，如平台内部直调）。
+   */
+  traceId?: string;
 }
 
 export type IBridgeResponse =
@@ -219,9 +224,14 @@ export function decodeBridgeRequest(raw: unknown): IBridgeRequest {
   if (typeof raw.capabilityId !== 'string' || raw.capabilityId.length === 0) {
     throw malformed('IPC 请求缺少 capabilityId');
   }
-  return raw.input === undefined
-    ? { requestId, capabilityId: raw.capabilityId }
-    : { requestId, capabilityId: raw.capabilityId, input: raw.input };
+  if (raw.traceId !== undefined && (typeof raw.traceId !== 'string' || raw.traceId.length === 0)) {
+    throw malformed('IPC 请求 traceId 非法');
+  }
+  const base: IBridgeRequest =
+    raw.input === undefined
+      ? { requestId, capabilityId: raw.capabilityId }
+      : { requestId, capabilityId: raw.capabilityId, input: raw.input };
+  return raw.traceId === undefined ? base : { ...base, traceId: raw.traceId };
 }
 
 /** 解码主进程响应；`requestId` 缺失或判别字段非法时返回 `BRIDGE_INTERNAL`。 */

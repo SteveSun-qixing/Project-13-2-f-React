@@ -28,6 +28,11 @@ export interface IBridgeRequest {
   readonly capabilityId: string;
   /** 能力输入。 */
   readonly input?: unknown;
+  /**
+   * 横切链路追踪 ID（工单046 段一）：preload 在操作边界生成并随请求帧贯通
+   * `bridge:request` → router → 事件下行；缺省表示调用源不走 preload 桥。
+   */
+  readonly traceId?: string;
 }
 
 /** 能力调用响应。 */
@@ -93,6 +98,13 @@ export interface IEventEnvelope {
   readonly payload: unknown;
   /** 事件产生时间（Unix epoch 毫秒）。 */
   readonly emittedAt: number;
+  /**
+   * 横切链路追踪 ID（工单046 段一）：请求上下文内 `ctx.emit` 下行时透传该次调用的
+   * `traceId`；非请求触发源（生命周期/平台广播）缺省，禁另造关联键。
+   */
+  readonly traceId?: string;
+  /** 触发事件的单次请求关联键；与 `traceId` 同源，非请求触发源缺省。 */
+  readonly requestId?: string;
 }
 
 /** 会话权限快照下行（主 → 渲染）。 */
@@ -132,7 +144,11 @@ export function isBridgeRequest(value: unknown): value is IBridgeRequest {
   if (!isRecord(value)) {
     return false;
   }
-  return isNonEmptyString(value.requestId) && isNonEmptyString(value.capabilityId);
+  if (!isNonEmptyString(value.requestId) || !isNonEmptyString(value.capabilityId)) {
+    return false;
+  }
+  // `traceId` 为可选横切键：出现即必须是非空字符串（与 bridge 解码侧同判据）。
+  return value.traceId === undefined || isNonEmptyString(value.traceId);
 }
 
 /** 判断值是否为合法能力调用响应。 */
@@ -204,7 +220,14 @@ export function isEventEnvelope(value: unknown): value is IEventEnvelope {
   if (!isRecord(value)) {
     return false;
   }
-  return isNonEmptyString(value.eventId) && typeof value.emittedAt === 'number' && 'payload' in value;
+  if (!isNonEmptyString(value.eventId) || typeof value.emittedAt !== 'number' || !('payload' in value)) {
+    return false;
+  }
+  // `traceId` / `requestId` 为可选横切键：出现即必须是非空字符串。
+  return (
+    (value.traceId === undefined || isNonEmptyString(value.traceId)) &&
+    (value.requestId === undefined || isNonEmptyString(value.requestId))
+  );
 }
 
 /** 判断值是否为合法会话权限快照。 */

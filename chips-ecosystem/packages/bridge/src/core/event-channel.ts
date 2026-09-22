@@ -121,6 +121,15 @@ export function createDefaultEventVisibilityResolver(
   };
 }
 
+/**
+ * 事件下行横切关联键（工单046 段一）：请求上下文内下行时透传该次调用的
+ * `traceId` / `requestId`（取自 `ICapabilityContext`）；非请求触发源缺省，禁另造关联键。
+ */
+export interface IEventCorrelation {
+  readonly traceId?: string;
+  readonly requestId?: string;
+}
+
 export interface IEventDeliveryPort {
   /** 向窗口投递事件封套（主进程 → 渲染，`webContents.send`）。 */
   sendToWindow(windowId: number, channel: string, envelope: IEventEnvelope): void;
@@ -145,7 +154,12 @@ export interface IEventChannel {
       }
     | { controlId: string; ok: false; error: IChipsError };
   /** 投递事件实例；返回实际投递的窗口数（0 表示无订阅者，不做序列化）。 */
-  deliver(eventId: string, payload: unknown, emittedAt?: number): number;
+  deliver(
+    eventId: string,
+    payload: unknown,
+    emittedAt?: number,
+    correlation?: IEventCorrelation
+  ): number;
   /** 某事件跨会话订阅总数。 */
   subscriptionCount(eventId: string): number;
   /** 某窗口对某事件的订阅计数。 */
@@ -262,7 +276,12 @@ export function createEventChannel(options: IEventChannelOptions): IEventChannel
       }
     },
 
-    deliver(eventId: string, payload: unknown, emittedAt: number = Date.now()): number {
+    deliver(
+      eventId: string,
+      payload: unknown,
+      emittedAt: number = Date.now(),
+      correlation?: IEventCorrelation
+    ): number {
       const definition = findStandardEvent(eventId);
       if (definition === undefined) {
         throw eventError(EVENT_ERROR_CODES.notRegistered, '事件未登记');
@@ -296,7 +315,13 @@ export function createEventChannel(options: IEventChannelOptions): IEventChannel
       if (targets.size === 0) {
         return 0;
       }
-      const envelope: IEventEnvelope = { eventId, payload, emittedAt };
+      const envelope: IEventEnvelope = {
+        eventId,
+        payload,
+        emittedAt,
+        ...(correlation?.traceId !== undefined ? { traceId: correlation.traceId } : {}),
+        ...(correlation?.requestId !== undefined ? { requestId: correlation.requestId } : {}),
+      };
       let delivered = 0;
       for (const [windowId] of targets) {
         if ((windowSubscriptions.get(windowId)?.get(eventId) ?? 0) <= 0) {

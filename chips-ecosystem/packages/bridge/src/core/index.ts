@@ -19,6 +19,7 @@ export {
   type EventOwnerScope,
   type IEventChannel,
   type IEventChannelOptions,
+  type IEventCorrelation,
   type IEventDeliveryPort,
   type IEventVisibilityResolver,
   type IDefaultEventVisibilityOptions,
@@ -28,7 +29,7 @@ export {
   extractTargets,
   grantsFromSnapshot,
   toAuditRecord,
-  type IPermissionAuditRecord,
+  type IPermissionAuditEntryContext,
   type IPermissionEvaluationInput,
   type IPermissionEvaluationResult,
 } from './permission-evaluator.js';
@@ -50,8 +51,18 @@ export {
 } from './qualifiers.js';
 export {
   createBridgeRouter,
+  type IBridgeAuditOptions,
   type IBridgeRouter,
   type IBridgeRouterOptions,
   type ICapabilityInvoker,
 } from './router.js';
 export { createSessionRegistry, type ISessionRegistry } from './session-registry.js';
+export {
+  createUlidGenerator,
+  decodeUlidTimestamp,
+  isUlid,
+  ULID_LENGTH,
+  ULID_PATTERN,
+  type IUlidGenerator,
+  type IUlidGeneratorOptions,
+} from './ulid.js';

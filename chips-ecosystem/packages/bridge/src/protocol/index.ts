@@ -107,10 +107,13 @@ export {
   type ISessionPermissionsUpdate,
 } from './ipc.js';
 export {
+  type IPermissionAuditEntry,
   type IPermissionDeniedDetails,
   type IPermissionDecision,
   type IPermissionGrant,
   type ISessionScope,
+  type PermissionAuditAction,
+  type PermissionAuditSource,
   type PermissionDenyReason,
 } from './permission.js';
 export {

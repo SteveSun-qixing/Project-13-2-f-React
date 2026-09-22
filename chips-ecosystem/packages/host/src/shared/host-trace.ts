@@ -11,9 +11,12 @@
  *   details`；§5.2 补充 Bridge 专属字段（`requestId / channel / direction /
  *   capabilityId / operation / retryable`，`durationMs` = Bridge 收到请求到返回结果的
  *   耗时）；§6.1 补充渲染侧 `message` 字段；
- * - §2.5：一次用户操作或外部触发产生一个 `traceId`（宿主当前未在链路上传递
- *   `InvocationContext.traceId`，本模块按该语义在操作边界就地生成并随记录导出——
- *   见工单041 修复波 findings）；
+ * - §2.5：一次用户操作或外部触发产生一个 `traceId`。工单041 修复波在册的「链路未贯通、
+ *   操作边界就地生成」自认缺口已由工单046 段一翻正：`bridge:request` 请求帧携
+ *   `traceId` 全链贯通（preload→`bridge:request`→router→事件下行四段），Bridge 插桩点
+ *   以请求帧取值为记录源；仅当帧上缺键或触发源本就不是 Bridge 请求（启动里程碑、
+ *   文档服务操作边界等）时，经 {@link IHostTrace.newTraceId} 就地生成兜底，
+ *   禁另造关联键；
  * - §8.2：`startup` 类别记录进程启动与窗口就绪等里程碑时间戳；
  * - 《渲染引擎设计》§10.1 与 `@chips/perf` 工具在册命名（`tests/perf/src/scenarios.ts`
  *   `MARKERS`：「规范标记点名称：Host / RenderEngine / 解析器经 CHIPS_TRACE 导出时的

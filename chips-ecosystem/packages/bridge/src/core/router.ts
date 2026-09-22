@@ -14,13 +14,14 @@ import {
 } from '../protocol/errors.js';
 import type { ICapabilityContext } from '../protocol/capability.js';
 import type { IPermissionTargetRule } from '../protocol/capability-contracts.js';
+import type { IPermissionAuditEntry } from '../protocol/permission.js';
 import {
   decodeBridgeRequest,
   encodeBridgeResponse,
   type IBridgeRequest,
   type IBridgeResponse,
 } from '../protocol/ipc.js';
-import type { ISessionSource } from '../protocol/session.js';
+import type { ISessionSource, ISessionSnapshot } from '../protocol/session.js';
 import type { IValidationIssue } from '../schema/validate.js';
 import type { ICapabilityRegistryCore, IRegisteredCapability } from './capability-registry.js';
 import { createCallContext, type ICallContext } from './call-context.js';
@@ -30,10 +31,11 @@ import {
   evaluatePermissions,
   grantsFromSnapshot,
   toAuditRecord,
-  type IPermissionAuditRecord,
+  type IPermissionEvaluationInput,
 } from './permission-evaluator.js';
 import type { IPermissionEnvironment } from './qualifiers.js';
 import type { ISessionRegistry } from './session-registry.js';
+import { createUlidGenerator } from './ulid.js';
 
 /** 内核路由接缝：把能力调用交给 Host 实现（同进程直调或经 Cordis 内核路由）。 */
 export interface ICapabilityInvoker {
@@ -44,6 +46,27 @@ export interface ICapabilityInvoker {
   ): Promise<unknown>;
 }
 
+/**
+ * 审计组装注入面（工单046 段一：条目类型收口为 §8.2 权威形状）。
+ *
+ * @remarks
+ * 本波只做条目面收敛——挂点发射与三事件生产者归立项书段三（025③ 判定面统一后落位）；
+ * 写入失败不阻塞判定的语义沿袭既有 `writeAudit` 吞失败 + `onDiagnostic` 留痕。
+ */
+export interface IBridgeAuditOptions {
+  /** 投递一条审计条目（同步回调；抛错经 `onDiagnostic` 留痕，不影响判定）。 */
+  readonly emit: (entry: IPermissionAuditEntry) => void;
+  /**
+   * 会话插件版本解析面：§8.2 `pluginVersion` 为运行时必填字段，
+   * crate/判定层无版本位，由宿主授权/会话权威侧补挂（RFC §5.3 对齐表）。
+   */
+  readonly resolvePluginVersion: (session: ISessionSnapshot) => string;
+  /** 请求帧未携 `traceId` 时的兜底供给（操作边界就地生成；条目 `traceId` 必填）。 */
+  readonly newTraceId: () => string;
+  /** 条目 `id` 供给；缺省使用路由器内置单调 ULID 生成器（工单046 段一设施）。 */
+  readonly nextEntryId?: () => string;
+}
+
 export interface IBridgeRouterOptions {
   readonly sessions: ISessionRegistry;
   readonly registry: ICapabilityRegistryCore;
@@ -52,8 +75,8 @@ export interface IBridgeRouterOptions {
   readonly permissionEnvironment: IPermissionEnvironment;
   /** 当前时间（Unix 毫秒）。 */
   readonly now?: () => number;
-  /** 判定结果审计（放行/拒绝）；写入失败不阻塞调用。 */
-  readonly audit?: (record: IPermissionAuditRecord) => void;
+  /** 判定结果审计（放行/拒绝全量，工单046 裁定一）；缺省不组装条目。 */
+  readonly audit?: IBridgeAuditOptions;
   /** 未识别异常诊断出口（写宿主日志，不进入返回）。 */
   readonly onDiagnostic?: (error: unknown) => void;
 }
@@ -137,13 +160,11 @@ function extractRequestId(raw: unknown): string {
 export function createBridgeRouter(options: IBridgeRouterOptions): IBridgeRouter {
   const now = options.now ?? Date.now;
   const inFlight = new Map<string, IInFlightCall>();
+  const internalUlid = createUlidGenerator({ now });
 
-  const writeAudit = (record: IPermissionAuditRecord): void => {
-    if (options.audit === undefined) {
-      return;
-    }
+  const writeAudit = (entry: IPermissionAuditEntry): void => {
     try {
-      options.audit(record);
+      options.audit?.emit(entry);
     } catch (error) {
       options.onDiagnostic?.(error);
     }
@@ -184,40 +205,32 @@ export function createBridgeRouter(options: IBridgeRouterOptions): IBridgeRouter
       }
 
       const targets: readonly IPermissionTargetRule[] = registration.targets;
-      const evaluation = evaluatePermissions(
-        {
-          capabilityId: request.capabilityId,
-          requiredPermissions: registration.capability.permissions,
-          targetRules: targets,
-          input: request.input,
-          scope: {
-            sessionId: session.sessionId,
-            pluginId: session.pluginId,
-            scopeVersion: session.permissionVersion,
-            grants: grantsFromSnapshot(session),
-          },
-          session,
+      const evaluationInput: IPermissionEvaluationInput = {
+        capabilityId: request.capabilityId,
+        requiredPermissions: registration.capability.permissions,
+        targetRules: targets,
+        input: request.input,
+        scope: {
+          sessionId: session.sessionId,
+          pluginId: session.pluginId,
+          scopeVersion: session.permissionVersion,
+          grants: grantsFromSnapshot(session),
         },
-        options.permissionEnvironment
-      );
-      writeAudit(
-        toAuditRecord(
-          {
-            capabilityId: request.capabilityId,
-            requiredPermissions: registration.capability.permissions,
-            targetRules: targets,
-            input: request.input,
-            scope: {
-              sessionId: session.sessionId,
-              pluginId: session.pluginId,
-              scopeVersion: session.permissionVersion,
-              grants: grantsFromSnapshot(session),
-            },
-            session,
-          },
-          evaluation
-        )
-      );
+        session,
+      };
+      const evaluation = evaluatePermissions(evaluationInput, options.permissionEnvironment);
+      if (options.audit !== undefined) {
+        const audit = options.audit;
+        writeAudit(
+          toAuditRecord(evaluationInput, evaluation, {
+            id: audit.nextEntryId?.() ?? internalUlid.next(),
+            timestamp: new Date(now()).toISOString(),
+            traceId: request.traceId ?? audit.newTraceId(),
+            requestId,
+            pluginVersion: audit.resolvePluginVersion(session),
+          })
+        );
+      }
       if (!evaluation.allowed) {
         return fail(
           requestId,
@@ -259,6 +272,8 @@ export function createBridgeRouter(options: IBridgeRouterOptions): IBridgeRouter
         callerId: session.pluginId,
         timeoutMs: registration.timeoutMs,
         now,
+        requestId,
+        ...(request.traceId !== undefined ? { traceId: request.traceId } : {}),
         ...(options.sessions.signalFor(session.sessionId) !== undefined
           ? { sessionSignal: options.sessions.signalFor(session.sessionId) as AbortSignal }
           : {}),

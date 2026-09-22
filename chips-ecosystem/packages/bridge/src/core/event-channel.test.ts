@@ -183,6 +183,27 @@ describe('createEventChannel deliver', () => {
     });
   });
 
+  it('横切关联键随封套透出；非请求触发源不造键（工单046 段一）', () => {
+    const harness = createHarness();
+    harness.channel.handleControl(control('subscribe', 'file:changed', 'c1'), SOURCE_1);
+    const delivered = harness.channel.deliver('file:changed', { uri: 'a' }, 123, {
+      traceId: 't-9',
+      requestId: 'r-9',
+    });
+    expect(delivered).toBe(1);
+    expect(harness.sent[0]?.envelope).toMatchObject({
+      eventId: 'file:changed',
+      emittedAt: 123,
+      traceId: 't-9',
+      requestId: 'r-9',
+    });
+    const bare = createHarness();
+    bare.channel.handleControl(control('subscribe', 'file:changed', 'c1'), SOURCE_1);
+    bare.channel.deliver('file:changed', { uri: 'a' }, 124);
+    expect(bare.sent[0]?.envelope.traceId).toBeUndefined();
+    expect(bare.sent[0]?.envelope.requestId).toBeUndefined();
+  });
+
   it('会话关闭后清理订阅，不再投递', () => {
     const harness = createHarness();
     harness.channel.handleControl(control('subscribe', 'file:changed'), SOURCE_1);

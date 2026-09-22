@@ -18,6 +18,10 @@ export interface ICallContextOptions {
   readonly sessionSignal?: AbortSignal;
   /** 当前时间（Unix 毫秒）。 */
   readonly now: () => number;
+  /** 横切链路追踪 ID（工单046 段一，`bridge:request` 透传）。 */
+  readonly traceId?: string;
+  /** 本次调用请求关联键（透传）。 */
+  readonly requestId?: string;
 }
 
 export interface ICallContext {
@@ -62,6 +66,8 @@ export function createCallContext(options: ICallContextOptions): ICallContext {
       deadline,
       sessionId: options.sessionId,
       callerId: options.callerId,
+      ...(options.traceId !== undefined ? { traceId: options.traceId } : {}),
+      ...(options.requestId !== undefined ? { requestId: options.requestId } : {}),
     },
     cancel(error: ChipsError = createBridgeError(BRIDGE_ERROR_CODES.cancelled)): void {
       if (!controller.signal.aborted) {

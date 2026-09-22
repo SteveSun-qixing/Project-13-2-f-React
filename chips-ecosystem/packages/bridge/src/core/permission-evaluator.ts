@@ -8,6 +8,7 @@
 
 import { BRIDGE_ERROR_CODES, createBridgeError, type ChipsError } from '../protocol/errors.js';
 import type {
+  IPermissionAuditEntry,
   IPermissionDecision,
   IPermissionDeniedDetails,
   IPermissionGrant,
@@ -274,31 +275,59 @@ export function evaluatePermissions(
   };
 }
 
-/** 判定结果审计载荷（08-权限系统设计 §8；审计写入由宿主注入）。 */
-export interface IPermissionAuditRecord {
-  readonly sessionId: string;
-  readonly pluginId: string;
-  readonly capabilityId: string;
-  readonly allowed: boolean;
-  readonly permission: string;
-  readonly missing: readonly string[];
-  readonly reason?: PermissionDenyReason;
-  readonly target?: string;
+/**
+ * 审计条目组装的调用侧上下文（工单046 段一）。
+ *
+ * @remarks
+ * 判定现场（`IPermissionEvaluationInput` + 结果）只产「判定素材」；条目 `id`（ULID）、
+ * `timestamp`、`pluginVersion` 与横切 `traceId`/`requestId` 由调用面（路由/宿主组装器）
+ * 提供——对齐 RFC-权限审计跨层采集sink裁定 §5.2「素材面/条目面两分」与 §5.3 产出侧对齐表。
+ */
+export interface IPermissionAuditEntryContext {
+  /** 条目唯一标识（ULID，`createUlidGenerator` 供给）。 */
+  readonly id: string;
+  /** 记录时刻（ISO 8601 UTC）。 */
+  readonly timestamp: string;
+  /** 全链路追踪 ID（横切链路取值，禁另造关联键）。 */
+  readonly traceId: string;
+  /** 单次请求关联键。 */
+  readonly requestId: string;
+  /** 触发插件版本（宿主授权/会话权威侧补挂，RFC §5.3）。 */
+  readonly pluginVersion: string;
 }
 
+/**
+ * 判定结果 → 审计条目（08-权限系统设计 §8.2 权威形状，全生态单一事实源）。
+ *
+ * 运行时条目口径：
+ * - `action` = `allow` / `deny`；`actor` 恒 `system`（§8.2 表注，工单046 裁定一）；
+ * - `source` 缺省（运行时记录不落授权来源，§8.2 表注）；
+ * - `permission`：`deny` 为首个缺失项（判定短路口径）、`allow` 为 `required` 声明序
+ *   首项（`evaluatePermissions` 同序），RFC §5.4 与《08.08》§8.2 补注；
+ * - `qualifier` / `resourceUri` 为 crate/内核限定值与资源域素材槽，TS 能力判定链
+ *   现行不可得，缺省不造值（RFC §5.1 槽注，恒 None 至判定交付）。
+ */
 export function toAuditRecord(
   request: IPermissionEvaluationInput,
-  result: IPermissionEvaluationResult
-): IPermissionAuditRecord {
+  result: IPermissionEvaluationResult,
+  context: IPermissionAuditEntryContext
+): IPermissionAuditEntry {
   const details = (result.error?.details ?? undefined) as IPermissionDeniedDetails | undefined;
   return {
-    sessionId: request.session.sessionId,
+    id: context.id,
+    timestamp: context.timestamp,
+    action: result.allowed ? 'allow' : 'deny',
+    actor: 'system',
     pluginId: request.session.pluginId,
+    pluginVersion: context.pluginVersion,
+    sessionId: request.session.sessionId,
+    permission: result.allowed
+      ? (request.requiredPermissions[0] ?? '')
+      : result.decision.permission,
     capabilityId: request.capabilityId,
-    allowed: result.allowed,
-    permission: result.decision.permission,
-    missing: details?.missing ?? [],
-    ...(result.decision.reason !== undefined ? { reason: result.decision.reason } : {}),
     ...(details?.target !== undefined ? { target: details.target } : {}),
+    ...(result.decision.reason !== undefined ? { reason: result.decision.reason } : {}),
+    traceId: context.traceId,
+    requestId: context.requestId,
   };
 }

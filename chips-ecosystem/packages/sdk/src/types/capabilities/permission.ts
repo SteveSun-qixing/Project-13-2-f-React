@@ -6,47 +6,30 @@
  *   `permission:audit-read`）声明空权限数组，按调用方平台治理身份校验，仅平台内置
  *   设置界面可达（§6.2 注 8）；治理身份校验与失败臂错误码、授权存储写入链路、
  *   审计写入器均归工单046 后续实现波次（§7.18 约束段），本文件只登记编译期契约形状；
- * - `IPermissionAuditEntry` 条目形状以 08-权限系统设计 §8.2 为唯一权威（16 字段）；
+ * - **审计条目面单一事实源**：`IPermissionAuditEntry` 与其枚举词表
+ *   （`PermissionAuditAction` / `PermissionAuditSource` / `PermissionDenyReason`）的
+ *   权威定义在 `@chips/bridge` 协议层（形状权威为《08-权限系统设计》§8.2 十六字段），
+ *   本模块只做 `import type` 转发、不手抄复制定义（比照 `types/bridge.ts` 的
+ *   `IChipsBridge` 转发先例；工单046 段一「禁三型并存」收口）；
  * - `ICapabilityContracts` 中权限治理四行的契约类型即本文件类型（04 §2.3）。
  */
 
+import type {
+  IPermissionAuditEntry,
+  PermissionAuditAction,
+  PermissionAuditSource,
+  PermissionDenyReason,
+} from '@chips/bridge';
+
+export type {
+  IPermissionAuditEntry,
+  PermissionAuditAction,
+  PermissionAuditSource,
+  PermissionDenyReason,
+};
+
 /** 治理动作终态（04 §7.18；granted/denied 两态，08 §6.1）。 */
 export type PermissionGovernanceState = 'granted' | 'denied';
-
-/** 审计动作（08 §8.2）。 */
-export type PermissionAuditAction = 'grant' | 'revoke' | 'deny' | 'allow';
-
-/** 授权变化来源（08 §8.2；运行时判定记录缺省该字段）。 */
-export type PermissionAuditSource = 'enable' | 'first-call' | 'settings' | 'update' | 'uninstall';
-
-/** 拒绝原因五枚举（08 §8.2）。 */
-export type PermissionDenyReason =
-  'not_granted' | 'revoked' | 'out_of_scope' | 'user_rejected' | 'policy';
-
-/**
- * 审计记录条目（08 §8.2 权威形状，字段逐一照录）。
- *
- * `id` 为 ULID；`timestamp` 为 ISO 8601 UTC；落盘为 JSON Lines（08 §8.3），
- * append-only，插件无读写（08 §8.4）。
- */
-export interface IPermissionAuditEntry {
-  readonly id: string;
-  readonly timestamp: string;
-  readonly action: PermissionAuditAction;
-  readonly source?: PermissionAuditSource;
-  readonly actor: 'user' | 'system';
-  readonly pluginId: string;
-  readonly pluginVersion: string;
-  readonly sessionId?: string;
-  readonly permission: string;
-  readonly qualifier?: string;
-  readonly capabilityId?: string;
-  readonly target?: string;
-  readonly resourceUri?: string;
-  readonly reason?: PermissionDenyReason;
-  readonly traceId: string;
-  readonly requestId?: string;
-}
 
 /** `permission:grant` / `permission:revoke` / `permission:restore` 共用输入（04 §7.18）。 */
 export interface IPermissionGrantInput {

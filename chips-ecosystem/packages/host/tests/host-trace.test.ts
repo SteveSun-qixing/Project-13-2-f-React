@@ -329,6 +329,27 @@ describe('Bridge 执行记录（ipc-channels 主进程适配层，§5.1/§5.2）
     expect(typeof record['durationMs']).toBe('number');
   });
 
+  it('请求帧横切 traceId 直通追踪记录；帧上缺位时操作边界兜底生成（工单046 段一）', async () => {
+    const userDataPath = await makeTempDir();
+    initHostTrace({ userDataPath, categories: new Set<HostTraceCategory>(['bridge']) });
+    const { handler, unregister } = wireIpc(() => Promise.resolve({ requestId: 'r-trace-2', ok: true, result: null }));
+    await handler(fakeEvent, { ...request, requestId: 'r-trace-2', traceId: 't-wire-42' });
+    await getHostTrace().flush();
+    const withWireTrace = (await readTraceLines(userDataPath)) as Array<Record<string, unknown>>;
+    expect(withWireTrace[0]?.['traceId']).toBe('t-wire-42');
+    expect(withWireTrace[0]?.['requestId']).toBe('r-trace-2');
+
+    // 帧上缺键（非 preload 入口直调等）：traceId 就地兜底生成、不落 null。
+    await handler(fakeEvent, { requestId: 'r-trace-3', capabilityId: 'document:open', input: {} });
+    await getHostTrace().flush();
+    unregister();
+    const lines = (await readTraceLines(userDataPath)) as Array<Record<string, unknown>>;
+    const fallback = lines.at(-1) as Record<string, unknown>;
+    expect(fallback['requestId']).toBe('r-trace-3');
+    expect(typeof fallback['traceId']).toBe('string');
+    expect((fallback['traceId'] as string).length).toBeGreaterThan(0);
+  });
+
   it('失败调用：errorCode/retryable 与错误同源落行', async () => {
     const userDataPath = await makeTempDir();
     initHostTrace({ userDataPath, categories: new Set<HostTraceCategory>(['bridge']) });
