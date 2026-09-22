@@ -1,4 +1,4 @@
-# chips-resource（段一寻址内核 + 段二 B1：MemoryProvider 挂载与 unicode 触发臂 + B2：DirectoryProvider 挂载与读面 + B3：ArchiveProvider 归档只读域与流式写入提交面）
+# chips-resource（段一寻址内核 + 段二 B1：MemoryProvider 挂载与 unicode 触发臂 + B2：DirectoryProvider 挂载与读面 + B3：ArchiveProvider 归档只读域与流式写入提交面 + 段三 #157：unicode 非字符全集与写锁异步形收口）
 
 薯片平台资源管理器的 Rust 权威 crate：段一交付 `chips-resource://` URI 与作用域解析、
 管理器侧权限判定（PathGuard）、资源句柄与租约状态机；段二 B1 随单追加内置
@@ -100,7 +100,7 @@ abort_write_stream`，目录域隐藏 temp 流式落盘、失败/中止/级联�
 1. 《04.05》§5.3 Platform 读取要求 `resources:read:platform`，与《06.04》§4.3「Platform 免权限（公开只读）」矛盾。按协议规范 §4.3 实现（免权限），待裁决。已裁定收口（工单042，2026-09-21）。
 2. 《04.09》§9.2 示例代码使用 `ChipsError::ResourcePathInvalid(..)` 枚举变体，但《核心接口规范》§3.3 落地的 `chips_core::ChipsError` 是单形结构体（`new/with_details/with_retryable`）。示例与实码不符，实现按实码 API。已裁定收口（工单042，2026-09-21）。
 3. 《04.03》§3.2 `ResourceProvider::open_stream` 返回 `ResourceStream`，其形状在全部在册文档中未定义。段一定义为在册流读取抽象 trait（`next_chunk`），待文档补形。已裁定收口（工单042，2026-09-21）。该形状的实现消费面已随段二 B3 交付（`ArchiveStream` 拉取式游标，任务 #143/#151，2026-09-21）。
-4. 《06.02》§2.4 `details.reason = unicode` 在全部文档中无触发规则（NFC 归一即通过）。段一保留词表成员但不产生；待补规则。已裁定收口（工单042，2026-09-21）。触发臂实现已于段二 B1 落地（`src/path_guard.rs` Unicode 触发臂小节：解码一次后须合法 UTF-8、不含 U+FFFD 与非字符 U+nFFFE/U+nFFFF（n=1..10），NFC 差异不拒绝；违反 → `RESOURCE_PATH_INVALID` + `details.reason=unicode`；码归属由主智能体 2026-09-21 更正裁定，与《06.07》§7.3 `IResourcePathErrorDetails` 词表归组一致）。
+4. 《06.02》§2.4 `details.reason = unicode` 在全部文档中无触发规则（NFC 归一即通过）。段一保留词表成员但不产生；待补规则。已裁定收口（工单042，2026-09-21）。触发臂实现已于段二 B1 落地、段三 #157 按工单043 裁定 A1 收紧为 Unicode 非字符全集（`src/path_guard.rs` Unicode 触发臂小节：解码一次后须合法 UTF-8、不含 U+FFFD 与非字符全集——U+nFFFE/U+nFFFF 全 17 平面（n=0–16，含 U+FFFE/U+FFFF）+ 非字符区 U+FDD0–U+FDEF，NFC 差异不拒绝；违反 → `RESOURCE_PATH_INVALID` + `details.reason=unicode`；码归属由主智能体 2026-09-21 更正裁定，与《06.07》§7.3 `IResourcePathErrorDetails` 词表归组一致）。另登记：《06.02》§2.4 v1.0.3 与工单043 A1 原文所写非字符区端点「U+FDD0–U+FDCF」数值倒置（0xFDCF < 0xFDD0，非升序区间），按 Unicode 权威定义（UAX44 词汇表与 Unicode 17 核心规范 §23：66 非字符 = 每平面末二 + U+FDD0–U+FDEF）实现为 U+FDD0–U+FDEF，文档勘误归主智能体 errata 波。
 5. 《04》§12 默认配置缺 URI/路径长度上限与「读取队列上限」的具体数值（§2.4 `length` 与 §7.2 `pool.kind = queue` 依赖它）。段一以 `ResourceLimits` 可配置项落地（默认 8192/4096/255 字节），队列上限面不做。
 6. 《04.12》`maxResourceBytes` 2 GiB 与《06.06》§6.6「read() ≤8 MiB」共同决定 TOO_LARGE 两档；`resolve` 阶段无法预知大小，段一在 `open/stat` 处由 Provider 元数据触发。
 
@@ -174,7 +174,8 @@ abort_write_stream`，目录域隐藏 temp 流式落盘、失败/中止/级联�
   `open_write_stream` 写流提交面留后续波。
 - ② unicode 触发臂产化（工单042 裁定④，《06.02》§2.4）：`src/path_guard.rs`
   「Unicode 触发臂」小节（`percent_decode_checked` / `is_forbidden_unicode`）——解码一次后
-  须合法 UTF-8、不含 U+FFFD 与非字符 U+nFFFE/U+nFFFF（n=1..10）；违反 →
+  须合法 UTF-8、不含 U+FFFD 与非字符 U+nFFFE/U+nFFFF（n=1..10，段三 #157 已按
+  工单043 裁定 A1 收紧为全 17 平面 + 非字符区 U+FDD0–U+FDEF 全集，见文末段三收口记录）；违反 →
   `RESOURCE_PATH_INVALID` + `details{uri,path,reason:"unicode"}`（错误码零自造，过密/畸形序列仍
   走 `invalid_encoding`）；NFC 归一差异不拒绝（`caf%C3%A9` ≡ `cafe%CC%81`）。
   产化锁测 `tests/error_code_lock.rs::test_unicode_reason_has_production`（公开输入面
@@ -312,3 +313,53 @@ abort_write_stream`，目录域隐藏 temp 流式落盘、失败/中止/级联�
   `cargo fmt -p chips-resource -p chips-parser --check`=0；crate 级行覆盖率
   chips-resource src 1879/2144=87.64%（TD-002 豁免在册 86.27%→回升，<90
   维持至 2026-10-19）、chips-parser src 3121/3357=92.97%（越组阈）。
+
+## 段三收口记录（任务 #157 随单，2026-09-22）
+
+- ① unicode 非字符全集触发臂补口（工单043 裁定 A1，《06.02》§2.4 v1.0.3
+  权威文面，与 #132 段二 B1 已落臂逐值对表）：`src/path_guard.rs`
+  `is_forbidden_unicode` 由 B1 形（平面封顶 n≤10、无非字符区臂）翻正为
+  Unicode 非字符全集——U+nFFFE/U+nFFFF 全 17 平面（n = 0–16，含
+  U+FFFE/U+FFFF；`char` 码位上界 U+10FFFF 使 `(cp & 0xFFFE) == 0xFFFE`
+  天然覆盖平面 11–16）+ 非字符区 U+FDD0–U+FDEF + 替换字符 U+FFFD。
+  错误码与 reason 词表零改动（`RESOURCE_PATH_INVALID` +
+  `details.reason = unicode`，2026-09-21 码归属更正口径维持，无需翻正）；
+  合法 UTF-8 通过臂、NFC 差异不拒臂两臂锁测维持并随单加强。
+  锁测随动（零删零放宽）：单测全集逐值正例 9 + 负例防误伤 4
+  （`test_percent_decode_checked_arms`）、编码形 11 例 + 字面形 4 例
+  （`test_unicode_arm_noncharacters_rejected`）；公开入口产生面锁
+  `tests/error_code_lock.rs::test_unicode_reason_has_production` 拒绝列
+  7→11（补平面 11、平面 16 末端、非字符区两界），URI 层
+  `tests/memory_provider.rs` 6→8。
+- ② 写锁 Condvar 异步形勘查收口（#151 残账）：暴露面实存——Manager
+  异步写族入口 `commit_write`/`delete`/`rename`/`copy`/`create_directory`
+  原在 `async fn` 内同步调用 `WriteCoordinator::lock`（`Mutex`+`Condvar`
+  无超时等待）：单线程 runtime 下排队任务独占执行线程、持锁任务释放点
+  永不可达（构造性永久死锁）；多线程 runtime 下饿死 worker。最小收口：
+  `src/write_coord.rs` 新增 `lock_async`（`tokio::sync::Notify` 登记式
+  唤醒、等待让出线程；与同步臂同规范——升序排队、去重、单写者、跨臂
+  互斥共用同一锁表；等待后续键被取消时已取得前缀键随 `KeyRollback`
+  守卫归还，取消安全），五处异步入口翻 `lock_async(...).await`；同步
+  签名入口 `open_write_stream`（《03.07》§7.1）维持同步臂在册形。
+  锁测 +5：write_coord 单测 4（单线程不饿死、升序去重与占键、跨臂
+  互斥 + 半获取取消回滚、异步持锁方排斥同步排队者）+ Manager 层
+  `test_commit_write_async_arm_does_not_starve_single_thread_executor`
+  （带闸可写替身模拟持锁 Provider Pending 窗口，同路径双提交按序排队
+  各得新版本）。
+- ③ TD-002 覆盖率读数复报（既有通道、crate 级作用域，不跑全工作区
+  聚合闸）：`cargo tarpaulin -p chips-resource --engine llvm -o Lcov
+  Stdout` EXIT=0，lcov 过滤 `crates/chips-resource/src` 口径
+  **1922/2190 = 87.76%**（对照在册 1879/2144 = 87.64%：+43 覆盖行/+46
+  总行、+0.12pp 回升；<90% 维持豁免至 2026-10-19）。
+- 测试账（真实输出）：基线 165（lib 119 + archive 6 + dir 12 +
+  errlock 12 + mem 6 + uri 9 + doctest 1）→ **170**（lib 124 = 119+5，
+  集成计数不变、册内用例扩充），全绿、零删档零放宽。
+- 门禁复跑（真实退出码）：`cargo fmt --check`=0、
+  `cargo test -p chips-resource`=0、
+  `cargo clippy -p chips-resource --all-targets -- -D warnings`=0。
+  chips-parser 零改动（本单未触其导出面），其 195 用例基线不随本单动。
+- 文档勘误升级（归主智能体文档库 errata 波，本波文档库禁改）：
+  《06.02》§2.4 v1.0.3 与工单043 A1 原文非字符区端点「U+FDD0–U+FDCF」
+  数值倒置（0xFDCF < 0xFDD0，非升序区间），按 Unicode 权威定义（66 非
+  字符 = 17 平面末二 + U+FDD0–U+FDEF，Unicode 17 核心规范 §23）实现为
+  U+FDD0–U+FDEF 并在此登记；实现臂为原文面所有可解释读法的超集。

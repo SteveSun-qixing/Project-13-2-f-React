@@ -771,8 +771,12 @@ impl ResourceManager {
         )?;
         let provider = self.writable_provider(&resolved)?;
         // WriteCoordinator 单写者路径锁（《04.04》§4.9、《04.13》§13-3）：
-        // 同名路径提交互斥排队，锁覆盖 Provider 提交全程。
-        let _write_permit = self.write_coordinator.lock([path_lock_key(&resolved)]);
+        // 同名路径提交互斥排队，锁覆盖 Provider 提交全程；异步入口走异步臂
+        // （#151 残账段三收口：同步 Condvar 等待不占执行器线程）。
+        let _write_permit = self
+            .write_coordinator
+            .lock_async([path_lock_key(&resolved)])
+            .await;
         let metadata = provider.write(&resolved.address, &request.bytes).await?;
         Ok(metadata_view(
             &resolved.address.uri,
@@ -788,7 +792,10 @@ impl ResourceManager {
         let resolved = self.resolve(&request.source, request.session, ResourceOperation::Write)?;
         let provider = self.writable_provider(&resolved)?;
         self.check_write_kind_gate(&resolved, ScopeOperation::Delete)?;
-        let _write_permit = self.write_coordinator.lock([path_lock_key(&resolved)]);
+        let _write_permit = self
+            .write_coordinator
+            .lock_async([path_lock_key(&resolved)])
+            .await;
         provider.delete(&resolved.address).await?;
         Ok(())
     }
@@ -812,7 +819,8 @@ impl ResourceManager {
         // rename A→B 同时锁 {A, B}：与对 B 的并发写互斥（《04.04》§4.9）。
         let _write_permit = self
             .write_coordinator
-            .lock([path_lock_key(&source), path_lock_key(&target)]);
+            .lock_async([path_lock_key(&source), path_lock_key(&target)])
+            .await;
         provider.rename(&source.address, &target.address).await?;
         let metadata = provider.stat(&target.address).await?;
         Ok(metadata_view(
@@ -870,12 +878,18 @@ impl ResourceManager {
             .to_chips_error());
         }
         if source.registration.provider_id == target.registration.provider_id {
-            let _write_permit = self.write_coordinator.lock([path_lock_key(&target)]);
+            let _write_permit = self
+                .write_coordinator
+                .lock_async([path_lock_key(&target)])
+                .await;
             target_provider
                 .copy(&source.address, &target.address)
                 .await?;
         } else {
-            let _write_permit = self.write_coordinator.lock([path_lock_key(&target)]);
+            let _write_permit = self
+                .write_coordinator
+                .lock_async([path_lock_key(&target)])
+                .await;
             if target_provider.stat(&target.address).await.is_ok() {
                 return Err(ResourceError::AlreadyExists {
                     uri: target.address.uri.clone(),
@@ -918,7 +932,10 @@ impl ResourceManager {
             }
             .to_chips_error());
         }
-        let _write_permit = self.write_coordinator.lock([path_lock_key(&resolved)]);
+        let _write_permit = self
+            .write_coordinator
+            .lock_async([path_lock_key(&resolved)])
+            .await;
         provider.create_directory(&resolved.address).await?;
         Ok(())
     }
@@ -973,6 +990,8 @@ impl ResourceManager {
             .map_err(|error| error.to_chips_error())?;
         }
         let _ = self.writable_provider(&resolved)?;
+        // 写流入口为《03.07》§7.1 同步签名：维持同步臂形态（锁贯穿流生命
+        // 周期、随记录 Drop 归还）；异步写族入口的排队统一走 `lock_async`。
         let permit = self.write_coordinator.lock([path_lock_key(&resolved)]);
         let sink = if resolved.registration.provider_id == DIRECTORY_PROVIDER_ID {
             StreamSink::Directory(
@@ -1443,6 +1462,114 @@ mod tests {
         }
     }
 
+    /// 带闸可写替身：`write` 先等闸许可再提交，模拟真实 Provider 在持锁
+    /// 期间挂起（Pending）的窗口（#151 残账段三收口判定面）。
+    struct GatedWriteProvider {
+        gate: Arc<tokio::sync::Semaphore>,
+        commits: std::sync::atomic::AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl ResourceProvider for GatedWriteProvider {
+        fn id(&self) -> &'static str {
+            "gated"
+        }
+        fn supports_streaming(&self) -> bool {
+            false
+        }
+        fn supports_write(&self) -> bool {
+            true
+        }
+        async fn stat(&self, address: &ResourceAddress) -> Result<ResourceMetadata, ChipsError> {
+            Err(ResourceError::NotFound {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error())
+        }
+        async fn read_range(
+            &self,
+            address: &ResourceAddress,
+            _range: ByteRange,
+        ) -> Result<Vec<u8>, ChipsError> {
+            Err(ResourceError::NotFound {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error())
+        }
+        async fn open_stream(
+            &self,
+            address: &ResourceAddress,
+        ) -> Result<Box<dyn ResourceStream>, ChipsError> {
+            Err(ResourceError::NotFound {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error())
+        }
+        async fn list_directory(
+            &self,
+            _address: &ResourceAddress,
+        ) -> Result<Vec<DirectoryEntry>, ChipsError> {
+            Ok(Vec::new())
+        }
+        async fn write(
+            &self,
+            address: &ResourceAddress,
+            _data: &[u8],
+        ) -> Result<ResourceMetadata, ChipsError> {
+            let _gate = self.gate.acquire().await.expect("闸 semaphore 不关闭");
+            let seq = self.commits.fetch_add(1, Ordering::SeqCst);
+            Ok(ResourceMetadata {
+                uri: address.uri.clone(),
+                size: 1,
+                mime_type: "application/octet-stream".into(),
+                version: format!("gated-v{seq}"),
+                scope: ScopeKind::Plugin,
+            })
+        }
+        async fn delete(&self, address: &ResourceAddress) -> Result<(), ChipsError> {
+            Err(ResourceError::ReadOnly {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error())
+        }
+        async fn rename(
+            &self,
+            from: &ResourceAddress,
+            _to: &ResourceAddress,
+        ) -> Result<(), ChipsError> {
+            Err(ResourceError::ReadOnly {
+                uri: from.uri.clone(),
+            }
+            .to_chips_error())
+        }
+        async fn copy(
+            &self,
+            from: &ResourceAddress,
+            _to: &ResourceAddress,
+        ) -> Result<(), ChipsError> {
+            Err(ResourceError::ReadOnly {
+                uri: from.uri.clone(),
+            }
+            .to_chips_error())
+        }
+        async fn create_directory(&self, address: &ResourceAddress) -> Result<(), ChipsError> {
+            Err(ResourceError::ReadOnly {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error())
+        }
+        async fn set_metadata(
+            &self,
+            _address: &ResourceAddress,
+            _metadata: FileMetadata,
+        ) -> Result<(), ChipsError> {
+            Err(ResourceError::ReadOnly {
+                uri: "gated".into(),
+            }
+            .to_chips_error())
+        }
+    }
+
     fn registration(scope: &str, kind: ScopeKind, provider_id: &str) -> ScopeRegistration {
         ScopeRegistration {
             scope: scope.into(),
@@ -1837,6 +1964,74 @@ mod tests {
             .await
             .expect("覆盖提交");
         assert_ne!(second.version, metadata.version);
+    }
+
+    #[tokio::test]
+    async fn test_commit_write_async_arm_does_not_starve_single_thread_executor() {
+        // 异步形收口锁测（#151 残账，段三 #157）：Manager 异步写族入口的排队
+        // 不得占用执行器线程——单线程 runtime 下，任务 A 持路径写锁停在
+        // Provider 写（Pending），同路径任务 B 必须异步排队、A 释放后放行。
+        // 旧同步 Condvar 形态下 B 等待独占线程、A 的释放点永不可达，本测试
+        // 必永挂（挂死即回归信号）。
+        let gate = Arc::new(tokio::sync::Semaphore::new(0));
+        let provider = Arc::new(GatedWriteProvider {
+            gate: Arc::clone(&gate),
+            commits: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let manager = Arc::new(ResourceManager::default());
+        manager
+            .register_provider(provider)
+            .expect("gated Provider 注册必须成功");
+        manager
+            .register_scope(registration("plugin-gated-1", ScopeKind::Plugin, "gated"))
+            .expect("作用域注册必须成功");
+        let session = writer_session(&manager, &["plugin-gated-1"]);
+        let first = {
+            let manager = Arc::clone(&manager);
+            tokio::spawn(async move {
+                manager
+                    .commit_write(WriteRequest {
+                        session,
+                        scope: "plugin-gated-1".into(),
+                        path: crate::path_guard::VirtualPath::from_validated("x/a.bin".into()),
+                        bytes: vec![7],
+                    })
+                    .await
+            })
+        };
+        let second = {
+            let manager = Arc::clone(&manager);
+            tokio::spawn(async move {
+                manager
+                    .commit_write(WriteRequest {
+                        session,
+                        scope: "plugin-gated-1".into(),
+                        path: crate::path_guard::VirtualPath::from_validated("x/a.bin".into()),
+                        bytes: vec![8],
+                    })
+                    .await
+            })
+        };
+        for _ in 0..16 {
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            !first.is_finished() && !second.is_finished(),
+            "闸未开前两次提交都不得完成"
+        );
+        gate.add_permits(2);
+        let first_metadata = first
+            .await
+            .expect("首个任务不得 panic")
+            .expect("首个提交必须成功");
+        let second_metadata = second
+            .await
+            .expect("排队任务不得 panic")
+            .expect("释放后排队提交必须成功");
+        assert_ne!(
+            first_metadata.version, second_metadata.version,
+            "两次提交按序各得新版本"
+        );
     }
 
     #[tokio::test]

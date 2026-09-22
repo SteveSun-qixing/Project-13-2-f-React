@@ -17,6 +17,10 @@
 //! `NotSupported` / `CrossScope` 两变体纳入变体→码映射锁（Unicode 触发臂按
 //! 主智能体 2026-09-21 码归属更正由 `PathInvalid{reason: unicode}` 承载，
 //! 复用既有 `PathInvalid → RESOURCE_PATH_INVALID` 映射锁，不另立变体）。
+//!
+//! 段三随单：`unicode` 触发臂覆盖面按工单043 裁定 A1 收紧为 Unicode 非字符
+//! 全集（U+nFFFE/U+nFFFF 全 17 平面 + 非字符区 U+FDD0–U+FDEF + U+FFFD），
+//! 错误码值与 reason 词表零改动，产生例随单扩充。
 
 use chips_resource::error::{
     http_status_for, retryable_for, RESOURCE_ALREADY_EXISTS, RESOURCE_BUSY, RESOURCE_CROSS_SCOPE,
@@ -424,8 +428,9 @@ fn test_scope_operation_wordlist_complete() {
 #[test]
 fn test_unicode_reason_has_production() {
     // 工单042 裁定④触发臂在册产生面锁：段二 B1 起 `unicode` reason 由
-    // 「零产生」翻为「有产生」（触发实现 src/path_guard.rs:54-77；
-    // 单测 src/path_guard.rs:470 / :489 / :510 / :523）。此处经公开 URI
+    // 「零产生」翻为「有产生」（触发实现 `src/path_guard.rs`
+    // `VirtualPath::validate` Unicode 臂与 `is_forbidden_unicode`，段三按
+    // 工单043 裁定 A1 收紧为 Unicode 非字符全集）。此处经公开 URI
     // 入口逐字锁码值与 reason（2026-09-21 码归属更正：路径族
     // `RESOURCE_PATH_INVALID` + `IResourcePathErrorDetails{uri, path, reason}`）：
     let limits = ResourceLimits::default();
@@ -437,6 +442,12 @@ fn test_unicode_reason_has_production() {
         "chips-resource://card-1/a%EF%BF%BDb",    // U+FFFD 替换字符
         "chips-resource://card-1/a%EF%BF%BEb",    // U+FFFE 非字符
         "chips-resource://card-1/a%F2%AF%BF%BFb", // U+AFFFF（平面 10）
+        // 工单043 裁定 A1 Unicode 全集补臂（段三收口）：平面 11–16 末端
+        // 非字符族与非字符区 U+FDD0–U+FDEF。
+        "chips-resource://card-1/a%F2%BF%BF%BEb", // U+BFFFE（平面 11）
+        "chips-resource://card-1/a%F4%8F%BF%BFb", // U+10FFFF（平面 16 末端）
+        "chips-resource://card-1/a%EF%B7%90b",    // U+FDD0（非字符区区首）
+        "chips-resource://card-1/a%EF%B7%AFb",    // U+FDEF（非字符区区尾）
     ] {
         let error = chips_resource::resolve_input(input, &limits)
             .expect_err("{input} 必须触发 Unicode 臂拒绝");

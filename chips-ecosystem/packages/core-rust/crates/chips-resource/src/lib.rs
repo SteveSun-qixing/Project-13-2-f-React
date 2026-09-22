@@ -43,7 +43,11 @@
 //! 与流式写入提交面（`open_write_stream` → `commit_write_stream`，
 //! 《04.04》§4.9 单写者路径锁 + 零残留 temp 清理），并把
 //! `RESOURCE_READ_ONLY` 的 `details.uri` 统一到精确目标 uri
-//! （工单044 §三.5 裁定⑧-2）。HTTP Provider 挂载、缓存与单一飞行
+//! （工单044 §三.5 裁定⑧-2）。段三 #157 收口捆绑单：Unicode 触发臂按
+//! 工单043 裁定 A1 收紧为非字符全集（U+nFFFE/U+nFFFF 全 17 平面 +
+//! U+FDD0–U+FDEF + U+FFFD，《06.02》§2.4），Manager 异步写族入口改经
+//! `WriteCoordinator::lock_async`（#151 异步形残账收口）。HTTP Provider
+//! 挂载、缓存与单一飞行
 //! （§六之外的 P2/P3）、`file:*` / `resource:*` 能力面接线、
 //! Neon 绑定与 host TS 适配层均不在本段。
 //!

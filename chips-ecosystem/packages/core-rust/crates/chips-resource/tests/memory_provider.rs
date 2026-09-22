@@ -309,6 +309,10 @@ async fn test_unicode_trigger_arm_at_uri_layer() {
         "chips-resource://memory/%F5%80%80%80",
         "chips-resource://memory/a%EF%BF%BDb",
         "chips-resource://memory/a%EF%BF%BEb",
+        // 工单043 裁定 A1 Unicode 全集补臂（段三收口）：平面 16 末端与非字符区
+        // U+FDD0–U+FDEF 在 URI 公开入口同码同 reason。
+        "chips-resource://memory/a%F4%8F%BF%BEb",
+        "chips-resource://memory/a%EF%B7%90b",
     ] {
         let error = manager
             .resolve(input, session, ResourceOperation::Read)

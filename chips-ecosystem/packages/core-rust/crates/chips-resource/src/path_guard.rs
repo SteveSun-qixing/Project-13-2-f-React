@@ -49,7 +49,8 @@ impl VirtualPath {
         }
         // 百分号解码仅一次；非法 `%` 序列（非两位十六进制）属语法层
         // （《06》§2.6 `invalid_encoding`）；解码产物非合法 UTF-8 或含非字符/
-        // 替换字符属 Unicode 触发臂（《06》§2.4 Unicode 行，工单042 裁定④，
+        // 替换字符属 Unicode 触发臂（《06》§2.4 Unicode 行，工单042 裁定④触发臂、
+        // 工单043 裁定 A1 收紧为 Unicode 非字符全集，见 [`is_forbidden_unicode`]，
         // 主智能体 2026-09-21 码归属更正：码走路径族 `RESOURCE_PATH_INVALID`、
         // `details.reason = unicode`，与 §7.3 `IResourcePathErrorDetails` 同表）。
         let decoded = match percent_decode_checked(raw) {
@@ -224,14 +225,18 @@ pub fn percent_decode_checked(input: &str) -> Result<String, PercentDecodeFailur
     String::from_utf8(output).map_err(|_| PercentDecodeFailure::NotUnicode)
 }
 
-/// 判定 Unicode 触发臂禁止出现的码位（《06》§2.4 Unicode 行，工单042 裁定④细则）：
-/// 替换字符 U+FFFD；非字符 U+FFFE/U+FFFF 与 U+nFFFE/U+nFFFF（n = 1..10，
-/// 即平面 0–10 的 `xxFFFE`/`xxFFFF` 形态）。NFC 归一差异本身不在此列
-/// （归一后校验与比较，永不因归一差异拒绝）。
+/// 判定 Unicode 触发臂禁止出现的码位（《06》§2.4 Unicode 行，工单042 裁定④
+/// 触发臂 + 工单043 裁定 A1 收紧为 Unicode 非字符全集）：替换字符 U+FFFD；
+/// 非字符取 Unicode 全集共 66 码位——U+nFFFE/U+nFFFF（n = 0–16，全 17 平面，
+/// 含 U+FFFE/U+FFFF；`char` 码位上界即 U+10FFFF，故 `(code_point & 0xFFFE)
+/// == 0xFFFE` 天然覆盖全部平面）与非字符区 U+FDD0–U+FDEF。NFC 归一差异本身
+/// 不在此列（归一后校验与比较，永不因归一差异拒绝）。
 #[must_use]
 pub fn is_forbidden_unicode(c: char) -> bool {
     let code_point = c as u32;
-    code_point == 0xFFFD || ((code_point & 0xFFFE) == 0xFFFE && (code_point >> 16) <= 10)
+    code_point == 0xFFFD
+        || (0xFDD0..=0xFDEF).contains(&code_point)
+        || (code_point & 0xFFFE) == 0xFFFE
 }
 
 /// 百分号解码仅一次；非法序列（语法或产物非 UTF-8）返回 `None`。
@@ -493,8 +498,10 @@ mod tests {
 
     #[test]
     fn test_unicode_arm_noncharacters_rejected() {
-        // 非字符与替换字符：U+FFFD（%EF%BF%BD）、U+FFFE（%EF%BF%BE）、
-        // U+FFFF（%EF%BF%BF）、U+1FFFE/U+1FFFF（平面 1–10 同形态）。
+        // 非字符与替换字符（《06》§2.4 Unicode 行，工单043 裁定 A1 Unicode 全集）：
+        // U+FFFD（%EF%BF%BD）、U+FFFE（%EF%BF%BE）、U+FFFF（%EF%BF%BF）、
+        // U+nFFFE/U+nFFFF 全 17 平面同形态（含平面 11 的 U+BFFFE 与平面 16 末端
+        // U+10FFFE/U+10FFFF）、非字符区 U+FDD0–U+FDEF（%EF%B7%90/%EF%B7%AF）。
         for raw in [
             "a%EF%BF%BDb",
             "a%EF%BF%BEb",
@@ -502,6 +509,11 @@ mod tests {
             "a%F0%9F%BF%BEb",
             "a%F0%9F%BF%BFb",
             "a%F2%AF%BF%BFb",
+            "a%F2%BF%BF%BEb",
+            "a%F4%8F%BF%BEb",
+            "a%F4%8F%BF%BFb",
+            "a%EF%B7%90b",
+            "a%EF%B7%AFb",
         ] {
             let error = VirtualPath::validate(raw, "u", &limits()).expect_err("必须拒绝");
             assert_eq!(error.code(), crate::error::RESOURCE_PATH_INVALID, "{raw}");
@@ -510,9 +522,11 @@ mod tests {
                 "unicode"
             );
         }
-        // 字面（未编码）替换字符同样触发。
-        let error = VirtualPath::validate("a\u{FFFD}b", "u", &limits()).expect_err("必须拒绝");
-        assert_eq!(error.details().unwrap()["reason"], "unicode");
+        // 字面（未编码）替换字符与全集非字符同样触发。
+        for raw in ["a\u{FFFD}b", "a\u{FDD0}b", "a\u{FDEF}b", "a\u{10FFFE}b"] {
+            let error = VirtualPath::validate(raw, "u", &limits()).expect_err("必须拒绝");
+            assert_eq!(error.details().unwrap()["reason"], "unicode", "{raw}");
+        }
     }
 
     #[test]
@@ -544,13 +558,25 @@ mod tests {
             percent_decode_checked("%FF"),
             Err(PercentDecodeFailure::NotUnicode)
         );
+        // Unicode 非字符全集逐值锁（工单043 裁定 A1，与《06.02》§2.4 对表）：
+        // 全 17 平面 U+nFFFE/U+nFFFF 形态 + 非字符区 U+FDD0–U+FDEF + U+FFFD。
         assert!(is_forbidden_unicode('\u{FFFD}'));
         assert!(is_forbidden_unicode('\u{FFFE}'));
         assert!(is_forbidden_unicode('\u{FFFF}'));
         assert!(is_forbidden_unicode('\u{1FFFE}'));
         assert!(is_forbidden_unicode('\u{AFFFF}'));
+        assert!(is_forbidden_unicode('\u{BFFFE}'));
+        assert!(is_forbidden_unicode('\u{BFFFF}'));
+        assert!(is_forbidden_unicode('\u{10FFFE}'));
+        assert!(is_forbidden_unicode('\u{10FFFF}'));
+        assert!(is_forbidden_unicode('\u{FDD0}'));
+        assert!(is_forbidden_unicode('\u{FDEF}'));
         assert!(!is_forbidden_unicode('é'));
-        assert!(!is_forbidden_unicode('\u{FDD0}'));
+        // 全集之外不误伤：区带相邻码位与已分配码位放行（U+FDCF 是保证不
+        // 分配的保留位、U+FDF0 起为阿拉伯连字，均非 Unicode 非字符）。
+        assert!(!is_forbidden_unicode('\u{FDCF}'));
+        assert!(!is_forbidden_unicode('\u{FDF0}'));
+        assert!(!is_forbidden_unicode('\u{BFFFD}'));
     }
 
     #[test]
