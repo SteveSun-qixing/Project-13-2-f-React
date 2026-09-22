@@ -27,7 +27,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use chips_core::{ChipsError, HandleId, PluginId, SessionId};
+use chips_core::{
+    emit_permission_decision, ChipsError, DecisionAction, DecisionDomain, DecisionObserver,
+    HandleId, PermissionDecision, PluginId, SessionId,
+};
 
 use crate::archive::{ArchiveProvider, ARCHIVE_PROVIDER_ID};
 use crate::constants::ResourceLimits;
@@ -36,7 +39,7 @@ use crate::error::{InvalidateReason, ResourceError, ResourceResult, ScopeOperati
 use crate::handle::{HandleEntry, HandleTable, StreamSlot};
 use crate::memory::MemoryProvider;
 use crate::path_guard::VirtualPath;
-use crate::permission::{PermissionChecker, ResourceOperation};
+use crate::permission::{DecisionArm, PermissionChecker, ResourceOperation};
 use crate::provider::{
     ByteRange, DirectoryEntry, ResourceAddress, ResourceMetadata, ResourceProvider,
 };
@@ -220,7 +223,6 @@ impl ProviderRegistry {
 
 /// 资源管理器（《04》§11.1 核心结构；段二 B3 起含 WriteCoordinator
 /// 路径写锁与流式写入登记表；缓存与单一飞行仍属后续波次）。
-#[derive(Debug)]
 pub struct ResourceManager {
     limits: ResourceLimits,
     scopes: Arc<ScopeRegistry>,
@@ -234,18 +236,41 @@ pub struct ResourceManager {
     write_coordinator: WriteCoordinator,
     write_streams: Mutex<BTreeMap<u64, WriteStreamRecord>>,
     next_write_stream_id: AtomicU64,
+    /// 权限判定出站观察面：构造期注入、终身不可换（RFC §八条 1）；判定
+    /// 素材在 `resolve` 的 `decide` 收敛处、各注册表锁外发射（RFC §六条 4）。
+    observer: Arc<dyn DecisionObserver>,
 }
 
-impl Default for ResourceManager {
-    fn default() -> Self {
-        Self::new(ResourceLimits::default())
+impl std::fmt::Debug for ResourceManager {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ResourceManager")
+            .field("limits", &self.limits)
+            .field("scopes", &self.scopes)
+            .field("sessions", &self.sessions)
+            .field("providers", &self.providers)
+            .field("handles", &self.handles)
+            .field("memory_provider", &self.memory_provider)
+            .field("memory_mount", &self.memory_mount)
+            .field("directory_provider", &self.directory_provider)
+            .field("archive_provider", &self.archive_provider)
+            .field("write_coordinator", &self.write_coordinator)
+            .field("write_streams", &self.write_streams)
+            .field("next_write_stream_id", &self.next_write_stream_id)
+            .field("observer", &"DecisionObserver")
+            .finish()
     }
 }
 
 impl ResourceManager {
-    /// 以限额构造管理器。
+    /// 以限额与权限判定观察面构造管理器。
+    ///
+    /// `observer` 为权限判定出站观察面（`chips_core::DecisionObserver`，
+    /// RFC-权限审计跨层采集sink裁定 §5.1/§八）：构造期显式注入、终身不可
+    /// 换；`Default` 实现随波收口移除，不留默认无观察形态。测试与接线波
+    /// 落地前显式注入 `chips_core::NoopDecisionObserver`。
     #[must_use]
-    pub fn new(limits: ResourceLimits) -> Self {
+    pub fn new(limits: ResourceLimits, observer: Arc<dyn DecisionObserver>) -> Self {
         let handles = HandleTable::new(limits.max_handles_per_plugin, limits.max_handles_total);
         Self {
             limits,
@@ -260,6 +285,7 @@ impl ResourceManager {
             write_coordinator: WriteCoordinator::new(),
             write_streams: Mutex::new(BTreeMap::new()),
             next_write_stream_id: AtomicU64::new(1),
+            observer,
         }
     }
 
@@ -419,7 +445,7 @@ impl ResourceManager {
         // `RESOURCE_READ_ONLY` 臂携带目标精确 uri（工单044 裁定 §三.5-⑧-2
         // 统一形，《06.07》§7.3）：
         let canonical_uri = uri.to_canonical_string();
-        PermissionChecker::new(
+        let (decision, arm) = PermissionChecker::new(
             &session_record.owner,
             &session_record,
             &registration,
@@ -428,8 +454,17 @@ impl ResourceManager {
             uri.external.as_ref(),
             canonical_uri.clone(),
         )
-        .decide()
-        .into_result()?;
+        .decide_with_arm();
+        // 判定素材发射：decide 经 into_result 收敛处、各注册表锁外（decide
+        // 为纯函数，RFC §六条 4/P2 clone-out 同族约束）。直通臂与
+        // READ_ONLY 非权限臂不产素材，deny 臂（含 Policy 类）全发
+        // （RFC §九 9.3-3）。
+        if let Some(material) =
+            resource_decision_material(&arm, &session_record.owner, session, &canonical_uri)
+        {
+            emit_permission_decision(&*self.observer, &material);
+        }
+        decision.into_result()?;
         // 5. Provider 选择与地址构建。
         let path = uri.path.clone().ok_or_else(|| ResourceError::NotFound {
             uri: canonical_uri.clone(),
@@ -1265,6 +1300,61 @@ fn external_provider_id(uri: &CanonicalUri) -> &'static str {
     }
 }
 
+/// Resource 域判定素材组装（RFC-权限审计跨层采集sink裁定 §5.1 字段口径）：
+/// `plugin_id` = `session.owner`；`resource_uri` = 规范 URI 原值（§8.5 脱敏
+/// 归宿主写入侧）；`target` = `denied()` 的 `chips-resource://<scope>/`
+/// 形态（allow 臂可缺省）；`capability_id` / `request_id` / `trace_id` /
+/// `qualifier` 恒 None（resource 域无该键轨，宿主以段一横切补挂，RFC §5.3）。
+/// 直通臂与非权限拒绝臂返回 `None`——不发素材（RFC §九 9.3-3）。
+fn resource_decision_material(
+    arm: &DecisionArm,
+    owner: &PluginId,
+    session: SessionId,
+    resource_uri: &str,
+) -> Option<PermissionDecision> {
+    match arm {
+        DecisionArm::PassThrough | DecisionArm::NonPermissionDenied => None,
+        DecisionArm::JudgedAllow { required } => Some(PermissionDecision {
+            domain: DecisionDomain::Resource,
+            action: DecisionAction::Allow,
+            plugin_id: owner.clone(),
+            session_id: session,
+            permission: required.first().cloned().unwrap_or_default(),
+            required: required.clone(),
+            missing: Vec::new(),
+            reason: None,
+            capability_id: None,
+            resource_uri: Some(resource_uri.to_owned()),
+            target: None,
+            request_id: None,
+            trace_id: None,
+            qualifier: None,
+        }),
+        DecisionArm::JudgedDeny {
+            permission,
+            required,
+            missing,
+            reason,
+            target,
+        } => Some(PermissionDecision {
+            domain: DecisionDomain::Resource,
+            action: DecisionAction::Deny,
+            plugin_id: owner.clone(),
+            session_id: session,
+            permission: permission.clone(),
+            required: required.clone(),
+            missing: missing.clone(),
+            reason: Some(*reason),
+            capability_id: None,
+            resource_uri: Some(resource_uri.to_owned()),
+            target: Some(target.clone()),
+            request_id: None,
+            trace_id: None,
+            qualifier: None,
+        }),
+    }
+}
+
 /// 大小上限校验（《04》§12：`maxResourceBytes`；超限 `RESOURCE_TOO_LARGE`）。
 fn check_size(uri: &str, limit: u64, size: u64) -> ResourceResult<()> {
     if size > limit {
@@ -1325,6 +1415,8 @@ pub fn handles_of_session(manager: &ResourceManager, session: SessionId) -> Vec<
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    use chips_core::NoopDecisionObserver;
 
     use crate::provider::{DirectoryEntry, FileMetadata, ResourceStream};
     use crate::scope::{Origin, ScopePolicy};
@@ -1586,7 +1678,8 @@ mod tests {
     }
 
     fn manager_with_stub() -> ResourceManager {
-        let manager = ResourceManager::default();
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
         manager
             .register_provider(Arc::new(StubProvider::new("directory", 16)))
             .expect("Provider 注册必须成功");
@@ -1709,7 +1802,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_open_size_over_policy_limit() {
-        let manager = ResourceManager::default();
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
         manager
             .register_provider(Arc::new(StubProvider::new("directory", 4096)))
             .unwrap();
@@ -1862,7 +1956,8 @@ mod tests {
     async fn test_scope_pointing_unregistered_provider_is_internal() {
         // 装配兜底：作用域注册项指向未注册 Provider（启动期装配错误），
         // `open` 返回 `RESOURCE_INTERNAL`（《06》§7.2 协议层兜底），不泄漏句柄。
-        let manager = ResourceManager::default();
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
         manager
             .register_scope(registration("card-1", ScopeKind::Document, "absent"))
             .expect("作用域注册必须成功");
@@ -1978,7 +2073,10 @@ mod tests {
             gate: Arc::clone(&gate),
             commits: std::sync::atomic::AtomicUsize::new(0),
         });
-        let manager = Arc::new(ResourceManager::default());
+        let manager = Arc::new(ResourceManager::new(
+            ResourceLimits::default(),
+            Arc::new(NoopDecisionObserver),
+        ));
         manager
             .register_provider(provider)
             .expect("gated Provider 注册必须成功");
@@ -2314,7 +2412,8 @@ mod tests {
 
     #[test]
     fn test_mount_directory_requires_existing_session() {
-        let manager = ResourceManager::default();
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
         let error = manager
             .mount_directory(
                 4242,
@@ -2333,7 +2432,8 @@ mod tests {
 
     #[test]
     fn test_mount_directory_rejects_foreign_origin_or_kind() {
-        let manager = ResourceManager::default();
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
         let session = writer_session(&manager, &[]);
         // 非目录 origin（Memory）走 ZIP/内存等专责通道，不在此入口。
         let mut foreign_origin = directory_registration(
@@ -2366,7 +2466,8 @@ mod tests {
 
     #[test]
     fn test_mount_directory_absent_root_is_not_found() {
-        let manager = ResourceManager::default();
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
         let session = writer_session(&manager, &[]);
         let absent = temp_root("absent").join("no-such-dir");
         let error = manager
@@ -2393,7 +2494,8 @@ mod tests {
 
     #[test]
     fn test_mount_directory_twice_is_already_exists_and_normalizes_provider() {
-        let manager = ResourceManager::default();
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
         let session = writer_session(&manager, &[]);
         let root = temp_root("dup");
         let mut registration =

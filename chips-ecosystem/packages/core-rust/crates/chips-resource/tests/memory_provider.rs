@@ -7,6 +7,9 @@
 //! 《06》§7.2 在册表。
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
+
+use chips_core::NoopDecisionObserver;
 
 use chips_resource::error::{
     RESOURCE_ALREADY_EXISTS, RESOURCE_HANDLE_RELEASED, RESOURCE_NOT_FOUND, RESOURCE_NOT_SUPPORTED,
@@ -45,7 +48,7 @@ fn mounted(manager: &ResourceManager) -> chips_core::SessionId {
 
 #[tokio::test]
 async fn test_memory_mount_read_write_lifecycle() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = mounted(&manager);
     let metadata = manager
         .commit_write(WriteRequest {
@@ -98,7 +101,7 @@ async fn test_memory_mount_read_write_lifecycle() {
 
 #[tokio::test]
 async fn test_memory_rename_copy_and_no_overwrite() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = mounted(&manager);
     for (path, bytes) in [("a.txt", &b"AAA"[..]), ("taken.txt", &b"T"[..])] {
         manager
@@ -185,7 +188,7 @@ async fn test_memory_rename_copy_and_no_overwrite() {
 
 #[tokio::test]
 async fn test_memory_capability_prechecks_at_manager() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = mounted(&manager);
     manager
         .commit_write(WriteRequest {
@@ -248,7 +251,7 @@ async fn test_memory_capability_prechecks_at_manager() {
 
 #[tokio::test]
 async fn test_close_creator_session_evicts_without_persistence() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = mounted(&manager);
     manager
         .commit_write(WriteRequest {
@@ -300,7 +303,7 @@ async fn test_unicode_trigger_arm_at_uri_layer() {
     // 工单042 裁定④（2026-09-21 码归属更正）：触发臂产生
     // `RESOURCE_PATH_INVALID` + reason=unicode；
     // NFC 差异永不构成拒绝。
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = session_with(&manager, &[]);
     for input in [
         "chips-resource://memory/a%FFb",
@@ -347,7 +350,7 @@ async fn test_commit_write_read_only_capability_surface() {
     // 只读来源的 commit_write 在管理器层收口，两层各自锁：
     // ① Platform：判定矩阵直接按策略拒绝写入（《06.04》§4.3 行 6）；
     // ② dialog:open 只读临时授权：能力预检返回 READ_ONLY（持久化写禁止）。
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = session_with(&manager, &["resources:write"]);
     manager
         .register_scope(chips_resource::ScopeRegistration {

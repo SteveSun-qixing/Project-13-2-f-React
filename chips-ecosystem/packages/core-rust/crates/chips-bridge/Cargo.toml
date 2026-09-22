@@ -15,4 +15,9 @@ sha2 = "0.10"
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 
 [dev-dependencies]
+criterion.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "time"] }
+
+[[bench]]
+name = "admit_permission"
+harness = false

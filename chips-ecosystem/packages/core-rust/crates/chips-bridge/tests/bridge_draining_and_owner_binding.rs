@@ -25,7 +25,7 @@ use chips_bridge::{
     ProviderKind, ProviderRegistration, BRIDGE_CAPABILITY_CONFLICT, BRIDGE_CAPABILITY_NOT_FOUND,
     BRIDGE_INTERNAL, BRIDGE_TIMEOUT, DEFAULT_MAX_QUEUE,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 回声执行器：原样返回输入。
@@ -230,7 +230,7 @@ async fn wait_state_none(bridge: &Bridge, capability_id: &str) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_builtin_id_re_register_bound_to_original_owner() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider())
         .expect("平台服务域激活应成功");
@@ -287,7 +287,7 @@ async fn test_builtin_id_re_register_bound_to_original_owner() {
 
 #[test]
 fn test_cross_owner_registration_rejected_while_id_held() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider())
         .expect("平台服务域激活应成功");
@@ -325,7 +325,7 @@ fn test_cross_owner_registration_rejected_while_id_held() {
 
 #[test]
 fn test_unregistered_id_has_no_owner_binding_yet() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider())
         .expect("平台服务域激活应成功");
@@ -361,7 +361,7 @@ fn test_unregistered_id_has_no_owner_binding_yet() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_draining_rejects_new_calls_and_finishes_in_flight() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -452,7 +452,7 @@ async fn test_draining_rejects_new_calls_and_finishes_in_flight() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_draining_in_flight_times_out_then_unregisters() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider())
         .expect("激活应成功");
@@ -493,7 +493,7 @@ async fn test_draining_in_flight_times_out_then_unregisters() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_takeover_register_swaps_generation_and_drains_old() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -570,7 +570,7 @@ async fn test_takeover_register_swaps_generation_and_drains_old() {
 
 #[test]
 fn test_takeover_register_rejects_cross_owner_and_ungranted_id() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider())
         .expect("平台服务域激活应成功");
@@ -625,7 +625,7 @@ fn test_takeover_register_rejects_cross_owner_and_ungranted_id() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_takeover_while_draining_installs_active_generation() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -706,7 +706,7 @@ async fn test_takeover_while_draining_installs_active_generation() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_draining_keeps_serial_queue_waiters_and_rejects_arrivals() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -791,7 +791,7 @@ async fn test_draining_keeps_serial_queue_waiters_and_rejects_arrivals() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_begin_draining_without_in_flight_unregisters_immediately() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider())
         .expect("激活应成功");

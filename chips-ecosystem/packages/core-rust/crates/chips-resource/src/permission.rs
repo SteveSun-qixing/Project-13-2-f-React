@@ -54,6 +54,44 @@ impl Decision {
     }
 }
 
+/// 判定臂的素材视图（《RFC-权限审计跨层采集sink裁定》§9.3-3 发射纪律的
+/// 臂级判别面）：`PermissionChecker::decide_with_arm` 与 [`Decision`] 并行
+/// 产出，供 `ResourceManager` 在收敛处组装 [`chips_core::PermissionDecision`]。
+///
+/// 免权限直通臂未经过授予判定，**不发素材**（工单046 裁定二）；deny 臂
+/// （含 `Policy` 类，如 platform 写拒绝）**全发**，字段与 `denied()` 错误
+/// 载体逐字同值；`ResourceOperation` 的 `RESOURCE_READ_ONLY` 拒绝臂非权限
+/// 判定（无权源明细、无在册 `PermissionDenyReason` 对应值），归
+/// [`DecisionArm::NonPermissionDenied`]，不产权限素材。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DecisionArm {
+    /// 免权限直通臂（Platform 公开只读放行 / Plugin 自身作用域读 /
+    /// Document·Temporary·Memory 会话绑定免重复校验放行）——不入审计。
+    PassThrough,
+    /// 经过授予判定且放行，携该臂核对的所需权限全集（恒空 `missing`）。
+    JudgedAllow {
+        /// 该臂 required（照 decide 臂在册形态）。
+        required: Vec<String>,
+    },
+    /// 判定拒绝，携带与 `denied()` 错误载体同值的素材字段。
+    JudgedDeny {
+        /// 判定基础权限 ID（deny = 首个缺失项，与错误载体 `permission`
+        /// 同值；无缺失项的策略/越权臂照错误载体原值）。
+        permission: String,
+        /// 该臂 required。
+        required: Vec<String>,
+        /// 缺失全集。
+        missing: Vec<String>,
+        /// 拒绝原因（deny 必携）。
+        reason: PermissionDenyReason,
+        /// 判定目标（`chips-resource://<scope>/` 形态，与错误载体
+        /// `target` 同值）。
+        target: String,
+    },
+    /// 非权限判定的拒绝臂（`RESOURCE_READ_ONLY` 只读策略）：不产权限素材。
+    NonPermissionDenied,
+}
+
 /// 判定矩阵引擎。
 #[must_use]
 pub struct PermissionChecker<'a> {
@@ -101,15 +139,26 @@ impl<'a> PermissionChecker<'a> {
         required: Vec<String>,
         missing: Vec<String>,
         reason: PermissionDenyReason,
-    ) -> Decision {
-        Decision::Denied(ResourceError::PermissionDenied {
-            target: format!("chips-resource://{}/", self.registration.scope),
+    ) -> (Decision, DecisionArm) {
+        let target = format!("chips-resource://{}/", self.registration.scope);
+        let arm = DecisionArm::JudgedDeny {
             permission: permission.to_owned(),
-            required,
-            missing,
-            granted: self.granted.iter().cloned().collect(),
+            required: required.clone(),
+            missing: missing.clone(),
             reason,
-        })
+            target: target.clone(),
+        };
+        (
+            Decision::Denied(ResourceError::PermissionDenied {
+                target,
+                permission: permission.to_owned(),
+                required,
+                missing,
+                granted: self.granted.iter().cloned().collect(),
+                reason,
+            }),
+            arm,
+        )
     }
 
     fn has(&self, permission: &str) -> bool {
@@ -132,6 +181,12 @@ impl<'a> PermissionChecker<'a> {
     /// 执行在册判定。
     #[must_use]
     pub fn decide(self) -> Decision {
+        self.decide_with_arm().0
+    }
+
+    /// 执行在册判定并同时产出臂级素材视图（供观察面发射，RFC §9.3-3）。
+    #[must_use]
+    pub fn decide_with_arm(self) -> (Decision, DecisionArm) {
         match self.registration.kind {
             ScopeKind::Document => self.document(),
             ScopeKind::Workspace => self.workspace(),
@@ -146,39 +201,51 @@ impl<'a> PermissionChecker<'a> {
     /// Document（《06》§4.3 行 2/3）：会话绑定读取免重复校验；写入一律经文档
     /// 服务受控提交且要求 `resources:write`，`resource:write` 不适用；会话外
     /// 读取要求 `resources:read:<scopeId>`，默认拒绝。
-    fn document(self) -> Decision {
+    fn document(self) -> (Decision, DecisionArm) {
         match self.operation {
             ResourceOperation::Read => {
                 if self.session_bound() {
-                    return Decision::Allowed;
+                    return (Decision::Allowed, DecisionArm::PassThrough);
                 }
+                let required = vec![format!("resources:read:{}", self.registration.scope)];
                 if self.has_read_of(&self.registration.scope) {
-                    return Decision::Allowed;
+                    return (
+                        Decision::Allowed,
+                        DecisionArm::JudgedAllow {
+                            required: required.clone(),
+                        },
+                    );
                 }
+                let permission = required[0].clone();
                 self.denied(
-                    &format!("resources:read:{}", self.registration.scope),
-                    vec![format!("resources:read:{}", self.registration.scope)],
-                    vec![format!("resources:read:{}", self.registration.scope)],
+                    &permission,
+                    required.clone(),
+                    required,
                     PermissionDenyReason::NotGranted,
                 )
             }
             ResourceOperation::Write => {
+                let required = vec![PERMISSION_RESOURCES_WRITE.to_owned()];
                 if self.has(PERMISSION_RESOURCES_WRITE) {
-                    Decision::Allowed
-                } else {
-                    self.denied(
-                        PERMISSION_RESOURCES_WRITE,
-                        vec![PERMISSION_RESOURCES_WRITE.into()],
-                        vec![PERMISSION_RESOURCES_WRITE.into()],
-                        PermissionDenyReason::NotGranted,
-                    )
+                    return (
+                        Decision::Allowed,
+                        DecisionArm::JudgedAllow {
+                            required: required.clone(),
+                        },
+                    );
                 }
+                self.denied(
+                    PERMISSION_RESOURCES_WRITE,
+                    required.clone(),
+                    required,
+                    PermissionDenyReason::NotGranted,
+                )
             }
         }
     }
 
     /// Workspace（§4.3 行 1）：限持有工作区会话的插件；读写按限定值匹配。
-    fn workspace(self) -> Decision {
+    fn workspace(self) -> (Decision, DecisionArm) {
         if !self.session_bound() {
             return self.denied(
                 &format!("resources:read:{}", self.registration.scope),
@@ -192,21 +259,26 @@ impl<'a> PermissionChecker<'a> {
 
     /// Plugin（§4.3 行 4/5）：自身读取免权限、写入需 `resources:write`；
     /// 他人默认拒绝，按限定值授权放行。
-    fn plugin(self) -> Decision {
+    fn plugin(self) -> (Decision, DecisionArm) {
         if self.registration.owner == *self.caller {
             match self.operation {
-                ResourceOperation::Read => Decision::Allowed,
+                ResourceOperation::Read => (Decision::Allowed, DecisionArm::PassThrough),
                 ResourceOperation::Write => {
+                    let required = vec![PERMISSION_RESOURCES_WRITE.to_owned()];
                     if self.has(PERMISSION_RESOURCES_WRITE) {
-                        Decision::Allowed
-                    } else {
-                        self.denied(
-                            PERMISSION_RESOURCES_WRITE,
-                            vec![PERMISSION_RESOURCES_WRITE.into()],
-                            vec![PERMISSION_RESOURCES_WRITE.into()],
-                            PermissionDenyReason::NotGranted,
-                        )
+                        return (
+                            Decision::Allowed,
+                            DecisionArm::JudgedAllow {
+                                required: required.clone(),
+                            },
+                        );
                     }
+                    self.denied(
+                        PERMISSION_RESOURCES_WRITE,
+                        required.clone(),
+                        required,
+                        PermissionDenyReason::NotGranted,
+                    )
                 }
             }
         } else {
@@ -216,9 +288,9 @@ impl<'a> PermissionChecker<'a> {
 
     /// Platform（§4.3 行 6）：任意插件免权限公开只读；写入禁止（只读策略在
     /// 写入能力预检收口，见 `ResourceManager` 预检）。
-    fn platform(self) -> Decision {
+    fn platform(self) -> (Decision, DecisionArm) {
         match self.operation {
-            ResourceOperation::Read => Decision::Allowed,
+            ResourceOperation::Read => (Decision::Allowed, DecisionArm::PassThrough),
             ResourceOperation::Write => self.denied(
                 PERMISSION_RESOURCES_WRITE,
                 Vec::new(),
@@ -230,7 +302,7 @@ impl<'a> PermissionChecker<'a> {
 
     /// External（§4.3 行 7）：`resources:read:external`（或全局读）+
     /// `network:http:<host>`；写入禁止（策略）。
-    fn external(self) -> Decision {
+    fn external(self) -> (Decision, DecisionArm) {
         match self.operation {
             ResourceOperation::Read => {
                 let scope_read = self.has_global_read()
@@ -249,7 +321,7 @@ impl<'a> PermissionChecker<'a> {
                 let mut required = Vec::new();
                 let mut missing = Vec::new();
                 if !scope_read {
-                    required.push(PERMISSION_RESOURCES_READ_EXTERNAL.into());
+                    required.push(PERMISSION_RESOURCES_READ_EXTERNAL.to_owned());
                     missing.push(PERMISSION_RESOURCES_READ_EXTERNAL.to_owned());
                 }
                 if !network {
@@ -257,7 +329,7 @@ impl<'a> PermissionChecker<'a> {
                     missing.push(format!("{PERMISSION_NETWORK_HTTP_PREFIX}{host}"));
                 }
                 if missing.is_empty() {
-                    Decision::Allowed
+                    (Decision::Allowed, DecisionArm::JudgedAllow { required })
                 } else {
                     let primary = required[0].clone();
                     self.denied(
@@ -279,7 +351,7 @@ impl<'a> PermissionChecker<'a> {
 
     /// Temporary（§4.3 行 8）：授权 = 会话绑定；授权后读取免权限；写入按临时
     /// 授权规则要求 `resources:write` 且作用域可写（`dialog:save` 形态）。
-    fn temporary(self) -> Decision {
+    fn temporary(self) -> (Decision, DecisionArm) {
         if !self.session_bound() {
             return self.denied(
                 &format!("resources:read:{}", self.registration.scope),
@@ -289,23 +361,31 @@ impl<'a> PermissionChecker<'a> {
             );
         }
         match self.operation {
-            ResourceOperation::Read => Decision::Allowed,
+            ResourceOperation::Read => (Decision::Allowed, DecisionArm::PassThrough),
             ResourceOperation::Write => {
                 if self.registration.policy.read_only {
-                    return Decision::Denied(ResourceError::ReadOnly {
-                        uri: self.target_uri.clone(),
-                    });
+                    return (
+                        Decision::Denied(ResourceError::ReadOnly {
+                            uri: self.target_uri.clone(),
+                        }),
+                        DecisionArm::NonPermissionDenied,
+                    );
                 }
+                let required = vec![PERMISSION_RESOURCES_WRITE.to_owned()];
                 if self.has(PERMISSION_RESOURCES_WRITE) {
-                    Decision::Allowed
-                } else {
-                    self.denied(
-                        PERMISSION_RESOURCES_WRITE,
-                        vec![PERMISSION_RESOURCES_WRITE.into()],
-                        vec![PERMISSION_RESOURCES_WRITE.into()],
-                        PermissionDenyReason::NotGranted,
-                    )
+                    return (
+                        Decision::Allowed,
+                        DecisionArm::JudgedAllow {
+                            required: required.clone(),
+                        },
+                    );
                 }
+                self.denied(
+                    PERMISSION_RESOURCES_WRITE,
+                    required.clone(),
+                    required,
+                    PermissionDenyReason::NotGranted,
+                )
             }
         }
     }
@@ -313,7 +393,7 @@ impl<'a> PermissionChecker<'a> {
     /// Memory（§4.3 行 9）：仅创建者会话；读取会话内免重复校验，写入要求
     /// `resources:write`（每次提交重新判定，不落盘由 MemoryProvider 保证）；
     /// 跨会话传递禁止——作用域不绑定即拒绝。
-    fn memory(self) -> Decision {
+    fn memory(self) -> (Decision, DecisionArm) {
         if !self.session_bound() {
             return self.denied(
                 &format!("resources:read:{}", self.registration.scope),
@@ -323,24 +403,29 @@ impl<'a> PermissionChecker<'a> {
             );
         }
         match self.operation {
-            ResourceOperation::Read => Decision::Allowed,
+            ResourceOperation::Read => (Decision::Allowed, DecisionArm::PassThrough),
             ResourceOperation::Write => {
+                let required = vec![PERMISSION_RESOURCES_WRITE.to_owned()];
                 if self.has(PERMISSION_RESOURCES_WRITE) {
-                    Decision::Allowed
-                } else {
-                    self.denied(
-                        PERMISSION_RESOURCES_WRITE,
-                        vec![PERMISSION_RESOURCES_WRITE.into()],
-                        vec![PERMISSION_RESOURCES_WRITE.into()],
-                        PermissionDenyReason::NotGranted,
-                    )
+                    return (
+                        Decision::Allowed,
+                        DecisionArm::JudgedAllow {
+                            required: required.clone(),
+                        },
+                    );
                 }
+                self.denied(
+                    PERMISSION_RESOURCES_WRITE,
+                    required.clone(),
+                    required,
+                    PermissionDenyReason::NotGranted,
+                )
             }
         }
     }
 
     /// 按限定值匹配的一般读写要求（Workspace / 他人 Plugin）。
-    fn require(&self, operation: ResourceOperation) -> Decision {
+    fn require(&self, operation: ResourceOperation) -> (Decision, DecisionArm) {
         let permission = match operation {
             ResourceOperation::Read => format!("resources:read:{}", self.registration.scope),
             ResourceOperation::Write => format!("resources:write:{}", self.registration.scope),
@@ -349,10 +434,10 @@ impl<'a> PermissionChecker<'a> {
             ResourceOperation::Read => self.has_read_of(&self.registration.scope),
             ResourceOperation::Write => self.has_write_of(&self.registration.scope),
         };
+        let required = vec![permission.clone()];
         if satisfied {
-            Decision::Allowed
+            (Decision::Allowed, DecisionArm::JudgedAllow { required })
         } else {
-            let required = vec![permission.clone()];
             let missing = vec![permission.clone()];
             self.denied(
                 &permission,

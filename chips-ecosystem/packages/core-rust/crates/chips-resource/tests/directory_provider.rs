@@ -12,6 +12,9 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
+use chips_core::NoopDecisionObserver;
 
 use chips_resource::error::{
     RESOURCE_ALREADY_EXISTS, RESOURCE_BUSY, RESOURCE_NOT_EMPTY, RESOURCE_NOT_FOUND,
@@ -139,7 +142,7 @@ fn fs_request(session: chips_core::SessionId, source: &str, target: Option<&str>
 
 #[tokio::test]
 async fn test_mount_directory_read_and_stream_lifecycle() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("lifecycle");
     fixture.write("notes/memo.txt", b"hello-directory");
@@ -199,7 +202,7 @@ async fn test_mount_directory_read_and_stream_lifecycle() {
 #[tokio::test]
 async fn test_directory_stream_chunk_cap_and_busy_occupancy() {
     // 300 KiB 载荷：读面全程无整档驻留（分块 ≤ 256 KiB 在册上限）。
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("busy");
     let payload: Vec<u8> = (0..300 * 1024).map(|index| (index % 251) as u8).collect();
@@ -281,7 +284,7 @@ async fn test_directory_stream_chunk_cap_and_busy_occupancy() {
 
 #[tokio::test]
 async fn test_directory_read_not_found_family() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("notfound");
     fixture.write("notes/memo.txt", b"m");
@@ -340,7 +343,7 @@ async fn test_directory_read_not_found_family() {
 #[cfg(unix)]
 #[tokio::test]
 async fn test_directory_symlink_escape_and_traversal_defense() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("escape");
     let outside = TempRoot::new("outside");
@@ -395,7 +398,7 @@ async fn test_directory_symlink_escape_and_traversal_defense() {
 
 #[tokio::test]
 async fn test_directory_list_surface_shape() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("list");
     fixture.write("images/a.png", b"PNG");
@@ -436,7 +439,7 @@ async fn test_directory_list_surface_shape() {
 
 #[tokio::test]
 async fn test_directory_too_large_at_open() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("toolarge");
     fixture.write("big.bin", &vec![9u8; 1024]);
@@ -465,7 +468,7 @@ async fn test_directory_too_large_at_open() {
 
 #[tokio::test]
 async fn test_mount_directory_duplicate_is_already_exists() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("dup");
     mount_directory(
@@ -514,7 +517,7 @@ async fn test_mount_directory_duplicate_is_already_exists() {
 async fn test_directory_read_only_temporary_mount_arm() {
     // `dialog:open` 只读临时授权域：读/列举放行，写族在能力预检收口
     // READ_ONLY（《04.05》§5.3 只读来源臂）。
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("readonly");
     fixture.write("granted.txt", b"RO");
@@ -573,7 +576,7 @@ async fn test_directory_workspace_and_document_kind_gates() {
     // 《04.05》§5.3 种类门：delete 仅 Plugin/Temporary/Memory；
     // create_directory 仅 Plugin/Temporary；Workspace/Document 越界
     // 由管理器层 NOT_SUPPORTED 收口，不透传 Provider。
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let workspace_fixture = TempRoot::new("gate-ws");
     workspace_fixture.write("a.txt", b"A");
@@ -620,7 +623,7 @@ async fn test_directory_workspace_and_document_kind_gates() {
 
 #[tokio::test]
 async fn test_directory_plugin_write_family_lifecycle() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("plugin");
     mount_directory(
@@ -755,7 +758,7 @@ async fn test_directory_plugin_write_family_lifecycle() {
 
 #[tokio::test]
 async fn test_unregister_scope_detaches_directory_root() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("unregister");
     fixture.write("a.txt", b"A");
@@ -796,7 +799,7 @@ async fn test_unregister_scope_detaches_directory_root() {
 async fn test_directory_scope_survives_creator_session_close() {
     // 目录域注销时机为宿主驱动（《06.03》§3.2）：创建者会话关闭不自动
     // 摘除作用域（区别于 Memory 挂载的 B1 驱逐臂）。
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("survive");
     fixture.write("a.txt", b"A");

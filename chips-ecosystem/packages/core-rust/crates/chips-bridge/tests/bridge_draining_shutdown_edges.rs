@@ -18,7 +18,7 @@ use chips_bridge::{
     CapabilityOutput, CapabilityRegistration, CapabilityState, Concurrency, ProviderKind,
     ProviderRegistration, BRIDGE_CANCELLED, DEFAULT_MAX_QUEUE,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 挂起执行器：轮询释放标志后原样返回输入；6 秒兜底防悬挂。
@@ -113,7 +113,7 @@ async fn wait_started(counter: &AtomicUsize, target: usize) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_begin_draining_after_shutdown_is_cancelled() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     setup_bridge(
         &bridge,
         "file:read",
@@ -143,7 +143,7 @@ async fn test_begin_draining_after_shutdown_is_cancelled() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_begin_draining_twice_with_in_flight_is_idempotent_noop() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     setup_bridge(

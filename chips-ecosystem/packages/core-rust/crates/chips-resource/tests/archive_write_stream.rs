@@ -17,13 +17,16 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
+use chips_core::NoopDecisionObserver;
+
 use chips_resource::error::{
     RESOURCE_ALREADY_EXISTS, RESOURCE_INTERNAL, RESOURCE_NOT_FOUND, RESOURCE_PERMISSION_DENIED,
     RESOURCE_READ_ONLY, RESOURCE_TOO_LARGE, RESOURCE_WRITE_FAILED,
 };
 use chips_resource::{
-    FsOpRequest, OpenRequest, Origin, ResourceManager, ScopeKind, ScopePolicy, ScopeRegistration,
-    SessionKind, VirtualPath, WriteRequest, WriteStreamHandle, WriteStreamRequest,
+    FsOpRequest, OpenRequest, Origin, ResourceLimits, ResourceManager, ScopeKind, ScopePolicy,
+    ScopeRegistration, SessionKind, VirtualPath, WriteRequest, WriteStreamHandle,
+    WriteStreamRequest,
 };
 
 /// 临时夹具序号（进程号 + 原子序号防碰撞）。
@@ -344,7 +347,7 @@ fn stream_request(
 #[test]
 fn test_mount_archive_pipeline_normalization_and_rollback() {
     let fixture = TempArchive::new(&fixture_archive_bytes());
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
 
     // 会话不存在 → PERMISSION_DENIED（与目录域同臂）。
@@ -442,7 +445,7 @@ fn test_mount_archive_pipeline_normalization_and_rollback() {
 #[tokio::test]
 async fn test_archive_read_face_through_manager() {
     let fixture = TempArchive::new(&fixture_archive_bytes());
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     mount_archive(&manager, session, "card-1", fixture.path());
 
@@ -551,7 +554,7 @@ async fn test_archive_read_face_through_manager() {
 #[tokio::test]
 async fn test_archive_write_family_precise_read_only_uri() {
     let fixture = TempArchive::new(&fixture_archive_bytes());
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     mount_archive(&manager, session, "card-1", fixture.path());
     let target = "chips-resource://card-1/content/note.txt";
@@ -610,7 +613,7 @@ async fn test_archive_write_family_precise_read_only_uri() {
 
 #[tokio::test]
 async fn test_write_stream_directory_lifecycle() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("stream");
     fixture.write("keep.txt", b"old");
@@ -795,7 +798,7 @@ async fn test_write_stream_directory_lifecycle() {
 
 #[tokio::test]
 async fn test_write_stream_cascade_abort_zero_residue() {
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("cascade");
     mount_directory(&manager, session, "workspace-1", fixture.path(), 1024);
@@ -821,7 +824,7 @@ async fn test_write_stream_cascade_abort_zero_residue() {
     assert!(temp_residue(fixture.path()).is_empty(), "中断零临时残留");
 
     // 作用域注销级联：另一会话的写流随 unregister_scope 中止。
-    let manager = ResourceManager::default();
+    let manager = ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
     let mounter = writer_session(&manager);
     let writer = writer_session(&manager);
     let fixture = TempRoot::new("cascade2");
@@ -852,7 +855,10 @@ async fn test_write_stream_cascade_abort_zero_residue() {
 
 #[test]
 fn test_write_coordinator_serializes_same_path() {
-    let manager = Arc::new(ResourceManager::default());
+    let manager = Arc::new(ResourceManager::new(
+        ResourceLimits::default(),
+        Arc::new(NoopDecisionObserver),
+    ));
     let session = writer_session(&manager);
     let fixture = TempRoot::new("coord");
     fs::create_dir_all(fixture.path().join("lock")).expect("锁夹具目录");

@@ -7,6 +7,8 @@
 //! - 标识别名：[`PluginId`]、[`ServiceName`]、[`EventName`]、[`ServiceValue`] 与 ID 族；
 //! - 取消令牌：[`CancelToken`]；
 //! - 跨边界错误：[`ChipsError`]；
+//! - 权限判定出站观察面：[`DecisionObserver`] 与素材类型
+//!   [`PermissionDecision`]（RFC-权限审计跨层采集sink裁定 §5.1）；
 //! - 版本工具：[`Version`] / [`VersionRange`]（语义化版本规则与范围语法）；
 //! - 版本常量：[`PLATFORM_VERSION`] / [`CORE_ABI_VERSION`]。
 //!
@@ -16,12 +18,17 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod audit;
 pub mod cancel;
 pub mod constants;
 pub mod error;
 pub mod ids;
 pub mod version;
 
+pub use audit::{
+    emit_permission_decision, DecisionAction, DecisionDomain, DecisionObserver, FnDecisionObserver,
+    NoopDecisionObserver, PermissionDecision, PermissionDenyReason,
+};
 pub use cancel::CancelToken;
 pub use constants::{CORE_ABI_VERSION, PLATFORM_VERSION};
 pub use error::ChipsError;

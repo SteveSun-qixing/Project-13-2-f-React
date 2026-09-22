@@ -11,7 +11,7 @@ use chips_bridge::{
     Bridge, CapabilityContext, CapabilityDescriptor, CapabilityExecutor, CapabilityInput,
     CapabilityOutput, CapabilityRegistration, ProviderKind, ProviderRegistration,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 回声执行器：原样返回输入。
@@ -33,7 +33,7 @@ impl CapabilityExecutor for Echo {
 
 /// 激活官方提供方并注册一个最小可注销能力。
 fn bridge_with_echo() -> Bridge {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),
@@ -60,7 +60,7 @@ fn bridge_with_echo() -> Bridge {
 
 #[test]
 fn test_unregister_unknown_id_is_noop() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),

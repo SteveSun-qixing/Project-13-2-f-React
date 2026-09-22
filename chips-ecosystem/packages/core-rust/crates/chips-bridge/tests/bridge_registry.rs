@@ -12,7 +12,7 @@ use chips_bridge::{
     ProviderRegistration, BRIDGE_CAPABILITY_CONFLICT, BRIDGE_CAPABILITY_NOT_FOUND,
     BRIDGE_INVALID_SCHEMA, KERNEL_INVALID_TRANSITION, PERMISSION_NOT_DECLARED, PERMISSION_UNKNOWN,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 回声执行器：原样返回输入信封。
@@ -93,7 +93,7 @@ fn request_of(session: u64, capability_id: &str) -> BridgeRequest {
 
 #[test]
 fn test_activate_provider_rejects_unknown_permission() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let error = bridge
         .activate_provider(host_provider(&["filesystem:wipe"]))
         .expect_err("未注册权限 ID 必须拒绝激活");
@@ -109,7 +109,7 @@ fn test_activate_provider_rejects_unknown_permission() {
 
 #[test]
 fn test_activate_provider_duplicate_overwrites_declaration() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&["filesystem:read"]))
         .expect("平台服务域激活应成功");
@@ -139,7 +139,7 @@ fn test_activate_provider_duplicate_overwrites_declaration() {
 
 #[test]
 fn test_grant_capability_id_rejects_invalid_grammar() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &[]))
         .expect("服务插件激活应成功");
@@ -160,7 +160,7 @@ fn test_grant_capability_id_rejects_invalid_grammar() {
 
 #[test]
 fn test_grant_capability_id_rejects_builtin_reserved() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &[]))
         .expect("服务插件激活应成功");
@@ -174,7 +174,7 @@ fn test_grant_capability_id_rejects_builtin_reserved() {
 
 #[test]
 fn test_grant_capability_id_requires_active_provider() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let error = bridge
         .grant_capability_id("hello:greet", "chips.service.hello")
         .expect_err("未知提供方不得登记 ID");
@@ -183,7 +183,7 @@ fn test_grant_capability_id_requires_active_provider() {
 
 #[test]
 fn test_grant_capability_id_is_idempotent_and_non_transferable() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &[]))
         .expect("hello 提供方激活应成功");
@@ -206,7 +206,7 @@ fn test_grant_capability_id_is_idempotent_and_non_transferable() {
 
 #[test]
 fn test_register_rejects_invalid_grammar() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&[]))
         .expect("平台服务域激活应成功");
@@ -227,7 +227,7 @@ fn test_register_rejects_invalid_grammar() {
 
 #[test]
 fn test_register_rejects_capability_id_equal_permission_id() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&["filesystem:read"]))
         .expect("平台服务域激活应成功");
@@ -247,7 +247,7 @@ fn test_register_rejects_capability_id_equal_permission_id() {
 
 #[test]
 fn test_register_rejects_out_of_range_timeout() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&[]))
         .expect("平台服务域激活应成功");
@@ -272,7 +272,7 @@ fn test_register_rejects_out_of_range_timeout() {
 
 #[test]
 fn test_register_rejects_inactive_owner() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let error = bridge
         .register(registration(
             "file:read",
@@ -291,7 +291,7 @@ fn test_register_rejects_inactive_owner() {
 
 #[test]
 fn test_register_rejects_builtin_id_by_service_plugin() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &[]))
         .expect("服务插件激活应成功");
@@ -310,7 +310,7 @@ fn test_register_rejects_builtin_id_by_service_plugin() {
 
 #[test]
 fn test_register_rejects_ungranted_third_party_id() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &[]))
         .expect("服务插件激活应成功");
@@ -329,7 +329,7 @@ fn test_register_rejects_ungranted_third_party_id() {
 
 #[test]
 fn test_register_rejects_id_granted_to_other_owner() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &[]))
         .expect("hello 提供方激活应成功");
@@ -352,7 +352,7 @@ fn test_register_rejects_id_granted_to_other_owner() {
 
 #[test]
 fn test_register_rejects_unknown_descriptor_permission() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&["filesystem:read"]))
         .expect("平台服务域激活应成功");
@@ -377,7 +377,7 @@ fn test_register_rejects_unknown_descriptor_permission() {
 
 #[test]
 fn test_register_rejects_undeclared_descriptor_permission() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&["filesystem:read"]))
         .expect("平台服务域激活应成功");
@@ -398,7 +398,7 @@ fn test_register_rejects_undeclared_descriptor_permission() {
 
 #[test]
 fn test_register_rejects_uncompilable_schema() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&[]))
         .expect("平台服务域激活应成功");
@@ -422,7 +422,7 @@ fn test_register_rejects_uncompilable_schema() {
 
 #[test]
 fn test_register_builtin_success_and_repeat_conflict_matrix() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&["filesystem:read"]))
         .expect("平台服务域激活应成功");
@@ -474,7 +474,7 @@ fn test_register_builtin_success_and_repeat_conflict_matrix() {
 
 #[test]
 fn test_register_reuses_schema_cache_across_capabilities() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&[]))
         .expect("平台服务域激活应成功");
@@ -510,7 +510,7 @@ fn test_register_reuses_schema_cache_across_capabilities() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_unregister_then_request_not_found() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&[]))
         .expect("平台服务域激活应成功");
@@ -550,7 +550,7 @@ async fn test_unregister_then_request_not_found() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_unregistered_id_only_original_owner_can_re_register() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &[]))
         .expect("hello 提供方激活应成功");
@@ -593,7 +593,7 @@ async fn test_unregistered_id_only_original_owner_can_re_register() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_third_party_capability_full_success_path() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &["network:http"]))
         .expect("服务插件激活应成功");
@@ -625,7 +625,7 @@ async fn test_third_party_capability_full_success_path() {
 
 #[test]
 fn test_debug_and_default_reflect_registry_state() {
-    let bridge = Bridge::default();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     assert!(
         format!("{bridge:?}").contains("shutdown: false"),
         "Debug 输出应反映未关闭状态"
@@ -668,7 +668,7 @@ fn test_debug_and_default_reflect_registry_state() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_deactivate_provider_removes_owned_capabilities() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(plugin_provider("chips.service.hello", &[]))
         .expect("服务插件激活应成功");
@@ -704,7 +704,7 @@ async fn test_deactivate_provider_removes_owned_capabilities() {
 #[test]
 fn test_register_rejects_conflict_when_permission_mixed_order() {
     // 词表校验先于 manifest 声明校验：未注册权限优先报 PERMISSION_UNKNOWN。
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&["config:read"]))
         .expect("平台服务域激活应成功");
@@ -732,7 +732,7 @@ fn test_register_rejects_conflict_when_permission_mixed_order() {
 
 #[test]
 fn test_activate_provider_deduplicates_permission_declarations() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(host_provider(&[
             "filesystem:read",

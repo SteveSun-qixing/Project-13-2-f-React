@@ -19,7 +19,7 @@ use chips_bridge::{
     BRIDGE_TIMEOUT, DEFAULT_MAX_QUEUE, KERNEL_INVALID_TRANSITION, PERMISSION_NOT_DECLARED,
     PERMISSION_UNKNOWN, SESSION_IN_FLIGHT_LIMIT,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 回声执行器：原样返回输入信封（含二进制表）。
@@ -243,7 +243,7 @@ fn hold_request(session: u64, capability_id: &str, request_id: &str, tag: i64) -
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_request_success_and_binary_envelope_roundtrip() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),
@@ -309,7 +309,7 @@ async fn test_request_success_and_binary_envelope_roundtrip() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_request_invalid_input_aggregates_details() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_host_echo(
         &bridge,
         "file:read",
@@ -344,7 +344,7 @@ async fn test_request_invalid_input_aggregates_details() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_executor_business_error_passes_through_unchanged() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),
@@ -394,7 +394,7 @@ async fn test_executor_business_error_passes_through_unchanged() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_executor_panic_normalized_to_internal() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),
@@ -458,7 +458,7 @@ async fn test_executor_panic_normalized_to_internal() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_timeout_returns_retryable_timeout_error() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),
@@ -507,7 +507,7 @@ async fn test_timeout_returns_retryable_timeout_error() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_session_busy_when_in_flight_limit_exceeded() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -581,7 +581,7 @@ async fn test_session_busy_when_in_flight_limit_exceeded() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_serial_queue_overflow_and_fifo_handoff() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -658,7 +658,7 @@ async fn test_serial_queue_overflow_and_fifo_handoff() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_unregister_cancels_running_and_queued_calls() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -715,7 +715,7 @@ async fn test_unregister_cancels_running_and_queued_calls() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_deactivate_provider_cancels_in_flight_and_allows_re_register() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -810,7 +810,7 @@ async fn test_deactivate_provider_cancels_in_flight_and_allows_re_register() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_cancel_via_invocation_context_signal() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -877,7 +877,7 @@ async fn test_cancel_via_invocation_context_signal() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_shutdown_cancels_in_flight_and_rejects_all_entries() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));
@@ -966,7 +966,7 @@ async fn test_shutdown_cancels_in_flight_and_rejects_all_entries() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_registration_error_retryable_matrix() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     // CONFLICT：文法非法。
     let error = bridge
         .register(CapabilityRegistration {
@@ -1069,7 +1069,7 @@ async fn test_registration_error_retryable_matrix() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_call_error_retryable_matrix() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     let order = Arc::new(Mutex::new(Vec::new()));

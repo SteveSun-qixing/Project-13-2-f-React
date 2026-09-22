@@ -22,7 +22,7 @@ use chips_bridge::{
     ProviderKind, ProviderRegistration, BRIDGE_CANCELLED, BRIDGE_CAPABILITY_NOT_FOUND,
     BRIDGE_SESSION_UNKNOWN, DEFAULT_MAX_QUEUE,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 struct EchoExecutor;
@@ -75,7 +75,7 @@ fn heavy_input() -> CapabilityInput {
 
 /// 新 Bridge + 平台服务域 + 大 schema 回声能力 + 指定会话。
 fn setup(marker: usize, session: u64) -> Bridge {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),

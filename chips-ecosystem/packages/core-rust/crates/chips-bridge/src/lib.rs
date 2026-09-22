@@ -46,7 +46,7 @@
 //! }
 //!
 //! # async fn run() -> Result<(), chips_core::ChipsError> {
-//! let bridge = Bridge::new();
+//! let bridge = Bridge::new(std::sync::Arc::new(chips_core::NoopDecisionObserver));
 //! bridge.activate_provider(ProviderRegistration {
 //!     id: "chips.official.host".to_owned(),
 //!     kind: ProviderKind::PlatformService,

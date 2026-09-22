@@ -22,7 +22,7 @@ use chips_bridge::{
     CapabilityInput, CapabilityOutput, CapabilityRegistration, Concurrency, ProviderKind,
     ProviderRegistration, BRIDGE_CANCELLED, DEFAULT_MAX_QUEUE,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 自取消成功执行器：先触发 `ctx.signal`，随即返回成功（结果必为迟到）。
@@ -124,7 +124,7 @@ fn request(session: u64, capability_id: &str, request_id: &str) -> BridgeRequest
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_self_cancelled_success_result_never_escapes() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     setup(
         &bridge,
         "file:read",
@@ -153,7 +153,7 @@ async fn test_self_cancelled_success_result_never_escapes() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_self_cancelled_business_error_never_escapes() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     setup(
         &bridge,
         "file:read",
@@ -177,7 +177,7 @@ async fn test_self_cancelled_business_error_never_escapes() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_external_abort_is_cancelled_not_internal() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     setup(
         &bridge,

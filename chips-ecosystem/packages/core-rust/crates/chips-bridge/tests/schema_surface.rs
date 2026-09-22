@@ -20,7 +20,7 @@ use chips_bridge::{
     CapabilityInput, CapabilityOutput, CapabilityRegistration, Concurrency, ProviderKind,
     ProviderRegistration, BRIDGE_INVALID_INPUT, BRIDGE_INVALID_SCHEMA, MAX_VALIDATION_ISSUES,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::{json, Value};
 
 /// 回声执行器：原样返回输入信封（含 bin 表回传）。
@@ -104,7 +104,7 @@ async fn invalid_input_details(bridge: &Bridge, request: BridgeRequest) -> Value
 
 #[test]
 fn test_register_rejects_out_of_subset_keyword_with_invalid_schema() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),
@@ -149,7 +149,7 @@ fn test_register_rejects_out_of_subset_keyword_with_invalid_schema() {
 
 #[test]
 fn test_register_requires_root_shape_per_section_5_2() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),
@@ -189,7 +189,7 @@ fn test_register_requires_root_shape_per_section_5_2() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_request_invalid_input_details_shape() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_capability(
         &bridge,
         "file:read",
@@ -257,7 +257,7 @@ async fn test_request_invalid_input_details_shape() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_request_integer_strict_and_annotation_format_not_enforced() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_capability(
         &bridge,
         "file:read",
@@ -299,7 +299,7 @@ async fn test_request_integer_strict_and_annotation_format_not_enforced() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_request_binary_envelope_integer_limit_and_true_unlimited() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_capability(
         &bridge,
         "file:write",
@@ -367,7 +367,7 @@ async fn test_request_binary_envelope_integer_limit_and_true_unlimited() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_request_truncates_beyond_max_issues() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
     for index in 0..(MAX_VALIDATION_ISSUES + 1) {
@@ -398,7 +398,7 @@ async fn test_request_truncates_beyond_max_issues() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_same_schema_second_registration_reuses_compile_cache() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let schema = json!({
         "type": "object", "additionalProperties": false,
         "required": ["path"],

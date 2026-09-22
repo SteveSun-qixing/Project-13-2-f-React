@@ -110,7 +110,7 @@ pub use path_guard::{
     VirtualPath,
 };
 pub use permission::{
-    Decision, PermissionChecker, ResourceOperation, PERMISSION_NETWORK_HTTP_PREFIX,
+    Decision, DecisionArm, PermissionChecker, ResourceOperation, PERMISSION_NETWORK_HTTP_PREFIX,
     PERMISSION_RESOURCES_READ, PERMISSION_RESOURCES_READ_EXTERNAL, PERMISSION_RESOURCES_WRITE,
 };
 pub use provider::{

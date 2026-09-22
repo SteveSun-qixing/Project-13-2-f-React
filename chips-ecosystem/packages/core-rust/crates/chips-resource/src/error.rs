@@ -166,21 +166,12 @@ pub enum PoolKind {
     Queue,
 }
 
-/// 权限拒绝原因（《02-Bridge三层设计》§5.4 `PermissionDenyReason`）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PermissionDenyReason {
-    /// 未授予所需权限。
-    NotGranted,
-    /// 授权已撤销。
-    Revoked,
-    /// 超出作用域边界。
-    OutOfScope,
-    /// 用户拒绝。
-    UserRejected,
-    /// 平台策略。
-    Policy,
-}
+/// 权限拒绝原因：定义已随《RFC-权限审计跨层采集sink裁定》§5.1 实施波上移
+/// `chips_core::PermissionDenyReason`（《02-Bridge三层设计》§5.4），本 crate
+/// 以 `pub use` 别名收口——原路径 `chips_resource::error::PermissionDenyReason`
+/// 与根重导出均可用，serde 线上取值（snake_case 小写）零变化
+/// （快照锁测见 `tests/error_code_lock.rs` 与 `chips_core::audit` 模块测试）。
+pub use chips_core::PermissionDenyReason;
 
 /// 作用域操作类别（《06》§7.3 `IResourceScopeErrorDetails.operation` 六词）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

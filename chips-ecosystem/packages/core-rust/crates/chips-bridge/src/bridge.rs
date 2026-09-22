@@ -11,7 +11,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use chips_core::{CancelToken, ChipsError, PluginId, SessionId};
+use chips_core::{
+    emit_permission_decision, CancelToken, ChipsError, DecisionAction, DecisionDomain,
+    DecisionObserver, PermissionDecision, PermissionDenyReason, PluginId, SessionId,
+};
 use tokio::sync::mpsc;
 
 use crate::constants::{DEFAULT_TIMEOUT_MS, SESSION_IN_FLIGHT_LIMIT};
@@ -295,12 +298,10 @@ struct Admitted {
 pub struct Bridge {
     inner: Arc<Mutex<CoreState>>,
     trace_counter: Arc<AtomicU64>,
-}
-
-impl Default for Bridge {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// 权限判定出站观察面：构造期注入、终身不可换（RFC §八条 1）；与
+    /// `trace_counter` 同层的兄弟字段，`Clone` 句柄天然共享同一实例，
+    /// **不入 `CoreState`**（避免与判定锁纠缠，RFC §六条 4）。
+    observer: Arc<dyn DecisionObserver>,
 }
 
 impl std::fmt::Debug for Bridge {
@@ -318,11 +319,18 @@ impl std::fmt::Debug for Bridge {
 
 impl Bridge {
     /// 创建空的 Bridge 内核实例。
+    ///
+    /// `observer` 为权限判定出站观察面（`chips_core::DecisionObserver`，
+    /// RFC-权限审计跨层采集sink裁定 §5.1/§八）：构造期注入、终身不可换，
+    /// 审计观察面不存在无观察窗口（v1 无默认无观察形态，`Default` 实现
+    /// 随本波收口移除）。测试与接线波落地前显式注入
+    /// `chips_core::NoopDecisionObserver`。
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(observer: Arc<dyn DecisionObserver>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(CoreState::new())),
             trace_counter: Arc::new(AtomicU64::new(1)),
+            observer,
         }
     }
 
@@ -743,12 +751,61 @@ impl Bridge {
             .cloned()
             .collect();
         if !missing.is_empty() {
+            // deny 素材：`return Err` 前发出，两处发射均不持 `CoreState`
+            // 锁（RFC §六条 4）；`permission` = 首个缺失项，与
+            // `denied_error` 短路口径同值（RFC §5.1）；bridge 域无直通臂，
+            // 一切判定 allow/deny 皆发（RFC §九 9.3-3）。
+            emit_permission_decision(
+                &*self.observer,
+                &PermissionDecision {
+                    domain: DecisionDomain::Capability,
+                    action: DecisionAction::Deny,
+                    plugin_id: plugin_id.clone(),
+                    session_id: request.session,
+                    permission: missing[0].clone(),
+                    required: registration.descriptor_permissions.clone(),
+                    missing,
+                    reason: Some(PermissionDenyReason::NotGranted),
+                    capability_id: Some(request.capability_id.clone()),
+                    resource_uri: None,
+                    target: None,
+                    request_id: Some(request.request_id.clone()),
+                    trace_id: Some(trace_id.clone()),
+                    qualifier: None,
+                },
+            );
             return Err(denied_error(
                 &request.capability_id,
                 &registration.descriptor_permissions,
                 &granted,
             ));
         }
+        // allow 素材：判定收敛处发出（required 判空后、Schema 校验前、并发
+        // 准入第二段锁之前——判定事实与后续准入结果解耦，RFC §六条 4）；
+        // `permission` = required 声明序首项（RFC §5.4 条 2），missing 恒空。
+        emit_permission_decision(
+            &*self.observer,
+            &PermissionDecision {
+                domain: DecisionDomain::Capability,
+                action: DecisionAction::Allow,
+                plugin_id: plugin_id.clone(),
+                session_id: request.session,
+                permission: registration
+                    .descriptor_permissions
+                    .first()
+                    .cloned()
+                    .unwrap_or_default(),
+                required: registration.descriptor_permissions.clone(),
+                missing: Vec::new(),
+                reason: None,
+                capability_id: Some(request.capability_id.clone()),
+                resource_uri: None,
+                target: None,
+                request_id: Some(request.request_id.clone()),
+                trace_id: Some(trace_id.clone()),
+                qualifier: None,
+            },
+        );
 
         // 锁外：Schema 与二进制信封校验（纯 CPU）。
         schema::validate_input(

@@ -29,7 +29,7 @@ use chips_bridge::{
     CapabilityInput, CapabilityOutput, CapabilityRegistration, Concurrency, ProviderKind,
     ProviderRegistration, BRIDGE_CANCELLED,
 };
-use chips_core::{ChipsError, PluginId, SessionId};
+use chips_core::{ChipsError, NoopDecisionObserver, PluginId, SessionId};
 use neon::prelude::*;
 use neon::types::JsFuture;
 
@@ -50,8 +50,16 @@ type HandlerOutcome = Result<CapabilityOutput, ChipsError>;
 static BRIDGE: OnceLock<Bridge> = OnceLock::new();
 
 /// 取进程级 Bridge 内核句柄。
+///
+/// 波界在册（工单046 段四核心 crate 波，RFC §八条 2）：此处注入
+/// `NoopDecisionObserver` 仅为 `Bridge::new` 构造签名翻正的编译随行——
+/// 真正的 `DecisionObserver` 实现（素材序列化 + 非阻塞 Neon Channel 投递
+/// 宿主 TS 消费函数）与 `get_or_init` 翻正归接线波（native observer +
+/// Neon 通道 + 宿主 TS 消费函数），本波禁顺带接线。
 pub(crate) fn bridge() -> Bridge {
-    BRIDGE.get_or_init(Bridge::new).clone()
+    BRIDGE
+        .get_or_init(|| Bridge::new(Arc::new(NoopDecisionObserver)))
+        .clone()
 }
 
 /// 解析 JS 侧 `concurrency` 字段（§5.3 形态：`'parallel' | 'serial'`）。
@@ -769,7 +777,7 @@ mod tests {
 
     #[test]
     fn test_registration_without_active_provider_reports_kernel_error() {
-        let kernel = Bridge::new();
+        let kernel = Bridge::new(Arc::new(NoopDecisionObserver));
         let error = kernel
             .register(CapabilityRegistration {
                 descriptor: CapabilityDescriptor {
@@ -805,7 +813,7 @@ mod tests {
 
     #[test]
     fn test_activate_provider_backing_normalizes_permission_and_shutdown_codes() {
-        let kernel = Bridge::new();
+        let kernel = Bridge::new(Arc::new(NoopDecisionObserver));
         // 权限声明引用未注册权限 ID → PERMISSION_UNKNOWN（backing 归一，绑定层不自造）。
         let error = kernel
             .activate_provider(ProviderRegistration {
@@ -837,7 +845,7 @@ mod tests {
 
     #[test]
     fn test_grant_capability_id_backing_covers_conflict_and_transition() {
-        let kernel = Bridge::new();
+        let kernel = Bridge::new(Arc::new(NoopDecisionObserver));
         // 文法非法 → BRIDGE_CAPABILITY_CONFLICT。
         let error = kernel
             .grant_capability_id("Bad:Id", "chips.official.editor")
@@ -871,7 +879,7 @@ mod tests {
 
     #[test]
     fn test_deactivate_provider_backing_cascades_and_is_idempotent() {
-        let kernel = Bridge::new();
+        let kernel = Bridge::new(Arc::new(NoopDecisionObserver));
         kernel
             .activate_provider(ProviderRegistration {
                 id: "chips.official.host".to_owned(),
@@ -907,7 +915,7 @@ mod tests {
 
     #[test]
     fn test_open_close_session_backing_lifecycle_and_shutdown_reject() {
-        let kernel = Bridge::new();
+        let kernel = Bridge::new(Arc::new(NoopDecisionObserver));
         kernel
             .open_session(
                 1,
@@ -933,7 +941,7 @@ mod tests {
 
     #[test]
     fn test_shutdown_backing_is_idempotent_and_blocks_new_registration() {
-        let kernel = Bridge::new();
+        let kernel = Bridge::new(Arc::new(NoopDecisionObserver));
         kernel
             .activate_provider(ProviderRegistration {
                 id: "chips.official.host".to_owned(),

@@ -102,6 +102,14 @@ pub const BUILTIN_CAPABILITY_IDS: &[&str] = &[
     "cli:task-progress",
     "cli:task-complete",
     "cli:task-fail",
+    // 权限治理四项（《04-能力契约规范》§6.2 注 8，工单046 登记）：随
+    // `@chips/bridge` 侧 `BUILTIN_CAPABILITIES`（64 项）注册表镜像，命名与
+    // 顺序照 TS 侧权威逐字随动；声明空权限、不进入权限词表，本登记表只
+    // 承担契约登记（内置保留与文法校验数据），不承载治理身份校验。
+    "permission:grant",
+    "permission:revoke",
+    "permission:restore",
+    "permission:audit-read",
 ];
 
 /// 校验 `domain` 段文法：`1*( lowercase / digit / "-" )`。
@@ -231,6 +239,34 @@ mod tests {
             assert!(
                 !is_builtin_capability_id(id),
                 "权限 ID 不得同时是内置能力 ID：{id}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_builtin_mirror_count_and_permission_governance_ids() {
+        // 镜像锁测：与 `@chips/bridge` 侧 `BUILTIN_CAPABILITIES`（64 项，
+        // capability-contracts.ts）逐名随动；权限治理四项（工单046 登记、
+        // #155 落定）补登在册，尾部顺序照 TS 侧权威逐字。
+        assert_eq!(BUILTIN_CAPABILITY_IDS.len(), 64);
+        assert_eq!(
+            &BUILTIN_CAPABILITY_IDS[BUILTIN_CAPABILITY_IDS.len() - 4..],
+            [
+                "permission:grant",
+                "permission:revoke",
+                "permission:restore",
+                "permission:audit-read",
+            ]
+        );
+        for id in [
+            "permission:grant",
+            "permission:revoke",
+            "permission:restore",
+            "permission:audit-read",
+        ] {
+            assert!(
+                is_builtin_capability_id(id),
+                "权限治理 ID 必须入内置保留表：{id}"
             );
         }
     }

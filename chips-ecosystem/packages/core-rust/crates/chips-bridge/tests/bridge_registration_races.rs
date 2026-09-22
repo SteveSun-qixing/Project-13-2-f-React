@@ -24,7 +24,7 @@ use chips_bridge::{
     CapabilityOutput, CapabilityRegistration, CapabilityState, Concurrency, ProviderKind,
     ProviderRegistration, BRIDGE_CANCELLED, BRIDGE_CAPABILITY_CONFLICT, DEFAULT_MAX_QUEUE,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 文档口径的注册冲突原因全集（《能力契约规范》§4.4、§9.3 与
@@ -123,7 +123,7 @@ async fn test_concurrent_same_definition_registration_settles_deterministically(
     let round_counter = AtomicUsize::new(0);
     for _round in 0..30 {
         let round = round_counter.fetch_add(1, Ordering::SeqCst);
-        let bridge = Bridge::new();
+        let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
         activate(
             &bridge,
             "chips.official.host",
@@ -187,7 +187,7 @@ async fn test_takeover_cross_owner_race_stays_within_conflict_matrix() {
     let round_counter = AtomicUsize::new(0);
     for _round in 0..30 {
         let round = round_counter.fetch_add(1, Ordering::SeqCst);
-        let bridge = Bridge::new();
+        let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
         activate(
             &bridge,
             "chips.official.host",
@@ -256,7 +256,7 @@ async fn test_shutdown_during_registration_window_rejects_with_cancelled() {
     let round_counter = AtomicUsize::new(0);
     for _round in 0..30 {
         let round = round_counter.fetch_add(1, Ordering::SeqCst);
-        let bridge = Bridge::new();
+        let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
         activate(
             &bridge,
             "chips.official.host",

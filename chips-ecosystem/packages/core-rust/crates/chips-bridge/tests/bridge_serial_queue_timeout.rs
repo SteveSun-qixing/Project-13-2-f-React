@@ -23,7 +23,7 @@ use chips_bridge::{
     CapabilityInput, CapabilityOutput, CapabilityRegistration, Concurrency, ProviderKind,
     ProviderRegistration, BRIDGE_CANCELLED, BRIDGE_TIMEOUT,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 挂起执行器：记录启动顺序与并发在执峰值，轮询释放标志；6 秒兜底防悬挂。
@@ -221,7 +221,7 @@ async fn wait_started(counter: &AtomicUsize, target: usize) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_queued_call_times_out_without_releasing_holder_slot() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let executor = Arc::new(HoldExecutor::new());
     register_host_serial(
         &bridge,
@@ -329,7 +329,7 @@ async fn test_queued_call_times_out_without_releasing_holder_slot() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_unregister_while_queued_wakes_waiters_as_cancelled() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let executor = Arc::new(HoldExecutor::new());
     register_host_serial(
         &bridge,
@@ -412,7 +412,7 @@ async fn test_unregister_while_queued_wakes_waiters_as_cancelled() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_admission_overrun_deadline_times_out_at_execute_stage() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     bridge
         .activate_provider(ProviderRegistration {
             id: "chips.official.host".to_owned(),

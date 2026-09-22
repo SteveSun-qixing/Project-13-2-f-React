@@ -13,7 +13,7 @@ use chips_bridge::{
     ProviderRegistration, BRIDGE_CANCELLED, BRIDGE_INTERNAL, BRIDGE_PERMISSION_DENIED,
     BRIDGE_SESSION_UNKNOWN,
 };
-use chips_core::ChipsError;
+use chips_core::{ChipsError, NoopDecisionObserver};
 use serde_json::json;
 
 /// 回声执行器：原样返回输入。
@@ -122,7 +122,7 @@ fn request_of(session: u64, capability_id: &str) -> BridgeRequest {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_request_from_unknown_session_is_rejected() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_read_file(&bridge, &[]);
     let error = bridge
         .request(request_of(9_999, "file:read"))
@@ -138,7 +138,7 @@ async fn test_request_from_unknown_session_is_rejected() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_permission_denied_when_snapshot_empty() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_read_file(&bridge, &["filesystem:read"]);
     bridge
         .open_session(1, "chips.official.editor".to_owned(), Vec::new())
@@ -162,7 +162,7 @@ async fn test_permission_denied_when_snapshot_empty() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_permission_exact_match_allows_call() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_read_file(&bridge, &["filesystem:read"]);
     bridge
         .open_session(
@@ -180,7 +180,7 @@ async fn test_permission_exact_match_allows_call() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_permission_domain_wildcard_coverage() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_read_file(&bridge, &["filesystem:read", "network:http"]);
     bridge
         .open_session(
@@ -223,7 +223,7 @@ async fn test_permission_domain_wildcard_coverage() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_permission_qualified_snapshot_entry_does_not_widen() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_read_file(&bridge, &["filesystem:read"]);
     // 限定值条目不覆盖裸基础权限：Bridge 层按《Bridge三层设计》§5.2 收口。
     bridge
@@ -242,7 +242,7 @@ async fn test_permission_qualified_snapshot_entry_does_not_widen() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_session_snapshot_rebuilt_on_reopen() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_read_file(&bridge, &["filesystem:read"]);
     bridge
         .open_session(1, "chips.official.editor".to_owned(), Vec::new())
@@ -280,7 +280,7 @@ async fn test_session_snapshot_rebuilt_on_reopen() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_snapshot_isolation_between_sessions() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_read_file(&bridge, &["filesystem:read"]);
     bridge
         .open_session(
@@ -312,7 +312,7 @@ async fn test_snapshot_isolation_between_sessions() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_close_session_blocks_new_calls_and_is_idempotent() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     register_read_file(&bridge, &[]);
     bridge
         .open_session(1, "chips.official.editor".to_owned(), Vec::new())
@@ -335,7 +335,7 @@ async fn test_close_session_blocks_new_calls_and_is_idempotent() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_close_session_cancels_in_flight_calls() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     register_read_file(&bridge, &[]);
@@ -386,7 +386,7 @@ async fn test_close_session_cancels_in_flight_calls() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_cancel_session_keeps_session_usable() {
-    let bridge = Bridge::new();
+    let bridge = Bridge::new(Arc::new(NoopDecisionObserver));
     let started = Arc::new(AtomicUsize::new(0));
     let release = Arc::new(AtomicBool::new(false));
     register_read_file(&bridge, &[]);
