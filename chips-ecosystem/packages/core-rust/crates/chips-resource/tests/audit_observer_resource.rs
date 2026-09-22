@@ -8,7 +8,8 @@
 //!   （工单046 裁定二）；
 //! - deny 臂（含 `Policy` 类，如 platform 写）**全发**，字段与 `denied()`
 //!   错误载体逐字同值；`RESOURCE_READ_ONLY` 非权限臂与权限段前的未知会话
-//!   直构拒绝不产权限素材；
+//!   直构拒绝不产权限素材；句柄归属闸（N-1）四臂的越权拒绝与归属放行
+//!   同属权限段外原始拒绝，一律零发射；
 //! - 字段口径：`domain=Resource`、`plugin_id=session.owner`、
 //!   `resource_uri`=规范 URI 原值、`target=chips-resource://<scope>/`、
 //!   `capability_id/request_id/trace_id/qualifier` 恒 None；
@@ -24,9 +25,9 @@ use chips_core::{
 };
 use chips_resource::error::{RESOURCE_PERMISSION_DENIED, RESOURCE_READ_ONLY};
 use chips_resource::{
-    ExternalOrigin, Origin, PermissionDenyReason as ResourceDenyReason, ResourceError,
+    ExternalOrigin, OpenRequest, Origin, PermissionDenyReason as ResourceDenyReason, ResourceError,
     ResourceLimits, ResourceManager, ResourceOperation, ScopeKind, ScopePolicy, ScopeRegistration,
-    SessionKind,
+    SessionKind, VirtualPath, WriteRequest,
 };
 
 /// 素材收集器：禁阻塞形母型——拷素材、入有界收集、立即返回（§六条 2）。
@@ -735,4 +736,102 @@ fn test_noop_observer_keeps_resolve_pipeline_identical() {
         )
         .expect_err("Noop 注入不改变拒绝");
     assert_eq!(error.code(), RESOURCE_PERMISSION_DENIED);
+}
+
+#[tokio::test]
+async fn test_handle_ownership_gate_emits_no_material_two_arms() {
+    // N-1 句柄归属闸（安全巡检残项复核 §一.1 交回上收）：四臂越权拒绝
+    // 落在册 ChipsError 拒绝形，但归属比对发生在权限判定段之外——
+    // 与工单046 裁定二「未经过授予判定零发射」同口径，拒绝与放行
+    // 两臂一律不发素材。
+    let observer = Arc::new(CollectingObserver::default());
+    let manager = manager_with(observer.clone());
+    let owner_session = manager
+        .open_session(
+            SessionKind::Document,
+            &editor(),
+            Vec::<String>::new(),
+            vec!["resources:write".to_owned()],
+        )
+        .expect("归属会话登记");
+    manager
+        .mount_memory(owner_session)
+        .expect("MemoryProvider 挂载");
+    let metadata = manager
+        .commit_write(WriteRequest {
+            session: owner_session,
+            scope: "memory".to_owned(),
+            path: VirtualPath::validate("gate.txt", "u", manager.limits()).expect("在册路径"),
+            bytes: b"payload".to_vec(),
+        })
+        .await
+        .expect("提交放行");
+    let handle = manager
+        .open(OpenRequest {
+            uri: metadata.uri.clone(),
+            session: owner_session,
+        })
+        .await
+        .expect("创建者会话打开免重复校验");
+    // 先行沉淀建路权限段已发素材（commit_write 经授予判定），
+    // 本用例只看句柄闸自身。
+    observer.drain();
+    let outsider = manager
+        .open_session(
+            SessionKind::Document,
+            &editor(),
+            Vec::<String>::new(),
+            Vec::<String>::new(),
+        )
+        .expect("外来会话登记");
+
+    // 越权臂：四臂逐臂拒绝且落在册拒绝形（permission=session /
+    // reason=out_of_scope / target=规范 URI 原值）。
+    let stat_error = manager
+        .stat(handle.id, outsider)
+        .await
+        .expect_err("跨会话 stat 必须拒绝");
+    assert_eq!(stat_error.code(), RESOURCE_PERMISSION_DENIED);
+    let range_error = manager
+        .read_range(
+            handle.id,
+            outsider,
+            chips_resource::ByteRange {
+                offset: 0,
+                length: Some(4),
+            },
+        )
+        .await
+        .expect_err("跨会话 read_range 必须拒绝");
+    assert_eq!(range_error.code(), RESOURCE_PERMISSION_DENIED);
+    let chunk_error = manager
+        .read_chunk(handle.id, outsider, 4)
+        .await
+        .expect_err("跨会话 read_chunk 必须拒绝");
+    assert_eq!(chunk_error.code(), RESOURCE_PERMISSION_DENIED);
+    let release_error: chips_core::ChipsError = manager
+        .release(handle.id, outsider)
+        .expect_err("跨会话 release 必须拒绝")
+        .into();
+    assert_eq!(release_error.code(), RESOURCE_PERMISSION_DENIED);
+    for error in [stat_error, range_error, chunk_error, release_error] {
+        let details = error.details().expect("拒绝形 details 在册");
+        assert_eq!(details["permission"], "session");
+        assert_eq!(details["reason"], "out_of_scope");
+        assert_eq!(details["target"], metadata.uri);
+    }
+
+    // 归属臂：归属会话照常放行。
+    manager
+        .stat(handle.id, owner_session)
+        .await
+        .expect("归属会话 stat 放行");
+    manager
+        .release(handle.id, owner_session)
+        .expect("归属会话 release 放行");
+
+    assert!(
+        observer.drain().is_empty(),
+        "句柄归属闸两臂皆未经授予判定段，一律不发权限素材"
+    );
 }

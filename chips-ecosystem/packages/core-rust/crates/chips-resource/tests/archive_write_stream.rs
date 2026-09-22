@@ -466,6 +466,7 @@ async fn test_archive_read_face_through_manager() {
     let mid = manager
         .read_range(
             handle.id,
+            session,
             chips_resource::ByteRange {
                 offset: 6,
                 length: Some(7),
@@ -474,7 +475,7 @@ async fn test_archive_read_face_through_manager() {
         .await
         .expect("范围读放行");
     assert_eq!(mid, b"archive".to_vec());
-    manager.release(handle.id).expect("释放");
+    manager.release(handle.id, session).expect("释放");
 
     // 流读：块形 ∈ (0, min(max_bytes, 256KiB)]，游标严格累计（《04.03》§3.2）。
     let handle = manager
@@ -486,14 +487,18 @@ async fn test_archive_read_face_through_manager() {
         .expect("重开句柄");
     let mut consumed = Vec::new();
     let mut pulls = 0;
-    while let Some(chunk) = manager.read_chunk(handle.id, 4).await.expect("流读放行") {
+    while let Some(chunk) = manager
+        .read_chunk(handle.id, session, 4)
+        .await
+        .expect("流读放行")
+    {
         assert!(!chunk.is_empty() && chunk.len() <= 4, "块形契约");
         consumed.extend_from_slice(&chunk);
         pulls += 1;
         assert!(pulls < 10, "游标推进");
     }
     assert_eq!(consumed, b"hello archive".to_vec());
-    manager.release(handle.id).expect("释放");
+    manager.release(handle.id, session).expect("释放");
 
     // Deflate 成员经解析器解码面（Manager → Provider → chips-parser）。
     let deflated = manager
@@ -506,6 +511,7 @@ async fn test_archive_read_face_through_manager() {
     let bytes = manager
         .read_range(
             deflated.id,
+            session,
             chips_resource::ByteRange {
                 offset: 0,
                 length: None,
@@ -514,7 +520,7 @@ async fn test_archive_read_face_through_manager() {
         .await
         .expect("Deflate 范围读");
     assert_eq!(bytes, b"deflate-member".to_vec());
-    manager.release(deflated.id).expect("释放");
+    manager.release(deflated.id, session).expect("释放");
 
     // 列举面：目录树前缀合成 + 隐藏条目过滤 + 定序（《04.04》§4.10）。
     let entries = manager

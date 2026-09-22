@@ -5,11 +5,11 @@
 //!
 //! | Neon 导出 | backing（`chips-resource` 公开面） |
 //! | --- | --- |
-//! | `resourceOpen` | `ResourceManager::open(OpenRequest)` |
-//! | `resourceStat` | `ResourceManager::stat(HandleId)` |
-//! | `resourceRead` | `ResourceManager::read_range(HandleId, ByteRange)` |
-//! | `resourceReadChunk` | `ResourceManager::read_chunk(HandleId, usize)` |
-//! | `resourceRelease` | `ResourceManager::release(HandleId)`（幂等） |
+//! | `resourceOpen` | `ResourceManager::open(OpenRequest)`（成功路径记句柄↔会话归属账） |
+//! | `resourceStat` | `ResourceManager::stat(HandleId, SessionId)`（会话源经归属账回取） |
+//! | `resourceRead` | `ResourceManager::read_range(HandleId, SessionId, ByteRange)` |
+//! | `resourceReadChunk` | `ResourceManager::read_chunk(HandleId, SessionId, usize)` |
+//! | `resourceRelease` | `ResourceManager::release(HandleId, SessionId)`（未知/墓碑幂等） |
 //! | `resourceCommitWrite` | `ResourceManager::commit_write(WriteRequest)` |
 //! | `resourceCommitWriteStream` | `ResourceManager::open_write_stream(WriteStreamRequest)` +
 //!   闭包对象的 `append` / `commit` / `abort`（`append_write_stream` /
@@ -46,16 +46,24 @@
 //!   方法闭包捕获共享状态，对象整体被 GC 回收且仍未收口时由最后一次引用
 //!   的 `Drop` 兜底 `abort_write_stream`（零残留，《04.04》§4.8 失败回滚、
 //!   §8.4「Finalize 只作兜底」同构语义）；
-//! - N-1 句柄归属闸在册交回：§11.3 的句柄操作四导出
-//!   （`resourceStat` / `resourceRead` / `resourceReadChunk` /
-//!   `resourceRelease`）签名只携带 `handleId`、不携带会话源，归属比对在
-//!   本导出面无输入可锁测，维持归收口后 Rust 腾面小单（#185/#192 两波
-//!   核证结论，manager.rs 零改动红线同构）。
+//! - N-1 句柄归属闸（本单收口，安全巡检残项复核 §一.1）：§11.3 的句柄操作
+//!   四导出（`resourceStat` / `resourceRead` / `resourceReadChunk` /
+//!   `resourceRelease`）签名只携带 `handleId`、不携带会话源（导出面只增不改，
+//!   `coreAbiVersion` 不随动）。归属比对采「服务端注册表比对」最小形态：绑定层
+//!   维持一张进程级句柄↔会话归属账 [`HandleSessionLedger`]，`resourceOpen`
+//!   成功时以入参 `sessionId` 记账，四句柄导出经 [`owner_of_handle`] 回取归属
+//!   会话再交 `chips-resource` 归属闸复核——未在册句柄回哨兵会话
+//!   （[`UNCLAIMED_SESSION`]，恒不匹真实会话，ID 受 2^53 约束），因状态闸
+//!   先行故对外行为不变（`RESOURCE_HANDLE_RELEASED`），注册表失同步时
+//!   fail-closed。此即「binding layer guarantees only in-ledger handles pass
+//!   through」的在册形态：四导出签名零改动，§11.3 十五导出面与 49 项三方锁
+//!   账零漂移。
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use chips_core::{ChipsError, NoopDecisionObserver};
 use chips_resource::provider::ByteRange;
@@ -84,6 +92,97 @@ fn resource_manager() -> Arc<ResourceManager> {
             Arc::new(NoopDecisionObserver),
         ))
     }))
+}
+
+// ---------------------------------------------------------------------------
+// N-1 句柄↔会话归属账（服务端注册表比对，绑定层选项 B）
+// ---------------------------------------------------------------------------
+
+/// 未在册句柄的哨兵归属会话：真实会话 ID 经单调分配且跨边界受 2^53 约束
+/// （§11.3），此值永不为任何真实会话取得——四句柄导出对未在册句柄回此值，
+/// `chips-resource` 状态闸先行（未知/墓碑句柄先挂 `RESOURCE_HANDLE_RELEASED`），
+/// 故对外行为与收口前逐字一致；仅当注册表失同步时以归属闸 fail-closed 兜底。
+const UNCLAIMED_SESSION: u64 = u64::MAX;
+
+/// 进程级句柄↔会话归属注册表（与 [`RESOURCE_MANAGER`] 同生命周期）。
+/// `resourceOpen` 成功路径以入参 `sessionId` 记账；`resourceRelease` 成功与
+/// `resourceCloseSession`（级联释放）对应清账。四句柄导出经 [`owner_of_handle`]
+/// 回取归属会话传入 `chips-resource` 归属闸。
+static HANDLE_SESSION_LEDGER: OnceLock<Mutex<HandleSessionLedger>> = OnceLock::new();
+
+#[derive(Default)]
+struct HandleSessionLedger {
+    /// 句柄 → 归属会话（四句柄导出回取用）。
+    owners: BTreeMap<u64, u64>,
+    /// 会话 → 名下句柄集（`close_session` 级联清账用）。
+    sessions: BTreeMap<u64, BTreeSet<u64>>,
+}
+
+impl HandleSessionLedger {
+    fn record(&mut self, handle: u64, session: u64) {
+        self.owners.insert(handle, session);
+        self.sessions.entry(session).or_default().insert(handle);
+    }
+
+    fn owner_of(&self, handle: u64) -> Option<u64> {
+        self.owners.get(&handle).copied()
+    }
+
+    fn forget(&mut self, handle: u64) {
+        if let Some(session) = self.owners.remove(&handle) {
+            if let Some(set) = self.sessions.get_mut(&session) {
+                set.remove(&handle);
+                if set.is_empty() {
+                    self.sessions.remove(&session);
+                }
+            }
+        }
+    }
+
+    fn forget_session(&mut self, session: u64) {
+        if let Some(set) = self.sessions.remove(&session) {
+            for handle in set {
+                self.owners.remove(&handle);
+            }
+        }
+    }
+}
+
+fn ledger() -> &'static Mutex<HandleSessionLedger> {
+    HANDLE_SESSION_LEDGER.get_or_init(|| Mutex::new(HandleSessionLedger::default()))
+}
+
+/// `resourceOpen` 成功记账：登记句柄的归属会话。
+fn record_handle_owner(handle: u64, session: u64) {
+    ledger()
+        .lock()
+        .expect("句柄归属账锁不得中毒")
+        .record(handle, session);
+}
+
+/// 四句柄导出回取归属会话；未在册回哨兵会话（fail-closed，行为不变）。
+fn owner_of_handle(handle: u64) -> u64 {
+    ledger()
+        .lock()
+        .expect("句柄归属账锁不得中毒")
+        .owner_of(handle)
+        .unwrap_or(UNCLAIMED_SESSION)
+}
+
+/// `resourceRelease` 成功后清账（幂等：未在册亦为无操作）。
+fn forget_handle_owner(handle: u64) {
+    ledger()
+        .lock()
+        .expect("句柄归属账锁不得中毒")
+        .forget(handle);
+}
+
+/// `resourceCloseSession` 级联清账（幂等：无句柄会话为无操作）。
+fn forget_session_handles(session: u64) {
+    ledger()
+        .lock()
+        .expect("句柄归属账锁不得中毒")
+        .forget_session(session);
 }
 
 // ---------------------------------------------------------------------------
@@ -418,6 +517,8 @@ pub(crate) fn js_resource_open(mut cx: FunctionContext) -> JsResult<JsPromise> {
         &mut cx,
         async move {
             let opened = manager.open(OpenRequest { uri, session }).await?;
+            // N-1：打开成功即记句柄↔会话归属账，供四句柄导出回取。
+            record_handle_owner(opened.id, session);
             open_result_json(opened.id, &opened.metadata)
         },
         settle_json,
@@ -427,11 +528,13 @@ pub(crate) fn js_resource_open(mut cx: FunctionContext) -> JsResult<JsPromise> {
 /// `resourceStat(handleId)`：元数据（命中 L0 新鲜期直返，《04》§6.3）。
 pub(crate) fn js_resource_stat(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let handle = arg_or_throw!(id_argument(&mut cx, 0, "/handleId"), &mut cx);
+    // N-1：归属会话经句柄↔会话归属账回取，交 chips-resource 归属闸复核。
+    let owner = owner_of_handle(handle);
     let manager = resource_manager();
     spawn_promise(
         &mut cx,
         async move {
-            let metadata = manager.stat(handle).await?;
+            let metadata = manager.stat(handle, owner).await?;
             metadata_json(&metadata)
         },
         settle_json,
@@ -447,10 +550,12 @@ pub(crate) fn js_resource_read(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(range) => range,
         Err(error) => return throw_chips_error(&mut cx, error),
     };
+    // N-1：归属会话经句柄↔会话归属账回取，交 chips-resource 归属闸复核。
+    let owner = owner_of_handle(handle);
     let manager = resource_manager();
     spawn_promise(
         &mut cx,
-        async move { manager.read_range(handle, range).await },
+        async move { manager.read_range(handle, owner, range).await },
         settle_buffer,
     )
 }
@@ -459,12 +564,18 @@ pub(crate) fn js_resource_read(mut cx: FunctionContext) -> JsResult<JsPromise> {
 pub(crate) fn js_resource_read_chunk(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let handle = arg_or_throw!(id_argument(&mut cx, 0, "/handleId"), &mut cx);
     let max_bytes = arg_or_throw!(id_argument(&mut cx, 1, "/maxBytes"), &mut cx);
+    // N-1：归属会话经句柄↔会话归属账回取，交 chips-resource 归属闸复核。
+    let owner = owner_of_handle(handle);
     let manager = resource_manager();
     spawn_promise(
         &mut cx,
         async move {
             manager
-                .read_chunk(handle, usize::try_from(max_bytes).unwrap_or(usize::MAX))
+                .read_chunk(
+                    handle,
+                    owner,
+                    usize::try_from(max_bytes).unwrap_or(usize::MAX),
+                )
                 .await
         },
         settle_chunk,
@@ -474,13 +585,16 @@ pub(crate) fn js_resource_read_chunk(mut cx: FunctionContext) -> JsResult<JsProm
 /// `resourceRelease(handleId)`：释放句柄与租约；幂等（§11.3 同步 `void`）。
 pub(crate) fn js_resource_release(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let handle = arg_or_throw!(id_argument(&mut cx, 0, "/handleId"), &mut cx);
+    // N-1：归属会话经句柄↔会话归属账回取；释放成功后清账。
+    let owner = owner_of_handle(handle);
     let manager = resource_manager();
     check_sync(
         &mut cx,
         manager
-            .release(handle)
+            .release(handle, owner)
             .map_err(|error| error.to_chips_error()),
     )?;
+    forget_handle_owner(handle);
     Ok(cx.undefined())
 }
 
@@ -680,6 +794,8 @@ pub(crate) fn js_resource_close_session(mut cx: FunctionContext) -> JsResult<JsU
             .close_session(session)
             .map_err(|error| error.to_chips_error()),
     )?;
+    // N-1：级联释放后清该会话名下归属账（防句柄 ID 复用时错配）。
+    forget_session_handles(session);
     Ok(cx.undefined())
 }
 
@@ -1006,8 +1122,14 @@ mod tests {
     #[test]
     fn test_release_close_session_and_temp_scope_backing() {
         let manager = fixture_manager();
-        // release 幂等（§11.3 `void`）：未在册句柄经 backing 幂等口径。
-        manager.release(9_999).expect("释放必须幂等成功");
+        // release 幂等（§11.3 `void`）：未在册句柄经 backing 幂等口径——
+        // N-1 归属闸状态先行，未知句柄对任意会话恒幂等成功。
+        manager
+            .release(9_999, UNCLAIMED_SESSION)
+            .expect("释放必须幂等成功");
+        manager
+            .release(9_999, 7_777)
+            .expect("未在册未知句柄对任意会话恒幂等");
         // close_session：不存在的会话 → 契约码（绑定层不改写）。
         let error = manager
             .close_session(9_999)
@@ -1031,5 +1153,69 @@ mod tests {
             Some("RESOURCE_NOT_FOUND".to_owned()),
             "回滚后不得留半注册"
         );
+    }
+
+    #[test]
+    fn test_handle_session_ledger_record_owner_and_forget() {
+        // N-1 归属账纯结构面：记账-回取-清账三面与级联清账。
+        let mut ledger = HandleSessionLedger::default();
+        // 未在册回 None（导出层再经 unwrap_or 落哨兵会话）。
+        assert_eq!(ledger.owner_of(404), None);
+        ledger.record(1, 100);
+        ledger.record(2, 100);
+        ledger.record(3, 200);
+        assert_eq!(ledger.owner_of(1), Some(100));
+        assert_eq!(ledger.owner_of(2), Some(100));
+        assert_eq!(ledger.owner_of(3), Some(200));
+        // 单句柄清账只摘该句柄、不动同会话其余句柄。
+        ledger.forget(1);
+        assert_eq!(ledger.owner_of(1), None);
+        assert_eq!(ledger.owner_of(2), Some(100));
+        // 清空的会话索引自净：forget(2) 后会话 100 名下集消失。
+        ledger.forget(2);
+        assert!(
+            !ledger.sessions.contains_key(&100),
+            "空会话集须自净"
+        );
+        // 级联清账：close_session 摘净该会话名下全部句柄、他会话不受扰。
+        ledger.forget_session(200);
+        assert_eq!(ledger.owner_of(3), None);
+        assert!(ledger.owners.is_empty() && ledger.sessions.is_empty());
+        // 幂等：未在册句柄/无句柄会话清账皆为无操作。
+        ledger.forget(9_999);
+        ledger.forget_session(9_999);
+    }
+
+    #[test]
+    fn test_handle_session_ledger_sentinel_is_fail_closed_and_never_real() {
+        // 哨兵会话永不等真实会话 ID（真实 ID 跨边界受 2^53 约束、
+        // `normalize_u64_field` 达 `MAX_SAFE_INTEGER` 即拒，§11.3/§8.2），
+        // 未在册经 owner_of_handle 回此值。
+        assert!(UNCLAIMED_SESSION > crate::convert::MAX_SAFE_INTEGER);
+        let mut ledger = HandleSessionLedger::default();
+        let resolved = ledger.owner_of(7).unwrap_or(UNCLAIMED_SESSION);
+        assert_eq!(resolved, UNCLAIMED_SESSION, "未在册必落哨兵（fail-closed）");
+        // 记账后回取到真实归属、非哨兵。
+        ledger.record(7, 42);
+        assert_eq!(ledger.owner_of(7).unwrap_or(UNCLAIMED_SESSION), 42);
+    }
+
+    #[test]
+    fn test_global_ledger_wrappers_round_trip() {
+        // 进程级归属账包装函数面：以本测试独占的高段句柄 ID 记账-回取-清账，
+        // 避免与并行测试争用（真实运行期 ID 单调递增远低于此段）。
+        let handle = u64::MAX - 1_000;
+        let session = u64::MAX - 2_000;
+        assert_eq!(owner_of_handle(handle), UNCLAIMED_SESSION, "起手未在册");
+        record_handle_owner(handle, session);
+        assert_eq!(owner_of_handle(handle), session, "记账后回取归属");
+        forget_handle_owner(handle);
+        assert_eq!(owner_of_handle(handle), UNCLAIMED_SESSION, "清账后回落哨兵");
+        // 级联清账路径。
+        record_handle_owner(handle, session);
+        record_handle_owner(handle + 1, session);
+        forget_session_handles(session);
+        assert_eq!(owner_of_handle(handle), UNCLAIMED_SESSION);
+        assert_eq!(owner_of_handle(handle + 1), UNCLAIMED_SESSION);
     }
 }

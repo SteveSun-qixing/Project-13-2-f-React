@@ -72,6 +72,7 @@ async fn test_memory_mount_read_write_lifecycle() {
     let bytes = manager
         .read_range(
             handle.id,
+            session,
             ByteRange {
                 offset: 8,
                 length: Some(6),
@@ -82,11 +83,15 @@ async fn test_memory_mount_read_write_lifecycle() {
     assert_eq!(bytes, b"memory".to_vec());
     // 流式读取全量并与原字节一致（supports_streaming 如实声明）。
     let mut streamed = Vec::new();
-    while let Some(chunk) = manager.read_chunk(handle.id, 8).await.expect("流读放行") {
+    while let Some(chunk) = manager
+        .read_chunk(handle.id, session, 8)
+        .await
+        .expect("流读放行")
+    {
         streamed.extend_from_slice(&chunk);
     }
     assert_eq!(streamed, b"runtime-memory-bytes".to_vec());
-    manager.release(handle.id).expect("释放幂等面");
+    manager.release(handle.id, session).expect("释放幂等面");
     // delete 在册（Memory 属删除种类白名单）。
     manager
         .delete(FsOpRequest {
@@ -272,7 +277,7 @@ async fn test_close_creator_session_evicts_without_persistence() {
     manager.close_session(session).expect("关闭创建者会话");
     // 句柄级联失效归还；作用域注销。
     let error = manager
-        .stat(handle.id)
+        .stat(handle.id, session)
         .await
         .expect_err("租约必须随会话归还");
     assert_eq!(error.code(), RESOURCE_HANDLE_RELEASED);

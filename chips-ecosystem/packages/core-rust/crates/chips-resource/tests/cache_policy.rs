@@ -370,6 +370,7 @@ async fn full_read_lands_in_l1_and_second_read_skips_provider_bytes() {
         .manager
         .read_range(
             handle.id,
+            fixture.session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -381,6 +382,7 @@ async fn full_read_lands_in_l1_and_second_read_skips_provider_bytes() {
         .manager
         .read_range(
             handle.id,
+            fixture.session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -412,12 +414,12 @@ async fn range_read_never_writes_l1() {
     };
     let a = fixture
         .manager
-        .read_range(handle.id, partial)
+        .read_range(handle.id, fixture.session, partial)
         .await
         .expect("范围读");
     let b = fixture
         .manager
-        .read_range(handle.id, partial)
+        .read_range(handle.id, fixture.session, partial)
         .await
         .expect("范围读");
     assert_eq!(a, b"234".to_vec());
@@ -433,6 +435,7 @@ async fn range_read_never_writes_l1() {
         .manager
         .read_range(
             handle.id,
+            fixture.session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -454,7 +457,7 @@ async fn streaming_does_not_write_bytes_cache() {
     let mut consumed = Vec::new();
     while let Some(chunk) = fixture
         .manager
-        .read_chunk(handle.id, 16)
+        .read_chunk(handle.id, fixture.session, 16)
         .await
         .expect("流读")
     {
@@ -469,6 +472,7 @@ async fn streaming_does_not_write_bytes_cache() {
         .manager
         .read_range(
             handle.id,
+            fixture.session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -489,6 +493,7 @@ async fn write_commit_event_invalidates_stale_l1_and_refreshes_metadata() {
         .manager
         .read_range(
             handle.id,
+            fixture.session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -510,6 +515,7 @@ async fn write_commit_event_invalidates_stale_l1_and_refreshes_metadata() {
         .manager
         .read_range(
             handle.id,
+            fixture.session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -532,6 +538,7 @@ async fn unregister_scope_clears_cache_entries() {
         .manager
         .read_range(
             handle.id,
+            fixture.session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -583,6 +590,7 @@ async fn unregister_scope_clears_cache_entries() {
         .manager
         .read_range(
             fresh.id,
+            session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -609,6 +617,7 @@ async fn concurrent_full_reads_merge_via_single_flight() {
                 .manager
                 .read_range(
                     handle_id,
+                    fixture.session,
                     ByteRange {
                         offset: 0,
                         length: None,
@@ -647,6 +656,7 @@ async fn invalidation_during_inflight_read_discards_stale_commit() {
                 .manager
                 .read_range(
                     handle_id,
+                    fixture.session,
                     ByteRange {
                         offset: 0,
                         length: None,

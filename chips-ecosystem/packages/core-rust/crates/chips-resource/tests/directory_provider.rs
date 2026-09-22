@@ -179,6 +179,7 @@ async fn test_mount_directory_read_and_stream_lifecycle() {
     let bytes = manager
         .read_range(
             handle.id,
+            session,
             ByteRange {
                 offset: 6,
                 length: Some(9),
@@ -190,13 +191,17 @@ async fn test_mount_directory_read_and_stream_lifecycle() {
     // 小上限逐块流读：非末块恰为 max_bytes，None 唯一终结。
     let mut streamed = Vec::new();
     let mut chunk_sizes = Vec::new();
-    while let Some(chunk) = manager.read_chunk(handle.id, 4).await.expect("流读放行") {
+    while let Some(chunk) = manager
+        .read_chunk(handle.id, session, 4)
+        .await
+        .expect("流读放行")
+    {
         chunk_sizes.push(chunk.len());
         streamed.extend_from_slice(&chunk);
     }
     assert_eq!(chunk_sizes, vec![4, 4, 4, 3]);
     assert_eq!(streamed, b"hello-directory".to_vec());
-    manager.release(handle.id).expect("释放放行");
+    manager.release(handle.id, session).expect("释放放行");
 }
 
 #[tokio::test]
@@ -222,7 +227,7 @@ async fn test_directory_stream_chunk_cap_and_busy_occupancy() {
         .await
         .expect("打开放行");
     let first = manager
-        .read_chunk(handle.id, 1024 * 1024)
+        .read_chunk(handle.id, session, 1024 * 1024)
         .await
         .expect("首拉")
         .expect("非结尾");
@@ -231,6 +236,7 @@ async fn test_directory_stream_chunk_cap_and_busy_occupancy() {
     let error = manager
         .read_range(
             handle.id,
+            session,
             ByteRange {
                 offset: 0,
                 length: Some(4),
@@ -244,14 +250,14 @@ async fn test_directory_stream_chunk_cap_and_busy_occupancy() {
         "chips-resource://workspace-1/big.bin"
     );
     let second = manager
-        .read_chunk(handle.id, 1024 * 1024)
+        .read_chunk(handle.id, session, 1024 * 1024)
         .await
         .expect("次拉")
         .expect("非结尾");
     assert_eq!(second.len(), payload.len() - 256 * 1024, "末块为余量");
     assert!(
         manager
-            .read_chunk(handle.id, 1024 * 1024)
+            .read_chunk(handle.id, session, 1024 * 1024)
             .await
             .expect("三拉")
             .is_none(),
@@ -261,6 +267,7 @@ async fn test_directory_stream_chunk_cap_and_busy_occupancy() {
     let bytes = manager
         .read_range(
             handle.id,
+            session,
             ByteRange {
                 offset: 0,
                 length: Some(4),
@@ -272,14 +279,14 @@ async fn test_directory_stream_chunk_cap_and_busy_occupancy() {
     // 全量内容一致（游标严格累计、无空洞不重叠）。
     let mut streamed = Vec::new();
     while let Some(chunk) = manager
-        .read_chunk(handle.id, 1024 * 1024)
+        .read_chunk(handle.id, session, 1024 * 1024)
         .await
         .expect("二次开流")
     {
         streamed.extend_from_slice(&chunk);
     }
     assert_eq!(streamed, payload);
-    manager.release(handle.id).expect("释放");
+    manager.release(handle.id, session).expect("释放");
 }
 
 #[tokio::test]
@@ -535,7 +542,7 @@ async fn test_directory_read_only_temporary_mount_arm() {
         .await
         .expect("只读域读取放行");
     assert_eq!(handle.metadata.size, 2);
-    manager.release(handle.id).expect("释放");
+    manager.release(handle.id, session).expect("释放");
     manager
         .list_directory(open_request(session, "chips-resource://temp-1"))
         .await

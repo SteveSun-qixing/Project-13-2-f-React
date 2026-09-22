@@ -77,9 +77,15 @@ packages/native/
   `NATIVE_TYPE_UNSUPPORTED` / `NATIVE_VALUE_OUT_OF_RANGE` / `NATIVE_INTERNAL`
   三码拒绝非法入参；`handleId` / `sessionId` / `offset` / `length` / `maxBytes`
   一律经 `< 2^53` 线格式判闸；
-- N-1 句柄归属闸在册交回：§11.3 的句柄四导出只携带 `handleId`、不携带会话源，
-  归属比对在本导出面无输入可锁测，维持归收口后的 Rust 腾面小单
-  （#185/#192 两波核证结论，本波 `manager.rs` 零改动）。
+- N-1 句柄归属闸已落位：§11.3 四句柄导出的 JS 签名维持只携带 `handleId`、不携带
+  会话源（导出面只增不改、三方锁账 49 项零漂移、`coreAbiVersion` 不随动）；归属
+  会话由绑定层进程级「句柄↔会话归属账」（`HandleSessionLedger`）供给——
+  `resourceOpen`（入参已带 `sessionId`）成功时记账 `handleId → sessionId`，
+  `resourceStat` / `resourceRead` / `resourceReadChunk` / `resourceRelease` 四导出
+  回取归属会话再交 `chips-resource` §11.1 在册比对（内部 Rust API，跨会话落
+  `RESOURCE_PERMISSION_DENIED`）；`resourceRelease` 成功与 `resourceCloseSession`
+  （级联释放）对应清账，未在册句柄回哨兵会话（`UNCLAIMED_SESSION`，恒不匹任何
+  真实会话，fail-closed）。
 
 十个 Bridge 导出全部转发 `chips-bridge` 内核（工单005，《问题工单》）：
 绑定层只做参数解析、`{ json, bin }` 信封编解码、错误归一与线程回投；

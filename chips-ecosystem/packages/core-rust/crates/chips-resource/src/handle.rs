@@ -5,6 +5,17 @@
 //! released`；非法迁移一律拒绝。每个句柄归属一个资源会话并持有租约；会话
 //! 关闭级联归还全部租约。读操作按状态返回 `RESOURCE_HANDLE_RELEASED` /
 //! `RESOURCE_HANDLE_INVALIDATED`；`release()` 幂等。
+//!
+//! 会话归属闸（工单043 巡检分件 §一.1 N-1 判据，《04》§11.1，《03》§7.1）：
+//! `acquire_for_read` / `acquire_for_range_read` / `begin_stream` /
+//! `release_for_session` 四个准入入口在状态闸之后强制比对
+//! `entry.session == caller_session`，异值以在册拒绝形
+//! `RESOURCE_PERMISSION_DENIED`（`permission: "session"`、
+//! `reason: out_of_scope`，与 `resolve` 会话未知臂同形）拒绝；句柄 ID 为
+//! 单调递增整数而非不可猜 token，归属比对在核心层构成硬闸，任何持有
+//! `HandleId` 的调用方都不能跨会话读写或释放他会话句柄。级联面
+//! （`invalidate_and_release_where` → `release`）是核心自持的无调用方
+//! 通道，不经归属闸。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -223,12 +234,14 @@ impl HandleTable {
             .or_else(|| state.tombstones.get(&id).map(|_| HandleState::Released))
     }
 
-    /// 读操作准入：仅 `open` 态放行；其余按状态返回在册错误。
+    /// 读操作准入：仅 `open` 态且归属会话匹配放行；其余按状态与归属返回
+    /// 在册错误（跨会话 → `RESOURCE_PERMISSION_DENIED`，N-1 归属闸）。
     ///
     /// 返回 `(address, provider_id, scope_kind)` 快照供锁外异步读取。
     pub fn acquire_for_read(
         &self,
         id: HandleId,
+        session: SessionId,
     ) -> ResourceResult<(ResourceAddress, String, ScopeKind)> {
         let state = self.state.lock().expect("句柄表锁不得中毒");
         let entry = state
@@ -241,6 +254,7 @@ impl HandleTable {
                     .map_or_else(String::new, |tombstone| tombstone.uri.clone()),
             })?;
         Self::require_open(entry)?;
+        Self::require_session(entry, session)?;
         Ok((
             entry.address.clone(),
             entry.provider_id.clone(),
@@ -258,8 +272,9 @@ impl HandleTable {
     }
 
     /// 流式读取准入：首次占槽（`FirstOpen`）、续用取回游标（`Reuse`）；
-    /// 游标在途（已借出未归位）时返回 `RESOURCE_BUSY`。
-    pub fn begin_stream(&self, id: HandleId) -> ResourceResult<StreamSlot> {
+    /// 游标在途（已借出未归位）时返回 `RESOURCE_BUSY`；跨会话调用返回
+    /// `RESOURCE_PERMISSION_DENIED`（N-1 归属闸）。
+    pub fn begin_stream(&self, id: HandleId, session: SessionId) -> ResourceResult<StreamSlot> {
         let mut state = self.state.lock().expect("句柄表锁不得中毒");
         if !state.entries.contains_key(&id) {
             return Err(ResourceError::HandleReleased {
@@ -271,6 +286,7 @@ impl HandleTable {
         }
         let entry = state.entries.get_mut(&id).expect("上一步已确认在册");
         Self::require_open(entry)?;
+        Self::require_session(entry, session)?;
         let address = entry.address.clone();
         let provider_id = entry.provider_id.clone();
         if let Some(stream) = entry.stream.take() {
@@ -292,10 +308,12 @@ impl HandleTable {
         })
     }
 
-    /// 范围读准入：流占用期间返回 `RESOURCE_BUSY`（《06》§6.6 互斥）。
+    /// 范围读准入：流占用期间返回 `RESOURCE_BUSY`（《06》§6.6 互斥）；
+    /// 跨会话调用返回 `RESOURCE_PERMISSION_DENIED`（N-1 归属闸）。
     pub fn acquire_for_range_read(
         &self,
         id: HandleId,
+        session: SessionId,
     ) -> ResourceResult<(ResourceAddress, String)> {
         let state = self.state.lock().expect("句柄表锁不得中毒");
         let entry = state
@@ -320,6 +338,7 @@ impl HandleTable {
             }
             HandleState::Released => return Err(ResourceError::HandleReleased { uri }),
         }
+        Self::require_session(entry, session)?;
         if entry.stream_open {
             return Err(ResourceError::Busy { uri });
         }
@@ -351,6 +370,36 @@ impl HandleTable {
                 uri: entry.address.uri.clone(),
             }),
         }
+    }
+
+    /// 会话归属闸（N-1 判据）：句柄登记时刻固化的归属会话（打开路径
+    /// `insert` 写入）必须与调用方会话一致；异值以在册拒绝形
+    /// `RESOURCE_PERMISSION_DENIED` 收口（`permission: "session"`、
+    /// `reason: out_of_scope`，与 `resolve` 会话未知臂同形）。
+    fn require_session(entry: &HandleEntry, session: SessionId) -> ResourceResult<()> {
+        if entry.session == session {
+            return Ok(());
+        }
+        Err(ResourceError::PermissionDenied {
+            target: entry.address.uri.clone(),
+            permission: "session".to_owned(),
+            required: Vec::new(),
+            missing: Vec::new(),
+            granted: Vec::new(),
+            reason: crate::error::PermissionDenyReason::OutOfScope,
+        })
+    }
+
+    /// 带归属闸的释放：在途句柄要求调用方会话与在册归属一致（N-1），
+    /// 跨会话拒绝且句柄保持原状；未在册（已释放墓碑与从未在册陈旧 ID）
+    /// 维持幂等 no-op 口径。
+    pub fn release_for_session(&self, id: HandleId, session: SessionId) -> ResourceResult<()> {
+        let state = self.state.lock().expect("句柄表锁不得中毒");
+        if let Some(entry) = state.entries.get(&id) {
+            Self::require_session(entry, session)?;
+        }
+        drop(state);
+        self.release(id)
     }
 
     /// 失效迁移：`open → invalidated`（非法态幂等跳过），并通知订阅者。
@@ -402,7 +451,9 @@ impl HandleTable {
         released
     }
 
-    /// 释放句柄：`open` / `invalidated` → `released`；幂等，重复释放为 no-op。
+    /// 释放句柄：`open` / `invalidated` → `released`；幂等，重复释放为
+    /// no-op。核心自持的无调用方通道（级联回收与 `release_for_session`
+    /// 闸后转发）；带调用方会话的释放必须走 [`Self::release_for_session`]。
     pub fn release(&self, id: HandleId) -> ResourceResult<()> {
         let mut state = self.state.lock().expect("句柄表锁不得中毒");
         let Some(entry) = state.entries.remove(&id) else {
@@ -579,7 +630,9 @@ mod tests {
         let second = insert(&table, 1, "chips.a");
         assert!(second > first, "句柄 ID 单调递增且不复用");
         // 陈旧 ID 命中墓碑：返回已释放错误而非误中新句柄。
-        let error = table.acquire_for_read(first).expect_err("陈旧 ID 必须拒绝");
+        let error = table
+            .acquire_for_read(first, 1)
+            .expect_err("陈旧 ID 必须拒绝");
         assert_eq!(error.code(), crate::error::RESOURCE_HANDLE_RELEASED);
     }
 
@@ -597,7 +650,9 @@ mod tests {
         );
         table.invalidate_where(InvalidateReason::SourceChanged, |_| true);
         assert_eq!(notified.load(Ordering::Relaxed), 1, "失效必须通知订阅者");
-        let error = table.acquire_for_read(id).expect_err("失效句柄读必须拒绝");
+        let error = table
+            .acquire_for_read(id, 1)
+            .expect_err("失效句柄读必须拒绝");
         assert_eq!(error.code(), crate::error::RESOURCE_HANDLE_INVALIDATED);
         assert!(error.retryable());
         // 已失效后注册：立即回调。
@@ -635,30 +690,89 @@ mod tests {
         let table = table();
         let id = insert(&table, 1, "chips.a");
         // 首次开流：占槽并返回 FirstOpen。
-        match table.begin_stream(id).expect("首次开流必须成功") {
+        match table.begin_stream(id, 1).expect("首次开流必须成功") {
             StreamSlot::FirstOpen { address, .. } => {
                 assert_eq!(address.uri, "chips-resource://card-1/a.png");
             }
             StreamSlot::Reuse { .. } => panic!("首次开流不得返回复用游标"),
         }
-        let error = table.begin_stream(id).expect_err("游标在途时必须互斥");
+        let error = table.begin_stream(id, 1).expect_err("游标在途时必须互斥");
         assert_eq!(error.code(), crate::error::RESOURCE_BUSY);
         let error = table
-            .acquire_for_range_read(id)
+            .acquire_for_range_read(id, 1)
             .expect_err("流占用期间范围读互斥");
         assert_eq!(error.code(), crate::error::RESOURCE_BUSY);
         // 游标归位后可续用；范围读仍互斥。
         table.store_stream(id, Some(Box::new(DoneStream)));
-        match table.begin_stream(id).expect("归位游标必须可续用") {
+        match table.begin_stream(id, 1).expect("归位游标必须可续用") {
             StreamSlot::Reuse { .. } => {}
             StreamSlot::FirstOpen { .. } => panic!("已归位游标不得再次占槽"),
         }
         // EOF（归位 None）：槽位释放，范围读恢复放行。
         table.store_stream(id, None);
         assert!(
-            table.acquire_for_range_read(id).is_ok(),
+            table.acquire_for_range_read(id, 1).is_ok(),
             "EOF 后必须解除互斥"
         );
         assert!(!table.snapshot()[0].stream_open);
+    }
+
+    /// N-1 归属闸两臂（表级）：同会话四准入全放行，跨会话全以在册
+    /// 拒绝形 `RESOURCE_PERMISSION_DENIED` 收口且句柄保持原状。
+    #[test]
+    fn test_session_ownership_gate_two_arms() {
+        let table = table();
+        let id = insert(&table, 1, "chips.a");
+        // 合法臂：同会话（1）四准入全放行。
+        table.acquire_for_read(id, 1).expect("同会话读准入必须放行");
+        table
+            .acquire_for_range_read(id, 1)
+            .expect("同会话范围读准入必须放行");
+        match table.begin_stream(id, 1).expect("同会话开流必须放行") {
+            StreamSlot::FirstOpen { .. } => {}
+            StreamSlot::Reuse { .. } => panic!("首次开流不得返回复用游标"),
+        }
+        table.store_stream(id, None);
+        // 越权臂：会话 2 跨会话访问同一句柄 ID，四准入逐一拒绝且落
+        // `RESOURCE_PERMISSION_DENIED`（`permission: "session"`、
+        // `reason: out_of_scope`）。
+        for error in [
+            table
+                .acquire_for_read(id, 2)
+                .expect_err("跨会话读准入必须拒绝"),
+            table
+                .acquire_for_range_read(id, 2)
+                .expect_err("跨会话范围读必须拒绝"),
+            table.begin_stream(id, 2).expect_err("跨会话开流必须拒绝"),
+            table
+                .release_for_session(id, 2)
+                .expect_err("跨会话释放必须拒绝"),
+        ] {
+            assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+            let details = error.details().expect("拒绝形 details 在册");
+            assert_eq!(details["permission"], "session");
+            assert_eq!(details["reason"], "out_of_scope");
+        }
+        // 拒绝不产生副作用：句柄仍在册且归属不变。
+        assert_eq!(table.state_of(id), Some(HandleState::Open));
+        table
+            .release_for_session(id, 1)
+            .expect("归属会话释放必须放行");
+        assert_eq!(table.state_of(id), Some(HandleState::Released));
+    }
+
+    /// N-1 归属闸幂等口径：未在册（陈旧 ID / 墓碑）释放仍为 no-op，
+    /// 与《03》§7.1 `release` 幂等承诺一致。
+    #[test]
+    fn test_release_for_session_keeps_idempotency_for_unknown_ids() {
+        let table = table();
+        let id = insert(&table, 1, "chips.a");
+        table.release_for_session(id, 1).expect("归属释放");
+        table
+            .release_for_session(id, 1)
+            .expect("已释放句柄重复释放必须幂等");
+        table
+            .release_for_session(9_999, 2)
+            .expect("从未在册的陈旧 ID 释放必须幂等 no-op");
     }
 }

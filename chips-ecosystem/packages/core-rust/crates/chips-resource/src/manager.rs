@@ -4,6 +4,10 @@
 //! 段一交付：URI 语法 → 作用域查找 → PathGuard → 会话与权限判定的完整
 //! 流水线（[`ResourceManager::resolve`]），以及句柄 `open` / `stat` /
 //! `read_range` / `read_chunk` / `release` 三态状态机、会话与作用域级联。
+//! 句柄操作四臂（`stat` / `read_range` / `read_chunk` / `release`）携带
+//! `SessionId` 归属参数并经句柄↔会话注册表比对（`entry.session ==
+//! session`，跨会话以在册拒绝形 `RESOURCE_PERMISSION_DENIED` 收口，
+//! 工单043 巡检分件 §一.1 N-1 判据，《04》§11.1）。
 //! 段二 B1 追加：内置 MemoryProvider 挂载（[`ResourceManager::mount_memory`]）
 //! 与写入提交/文件系统操作入口（《04》§11.1 `commit_write` / `delete` /
 //! `rename` / `copy` / `create_directory` / `list_directory`），能力预检在
@@ -574,11 +578,18 @@ impl ResourceManager {
 
     /// 读元数据（《03》§7.1 `stat`）。
     ///
+    /// 会话归属闸（N-1）：`session` 必须与句柄在册归属一致，跨会话以
+    /// 在册拒绝形 `RESOURCE_PERMISSION_DENIED` 收口。
+    ///
     /// External 作用域按 L0 新鲜期直返（TTL 未过期不打网络，《04》§6.3
     /// HttpProvider 行）；受管作用域读取前经 Provider 校验版本戳
     /// （§6.3 Directory/Archive 行）并回填 L0。
-    pub async fn stat(&self, handle: HandleId) -> ManagerResult<ResourceMetadata> {
-        let (address, provider_id, kind) = self.handles.acquire_for_read(handle)?;
+    pub async fn stat(
+        &self,
+        handle: HandleId,
+        session: SessionId,
+    ) -> ManagerResult<ResourceMetadata> {
+        let (address, provider_id, kind) = self.handles.acquire_for_read(handle, session)?;
         if kind == ScopeKind::External {
             // External：L0 新鲜期内直返（TTL 惰性失效，《04》§6.3）。
             let probe_key = self.cache_key_for(&address, "");
@@ -608,14 +619,22 @@ impl ResourceManager {
 
     /// 范围读（与流互斥，《03》§7.1 `read_range`，《06》§6.6）。
     ///
+    /// 会话归属闸（N-1）：`session` 必须与句柄在册归属一致，跨会话以
+    /// 在册拒绝形 `RESOURCE_PERMISSION_DENIED` 收口。
+    ///
     /// B4 缓存联动（《04》§6.3/§6.4）：
     /// - 完整读（`offset = 0` 且 `length = None`）：读取前经 Provider `stat`
     ///   校验版本戳，命中 L1 即免后端字节拉取；未命中经 SingleFlight 合流
     ///   读取，成功结果写 L1（单条 ≤ `max_inline_bytes` 才入）并回填 L0；
     ///   提交时按读取前 epoch 再校验，失效竞态下过期结果丢弃。
     /// - 范围读（非完整读）：直通 Provider，绝不写入 L1（§6.4）。
-    pub async fn read_range(&self, handle: HandleId, range: ByteRange) -> ManagerResult<Vec<u8>> {
-        let (address, provider_id) = self.handles.acquire_for_range_read(handle)?;
+    pub async fn read_range(
+        &self,
+        handle: HandleId,
+        session: SessionId,
+        range: ByteRange,
+    ) -> ManagerResult<Vec<u8>> {
+        let (address, provider_id) = self.handles.acquire_for_range_read(handle, session)?;
         if let Some(length) = range.length {
             check_size(&address.uri, self.limits.max_resource_bytes, length)?;
         }
@@ -668,13 +687,17 @@ impl ResourceManager {
 
     /// 流式拉取（《03》§7.1 `read_chunk`）：首次调用打开游标；单次上限
     /// `chunk_bytes`；返回 `None` 表示结尾并释放流槽位。
+    ///
+    /// 会话归属闸（N-1）：`session` 必须与句柄在册归属一致，跨会话以
+    /// 在册拒绝形 `RESOURCE_PERMISSION_DENIED` 收口且不占流槽位。
     pub async fn read_chunk(
         &self,
         handle: HandleId,
+        session: SessionId,
         max_bytes: usize,
     ) -> ManagerResult<Option<Vec<u8>>> {
         let max_bytes = max_bytes.min(self.limits.chunk_bytes);
-        let mut stream = match self.handles.begin_stream(handle)? {
+        let mut stream = match self.handles.begin_stream(handle, session)? {
             StreamSlot::Reuse { stream, .. } => stream,
             StreamSlot::FirstOpen {
                 address,
@@ -713,9 +736,11 @@ impl ResourceManager {
         }
     }
 
-    /// 释放句柄与租约；幂等（《03》§7.1 `release`）。
-    pub fn release(&self, handle: HandleId) -> ResourceResult<()> {
-        self.handles.release(handle)
+    /// 释放句柄与租约（《03》§7.1 `release`）：归属会话内幂等（重复释放
+    /// 与陈旧 ID 均为 no-op 成功）；跨会话经归属闸以在册拒绝形
+    /// `RESOURCE_PERMISSION_DENIED` 拒绝且句柄保持原状（N-1）。
+    pub fn release(&self, handle: HandleId, session: SessionId) -> ResourceResult<()> {
+        self.handles.release_for_session(handle, session)
     }
 
     /// 挂载内置 MemoryProvider 到创建者会话（《04》§3.3 / 《06.04》§4.3 行 9）。
@@ -2013,10 +2038,121 @@ mod tests {
         assert_eq!(handle.metadata.size, 16);
         assert_eq!(handle.metadata.uri, "chips-resource://card-1/a.png");
         assert_eq!(open_handle_count(&manager), 1);
-        manager.release(handle.id).unwrap();
+        manager.release(handle.id, session).unwrap();
         assert!(manager.handles().is_empty());
-        let error = manager.stat(handle.id).await.expect_err("陈旧句柄必须拒绝");
+        let error = manager
+            .stat(handle.id, session)
+            .await
+            .expect_err("陈旧句柄必须拒绝");
         assert_eq!(error.code(), crate::error::RESOURCE_HANDLE_RELEASED);
+    }
+
+    /// N-1 归属闸两臂（判据：《安全巡检残项复核-2026-09-23》§一.1，
+    /// 母型 = IPC 三列账巡检 §六.2 G2 服务端归属比对）：同会话四臂
+    /// 合法放行；外来会话以会话 A 的句柄 ID 逐一调用 `stat` /
+    /// `read_range` / `read_chunk` / `release` 全部拒绝并落在册拒绝形
+    /// （`RESOURCE_PERMISSION_DENIED`、`permission: "session"`、
+    /// `reason: out_of_scope`、`target` 为句柄在册 URI），且拒绝零副
+    /// 作用——句柄不释放、流槽位不占用、归属不改写。
+    #[tokio::test]
+    async fn test_handle_arms_cross_session_denied_two_arms() {
+        let manager = manager_with_stub();
+        let session = session_of(&manager, &["card-1"]);
+        let foreign = session_of(&manager, &["card-1"]);
+        assert_ne!(session, foreign, "两会话必须互异以构成跨会话臂");
+        let handle = manager
+            .open(OpenRequest {
+                uri: "chips-resource://card-1/a.png".into(),
+                session,
+            })
+            .await
+            .expect("归属会话打开必须成功");
+        // 合法臂：归属会话四臂全放行。
+        manager
+            .stat(handle.id, session)
+            .await
+            .expect("同会话 stat 必须放行");
+        manager
+            .read_range(
+                handle.id,
+                session,
+                ByteRange {
+                    offset: 0,
+                    length: Some(4),
+                },
+            )
+            .await
+            .expect("同会话 read_range 必须放行");
+        manager
+            .read_chunk(handle.id, session, 4)
+            .await
+            .expect("同会话 read_chunk 必须放行")
+            .expect("载荷非空资源首块必在");
+        // 越权臂：外来会话逐臂拒绝且落在册拒绝形。read_chunk 越权拒绝
+        // 不得抢占流槽位（归属闸先于占槽）；release 越权拒绝不得归还
+        // 租约（可用性面防线）。
+        for error in [
+            manager
+                .stat(handle.id, foreign)
+                .await
+                .expect_err("跨会话 stat 必须拒绝"),
+            manager
+                .read_range(
+                    handle.id,
+                    foreign,
+                    ByteRange {
+                        offset: 0,
+                        length: Some(4),
+                    },
+                )
+                .await
+                .expect_err("跨会话 read_range 必须拒绝"),
+            manager
+                .read_chunk(handle.id, foreign, 4)
+                .await
+                .expect_err("跨会话 read_chunk 必须拒绝"),
+            manager
+                .release(handle.id, foreign)
+                .map_err(chips_core::ChipsError::from)
+                .expect_err("跨会话 release 必须拒绝"),
+        ] {
+            assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+            let details = error.details().expect("拒绝形 details 在册");
+            assert_eq!(details["permission"], "session");
+            assert_eq!(details["reason"], "out_of_scope");
+            assert_eq!(details["target"], "chips-resource://card-1/a.png");
+        }
+        // 拒绝零副作用：句柄在册、归属不改写；流槽位在途事实不变——
+        // 归属者范围读仍 BUSY（互斥口径不因归属闸改变），读到结尾后
+        // 归属会话释放放行。
+        assert_eq!(open_handle_count(&manager), 1, "越权拒绝不得释放句柄");
+        assert_eq!(
+            manager.handles().snapshot()[0].session,
+            session,
+            "越权拒绝不得改写归属"
+        );
+        let error = manager
+            .read_range(
+                handle.id,
+                session,
+                ByteRange {
+                    offset: 0,
+                    length: Some(1),
+                },
+            )
+            .await
+            .expect_err("流占用期间归属者范围读仍互斥");
+        assert_eq!(error.code(), crate::error::RESOURCE_BUSY);
+        while manager
+            .read_chunk(handle.id, session, 8)
+            .await
+            .expect("归属者流续读")
+            .is_some()
+        {}
+        manager
+            .release(handle.id, session)
+            .expect("归属会话释放必须放行");
+        assert!(manager.handles().is_empty());
     }
 
     #[tokio::test]
@@ -2070,6 +2206,7 @@ mod tests {
         let bytes = manager
             .read_range(
                 handle.id,
+                session,
                 ByteRange {
                     offset: 2,
                     length: Some(4),
@@ -2080,7 +2217,7 @@ mod tests {
         assert_eq!(bytes, b"2345".to_vec());
         // 打开流槽位后范围读返回 BUSY。
         let first = manager
-            .read_chunk(handle.id, 4)
+            .read_chunk(handle.id, session, 4)
             .await
             .expect("流首块")
             .expect("非结尾");
@@ -2088,6 +2225,7 @@ mod tests {
         let error = manager
             .read_range(
                 handle.id,
+                session,
                 ByteRange {
                     offset: 0,
                     length: Some(1),
@@ -2099,7 +2237,7 @@ mod tests {
         // 读到结尾：槽位释放，范围读恢复放行。
         let mut pulled = 1;
         while manager
-            .read_chunk(handle.id, 8)
+            .read_chunk(handle.id, session, 8)
             .await
             .expect("流续读")
             .is_some()
@@ -2110,6 +2248,7 @@ mod tests {
         manager
             .read_range(
                 handle.id,
+                session,
                 ByteRange {
                     offset: 0,
                     length: Some(2),
@@ -2148,7 +2287,7 @@ mod tests {
         manager.close_session(session).unwrap();
         assert!(manager.handles().is_empty(), "级联必须归还全部租约");
         let error = manager
-            .read_chunk(child_handle.id, 4)
+            .read_chunk(child_handle.id, child, 4)
             .await
             .expect_err("子会话租约必须随父会话归还");
         assert_eq!(error.code(), crate::error::RESOURCE_HANDLE_RELEASED);
@@ -2167,13 +2306,13 @@ mod tests {
             .unwrap();
         manager.invalidate_scope(&"card-1".to_owned(), InvalidateReason::SourceChanged);
         let error = manager
-            .stat(handle.id)
+            .stat(handle.id, session)
             .await
             .expect_err("失效句柄读取必须拒绝");
         assert_eq!(error.code(), crate::error::RESOURCE_HANDLE_INVALIDATED);
         assert_eq!(error.details().unwrap()["reason"], "source-changed");
         assert_eq!(open_handle_count(&manager), 1, "失效不归还租约");
-        manager.release(handle.id).unwrap();
+        manager.release(handle.id, session).unwrap();
         assert!(manager.handles().is_empty());
     }
 
@@ -2273,6 +2412,7 @@ mod tests {
         let bytes = manager
             .read_range(
                 handle.id,
+                session,
                 ByteRange {
                     offset: 4,
                     length: Some(5),
@@ -2282,11 +2422,15 @@ mod tests {
             .expect("范围读");
         assert_eq!(bytes, b"bytes".to_vec());
         let mut stream_total = 0usize;
-        while let Some(chunk) = manager.read_chunk(handle.id, 4).await.expect("流读") {
+        while let Some(chunk) = manager
+            .read_chunk(handle.id, session, 4)
+            .await
+            .expect("流读")
+        {
             stream_total += chunk.len();
         }
         assert_eq!(stream_total, 9);
-        manager.release(handle.id).unwrap();
+        manager.release(handle.id, session).unwrap();
         // 提交成功递增版本戳（《04.04》§4.10）。
         let second = manager
             .commit_write(write_request(session, "scratch/memo.txt", b"v2"))
@@ -2431,7 +2575,7 @@ mod tests {
             0,
             "级联失效后原句柄不得保留租约"
         );
-        let _ = manager.release(handle.id);
+        let _ = manager.release(handle.id, session);
     }
 
     #[tokio::test]
@@ -2794,14 +2938,14 @@ mod tests {
             .await
             .expect("开句柄放行");
         let first = manager
-            .read_chunk(handle.id, usize::MAX)
+            .read_chunk(handle.id, session, usize::MAX)
             .await
             .expect("流读放行")
             .expect("首块必在");
         assert_eq!(first.len(), 64, "块长上限即注入的 chunk_bytes=64");
         let mut total = first.len();
         while let Some(chunk) = manager
-            .read_chunk(handle.id, usize::MAX)
+            .read_chunk(handle.id, session, usize::MAX)
             .await
             .expect("流读")
         {
@@ -2832,7 +2976,7 @@ mod tests {
             .await
             .expect("开句柄放行");
         let first = manager
-            .read_chunk(handle.id, 512 * 1024)
+            .read_chunk(handle.id, session, 512 * 1024)
             .await
             .expect("流读放行")
             .expect("首块必在");
@@ -2842,7 +2986,7 @@ mod tests {
             "300 KiB 在 512 KiB 注入预算下必须单块完整返回"
         );
         assert!(manager
-            .read_chunk(handle.id, 512 * 1024)
+            .read_chunk(handle.id, session, 512 * 1024)
             .await
             .expect("收尾流读")
             .is_none());

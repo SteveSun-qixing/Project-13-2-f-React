@@ -923,6 +923,7 @@ async fn test_manager_routes_external_to_http_provider() {
     let bytes = manager
         .read_range(
             handle.id,
+            session,
             ByteRange {
                 offset: 0,
                 length: None,
@@ -934,6 +935,7 @@ async fn test_manager_routes_external_to_http_provider() {
     let again = manager
         .read_range(
             handle.id,
+            session,
             ByteRange {
                 offset: 0,
                 length: None,
