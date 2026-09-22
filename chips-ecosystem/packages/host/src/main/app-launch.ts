@@ -24,6 +24,7 @@ import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import type { PalHostContext } from './runtime-provider.js';
 import { startHostMain, type HostMainHandle } from './main.js';
 import { createProductionAssembly } from './production-assembly.js';
+import { createSecureWindowWebPreferences } from './window-security.js';
 
 /** 启动参数旗标：打开一张卡片窗口（可重复；值取下一参数或 `=` 内联形态）。 */
 export const OPEN_CARD_FLAG = '--chips-open-card';
@@ -92,10 +93,12 @@ export function createAppPalHost(electronModule: unknown, context: PalHostContex
     windowOptions: () => {
       palWindowSequence += 1;
       return {
-        webPreferences: {
+        // 工单043-A4：安全基线经唯一构造工厂显式钉死（构造 + assert 硬闸一体），不依赖
+        // Electron 默认值；PAL 侧端口另有强制合并臂，双层不互替。
+        webPreferences: createSecureWindowWebPreferences({
           preload: context.preloadPath,
           partition: `chips-window-pal-${palWindowSequence}`,
-        },
+        }),
       };
     },
   });

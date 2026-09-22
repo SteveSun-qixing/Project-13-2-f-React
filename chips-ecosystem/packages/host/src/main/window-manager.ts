@@ -14,7 +14,7 @@ import { HostStartupError } from '../shared/errors.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import type { ShellWindowFactory } from './shell-api.js';
 import type { WebContentsBinder } from './web-contents-binder.js';
-import { assertSecureWebPreferences, buildWindowWebPreferences, isAllowedWindowLoadUrl } from './window-security.js';
+import { createSecureWindowWebPreferences, isAllowedWindowLoadUrl } from './window-security.js';
 import type { WindowRecord, WindowRegistry } from './window-registry.js';
 
 /** 壳窗口创建参数。 */
@@ -77,11 +77,11 @@ export class ShellWindowManager {
     }
     this.sequence += 1;
     const partition = options.partition ?? `${this.deps.partitionPrefix ?? 'chips-window-'}${this.sequence}`;
-    const webPreferences = buildWindowWebPreferences({
+    // 工单043-A4：与 PAL 窗口共用唯一构造工厂（构造 + assert 硬闸一体交付）。
+    const webPreferences = createSecureWindowWebPreferences({
       preload: this.deps.preloadPath,
       partition,
     });
-    assertSecureWebPreferences(webPreferences);
 
     const window = this.deps.factory.createBrowserWindow({
       title: options.title,

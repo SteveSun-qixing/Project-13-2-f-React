@@ -86,10 +86,16 @@ import {
   validateStructureSlice,
 } from './validation.js';
 
-/** 视图通道会话定位请求（`{source, documentId}` 二元组，来源为渲染侧端口输入）。 */
+/**
+ * 视图通道会话定位请求（工单043 §五 G2 修复形态）：`{source, documentId}` 二元组之外
+ * 携带**发起窗口身份**（`windowId`，主进程侧经 `event.sender.id` 取证注入，渲染侧无自报
+ * 入口——母型比照 `main/card-window-init-channel.ts`，02 §7.4）。
+ */
 export interface IDocumentViewSessionLookup {
   readonly source: string;
   readonly documentId: string;
+  /** 发起取视图请求的窗口 ID（`webContents.id`；归属比对的请求侧输入）。 */
+  readonly windowId: number;
 }
 
 /** 卡片窗口装载投递的文档绑定解析结果（主进程内部消费面；工单035 §九待裁随账收口）。 */
@@ -106,7 +112,9 @@ export interface ICardWindowDocumentBinding {
  * @remarks `found` 臂交付的 `nativeSession` 为 backing 数值会话（记录级唯一生成点，
  * 见 `session-store.ts` 头注）：只供主进程视图通道适配器逐调用交原生 `buildDocumentView`
  * 消费，**不得出现在任何跨进程回包**。`not-found` / `conflict` 由适配器映射为
- * `DOCUMENT_NOT_OPEN` / `DOCUMENT_ID_CONFLICT`（在册面内，见通道契约错误码表）。
+ * `DOCUMENT_NOT_OPEN` / `DOCUMENT_ID_CONFLICT`（在册面内，见通道契约错误码表）；
+ * `unowned`（工单043-A4 G2）为记录在册且标识相符、但**无一会话归属发起窗口**，由适配器
+ * 映射为在册码 `BRIDGE_SESSION_UNKNOWN`（跨窗口取视图如实拒绝，不泄露视图）。
  */
 export type DocumentViewSessionResolution =
   | {
@@ -116,6 +124,7 @@ export type DocumentViewSessionResolution =
       readonly managedUri: string;
     }
   | { readonly status: 'not-found' }
+  | { readonly status: 'unowned' }
   | { readonly status: 'conflict'; readonly candidateCount: number };
 
 /** 文档服务对外执行面（组合根把执行器包装进能力注册项，见 `descriptors.ts`）。 */
@@ -125,9 +134,10 @@ export interface IDocumentService {
   executeWrite: DocumentCapabilityExecutor<unknown, IDocumentWriteOutput>;
   executeSave: DocumentCapabilityExecutor<unknown, IDocumentSaveOutput>;
   /**
-   * 宿主内部取视图通道的会话解析（`05-渲染引擎设计` §2.6 / 工单035）：按
-   * `{source, documentId}` 对在会话存储唯一定位记录，取记录级句柄、数值会话与受管 URI。
-   * string↔u64 归一单点在通道适配器（`adapters/view-channel.ts`）消费本方法完成。
+   * 宿主内部取视图通道的会话解析（`05-渲染引擎设计` §2.6 / 工单035 / 工单043 §五 G2）：按
+   * `{source, documentId}` 对在会话存储唯一定位记录，并做**窗口↔会话归属比对**（记录会话
+   * 经 `sessionWindowOf` 解析归属窗口，与发起窗口不符即 `unowned`），交付记录级句柄、
+   * 数值会话与受管 URI。string↔u64 归一单点在通道适配器（`adapters/view-channel.ts`）消费本方法完成。
    */
   resolveViewSession(lookup: IDocumentViewSessionLookup): DocumentViewSessionResolution;
   /**
@@ -918,12 +928,20 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       return { status: 'not-found' };
     }
     if (record.documentId === lookup.documentId) {
-      return {
-        status: 'found',
-        handle: record.handle,
-        nativeSession: record.nativeSession,
-        managedUri: record.managedUri,
-      };
+      // 工单043-A4 G2 归属比对：记录会话全部经 `sessionWindowOf` 解析归属窗口，
+      // 无一命中发起窗口即 `unowned`（映射 BRIDGE_SESSION_UNKNOWN）——他窗身份
+      // 换不来本窗文档的视图，跨窗口取视图在本单点闸口如实拒绝、不泄露句柄。
+      for (const sessionId of record.sessions.keys()) {
+        if (deps.sessionWindowOf(sessionId) === lookup.windowId) {
+          return {
+            status: 'found',
+            handle: record.handle,
+            nativeSession: record.nativeSession,
+            managedUri: record.managedUri,
+          };
+        }
+      }
+      return { status: 'unowned' };
     }
     // 来源记录在册但稳定标识不符：二元组与会话存储声明冲突（§3.1 口径），
     // `candidateCount` 如实枚举该标识的存活记录数供诊断。

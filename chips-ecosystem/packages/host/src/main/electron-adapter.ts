@@ -20,6 +20,7 @@ import type {
   ShellElectronProtocol,
   ShellIpcInvokeEvent,
   ShellIpcMain,
+  ShellNavigationEvent,
   ShellPathName,
   ShellSecondInstanceEvent,
   ShellSession,
@@ -27,6 +28,8 @@ import type {
   ShellWebContents,
   ShellWindow,
   ShellWindowFactory,
+  ShellWindowOpenDetails,
+  ShellWindowOpenDisposition,
   ShellWindowOptions,
 } from './shell-api.js';
 
@@ -158,6 +161,7 @@ function adaptWebContents(raw: unknown): ShellWebContents {
   const isDestroyed = readFunction(raw, 'isDestroyed');
   const on = readFunction(raw, 'on');
   const getType = readFunction(raw, 'getType');
+  const rawSetWindowOpenHandler = readFunction(raw, 'setWindowOpenHandler');
   return {
     id,
     session: adaptSession(raw['session']),
@@ -181,6 +185,23 @@ function adaptWebContents(raw: unknown): ShellWebContents {
         return;
       }
       on.call(raw, 'destroyed', listener);
+    },
+    setWindowOpenHandler(handler: (details: ShellWindowOpenDetails) => ShellWindowOpenDisposition): void {
+      // 导航拦截位的两方法在真实路径恒可用：原始方法缺位即抛，绝不静默降级为无拦截。
+      if (rawSetWindowOpenHandler === null) {
+        throw new HostStartupError(
+          'HOST_STARTUP_FAILED',
+          'window',
+          'Electron webContents 缺少 setWindowOpenHandler 方法',
+        );
+      }
+      rawSetWindowOpenHandler.call(raw, handler);
+    },
+    onWillNavigate(listener: (event: ShellNavigationEvent, url: string) => void): void {
+      if (on === null) {
+        throw new HostStartupError('HOST_STARTUP_FAILED', 'window', 'Electron webContents 缺少 on 方法');
+      }
+      on.call(raw, 'will-navigate', listener);
     },
     ...(getType !== null
       ? {

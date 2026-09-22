@@ -15,6 +15,9 @@
  *   宿主运行时端点透传与刀4 缝②会话释放联动 → 组合根全链（打开 → 取视图 → 关窗 → 记录移除）。
  * - 泄露防线：每条成功回包做递归键集巡检（`handle` / `nativeSession` / 品牌字段与
  *   `chips-parser` 字样一律不得出现在跨进程封套）。
+ * - G2 归属臂（工单043 §五 G2 / A4）：端点入参携带 `event.sender.id` 折叠的发起窗口
+ *   身份，会话定位升级为「窗口 ↔ 会话归属」比对——他窗来源拒臂与本窗归属通过臂
+ *   在处理器臂、注册臂、生产装载臂与组合根端到端四层各别锁死。
  * - 零 skip：全部用例真实断言；未接线臂按「真实拒绝、不静默」逐项呈现。
  */
 
@@ -31,7 +34,9 @@ import {
   NODE_ID_ONE,
   NODE_ID_TWO,
   SESSION_A,
+  SESSION_A_WINDOW,
   SESSION_B,
+  SESSION_B_WINDOW,
 } from './helpers/document-fake-ports.js';
 import { createDocumentService } from '../src/capabilities/document/service.js';
 import type { IDocumentService } from '../src/capabilities/document/service.js';
@@ -183,9 +188,13 @@ async function openHarnessCard(): Promise<{
  * ------------------------------------------------------------------ */
 
 describe('resolveViewSession：记录级数值会话生成与会话定位（段A 基座）', () => {
-  it('found 臂：打开后按 {source, documentId} 取回句柄、数值会话与受管 URI；重复解析逐字段稳定', async () => {
+  it('found 臂：打开后按 {source, documentId} + 归属窗口取回句柄、数值会话与受管 URI；重复解析逐字段稳定', async () => {
     const { harness, service } = await openHarnessCard();
-    const first = service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID });
+    const first = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: CARD_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     expect(first.status).toBe('found');
     if (first.status !== 'found') {
       return;
@@ -194,21 +203,37 @@ describe('resolveViewSession：记录级数值会话生成与会话定位（段A
     expect(Number.isSafeInteger(first.nativeSession)).toBe(true);
     expect(first.nativeSession).toBeGreaterThan(0);
     expect(typeof first.handle).toBe('object');
-    const second = service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID });
+    const second = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: CARD_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     expect(second).toEqual(first);
   });
 
   it('唯一生成点：同记录幂等复用同一数值会话；跨记录互异且单调不复用（释放重开前进）', async () => {
     const { harness, service } = await openHarnessCard();
-    const before = service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID });
+    const before = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: CARD_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     // 第二个会话打开同一来源：记录复用（openRecord 幂等），数值会话不变。
     await service.executeOpen({ source: harness.cardUri }, ctxFor(SESSION_B));
-    const reused = service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID });
+    const reused = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: CARD_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     expect(reused).toEqual(before);
+    // G2 归属面：第二会话的窗口（SESSION_B_WINDOW）同持该记录会话，归属比对同样通过。
+    expect(
+      service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID, windowId: SESSION_B_WINDOW }),
+    ).toEqual(before);
 
     // 另一来源第二记录：数值会话互异。
     await service.executeOpen({ source: harness.boxUri }, ctxFor(SESSION_A));
-    const box = service.resolveViewSession({ source: harness.boxUri, documentId: BOX_ID });
+    const box = service.resolveViewSession({ source: harness.boxUri, documentId: BOX_ID, windowId: SESSION_A_WINDOW });
     expect(box.status).toBe('found');
     if (box.status !== 'found' || before.status !== 'found') {
       return;
@@ -218,9 +243,15 @@ describe('resolveViewSession：记录级数值会话生成与会话定位（段A
     // 释放全部会话 → 记录移除；重开为全新记录，数值会话不复用旧值。
     await service.releaseSessions(SESSION_A);
     await service.releaseSessions(SESSION_B);
-    expect(service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID }).status).toBe('not-found');
+    expect(
+      service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID, windowId: SESSION_A_WINDOW }).status,
+    ).toBe('not-found');
     await service.executeOpen({ source: harness.cardUri }, ctxFor(SESSION_A));
-    const reopened = service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID });
+    const reopened = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: CARD_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     expect(reopened.status).toBe('found');
     if (reopened.status === 'found' && before.status === 'found') {
       expect(reopened.nativeSession).toBeGreaterThan(before.nativeSession);
@@ -230,24 +261,37 @@ describe('resolveViewSession：记录级数值会话生成与会话定位（段A
   it('not-found 臂：来源从未打开 / 记录已随会话释放移除', async () => {
     const { harness, service } = await openHarnessCard();
     expect(
-      service.resolveViewSession({ source: 'chips-resource://default/card/Gg7Hh8Ij9K.card', documentId: 'Gg7Hh8Ij9K' })
-        .status,
+      service.resolveViewSession({
+        source: 'chips-resource://default/card/Gg7Hh8Ij9K.card',
+        documentId: 'Gg7Hh8Ij9K',
+        windowId: SESSION_A_WINDOW,
+      }).status,
     ).toBe('not-found');
     await service.releaseSessions(SESSION_A);
-    expect(service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID }).status).toBe('not-found');
+    expect(
+      service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID, windowId: SESSION_A_WINDOW }).status,
+    ).toBe('not-found');
   });
 
   it('conflict 臂：来源记录在册但标识不符；candidateCount 如实枚举该标识存活记录数', async () => {
     const { harness, service } = await openHarnessCard();
     // BOX_ID 尚无存活记录：冲突 + 0。
-    const drift = service.resolveViewSession({ source: harness.cardUri, documentId: BOX_ID });
+    const drift = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: BOX_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     expect(drift.status).toBe('conflict');
     if (drift.status === 'conflict') {
       expect(drift.candidateCount).toBe(0);
     }
     // 打开箱子后同一误配：该标识存活记录数如实为 1（来源仍以严格二元组为准）。
     await service.executeOpen({ source: harness.boxUri }, ctxFor(SESSION_A));
-    const conflict = service.resolveViewSession({ source: harness.cardUri, documentId: BOX_ID });
+    const conflict = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: BOX_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     expect(conflict.status).toBe('conflict');
     if (conflict.status === 'conflict') {
       expect(conflict.candidateCount).toBe(1);
@@ -255,13 +299,17 @@ describe('resolveViewSession：记录级数值会话生成与会话定位（段A
     // 同标识双记录（第二会话打开另一来源）：严格二元组仍各自命中正确记录，不做跨来源放宽。
     const twinUri = harness.addCard('chips-resource://default/backup/Ab3dEf6Gh8-copy.card');
     await service.executeOpen({ source: twinUri }, ctxFor(SESSION_B));
-    const exact = service.resolveViewSession({ source: twinUri, documentId: CARD_ID });
+    const exact = service.resolveViewSession({ source: twinUri, documentId: CARD_ID, windowId: SESSION_B_WINDOW });
     expect(exact.status).toBe('found');
     if (exact.status === 'found') {
       expect(exact.managedUri).toBe(twinUri);
     }
     // 该标识此时有两条存活记录：误配来源的冲突臂如实枚举为 2。
-    const multi = service.resolveViewSession({ source: harness.boxUri, documentId: CARD_ID });
+    const multi = service.resolveViewSession({
+      source: harness.boxUri,
+      documentId: CARD_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     expect(multi.status).toBe('conflict');
     if (multi.status === 'conflict') {
       expect(multi.candidateCount).toBe(2);
@@ -276,8 +324,12 @@ describe('resolveViewSession：记录级数值会话生成与会话定位（段A
 describe('createDocumentViewSessionResolver：string↔u64 归一单点', () => {
   it('found → 绑定三元组：handle 为服务侧句柄原样投影、sessionId 逐字取记录级数值会话、scope 归一小写', async () => {
     const { harness, service } = await openHarnessCard();
-    const resolution = service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID });
-    const resolver = createDocumentViewSessionResolver(service);
+    const resolution = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: CARD_ID,
+      windowId: SESSION_A_WINDOW,
+    });
+    const resolver = createDocumentViewSessionResolver(service, SESSION_A_WINDOW);
     const binding = await resolver({ source: harness.cardUri, documentId: CARD_ID, kind: 'card' });
     expect(resolution.status).toBe('found');
     if (resolution.status !== 'found') {
@@ -292,7 +344,7 @@ describe('createDocumentViewSessionResolver：string↔u64 归一单点', () => 
 
   it('not-found / conflict 以在册会话域码拒绝（DOCUMENT_NOT_OPEN / DOCUMENT_ID_CONFLICT）', async () => {
     const { harness, service } = await openHarnessCard();
-    const resolver = createDocumentViewSessionResolver(service);
+    const resolver = createDocumentViewSessionResolver(service, SESSION_A_WINDOW);
     await expect(
       resolver({ source: 'chips-resource://default/card/Gg7Hh8Ij9K.card', documentId: 'Gg7Hh8Ij9K', kind: 'card' }),
     ).rejects.toMatchObject({
@@ -312,7 +364,7 @@ describe('createDocumentViewSessionResolver：string↔u64 归一单点', () => 
         managedUri: 'chips://not-resource',
       }),
     } as unknown as IDocumentService;
-    const resolver = createDocumentViewSessionResolver(service);
+    const resolver = createDocumentViewSessionResolver(service, SESSION_A_WINDOW);
     await expect(resolver({ source: 'chips://not-resource', documentId: CARD_ID, kind: 'card' })).rejects.toMatchObject(
       {
         code: 'BRIDGE_INTERNAL',
@@ -332,6 +384,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     const endpoint = createDocumentViewChannelHandler({ service, native: fake.native });
     const response = validateDocumentViewChannelResponse(
       await endpoint.handleRequest(
+        SESSION_A_WINDOW,
         createDocumentViewBuildRequest('req-ok', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
       ),
     );
@@ -344,7 +397,11 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     expect(response.requestId).toBe('req-ok');
     expect(response.view).toEqual(baseCardView() as unknown as typeof response.view);
     expect(fake.calls).toHaveLength(1);
-    const resolution = service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID });
+    const resolution = service.resolveViewSession({
+      source: harness.cardUri,
+      documentId: CARD_ID,
+      windowId: SESSION_A_WINDOW,
+    });
     if (resolution.status === 'found') {
       expect(fake.calls[0]?.handle).toBe(resolution.handle);
       expect(fake.calls[0]?.session).toBe(resolution.nativeSession);
@@ -382,7 +439,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
       },
     ];
     for (const payload of malformed) {
-      const raw = await endpoint.handleRequest(payload);
+      const raw = await endpoint.handleRequest(SESSION_A_WINDOW, payload);
       const response = validateDocumentViewChannelResponse(raw);
       expect(isDocumentViewBuildFailure(response), JSON.stringify(payload)).toBe(true);
       if (isDocumentViewBuildFailure(response)) {
@@ -398,6 +455,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     const endpoint = createDocumentViewChannelHandler({ service, native: makeFakeNative().native });
     const response = validateDocumentViewChannelResponse(
       await endpoint.handleRequest(
+        SESSION_A_WINDOW,
         createDocumentViewBuildRequest('req-box', { source: harness.cardUri, documentId: CARD_ID, kind: 'box' }),
       ),
     );
@@ -413,6 +471,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     const endpoint = createDocumentViewChannelHandler({ service, native: makeFakeNative().native });
     const ghost = validateDocumentViewChannelResponse(
       await endpoint.handleRequest(
+        SESSION_A_WINDOW,
         createDocumentViewBuildRequest('req-ghost', {
           source: 'chips-resource://default/card/Gg7Hh8Ij9K.card',
           documentId: 'Gg7Hh8Ij9K',
@@ -427,6 +486,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     }
     const drift = validateDocumentViewChannelResponse(
       await endpoint.handleRequest(
+        SESSION_A_WINDOW,
         createDocumentViewBuildRequest('req-drift', { source: harness.cardUri, documentId: BOX_ID, kind: 'card' }),
       ),
     );
@@ -446,6 +506,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     });
     const response1 = validateDocumentViewChannelResponse(
       await notFound.handleRequest(
+        SESSION_A_WINDOW,
         createDocumentViewBuildRequest('req-nf', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
       ),
     );
@@ -463,6 +524,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     });
     const response2 = validateDocumentViewChannelResponse(
       await drift.handleRequest(
+        SESSION_A_WINDOW,
         createDocumentViewBuildRequest('req-drift2', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
       ),
     );
@@ -481,6 +543,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     });
     const response1 = validateDocumentViewChannelResponse(
       await missingKeys.handleRequest(
+        SESSION_A_WINDOW,
         createDocumentViewBuildRequest('req-shape', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
       ),
     );
@@ -494,6 +557,7 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     });
     const response2 = validateDocumentViewChannelResponse(
       await withFunction.handleRequest(
+        SESSION_A_WINDOW,
         createDocumentViewBuildRequest('req-fn', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
       ),
     );
@@ -504,11 +568,123 @@ describe('createDocumentViewChannelHandler：真实构建臂两臂与错误面',
     const { harness, service } = await openHarnessCard();
     const endpoint = createDocumentViewChannelHandler({ service, native: makeFakeNative().native });
     const raw = await endpoint.handleRequest(
+      SESSION_A_WINDOW,
       createDocumentViewBuildRequest('req-leak', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
     );
     assertNoInternalLeak(raw);
     const roundTripped = JSON.parse(JSON.stringify(raw)) as DocumentViewBuildResponse;
     expect(isDocumentViewBuildResult(roundTripped)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * G2 窗口↔会话归属锁测（工单043-A4）
+ * ------------------------------------------------------------------ */
+
+describe('G2 归属臂锁测：他窗来源拒臂 + 本窗归属通过臂（工单043-A4）', () => {
+  it('他窗拒绝臂：记录会话无一会归属发起窗口 → BRIDGE_SESSION_UNKNOWN 失败臂，不触达 native、不泄露视图', async () => {
+    const { harness, service } = await openHarnessCard();
+    const fake = makeFakeNative();
+    const endpoint = createDocumentViewChannelHandler({ service, native: fake.native });
+    const response = validateDocumentViewChannelResponse(
+      await endpoint.handleRequest(
+        SESSION_B_WINDOW,
+        createDocumentViewBuildRequest('req-cross', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+      ),
+    );
+    expect(isDocumentViewBuildFailure(response)).toBe(true);
+    if (isDocumentViewBuildFailure(response)) {
+      expect(response.requestId).toBe('req-cross');
+      expect(response.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    }
+    expect(fake.calls).toHaveLength(0);
+    assertNoInternalLeak(response);
+  });
+
+  it('本窗通过臂：发起窗口即记录会话归属窗口 → 视图照常交付', async () => {
+    const { harness, service } = await openHarnessCard();
+    const endpoint = createDocumentViewChannelHandler({ service, native: makeFakeNative().native });
+    const response = validateDocumentViewChannelResponse(
+      await endpoint.handleRequest(
+        SESSION_A_WINDOW,
+        createDocumentViewBuildRequest('req-own', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+      ),
+    );
+    expect(isDocumentViewBuildResult(response)).toBe(true);
+    if (isDocumentViewBuildResult(response)) {
+      expect(response.view.card_id).toBe(CARD_ID);
+    }
+  });
+
+  it('双窗共享：同一来源被两会话打开后各归属窗口均通过；第三窗仍如实拒绝', async () => {
+    const { harness, service } = await openHarnessCard();
+    await service.executeOpen({ source: harness.cardUri }, ctxFor(SESSION_B));
+    const endpoint = createDocumentViewChannelHandler({ service, native: makeFakeNative().native });
+    for (const [requestId, windowId] of [
+      ['req-w-a', SESSION_A_WINDOW],
+      ['req-w-b', SESSION_B_WINDOW],
+    ] as const) {
+      const response = validateDocumentViewChannelResponse(
+        await endpoint.handleRequest(
+          windowId,
+          createDocumentViewBuildRequest(requestId, { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+        ),
+      );
+      expect(isDocumentViewBuildResult(response), requestId).toBe(true);
+    }
+    const third = validateDocumentViewChannelResponse(
+      await endpoint.handleRequest(
+        999,
+        createDocumentViewBuildRequest('req-third', { source: harness.cardUri, documentId: CARD_ID, kind: 'card' }),
+      ),
+    );
+    expect(isDocumentViewBuildFailure(third)).toBe(true);
+    if (isDocumentViewBuildFailure(third)) {
+      expect(third.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    }
+  });
+
+  it('不可取证来源（非整数窗口 ID）→ BRIDGE_SESSION_UNKNOWN 失败臂，不触达会话域与 native', async () => {
+    const { harness, service } = await openHarnessCard();
+    const fake = makeFakeNative();
+    const endpoint = createDocumentViewChannelHandler({ service, native: fake.native });
+    const response = validateDocumentViewChannelResponse(
+      await endpoint.handleRequest(
+        1.5,
+        createDocumentViewBuildRequest('req-bad-sender', {
+          source: harness.cardUri,
+          documentId: CARD_ID,
+          kind: 'card',
+        }),
+      ),
+    );
+    expect(isDocumentViewBuildFailure(response)).toBe(true);
+    if (isDocumentViewBuildFailure(response)) {
+      expect(response.requestId).toBe('req-bad-sender');
+      expect(response.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+      expect(response.error.details).toMatchObject({ reason: 'invalid_sender_window' });
+    }
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('服务本体：归属不符即 unowned（不携任何句柄/数值会话字段）', async () => {
+    const { harness, service } = await openHarnessCard();
+    expect(service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID, windowId: 999 })).toEqual({
+      status: 'unowned',
+    });
+  });
+
+  it('无窗口可归属的会话（载体会话形态，解析为 null）：任何发起窗口都进不去', async () => {
+    const harness = createHarness();
+    const service = createDocumentService(harness.dependencies);
+    const carrierSession = 'session:carrier:c-1';
+    harness.openSession(carrierSession, undefined, null);
+    await service.executeOpen({ source: harness.cardUri }, ctxFor(carrierSession));
+    for (const windowId of [SESSION_A_WINDOW, SESSION_B_WINDOW, 1]) {
+      expect(service.resolveViewSession({ source: harness.cardUri, documentId: CARD_ID, windowId })).toEqual({
+        status: 'unowned',
+      });
+    }
   });
 });
 
@@ -559,6 +735,38 @@ describe('registerDocumentViewChannel：ipcMain 切片注册与幂等注销', ()
     expect(() => detach()).not.toThrow();
   });
 
+  it('G2 注册臂（工单043-A4）：event.sender.id 即发起窗口身份——他窗拒臂 / 本窗过臂经真实注册面成立', async () => {
+    const { harness, service } = await openHarnessCard();
+    const fake = makeFakeNative();
+    const ipcMain = makeFakeIpcMain();
+    registerDocumentViewChannel({
+      ipcMain,
+      endpoint: createDocumentViewChannelHandler({ service, native: fake.native }),
+    });
+    const listener = ipcMain.handlers.get(DOCUMENT_VIEW_REQUEST_CHANNEL);
+    if (listener === undefined) {
+      return;
+    }
+    const payload = createDocumentViewBuildRequest('req-sender', {
+      source: harness.cardUri,
+      documentId: CARD_ID,
+      kind: 'card',
+    });
+    const foreign = validateDocumentViewChannelResponse(
+      await listener({ sender: { id: SESSION_B_WINDOW }, senderFrame: null }, payload),
+    );
+    expect(isDocumentViewBuildFailure(foreign)).toBe(true);
+    if (isDocumentViewBuildFailure(foreign)) {
+      expect(foreign.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    }
+    expect(fake.calls).toHaveLength(0);
+    const own = validateDocumentViewChannelResponse(
+      await listener({ sender: { id: SESSION_A_WINDOW }, senderFrame: null }, payload),
+    );
+    expect(isDocumentViewBuildResult(own)).toBe(true);
+    expect(fake.calls).toHaveLength(1);
+  });
+
   it('通道名覆写注入位可用（缺省恒为契约唯一名字来源）', () => {
     const ipcMain = makeFakeIpcMain();
     registerDocumentViewChannel({
@@ -576,6 +784,7 @@ describe('未接线诚实拒绝臂（当前生产恒回退态，工单036）', (
     const endpoint = createUnavailableDocumentViewChannelEndpoint();
     const valid = validateDocumentViewChannelResponse(
       await endpoint.handleRequest(
+        1,
         createDocumentViewBuildRequest('req-unwired', {
           source: 'chips-resource://default/card/x.card',
           documentId: CARD_ID,
@@ -590,7 +799,7 @@ describe('未接线诚实拒绝臂（当前生产恒回退态，工单036）', (
       expect(valid.error.details).toMatchObject({ gate: 'wiring' });
     }
     const invalid = validateDocumentViewChannelResponse(
-      await endpoint.handleRequest({ protocol: DOCUMENT_VIEW_PROTOCOL }),
+      await endpoint.handleRequest(1, { protocol: DOCUMENT_VIEW_PROTOCOL }),
     );
     expect(isDocumentViewBuildFailure(invalid)).toBe(true);
     if (isDocumentViewBuildFailure(invalid)) {
@@ -634,9 +843,18 @@ function makeResourcePorts(): IDocumentResourcePorts {
   return { scope, storage };
 }
 
+/**
+ * 装载段套件的真实词法会话身份（工单043-A4 G2）：生产装配的会话→窗口解析口为壳侧
+ * 词法唯一权威（`host-runtime.ts` `windowIdOfSessionId`），故本组用例经 Bridge 路由
+ * 同源词法 `session:<windowId>:main` 打开文档——归属窗口即 `WIRED_WINDOW`。
+ */
+const WIRED_WINDOW = 1;
+const WIRED_FOREIGN_WINDOW = 2;
+const WIRED_SESSION_ID = `session:${String(WIRED_WINDOW)}:main`;
+
 function activeGuard(): DocumentGuardSessionSource {
   const view: IDocumentGuardSessionView = {
-    sessionId: SESSION_A,
+    sessionId: WIRED_SESSION_ID,
     state: 'active',
     grantedPermissions: new Set<string>(['resources:read', 'resources:write']),
   };
@@ -677,16 +895,21 @@ describe('生产装载段：viewChannel 两臂恒在（缝③收口）', () => {
       (descriptor: IHostCapabilityDescriptor) => descriptor.id === 'document:open',
     );
     expect(openDescriptor).toBeDefined();
-    await openDescriptor?.handler({ source: WIRING_CARD_URI }, hostCtxFor(SESSION_A));
+    await openDescriptor?.handler({ source: WIRING_CARD_URI }, hostCtxFor(WIRED_SESSION_ID));
     if (!wiring.service) {
       return;
     }
-    const resolution = wiring.service.resolveViewSession({ source: WIRING_CARD_URI, documentId: CARD_ID });
+    const resolution = wiring.service.resolveViewSession({
+      source: WIRING_CARD_URI,
+      documentId: CARD_ID,
+      windowId: WIRED_WINDOW,
+    });
     expect(resolution.status).toBe('found');
 
     const callsBefore = fixtureModule.__calls.length;
     const response = validateDocumentViewChannelResponse(
       await wiring.viewChannel.handleRequest(
+        WIRED_WINDOW,
         createDocumentViewBuildRequest('req-wired', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }),
       ),
     );
@@ -705,6 +928,26 @@ describe('生产装载段：viewChannel 两臂恒在（缝③收口）', () => {
       path: '/fake/prod-card.card',
       session: resolution.status === 'found' ? resolution.nativeSession : undefined,
     });
+
+    // G2 归属臂（工单043-A4）：生产装载段以壳侧词法权威解析归属窗口——他窗请求
+    // 在真实端点上同样得到 `BRIDGE_SESSION_UNKNOWN`，native 不再触达。
+    const foreign = validateDocumentViewChannelResponse(
+      await wiring.viewChannel.handleRequest(
+        WIRED_FOREIGN_WINDOW,
+        createDocumentViewBuildRequest('req-wired-foreign', {
+          source: WIRING_CARD_URI,
+          documentId: CARD_ID,
+          kind: 'card',
+        }),
+      ),
+    );
+    expect(isDocumentViewBuildFailure(foreign)).toBe(true);
+    if (isDocumentViewBuildFailure(foreign)) {
+      expect(foreign.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    }
+    expect(fixtureModule.__calls.slice(callsBefore).filter((call) => call.export === 'buildDocumentView')).toHaveLength(
+      1,
+    );
   });
 
   it('wired 臂未打开即请求：DOCUMENT_NOT_OPEN 如实失败（不伪造成功）', async () => {
@@ -719,6 +962,7 @@ describe('生产装载段：viewChannel 两臂恒在（缝③收口）', () => {
     );
     const response = validateDocumentViewChannelResponse(
       await wiring.viewChannel.handleRequest(
+        WIRED_WINDOW,
         createDocumentViewBuildRequest('req-cold', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }),
       ),
     );
@@ -737,6 +981,7 @@ describe('生产装载段：viewChannel 两臂恒在（缝③收口）', () => {
     expect(diagnostics.entries.some((entry) => entry.scope === DOCUMENT_WIRING_DIAGNOSTIC_SCOPE)).toBe(true);
     const response = validateDocumentViewChannelResponse(
       await wiring.viewChannel.handleRequest(
+        WIRED_WINDOW,
         createDocumentViewBuildRequest('req-fallback', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }),
       ),
     );
@@ -912,7 +1157,7 @@ describe('组合根端到端：wired 运行时取视图 + 关窗释放联动收�
     if (endpoint === undefined) {
       return;
     }
-    const before = validateDocumentViewChannelResponse(await endpoint.handleRequest(request));
+    const before = validateDocumentViewChannelResponse(await endpoint.handleRequest(SENDER.windowId, request));
     expect(isDocumentViewBuildResult(before)).toBe(true);
 
     runtime.ipc.handleWindowClosed(1);
@@ -920,7 +1165,7 @@ describe('组合根端到端：wired 运行时取视图 + 关窗释放联动收�
     const startedAt = Date.now();
     for (;;) {
       const after = validateDocumentViewChannelResponse(
-        await endpoint.handleRequest({ ...request, requestId: `e2e-view-${String(startedAt)}` }),
+        await endpoint.handleRequest(SENDER.windowId, { ...request, requestId: `e2e-view-${String(startedAt)}` }),
       );
       if (isDocumentViewBuildFailure(after) && after.error.code === 'DOCUMENT_NOT_OPEN') {
         break;
@@ -942,6 +1187,7 @@ describe('组合根端到端：wired 运行时取视图 + 关窗释放联动收�
     }
     const response = validateDocumentViewChannelResponse(
       await endpoint.handleRequest(
+        SENDER.windowId,
         createDocumentViewBuildRequest('e2e-unwired', { source: WIRING_CARD_URI, documentId: CARD_ID, kind: 'card' }),
       ),
     );

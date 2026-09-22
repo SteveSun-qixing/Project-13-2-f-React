@@ -4,6 +4,7 @@ import { WindowBindings } from '../src/main/window-bindings.js';
 import { WebContentsBinder } from '../src/main/web-contents-binder.js';
 import { WindowRegistry } from '../src/main/window-registry.js';
 import type { IResourceBackend } from '../src/runtime/contracts.js';
+import type { ShellWindow } from '../src/main/shell-api.js';
 import { FakeSession, FakeWebContents } from './helpers/shell-electron.js';
 import { createWireError } from './helpers/wire-error.js';
 
@@ -119,5 +120,89 @@ describe('WebContentsBinder', () => {
     expect(registry.size).toBe(0);
     expect(bindings.allWindows()).toEqual([]);
     expect(session.protocol.isProtocolHandled(CHIPS_RESOURCE_SCHEME)).toBe(false);
+  });
+
+  it('工单043-A4 §四.6：绑定即挂接导航拦截位（新窗口全拒 + 非白名单导航拦截）', () => {
+    const { binder, diagnostics } = createBinder();
+    const webContents = new FakeWebContents(18, new FakeSession('w-18'));
+    expect(binder.bind(webContents)?.windowId).toBe(18);
+    expect(webContents.openWindow('https://evil.example.com/pop')).toEqual({ action: 'deny' });
+    expect(webContents.navigate('file:///tmp/x.html').prevented).toBe(true);
+    expect(diagnostics.warn).toHaveBeenCalledWith(
+      'navigation',
+      '拒绝渲染进程发起的新窗口请求',
+      expect.objectContaining({ windowId: 18, url: 'https://evil.example.com/pop' }),
+    );
+    expect(diagnostics.warn).toHaveBeenCalledWith(
+      'navigation',
+      '拦截非白名单窗口导航',
+      expect.objectContaining({ windowId: 18, url: 'file:///tmp/x.html' }),
+    );
+    expect(webContents.navigate('chips-resource://platform/shell.html').prevented).toBe(false);
+    expect(diagnostics.error).not.toHaveBeenCalled();
+  });
+
+  it('工单043-A4 §四.6：拦截位挂接失败记诊断并 fail-closed 关闭窗口内容', () => {
+    const diagnostics = createDiagnostics();
+    const binder = new WebContentsBinder({
+      registry: new WindowRegistry(),
+      bindings: new WindowBindings(),
+      backend,
+      diagnostics,
+      onClosed: () => undefined,
+    });
+    const webContents = new FakeWebContents(19, new FakeSession('w-19'));
+    webContents.setWindowOpenHandler = (): void => {
+      throw new Error('拦截位不可用');
+    };
+    binder.bind(webContents);
+    expect(diagnostics.error).toHaveBeenCalledWith(
+      'navigation',
+      '窗口导航拦截位挂接失败',
+      expect.objectContaining({ windowId: 19, reason: '拦截位不可用' }),
+    );
+    expect(webContents.destroyed).toBe(true);
+  });
+
+  it('工单043-A4 §四.6：有壳侧句柄时挂接失败走句柄销毁臂', () => {
+    const diagnostics = createDiagnostics();
+    const binder = new WebContentsBinder({
+      registry: new WindowRegistry(),
+      bindings: new WindowBindings(),
+      backend,
+      diagnostics,
+      onClosed: () => undefined,
+    });
+    const webContents = new FakeWebContents(20, new FakeSession('w-20'));
+    const destroy = vi.fn();
+    const handle: ShellWindow = {
+      windowId: 20,
+      webContents,
+      loadURL: () => Promise.resolve(),
+      close: () => undefined,
+      destroy,
+      isDestroyed: () => false,
+      show: () => undefined,
+      setTitle: () => undefined,
+    };
+    webContents.onWillNavigate = (): void => {
+      throw new Error('导航监听注册失败');
+    };
+    binder.bind(webContents, handle);
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(diagnostics.error).toHaveBeenCalledWith(
+      'navigation',
+      '窗口导航拦截位挂接失败',
+      expect.objectContaining({ windowId: 20, reason: '导航监听注册失败' }),
+    );
+  });
+
+  it('工单043-A4 §四.6：非窗口类型内容不挂接拦截位', () => {
+    const { binder } = createBinder();
+    const webContents = new FakeWebContents(21, new FakeSession('devtools-21'));
+    webContents.type = 'devtools';
+    expect(binder.bind(webContents)).toBeNull();
+    expect(webContents.openWindow('https://evil.example.com/pop')).toBeNull();
+    expect(webContents.willNavigateListenerCount()).toBe(0);
   });
 });

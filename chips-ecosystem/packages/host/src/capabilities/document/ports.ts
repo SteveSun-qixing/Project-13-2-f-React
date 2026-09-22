@@ -190,6 +190,19 @@ export interface IDocumentGuardPort {
   hasPermission(sessionId: string, permission: string): Promise<boolean>;
 }
 
+/**
+ * 会话→归属窗口解析口（工单043-A4 G2 归属臂）：把桥接会话标识解析为其归属窗口的
+ * `webContents` id；无法归属（载体会话、词法外标识、已注销会话）返回 `null`。
+ *
+ * @remarks 窗口↔会话归属比对的**数据源**，判定本体在
+ * `service.ts` `resolveViewSession`（工单043 §五 G2 修复形态）；实现注入位为服务依赖
+ * {@link IDocumentServiceDependencies.sessionWindowOf}，生产由组合根装载段接壳侧会话
+ * 标识词法唯一权威（`runtime/host-runtime.ts` `windowIdOfSessionId`，与注册表
+ * `IHostSession.windowId` 同源），公共契约 `ISessionSource` / `IHostSession` 形状不动
+ * （波 1 裁定：载体判别留壳内注册表）。
+ */
+export type DocumentSessionWindowResolver = (sessionId: string) => number | null;
+
 /** 四能力共享的服务依赖。 */
 export interface IDocumentServiceDependencies {
   readonly scope: IDocumentScopePort;
@@ -197,6 +210,8 @@ export interface IDocumentServiceDependencies {
   readonly storage: IDocumentStoragePort;
   readonly events: IDocumentEventsPort;
   readonly guard: IDocumentGuardPort;
+  /** 会话→归属窗口解析口（取视图通道归属比对消费；见 {@link DocumentSessionWindowResolver}）。 */
+  readonly sessionWindowOf: DocumentSessionWindowResolver;
   /** 宿主诊断口（壳统一日志面）；端口与事件侧的不可恢复异常在此落日志（不进入跨 Bridge 错误返回）。 */
   readonly diagnostics?: DiagnosticsSink;
 }

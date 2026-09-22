@@ -19,6 +19,7 @@ import { createMacPalHost } from '../platform/mac/index.js';
 import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import { startHostMain } from './main.js';
 import { createProductionAssembly } from './production-assembly.js';
+import { createSecureWindowWebPreferences } from './window-security.js';
 
 /** 平台构建产物根目录（`dist/renderer`）。 */
 const platformRoot = resolve(__dirname, '..', 'renderer');
@@ -35,10 +36,12 @@ const assembly = createProductionAssembly({
       windowOptions: () => {
         palWindowSequence += 1;
         return {
-          webPreferences: {
+          // 工单043-A4：与 `app-launch.ts` 共用唯一构造工厂（构造 + assert 硬闸一体），
+          // 安全基线显式钉死、不依赖 Electron 默认值。
+          webPreferences: createSecureWindowWebPreferences({
             preload: context.preloadPath,
             partition: `chips-window-pal-${palWindowSequence}`,
-          },
+          }),
         };
       },
     }),

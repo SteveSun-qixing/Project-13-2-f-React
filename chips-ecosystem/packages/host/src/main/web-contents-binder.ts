@@ -6,14 +6,17 @@
  *
  * @remarks
  * - 所有窗口（壳自建窗口与内核经 PAL 端口创建的窗口）统一经 `app.on('web-contents-created')`
- *   进入本模块：绑定会话、注册协议处理器、登记注册表。
+ *   进入本模块：绑定会话、注册协议处理器、挂接导航拦截位、登记注册表。
  * - `getType()` 存在且不为 `window` 的内容（DevTools、工具进程宿主）不进入窗口注册表。
  * - 同一 session 上的协议处理器按窗口引用计数：最后一个窗口销毁时注销。
+ * - 导航拦截位（工单043-A4 §四.6）在本模块唯一挂接点 {@link attachWindowNavigationGuards}
+ *   落地：窗口内容一进入注册表即被覆盖，无第二处、无旁路。
  */
 
 import type { IResourceBackend } from '../runtime/contracts.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import { attachResourceProtocol } from './resource-protocol.js';
+import { attachWindowNavigationGuards } from './window-navigation-guard.js';
 import type { IWindowBindings } from './window-bindings.js';
 import type { ShellWebContents, ShellWindow } from './shell-api.js';
 import type { WindowRecord, WindowRegistry } from './window-registry.js';
@@ -62,6 +65,7 @@ export class WebContentsBinder {
     const record = this.deps.registry.register(webContents, window);
     this.deps.bindings.register(record.windowId, record.session);
     this.acquireProtocol(record);
+    this.attachNavigationGuards(record);
     if (!this.tracked.has(record.windowId)) {
       this.tracked.add(record.windowId);
       record.webContents.onDestroyed(() => {
@@ -114,6 +118,32 @@ export class WebContentsBinder {
       this.leases.set(key, { dispose, count: 1 });
     } catch (error) {
       this.deps.diagnostics.error('protocol', '资源协议处理器注册失败', {
+        windowId: record.windowId,
+        reason: error instanceof Error ? error.message : typeof error,
+      });
+      try {
+        if (record.window !== null) {
+          record.window.destroy();
+        } else {
+          record.webContents.close();
+        }
+      } catch {
+        // 关闭失败由进程退出兜底。
+      }
+    }
+  }
+
+  /**
+   * 挂接窗口导航拦截位（工单043-A4 §四.6）；失败时记诊断并 fail-closed 关闭该窗口。
+   *
+   * @remarks 与 {@link acquireProtocol} 同构的 fail-closed 判据：拦截位挂不上即窗口
+   * 不可信，宁可关窗也不放行。
+   */
+  private attachNavigationGuards(record: WindowRecord): void {
+    try {
+      attachWindowNavigationGuards(record.webContents, this.deps.diagnostics);
+    } catch (error) {
+      this.deps.diagnostics.error('navigation', '窗口导航拦截位挂接失败', {
         windowId: record.windowId,
         reason: error instanceof Error ? error.message : typeof error,
       });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createElectronRuntime } from '../src/main/electron-adapter.js';
+import type { ShellWebContents } from '../src/main/shell-api.js';
 import { HostStartupError } from '../src/shared/errors.js';
 import { createFakeElectron, FakeSession } from './helpers/shell-electron.js';
 
@@ -164,5 +165,52 @@ describe('createElectronRuntime：窗口工厂', () => {
         webPreferences: { partition: 'p' },
       }),
     ).toThrow('窗口创建失败');
+  });
+});
+
+describe('createElectronRuntime：webContents 导航拦截位切片（工单043-A4 §四.6）', () => {
+  it('setWindowOpenHandler 与 onWillNavigate 逐字转发到原始 webContents', () => {
+    const fake = createFakeElectron();
+    const runtime = createElectronRuntime(fake.module);
+    const window = runtime.windowFactory.createBrowserWindow({
+      title: 'nav',
+      width: 1,
+      height: 1,
+      resizable: false,
+      show: false,
+      webPreferences: { partition: 'nav' },
+    });
+    const raw = fake.windows[0]?.webContents;
+    if (raw === undefined) {
+      throw new Error('替身窗口未创建');
+    }
+    expect(typeof window.webContents.setWindowOpenHandler).toBe('function');
+    expect(typeof window.webContents.onWillNavigate).toBe('function');
+    window.webContents.setWindowOpenHandler?.(() => ({ action: 'deny' }));
+    expect(raw.openWindow('https://evil.example.com/pop')).toEqual({ action: 'deny' });
+
+    let interceptedUrl = '';
+    window.webContents.onWillNavigate?.((event, url) => {
+      interceptedUrl = url;
+      event.preventDefault();
+    });
+    expect(raw.willNavigateListenerCount()).toBe(1);
+    const fakeEvent = { preventDefault: () => undefined };
+    raw.emit('will-navigate', fakeEvent, 'file:///tmp/x.html');
+    expect(interceptedUrl).toBe('file:///tmp/x.html');
+  });
+
+  it('原始方法缺位即抛 HostStartupError：拦截位不得静默消失', () => {
+    const fake = createFakeElectron();
+    const runtime = createElectronRuntime(fake.module);
+    const contents = vi.fn();
+    runtime.app.onWebContentsCreated(contents);
+    fake.emitWebContents({ id: 42, session: new FakeSession('bare'), isDestroyed: () => false } as never);
+    const adapted = contents.mock.calls[0]?.[0] as ShellWebContents;
+    expect(() => adapted.setWindowOpenHandler?.(() => ({ action: 'deny' }))).toThrow(HostStartupError);
+    expect(() => adapted.setWindowOpenHandler?.(() => ({ action: 'deny' }))).toThrow(
+      'Electron webContents 缺少 setWindowOpenHandler 方法',
+    );
+    expect(() => adapted.onWillNavigate?.(() => undefined)).toThrow('Electron webContents 缺少 on 方法');
   });
 });

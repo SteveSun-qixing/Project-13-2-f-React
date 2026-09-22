@@ -26,6 +26,7 @@
  */
 
 import type { DiagnosticsSink } from '../../../shared/diagnostics.js';
+import { windowIdOfSessionId } from '../../../runtime/host-runtime.js';
 import type { IHostCapabilityDescriptor } from '../../../runtime/capability/contracts.js';
 import type { IDocumentViewChannelEndpoint } from '../../../runtime/contracts.js';
 import { createDocumentService } from '../service.js';
@@ -186,6 +187,10 @@ export function createDocumentCapabilityWiring(
     parser: parserPort,
     events: eventBus.port,
     guard: createDocumentBridgeSessionGuardPort(guardSessionSource),
+    // G2 归属臂（工单043-A4）：会话→归属窗口解析接壳侧会话标识词法唯一权威
+    // （`runtime/host-runtime.ts` `windowIdOfSessionId`，与注册表 `IHostSession.windowId`
+    // 同源；载体会话与词法外标识解析为 `null` 即无窗口可归属）——公共契约形状不动。
+    sessionWindowOf: windowIdOfSessionId,
     diagnostics,
   });
 

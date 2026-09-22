@@ -53,6 +53,10 @@ export const ENTRY_ID_TWO = 'Xy0zAb1Cd2';
 export const SESSION_A = 'session-a';
 export const SESSION_B = 'session-b';
 
+/** G2 归属臂夹具：默认会话归属窗口（跨窗口拒绝臂用互异窗口常量）。 */
+export const SESSION_A_WINDOW = 11;
+export const SESSION_B_WINDOW = 22;
+
 /** 全量文档权限。 */
 export const ALL_DOCUMENT_PERMISSIONS: readonly string[] = ['resources:read', 'resources:write'];
 
@@ -213,8 +217,8 @@ export interface IDocumentTestHarness {
   aliasSource(alias: string, managedUri: string): void;
   /** 指定分片读取的诊断输出（验证诊断透传）。 */
   setPartDiagnostics(managedUri: string, key: string, diagnostics: readonly IDocumentDiagnostic[]): void;
-  /** 建立会话并授予权限。 */
-  openSession(sessionId: string, permissions?: readonly string[]): void;
+  /** 建立会话并授予权限（`windowId` 为 G2 归属臂的会话归属窗口；`null` 即无窗口可归属）。 */
+  openSession(sessionId: string, permissions?: readonly string[], windowId?: number | null): void;
   /** 撤销会话（Bridge 会话注销）。 */
   closeSession(sessionId: string): void;
   grant(sessionId: string, permission: string): void;
@@ -277,7 +281,7 @@ export function createHarness(): IDocumentTestHarness {
   const permissionQueries: { sessionId: string; permission: string }[] = [];
   const activeQueries: string[] = [];
   const readPartCalls: { managedUri: string; part: string; nodeId?: string }[] = [];
-  const sessions = new Map<string, { active: boolean; permissions: Set<string> }>();
+  const sessions = new Map<string, { active: boolean; permissions: Set<string>; windowId: number | null }>();
 
   const failures: IFailurePanel = {};
   const timing: ITimingPanel = { serializeDelayMs: 0, commitDelayMs: 0, openDelayMs: 0 };
@@ -558,6 +562,11 @@ export function createHarness(): IDocumentTestHarness {
     },
   };
 
+  /** G2 归属臂替身：会话→归属窗口（未登记会话即无窗口可归属，返回 `null`）。 */
+  function sessionWindowOf(sessionId: string): number | null {
+    return sessions.get(sessionId)?.windowId ?? null;
+  }
+
   const diagnostics: DiagnosticsSink = {
     warn(scopeName, message, details) {
       logs.push({ level: 'warn', scope: scopeName, message, ...(details === undefined ? {} : { details }) });
@@ -585,7 +594,7 @@ export function createHarness(): IDocumentTestHarness {
   );
 
   const harness: IDocumentTestHarness = {
-    dependencies: { scope, parser, storage, events, guard, diagnostics },
+    dependencies: { scope, parser, storage, events, guard, sessionWindowOf, diagnostics },
     cardUri,
     boxUri,
     cardPath: localPathOf(cardUri),
@@ -630,8 +639,8 @@ export function createHarness(): IDocumentTestHarness {
     setPartDiagnostics(managedUri, key, partDiagnostics) {
       sources.get(managedUri)?.partDiagnostics.set(key, partDiagnostics);
     },
-    openSession(sessionId, permissions = ALL_DOCUMENT_PERMISSIONS) {
-      sessions.set(sessionId, { active: true, permissions: new Set(permissions) });
+    openSession(sessionId, permissions = ALL_DOCUMENT_PERMISSIONS, windowId = SESSION_A_WINDOW) {
+      sessions.set(sessionId, { active: true, permissions: new Set(permissions), windowId });
     },
     closeSession(sessionId) {
       const session = sessions.get(sessionId);
@@ -671,8 +680,8 @@ export function createHarness(): IDocumentTestHarness {
     },
   };
 
-  harness.openSession(SESSION_A);
-  harness.openSession(SESSION_B);
+  harness.openSession(SESSION_A, ALL_DOCUMENT_PERMISSIONS, SESSION_A_WINDOW);
+  harness.openSession(SESSION_B, ALL_DOCUMENT_PERMISSIONS, SESSION_B_WINDOW);
   return harness;
 }
 

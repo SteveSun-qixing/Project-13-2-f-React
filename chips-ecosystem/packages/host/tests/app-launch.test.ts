@@ -82,7 +82,7 @@ describe('parseAppLaunchArgs', () => {
 });
 
 describe('createAppPalHost', () => {
-  it('每窗口独立 chips-window-pal-<n> partition 并透传 preload 路径', () => {
+  it('每窗口独立 chips-window-pal-<n> partition 并透传 preload 路径；安全基线经唯一工厂显式钉死（工单043-A4）', () => {
     const electronModule = { marker: true };
     mocks.createMacPalHost.mockReturnValue({ palHost: true });
     const host = createAppPalHost(electronModule, context);
@@ -93,12 +93,15 @@ describe('createAppPalHost', () => {
       { windowOptions: () => { webPreferences: Record<string, unknown> } },
     ];
     expect(moduleArg).toBe(electronModule);
-    expect(optionsArg.windowOptions()).toEqual({
-      webPreferences: { preload: context.preloadPath, partition: 'chips-window-pal-1' },
-    });
-    expect(optionsArg.windowOptions()).toEqual({
-      webPreferences: { preload: context.preloadPath, partition: 'chips-window-pal-2' },
-    });
+    const first = optionsArg.windowOptions();
+    expect(first.webPreferences.preload).toBe(context.preloadPath);
+    expect(first.webPreferences.partition).toBe('chips-window-pal-1');
+    expect(first.webPreferences.nodeIntegration).toBe(false);
+    expect(first.webPreferences.contextIsolation).toBe(true);
+    expect(first.webPreferences.sandbox).toBe(true);
+    expect(first.webPreferences.webviewTag).toBe(false);
+    expect(Object.isFrozen(first.webPreferences)).toBe(true);
+    expect(optionsArg.windowOptions().webPreferences.partition).toBe('chips-window-pal-2');
   });
 });
 

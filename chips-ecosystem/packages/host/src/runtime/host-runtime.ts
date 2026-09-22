@@ -181,6 +181,25 @@ function sessionSourceId(source: ISessionSource): string {
   return `session:${String(source.windowId)}:${source.frameId === null ? 'main' : String(source.frameId)}`;
 }
 
+/**
+ * 壳会话标识词法的逆向解析：取会话归属窗口 ID（工单043-A4 G2 归属臂的身份取证腿）。
+ *
+ * @remarks 与 {@link sessionSourceId} 同处词法唯一权威（本模块）：`session:<windowId>:<main|frameId>`
+ * 逐字反转，round-trip 恒等由 `tests/host-runtime.test.ts` 锁测钉死。承载会话
+ * （`session:carrier:<carrierId>`，《17》§3.6 无窗口推送腿）、词法外标识与越界数值一律
+ * 返回 `null`——调用方按「无法归属」如实拒绝，不做第二套猜测。文档能力侧经组合根
+ * 装载段（`capabilities/document/adapters/production-wiring.ts`）注入本函数，公共契约
+ * `ISessionSource` / `IHostSession` 形状不动（波 1 裁定：载体判别留壳内注册表）。
+ */
+export function windowIdOfSessionId(sessionId: string): number | null {
+  const match = /^session:(0|[1-9][0-9]*):(?:main|0|[1-9][0-9]*)$/.exec(sessionId);
+  if (match === null) {
+    return null;
+  }
+  const windowId = Number(match[1]);
+  return Number.isSafeInteger(windowId) ? windowId : null;
+}
+
 function metadataFromHeaders(
   uri: string,
   scope: string,

@@ -7,11 +7,17 @@
  * 冻结件，本模块是其主进程侧消费方，不重复声明任何形状）。
  *
  * @remarks
+ * - **窗口↔会话归属臂（工单043 §五 G2 / 工单043-A4）**：注册臂消费 `event.sender.id`
+ *   作为发起窗口身份（身份取证单点在主进程侧，渲染侧无自报入口——母型比照
+ *   `main/card-window-init-channel.ts:183`，02 §7.4），逐请求交端点
+ *   `handleRequest(windowId, data)`；`IDocumentService.resolveViewSession` 对记录会话做
+ *   归属比对，无一会话归属发起窗口即以在册码 `BRIDGE_SESSION_UNKNOWN`（通道在册错误面，
+ *   `renderer/document-view-channel.ts` 冻结件）失败臂回包——他窗换不来本窗文档的视图。
  * - **string↔u64 归一单点在此**（RFC O3 / 工单035 裁定二）：{@link createDocumentViewSessionResolver}
- *   把渲染侧端口输入 `{source, documentId}`（wire `string` 身份，全链路唯一对外身份）经
- *   `IDocumentService.resolveViewSession` 定位会话存储记录，取记录级 `nativeSession`
- *   （backing 数值会话，唯一生成点在 `session-store.ts`）交刀3 构建器逐调用消费；
- *   句柄与数值会话全程留在主进程——回包封套只承载契约在册字段，深校验闸
+ *   把渲染侧端口输入 `{source, documentId}`（wire `string` 身份，全链路唯一对外身份）连同
+ *   取证的发起窗口身份，经 `IDocumentService.resolveViewSession` 定位会话存储记录，取记录级
+ *   `nativeSession`（backing 数值会话，唯一生成点在 `session-store.ts`）交刀3 构建器逐调用
+ *   消费；句柄与数值会话全程留在主进程——回包封套只承载契约在册字段，深校验闸
  *   （`guardDocumentViewCardRenderView` + 响应侧 `validateDocumentViewChannelResponse`）
  *   可结构化克隆面保证任何宿主对象投影都无法越界。
  * - 两臂诚实语义：文档服务接线（`production-wiring` `wired` 臂）时端点执行真实构建链；
@@ -98,15 +104,25 @@ function scopeSegmentOf(managedUri: string): string | null {
  * 逐调用解析视图会话绑定（同步判定；异步壳见 {@link createDocumentViewSessionResolver}）。
  *
  * @throws `DOCUMENT_NOT_OPEN`（来源无存活记录）、`DOCUMENT_ID_CONFLICT`（`{source, documentId}`
- *   对与会话存储声明冲突）；受管引用的作用域段词法违约（构造性漂移）以 `BRIDGE_INTERNAL` 抛出。
+ *   对与会话存储声明冲突）、`BRIDGE_SESSION_UNKNOWN`（记录在册但无一会话归属发起窗口，
+ *   工单043-A4 G2）；受管引用的作用域段词法违约（构造性漂移）以 `BRIDGE_INTERNAL` 抛出。
  */
 function resolveViewSessionBinding(
   service: IDocumentService,
   input: IDocumentViewBuildInput,
+  windowId: number,
 ): IDocumentViewSessionBinding {
-  const resolution = service.resolveViewSession({ source: input.source, documentId: input.documentId });
+  const resolution = service.resolveViewSession({ source: input.source, documentId: input.documentId, windowId });
   if (resolution.status === 'not-found') {
     throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.notOpen, {
+      details: { documentId: input.documentId, source: input.source },
+    });
+  }
+  if (resolution.status === 'unowned') {
+    // 归属臂（G2）：文档在册、标识相符，但发起窗口不持有该文档的任何桥接会话——
+    // 跨窗口取视图以通道在册码如实拒绝（不泄露句柄/数值会话/视图）。
+    throw createBridgeError(BRIDGE_ERROR_CODES.sessionUnknown, {
+      message: '取视图通道拒绝：发起窗口不持有该文档的任何会话',
       details: { documentId: input.documentId, source: input.source },
     });
   }
@@ -138,15 +154,19 @@ function resolveViewSessionBinding(
 }
 
 /**
- * 生产视图会话解析器（string↔u64 归一单点）。
+ * 生产视图会话解析器（string↔u64 归一单点 + G2 归属臂的窗口身份注入位）。
  *
  * @param service 文档服务（组合根装载段交付；`resolveViewSession` 为其主进程内部查询面）。
+ * @param windowId 发起窗口身份（主进程侧 `event.sender.id` 取证；渲染侧无自报入口）。
  * @returns 刀3 构建器消费的 {@link DocumentViewSessionResolver}。
  */
-export function createDocumentViewSessionResolver(service: IDocumentService): DocumentViewSessionResolver {
+export function createDocumentViewSessionResolver(
+  service: IDocumentService,
+  windowId: number,
+): DocumentViewSessionResolver {
   return (input) => {
     try {
-      return Promise.resolve(resolveViewSessionBinding(service, input));
+      return Promise.resolve(resolveViewSessionBinding(service, input, windowId));
     } catch (error: unknown) {
       // 本解析器抛出的全部为唯一类族真错误（`DocumentCapabilityError` / `ChipsError`）；
       // 兜底包装仅满足拒绝语义，不吞码。
@@ -164,18 +184,20 @@ export interface IDocumentViewChannelHandlerOptions {
 }
 
 /**
- * 构造真实构建臂端点（文档服务已接线）：请求闸 → 刀3 构建器（主进程执行位）→
- * 发送侧视图守门 → 结果臂；链路任一失败以失败臂回包（本函数不抛出）。
+ * 构造真实构建臂端点（文档服务已接线）：来源窗口取证 → 请求闸 → 归属解析 →
+ * 刀3 构建器（主进程执行位）→ 发送侧视图守门 → 结果臂；链路任一失败以失败臂回包
+ * （本函数不抛出）。
+ *
+ * @remarks 构建器逐请求构造（注入面 fail-closed 名闸照常触达）：G2 的窗口身份经
+ * {@link createDocumentViewSessionResolver} 闭包注入解析器，不进入渲染侧冻结输入形状
+ * （`IDocumentViewBuildInput` 键集不动，任务 #105 冻结件纪律）。
  */
 export function createDocumentViewChannelHandler(
   options: IDocumentViewChannelHandlerOptions,
 ): IDocumentViewChannelEndpoint {
-  const builder = createDocumentViewBuilder({
-    native: options.native,
-    resolveSession: createDocumentViewSessionResolver(options.service),
-  });
+  const { service, native } = options;
   return {
-    async handleRequest(data: unknown): Promise<unknown> {
+    async handleRequest(windowId: number, data: unknown): Promise<unknown> {
       let requestId = DOCUMENT_VIEW_UNCORRELATED_REQUEST_ID;
       // 视图构建阶段导出（工单041 修复波；《调试指南》§2.3/§6.1 记录形态，`durationMs`
       // = 构建任务整体耗时。「视图构建」边界在 `@chips/perf` `MARKERS` 无在册名，
@@ -186,6 +208,17 @@ export function createDocumentViewChannelHandler(
       try {
         const request = validateDocumentViewChannelRequest(data);
         requestId = request.requestId;
+        if (!Number.isInteger(windowId)) {
+          // 来源窗口取证破防（调用方交付了非法窗口身份）：在册码如实拒绝，不触达构建链。
+          throw createBridgeError(BRIDGE_ERROR_CODES.sessionUnknown, {
+            message: '取视图通道拒绝：发起窗口身份不可取证',
+            details: { reason: 'invalid_sender_window' },
+          });
+        }
+        const builder = createDocumentViewBuilder({
+          native,
+          resolveSession: createDocumentViewSessionResolver(service, windowId),
+        });
         const view = await builder.buildView(request.input);
         const result = createDocumentViewBuildResult(requestId, guardDocumentViewCardRenderView(view));
         if (traceEnabled) {
@@ -231,7 +264,7 @@ export function createDocumentViewChannelHandler(
  */
 export function createUnavailableDocumentViewChannelEndpoint(): IDocumentViewChannelEndpoint {
   return {
-    handleRequest(data: unknown): Promise<unknown> {
+    handleRequest(_windowId: number, data: unknown): Promise<unknown> {
       let requestId = DOCUMENT_VIEW_UNCORRELATED_REQUEST_ID;
       try {
         const request = validateDocumentViewChannelRequest(data);
@@ -258,15 +291,19 @@ export interface IDocumentViewChannelRegistrationDeps {
 }
 
 /**
- * 注册宿主内部取视图通道（壳启动 `ipc` 段；权限判定不适用——两端均为平台自身代码）。
+ * 注册宿主内部取视图通道（壳启动 `ipc` 段）。
+ *
+ * @remarks 权限判定不适用（两端均为平台自身代码），但**来源窗口身份照取证**
+ * （工单043 §五 G2）：`event.sender.id` 逐请求交端点做窗口↔会话归属比对，
+ * 渲染侧负载无身份自报入口（母型 `main/card-window-init-channel.ts`）。
  *
  * @param deps 注册项。
  * @returns 注销函数（幂等，随壳逆序收口）。
  */
 export function registerDocumentViewChannel(deps: IDocumentViewChannelRegistrationDeps): () => void {
   const channel = deps.channel ?? DOCUMENT_VIEW_REQUEST_CHANNEL;
-  deps.ipcMain.handle(channel, async (_event, ...args: readonly unknown[]): Promise<unknown> =>
-    deps.endpoint.handleRequest(args[0]),
+  deps.ipcMain.handle(channel, async (event, ...args: readonly unknown[]): Promise<unknown> =>
+    deps.endpoint.handleRequest(event.sender.id, args[0]),
   );
   let disposed = false;
   return () => {

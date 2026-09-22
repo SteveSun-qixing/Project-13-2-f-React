@@ -107,12 +107,15 @@ export interface IResourceBackend {
  * - 封套形状与两侧校验闸的权威在 `renderer/document-view-channel.ts` 契约（本端口不重复
  *   声明消息类型，避免跨层类型依赖；端点两侧均为平台自身代码，不经 Bridge 能力注册表、
  *   无 capability ID、权限判定不适用）。
- * - `handleRequest` 接收渲染侧 `ipcRenderer.invoke` 的原始载荷：内部先过请求闸
+ * - `windowId` 为发起窗口身份（工单043 §五 G2）：注册臂取 `event.sender.id` 逐请求注入
+ *   （身份取证单点在主进程侧，母型 `main/card-window-init-channel.ts`），端点据此做
+ *   窗口↔会话归属比对，不匹配以在册码 `BRIDGE_SESSION_UNKNOWN` 失败臂回包。
+ * - `data` 接收渲染侧 `ipcRenderer.invoke` 的原始载荷：内部先过请求闸
  *   （非法载荷以在册错误面失败臂回包，不静默、不上抛），成功路径返回守门后的结果臂；
  *   返回值必为可结构化克隆的通道响应封套（`DocumentViewBuildResponse` 形状）。
  */
 export interface IDocumentViewChannelEndpoint {
-  handleRequest(data: unknown): Promise<unknown>;
+  handleRequest(windowId: number, data: unknown): Promise<unknown>;
 }
 
 /**

@@ -64,6 +64,7 @@ describe('阶段异常归一', () => {
       storage: harness.dependencies.storage,
       events: harness.dependencies.events,
       guard: harness.dependencies.guard,
+      sessionWindowOf: harness.dependencies.sessionWindowOf,
     };
     const service: IDocumentService = createDocumentService(dependencies);
     const error = await service

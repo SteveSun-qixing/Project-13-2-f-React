@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { createHostRuntime } from '../src/runtime/host-runtime.js';
+import { createHostRuntime, windowIdOfSessionId } from '../src/runtime/host-runtime.js';
 import { createSystemInfoCapability } from '../src/runtime/capabilities/system-info.js';
 import type { IHostSessionProvisioner, IHostSessionGrant } from '../src/runtime/capability/session.js';
 import type { IHostCapabilityDescriptor } from '../src/runtime/capability/contracts.js';
@@ -255,5 +255,67 @@ describe('生产运行时：资源句柄控制', () => {
       expect(response.error.code).toBe('BRIDGE_PERMISSION_DENIED');
     }
     await runtime.shutdown();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * G2 归属臂·身份取证腿：会话标识词法逆向解析（工单043-A4）
+ * ------------------------------------------------------------------ */
+
+describe('windowIdOfSessionId：会话标识 → 归属窗口 ID 的词法逆向', () => {
+  it('与正向词法 sessionSourceId 构成 round-trip 恒等（main / 数值 frame 双腿）', () => {
+    const forward = (windowId: number, frameId: number | null): string =>
+      `session:${String(windowId)}:${frameId === null ? 'main' : String(frameId)}`;
+    for (const [windowId, frameId] of [
+      [0, null],
+      [7, null],
+      [7, 123],
+      [11, 0],
+      [22, 4567],
+    ] as const) {
+      expect(windowIdOfSessionId(forward(windowId, frameId)), `window=${windowId} frame=${String(frameId)}`).toBe(
+        windowId,
+      );
+    }
+  });
+
+  it('真实运行时产出的会话 ID 逐字可逆：关闭联动回调交付的 sessionId 反解回发起窗口', async () => {
+    const closed: string[] = [];
+    const runtime = createHostRuntime({
+      capabilities: [],
+      sessionProvisioner: provisioner(() => platformGrant),
+      onBridgeSessionClosed: (sessionId) => {
+        closed.push(sessionId);
+      },
+    });
+    await runtime.start(palHost(), channel());
+    await runtime.ipc.handleRequest({ windowId: 9, frameId: null }, { requestId: 'rt-1', capabilityId: 'no:such' });
+    runtime.ipc.handleWindowClosed(9);
+    expect(closed).toEqual(['session:9:main']);
+    expect(windowIdOfSessionId(closed[0] as string)).toBe(9);
+    await runtime.shutdown();
+  });
+
+  it('词法外 / 载体 / 越界标识一律 null：调用方按无法归属如实拒绝', () => {
+    for (const sessionId of [
+      'session:carrier:c-1',
+      'session:carrier:main',
+      'session-a:main',
+      'session:07:main',
+      'session:-1:main',
+      'session:1.5:main',
+      'session:1:',
+      'session:1',
+      'session::main',
+      'session:1:main:extra',
+      ' Session:1:main',
+      'session:1:main ',
+      `session:${String(Number.MAX_SAFE_INTEGER + 1000)}:main`,
+      'session:nan:main',
+      'session:1e9:main',
+      '',
+    ]) {
+      expect(windowIdOfSessionId(sessionId), JSON.stringify(sessionId)).toBeNull();
+    }
   });
 });

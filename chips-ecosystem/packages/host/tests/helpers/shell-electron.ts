@@ -6,7 +6,12 @@
  * `BrowserWindow`；事件用最小发射器模拟 Electron 行为。
  */
 
-import type { ShellIpcInvokeEvent } from '../../src/main/shell-api.js';
+import type {
+  ShellIpcInvokeEvent,
+  ShellNavigationEvent,
+  ShellWindowOpenDetails,
+  ShellWindowOpenDisposition,
+} from '../../src/main/shell-api.js';
 
 interface Listener {
   (...args: unknown[]): void;
@@ -91,6 +96,8 @@ export class FakeWebContents extends FakeEmitter {
   sent: Array<{ channel: string; payload: unknown }> = [];
   destroyed = false;
   closeCalls = 0;
+  /** 已注册的新窗口处置器（工单043-A4 导航拦截位）。 */
+  windowOpenHandler: ((details: ShellWindowOpenDetails) => ShellWindowOpenDisposition) | null = null;
 
   constructor(id: number, session: FakeSession) {
     super();
@@ -117,6 +124,16 @@ export class FakeWebContents extends FakeEmitter {
     this.on('destroyed', listener);
   }
 
+  setWindowOpenHandler(handler: (details: ShellWindowOpenDetails) => ShellWindowOpenDisposition): void {
+    this.windowOpenHandler = handler;
+  }
+
+  onWillNavigate(listener: (event: ShellNavigationEvent, url: string) => void): void {
+    this.on('will-navigate', (event, url) => {
+      listener(event as ShellNavigationEvent, url as string);
+    });
+  }
+
   close(): void {
     this.closeCalls += 1;
     this.destroy();
@@ -132,6 +149,23 @@ export class FakeWebContents extends FakeEmitter {
     }
     this.destroyed = true;
     this.emit('destroyed');
+  }
+
+  /** 触发一次新窗口请求，返回处置回执（未注册处置器时 `null`）。 */
+  openWindow(url: string): ShellWindowOpenDisposition | null {
+    return this.windowOpenHandler === null ? null : this.windowOpenHandler({ url });
+  }
+
+  /** 已注册的 `will-navigate` 监听数（拦截位挂接判据）。 */
+  willNavigateListenerCount(): number {
+    return this.listenerCount('will-navigate');
+  }
+
+  /** 触发一次 `will-navigate`，返回是否被拦截（preventDefault）。 */
+  navigate(url: string): { prevented: boolean } {
+    let prevented = false;
+    this.emit('will-navigate', { preventDefault: () => (prevented = true) }, url);
+    return { prevented };
   }
 }
 

@@ -69,6 +69,40 @@ export interface ShellWebContents {
   close(): void;
   /** 注册销毁监听；用于会话清理与绑定注销。 */
   onDestroyed(listener: () => void): void;
+  /**
+   * 注册新窗口打开处置器（Electron `setWindowOpenHandler`）；工单043-A4 §四.6 导航拦截位。
+   *
+   * @remarks 缺位即跳过挂接，只可能是测试替身面：生产路径唯一构造点
+   * （`electron-adapter.ts` 的 `adaptWebContents`）恒提供本方法与
+   * {@link ShellWebContents.onWillNavigate}，原始 Electron 方法缺失即抛
+   * `HostStartupError`——拦截位不得静默消失。
+   */
+  setWindowOpenHandler?(handler: (details: ShellWindowOpenDetails) => ShellWindowOpenDisposition): void;
+  /** 注册 `will-navigate` 监听（同拦截位的同窗导航白名单臂）。 */
+  onWillNavigate?(listener: (event: ShellNavigationEvent, url: string) => void): void;
+}
+
+/** 新窗口打开请求的壳侧所需字段切片（Electron `setWindowOpenHandler` 详情）。 */
+export interface ShellWindowOpenDetails {
+  /** 请求打开的地址。 */
+  readonly url: string;
+}
+
+/**
+ * 新窗口打开处置回执。
+ *
+ * @remarks 壳面窗口创建只有主进程通道一条路（窗口管理器 / 卡片窗口编排器），
+ * 因此拦截位的处置只有 `deny` 一臂——渲染进程不得自开窗口。
+ */
+export interface ShellWindowOpenDisposition {
+  /** 处置动作。 */
+  readonly action: 'deny';
+}
+
+/** 窗口导航事件切片（Electron `will-navigate` 事件）。 */
+export interface ShellNavigationEvent {
+  /** 阻止本次导航。 */
+  preventDefault(): void;
 }
 
 /** 自定义协议注册切片（会话级）。 */

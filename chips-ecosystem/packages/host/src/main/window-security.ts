@@ -85,6 +85,25 @@ export function assertSecureWebPreferences(preferences: Readonly<Record<string, 
 }
 
 /**
+ * 窗口 `webPreferences` 唯一构造工厂：构造 + 基线硬闸一体交付（工单043-A4 裁定）。
+ *
+ * @remarks
+ * - `sandbox` / `contextIsolation` / `nodeIntegration` 等全部基线项由
+ *   {@link WINDOW_SECURITY_BASELINE} **显式钉死为安全值**（逐字写死，不依赖 Electron
+ *   任何版本的默认值）；构造产物恒过 {@link assertSecureWebPreferences}，两道闸任何
+ *  一道破防即抛错拒交付——壳窗口（`window-manager.ts`）与 PAL 窗口
+ *   （`app-launch.ts` / `self-check.ts`）的全部构造点统一走本工厂，无旁路。
+ * @param input preload 路径与 partition。
+ * @returns 满足安全基线的冻结 `webPreferences`。
+ * @throws {Error} preload 缺位或基线校验不过时抛出。
+ */
+export function createSecureWindowWebPreferences(input: WindowPreferencesInput): Readonly<Record<string, unknown>> {
+  const preferences = buildWindowWebPreferences(input);
+  assertSecureWebPreferences(preferences);
+  return preferences;
+}
+
+/**
  * 判断窗口加载地址是否合法。
  *
  * 规则：只允许 `chips-resource://` 规范 URI（平台页与插件页统一经资源协议加载）；
