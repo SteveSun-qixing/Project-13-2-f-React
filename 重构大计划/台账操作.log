@@ -11834,3 +11834,5 @@
 2026-09-23 03:34:39	cmd=set-status     owner=ledger-doclib            rows=2      status=已完成 evidence=W3-P1-3段二第五路(#180)：归档类终位确认=两件已驻本仓就近归档/（rel_path含归档/前缀），磁盘sha 越权整批拒绝=0
 2026-09-23 03:50:35	cmd=set-status     owner=ledger-media-viewers     rows=12     status=已完成 evidence=W3-P1-3 段二第六路 #182：废弃类磁盘原位零动作，按 #175 主裁定回写已完成（sha1 前验全等） 越权整批拒绝=0
 2026-09-23 03:50:42	cmd=set-status     owner=ledger-media-viewers     rows=16     status=已完成 evidence=W3-P1-3 段二第六路 #182：归档类 15 行磁盘对账确认已驻本仓就近 归档/ 终位零动作；1 行（3717 a 越权整批拒绝=0
+2026-09-23 07:15:30	cmd=set-status     owner=ledger-doclib            rows=1      status=已完成 evidence=W7提前批承接：词条与概念表按新架构口径重编收录《薯片生态文档库/00-愿景与原则/03-词条与概念.md》v1.0.0 越权整批拒绝=0
+2026-09-23 07:15:37	cmd=set-status     owner=ledger-media-viewers     rows=3      status=已完成 evidence=W7提前批终位确认：三行格式支持面（png/jpg/jpeg/webp/gif/bmp/svg/avif 8 扩展名+查 越权整批拒绝=0
