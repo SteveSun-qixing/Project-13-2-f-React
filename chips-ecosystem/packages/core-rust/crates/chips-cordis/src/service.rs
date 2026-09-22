@@ -14,7 +14,7 @@ use crate::constants::MAX_REBUILD_DEPTH;
 use crate::context::{Context, ContextNode, ContextState};
 use crate::error::KernelError;
 use crate::kernel::Kernel;
-use crate::plugin::PluginState;
+use crate::plugin::{CrashRestartPolicy, PluginState};
 
 /// 服务条目。
 #[derive(Clone)]
@@ -551,7 +551,7 @@ impl Kernel {
 
     /// 插件失败：回滚副作用、记录诊断并进入 `Failed`。
     pub(crate) fn fail_plugin(&self, id: &str, error: KernelError) {
-        self.fail_plugin_with(id, error, None);
+        let _ = self.fail_plugin_inner(id, error, None, false);
     }
 
     /// 插件失败；`diagnostic` 为首选结构化诊断（例如配置系统的 `CONFIG_*` 错误）。
@@ -561,33 +561,78 @@ impl Kernel {
         error: KernelError,
         diagnostic: Option<chips_core::ChipsError>,
     ) {
-        let (fork, context) = {
-            let mut state = match self.lock_state() {
-                Ok(state) => state,
-                Err(_) => return,
-            };
-            let Some(record) = state.plugins.record_mut(id) else {
-                return;
-            };
+        let _ = self.fail_plugin_inner(id, error, diagnostic, false);
+    }
+
+    /// §6.2 / §6.8 运行期任务 panic 的判定闭环入口：仅当插件当前处于会收敛
+    /// 到 `Failed` 的在册状态（`Active` / `Starting` / `Resolving`）时才改写
+    /// 状态机并计入窗口；返回收敛后的（窗口尝试计数，重启世代凭证）——凭证
+    /// 与计数在同一锁段读取，保证退避调度登记的世代锚定本次判定；`None`
+    /// 表示状态机未被触碰（未登记，或已处于 `Installed` / `Stopping` /
+    /// `Pending` / `Removed` 等由其它生命周期结论定稿的状态）。
+    ///
+    /// 放宽到激活中间态是必要的：`apply` 内登记的任务可能在插件进入 `Active`
+    /// 之前就已 panic（监视器与 `finish_activation` 命令无先后保证），若只认
+    /// `Active` 则该次崩溃既不改写状态也不计数，判定闭环出现漏判。中间态的
+    /// 收敛与 `RunnerFailed` 臂同形，在飞的激活链由 `finish_activation` 的
+    /// 「已失败不回退」分支保持 `Failed`，不会把插件重新抬到 `Active`。
+    pub(crate) fn fail_plugin_task_panic(
+        &self,
+        id: &str,
+        error: KernelError,
+    ) -> Option<(u32, u64)> {
+        self.fail_plugin_inner(id, error, None, true)
+    }
+
+    /// `crash_judgement` 为 `true` 时是崩溃判定路径：状态不收敛则整体空转，
+    /// 连诊断也不改写，避免迟到的崩溃通知覆写停用/卸载的既有结论。
+    fn fail_plugin_inner(
+        &self,
+        id: &str,
+        error: KernelError,
+        diagnostic: Option<chips_core::ChipsError>,
+        crash_judgement: bool,
+    ) -> Option<(u32, u64)> {
+        let policy = CrashRestartPolicy::from(&self.inner.options);
+        let now = std::time::Instant::now();
+        let (fork, context, attempts) = {
+            let mut state = self.lock_state().ok()?;
+            let record = state.plugins.record_mut(id)?;
+            let converges = matches!(
+                record.state,
+                PluginState::Active | PluginState::Starting | PluginState::Resolving
+            );
+            if crash_judgement && !converges {
+                return None;
+            }
             record.last_error = Some(diagnostic.unwrap_or_else(|| error.clone().into()));
             record.last_failure = Some(error);
             record.cancel_requested = false;
             let fork = record.fork.take();
             let context = record.context.take();
-            if matches!(
-                record.state,
-                PluginState::Active | PluginState::Starting | PluginState::Resolving
-            ) {
+            if converges {
                 state.plugins.set_state(id, PluginState::Failed);
             }
+            // §6.8 熔断计数：激活失败与运行期崩溃共用同一窗口计数
+            // （插件架构设计 §9.3）。仅在真实收敛到 `Failed` 时计入；
+            // 世代表决与计数同锁段读取，退避调度据此锚定。
+            let attempts = converges.then(|| {
+                state.plugins.record_mut(id).map(|record| {
+                    (
+                        record.register_crash_attempt(now, policy),
+                        record.crash_restart_generation,
+                    )
+                })
+            });
             state.plugins.in_flight.remove(id);
-            (fork, context)
+            (fork, context, attempts.flatten())
         };
         if let Some(context) = context {
             let _ = self.dispose_context(context);
         } else if let Some(fork) = fork {
             let _ = self.dispose_fork(fork);
         }
+        attempts
     }
 }
 

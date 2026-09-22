@@ -354,8 +354,22 @@ impl Kernel {
                     id: watcher_control.context_id(),
                 }),
             };
+            let panicked = matches!(&result, Err(KernelError::PluginPanicked { .. }));
+            // 先回填完成结论并释放额度，再触发判定闭环：`handle_plugin_task_panic`
+            // 的撤销路径会等待 Fork 内任务退出，若本任务结论尚未回填，
+            // 强撤等待将自锁到上限（本监视器正是为该任务而存在）。
             watcher_control.complete(result);
             watcher_kernel.release_task_quota(watcher_plugin.as_deref());
+            if panicked {
+                // §6.8 判定闭环（《薯片内核设计》§6.2 `Active → Failed
+                // （任务 panic）`）：插件归属任务在 Rust 侧 panic 时，经命令
+                // 循环侧的在册迁移收敛、计入崩溃重启窗口并按退避调度受控
+                // 重启；平台归属任务（`watcher_plugin` 为 `None`）只上报
+                // 归一诊断，不触碰插件状态机。
+                if let Some(plugin) = watcher_plugin.as_deref() {
+                    watcher_kernel.handle_plugin_task_panic(plugin);
+                }
+            }
         });
 
         Ok(TaskHandle {

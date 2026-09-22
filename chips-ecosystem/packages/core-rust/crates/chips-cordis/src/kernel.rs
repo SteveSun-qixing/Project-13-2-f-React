@@ -22,10 +22,13 @@ use crate::event::{
 };
 use crate::fork::{Effect, Fork, ForkState};
 use crate::name::{validate_event_register, validate_service_name};
-use crate::plugin::{ConfigProvider, EmptyConfigProvider, PluginManager, PluginState};
+use crate::plugin::{
+    ConfigProvider, CrashRestartPolicy, EmptyConfigProvider, PluginManager, PluginState,
+};
 use crate::service::{Injection, ServiceEntry, ServiceTable};
 
-/// 内核策略选项；默认值即《薯片内核设计》§6.7 的生命周期超时常量。
+/// 内核策略选项；默认值即《薯片内核设计》§6.7 的生命周期超时与 §6.8 的
+/// 崩溃重启熔断常量。
 #[derive(Debug, Clone)]
 pub struct KernelOptions {
     /// `PluginRunner::apply` 超时。
@@ -34,6 +37,14 @@ pub struct KernelOptions {
     pub stop_timeout: Duration,
     /// Fork 强制撤销时等待任务退出的上限。
     pub force_dispose_timeout: Duration,
+    /// §6.8 崩溃重启滚动窗口长度（默认 `CRASH_RESTART_WINDOW`）。
+    pub crash_restart_window: Duration,
+    /// §6.8 窗口内最大自动重启次数（默认 `CRASH_RESTART_MAX_ATTEMPTS`）。
+    pub crash_restart_max_attempts: u32,
+    /// §6.8 首次重启退避间隔（默认 `CRASH_RESTART_BACKOFF_INITIAL`）。
+    pub crash_restart_backoff_initial: Duration,
+    /// §6.8 单次重启退避间隔上限（默认 `CRASH_RESTART_BACKOFF_MAX`）。
+    pub crash_restart_backoff_max: Duration,
 }
 
 impl Default for KernelOptions {
@@ -42,6 +53,10 @@ impl Default for KernelOptions {
             apply_timeout: crate::constants::LIFECYCLE_APPLY_TIMEOUT,
             stop_timeout: crate::constants::LIFECYCLE_STOP_TIMEOUT,
             force_dispose_timeout: crate::constants::FORK_FORCE_DISPOSE_TIMEOUT,
+            crash_restart_window: crate::constants::CRASH_RESTART_WINDOW,
+            crash_restart_max_attempts: crate::constants::CRASH_RESTART_MAX_ATTEMPTS,
+            crash_restart_backoff_initial: crate::constants::CRASH_RESTART_BACKOFF_INITIAL,
+            crash_restart_backoff_max: crate::constants::CRASH_RESTART_BACKOFF_MAX,
         }
     }
 }
@@ -192,6 +207,17 @@ fn restore_entry(
     }
 }
 
+impl From<&KernelOptions> for CrashRestartPolicy {
+    fn from(options: &KernelOptions) -> Self {
+        Self {
+            window: options.crash_restart_window,
+            max_attempts: options.crash_restart_max_attempts,
+            backoff_initial: options.crash_restart_backoff_initial,
+            backoff_max: options.crash_restart_backoff_max,
+        }
+    }
+}
+
 /// 内核共享内部状态。
 pub(crate) struct KernelInner {
     pub(crate) state: Mutex<KernelState>,
@@ -229,6 +255,7 @@ impl Kernel {
         configs: Arc<dyn ConfigProvider>,
     ) -> Result<Self, KernelError> {
         let mut state = KernelState::new();
+        state.plugins.crash_policy = CrashRestartPolicy::from(&options);
         let root_id = state.alloc_id();
         let root_fork = state.create_fork(root_id, None);
         state.contexts.insert(ContextNode {
@@ -938,6 +965,18 @@ impl Kernel {
             .and_then(|record| record.last_error.clone())
     }
 
+    /// 插件 §6.8 崩溃重启窗口的当前尝试计数（按窗口修剪后的有效值）。
+    ///
+    /// 计数承载重启与熔断动作的审计事实：每次崩溃/激活失败计入一次，
+    /// 超过 `crash_restart_max_attempts` 即停止自动重启（熔断），等待显式
+    /// `enable` 重置；停用与卸载清零。`None` 表示插件未登记或锁不可用。
+    #[must_use]
+    pub fn plugin_crash_attempts(&self, id: &str) -> Option<u32> {
+        let state = self.lock_state().ok()?;
+        let record = state.plugins.record(id)?;
+        Some(record.crash_attempts_within(std::time::Instant::now(), state.plugins.crash_policy))
+    }
+
     /// 已登记插件 ID 列表（排除已移除）。
     #[must_use]
     pub fn plugin_ids(&self) -> Vec<PluginId> {
@@ -1260,6 +1299,43 @@ mod tests {
             options.stop_timeout,
             crate::constants::LIFECYCLE_STOP_TIMEOUT
         );
+        // §6.8 崩溃重启熔断常量的唯一消费点：默认选项即在册数值。
+        assert_eq!(
+            options.crash_restart_window,
+            crate::constants::CRASH_RESTART_WINDOW
+        );
+        assert_eq!(
+            options.crash_restart_max_attempts,
+            crate::constants::CRASH_RESTART_MAX_ATTEMPTS
+        );
+        assert_eq!(
+            options.crash_restart_backoff_initial,
+            crate::constants::CRASH_RESTART_BACKOFF_INITIAL
+        );
+        assert_eq!(
+            options.crash_restart_backoff_max,
+            crate::constants::CRASH_RESTART_BACKOFF_MAX
+        );
+    }
+
+    #[test]
+    fn test_crash_policy_maps_options_to_policy_snapshot() {
+        // 策略快照必须逐项映射内核选项：选项覆盖即熔断参数覆盖。
+        let options = KernelOptions {
+            crash_restart_window: Duration::from_millis(250),
+            crash_restart_max_attempts: 5,
+            crash_restart_backoff_initial: Duration::from_millis(20),
+            crash_restart_backoff_max: Duration::from_millis(80),
+            ..KernelOptions::default()
+        };
+        let policy = CrashRestartPolicy::from(&options);
+        assert_eq!(policy.window, Duration::from_millis(250));
+        assert_eq!(policy.max_attempts, 5);
+        assert_eq!(policy.backoff_initial, Duration::from_millis(20));
+        assert_eq!(policy.backoff_max, Duration::from_millis(80));
+        // 默认选项映射回在册常量。
+        let defaults = CrashRestartPolicy::from(&KernelOptions::default());
+        assert_eq!(defaults, CrashRestartPolicy::default());
     }
 
     #[test]

@@ -81,4 +81,14 @@ mod tests {
         assert_eq!(MAX_EVENT_DEPTH, 64);
         assert_eq!(MAX_REBUILD_DEPTH, 16);
     }
+
+    #[test]
+    fn test_crash_restart_constants_match_spec() {
+        // §6.8 唯一权威数值：10min 窗口内至多 3 次自动重启，退避 1s 起、
+        // 单次封顶 30s。数值改动必须先走文档变更。
+        assert_eq!(CRASH_RESTART_WINDOW, Duration::from_secs(600));
+        assert_eq!(CRASH_RESTART_MAX_ATTEMPTS, 3);
+        assert_eq!(CRASH_RESTART_BACKOFF_INITIAL, Duration::from_secs(1));
+        assert_eq!(CRASH_RESTART_BACKOFF_MAX, Duration::from_secs(30));
+    }
 }

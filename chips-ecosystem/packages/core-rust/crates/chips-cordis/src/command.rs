@@ -15,7 +15,10 @@ use tokio::sync::{mpsc, oneshot};
 use crate::context::Context;
 use crate::error::{KernelError, LifecyclePhase};
 use crate::kernel::Kernel;
-use crate::plugin::{LoadPlan, LoadRequest, PluginConfig, PluginRunner, PluginState};
+use crate::plugin::{
+    crash_restart_backoff, CrashRestartPolicy, LoadPlan, LoadRequest, PluginConfig, PluginRunner,
+    PluginState,
+};
 
 /// 激活结果。
 #[derive(Debug, Clone, Copy)]
@@ -125,6 +128,16 @@ pub(crate) enum Command {
         id: PluginId,
         reply: oneshot::Sender<Result<(), KernelError>>,
     },
+    /// §6.8 崩溃重启退避定时器到点后的受控重启入口（内核内部命令，不经
+    /// 公开 API 暴露）；`generation` 是调度时捕获的重启世代凭证，处理时
+    /// 复核凭证与记录当前世代一致、未被停用意图抑制、插件仍在 `Failed`、
+    /// 未被其它链条接管且熔断窗口未超限，才按在册迁移 `Failed → Resolving
+    /// → Starting` 重启。停用/卸载/显式启用/装载都会递增世代，使凭证失效
+    /// ——这就是「取消退避待重启任务」的落地形态（定时器本体到点即空转）。
+    AutoRestart {
+        id: PluginId,
+        generation: u64,
+    },
     Shutdown {
         reply: oneshot::Sender<()>,
     },
@@ -163,13 +176,32 @@ async fn handle_command(kernel: &Kernel, command: Command) -> bool {
                 Err(error) => {
                     let _ = reply.send(Err(error));
                 }
-                Ok(()) => start_enable(kernel, id, Some(reply)),
+                Ok(()) => {
+                    // `load` 是用户显式意愿：清除停用抑制位并作废停用前遗留的
+                    // 退避待重启（世代递增），恢复该插件的自动重启资格。
+                    if let Ok(mut state) = kernel.lock_state() {
+                        if let Some(record) = state.plugins.record_mut(&id) {
+                            record.allow_auto_restart();
+                        }
+                    }
+                    start_enable(kernel, id, Some(reply));
+                }
             }
             true
         }
         Command::Enable { id, reply } => {
             let known = kernel.plugin_state(&id).is_some();
             if known {
+                // §6.8：用户显式 `enable` 重置崩溃重启窗口计数（熔断解除，
+                // 自动重启预算恢复），同时清除停用抑制位并作废旧世代的退避
+                // 待重启。非注册入口（依赖驱动链条、退避定时器）不重置，
+                // 防止绕过熔断。
+                if let Ok(mut state) = kernel.lock_state() {
+                    if let Some(record) = state.plugins.record_mut(&id) {
+                        record.reset_crash_window();
+                        record.allow_auto_restart();
+                    }
+                }
                 start_enable(kernel, id, Some(reply));
             } else {
                 let _ = reply.send(Err(KernelError::PluginNotFound { id }));
@@ -203,6 +235,10 @@ async fn handle_command(kernel: &Kernel, command: Command) -> bool {
         Command::FinishStop { id, reply } => {
             let result = finish_stop(kernel, &id);
             let _ = reply.send(result);
+            true
+        }
+        Command::AutoRestart { id, generation } => {
+            handle_auto_restart(kernel, &id, generation);
             true
         }
         Command::Shutdown { reply } => {
@@ -596,6 +632,12 @@ fn handle_disable(
             let _ = reply.send(Err(KernelError::PluginNotFound { id }));
         }
         Some(PluginState::Installed) => {
+            // 幂等停用同样作废遗留的退避待重启（§6.8 停用取消）。
+            if let Ok(mut state) = kernel.lock_state() {
+                if let Some(record) = state.plugins.record_mut(&id) {
+                    record.cancel_auto_restart();
+                }
+            }
             let _ = reply.send(Ok(()));
         }
         Some(PluginState::Pending) => {
@@ -612,17 +654,33 @@ fn handle_disable(
                 record.cancel_requested = false;
                 record.last_error = None;
                 record.last_failure = None;
+                record.cancel_auto_restart();
             }
             drop(state);
             let _ = reply.send(Ok(()));
         }
         Some(PluginState::Starting) | Some(PluginState::Resolving) => {
+            // 在飞激活链（含自动重启链）窗口内的停用：置取消标记后，链在
+            // 下一个在册收敛点回滚到 `Installed`。若该插件确已被链条接管
+            // （queued / in_flight），回执挂账到插件定稿才补发——停用返回
+            // `Ok` 即「确定不再运行」，紧随的 `unload` 不会再撞在飞链的
+            // `Starting` 中间态；若链条缺失（异常残留态）则即时回执，
+            // 保持既有乐观语义不放空。
+            let mut leftover = Some(reply);
             if let Ok(mut state) = kernel.lock_state() {
+                let in_chain =
+                    state.plugins.in_flight.contains(&id) || state.plugins.queued.contains(&id);
                 if let Some(record) = state.plugins.record_mut(&id) {
                     record.cancel_requested = true;
+                    record.cancel_auto_restart();
+                    if in_chain && record.pending_disable_reply.is_none() {
+                        record.pending_disable_reply = leftover.take();
+                    }
                 }
             }
-            let _ = reply.send(Ok(()));
+            if let Some(reply) = leftover {
+                let _ = reply.send(Ok(()));
+            }
         }
         Some(PluginState::Active) => {
             let (dependents, order) = {
@@ -660,6 +718,16 @@ fn handle_disable(
                     dependents,
                 }));
                 return;
+            }
+
+            // §6.8 停用取消：作废该插件已登记的退避待重启并抑制后续自动
+            // 重启（依赖被级联停用时同样取消其自身的在途重启资格）。
+            if let Ok(mut state) = kernel.lock_state() {
+                for plugin in dependents.iter().chain(std::iter::once(&id)) {
+                    if let Some(record) = state.plugins.record_mut(plugin) {
+                        record.cancel_auto_restart();
+                    }
+                }
             }
 
             let mut order = order;
@@ -738,8 +806,43 @@ fn handle_unload(kernel: &Kernel, id: &str) -> Result<(), KernelError> {
             dependents,
         });
     }
+    // §6.8 卸载取消：先作废旧世代的退避待重启，再落终态（`Removed` 触发
+    // 生命周期钩子清零窗口并补发任何挂账的停用回执）。
+    if let Some(record) = state.plugins.record_mut(id) {
+        record.cancel_auto_restart();
+    }
     state.plugins.set_state(id, PluginState::Removed);
     Ok(())
+}
+
+/// §6.8 退避定时器到点后的受控重启复核（命令循环内执行）。
+///
+/// 定时器与显式生命周期命令存在良性竞态：本次调度携带崩溃判定收敛时刻的
+/// 世代凭证，停用、卸载、显式启用、装载任一发生都会递增记录世代使凭证
+/// 失效——到点复核不符即空转返回，这就是「取消退避待重启任务」的落地形态。
+/// 此外复核：已被其它链条接管（queued / in_flight）、停用抑制位在置、插件
+/// 已不在 `Failed`、熔断窗口超限（修剪过期尝试后判定）四种情况都空转；
+/// 全部通过才按在册迁移重新送入 `Resolving`。
+fn handle_auto_restart(kernel: &Kernel, id: &str, generation: u64) {
+    let should_restart = match kernel.lock_state() {
+        Ok(mut state) => {
+            if state.plugins.queued.contains(id) || state.plugins.in_flight.contains(id) {
+                false
+            } else {
+                let policy = state.plugins.crash_policy;
+                state.plugins.record_mut(id).is_some_and(|record| {
+                    record.crash_restart_generation == generation
+                        && !record.auto_restart_suppressed
+                        && record.state == PluginState::Failed
+                        && !record.crash_restart_exhausted(std::time::Instant::now(), policy)
+                })
+            }
+        }
+        Err(_) => false,
+    };
+    if should_restart {
+        start_enable(kernel, id.to_owned(), None);
+    }
 }
 
 impl Kernel {
@@ -884,6 +987,46 @@ impl Kernel {
             record.last_error = Some(error.into());
         }
     }
+
+    /// §6.2 / §6.8 运行期崩溃判定闭环入口（任务监视器调用）：
+    ///
+    /// 1. 崩溃通知按在册迁移收敛到 `Failed`（`Active → Failed（任务 panic）`
+    ///    为主臂；`apply` 内任务先于激活链收尾 panic 时按 `Starting /
+    ///    Resolving → Failed` 收敛，避免漏判），由 `fail_plugin_task_panic`
+    ///    单锁段复核状态，杜绝与停用/卸载链条的竞态改写；崩溃首因经
+    ///    `last_error` / `last_failure` 审计面留档，副作用随 Context/Fork
+    ///    撤销回滚（§6.6）。
+    /// 2. 收敛即计入崩溃重启窗口一次（激活失败与运行期崩溃共用计数，
+    ///    插件架构设计 §9.3）；窗口内未超 `CRASH_RESTART_MAX_ATTEMPTS` 时
+    ///    按指数退避调度自动重启，超限即熔断——插件停留 `Failed`，等待显式
+    ///    `enable`（重启与熔断动作的审计承载 = 每次崩溃的首因诊断 +
+    ///    窗口计数，可经 `plugin_crash_attempts` 观测）。调度携带判定同锁段
+    ///    读取的重启世代凭证；停用、卸载、显式启用与装载都递增该世代并
+    ///    置停用抑制位，使在途重启与已登记的退避待重启在到点复核时作废。
+    ///
+    /// 平台归属任务（非插件 Context）与已由其它生命周期结论定稿的状态
+    /// （`Installed` / `Stopping` / `Pending` / `Removed`）不触碰插件状态机，
+    /// 只按 §9.1 归一上报诊断。
+    pub(crate) fn handle_plugin_task_panic(&self, id: &str) {
+        let error = KernelError::PluginPanicked { id: id.to_owned() };
+        let Some((attempts, generation)) = self.fail_plugin_task_panic(id, error) else {
+            return;
+        };
+        let policy = CrashRestartPolicy::from(self.options());
+        if attempts > policy.max_attempts {
+            return;
+        }
+        let delay = crash_restart_backoff(attempts, policy.backoff_initial, policy.backoff_max);
+        let kernel = self.clone();
+        let plugin_id = id.to_owned();
+        self.runtime().spawn(async move {
+            tokio::time::sleep(delay).await;
+            let _ = kernel.send(Command::AutoRestart {
+                id: plugin_id,
+                generation,
+            });
+        });
+    }
 }
 
 #[cfg(test)]
@@ -896,10 +1039,12 @@ mod tests {
     //! 循环存活）。
 
     use super::*;
-    use crate::plugin::{DependencySpec, PluginRole};
+    use crate::kernel::KernelOptions;
+    use crate::plugin::{DependencySpec, EmptyConfigProvider, PluginRole};
     use chips_core::{ForkId, Version, VersionRange};
     use std::panic::AssertUnwindSafe;
-    use std::time::Duration;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
 
     /// 空执行器：分支用例只校验命令循环的状态写入，不关心插件代码行为。
     struct NullRunner;
@@ -961,6 +1106,36 @@ mod tests {
         panic_on_stop: bool,
     }
 
+    /// 计数型执行器：记录 `apply` 调用次数，用于锁定「自动重启确实重新
+    /// 走完整激活链」与「熔断后不再重启」两类可观察形态。
+    struct CountingRunner {
+        applies: AtomicUsize,
+    }
+
+    impl CountingRunner {
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                applies: AtomicUsize::new(0),
+            })
+        }
+
+        fn applies(&self) -> usize {
+            self.applies.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl PluginRunner for CountingRunner {
+        async fn apply(&self, _ctx: &Context, _config: &PluginConfig) -> Result<(), KernelError> {
+            self.applies.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn stop(&self, _ctx: &Context) -> Result<(), KernelError> {
+            Ok(())
+        }
+    }
+
     #[async_trait::async_trait]
     impl PluginRunner for PanicRunner {
         async fn apply(&self, _ctx: &Context, _config: &PluginConfig) -> Result<(), KernelError> {
@@ -981,6 +1156,43 @@ mod tests {
     /// 新建内核（命令循环随内核启动）。
     fn new_kernel() -> Kernel {
         Kernel::new(tokio::runtime::Handle::current()).expect("内核应可创建")
+    }
+
+    /// 新建缩短崩溃重启策略的内核：§6.8 数值可注入，锁测禁真等 1s/30s。
+    fn crash_kernel(window: Duration, max_attempts: u32, backoff: Duration) -> Kernel {
+        Kernel::with_options(
+            tokio::runtime::Handle::current(),
+            KernelOptions {
+                crash_restart_window: window,
+                crash_restart_max_attempts: max_attempts,
+                crash_restart_backoff_initial: backoff,
+                crash_restart_backoff_max: backoff,
+                ..KernelOptions::default()
+            },
+            Arc::new(EmptyConfigProvider),
+        )
+        .expect("内核应可创建")
+    }
+
+    /// 在窗口内为插件登记 `count` 次崩溃尝试。
+    fn stamp_crash_attempts(kernel: &Kernel, id: &str, count: u32) {
+        let mut guard = kernel.lock_state().expect("状态锁应可用");
+        let policy = guard.plugins.crash_policy;
+        let record = guard.plugins.record_mut(id).expect("插件记录应存在");
+        for _ in 0..count {
+            record.register_crash_attempt(Instant::now(), policy);
+        }
+    }
+
+    /// 读取插件当前的崩溃重启世代凭证。
+    fn restart_generation(kernel: &Kernel, id: &str) -> u64 {
+        kernel
+            .lock_state()
+            .expect("状态锁应可用")
+            .plugins
+            .record(id)
+            .expect("插件记录应存在")
+            .crash_restart_generation
     }
 
     /// 直接登记插件并置为指定状态，用于构造命令循环内的分支前置状态。
@@ -1649,5 +1861,450 @@ mod tests {
             .shutdown()
             .await
             .expect("命令循环应在 stop panic 隔离后继续存活");
+    }
+
+    #[tokio::test]
+    async fn test_task_panic_converges_active_to_failed_and_auto_restarts() {
+        // §6.2 / §6.8 判定闭环 + 自动重启调度锁测（工单047 臂②）：Active 插件
+        // 的运行期崩溃经在册 `Active → Failed` 收敛、首因入审计、计入窗口
+        // 计数，并按退避重新走一遍激活链。
+        let kernel = crash_kernel(Duration::from_secs(600), 3, Duration::from_millis(5));
+        let runner = CountingRunner::new();
+        kernel
+            .load(request_with_runner(
+                "crash-loop",
+                Arc::clone(&runner) as Arc<dyn PluginRunner>,
+            ))
+            .await
+            .expect("前置激活应成功");
+        assert_eq!(runner.applies(), 1);
+        assert_eq!(
+            kernel.plugin_crash_attempts("crash-loop"),
+            Some(0),
+            "干净激活不计数"
+        );
+
+        kernel.handle_plugin_task_panic("crash-loop");
+
+        assert_eq!(
+            kernel.plugin_state("crash-loop"),
+            Some(PluginState::Failed),
+            "运行期崩溃必须经在册迁移收敛到 Failed"
+        );
+        assert_eq!(
+            kernel.plugin_crash_attempts("crash-loop"),
+            Some(1),
+            "收敛到 Failed 即计入崩溃重启窗口一次"
+        );
+        let diagnostic = kernel
+            .plugin_last_error("crash-loop")
+            .expect("崩溃首因必须入审计面");
+        assert_eq!(diagnostic.code(), "KERNEL_PLUGIN_PANICKED");
+
+        assert!(
+            wait_until(|| kernel.plugin_state("crash-loop") == Some(PluginState::Active)).await,
+            "窗口内未超限应按退避自动重启，回到 Active"
+        );
+        assert_eq!(runner.applies(), 2, "自动重启必须重新执行激活链");
+        assert_eq!(
+            kernel.plugin_crash_attempts("crash-loop"),
+            Some(1),
+            "重启成功不清零窗口计数（只有 enable / 停用 / 卸载清零）"
+        );
+
+        kernel
+            .shutdown()
+            .await
+            .expect("命令循环应在自动重启后继续存活");
+    }
+
+    #[tokio::test]
+    async fn test_task_panic_stops_auto_restarting_when_window_exhausted() {
+        // §6.8 熔断上限：窗口内第 4 次尝试超出 3 次上限后停止自动重启，
+        // 插件停留 `Failed` 等待显式 enable。
+        let kernel = crash_kernel(Duration::from_secs(600), 3, Duration::from_millis(5));
+        let runner = CountingRunner::new();
+        kernel
+            .load(request_with_runner(
+                "breaker",
+                Arc::clone(&runner) as Arc<dyn PluginRunner>,
+            ))
+            .await
+            .expect("前置激活应成功");
+
+        for attempt in 1..=4_u32 {
+            assert_eq!(
+                kernel.plugin_state("breaker"),
+                Some(PluginState::Active),
+                "第 {attempt} 次崩溃前插件应处于 Active"
+            );
+            kernel.handle_plugin_task_panic("breaker");
+            assert_eq!(
+                kernel.plugin_state("breaker"),
+                Some(PluginState::Failed),
+                "第 {attempt} 次崩溃应收敛到 Failed"
+            );
+            assert_eq!(
+                kernel.plugin_crash_attempts("breaker"),
+                Some(attempt),
+                "第 {attempt} 次崩溃的窗口计数"
+            );
+            if attempt <= 3 {
+                assert!(
+                    wait_until(|| kernel.plugin_state("breaker") == Some(PluginState::Active))
+                        .await,
+                    "第 {attempt} 次未超限，应自动重启"
+                );
+            }
+        }
+
+        // 超限后定时器与任何自动路径都不再重启它。
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(
+            kernel.plugin_state("breaker"),
+            Some(PluginState::Failed),
+            "超限后必须停留 Failed"
+        );
+        assert_eq!(
+            runner.applies(),
+            4,
+            "首次激活 + 3 次自动重启，第 4 次崩溃后不得再激活"
+        );
+
+        // 显式 enable 解除熔断：重置计数并重新激活。
+        let state = tokio::time::timeout(Duration::from_secs(2), kernel.enable("breaker"))
+            .await
+            .expect("enable 应答应收敛")
+            .expect("超限插件经显式 enable 应重新放行");
+        assert_eq!(state, PluginState::Active);
+        assert_eq!(
+            kernel.plugin_crash_attempts("breaker"),
+            Some(0),
+            "显式 enable 必须重置窗口计数"
+        );
+        assert_eq!(runner.applies(), 5);
+
+        kernel.shutdown().await.expect("命令循环应仍然存活");
+    }
+
+    #[tokio::test]
+    async fn test_auto_restart_revalidates_state_before_restart() {
+        // 退避定时器到点的复核臂：世代凭证不符、停用抑制位在置、非 `Failed`、
+        // 被在飞链条接管、窗口超限、未登记插件六类都只空转返回，不改写状态机。
+        let kernel = crash_kernel(Duration::from_secs(600), 3, Duration::from_millis(5));
+
+        handle_auto_restart(&kernel, "ghost-plugin", 0);
+        assert_eq!(kernel.plugin_state("ghost-plugin"), None);
+
+        register_at(&kernel, "stale-plugin", Vec::new(), PluginState::Failed);
+        stamp_crash_attempts(&kernel, "stale-plugin", 1);
+        handle_auto_restart(
+            &kernel,
+            "stale-plugin",
+            restart_generation(&kernel, "stale-plugin") + 1,
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(
+            kernel.plugin_state("stale-plugin"),
+            Some(PluginState::Failed),
+            "世代凭证不符的退避待重启（已被停用/启用/装载作废）必须空转"
+        );
+
+        register_at(&kernel, "muted-plugin", Vec::new(), PluginState::Failed);
+        stamp_crash_attempts(&kernel, "muted-plugin", 1);
+        {
+            let mut guard = kernel.lock_state().expect("状态锁应可用");
+            guard
+                .plugins
+                .record_mut("muted-plugin")
+                .expect("插件记录应存在")
+                .auto_restart_suppressed = true;
+        }
+        let muted_generation = restart_generation(&kernel, "muted-plugin");
+        handle_auto_restart(&kernel, "muted-plugin", muted_generation);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(
+            kernel.plugin_state("muted-plugin"),
+            Some(PluginState::Failed),
+            "停用抑制位在置时迟到的崩溃判定不得复生插件"
+        );
+        // 用户显式放行（enable / load 的机制入口）清除抑制位后重启资格恢复。
+        {
+            let mut guard = kernel.lock_state().expect("状态锁应可用");
+            guard
+                .plugins
+                .record_mut("muted-plugin")
+                .expect("插件记录应存在")
+                .allow_auto_restart();
+        }
+        handle_auto_restart(
+            &kernel,
+            "muted-plugin",
+            restart_generation(&kernel, "muted-plugin"),
+        );
+        assert!(
+            wait_until(|| kernel.plugin_state("muted-plugin") == Some(PluginState::Active)).await,
+            "解除抑制后应恢复自动重启资格"
+        );
+
+        register_at(&kernel, "running-plugin", Vec::new(), PluginState::Active);
+        handle_auto_restart(&kernel, "running-plugin", 0);
+        assert_eq!(
+            kernel.plugin_state("running-plugin"),
+            Some(PluginState::Active),
+            "Active 插件不在重启复核范围内"
+        );
+
+        register_at(&kernel, "taken-plugin", Vec::new(), PluginState::Failed);
+        track_in_flight(&kernel, "taken-plugin", true);
+        handle_auto_restart(&kernel, "taken-plugin", 0);
+        assert_eq!(
+            kernel.plugin_state("taken-plugin"),
+            Some(PluginState::Failed),
+            "已被链条接管时定时器空转"
+        );
+
+        register_at(&kernel, "spent-plugin", Vec::new(), PluginState::Failed);
+        stamp_crash_attempts(&kernel, "spent-plugin", 4);
+        handle_auto_restart(&kernel, "spent-plugin", 0);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(
+            kernel.plugin_state("spent-plugin"),
+            Some(PluginState::Failed),
+            "窗口超限后复核必须拒绝重启"
+        );
+
+        register_at(&kernel, "fresh-plugin", Vec::new(), PluginState::Failed);
+        stamp_crash_attempts(&kernel, "fresh-plugin", 2);
+        handle_auto_restart(&kernel, "fresh-plugin", 0);
+        assert!(
+            wait_until(|| kernel.plugin_state("fresh-plugin") == Some(PluginState::Active)).await,
+            "未超限的 Failed 插件应经在册迁移重启"
+        );
+        assert_eq!(
+            kernel.plugin_crash_attempts("fresh-plugin"),
+            Some(2),
+            "复核重启不得篡改窗口计数"
+        );
+
+        // 毒锁降级：复核静默放弃，不得 panic。
+        poison_state_lock(&kernel);
+        handle_auto_restart(&kernel, "running-plugin", 0);
+    }
+
+    #[tokio::test]
+    async fn test_disable_during_in_flight_chain_holds_reply_and_cancels_restart() {
+        // §6.8 停用取消（:399 竞态红案的单元锁测）：`disable` 命中在飞激活
+        // （自动重启）链时回执挂账，直到链条收敛点把插件定稿才补发——
+        // 停用返回 `Ok` 即「确定不再运行」，紧随的卸载按在册迁移直接成功；
+        // 停用同时递增世代并置抑制位，停用前登记的退避待重启全部作废。
+        let kernel = crash_kernel(Duration::from_secs(600), 3, Duration::from_millis(5));
+        register_at(&kernel, "mid-chain", Vec::new(), PluginState::Starting);
+        attach_fork(&kernel, "mid-chain");
+        track_in_flight(&kernel, "mid-chain", false);
+        stamp_crash_attempts(&kernel, "mid-chain", 1);
+        let generation_before_disable = restart_generation(&kernel, "mid-chain");
+
+        let (reply, mut reply_rx) = oneshot::channel();
+        handle_disable(&kernel, "mid-chain".to_owned(), false, reply);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), &mut reply_rx)
+                .await
+                .is_err(),
+            "在飞链未收尾时停用回执必须挂账，不得乐观放行卸载竞态"
+        );
+        assert_ne!(
+            restart_generation(&kernel, "mid-chain"),
+            generation_before_disable,
+            "停用必须递增重启世代，作废在停用前登记的退避待重启"
+        );
+
+        // 链条收敛点（回滚臂）定稿插件：挂账回执随即补发。
+        rollback_cancelled(&kernel, "mid-chain").expect("回滚应成功");
+        tokio::time::timeout(Duration::from_secs(2), reply_rx)
+            .await
+            .expect("链收敛后停用回执必须补发")
+            .expect("回执通道应完好")
+            .expect("停用应回执成功");
+        assert_eq!(
+            kernel.plugin_state("mid-chain"),
+            Some(PluginState::Installed),
+            "停用收敛到 Installed"
+        );
+        assert_eq!(
+            kernel.plugin_crash_attempts("mid-chain"),
+            Some(0),
+            "停用清零崩溃重启计数"
+        );
+
+        // 停用前世代的陈旧退避待重启到点即空转，不会把插件重新拉起。
+        handle_auto_restart(&kernel, "mid-chain", generation_before_disable);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(
+            kernel.plugin_state("mid-chain"),
+            Some(PluginState::Installed)
+        );
+
+        // 紧随停用之后的卸载：`Installed → Removed` 在册合法，直接成功。
+        handle_unload(&kernel, "mid-chain").expect("Installed 插件应可卸载");
+        assert_eq!(kernel.plugin_state("mid-chain"), Some(PluginState::Removed));
+        assert_eq!(kernel.plugin_crash_attempts("mid-chain"), Some(0));
+    }
+
+    #[tokio::test]
+    async fn test_delayed_crash_judgement_settles_held_disable_without_revival() {
+        // 停用与迟到崩溃判定的竞态收口：挂账停用等到的收敛点若是判定臂
+        // （`Starting → Failed`），同样补发回执；停用抑制位保证该次崩溃
+        // 登记的退避待重启到点后不得把已被用户停用的插件复生。
+        let kernel = crash_kernel(Duration::from_secs(600), 3, Duration::from_millis(5));
+        register_at(
+            &kernel,
+            "crash-after-disable",
+            Vec::new(),
+            PluginState::Starting,
+        );
+        attach_fork(&kernel, "crash-after-disable");
+        track_in_flight(&kernel, "crash-after-disable", false);
+
+        let (reply, reply_rx) = oneshot::channel();
+        handle_disable(&kernel, "crash-after-disable".to_owned(), false, reply);
+        kernel.handle_plugin_task_panic("crash-after-disable");
+        tokio::time::timeout(Duration::from_secs(2), reply_rx)
+            .await
+            .expect("判定臂定稿后停用回执必须补发")
+            .expect("回执通道应完好")
+            .expect("停用应回执成功");
+        assert_eq!(
+            kernel.plugin_state("crash-after-disable"),
+            Some(PluginState::Failed),
+            "崩溃判定照常收敛到 Failed"
+        );
+        assert_eq!(
+            kernel.plugin_crash_attempts("crash-after-disable"),
+            Some(1),
+            "判定收敛照常计入窗口（后续卸载会清零）"
+        );
+
+        // 本次崩溃登记的退避（注入 5ms）到点后因抑制位在置而空转：
+        // 用户停用意图不被复生。
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        assert_eq!(
+            kernel.plugin_state("crash-after-disable"),
+            Some(PluginState::Failed),
+            "被停用的插件不得因崩溃重启定时器复生"
+        );
+        handle_unload(&kernel, "crash-after-disable").expect("Failed 插件应可卸载");
+        assert_eq!(
+            kernel.plugin_state("crash-after-disable"),
+            Some(PluginState::Removed)
+        );
+        assert_eq!(
+            kernel.plugin_crash_attempts("crash-after-disable"),
+            Some(0),
+            "卸载清零计数"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_panic_hook_converges_active_and_in_flight_but_not_settled_states() {
+        // 判定闭环的状态门：会收敛到 `Failed` 的在册状态（`Active` 与在飞的
+        // `Starting` / `Resolving`）才改写；已由其它生命周期结论定稿的状态
+        // （`Installed` / `Pending` / `Stopping` / `Removed`）与未登记插件整体
+        // 空转，连审计也不覆写。
+        let kernel = crash_kernel(Duration::from_secs(600), 3, Duration::from_millis(5));
+        register_at(&kernel, "idle-plugin", Vec::new(), PluginState::Installed);
+        kernel.handle_plugin_task_panic("idle-plugin");
+        assert_eq!(
+            kernel.plugin_state("idle-plugin"),
+            Some(PluginState::Installed),
+            "已定稿状态不被迟到的崩溃通知覆写"
+        );
+        assert_eq!(kernel.plugin_crash_attempts("idle-plugin"), Some(0));
+        assert!(
+            kernel.plugin_last_error("idle-plugin").is_none(),
+            "未收敛则不写审计"
+        );
+        for (id, state) in [
+            ("pending-plugin", PluginState::Pending),
+            ("stopping-plugin", PluginState::Stopping),
+            ("removed-plugin", PluginState::Removed),
+        ] {
+            register_at(&kernel, id, Vec::new(), state);
+            kernel.handle_plugin_task_panic(id);
+            assert_eq!(kernel.plugin_state(id), Some(state), "{id} 不得被改写");
+            assert_eq!(kernel.plugin_crash_attempts(id), Some(0));
+        }
+        kernel.handle_plugin_task_panic("absent-plugin");
+        assert_eq!(kernel.plugin_state("absent-plugin"), None);
+
+        // `apply` 内任务先于激活链收尾 panic：按中间态收敛，判定不漏。
+        register_at(
+            &kernel,
+            "starting-plugin",
+            Vec::new(),
+            PluginState::Starting,
+        );
+        attach_fork(&kernel, "starting-plugin");
+        kernel.handle_plugin_task_panic("starting-plugin");
+        assert_eq!(
+            kernel.plugin_state("starting-plugin"),
+            Some(PluginState::Failed),
+            "在飞激活链的崩溃必须收敛到 Failed"
+        );
+        assert_eq!(
+            kernel.plugin_crash_attempts("starting-plugin"),
+            Some(1),
+            "中间态收敛同样计入崩溃重启窗口"
+        );
+        kernel.shutdown().await.expect("命令循环应仍然存活");
+    }
+
+    #[tokio::test]
+    async fn test_disable_and_unload_clear_crash_window() {
+        // §6.8 计数生命周期：停用（`Installed`）与卸载（`Removed`）清零窗口。
+        let kernel = crash_kernel(Duration::from_secs(600), 3, Duration::from_millis(5));
+        let runner = CountingRunner::new();
+        kernel
+            .load(request_with_runner(
+                "cleared-on-stop",
+                Arc::clone(&runner) as Arc<dyn PluginRunner>,
+            ))
+            .await
+            .expect("前置激活应成功");
+        kernel.handle_plugin_task_panic("cleared-on-stop");
+        assert_eq!(kernel.plugin_crash_attempts("cleared-on-stop"), Some(1));
+        assert!(
+            wait_until(|| kernel.plugin_state("cleared-on-stop") == Some(PluginState::Active))
+                .await
+        );
+
+        kernel
+            .disable("cleared-on-stop", false)
+            .await
+            .expect("停用应成功");
+        assert_eq!(
+            kernel.plugin_state("cleared-on-stop"),
+            Some(PluginState::Installed)
+        );
+        assert_eq!(
+            kernel.plugin_crash_attempts("cleared-on-stop"),
+            Some(0),
+            "停用必须清零崩溃重启计数"
+        );
+
+        kernel
+            .unload("cleared-on-stop")
+            .await
+            .expect("Installed 插件应可卸载");
+        assert_eq!(
+            kernel.plugin_state("cleared-on-stop"),
+            Some(PluginState::Removed)
+        );
+        assert_eq!(
+            kernel.plugin_crash_attempts("cleared-on-stop"),
+            Some(0),
+            "卸载后计数保持清零态"
+        );
+        kernel.shutdown().await.expect("命令循环应仍然存活");
     }
 }
