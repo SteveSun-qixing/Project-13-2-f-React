@@ -6,11 +6,13 @@
  * - `cli.task.create` / `bindInvocation` / `get` / `progress` / `complete` / `fail` / `cancel`；
  * - `command:invoke`（`source: 'cli'`）与 `service` 目标的能力调用。
  *
- * 其余平台操作（插件管理、工作区标记、配置、日志、更新、诊断、文件打开）在承载链路协议
- * 落地前由承载适配器实现；缺失时相关命令返回 `CLI_TARGET_UNAVAILABLE`（[CLI 完整参考] §2.5）。
+ * 其余平台操作（插件管理、工作区标记、配置、日志、更新、诊断、文件打开）在承载适配器
+ * 缺位时相关命令返回 `CLI_TARGET_UNAVAILABLE`（[CLI 完整参考] §2.5）；开发宿主面
+ * （`devHost`）已按《17-CLI承载链路契约》§5.5（Q8 裁定并轨）并入同一 carrier 协议——
+ * 缺省臂经在册传输端口触达开发宿主，不存在第二套 dev 端点。
  */
 
-import { cliError } from '../errors.js';
+import { cliError, toCliError } from '../errors.js';
 import type {
   ICliAppLaunchOperations,
   ICliCapabilityInvokeResult,
@@ -148,10 +150,27 @@ export function createServiceRouterClient(options: IServiceRouterClientOptions):
 
   const devHost: ICliDevHostOperations = {
     async runPlugin(input): Promise<unknown> {
-      if (options.devHost === undefined) {
-        return unavailable('devHost.runPlugin');
+      if (options.devHost !== undefined) {
+        return options.devHost.runPlugin(input);
       }
-      return options.devHost.runPlugin(input);
+      // §5.5 devHost 并轨（Q8 裁定采 (a)）：开发宿主 = 同一 carrier 协议的工作区实例，
+      // 接入唯一走本链路在册传输端口（端点派生/环境覆盖面/握手全部同一条实现），
+      // 不存在也不新增第二套 dev 端点协议。触达后按 §5.1 在册集合零新增纪律：
+      // 「装载并投递 dev 工程」依赖宿主启动输入正式投递装配（R3，工单039 并轨挂账），
+      // 本波如实收口为承载不可用定性（07.04 §4.2「承载运行时不可用 → 6」），不临时投递凑绿。
+      try {
+        await invoker.request('cli.command.list', {});
+      } catch (error) {
+        throw normalizeDevHostCarrierError(error, input.dir);
+      }
+      throw cliError(
+        'CLI_TARGET_UNAVAILABLE',
+        '开发宿主装载投递面未就绪：启动输入正式投递依赖宿主装配（工单039 R3 并轨挂账）',
+        {
+          method: 'devHost.runPlugin',
+          dir: input.dir,
+        }
+      );
     },
   };
 
@@ -284,6 +303,31 @@ function createUnavailableArtifacts(): ICliClient['artifacts'] {
     pack: () => unavailable('artifacts.pack'),
     validate: () => unavailable('artifacts.validate'),
   };
+}
+
+/**
+ * devHost 并轨臂触达承载面的错误归一（《17》§5.5；07.04 §4.2「承载运行时不可用 →
+ * `CLI_TARGET_UNAVAILABLE` / 6」）。
+ *
+ * @remarks 严格环境面（`CLI_PATH_INVALID`/`CLI_ARGUMENT_INVALID`，§2.6）与按需启动预算面
+ * （`CLI_TIMEOUT`，§5.2-4）语义在册、原样透传；其余触达失败（含发现阶段定性与未识别异常）
+ * 统一收口为 6——不带发现阶段 → 3 旁表提示（该提示的 §2.3 语义只属于插件命令发现链）。
+ */
+function normalizeDevHostCarrierError(error: unknown, dir: string): unknown {
+  const normalized = toCliError(error);
+  const passthroughCodes: readonly string[] = [
+    'CLI_PATH_INVALID',
+    'CLI_ARGUMENT_INVALID',
+    'CLI_TIMEOUT',
+  ];
+  if (passthroughCodes.includes(normalized.code)) {
+    return normalized;
+  }
+  return cliError('CLI_TARGET_UNAVAILABLE', undefined, {
+    method: 'devHost.runPlugin',
+    dir,
+    reason: normalized.message,
+  });
 }
 
 function assertQuery(query: ICliCommandQuery): void {

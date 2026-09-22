@@ -455,4 +455,10 @@ export interface ICliClient {
   readonly operations: {
     record(record: ICliOperationRecord): Promise<void>;
   };
+  /**
+   * 客户端资源释放（可选项；bin 生命周期挂点，《17》§5.2 波 3 装配）：
+   * 生产承载装配在此关闭常驻 carrier 会话，保证 CLI 进程「一次调用一连接」用后即别、
+   * 事件Loop 无悬挂 socket；无会话时为空操作。
+   */
+  readonly dispose?: () => void | Promise<void>;
 }

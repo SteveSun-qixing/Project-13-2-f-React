@@ -7,7 +7,11 @@
  *   `@chips/bridge`（《17》§6.1-1 单一事实源，禁第二定义）；
  * - 陈旧双判据（§2.5-3）：`pid_dead`（PID 不存在）与 `pid_recycled`（PID 假活、进程创建时间晚于
  *   `startedAt`）必须同时实现，防 PID 回收窗口的假活；进程探针注入化，创建时间不可得时
- *   **保守判定不陈旧**（宁可不处置）；
+ *   **保守判定不陈旧**（宁可不处置）；`pid_recycled` 判据带探针粒度容差
+ *   （{@link PID_RECYCLE_PROBE_TOLERANCE_MS}）：POSIX `ps -o etime=` 为秒级粒度，宿主启动后
+ *   每个粒度窗口内推算创建时间被截断抬高（可超前真实 `startedAt` 达 1 秒加探针延迟），
+ *   零容差会把刚写入登记在册活宿主误判 `pid_recycled`（§5.2 拉起就绪轮询必被卡死）——
+ *   粒度窗口内创建时间不可辨，按「不可得 → 保守不陈旧」同口径收口；
  * - 清理权只属写入方（宿主）：CLI 读出陈旧或连接失败**不得删除登记文件**（§2.5-4），
  *   对应定性是 §5.4 回退链（发现阶段失败）。
  */
@@ -95,7 +99,17 @@ export function parseDiscoveryRecord(text: string | null): ICarrierDiscoveryReco
   };
 }
 
-/** 陈旧双判据（§2.5-3：两判据同时实现）。 */
+/**
+ * `pid_recycled` 判据的探针粒度容差（毫秒）。
+ *
+ * 构成：POSIX `ps -o etime=` 秒级截断抬高上界 1000ms + 探针子进程（`ps`/`powershell`）
+ * 启动与读取延迟预算 1000ms。粒度窗口内创建时间不可辨，按 §2.5-3「不可得 → 保守不陈旧」
+ * 同口径不判；真实 PID 回收（记录写入进程死亡后 PID 被复用）与 `startedAt` 的间隔远超
+ * 本容差，判据保护面不缩——`pid_dead` 判据仍即时生效，双判据之第一判据零放宽。
+ */
+export const PID_RECYCLE_PROBE_TOLERANCE_MS = 2_000;
+
+/** 陈旧双判据（§2.5-3：两判据同时实现；`pid_recycled` 带探针粒度容差，《17》§2.5-3 保守口径）。 */
 export function judgeStaleness(
   record: ICarrierDiscoveryRecord,
   probe: IPidProbe
@@ -104,7 +118,7 @@ export function judgeStaleness(
     return { stale: true, reason: 'pid_dead' };
   }
   const createdAt = probe.processCreatedAt(record.pid);
-  if (createdAt !== null && createdAt > record.startedAt) {
+  if (createdAt !== null && createdAt > record.startedAt + PID_RECYCLE_PROBE_TOLERANCE_MS) {
     return { stale: true, reason: 'pid_recycled' };
   }
   return { stale: false };

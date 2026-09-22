@@ -81,5 +81,8 @@ export async function main(
     return entry === 'dev' ? await runDevCli(entryArgv, deps) : await runCli(entryArgv, deps);
   } finally {
     process.off('SIGINT', onSignal);
+    // bin 生命周期（《17》§5.2/§3.6 波 3 装配）：生产承载客户端在此释放常驻 carrier 会话，
+    // 「一次 CLI 调用 = 一次连接」用后即别；无释放面的本地/嵌入客户端为空操作。
+    await client.dispose?.();
   }
 }

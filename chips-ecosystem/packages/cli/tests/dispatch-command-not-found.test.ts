@@ -62,6 +62,60 @@ function noCarrierClient(): { client: ICliClient; touches: () => number } {
   return { client, touches: () => touched };
 }
 
+/**
+ * 发现阶段承载定性（《17》§5.3 收口列）：以带 `reason` 的 `CLI_TARGET_UNAVAILABLE` 拒绝索引，
+ * 验证 `run.ts` 逐 reason 定性——发现阶段（→3）改判未找到，执行定性（→6）原样透出不被吞。
+ */
+function carrierReasonClient(reason: string): { client: ICliClient; touches: () => number } {
+  const base = new FakeCliClient();
+  let touched = 0;
+  const client: ICliClient = {
+    ...base,
+    cliCommand: {
+      ...base.cliCommand,
+      list: () => {
+        touched += 1;
+        return Promise.reject(
+          cliError('CLI_TARGET_UNAVAILABLE', undefined, { route: 'cli.command.list', reason })
+        );
+      },
+    },
+  };
+  return { client, touches: () => touched };
+}
+
+describe('发现阶段承载 reason 逐定性收口（§5.3 vs §2.3）', () => {
+  it('执行定性 token_invalid → 原样透出 CLI_TARGET_UNAVAILABLE / 6（不被吞成未找到）', async () => {
+    const { client, touches } = carrierReasonClient('token_invalid');
+    const outcome = await runUser(['demo', 'hello'], { client });
+    expect(touches()).toBe(1);
+    expect(outcome.exitCode).toBe(6);
+    const envelope = outcome.json() as { code: string; details?: { reason?: string } };
+    expect(envelope.code).toBe('CLI_TARGET_UNAVAILABLE');
+    expect(envelope.details?.reason).toBe('token_invalid');
+  });
+
+  for (const reason of ['connection_lost', 'route_unregistered']) {
+    it(`执行定性 ${reason} → 原样透出 / 6`, async () => {
+      const outcome = await runUser(['demo', 'hello'], {
+        client: carrierReasonClient(reason).client,
+      });
+      expect(outcome.exitCode).toBe(6);
+      expect((outcome.json() as { code: string }).code).toBe('CLI_TARGET_UNAVAILABLE');
+    });
+  }
+
+  for (const reason of ['protocol_mismatch', 'handshake_timeout', 'carrier_unavailable']) {
+    it(`发现定性 ${reason}（§5.3 →3）→ 改判 CLI_COMMAND_NOT_FOUND / 3`, async () => {
+      const outcome = await runUser(['demo', 'hello'], {
+        client: carrierReasonClient(reason).client,
+      });
+      expect(outcome.exitCode).toBe(3);
+      expect((outcome.json() as { code: string }).code).toBe('CLI_COMMAND_NOT_FOUND');
+    });
+  }
+});
+
 describe('无承载进程的命令未找到定性（§2.3、§3.1.1）', () => {
   it('chips host * 保留固定根先行定性为 CLI_COMMAND_NOT_FOUND / 3，不触达插件索引', async () => {
     const { client, touches } = noCarrierClient();

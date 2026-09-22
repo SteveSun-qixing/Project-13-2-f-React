@@ -4,6 +4,7 @@
  * 覆盖必测臂：
  * - 严格形状：缺失/JSON 非法/未知顶层字段/字段缺失/类型不符一律视同无效；
  * - 陈旧双判据：`pid_dead` 与 `pid_recycled` 同时实现，创建时间不可得保守判不陈旧；
+ * - `pid_recycled` 探针粒度容差双向臂：秒级截断窗口内不判、超容差仍判（回收保护面不缩）；
  * - 消费侧无删除权：读出陈旧后登记文件仍在（§2.5-4）。
  */
 
@@ -15,6 +16,7 @@ import {
   createSystemPidProbe,
   judgeStaleness,
   parseDiscoveryRecord,
+  PID_RECYCLE_PROBE_TOLERANCE_MS,
   readCarrierDiscovery,
   type IPidProbe,
 } from '../src/client/carrier/discovery.js';
@@ -96,10 +98,27 @@ describe('judgeStaleness：陈旧双判据（§2.5-3）', () => {
     });
   });
 
-  it('判据二：PID 假活、进程创建时间晚于 startedAt → pid_recycled', () => {
+  it('判据二：PID 假活、进程创建时间晚于 startedAt 超容差 → pid_recycled', () => {
+    expect(
+      judgeStaleness(
+        record(),
+        probe({ processCreatedAt: () => record().startedAt + PID_RECYCLE_PROBE_TOLERANCE_MS + 1 })
+      )
+    ).toEqual({ stale: true, reason: 'pid_recycled' });
+  });
+
+  it('粒度容差窗口：截断抬高（startedAt+1 / 容差整点）不可辨 → 保守不陈旧', () => {
+    // `ps -o etime=` 秒级截断下，刚写入登记的活宿主 createdAt 最多被抬高一个粒度加探针
+    // 延迟；窗口内一律不判（否则 §5.2 拉起就绪轮询与承载在线臂被假阳性卡死）。
     expect(
       judgeStaleness(record(), probe({ processCreatedAt: () => record().startedAt + 1 }))
-    ).toEqual({ stale: true, reason: 'pid_recycled' });
+    ).toEqual({ stale: false });
+    expect(
+      judgeStaleness(
+        record(),
+        probe({ processCreatedAt: () => record().startedAt + PID_RECYCLE_PROBE_TOLERANCE_MS })
+      )
+    ).toEqual({ stale: false });
   });
 
   it('PID 存活、创建时间早于 startedAt → 不陈旧', () => {
@@ -161,7 +180,9 @@ describe('readCarrierDiscovery：一站式定性（§2.4/§2.5/§5.3）', () => 
     const result = readCarrierDiscovery(
       fsWith(JSON.stringify(record())),
       DISCOVERY_FILE,
-      probe({ processCreatedAt: () => record().startedAt + 5 })
+      probe({
+        processCreatedAt: () => record().startedAt + PID_RECYCLE_PROBE_TOLERANCE_MS + 5,
+      })
     );
     expect(result).toMatchObject({ status: 'stale', reason: 'pid_recycled' });
   });

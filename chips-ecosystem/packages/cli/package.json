@@ -30,7 +30,8 @@
   },
   "dependencies": {
     "@chips/bridge": "workspace:*",
-    "@chips/sdk": "workspace:*"
+    "@chips/sdk": "workspace:*",
+    "yaml": "2.8.2"
   },
   "devDependencies": {
     "rimraf": "5.0.10"

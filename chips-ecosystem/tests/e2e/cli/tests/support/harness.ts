@@ -9,6 +9,11 @@
  * 隔离：每个套件在 `os.tmpdir()` 下以 `chips-cli-e2e-` 前缀创建独立临时工作区，
  * 套件结束（`afterAll`）无条件清理；宿主应用与本套件无关，不适用
  * `CHIPS_E2E_REQUIRE_APP` 门控，本链任何用例都不得默认 skip。
+ *
+ * 承载确定性（工单039 波 3，Q4 裁定制言；bin 已接生产承载装配）：基线环境一律清除
+ * 宿主侧遗留的 `CHIPS_CARRIER_*` 覆盖并缺省注入 `CHIPS_CARRIER_DISABLE=1`（《17》§2.6
+ * 确定性离线条），保证无承载套件与真机宿主在场与否无关；承载在线套件经 `env` 覆盖位
+ * 显式撤闸（`CHIPS_CARRIER_DISABLE: undefined`），断言面零放宽。
  */
 
 import { spawnSync } from 'node:child_process';
@@ -42,6 +47,8 @@ const CONTROLLED_ENV_KEYS: readonly string[] = [
   'CHIPS_LOG_LEVEL',
   'CHIPS_TRACE',
   'CHIPS_CLI_JOB_PROGRESS',
+  'CHIPS_CARRIER_DISABLE',
+  'CHIPS_CARRIER_SOCKET',
 ];
 
 /** 解析 `chips-ecosystem/` 工作区根目录。 */
@@ -91,11 +98,11 @@ export function baseEnv(
   return env;
 }
 
-/** 以真实子进程运行 `chips`。 */
+/** 以真实子进程运行 `chips`（缺省承载离线条，见文件头「承载确定性」条款）。 */
 export function runChips(args: readonly string[], options: IRunOptions): ICliRun {
   const result = spawnSync(process.execPath, [resolveCliBin(), ...args], {
     cwd: options.cwd,
-    env: baseEnv(options.env),
+    env: baseEnv({ CHIPS_CARRIER_DISABLE: '1', ...options.env }),
     encoding: 'utf8',
   });
   if (result.error !== undefined) {

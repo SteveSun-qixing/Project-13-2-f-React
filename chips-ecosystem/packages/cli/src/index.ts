@@ -86,9 +86,20 @@ export {
   CARRIER_REASON_EXIT_CODES,
   carrierReasonOf,
   attachCarrierExitCodeHint,
+  resolveDefaultUserdataRoot,
+  HOST_PRODUCT_NAME,
+  resolveHostExecutable,
+  defaultIsExecutableFile,
+  defaultSpawnHost,
+  createDefaultHostLauncherConfig,
+  HOST_BIN_UPWARD_LEVELS,
+  HOST_LAUNCH_READY_BUDGET_MS,
+  HOST_LAUNCH_READY_POLL_MS,
   type ICarrierInvoker,
   type ICarrierInvokerOptions,
   type ICarrierTarget,
+  type ICarrierLaunchConfig,
+  type IHostExecutableResolveInput,
   type IPidProbe,
   type CarrierStaleness,
   type CarrierDiscoveryRead,
@@ -227,6 +238,10 @@ export {
 } from './artifacts/scaffold.js';
 
 export { createLocalClient, type ILocalClientOptions } from './runtime/local-client.js';
+export {
+  createProductionClient,
+  type IProductionClientOptions,
+} from './runtime/production-client.js';
 export { main, detectEntry, type ICliMainOptions } from './main.js';
 export {
   runCli,

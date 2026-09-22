@@ -41,6 +41,22 @@ export function carrierReasonOf(error: ChipsError): CarrierHandshakeReason | nul
 }
 
 /**
+ * 发现阶段 `CLI_TARGET_UNAVAILABLE` 是否应改判为「无匹配插件命令」（§2.3 回退 3）。
+ *
+ * 《17》§5.3 收口列只把 `protocol_mismatch / handshake_timeout / carrier_unavailable` 定性为发现
+ * 阶段 3；`token_invalid / connection_lost / route_unregistered` 属执行定性，收口码为 6——不得被
+ * 「命令未找到」伪装。非承载来源、无词表 reason 的 `CLI_TARGET_UNAVAILABLE`（如缺适配器）维持现行
+ * 缺省定性：保守改判 3（§2.3）。
+ */
+export function isCarrierDiscoveryNotFoundFallback(error: ChipsError): boolean {
+  const reason = carrierReasonOf(error);
+  if (reason === null) {
+    return true;
+  }
+  return CARRIER_REASON_EXIT_CODES[reason] === 3;
+}
+
+/**
  * 按承载定性登记退出码旁表：`CLI_TARGET_UNAVAILABLE` 缺省 6（`exitCodeForCode`），
  * 发现阶段定性（protocol_mismatch/handshake_timeout/carrier_unavailable）覆写为 3。
  * 就地登记、返回同一错误实例（保持本进程 catch 链身份，提示不丢失）。

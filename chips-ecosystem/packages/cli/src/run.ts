@@ -8,6 +8,7 @@
 
 import { CliInterruptedError, cliError, exitCodeForError, toCliError } from './errors.js';
 import type { ChipsError } from './errors.js';
+import { isCarrierDiscoveryNotFoundFallback } from './client/carrier/carrier-exit.js';
 import { createNodeFileSystem, type IFileSystemPort } from './args/filesystem.js';
 import {
   parseGlobalOptions,
@@ -158,9 +159,16 @@ export async function runEntry(
     try {
       index = await deps.client.cliCommand.list();
     } catch (error) {
-      // 发现阶段的承载缺失即「无已启用插件命令」：无匹配可定性，按 §2.3 回 3；
-      // 真「目标不可用」（6）语义保留在匹配之后的执行链路上（目标触达失败等，§2.6）。
-      if (toCliError(error).code === 'CLI_TARGET_UNAVAILABLE') {
+      // 发现阶段承载定性（《17》§5.3 收口列）：仅「无已启用插件命令」可定性的回退臂
+      // （无词表 reason 的 `CLI_TARGET_UNAVAILABLE`，或定性收口码为 3 的 protocol_mismatch/
+      // handshake_timeout/carrier_unavailable）按 §2.3 改判 `CLI_COMMAND_NOT_FOUND` / 3；
+      // 执行定性 reason（token_invalid/connection_lost/route_unregistered，§5.3 →6）原样透出
+      // `CLI_TARGET_UNAVAILABLE`（携带旁表登记的 6），不得把「目标不可用」伪装成「命令未找到」。
+      const discoveryError = toCliError(error);
+      if (
+        discoveryError.code === 'CLI_TARGET_UNAVAILABLE' &&
+        isCarrierDiscoveryNotFoundFallback(discoveryError)
+      ) {
         throw pluginPathNotFound(rest);
       }
       throw error;

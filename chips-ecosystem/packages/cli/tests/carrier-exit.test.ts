@@ -14,6 +14,7 @@ import {
   CARRIER_REASON_EXIT_CODES,
   attachCarrierExitCodeHint,
   carrierReasonOf,
+  isCarrierDiscoveryNotFoundFallback,
 } from '../src/client/carrier/carrier-exit.js';
 import {
   carrierConnectionLostError,
@@ -91,4 +92,42 @@ describe('carrierReasonOf：定性抽取', () => {
     expect(carrierReasonOf(cliError('CLI_TARGET_UNAVAILABLE'))).toBeNull();
     expect(carrierReasonOf(carrierError('not_a_reason' as CarrierHandshakeReason))).toBeNull();
   });
+});
+
+describe('isCarrierDiscoveryNotFoundFallback：发现阶段改判面（§5.3 vs §2.3）', () => {
+  it('无词表 reason 的 CLI_TARGET_UNAVAILABLE（缺适配器等）→ 保守改判 true（维持 §2.3 回退 3）', () => {
+    expect(
+      isCarrierDiscoveryNotFoundFallback(
+        cliError('CLI_TARGET_UNAVAILABLE', undefined, { method: 'x' })
+      )
+    ).toBe(true);
+  });
+
+  it('非词表 reason → 视作无定性，改判 true', () => {
+    expect(
+      isCarrierDiscoveryNotFoundFallback(carrierError('not_a_reason' as CarrierHandshakeReason))
+    ).toBe(true);
+  });
+
+  const discovery: readonly CarrierHandshakeReason[] = [
+    CARRIER_HANDSHAKE_REASONS.protocolMismatch,
+    CARRIER_HANDSHAKE_REASONS.handshakeTimeout,
+    CARRIER_HANDSHAKE_REASONS.carrierUnavailable,
+  ];
+  for (const reason of discovery) {
+    it(`发现定性 ${reason}（§5.3 收口 3）→ 改判 true`, () => {
+      expect(isCarrierDiscoveryNotFoundFallback(carrierError(reason))).toBe(true);
+    });
+  }
+
+  const execution: readonly CarrierHandshakeReason[] = [
+    CARRIER_HANDSHAKE_REASONS.tokenInvalid,
+    CARRIER_HANDSHAKE_REASONS.connectionLost,
+    CARRIER_HANDSHAKE_REASONS.routeUnregistered,
+  ];
+  for (const reason of execution) {
+    it(`执行定性 ${reason}（§5.3 收口 6）→ 改判 false（原样透出，不伪装为未找到）`, () => {
+      expect(isCarrierDiscoveryNotFoundFallback(carrierError(reason))).toBe(false);
+    });
+  }
 });
