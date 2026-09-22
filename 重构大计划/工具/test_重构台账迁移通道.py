@@ -447,6 +447,56 @@ class TestClosure(_SandboxMixin):
         _c, data = self._closure(strict=False, matrix=matrix)
         self.assertEqual(data["double_zero_residual"]["待评估"], 0)  # 合法回写进展态不再计入
 
+    def test_closure_pending_red_symmetry_with_receipt(self):
+        """#162 §升级1 裁定=补（红触发面两通道对称）：closure 登记态 pending>0 必落红，
+        且红项计数与回执 double_zero_residual「待评估」一致；进展态清零即自愈。
+
+        单因子夹具：全部行 disposition=NULL（不触矩阵勾稽/落点/幻想 target 任何既有红臂），
+        非 strict（不触 STATUS-NOT-VERIFIED），红面当且仅当 PENDING-NOT-ZERO 一项。
+        同测回执 JSON 既有键名/键序零改动锁（本波只增 issues 面红项，不动键面）。
+        """
+        repo = "Chips-Notes"
+        p1 = self.add_file(repo, "src/p1.ts", status="待评估")
+        p2 = self.add_file(repo, "src/p2.ts", status="评估中")
+        self.add_file(repo, "src/d.ts", status="已裁决")
+        self.add_file(repo, "src/f.ts", status="已完成")  # 合法进展态：不计不红
+        matrix = self._matrix_md([])
+        code, data = self._closure(strict=False, matrix=matrix)
+        self.assertEqual(tuple(data.keys()),
+                         ("channel", "repos", "strict", "red", "warn", "double_zero_residual",
+                          "landing", "matrix_files", "not_verified", "issues", "warnings"))  # 键名/键序锁
+        self.assertEqual(tuple(data["double_zero_residual"].keys()), ("待评估", "幻想target", "残留"))
+        self.assertEqual(code, lt.EXIT_VERIFY)  # 登记态存在 → closure 必红
+        reds = [i for i in data["issues"] if i["code"] == "PENDING-NOT-ZERO"]
+        self.assertEqual(len(reds), 1)
+        self.assertEqual(reds[0]["level"], "red")
+        self.assertIn("行 %d" % data["double_zero_residual"]["待评估"], reds[0]["detail"])  # 红项计数=回执计数
+        self.assertEqual(data["double_zero_residual"]["待评估"], 2)
+        self.assertEqual(data["red"], 1)  # 单因子：红面仅此一项，既有红臂零误触
+        _exec("UPDATE files SET status='已完成' WHERE id=?", (p1,))  # 合法回写进展态 → 计数/红项同步递减
+        code, data = self._closure(strict=False, matrix=matrix)
+        self.assertEqual(data["double_zero_residual"]["待评估"], 1)
+        self.assertEqual(data["red"], 1)
+        self.assertIn("行 1", [i for i in data["issues"] if i["code"] == "PENDING-NOT-ZERO"][0]["detail"])
+        _exec("UPDATE files SET status='已裁决' WHERE id=?", (p2,))  # 双零达成 → 该红即消
+        code, data = self._closure(strict=False, matrix=matrix)
+        self.assertEqual(code, 0, data["issues"])
+        self.assertNotIn("PENDING-NOT-ZERO", {i["code"] for i in data["issues"]})
+
+    def test_closure_progress_statuses_not_pending_red(self):
+        """对称补红的不误伤臂：仅进展态（已完成/进行中/已验证）+裁决终态行 → closure 不因此落红。
+
+        与 preflight 侧工单048 回归锁（test_double_zero_progress_statuses_not_pending）成对，
+        保证翻正口径（PENDING_STATUSES 登记态正选）在两通道红臂行为一致。
+        """
+        repo = "Chips-Notes"
+        for st in ("已完成", "进行中", "已验证", "已裁决"):
+            self.add_file(repo, "src/%s.ts" % st, status=st)
+        code, data = self._closure(strict=True, matrix=self._matrix_md([]))
+        self.assertEqual(code, 0, data["issues"])  # disposition=NULL 行不触 strict 状态终验红
+        self.assertEqual(data["double_zero_residual"]["待评估"], 0)
+        self.assertNotIn("PENDING-NOT-ZERO", {i["code"] for i in data["issues"]})
+
     def test_matrix_second_table_not_merged(self):
         """§一 含文件级+符号级双表（服务端两仓形态）：只勾稽首表，符号表数字不得串表计红。"""
         repo = "Chips-Notes"

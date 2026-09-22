@@ -58,6 +58,7 @@ set-status 为唯一新增最小写通道」；W4 逐仓准出=preflight+closure
       # 迁移后闭环校验+矩阵闭合闸（只读）：(a)落点实落（含符号锚段，重写行点名任务豁免）
       # (b)矩阵 §一 计数勾稽+证据路径存在性 (c)残留扫描（凭据/废弃归档同名/未在册顶层目录）
       # (d)--strict 下迁移/重写未到已验证计红；双零残留终口径=待评估0+幻想target0+残留0
+      # （待评估>0 落红 PENDING-NOT-ZERO，红触发面与 preflight 双零前置对称，工单048 #162 裁定=补）
   python3 重构台账.py set-status --owner exec-wave-x --id-file /tmp/ids.txt --status 已验证 --evidence "包级测试通过"
       # 执行波回写的唯一最小写通道：仅 owner 原路回写 status（进行中/已完成/已验证）与 notes 追加，
       # 禁碰 disposition/target；命中行含任何非本 owner 行即越权整批拒绝（零写入、退出码 5）
@@ -2240,8 +2241,14 @@ def closure(args):
 
     # 双零残留终口径：待评估 0 + 幻想 target 0 + 残留 0
     # 「待评估」计登记态行（PENDING_STATUS_SQL，与 preflight 同源，工单048）——合法回写进展态不计
+    # 红触发面两通道对称（工单048 #162 §升级1 裁定=补）：pending>0 即落红 PENDING-NOT-ZERO，
+    # 与 preflight 双零前置红臂（本函数 preflight 段）共用同一 code、同一 PENDING_STATUS_SQL 口径；
+    # 无条件计红（同残留三红母型，不受 --strict 门控）。回执 JSON 既有键名/键序零改动，仅 issues 面增红项。
     pending_all = conn.execute(
         "SELECT COUNT(*) FROM files WHERE " + PENDING_STATUS_SQL).fetchone()[0]
+    if pending_all:
+        _new_issue(issues, "PENDING-NOT-ZERO", "red", None,
+                   "登记态（待评估/评估中）行 %d（双零残留终口径未成立）" % pending_all)
     fantasy = 0
     all_rows = conn.execute(
         "SELECT repo_id, rel_path, disposition, target_path, status FROM files"
