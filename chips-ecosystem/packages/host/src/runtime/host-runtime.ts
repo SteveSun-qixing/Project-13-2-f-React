@@ -150,6 +150,18 @@ export interface IHostRuntime extends IPlatformRuntime {
   /** 组合诊断快照（能力 / 会话 / 在途 / 订阅 / 句柄）。 */
   report(): IHostRuntimeReport;
   /**
+   * 会话权限快照查询面（08 §7.6 快照本体；含终态会话与完整 `grantedPermissions`）。
+   *
+   * @remarks
+   * 与 `report().sessions`（诊断视图，只透出 `grantedCount`）分职：本面向宿主内**正式
+   * 消费位**递交判定输入，组合根据此把文档守卫端口（`IDocumentGuardPort`）的会话来源
+   * 默认绑定到本运行时会话登记表（工单036 §五.3-1 / 开发日志刀4 缝①收口）。
+   * 每次调用触达登记表实态、不缓存（11 §9.1），判定本体仍单点复用
+   * `evaluateHostPermissions`（08 §7.2），本运行时之外不提供第二会话表与第二判定实现。
+   * 返回值是登记表内已冻结的会话对象引用（不深拷贝、不裁剪）。
+   */
+  sessionPermissionSnapshots(): readonly IHostSession[];
+  /**
    * 权限审计写入器（未装配审计选项时缺位）。
    *
    * @remarks 宿主 TS 单点消费入口：段三判定面挂钩与接线波 native observer 的 TS 消费
@@ -601,6 +613,9 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
         ...(carrierService === null ? {} : { carrier: carrierService.report() }),
         ...(auditWriter === null ? {} : { audit: auditWriter.report() }),
       };
+    },
+    sessionPermissionSnapshots(): readonly IHostSession[] {
+      return sessions.listPermissionSnapshots();
     },
     auditWriter,
   };

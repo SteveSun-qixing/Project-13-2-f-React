@@ -12,7 +12,9 @@ import { defineConfig } from '@playwright/test';
  *   保存落盘不在面内）——`CHIPS_E2E_REQUIRE_APP=1` 必跑且绿（CI 门禁），
  *   `CHIPS_E2E_GOLDEN_PATH=1` 亦可显式启用；
  * - `golden-path`：含保存落盘与 DOM 回流断言臂的全链路骨架——金链路刀6 裁定落盘权威
- *   归 W3 chips-resource，该套件随 W3 接线转正；W2 期间维持显式
+ *   归 chips-resource（Rust 侧能力面已交付，W3 在途）；落盘链路的生产注册依赖工单 036
+ *   收口（§11.3 Neon 暴露面尚无文档 scope/storage 端口载体，正式适配器未接线，`document:*`
+ *   维持诚实回退），该套件随工单 036 收口转正；在此之前维持显式
  *   `CHIPS_E2E_GOLDEN_PATH=1` 启用形态（不再随 `CHIPS_E2E_REQUIRE_APP` 自动纳入，
  *   登记见工单 036 与开发日志刀7）。
  */
@@ -23,9 +25,10 @@ const goldenChainEnabled = requireHostApp || goldenPathEnabled;
 
 if (!goldenChainEnabled) {
   process.stdout.write(
-    '[chips-e2e] W2 金链路 project 未启用（W2 准出前默认关闭）：执行 pnpm build 后使用 ' +
+    '[chips-e2e] 金链路 project 未启用（默认关闭）：执行 pnpm build 后使用 ' +
       'CHIPS_E2E_GOLDEN_PATH=1 pnpm test:e2e 启用；CI 门禁使用 CHIPS_E2E_REQUIRE_APP=1' +
-      '（W2 面必跑 golden-chain-w2；含保存落盘臂的 golden-path 套件显式 CHIPS_E2E_GOLDEN_PATH=1 启用，随 W3 转正）。\n'
+      '（门禁面必跑 golden-chain-w2；含保存落盘臂的 golden-path 套件维持显式 ' +
+      'CHIPS_E2E_GOLDEN_PATH=1 启用，随工单 036 收口转正）。\n'
   );
 }
 

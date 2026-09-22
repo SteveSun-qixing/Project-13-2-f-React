@@ -353,3 +353,63 @@ describe('windowIdOfSessionId：会话标识 → 归属窗口 ID 的词法逆向
     }
   });
 });
+
+/**
+ * 运行时会话权限快照查询面（08 §7.6 快照本体）——工单036 §五.3-1 / 开发日志刀4 缝①收口锁测：
+ * 组合根据此把文档守卫端口的会话来源默认绑定到本运行时的会话登记表（判定输入与路由侧准入同源）。
+ */
+describe('运行时会话权限快照查询面（工单036 §五.3-1 / 刀4 缝①）', () => {
+  it('空表零快照；IPC 建会话后透出完整权限集；与诊断视图同源；停机后终态入快照不静默消失', async () => {
+    const runtime = createHostRuntime({
+      capabilities: [],
+      sessionProvisioner: provisioner(() => platformGrant),
+    });
+    await runtime.start(palHost(), channel());
+    expect(runtime.sessionPermissionSnapshots()).toEqual([]);
+
+    await runtime.ipc.handleRequest(
+      { windowId: 4, frameId: null },
+      { requestId: 'snap-1', capabilityId: 'no:such:capability' },
+    );
+    const snapshots = runtime.sessionPermissionSnapshots();
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]?.sessionId).toBe('session:4:main');
+    expect(snapshots[0]?.state).toBe('active');
+    expect([...(snapshots[0]?.grantedPermissions ?? [])]).toEqual(['*']);
+
+    // 与 `report().sessions` 诊断视图同一会话实体派生（禁第二会话表）。
+    const view = runtime.report().sessions.find((item) => item.sessionId === 'session:4:main');
+    expect(view?.state).toBe('active');
+    expect(view?.grantedCount).toBe(snapshots[0]?.grantedPermissions.size);
+
+    await runtime.shutdown();
+    expect(runtime.sessionPermissionSnapshots()[0]?.state).toBe('closed');
+  });
+
+  it('按来源差异化授权：快照逐会话透出各自权限集（不猜测、不外溢，主框架与子帧分离）', async () => {
+    const runtime = createHostRuntime({
+      capabilities: [],
+      sessionProvisioner: provisioner((source) =>
+        source.frameId === null
+          ? { pluginId: 'demo', grantedPermissions: ['resources:read', 'resources:write'] }
+          : { pluginId: 'demo', grantedPermissions: ['resources:read'] },
+      ),
+    });
+    await runtime.start(palHost(), channel());
+    await runtime.ipc.handleRequest(
+      { windowId: 5, frameId: null },
+      { requestId: 'snap-2', capabilityId: 'no:such:capability' },
+    );
+    await runtime.ipc.handleRequest(
+      { windowId: 5, frameId: 8 },
+      { requestId: 'snap-3', capabilityId: 'no:such:capability' },
+    );
+
+    const main = runtime.sessionPermissionSnapshots().find((item) => item.sessionId === 'session:5:main');
+    const subFrame = runtime.sessionPermissionSnapshots().find((item) => item.sessionId === 'session:5:8');
+    expect([...(main?.grantedPermissions ?? [])]).toEqual(['resources:read', 'resources:write']);
+    expect([...(subFrame?.grantedPermissions ?? [])]).toEqual(['resources:read']);
+    expect(runtime.report().sessions.find((item) => item.sessionId === 'session:5:8')?.grantedCount).toBe(1);
+    await runtime.shutdown();
+  });
+});

@@ -66,6 +66,19 @@ export interface IHostSessionRegistry {
   readonly activeCount: number;
   /** 会话诊断视图。 */
   list(): readonly IHostSessionView[];
+  /**
+   * 会话权限快照全量列表（08 §7.6 快照本体：含 `grantedPermissions` 完整权限集与终态会话）。
+   *
+   * @remarks
+   * 与 {@link IHostSessionRegistry.list} 分职而非重复：`list()` 是诊断视图（只透出
+   * `grantedCount`，不透出授权原文），本面是 08 §7.6 快照对象本身，供宿主内**正式消费位**
+   * 直接复用同一判定本体（文档守卫端口 `IDocumentGuardPort` 的会话来源，
+   * 工单036 §五.3-1 / 开发日志刀4 缝①）。判定仍由 `evaluateHostPermissions` 单点承载
+   * （08 §7.2），本面不提供第二套判定，只在每次调用时如实反映登记表实态（11 §9.1
+   * 每调用查询、不缓存）。Rust Bridge 内核接管会话表后（工单 025 剩余项 / §5.5–§5.7），
+   * 同一形态切换到内核会话快照提供者，消费位零改动。
+   */
+  listPermissionSnapshots(): readonly IHostSession[];
 }
 
 function sourceKey(source: {
@@ -247,6 +260,12 @@ export function createHostSessionRegistry(): IHostSessionRegistry {
         });
       }
       return views;
+    },
+
+    listPermissionSnapshots(): readonly IHostSession[] {
+      // 快照即登记表内已冻结的会话对象本体（`freezeSession`）：整体引用递交、不深拷贝、
+      // 不裁剪字段——裁剪即制造第二份权限真相。
+      return Object.freeze(Array.from(sessions.values(), (record: ISessionRecord): IHostSession => record.session));
     },
   };
 }

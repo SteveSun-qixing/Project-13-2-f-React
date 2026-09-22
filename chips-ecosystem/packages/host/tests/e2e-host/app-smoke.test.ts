@@ -37,10 +37,14 @@ const TERM_EXIT_MS = 15_000;
 const SMOKE_CARD_SOURCE = 'chips-resource://platform/documents/smoke.card';
 
 /**
- * 并行路在途豁免臂（#99 在途，集成波次后必须删除本臂恢复零字节严格判据）：
- * `document:*` 组合根诚实回退警告（`document-capability` 未装载诊断）在文档链路接线
- * 完成前每次生产组合根启动各出现一次。除该固定前缀行外 stderr 仍必须逐字节为零；
- * 豁免行计数超过 1 或出现任何非豁免内容即红。登记见开发日志（刀4b 合缝点）。
+ * 并行路在途豁免臂（当前事实基线，登记任务 #196 F4 口径翻正——原判据出处 #99 已随刀4a
+ * 收口，豁免臂存续成因翻正为在册实况）：`document:*` 组合根诚实回退警告
+ * （`document-capability` 未装载诊断）在工单 036 收口（§11.3 Neon 暴露面尚无文档
+ * scope/storage 端口载体，正式适配器未接线，组合根生产通道恒缺省）前每次生产组合根
+ * 启动各出现一次。除该固定前缀行外 stderr 仍必须逐字节为零；豁免行计数超过 1 或出现
+ * 任何非豁免内容即红。臂退役判定：退役条件 = 工单 036 收口（W3 计划 §三.P2「app-smoke
+ * 豁免臂退役」），该前置未达成，本波如实维持不强行退役；工单 036 收口波删除本臂并
+ * 恢复零字节严格判据（禁删除纪律走就近归档）。登记见开发日志（刀4b 合缝点、#196 段三宿主波）。
  */
 const IN_FLIGHT_STDERR_PREFIX = '[chips-host:warn] [document-capability] document:* 未装载';
 

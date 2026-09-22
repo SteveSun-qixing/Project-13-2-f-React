@@ -168,7 +168,7 @@ const context: HostRuntimeContext = { palHost: host, platformRoot: '/tmp/platfor
 /** 壳主框架会话源（路由侧会话 `session:1:main`，与守卫快照视图同键）。 */
 const SENDER = { windowId: 1, frameId: null };
 
-/** W3 chips-resource 注入面的最小替身（仅测试使用：证明注入通道形状；生产禁止内存替身，工单 036）。 */
+/** chips-resource 端口注入面的最小替身（正式适配器随 §11.3 Neon 载体落位接线；仅测试使用：证明注入通道形状；生产禁止内存替身，工单 036）。 */
 function makeResourcePorts(): IDocumentResourcePorts & {
   readonly registrations: { documentId: string; managedUri: string; kind: string }[];
   readonly commits: IDocumentCommitRequest[];
@@ -312,7 +312,7 @@ describe('组合根文档装载段：装载闸负臂（逐项缺位，诚实呈�
     }
   });
 
-  it('守卫快照提供者缺位：missing 只点名 guard（不做本地替身），解析与资源端口齐备不豁免', () => {
+  it('守卫快照提供者缺位（直接调用装载段）：missing 只点名 guard（不做本地替身），解析与资源端口齐备不豁免', () => {
     const wiring = createDocumentCapabilityWiring(
       { parserModulePath: PARSER_BEHAVIOR_FIXTURE, resourcePorts: makeResourcePorts() },
       context,
@@ -388,7 +388,10 @@ describe('组合根运行时：诚实回退臂维持真实注册表未命中语�
     expect(wiringEntries).toHaveLength(1);
     expect(wiringEntries[0]?.message).toContain('诚实回退臂');
     const missing = (wiringEntries[0]?.details as { missing?: { port: string }[] }).missing ?? [];
-    expect(missing.map((entry) => entry.port)).toEqual(['parser', 'guard', 'scope', 'storage']);
+    // 口径翻正（工单036 §五.3-1 / 刀4 缝①）：`guard` 不再点名——组合根已把守卫快照提供者
+    // 正式默认绑定到本运行时会话登记表；仍缺位的是解析域产物与资源域两端口。
+    expect(missing.map((entry) => entry.port)).toEqual(['parser', 'scope', 'storage']);
+    expect(missing.every((entry) => entry.port !== 'guard')).toBe(true);
     await runtime.shutdown();
   });
 });
@@ -515,6 +518,61 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
     expect(newCalls).toContain('documentClose'); // 复合臂 finally 回收
     expect(newCalls).toContain('documentStructure'); // save 前序列化请求组装
     stop();
+    await runtime.shutdown();
+  });
+
+  it('守卫快照正式默认绑定（刀4 缝① / 工单036 §五.3-1）：不注入覆盖口即装载成功，判定输入就是本运行时会话登记表', async () => {
+    const resourcePorts = makeResourcePorts();
+    // 关键差异：本臂**不**注入 `guardSessionSource`——组合根把运行时 `sessionPermissionSnapshots()`
+    // 作为默认来源绑定，装载闸的 guard 判据自此在生产通道恒可得。
+    const { runtime, diagnostics } = await startAssemblyRuntime({
+      parserModulePath: PARSER_BEHAVIOR_FIXTURE,
+      resourcePorts,
+    });
+    // 无缺位留痕、四能力注册（+ 内置 system:info = 5）。
+    expect(diagnostics.entries.filter((entry) => entry.scope === DOCUMENT_WIRING_DIAGNOSTIC_SCOPE)).toEqual([]);
+    expect(runtime.report().capabilities.active).toBe(5);
+    expect(runtime.report().reserved.every((item) => item.wired === true)).toBe(true);
+    // 调用前会话登记表为空（快照如实反映，不猜授权）。
+    expect(runtime.sessionPermissionSnapshots()).toEqual([]);
+
+    const opened = await runtime.ipc.handleRequest(SENDER, {
+      requestId: 'guard-default-1',
+      capabilityId: 'document:open',
+      input: { source: CARD_URI },
+    });
+    expect(opened.ok).toBe(true);
+    if (opened.ok) {
+      expect(opened.result).toMatchObject({ documentId: CARD_ID, kind: 'card' });
+    }
+    // 判定输入即登记表实态：路由侧懒建的壳会话（平台全量授权）在快照中逐字可见。
+    const snapshot = runtime.sessionPermissionSnapshots().find((item) => item.sessionId === 'session:1:main');
+    expect(snapshot?.state).toBe('active');
+    expect([...(snapshot?.grantedPermissions ?? [])]).toEqual(['*']);
+    expect(resourcePorts.registrations).toEqual([{ documentId: CARD_ID, managedUri: CARD_URI, kind: 'card' }]);
+    await runtime.shutdown();
+    expect(runtime.sessionPermissionSnapshots()[0]?.state).toBe('closed');
+  });
+
+  it('显式覆盖口优先级（S6）：注入空快照源后，登记表已有活跃会话仍被服务复查拒绝（每调用查询，不缓存）', async () => {
+    const { runtime } = await startAssemblyRuntime({
+      parserModulePath: PARSER_BEHAVIOR_FIXTURE,
+      guardSessionSource: guardSource([]),
+      resourcePorts: makeResourcePorts(),
+    });
+    const response = await runtime.ipc.handleRequest(SENDER, {
+      requestId: 'guard-override-1',
+      capabilityId: 'document:open',
+      input: { source: CARD_URI },
+    });
+    expect(response.ok).toBe(false);
+    if (!response.ok) {
+      expect(response.error.code).toBe('BRIDGE_SESSION_UNKNOWN');
+    }
+    // 拒绝来自覆盖口快照而非路由准入：登记表侧同一会话确实活跃且全量授权。
+    const live = runtime.sessionPermissionSnapshots().find((item) => item.sessionId === 'session:1:main');
+    expect(live?.state).toBe('active');
+    expect([...(live?.grantedPermissions ?? [])]).toEqual(['*']);
     await runtime.shutdown();
   });
 

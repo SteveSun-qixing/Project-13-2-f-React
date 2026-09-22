@@ -11,9 +11,11 @@
  * - 外部提供方的接线契约是 {@link IHostCapabilityDescriptor}：一条描述 = 一个可注册单元
  *   （ID + 所需权限 + handler + 超时/并发）。注册冲突或权限校验失败即在 `start` 抛出、壳终止启动。
  * - 文档能力装载段（`capabilities/document/adapters/production-wiring.ts`）：解析域产物过
- *   17 必备名装载闸、Bridge 会话快照视图提供者与资源管理器端口（W3 chips-resource 注入面，
- *   工单 036）全部可得时，经 `createDocumentCapabilityDescriptors` 注册真实 `document:*`
- *   四能力并绑定宿主事件总线；任一硬依赖缺位即整体不装载（诊断留痕，调用维持真实
+ *   17 必备名装载闸、资源管理器端口（chips-resource 注入面；Rust 侧能力面已交付，
+ *   §11.3 Neon 暴露面尚无文档侧载体，工单 036）可得时，经 `createDocumentCapabilityDescriptors`
+ *   注册真实 `document:*` 四能力并绑定宿主事件总线；守卫快照提供者由组合根正式默认绑定
+ *   （运行时 `sessionPermissionSnapshots()`，工单 036 §五.3-1 / 刀4 缝①收口，注入位保留为
+ *   显式覆盖口）；任一硬依赖缺位即整体不装载（诊断留痕，调用维持真实
  *   注册表未命中语义——诚实降级不造假适配器）。
  * - CPK 装载器（阶段六接线）：`createRuntime` 时打开插件注册表（`<userData>/chips-plugins/registry.json`），
  *   经 `pluginLoaderFactory` 注入宿主运行时——`pluginsRoot = <userData>/chips-plugins`、内嵌编译期
@@ -34,6 +36,7 @@ import type { CardWindowDocumentBindingResolver, IDocumentViewChannelEndpoint } 
 import type { IHostCapabilityDescriptor } from '../runtime/capability/contracts.js';
 import type { IHostCapabilityRegistryOptions } from '../runtime/capability/registry.js';
 import type { IHostSessionProvisioner } from '../runtime/capability/session.js';
+import type { DocumentGuardSessionSource } from '../capabilities/document/adapters/bridge-session-guard.js';
 import {
   createDocumentCapabilityWiring,
   type IDocumentCapabilityWiringOptions,
@@ -128,11 +131,12 @@ export interface ProductionAssemblyOptions extends ProductionRuntimeOptions {
   /** PAL 宿主工厂（平台差异）；与 {@link HostAssembly.createPalHost} 同签名。 */
   readonly createPalHost: (electronModule: unknown, context: PalHostContext) => IPalHost;
   /**
-   * 文档能力装载段注入项（金链路刀4）：解析域产物落位、Bridge 会话快照视图提供者与
-   * 资源管理器侧端口正式适配器（W3 chips-resource 交付面）。
+   * 文档能力装载段注入项（金链路刀4）：解析域产物落位、Bridge 会话快照视图提供者
+   * （显式覆盖口，缺省由组合根正式默认绑定运行时快照面）与资源管理器侧端口正式适配器
+   * （chips-resource 交付面）。
    *
-   * @remarks 缺省即真实生产环境判据——资源管理器端口与守卫快照提供者缺位，装载段
-   * 诚实回退、`document:*` 不注册（工单 036）；注入项齐备且解析域产物过闸时，
+   * @remarks 缺省即真实生产环境判据——资源管理器端口的 §11.3 Neon 载体未落位而缺位，
+   * 装载段诚实回退、`document:*` 不注册（工单 036）；注入项齐备且解析域产物过闸时，
    * 组合根经 `createDocumentCapabilityDescriptors` 注册真实四能力。
    */
   readonly documentWiring?: IDocumentCapabilityWiringOptions;
@@ -274,7 +278,23 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
       // 域，调用维持真实注册表未命中语义——诚实降级不造假适配器）。事件总线绑定发生在
       // 下方 `pluginLoaderFactory` 构造期（早于
       // `start` 注册与任何能力调用，见 `adapters/host-event-bus.ts` 头注）。
-      const documentAssembly = createDocumentCapabilityWiring(documentWiring, context, bridgeDiagnostics);
+      //
+      // 工单036 §五.3-1 收口（开发日志刀4 缝①）：守卫快照提供者**正式默认绑定**——
+      // 组合根把本运行时的会话权限快照查询面（08 §7.6 快照本体，含完整权限集与终态会话）
+      // 作为 `IDocumentGuardPort` 的会话来源注入装载段。判定每次调用触达会话登记表实态、
+      // 不缓存（11 §9.1），判定本体单点复用 `evaluateHostPermissions`（08 §7.2 / 路由管线
+      // 同一实现），不新建第二会话表、不引入第二套判定。运行时在装载段之后构造，故本绑定
+      // 以惰性引用承载：`start` 之前的任何判定得到空快照即如实拒绝（fail-closed，不猜测
+      // 授权）。`documentWiring.guardSessionSource` 注入位保留为**显式覆盖口**（真进程
+      // E2E 替身臂经 `main/e2e-app.ts` 注入在册枚举实现；S6 口径，同激活端口注入位）。
+      let runtimeForGuardSnapshots: IHostRuntime | null = null;
+      const defaultGuardSessionSource: DocumentGuardSessionSource = () =>
+        runtimeForGuardSnapshots === null ? [] : runtimeForGuardSnapshots.sessionPermissionSnapshots();
+      const documentWiringOptions: IDocumentCapabilityWiringOptions = {
+        ...documentWiring,
+        guardSessionSource: documentWiring?.guardSessionSource ?? defaultGuardSessionSource,
+      };
+      const documentAssembly = createDocumentCapabilityWiring(documentWiringOptions, context, bridgeDiagnostics);
       const productionPluginLoaderFactory = await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
       const pluginLoaderFactory =
         documentAssembly.status === 'wired'
@@ -307,7 +327,7 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
                 });
               });
             };
-      return createProductionRuntime(context, {
+      const runtime = createProductionRuntime(context, {
         ...(providers === undefined ? {} : { capabilityProviders: providers }),
         ...(sessionProvisioner === undefined ? {} : { sessionProvisioner }),
         ...(registryOptions === undefined ? {} : { registryOptions }),
@@ -319,6 +339,10 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
         ...(onBridgeSessionClosed === undefined ? {} : { onBridgeSessionClosed }),
         ...(diagnostics === undefined ? {} : { diagnostics }),
       });
+      // 守卫快照默认绑定的惰性引用在此闭合（上方 `defaultGuardSessionSource` 读取本变量）：
+      // 运行时已构造、尚未 `start`，装载段若已注入显式覆盖口则本引用不参与判定。
+      runtimeForGuardSnapshots = runtime;
+      return runtime;
     },
   });
 }
