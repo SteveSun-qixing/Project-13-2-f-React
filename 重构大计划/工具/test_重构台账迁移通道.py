@@ -101,6 +101,21 @@ class _SandboxMixin(unittest.TestCase):
         return out.getvalue()
 
 
+class TestPendingCriterionDomain(unittest.TestCase):
+    """工单048 判据常量面：登记态/进展态/裁决终态三分互斥，SQL 片段与状态集合同源。"""
+
+    def test_registration_statuses_disjoint_from_write_back_products(self):
+        self.assertEqual(set(lt.PENDING_STATUSES) & set(lt.SET_STATUS_VALUES), set())
+        self.assertNotIn("已裁决", lt.PENDING_STATUSES)
+        self.assertEqual(set(lt.PENDING_STATUSES), {"待评估", "评估中"})
+
+    def test_pending_sql_covers_exactly_registration_statuses(self):
+        for st in lt.PENDING_STATUSES:
+            self.assertIn("'%s'" % st, lt.PENDING_STATUS_SQL)
+        for st in lt.SET_STATUS_VALUES + ("已裁决",):
+            self.assertNotIn("'%s'" % st, lt.PENDING_STATUS_SQL)
+
+
 class TestNormalizeGrammar(unittest.TestCase):
     """归一化文法（勘查稿 §3.1 通道①-3 / 裁定③）：锚点分离、前缀/括注/句读剥离、server 别名、通配归目录。"""
 
@@ -258,6 +273,36 @@ class TestPreflight(_SandboxMixin):
             self.assert_exit(lt.EXIT_NOOP, lt.preflight,
                              argparse_ns(repo=[d], json=False, receipt=""))
 
+    def test_double_zero_progress_statuses_not_pending(self):
+        """工单048 回归锁（preflight 通道）：合法回写进展态行不计「待评估」，双零前置成立。
+
+        旧判据 `status<>'已裁决'` 下 已完成/进行中/已验证 三行全被误计、永久钉红；
+        翻正后仅登记态计入，进展态+已裁决混布必须 0 红。
+        """
+        repo = "Chips-Notes"
+        os.makedirs(os.path.join(self.root, repo))
+        self.add_file(repo, "src/a.ts", "迁移", "chips-ecosystem/plugins/apps/notes/src/a.ts", status="已完成")
+        self.add_file(repo, "src/b.ts", "迁移", "chips-ecosystem/plugins/apps/notes/src/b.ts", status="进行中")
+        self.add_file(repo, "src/c.ts", "重写", "chips-ecosystem/plugins/apps/notes/src/c.ts", status="已验证")
+        self.add_file(repo, "src/d.ts", "迁移", "chips-ecosystem/plugins/apps/notes/src/d.ts", status="已裁决")
+        code, data = self._receipt([repo], "r-dz1.json")
+        self.assertEqual(code, 0, data["issues"])
+        self.assertEqual(data["checks"]["double_zero"][repo], "绿")
+        self.assertNotIn("PENDING-NOT-ZERO", {i["code"] for i in data["issues"]})
+
+    def test_double_zero_registration_statuses_still_red(self):
+        """工单048 回归锁：登记态（待评估/评估中）行仍触发 PENDING-NOT-ZERO 红且逐态计数为 1。"""
+        repo = "Chips-Notes"
+        os.makedirs(os.path.join(self.root, repo))
+        for i, st in enumerate(lt.PENDING_STATUSES):
+            self.add_file(repo, "src/p%d.ts" % i, None, "", status=st)
+        code, data = self._receipt([repo], "r-dz2.json")
+        self.assertEqual(code, lt.EXIT_VERIFY)
+        reds = [x for x in data["issues"] if x["code"] == "PENDING-NOT-ZERO"]
+        self.assertEqual(len(reds), 1)
+        self.assertIn("行 %d" % len(lt.PENDING_STATUSES), reds[0]["detail"])
+        self.assertEqual(data["checks"]["double_zero"][repo], "红")
+
 
 class TestMigrateManifest(_SandboxMixin):
 
@@ -378,6 +423,29 @@ class TestClosure(_SandboxMixin):
         self.assertEqual(len(dups), 1)  # 只点同名尾部正例，不带 repo 尾的裸同名不误报
         self.assertIn("Chips-Notes/src/a.ts", dups[0]["detail"])
         self.assertEqual(code, lt.EXIT_VERIFY)
+
+    def test_double_zero_pending_counts_registration_statuses_only(self):
+        """工单048 回归锁（closure 通道，与 preflight 共用 PENDING_STATUS_SQL 单一口径）：
+
+        双零残留终口径「待评估」只统计登记态行（待评估/评估中）；合法 set-status/dispose
+        回写进展态（进行中/已完成/已验证）与裁决终态（已裁决）一律不计。
+        """
+        repo = "Chips-Notes"
+        self.add_file(repo, "src/a.ts", "迁移", "chips-ecosystem/plugins/apps/notes/src/a.ts", status="已完成")
+        self.add_file(repo, "src/b.ts", "迁移", "chips-ecosystem/plugins/apps/notes/src/b.ts", status="进行中")
+        self.add_file(repo, "src/c.ts", "重写", "chips-ecosystem/plugins/apps/notes/src/c.ts", status="已验证")
+        d = self.add_file(repo, "src/d.ts", "迁移", "chips-ecosystem/plugins/apps/notes/src/d.ts", status="已裁决")
+        matrix = self._matrix_md([(repo, 0, 1, 3, 0, 0, 4)])
+        code, data = self._closure(strict=False, matrix=matrix)
+        self.assertEqual(code, 0)  # 非 strict：落点未实落只 WARN，判据零红
+        self.assertEqual(data["double_zero_residual"]["待评估"], 0)
+        for st in lt.PENDING_STATUSES:
+            _exec("UPDATE files SET status=? WHERE id=?", (st, d))
+            _c, data = self._closure(strict=False, matrix=matrix)
+            self.assertEqual(data["double_zero_residual"]["待评估"], 1, st)  # 登记态行仍计
+        _exec("UPDATE files SET status='已完成' WHERE id=?", (d,))
+        _c, data = self._closure(strict=False, matrix=matrix)
+        self.assertEqual(data["double_zero_residual"]["待评估"], 0)  # 合法回写进展态不再计入
 
     def test_matrix_second_table_not_merged(self):
         """§一 含文件级+符号级双表（服务端两仓形态）：只勾稽首表，符号表数字不得串表计红。"""

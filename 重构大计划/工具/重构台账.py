@@ -187,6 +187,16 @@ LOCK_RETRY_BASE_DELAY = 0.25
 #: 与 dispose-batch 的 DISPOSE_STATUSES 同源但不含「已裁决」——回写通道只推进执行态，不回退裁决态）
 SET_STATUS_VALUES = ("进行中", "已完成", "已验证")
 
+#: files.status 状态域中的「登记态」——仍处评估/裁决流程、尚未产出裁决的行。
+#: 双零判据（preflight 双零前置 / closure 双零终口径）的「待评估」计数唯一口径（工单048）：
+#: 仅本集合计入「待评估」；其余状态值一律为裁决/回写产物——已裁决（裁决终态）、
+#: 进行中/已完成/已验证（dispose-batch 或 set-status 合法回写的迁移进展态）——不计入。
+#: 判据禁以 `status<>'已裁决'` 反选实现：那会把合法回写进展态误计为「待评估」，
+#: 任一仓走通 set-status 回写即永久钉红且不可自愈（工单048 复现判据）。
+PENDING_STATUSES = ("待评估", "评估中")
+#: 双零「待评估」计数的单一 SQL 条件片段（preflight/closure 两通道共用，杜绝口径分叉）
+PENDING_STATUS_SQL = "status IN ('%s')" % "','".join(PENDING_STATUSES)
+
 #: 《02-仓库映射与新工作区》§一「新归属」列的机读镜像（权威在 02 文档，本常量为其仓级投影）：
 #: repo_id → 允许的 canonical target 前缀集。canonical 均已展开为 `chips-ecosystem/…` 形态；
 #: 家族通配（`plugins/apps/*` 等）归一到其目录前缀；W6 服务端 `server/…` 归到 `chips-ecosystem/server/…`。
@@ -1812,13 +1822,15 @@ def preflight(args):
     for rid in repos:
         # 1) 双零前置
         pending = conn.execute(
-            "SELECT COUNT(*) FROM files WHERE repo_id=? AND status<>'已裁决'", (rid,)).fetchone()[0]
+            "SELECT COUNT(*) FROM files WHERE repo_id=? AND " + PENDING_STATUS_SQL,
+            (rid,)).fetchone()[0]
         empty_target = conn.execute(
             "SELECT COUNT(*) FROM files WHERE repo_id=? AND disposition IN ('%s')"
             " AND (target_path IS NULL OR target_path='')" % "','".join(EXPAND_DISPOSITIONS),
             (rid,)).fetchone()[0]
         if pending:
-            _new_issue(issues, "PENDING-NOT-ZERO", "red", rid, "待评估/未裁决行 %d（双零前置未成立）" % pending)
+            _new_issue(issues, "PENDING-NOT-ZERO", "red", rid,
+                       "登记态（待评估/评估中）行 %d（双零前置未成立）" % pending)
         if empty_target:
             _new_issue(issues, "EXPAND-EMPTY-TARGET", "red", rid, "迁移/重写空 target %d 行" % empty_target)
         checks.setdefault("double_zero", {})[rid] = "绿" if not (pending or empty_target) else "红"
@@ -2227,7 +2239,9 @@ def closure(args):
                        "files.id=%s %s status=%s（未到已验证）" % (fid, rel, status))
 
     # 双零残留终口径：待评估 0 + 幻想 target 0 + 残留 0
-    pending_all = conn.execute("SELECT COUNT(*) FROM files WHERE status<>'已裁决'").fetchone()[0]
+    # 「待评估」计登记态行（PENDING_STATUS_SQL，与 preflight 同源，工单048）——合法回写进展态不计
+    pending_all = conn.execute(
+        "SELECT COUNT(*) FROM files WHERE " + PENDING_STATUS_SQL).fetchone()[0]
     fantasy = 0
     all_rows = conn.execute(
         "SELECT repo_id, rel_path, disposition, target_path, status FROM files"
