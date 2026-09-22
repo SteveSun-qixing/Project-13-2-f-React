@@ -44,6 +44,22 @@ export const PERMISSION_AUDIT_ENTRY_SOURCE = {
   section: '八、链路四：审计§8.2 审计记录字段',
 } as const satisfies SectionSelector;
 
+/** Bridge 线封套权威章节（《02.07》§7.2 消息类型定义代码块，工单046 段一残账三方锁）。 */
+export const WIRE_ENVELOPE_SOURCE = {
+  file: '01-架构设计/01-子系统设计/02.07-02-Bridge三层设计-七、IPC 通道与消息格式.md',
+  level: 3,
+  heading: '7.2 消息类型定义',
+  section: '七、IPC 通道与消息格式§7.2 消息类型定义',
+} as const satisfies SectionSelector;
+
+/** Bridge IPC 通道总表（《02.07》§7.1 插件可见通道首列，线封套三方锁的通道名文档侧）。 */
+export const WIRE_CHANNEL_SOURCE = {
+  file: '01-架构设计/01-子系统设计/02.07-02-Bridge三层设计-七、IPC 通道与消息格式.md',
+  level: 3,
+  heading: '7.1 通道总表',
+  section: '七、IPC 通道与消息格式§7.1 通道总表',
+} as const satisfies SectionSelector;
+
 export const EVENT_RESERVED_DOMAIN_SOURCE = {
   file: '05-接口与契约/05.02-05-事件契约规范-二、命名契约.md',
   level: 3,
