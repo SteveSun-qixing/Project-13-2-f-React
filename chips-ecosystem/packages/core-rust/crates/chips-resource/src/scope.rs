@@ -224,7 +224,8 @@ impl ScopeRegistry {
     }
 
     /// External 按 origin 惰性注册（《06》§3.2）：语法合法的首次解析 origin
-    /// 创建注册项；已存在则复用。SSRF 前置校验属 HttpProvider 面（段二）。
+    /// 创建注册项；已存在则复用。SSRF 前置校验由 HttpProvider 面执行
+    /// （段三主体 #185 产化，《04》§8.3；注释「段二」自述漂移由本波翻正）。
     pub fn ensure_external(
         &self,
         origin: &ExternalOrigin,

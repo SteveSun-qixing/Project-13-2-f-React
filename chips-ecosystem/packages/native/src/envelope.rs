@@ -264,7 +264,7 @@ pub fn unescape_pointer_segment(segment: &str) -> Option<String> {
 }
 
 /// 从 JS 值读取二进制：`Buffer` 与 `Uint8Array` 接受，各复制一次。
-fn binary_bytes<'a, 'v, C: Context<'a>>(
+pub(crate) fn binary_bytes<'a, 'v, C: Context<'a>>(
     cx: &mut C,
     value: &Handle<'v, JsValue>,
 ) -> Option<Vec<u8>> {

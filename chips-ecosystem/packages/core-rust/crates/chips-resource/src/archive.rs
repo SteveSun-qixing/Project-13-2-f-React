@@ -61,9 +61,18 @@ impl Clone for ArchiveMount {
 /// 挂载表由管理器在 `mount_archive` 时写入（作用域 ID → 归档源）；
 /// 未挂载作用域的寻址属启动期装配错误，按 `RESOURCE_INTERNAL` 兜底
 /// （与 Memory / Directory Provider 越界寻址口径同型，《06》§7.2）。
-#[derive(Default)]
+/// `chunk_limit` 为流式拉取单块上限的单一取值源投影视图（#140 §四.2 合流，
+/// 段三 #185）：经 [`with_chunk_limit`](Self::with_chunk_limit) 由管理器
+/// `ResourceLimits::chunk_bytes` 注入。
 pub struct ArchiveProvider {
     mounts: Mutex<BTreeMap<ScopeId, ArchiveMount>>,
+    chunk_limit: usize,
+}
+
+impl Default for ArchiveProvider {
+    fn default() -> Self {
+        Self::with_chunk_limit(DEFAULT_CHUNK_BYTES)
+    }
 }
 
 impl std::fmt::Debug for ArchiveProvider {
@@ -81,10 +90,19 @@ impl std::fmt::Debug for ArchiveProvider {
 }
 
 impl ArchiveProvider {
-    /// 构造空挂载 Provider。
+    /// 构造空挂载 Provider（默认拉取上限）。
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 以生产装配路径注入的拉取上限构造（《04》§12 `chunkBytes`）。
+    #[must_use]
+    pub fn with_chunk_limit(chunk_limit: usize) -> Self {
+        Self {
+            mounts: Mutex::new(BTreeMap::new()),
+            chunk_limit: chunk_limit.max(1),
+        }
     }
 
     fn table(&self) -> MutexGuard<'_, BTreeMap<ScopeId, ArchiveMount>> {
@@ -263,6 +281,7 @@ impl ResourceProvider for ArchiveProvider {
         Ok(Box::new(ArchiveStream {
             cursor,
             position: 0,
+            chunk_limit: self.chunk_limit,
         }))
     }
 
@@ -412,12 +431,13 @@ enum StreamCursor {
     },
 }
 
-/// ArchiveProvider 流式游标：块长 ∈ (0, min(`max_bytes`, 256 KiB)]，
+/// ArchiveProvider 流式游标：块长 ∈ (0, min(`max_bytes`, 注入拉取上限)]，
 /// `None` 唯一终结，游标自 0 严格累计（《04.03》§3.2 流契，与 `FileStream`
 /// 同型；BUSY 占用由 `HandleTable` 强制，Provider 不重复记账）。
 pub struct ArchiveStream {
     cursor: StreamCursor,
     position: u64,
+    chunk_limit: usize,
 }
 
 impl ArchiveStream {
@@ -452,7 +472,7 @@ fn next_mapped(
 #[async_trait]
 impl ResourceStream for ArchiveStream {
     async fn next_chunk(&mut self, max_bytes: usize) -> Result<Option<Vec<u8>>, ChipsError> {
-        let cap = max_bytes.clamp(1, DEFAULT_CHUNK_BYTES);
+        let cap = max_bytes.clamp(1, self.chunk_limit);
         match &mut self.cursor {
             StreamCursor::Mapped {
                 mapping,

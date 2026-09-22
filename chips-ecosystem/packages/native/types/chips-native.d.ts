@@ -11,8 +11,9 @@
  * `bridgeCloseSession` / `bridgeShutdown`，《核心接口规范》§5.5–§5.7）、文档解析
  * 域导出（`openDocument` / `openCard` / `openBox` / `document*` /
  * `buildDocumentView`，《核心接口规范》§6.4、§6.6，《06-文档解析器设计》§12）
- * 与元信息、Context、取消令牌导出共用本入口；导出表只增不改，
- * 签名变化递增 `coreAbiVersion`。
+ * 与资源管理域导出（`resource*` 十五导出，《核心接口规范》§7.3，
+ * 《04.11-04-资源管理设计》§11.3）、元信息、Context、取消令牌导出共用本入口；
+ * 导出表只增不改，签名变化递增 `coreAbiVersion`。
  *
  * 约束：
  * - 句柄（ContextHandle / CancelTokenHandle / DocumentHandle）不透明、无字段、
@@ -314,6 +315,63 @@ export interface BoxRenderView {
   entries: EntryView[];
 }
 
+/** 作用域种类（《06-资源管理设计》§3.1 在册七种，序列化小写字面量）。 */
+export type IResourceScopeKind =
+  'workspace' | 'document' | 'plugin' | 'platform' | 'external' | 'temporary' | 'memory';
+
+/** 资源元数据（`ResourceMetadata` 的 camelCase DTO，§7.1 与《06》§6.1 并集形状）。 */
+export interface IResourceMetadata {
+  /** 规范 URI。 */
+  uri: string;
+  /** 字节大小（低于 2^53）。 */
+  size: number;
+  /** MIME 类型（《06》§3.4 判定规则）。 */
+  mimeType: string;
+  /** 版本戳。 */
+  version: string;
+  /** 作用域种类。 */
+  scope: IResourceScopeKind;
+}
+
+/** `resourceOpen` 返回值（§7.3 逐字形状）。 */
+export interface IResourceOpenResult {
+  /** 资源句柄 ID（单调递增、释放后不复用，低于 2^53）。 */
+  handleId: number;
+  /** 打开时定值的资源元数据。 */
+  metadata: IResourceMetadata;
+}
+
+/** 目录条目（§7.3 `resourceListDirectory` 元素，《06》§3.2）。 */
+export interface IDirectoryEntry {
+  /** 条目名。 */
+  name: string;
+  /** 是否目录。 */
+  isDirectory: boolean;
+  /** 字节大小。 */
+  size: number;
+  /** 修改时间（Unix 秒；不可得为 0）。 */
+  modifiedUnixSeconds: number;
+}
+
+/**
+ * 流式写入句柄（§7.3 `resourceCommitWriteStream` 返回物）：
+ * `{ id, uri, append, commit, abort }` 闭包对象。
+ * `commit` / `abort` 为一次性收口通道，重复调用以 `RESOURCE_NOT_FOUND` 拒绝；
+ * 对象整体被 GC 回收且仍未收口时由绑定层兜底中止并清理临时文件（零残留）。
+ */
+export interface IWriteStreamHandle {
+  /** 写流句柄 ID（低于 2^53）。 */
+  id: number;
+  /** 目标资源规范 URI。 */
+  uri: string;
+  /** 分块送入（背压承载：不送入即不推进）。 */
+  append(bytes: Uint8Array): Promise<void>;
+  /** 原子提交并返回新版本元数据。 */
+  commit(): Promise<IResourceMetadata>;
+  /** 主动中止并清理临时文件。 */
+  abort(): Promise<void>;
+}
+
 /** 平台版本；与全部平台包同一版本号。 */
 export function coreVersion(): string;
 
@@ -464,3 +522,71 @@ export function buildDocumentView(handle: DocumentHandle, session: number): Prom
 
 /** 显式释放归档映射；幂等，未关闭时由 GC 终结器兜底。 */
 export function documentClose(handle: DocumentHandle): Promise<void>;
+
+/**
+ * 打开资源（解析、权限、打开，《核心接口规范》§7.3）；返回句柄与打开时定值的元数据。
+ * `sessionId` 必须是不超过 2^53 的非负整数值，否则以 `NATIVE_VALUE_OUT_OF_RANGE` 拒绝。
+ */
+export function resourceOpen(uri: string, sessionId: number): Promise<IResourceOpenResult>;
+
+/** 资源元数据（命中 L0 新鲜期直返，《06》§6.3）。 */
+export function resourceStat(handleId: number): Promise<IResourceMetadata>;
+
+/** 范围读；产物为 `Buffer`（`Uint8Array` 子类）。 */
+export function resourceRead(handleId: number, offset: number, length: number): Promise<Uint8Array>;
+
+/** 流式拉取分块；`null` 表示已到结尾（背压由消费节奏承载）。 */
+export function resourceReadChunk(handleId: number, maxBytes: number): Promise<Uint8Array | null>;
+
+/** 释放句柄与租约；幂等（未知句柄不报错）。 */
+export function resourceRelease(handleId: number): void;
+
+/**
+ * 一次性写入提交（仅内部与文档服务，《04.04》§4.8）；
+ * 超出 `max_inline_bytes` 由 backing 以 `RESOURCE_TOO_LARGE` 收口（转流式臂）。
+ */
+export function resourceCommitWrite(
+  scope: string,
+  path: string,
+  bytes: Uint8Array,
+  sessionId: number
+): Promise<IResourceMetadata>;
+
+/** 打开流式写入通道（分块 + 背压 + 失败回滚，《04.04》§4.8）。 */
+export function resourceCommitWriteStream(
+  scope: string,
+  path: string,
+  sessionId: number
+): Promise<IWriteStreamHandle>;
+
+/** 目录列举（《04.04》§4.10）。 */
+export function resourceListDirectory(uri: string, sessionId: number): Promise<IDirectoryEntry[]>;
+
+/** 删除文件/目录（《04.04》§4.9）。 */
+export function resourceDelete(uri: string, recursive: boolean, sessionId: number): Promise<void>;
+
+/** 重命名/移动（《04.04》§4.9）；返回形状按 §7.3 收敛为 `void`。 */
+export function resourceRename(fromUri: string, toUri: string, sessionId: number): Promise<void>;
+
+/** 复制（《04.04》§4.9），返回新资源元数据。 */
+export function resourceCopy(
+  fromUri: string,
+  toUri: string,
+  sessionId: number
+): Promise<IResourceMetadata>;
+
+/** 创建目录（《04.04》§4.9）。 */
+export function resourceCreateDirectory(uri: string, sessionId: number): Promise<void>;
+
+/**
+ * 创建顶层资源会话（主进程内部使用，§7.3 同步返回 `SessionId`）；
+ * `kind` 取 `document` / `plugin` / `window` 判别字面量，其余以
+ * `NATIVE_TYPE_UNSUPPORTED` 拒绝。作用域与权限快照的挂接归宿主装配面。
+ */
+export function resourceOpenSession(kind: string, owner: string): number;
+
+/** 关闭会话并级联释放其全部句柄与流。 */
+export function resourceCloseSession(sessionId: number): void;
+
+/** 注册临时作用域（`dialog:*` 授权后调用），返回平台分配的 `ScopeId`。 */
+export function resourceRegisterTempScope(path: string, writable: boolean): string;

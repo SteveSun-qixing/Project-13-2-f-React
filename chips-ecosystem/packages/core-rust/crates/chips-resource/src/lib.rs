@@ -23,7 +23,9 @@
 //! 提交面（`commit_write` / `delete` / `rename` / `copy` /
 //! `create_directory` / `list_directory`）与流式提交面
 //! （`open_write_stream` / `append_write_stream` / `commit_write_stream` /
-//! `abort_write_stream`，由 [`WriteCoordinator`] 提供目录写族单写者路径锁）。
+//! `abort_write_stream`，由 [`WriteCoordinator`] 提供目录写族单写者路径锁），
+//! 段三 #192 起挂载内置 [`http::HttpProvider`]（External 网络抓取策略
+//! 引擎，注入式 [`http::HttpRequestPort`]，《04》§八）。
 //!
 //! # 错误口径
 //!
@@ -46,10 +48,13 @@
 //! （工单044 §三.5 裁定⑧-2）。段三 #157 收口捆绑单：Unicode 触发臂按
 //! 工单043 裁定 A1 收紧为非字符全集（U+nFFFE/U+nFFFF 全 17 平面 +
 //! U+FDD0–U+FDEF + U+FFFD，《06.02》§2.4），Manager 异步写族入口改经
-//! `WriteCoordinator::lock_async`（#151 异步形残账收口）。HTTP Provider
-//! 挂载、缓存与单一飞行
-//! （§六之外的 P2/P3）、`file:*` / `resource:*` 能力面接线、
-//! Neon 绑定与 host TS 适配层均不在本段。
+//! `WriteCoordinator::lock_async`（#151 异步形残账收口）。段三主体
+//! #185 交付缓存面（L0/L1/L2 + SingleFlight + epoch 竞态失效，《04》§六）
+//! 与错误模型 NetworkFailed 族；#192 交付 [`http`] 模块网络抓取策略引擎
+//! （SSRF 地址族拦截、逐跳重定向复校验、三超时下发、2 GiB 响应上限、
+//! 请求头净化、L2 条件请求复验，《04》§八）。`file:*` / `resource:*`
+//! 能力面接线与 host 侧网络端口装配、Neon 绑定面（packages/native）
+//! 均不在本 crate 本段。
 //!
 //! # 示例
 //!
@@ -77,10 +82,12 @@
 #![warn(missing_docs)]
 
 pub mod archive;
+pub mod cache;
 pub mod constants;
 pub mod directory;
 pub mod error;
 pub mod handle;
+pub mod http;
 pub mod manager;
 pub mod memory;
 pub mod path_guard;
@@ -92,13 +99,22 @@ pub mod uri;
 pub mod write_coord;
 
 pub use archive::{ArchiveProvider, ArchiveStream, ARCHIVE_PROVIDER_ID};
+pub use cache::{
+    CacheKey, CacheStats, CacheStore, CachedMetadata, DiskCache, DiskEntry, DiskMeta, SingleFlight,
+};
 pub use constants::ResourceLimits;
 pub use directory::{DirectoryProvider, FileStream, DIRECTORY_PROVIDER_ID};
 pub use error::{
-    HandleState, InvalidateReason, PathErrorReason, PermissionDenyReason, PoolKind, ResourceError,
-    ScopeOperation, UriErrorReason,
+    HandleState, InvalidateReason, NetworkErrorReason, PathErrorReason, PermissionDenyReason,
+    PoolKind, ResourceError, ScopeOperation, UriErrorReason,
 };
 pub use handle::{HandleEntrySnapshot, HandleTable, InvalidateListener, StreamSlot};
+pub use http::{
+    address_is_blocked, parse_cache_control, parse_target_url, resolve_location, version_stamp,
+    CacheDirectives, HttpMethod, HttpPortFailure, HttpRequest, HttpRequestPort, HttpResponse,
+    HttpStream, HttpTarget, TargetRejection, IF_MODIFIED_SINCE, IF_NONE_MATCH, PLATFORM_USER_AGENT,
+};
+pub use http::{HttpProvider, HTTP_PROVIDER_ID};
 pub use manager::{
     external_origin_of, handles_of_session, open_handle_count, FsOpRequest, ManagerResult,
     OpenHandle, OpenRequest, ProviderRegistry, ResolvedResource, ResourceManager, WriteRequest,

@@ -10,7 +10,7 @@
 //!    （前缀 `RESOURCE_`，段名全大写 ASCII 加下划线连接）；
 //! 3. **形状锁**：`details` 键集与 reason 词表序列化逐字对照 §7.3
 //!    （URI 8 词、路径 9 词、句柄状态 3 词、失效原因 3 词 kebab-case、
-//!    池类别 2 词、权限拒绝 5 词、作用域操作 6 词）。
+//!    池类别 2 词、权限拒绝 5 词、作用域操作 6 词、网络失败 7 词）。
 //!
 //! 段二 B1 随单：`unicode` reason 由「词表在册、零产生」翻为「有产生」
 //! （工单042 裁定④触发臂，见 [`test_unicode_reason_has_production`]）；
@@ -30,8 +30,8 @@ use chips_resource::error::{
     RESOURCE_TOO_LARGE, RESOURCE_UNSUPPORTED_SCHEME, RESOURCE_WRITE_FAILED,
 };
 use chips_resource::{
-    HandleState, InvalidateReason, PathErrorReason, PermissionDenyReason, PoolKind, ResourceError,
-    ResourceLimits, ScopeOperation, UriErrorReason,
+    HandleState, InvalidateReason, NetworkErrorReason, PathErrorReason, PermissionDenyReason,
+    PoolKind, ResourceError, ResourceLimits, ScopeOperation, UriErrorReason,
 };
 
 /// 全部在册码：(码值, retryable, 协议路径 HTTP)。数值逐字来自《06》§7.2 表。
@@ -572,4 +572,65 @@ fn test_chips_error_single_form_carries_registered_code() {
         assert_eq!(chips_error.retryable(), error.retryable());
         assert_eq!(chips_error.details(), error.details().as_ref());
     }
+}
+
+#[test]
+fn test_network_error_reason_vocabulary_locked() {
+    // 段三随单（#192）：§7.3 `IResourceNetworkErrorDetails.reason` 七词
+    // 逐字锁定（snake_case，HttpProvider 产化面）。
+    let words = [
+        (NetworkErrorReason::Dns, "dns"),
+        (NetworkErrorReason::Connect, "connect"),
+        (NetworkErrorReason::Tls, "tls"),
+        (NetworkErrorReason::Timeout, "timeout"),
+        (NetworkErrorReason::HttpStatus, "http_status"),
+        (NetworkErrorReason::Redirect, "redirect"),
+        (NetworkErrorReason::Blocked, "blocked"),
+    ];
+    assert_eq!(words.len(), 7, "网络 reason 词表在册 7 词");
+    for (reason, word) in words {
+        assert_eq!(serde_json::to_value(reason).unwrap(), word);
+    }
+}
+
+#[test]
+fn test_network_failed_variant_and_details_shape_locked() {
+    // 段三随单（#192）：NetworkFailed 变体 → 码/retryable/HTTP 映射/
+    // details 键形逐面对照。`status` 仅 http_status / redirect 族在册，
+    // 缺省不出字段（《06.07》§7.3）。
+    let blocked = ResourceError::NetworkFailed {
+        uri: "chips-resource://external/https/intranet.local/a.bin".into(),
+        reason: NetworkErrorReason::Blocked,
+        status: None,
+    };
+    assert_eq!(blocked.code(), RESOURCE_NETWORK_FAILED);
+    assert!(blocked.retryable(), "NETWORK_FAILED 在册 retryable");
+    assert_eq!(http_status_for(RESOURCE_NETWORK_FAILED), Some(502));
+    let details = blocked.details().expect("必须携带 details");
+    let mut names: Vec<&String> = details.as_object().expect("对象").keys().collect();
+    names.sort();
+    assert_eq!(names, vec!["reason", "uri"], "status 缺省不出字段");
+    assert_eq!(details["uri"], blocked_uri());
+    assert_eq!(details["reason"], "blocked");
+
+    let with_status = ResourceError::NetworkFailed {
+        uri: "u".into(),
+        reason: NetworkErrorReason::HttpStatus,
+        status: Some(503),
+    };
+    let details = with_status.details().expect("必须携带 details");
+    let mut names: Vec<&String> = details.as_object().expect("对象").keys().collect();
+    names.sort();
+    assert_eq!(names, vec!["reason", "status", "uri"]);
+    assert_eq!(details["status"], 503);
+
+    // 跨边界单形：ChipsError 原样携带码与 details。
+    let chips_error = chips_core::ChipsError::from(with_status.clone());
+    assert_eq!(chips_error.code(), RESOURCE_NETWORK_FAILED);
+    assert!(chips_error.retryable());
+    assert_eq!(chips_error.details(), with_status.details().as_ref());
+}
+
+fn blocked_uri() -> String {
+    "chips-resource://external/https/intranet.local/a.bin".to_owned()
 }

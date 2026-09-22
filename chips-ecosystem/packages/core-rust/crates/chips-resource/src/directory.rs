@@ -57,17 +57,37 @@ struct DirectoryMount {
 /// 挂载表由管理器在 `mount_directory` 时写入（作用域 ID → 规范化根）；
 /// 未挂载作用域的寻址属启动期装配错误，按 `RESOURCE_INTERNAL` 兜底
 /// （与 MemoryProvider 越界寻址口径同型，《06》§7.2 协议层兜底）。
-#[derive(Debug, Default)]
+/// `chunk_limit` 为流式拉取单块上限的单一取值源投影视图（#140 §四.2 合流，
+/// 段三 #185）：经 [`with_chunk_limit`](Self::with_chunk_limit) 由管理器
+/// `ResourceLimits::chunk_bytes` 注入。
+#[derive(Debug)]
 pub struct DirectoryProvider {
     mounts: Mutex<BTreeMap<ScopeId, DirectoryMount>>,
     next_temp_id: AtomicU64,
+    chunk_limit: usize,
+}
+
+impl Default for DirectoryProvider {
+    fn default() -> Self {
+        Self::with_chunk_limit(DEFAULT_CHUNK_BYTES)
+    }
 }
 
 impl DirectoryProvider {
-    /// 构造空挂载 Provider。
+    /// 构造空挂载 Provider（默认拉取上限）。
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 以生产装配路径注入的拉取上限构造（《04》§12 `chunkBytes`）。
+    #[must_use]
+    pub fn with_chunk_limit(chunk_limit: usize) -> Self {
+        Self {
+            mounts: Mutex::new(BTreeMap::new()),
+            next_temp_id: AtomicU64::new(1),
+            chunk_limit: chunk_limit.max(1),
+        }
     }
 
     fn table(&self) -> MutexGuard<'_, BTreeMap<ScopeId, DirectoryMount>> {
@@ -414,6 +434,7 @@ impl ResourceProvider for DirectoryProvider {
             file,
             uri: address.uri.clone(),
             cursor: 0,
+            chunk_limit: self.chunk_limit,
         }))
     }
 
@@ -632,6 +653,7 @@ pub struct FileStream {
     file: File,
     uri: String,
     cursor: u64,
+    chunk_limit: usize,
 }
 
 impl FileStream {
@@ -645,7 +667,7 @@ impl FileStream {
 #[async_trait]
 impl ResourceStream for FileStream {
     async fn next_chunk(&mut self, max_bytes: usize) -> Result<Option<Vec<u8>>, ChipsError> {
-        let cap = max_bytes.clamp(1, DEFAULT_CHUNK_BYTES);
+        let cap = max_bytes.clamp(1, self.chunk_limit);
         let mut buffer = vec![0u8; cap];
         let mut filled = 0usize;
         while filled < cap {

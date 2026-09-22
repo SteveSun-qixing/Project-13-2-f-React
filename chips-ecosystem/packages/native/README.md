@@ -1,7 +1,7 @@
 # chips-native（Neon 绑定）
 
 > 版本：v0.1.0
-> 日期：2026-09-20
+> 日期：2026-09-23
 > 状态：进行中
 > 适用范围：`packages/native/` 的 Rust crate `chips-native`、ABI 导出面、类型映射与错误归一、构建脚本、契约检查与 JS 侧类型检查。
 
@@ -23,7 +23,7 @@
 
 ```
 packages/native/
-├── Cargo.toml                     # crate-type = ["cdylib"]；path 依赖 chips-core / chips-cordis / chips-bridge / chips-parser
+├── Cargo.toml                     # crate-type = ["cdylib"]；path 依赖 chips-core / chips-cordis / chips-bridge / chips-parser / chips-resource
 ├── package.json                   # build / copy-native / test / typecheck / lint / clean
 ├── src/
 │   ├── lib.rs                     # #[neon::main] 唯一入口；模块声明与线程约束说明
@@ -33,7 +33,8 @@ packages/native/
 │   ├── error.rs                   # ChipsError → JS Error、JS 异常 → ChipsError、NATIVE_* 码
 │   ├── runtime.rs                 # 绑定层 tokio 运行时与 Promise settle 助手
 │   ├── bridge.rs                  # Bridge 域四导出 + TS 能力执行器（Channel 回投 + AbortSignal）
-│   ├── parser.rs                  # 文档解析域十一导出（句柄装箱、DTO 转换、契约码透传）
+│   ├── parser.rs                  # 文档解析域十三导出（句柄装箱、DTO 转换、契约码透传）
+│   ├── resource.rs                # 资源管理域十五导出（进程级单例、写流闭包对象、契约码透传）
 │   ├── handles.rs                 # Root 持有：服务值、回调、Context 句柄载体
 │   ├── cancel.rs                  # createCancelToken / cancelTokenCancel
 │   └── context.rs                 # context* 导出与监听令牌翻译表
@@ -47,13 +48,38 @@ packages/native/
 
 已注册（`CORE_ABI_VERSION = 1`）：
 
-| 域               | 导出                                                                                                                                                                                                                                               |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 元信息           | `coreVersion`、`coreAbiVersion`                                                                                                                                                                                                                    |
-| Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect`                                                                                                                                 |
-| 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                                                                                                                                                           |
-| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`、`bridgeActivateProvider`、`bridgeDeactivateProvider`、`bridgeGrantCapabilityId`、`bridgeOpenSession`、`bridgeCloseSession`、`bridgeShutdown`                         |
-| 文档解析         | `openDocument`、`openCard`、`openBox`、`documentMetadata`、`documentStructure`、`documentContent`、`documentEntries`、`documentLayoutConfig`、`documentRevision`、`documentReadResource`、`documentValidate`、`buildDocumentView`、`documentClose` |
+| 域               | 导出                                                                                                                                                                                                                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 元信息           | `coreVersion`、`coreAbiVersion`                                                                                                                                                                                                                                                                                                |
+| Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect`                                                                                                                                                                                                             |
+| 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                                                                                                                                                                                                                                       |
+| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`、`bridgeActivateProvider`、`bridgeDeactivateProvider`、`bridgeGrantCapabilityId`、`bridgeOpenSession`、`bridgeCloseSession`、`bridgeShutdown`                                                                                                     |
+| 文档解析         | `openDocument`、`openCard`、`openBox`、`documentMetadata`、`documentStructure`、`documentContent`、`documentEntries`、`documentLayoutConfig`、`documentRevision`、`documentReadResource`、`documentValidate`、`buildDocumentView`、`documentClose`                                                                             |
+| 资源管理         | `resourceOpen`、`resourceStat`、`resourceRead`、`resourceReadChunk`、`resourceRelease`、`resourceCommitWrite`、`resourceCommitWriteStream`、`resourceListDirectory`、`resourceDelete`、`resourceRename`、`resourceCopy`、`resourceCreateDirectory`、`resourceOpenSession`、`resourceCloseSession`、`resourceRegisterTempScope` |
+
+十五个资源管理导出全部转发 `chips-resource` 内核（《核心接口规范》§7.3，
+《04.11-04-资源管理设计》§11.3 表序逐字实现）：
+
+- 进程级单例：`ResourceManager` 以 `Arc` 一次初始化、生命周期与主进程一致
+  （§11.5），`ResourceLimits::default()` 即《04.12》§12 生产默认值；
+  注入的 `NoopDecisionObserver` 只是构造签名的编译随行，真实
+  `DecisionObserver` 接线归后波（与 `bridge.rs` 同款的波界在册注记）；
+- 同步/异步切分按 §11.3 返回形状：`resourceRelease` / `resourceOpenSession` /
+  `resourceCloseSession` / `resourceRegisterTempScope` 四导出为同步
+  （backing 为注册表内存操作），其余十一导出为异步（工作提交绑定层运行时线程、
+  经 `Channel` 回投 settle，JS 线程不 `block_on`）；
+- `resourceCommitWriteStream` 返回**写流闭包对象** `{ id, uri, append, commit, abort }`
+  （neon 1.1.1 无 class API 实证，方法以捕获共享状态的 `JsFunction::new` 挂属性）：
+  `commit` / `abort` 经 `AtomicBool` 换取一次性收口权，对象整体被 GC 回收且
+  仍未收口时由 `Drop` 兜底 `abort_write_stream`（显式释放优先、兜底零残留，
+  与 §8.4「Finalize 只作兜底」同构语义）；
+- `RESOURCE_*` 契约码经 `ChipsError` 原样透传，绑定层只以
+  `NATIVE_TYPE_UNSUPPORTED` / `NATIVE_VALUE_OUT_OF_RANGE` / `NATIVE_INTERNAL`
+  三码拒绝非法入参；`handleId` / `sessionId` / `offset` / `length` / `maxBytes`
+  一律经 `< 2^53` 线格式判闸；
+- N-1 句柄归属闸在册交回：§11.3 的句柄四导出只携带 `handleId`、不携带会话源，
+  归属比对在本导出面无输入可锁测，维持归收口后的 Rust 腾面小单
+  （#185/#192 两波核证结论，本波 `manager.rs` 零改动）。
 
 十个 Bridge 导出全部转发 `chips-bridge` 内核（工单005，《问题工单》）：
 绑定层只做参数解析、`{ json, bin }` 信封编解码、错误归一与线程回投；
@@ -67,9 +93,9 @@ packages/native/
 契约码经 `ChipsError` 原样透传，绑定层只以 `NATIVE_*` 三码拒绝非法入参。
 《核心接口规范》§6.4 总表的 13 行中，`createCancelToken` /
 `cancelTokenCancel` 两行已由取消令牌域注册；文档解析域在 11 行之外补齐
-工单034 正式化两项（`documentLayoutConfig`、`documentRevision`），净增 13 项，
-导出面合计 34 项。清单的 `blocked` 段当前为空，
-`scripts/check-abi.mjs` 强制校验三方一致。
+工单034 正式化两项（`documentLayoutConfig`、`documentRevision`），净增 13 项；
+资源管理域十五项（见上）随段三 native 收官波落地后，导出面合计 49 项。
+清单的 `blocked` 段当前为空，`scripts/check-abi.mjs` 强制校验三方一致。
 
 ## 四、命令
 

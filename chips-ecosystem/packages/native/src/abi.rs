@@ -60,6 +60,21 @@ export_table! {
     "documentValidate" => crate::parser::js_document_validate,
     "buildDocumentView" => crate::parser::js_build_document_view,
     "documentClose" => crate::parser::js_document_close,
+    "resourceOpen" => crate::resource::js_resource_open,
+    "resourceStat" => crate::resource::js_resource_stat,
+    "resourceRead" => crate::resource::js_resource_read,
+    "resourceReadChunk" => crate::resource::js_resource_read_chunk,
+    "resourceRelease" => crate::resource::js_resource_release,
+    "resourceCommitWrite" => crate::resource::js_resource_commit_write,
+    "resourceCommitWriteStream" => crate::resource::js_resource_commit_write_stream,
+    "resourceListDirectory" => crate::resource::js_resource_list_directory,
+    "resourceDelete" => crate::resource::js_resource_delete,
+    "resourceRename" => crate::resource::js_resource_rename,
+    "resourceCopy" => crate::resource::js_resource_copy,
+    "resourceCreateDirectory" => crate::resource::js_resource_create_directory,
+    "resourceOpenSession" => crate::resource::js_resource_open_session,
+    "resourceCloseSession" => crate::resource::js_resource_close_session,
+    "resourceRegisterTempScope" => crate::resource::js_resource_register_temp_scope,
 }
 
 /// `coreVersion()`：平台统一版本（与全部平台包共用同一版本号）。

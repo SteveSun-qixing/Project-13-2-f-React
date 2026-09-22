@@ -32,17 +32,38 @@ struct MemoryEntry {
 }
 
 /// 内置 MemoryProvider：扁平键空间（规范化虚拟路径），无目录层级。
-#[derive(Debug, Default)]
+///
+/// `chunk_limit` 为流式拉取单块上限的单一取值源投影视图（#140 §四.2 合流，
+/// 段三 #185）：经 [`with_chunk_limit`](Self::with_chunk_limit) 由管理器
+/// `ResourceLimits::chunk_bytes` 注入，禁止再引用常量做二次钳制。
+#[derive(Debug)]
 pub struct MemoryProvider {
     entries: Mutex<BTreeMap<String, MemoryEntry>>,
     next_version: Mutex<u64>,
+    chunk_limit: usize,
+}
+
+impl Default for MemoryProvider {
+    fn default() -> Self {
+        Self::with_chunk_limit(DEFAULT_CHUNK_BYTES)
+    }
 }
 
 impl MemoryProvider {
-    /// 构造空 Provider。
+    /// 构造空 Provider（默认拉取上限）。
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 以生产装配路径注入的拉取上限构造（《04》§12 `chunkBytes`）。
+    #[must_use]
+    pub fn with_chunk_limit(chunk_limit: usize) -> Self {
+        Self {
+            entries: Mutex::new(BTreeMap::new()),
+            next_version: Mutex::new(0),
+            chunk_limit: chunk_limit.max(1),
+        }
     }
 
     fn store(&self) -> MutexGuard<'_, BTreeMap<String, MemoryEntry>> {
@@ -202,6 +223,7 @@ impl ResourceProvider for MemoryProvider {
         Ok(Box::new(MemoryStream {
             bytes: entry.bytes,
             cursor: 0,
+            chunk_limit: self.chunk_limit,
         }))
     }
 
@@ -295,6 +317,7 @@ impl ResourceProvider for MemoryProvider {
 pub struct MemoryStream {
     bytes: Vec<u8>,
     cursor: usize,
+    chunk_limit: usize,
 }
 
 impl MemoryStream {
@@ -311,7 +334,7 @@ impl ResourceStream for MemoryStream {
         if self.cursor >= self.bytes.len() {
             return Ok(None);
         }
-        let cap = max_bytes.clamp(1, DEFAULT_CHUNK_BYTES);
+        let cap = max_bytes.clamp(1, self.chunk_limit);
         let end = (self.cursor + cap).min(self.bytes.len());
         let chunk = self.bytes[self.cursor..end].to_vec();
         self.cursor = end;
@@ -322,6 +345,7 @@ impl ResourceStream for MemoryStream {
 #[cfg(test)]
 mod tests {
     use super::{guess_mime_type, MemoryProvider, MemoryStream};
+    use crate::constants::DEFAULT_CHUNK_BYTES;
     use crate::error::ResourceError;
     use crate::path_guard::VirtualPath;
     use crate::provider::{
@@ -438,6 +462,7 @@ mod tests {
         let mut stream = MemoryStream {
             bytes: Vec::new(),
             cursor: 0,
+            chunk_limit: DEFAULT_CHUNK_BYTES,
         };
         assert!(stream.next_chunk(8).await.expect("eof ok").is_none());
         assert_eq!(stream.cursor(), 0);

@@ -38,7 +38,7 @@ pub struct ExternalOrigin {
 }
 
 impl ExternalOrigin {
-    /// origin 的 host[:port] 文本（缓存键与审计 host 字段使用）。
+    /// origin 的 `host[:port]` 文本（缓存键与审计 host 字段使用）。
     #[must_use]
     pub fn host_authority(&self) -> String {
         match self.port {

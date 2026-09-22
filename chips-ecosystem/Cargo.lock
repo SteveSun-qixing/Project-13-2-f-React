@@ -163,6 +163,7 @@ dependencies = [
  "chips-cordis",
  "chips-core",
  "chips-parser",
+ "chips-resource",
  "neon",
  "serde",
  "serde_json",

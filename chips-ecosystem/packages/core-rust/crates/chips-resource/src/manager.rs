@@ -24,8 +24,10 @@
 //! 值原样上抛——管理器不改写、不折算 Provider 的错误码。
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use chips_core::{
     emit_permission_decision, ChipsError, DecisionAction, DecisionDomain, DecisionObserver,
@@ -33,6 +35,7 @@ use chips_core::{
 };
 
 use crate::archive::{ArchiveProvider, ARCHIVE_PROVIDER_ID};
+use crate::cache::{CacheKey, CacheStore, CachedMetadata, SingleFlight};
 use crate::constants::ResourceLimits;
 use crate::directory::{DirectoryProvider, DirectoryStreamSink, DIRECTORY_PROVIDER_ID};
 use crate::error::{InvalidateReason, ResourceError, ResourceResult, ScopeOperation};
@@ -222,13 +225,16 @@ impl ProviderRegistry {
 }
 
 /// 资源管理器（《04》§11.1 核心结构；段二 B3 起含 WriteCoordinator
-/// 路径写锁与流式写入登记表；缓存与单一飞行仍属后续波次）。
+/// 路径写锁与流式写入登记表；段三主体 #185 起挂载 B4 缓存面
+/// [`CacheStore`] 与单一飞行 [`SingleFlight`]，字段名对齐《04》§11.1）。
 pub struct ResourceManager {
     limits: ResourceLimits,
     scopes: Arc<ScopeRegistry>,
     sessions: Arc<SessionRegistry>,
     providers: Arc<ProviderRegistry>,
+    cache: Arc<CacheStore>,
     handles: Arc<HandleTable>,
+    inflight: Arc<SingleFlight<Vec<u8>>>,
     memory_provider: Arc<MemoryProvider>,
     memory_mount: Mutex<Option<MemoryMount>>,
     directory_provider: Arc<DirectoryProvider>,
@@ -236,6 +242,7 @@ pub struct ResourceManager {
     write_coordinator: WriteCoordinator,
     write_streams: Mutex<BTreeMap<u64, WriteStreamRecord>>,
     next_write_stream_id: AtomicU64,
+    next_temp_scope_id: AtomicU64,
     /// 权限判定出站观察面：构造期注入、终身不可换（RFC §八条 1）；判定
     /// 素材在 `resolve` 的 `decide` 收敛处、各注册表锁外发射（RFC §六条 4）。
     observer: Arc<dyn DecisionObserver>,
@@ -249,7 +256,9 @@ impl std::fmt::Debug for ResourceManager {
             .field("scopes", &self.scopes)
             .field("sessions", &self.sessions)
             .field("providers", &self.providers)
+            .field("cache", &self.cache)
             .field("handles", &self.handles)
+            .field("inflight", &self.inflight)
             .field("memory_provider", &self.memory_provider)
             .field("memory_mount", &self.memory_mount)
             .field("directory_provider", &self.directory_provider)
@@ -257,6 +266,7 @@ impl std::fmt::Debug for ResourceManager {
             .field("write_coordinator", &self.write_coordinator)
             .field("write_streams", &self.write_streams)
             .field("next_write_stream_id", &self.next_write_stream_id)
+            .field("next_temp_scope_id", &self.next_temp_scope_id)
             .field("observer", &"DecisionObserver")
             .finish()
     }
@@ -272,19 +282,29 @@ impl ResourceManager {
     #[must_use]
     pub fn new(limits: ResourceLimits, observer: Arc<dyn DecisionObserver>) -> Self {
         let handles = HandleTable::new(limits.max_handles_per_plugin, limits.max_handles_total);
+        // #140 §四.2 合流（段三 #185）：内置 Provider 的拉取上限与缓存面
+        // （L0/L1/L2 容量、TTL）一律来自本构造注入的 `ResourceLimits`，
+        // 生产装配路径取值源唯一。
+        let cache = Arc::new(CacheStore::new(&limits));
+        let memory_provider = MemoryProvider::with_chunk_limit(limits.chunk_bytes);
+        let directory_provider = DirectoryProvider::with_chunk_limit(limits.chunk_bytes);
+        let archive_provider = ArchiveProvider::with_chunk_limit(limits.chunk_bytes);
         Self {
             limits,
             scopes: Arc::new(ScopeRegistry::new()),
             sessions: Arc::new(SessionRegistry::new()),
             providers: Arc::new(ProviderRegistry::default()),
+            cache,
             handles: Arc::new(handles),
-            memory_provider: Arc::new(MemoryProvider::new()),
+            inflight: Arc::new(SingleFlight::default()),
+            memory_provider: Arc::new(memory_provider),
             memory_mount: Mutex::new(None),
-            directory_provider: Arc::new(DirectoryProvider::new()),
-            archive_provider: Arc::new(ArchiveProvider::new()),
+            directory_provider: Arc::new(directory_provider),
+            archive_provider: Arc::new(archive_provider),
             write_coordinator: WriteCoordinator::new(),
             write_streams: Mutex::new(BTreeMap::new()),
             next_write_stream_id: AtomicU64::new(1),
+            next_temp_scope_id: AtomicU64::new(1),
             observer,
         }
     }
@@ -293,6 +313,40 @@ impl ResourceManager {
     #[must_use]
     pub fn limits(&self) -> &ResourceLimits {
         &self.limits
+    }
+
+    /// B4 缓存面在册句柄（诊断统计与宿主装配注入 L2 根目录用，《04》§6.2）。
+    #[must_use]
+    pub fn cache(&self) -> &Arc<CacheStore> {
+        &self.cache
+    }
+
+    /// 由资源地址与版本戳构造缓存键（《04》§6.5：External 键含 origin、
+    /// query 参与键、fragment 已在 URI 语法层拒绝）。键形构造经
+    /// [`cache_key_for_uri`] 与 HttpProvider L0/L2 面共用，杜绝双侧漂移。
+    fn cache_key_for(&self, address: &ResourceAddress, version: &str) -> CacheKey {
+        cache_key_for_uri(&self.limits, address, version)
+    }
+
+    /// L0 回填（《04》§6.1/§6.4「流式只更新元数据」的写入通道）：
+    /// External 条目记默认 TTL 新鲜期（响应头有效期由 HttpProvider 侧
+    /// 覆盖裁决），受管条目走事件失效不设过期。
+    fn l0_fill(&self, key: &CacheKey, metadata: &ResourceMetadata) {
+        let expires_at = key
+            .origin
+            .is_some()
+            .then(|| Instant::now() + self.cache.external_ttl());
+        self.cache.metadata_insert(
+            key,
+            CachedMetadata {
+                size: metadata.size,
+                mime: metadata.mime_type.clone(),
+                version: metadata.version.clone(),
+                etag: None,
+                last_modified: None,
+                expires_at,
+            },
+        );
     }
 
     /// 在册句柄表（级联与测试断言入口）。
@@ -350,6 +404,9 @@ impl ResourceManager {
             .invalidate_and_release_where(InvalidateReason::ScopeRevoked, |entry: &HandleEntry| {
                 &entry.scope == scope
             });
+        // 《04》§6.3 失效顺序：句柄处置后清理缓存条目（L0/L1/L2 随作用域
+        // 失效，《04》§6.1）。
+        self.cache.invalidate_scope(scope);
         Ok(())
     }
 
@@ -401,6 +458,9 @@ impl ResourceManager {
     pub fn invalidate_scope(&self, scope: &ScopeId, reason: InvalidateReason) {
         self.handles
             .invalidate_where(reason, |entry: &HandleEntry| &entry.scope == scope);
+        // 句柄转 invalidated 后清理缓存条目（《04》§6.3 失效顺序第 3 步；
+        // 底层读取器关闭由句柄流槽位归还承担）。
+        self.cache.invalidate_scope(scope);
     }
 
     /// 解析流水线（《04》§5.1）：语法解析 → 作用域查找 → 路径校验 →
@@ -483,6 +543,9 @@ impl ResourceManager {
     }
 
     /// 解析、权限判定与打开（《03》§7.1 `open`）：通过后分配句柄并登记租约。
+    ///
+    /// 打开成功即以 Provider 回读的最新元数据回填 L0（《04》§6.1；External
+    /// 条目按 TTL 记新鲜期，《04》§6.3 HttpProvider 行）。
     pub async fn open(&self, request: OpenRequest) -> ManagerResult<OpenHandle> {
         let resolved = self.resolve(&request.uri, request.session, ResourceOperation::Read)?;
         let provider = self
@@ -503,25 +566,54 @@ impl ResourceManager {
             resolved.registration.scope.clone(),
             resolved.registration.kind,
         )?;
-        Ok(OpenHandle {
-            id,
-            metadata: metadata_view(&resolved.address.uri, resolved.registration.kind, metadata),
-        })
+        let view = metadata_view(&resolved.address.uri, resolved.registration.kind, metadata);
+        let key = self.cache_key_for(&resolved.address, &view.version);
+        self.l0_fill(&key, &view);
+        Ok(OpenHandle { id, metadata: view })
     }
 
     /// 读元数据（《03》§7.1 `stat`）。
+    ///
+    /// External 作用域按 L0 新鲜期直返（TTL 未过期不打网络，《04》§6.3
+    /// HttpProvider 行）；受管作用域读取前经 Provider 校验版本戳
+    /// （§6.3 Directory/Archive 行）并回填 L0。
     pub async fn stat(&self, handle: HandleId) -> ManagerResult<ResourceMetadata> {
         let (address, provider_id, kind) = self.handles.acquire_for_read(handle)?;
+        if kind == ScopeKind::External {
+            // External：L0 新鲜期内直返（TTL 惰性失效，《04》§6.3）。
+            let probe_key = self.cache_key_for(&address, "");
+            if let Some(entry) = self.cache.metadata_get(&probe_key) {
+                let metadata = ResourceMetadata {
+                    uri: address.uri.clone(),
+                    size: entry.size,
+                    mime_type: entry.mime,
+                    version: entry.version,
+                    scope: kind,
+                };
+                self.handles.touch(handle, 0);
+                return Ok(metadata_view(&address.uri, kind, metadata));
+            }
+        }
         let provider = self
             .providers
             .lookup(&provider_id)
             .ok_or(ResourceError::Internal)?;
         let metadata = provider.stat(&address).await?;
+        let view = metadata_view(&address.uri, kind, metadata);
+        let key = self.cache_key_for(&address, &view.version);
+        self.l0_fill(&key, &view);
         self.handles.touch(handle, 0);
-        Ok(metadata_view(&address.uri, kind, metadata))
+        Ok(view)
     }
 
     /// 范围读（与流互斥，《03》§7.1 `read_range`，《06》§6.6）。
+    ///
+    /// B4 缓存联动（《04》§6.3/§6.4）：
+    /// - 完整读（`offset = 0` 且 `length = None`）：读取前经 Provider `stat`
+    ///   校验版本戳，命中 L1 即免后端字节拉取；未命中经 SingleFlight 合流
+    ///   读取，成功结果写 L1（单条 ≤ `max_inline_bytes` 才入）并回填 L0；
+    ///   提交时按读取前 epoch 再校验，失效竞态下过期结果丢弃。
+    /// - 范围读（非完整读）：直通 Provider，绝不写入 L1（§6.4）。
     pub async fn read_range(&self, handle: HandleId, range: ByteRange) -> ManagerResult<Vec<u8>> {
         let (address, provider_id) = self.handles.acquire_for_range_read(handle)?;
         if let Some(length) = range.length {
@@ -531,7 +623,45 @@ impl ResourceManager {
             .providers
             .lookup(&provider_id)
             .ok_or(ResourceError::Internal)?;
-        let bytes = provider.read_range(&address, range).await?;
+        let full_read = range.offset == 0 && range.length.is_none();
+        if !full_read {
+            // 范围读不写入 L1（《04》§6.4）：原样直通。
+            let bytes = provider.read_range(&address, range).await?;
+            self.handles.touch(handle, bytes.len() as u64);
+            return Ok(bytes);
+        }
+        // 读取前校验版本戳（§6.3 Directory/Archive 行；External 走
+        // HttpProvider 的 stat 语义，不产生网络体拉取）。
+        let metadata = provider.stat(&address).await?;
+        let key = self.cache_key_for(&address, &metadata.version);
+        if let Some(bytes) = self.cache.memory_get_pinned(&key) {
+            self.cache.memory_unpin(&key);
+            self.l0_fill(&key, &metadata);
+            self.handles.touch(handle, bytes.len() as u64);
+            return Ok((*bytes).clone());
+        }
+        let read_epoch = self.cache.epoch();
+        let flight_key = key.flight_key();
+        let read_address = address.clone();
+        let read_provider = Arc::clone(&provider);
+        let flights = Arc::clone(&self.inflight);
+        let bytes = flights
+            .run_once(&flight_key, move || async move {
+                read_provider
+                    .read_range(
+                        &read_address,
+                        ByteRange {
+                            offset: 0,
+                            length: None,
+                        },
+                    )
+                    .await
+            })
+            .await?;
+        // 完整读取成功：只写完整读取结果（§6.4）；预算与钉住规则由
+        // CacheStore 将守。
+        self.cache.memory_insert(&key, bytes.clone(), read_epoch);
+        self.l0_fill(&key, &metadata);
         self.handles.touch(handle, bytes.len() as u64);
         Ok(bytes)
     }
@@ -778,6 +908,49 @@ impl ResourceManager {
         self.archive_provider.is_mounted(scope)
     }
 
+    /// 注册临时作用域（《04》§11.1 `register_temp_scope`，段三主体 #185
+    /// 随 `resourceRegisterTempScope` 产化）：对话框授权完成后由平台把
+    /// 用户临时授权宿主路径挂载进资源引擎。
+    ///
+    /// 口径：根必须存在且为目录（登记失败不降级，《06》§3.2；缺失按
+    /// `RESOURCE_NOT_FOUND`，与 `mount_directory` 挂根同型——失败即整体
+    /// 回滚注销，不留半挂载）；种类固定 Temporary、命名 `temp-{n}` 单调
+    /// 递增（受管作用域在册前缀，《06》§2.2）；Provider 强制归一
+    /// `directory`；owner 为平台哨兵 [`TEMP_SCOPE_OWNER`]（§11.1 签名
+    /// 无 owner 参数，取平台所有并 README 在册）；`writable = false`
+    /// 折算只读策略。会话绑定由调用方经 [`Self::attach_scope`] 完成
+    /// （注册不等于授权，《06》§3.2）。
+    pub fn register_temp_scope(&self, path: PathBuf, writable: bool) -> ResourceResult<ScopeId> {
+        let index = self.next_temp_scope_id.fetch_add(1, Ordering::Relaxed);
+        let scope = format!("temp-{index}");
+        if self.providers.lookup(DIRECTORY_PROVIDER_ID).is_none() {
+            let typed = Arc::clone(&self.directory_provider);
+            let provider: Arc<dyn ResourceProvider> = typed;
+            self.register_provider(provider)?;
+        }
+        self.register_scope(ScopeRegistration {
+            scope: scope.clone(),
+            kind: ScopeKind::Temporary,
+            owner: TEMP_SCOPE_OWNER.to_owned(),
+            provider_id: DIRECTORY_PROVIDER_ID.to_owned(),
+            origin: Origin::Directory(path.clone()),
+            policy: ScopePolicy {
+                read_only: !writable,
+                max_resource_bytes: self.limits.max_resource_bytes,
+                allowed_hosts: Vec::new(),
+            },
+        })?;
+        if let Err(error) = self
+            .directory_provider
+            .attach_root(&scope, &path, ScopeKind::Temporary)
+        {
+            // 挂根失败整体回滚：不留半挂载（零泄漏收口同段二 B2 口径）。
+            let _ = self.unregister_scope(&scope);
+            return Err(error);
+        }
+        Ok(scope)
+    }
+
     /// 一次性写入提交（《04》§11.1 `commit_write`，《04.04》§4.8）：
     /// 句柄只读，写入统一由管理器提交。流水线复检（PathGuard + 会话权限
     /// `resources:write`）→ 能力预检（只读策略 / `supports_write` 不支持 →
@@ -813,11 +986,13 @@ impl ResourceManager {
             .lock_async([path_lock_key(&resolved)])
             .await;
         let metadata = provider.write(&resolved.address, &request.bytes).await?;
-        Ok(metadata_view(
-            &resolved.address.uri,
-            resolved.registration.kind,
-            metadata,
-        ))
+        // 写提交事件失效 + 新版本回填 L0（《04》§6.3 表）。
+        self.cache
+            .invalidate_resource(&resolved.address.scope, resolved.address.path.as_str());
+        let view = metadata_view(&resolved.address.uri, resolved.registration.kind, metadata);
+        let key = self.cache_key_for(&resolved.address, &view.version);
+        self.l0_fill(&key, &view);
+        Ok(view)
     }
 
     /// 删除（《04》§11.1 `delete`，《04.04》§4.9）：写入族鉴权与能力预检后，
@@ -832,6 +1007,9 @@ impl ResourceManager {
             .lock_async([path_lock_key(&resolved)])
             .await;
         provider.delete(&resolved.address).await?;
+        // 删除事件失效（《04》§6.3：随写入族事件清缓存）。
+        self.cache
+            .invalidate_resource(&resolved.address.scope, resolved.address.path.as_str());
         Ok(())
     }
 
@@ -857,12 +1035,16 @@ impl ResourceManager {
             .lock_async([path_lock_key(&source), path_lock_key(&target)])
             .await;
         provider.rename(&source.address, &target.address).await?;
+        // 改名/移动双端事件失效（源与目标身份皆变，《04》§6.3）。
+        self.cache
+            .invalidate_resource(&source.address.scope, source.address.path.as_str());
+        self.cache
+            .invalidate_resource(&target.address.scope, target.address.path.as_str());
         let metadata = provider.stat(&target.address).await?;
-        Ok(metadata_view(
-            &target.address.uri,
-            target.registration.kind,
-            metadata,
-        ))
+        let view = metadata_view(&target.address.uri, target.registration.kind, metadata);
+        let key = self.cache_key_for(&target.address, &view.version);
+        self.l0_fill(&key, &view);
+        Ok(view)
     }
 
     /// 复制（《04》§11.1 `copy`，《04.04》§4.9/§4.10）：源按读鉴权、目标按写
@@ -942,12 +1124,14 @@ impl ResourceManager {
                 .await?;
             target_provider.write(&target.address, &bytes).await?;
         }
+        // 复制目标事件失效（目标为新内容身份，《04》§6.3）。
+        self.cache
+            .invalidate_resource(&target.address.scope, target.address.path.as_str());
         let metadata = target_provider.stat(&target.address).await?;
-        Ok(metadata_view(
-            &target.address.uri,
-            target.registration.kind,
-            metadata,
-        ))
+        let view = metadata_view(&target.address.uri, target.registration.kind, metadata);
+        let key = self.cache_key_for(&target.address, &view.version);
+        self.l0_fill(&key, &view);
+        Ok(view)
     }
 
     /// 创建目录（《04》§11.1 `create_directory`，《04.04》§4.9）：仅 Plugin /
@@ -972,6 +1156,10 @@ impl ResourceManager {
             .lock_async([path_lock_key(&resolved)])
             .await;
         provider.create_directory(&resolved.address).await?;
+        // 目录创建事件失效（列举面不缓存《04.13》§13-15；此处清资源身份
+        // 条目，《04》§6.3）。
+        self.cache
+            .invalidate_resource(&resolved.address.scope, resolved.address.path.as_str());
         Ok(())
     }
 
@@ -1171,8 +1359,14 @@ impl ResourceManager {
             }
             .to_chips_error()
         })?;
+        // 写提交事件失效（《04》§6.3 TemporaryProvider 行「写入提交后刷新」）。
+        self.cache
+            .invalidate_resource(&address.scope, address.path.as_str());
         let metadata = provider.stat(&address).await?;
-        Ok(metadata_view(&address.uri, registration.kind, metadata))
+        let view = metadata_view(&address.uri, registration.kind, metadata);
+        let key = self.cache_key_for(&address, &view.version);
+        self.l0_fill(&key, &view);
+        Ok(view)
     }
 
     /// 主动中止流式写入：弃置通道并清理临时文件（零残留，《04.04》§4.9），
@@ -1292,12 +1486,52 @@ impl ResourceManager {
     }
 }
 
+/// 临时作用域的平台所有者哨兵（《04》§11.1 `register_temp_scope` 签名
+/// 无 owner 参数；授权来源是对话框用户许可而非任何插件，故以平台哨兵
+/// 登记所有者，README 在册该解释性决定）。
+pub const TEMP_SCOPE_OWNER: &str = "chips.official.host";
+
 /// External 作用域固定由 `http` / `webdav` Provider 承载（段二挂载实现）。
 fn external_provider_id(uri: &CanonicalUri) -> &'static str {
     match uri.external.as_ref().map(|origin| origin.scheme.as_str()) {
         Some("webdav") => "webdav",
         _ => "http",
     }
+}
+
+/// 由资源地址与版本戳构造缓存键（《04》§6.5 在册键形）。
+///
+/// Manager L1 面与 HttpProvider L0/L2 面共用本函数，杜绝双侧键漂移；
+/// External 键含 origin（`scheme://host[:port]`）、query 参与键、
+/// fragment 已在 URI 语法层拒绝天然不参与。
+pub(crate) fn cache_key_for_uri(
+    limits: &ResourceLimits,
+    address: &ResourceAddress,
+    version: &str,
+) -> CacheKey {
+    if address.scope == crate::uri::EXTERNAL_SCOPE {
+        let (origin, path) = match resolve_input(&address.uri, limits) {
+            Ok(uri) => {
+                let origin = uri.external.as_ref().map_or_else(
+                    || format!("scope:{}", address.scope),
+                    |external| format!("{}://{}", external.scheme, external.host_authority()),
+                );
+                let path = match (&uri.path, &uri.query) {
+                    (Some(path), Some(query)) => format!("{}?{}", path.as_str(), query),
+                    (Some(path), None) => path.as_str().to_owned(),
+                    (None, Some(query)) => format!("?{query}"),
+                    (None, None) => String::new(),
+                };
+                (origin, path)
+            }
+            Err(_) => (
+                format!("scope:{}", address.scope),
+                address.path.as_str().to_owned(),
+            ),
+        };
+        return CacheKey::external(&origin, &path, version);
+    }
+    CacheKey::managed(&address.scope, address.path.as_str(), version)
 }
 
 /// Resource 域判定素材组装（RFC-权限审计跨层采集sink裁定 §5.1 字段口径）：
@@ -2526,5 +2760,91 @@ mod tests {
             )
             .expect("注销后可重挂");
         let _ = std::fs::remove_dir_all(temp_root("dup"));
+    }
+
+    // -- #140 §四.2 生产取值合流锁测（段三主体 #185） ---------------------
+
+    fn memory_manager_with_chunk_limit(chunk_bytes: usize) -> (ResourceManager, SessionId) {
+        let manager = ResourceManager::new(
+            ResourceLimits {
+                chunk_bytes,
+                ..ResourceLimits::default()
+            },
+            Arc::new(NoopDecisionObserver),
+        );
+        let session = writer_session(&manager, &[]);
+        manager.mount_memory(session).expect("挂载必须成功");
+        (manager, session)
+    }
+
+    #[tokio::test]
+    async fn test_chunk_budget_below_default_flows_to_streams() {
+        // 收紧预算（64 B）必须一路穿透到 Provider 流：块长上限即注入值，
+        // 不存在「管理器钳一层、Provider 再钳常量」的双源分叉。
+        let (manager, session) = memory_manager_with_chunk_limit(64);
+        manager
+            .commit_write(write_request(session, "merge/tight.bin", &[7u8; 200]))
+            .await
+            .expect("提交放行");
+        let handle = manager
+            .open(OpenRequest {
+                uri: "chips-resource://memory/merge/tight.bin".into(),
+                session,
+            })
+            .await
+            .expect("开句柄放行");
+        let first = manager
+            .read_chunk(handle.id, usize::MAX)
+            .await
+            .expect("流读放行")
+            .expect("首块必在");
+        assert_eq!(first.len(), 64, "块长上限即注入的 chunk_bytes=64");
+        let mut total = first.len();
+        while let Some(chunk) = manager
+            .read_chunk(handle.id, usize::MAX)
+            .await
+            .expect("流读")
+        {
+            assert!(chunk.len() <= 64, "续块同样受注入上限把守");
+            total += chunk.len();
+        }
+        assert_eq!(total, 200);
+    }
+
+    #[tokio::test]
+    async fn test_chunk_budget_above_legacy_hardcap_is_honored() {
+        // 旧形态：Provider 流自带 256 KiB 常量钳制，注入再大也被静默截断
+        // （#140 §四.2 双源漂移）。合流后 512 KiB 预算必须真实生效——
+        // 300 KiB 资源一块拉满，回归即红。
+        let legacy_hardcap = 256 * 1024;
+        assert_eq!(legacy_hardcap, crate::constants::DEFAULT_CHUNK_BYTES);
+        let (manager, session) = memory_manager_with_chunk_limit(512 * 1024);
+        let payload = vec![3u8; 300 * 1024];
+        manager
+            .commit_write(write_request(session, "merge/wide.bin", &payload))
+            .await
+            .expect("提交放行");
+        let handle = manager
+            .open(OpenRequest {
+                uri: "chips-resource://memory/merge/wide.bin".into(),
+                session,
+            })
+            .await
+            .expect("开句柄放行");
+        let first = manager
+            .read_chunk(handle.id, 512 * 1024)
+            .await
+            .expect("流读放行")
+            .expect("首块必在");
+        assert_eq!(
+            first.len(),
+            payload.len(),
+            "300 KiB 在 512 KiB 注入预算下必须单块完整返回"
+        );
+        assert!(manager
+            .read_chunk(handle.id, 512 * 1024)
+            .await
+            .expect("收尾流读")
+            .is_none());
     }
 }

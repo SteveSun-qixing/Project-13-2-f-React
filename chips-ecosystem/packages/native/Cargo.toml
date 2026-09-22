@@ -15,6 +15,7 @@ chips-core = { path = "../core-rust/crates/chips-core" }
 chips-cordis = { path = "../core-rust/crates/chips-cordis" }
 chips-bridge = { path = "../core-rust/crates/chips-bridge" }
 chips-parser = { path = "../core-rust/crates/chips-parser" }
+chips-resource = { path = "../core-rust/crates/chips-resource" }
 neon = { version = "1", features = ["futures"] }
 serde.workspace = true
 serde_json.workspace = true

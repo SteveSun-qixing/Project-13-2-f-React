@@ -132,6 +132,28 @@ pub enum PathErrorReason {
     Platform,
 }
 
+/// 网络失败原因词表（`IResourceNetworkErrorDetails.reason` 七词，《06.07》
+/// §7.3；段三主体 #185 随 HttpProvider 面产化，词表逐字对齐，不自造）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkErrorReason {
+    /// DNS 解析失败。
+    Dns,
+    /// 传输连接失败。
+    Connect,
+    /// TLS 握手或证书失败。
+    Tls,
+    /// 超时（连接 / 首字节 / 空闲三类由 HttpProvider 统一归此词）。
+    Timeout,
+    /// 上游返回不可接受的 HTTP 状态。
+    HttpStatus,
+    /// 重定向族失败（超跳数上限或逐跳复校验拒绝）。
+    Redirect,
+    /// SSRF 拦截（回环、私网、链路本地、组播、未指定地址与 IPv4 映射
+    /// IPv6 等禁区，《04》§8.3）。
+    Blocked,
+}
+
 /// 句柄状态（《06》§6.1 `ResourceState`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -312,6 +334,20 @@ pub enum ResourceError {
         /// 规范 URI（不含真实文件系统路径，《06》§7.1）。
         uri: String,
     },
+    /// 外部请求失败（`RESOURCE_NETWORK_FAILED`；DNS、连接、TLS、超时、
+    /// HTTP 状态、重定向、SSRF 拦截，《06》§7.2，段三主体 #185 随
+    /// HttpProvider 面产化；`details` 为
+    /// `IResourceNetworkErrorDetails { uri, reason, status? }`，《06.07》
+    /// §7.3——`status` 仅 HTTP 状态/重定向族携带，缺省不出字段）。
+    #[error("外部资源请求失败：{uri}")]
+    NetworkFailed {
+        /// 规范 URI（不含凭据信息，《06》§7.1）。
+        uri: String,
+        /// 网络失败原因（七词词表，《06.07》§7.3）。
+        reason: NetworkErrorReason,
+        /// HTTP 状态码（仅 `http_status` / `redirect` 族在册）。
+        status: Option<u16>,
+    },
     /// 操作不被当前 Provider/作用域支持（`RESOURCE_NOT_SUPPORTED`，
     /// 《06》§7.2/§7.3 `IResourceScopeErrorDetails`；如 Platform/External/Memory
     /// 不支持列举、Memory 形态 rename/copy 出会话）。
@@ -365,6 +401,7 @@ impl ResourceError {
             Self::AlreadyExists { .. } => RESOURCE_ALREADY_EXISTS,
             Self::NotEmpty { .. } => RESOURCE_NOT_EMPTY,
             Self::WriteFailed { .. } => RESOURCE_WRITE_FAILED,
+            Self::NetworkFailed { .. } => RESOURCE_NETWORK_FAILED,
             Self::NotSupported { .. } => RESOURCE_NOT_SUPPORTED,
             Self::CrossScope { .. } => RESOURCE_CROSS_SCOPE,
             Self::Internal => RESOURCE_INTERNAL,
@@ -434,6 +471,21 @@ impl ResourceError {
             Self::AlreadyExists { uri } => Some(serde_json::json!({ "uri": uri })),
             Self::NotEmpty { uri } => Some(serde_json::json!({ "uri": uri })),
             Self::WriteFailed { uri } => Some(serde_json::json!({ "uri": uri })),
+            Self::NetworkFailed {
+                uri,
+                reason,
+                status,
+            } => Some(match status {
+                Some(status) => serde_json::json!({
+                    "uri": uri,
+                    "reason": reason,
+                    "status": status,
+                }),
+                None => serde_json::json!({
+                    "uri": uri,
+                    "reason": reason,
+                }),
+            }),
             Self::NotSupported {
                 uri,
                 scope,

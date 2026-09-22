@@ -3,10 +3,13 @@
  *
  * 覆盖：
  * - 全部已实现导出（值与类型）各至少一次正例调用（含 Bridge 能力执行四导出、
- *   文档解析域十三导出，《核心接口规范》§6.4 与工单034 正式化两项）；
+ *   文档解析域十三导出、资源管理域十五导出，《核心接口规范》§6.4、§7.3
+ *   与工单034 正式化两项）；
  * - 注册/请求与解析选项/结果类型形状
  *   （`INativeCapabilityRegistration` / `INativeBridgeRequest` /
- *   `INativeParseOptions` / `DocumentView` 等）；
+ *   `INativeParseOptions` / `DocumentView` 等）与资源投影 DTO 形状
+ *   （`IResourceMetadata` / `IResourceOpenResult` / `IDirectoryEntry` /
+ *   `IWriteStreamHandle`）；
  * - `@ts-expect-error` 负例：参数类型、返回类型与必填字段必须被拒绝。
  *
  * 本文件只做类型检查（`tsc --noEmit`），不产生运行时代码。
@@ -17,6 +20,7 @@ import type {
   ContextHandle,
   DocumentHandle,
   DocumentView,
+  IDirectoryEntry,
   IDocumentContentResult,
   IDocumentEntriesRange,
   IDocumentEntriesResult,
@@ -34,6 +38,10 @@ import type {
   INativeParseOptions,
   INativeProviderRegistration,
   INativeSessionRegistration,
+  IResourceMetadata,
+  IResourceOpenResult,
+  IResourceScopeKind,
+  IWriteStreamHandle,
 } from 'chips-native';
 import {
   bridgeActivateProvider,
@@ -70,6 +78,21 @@ import {
   openBox,
   openCard,
   openDocument,
+  resourceCloseSession,
+  resourceCommitWrite,
+  resourceCommitWriteStream,
+  resourceCopy,
+  resourceCreateDirectory,
+  resourceDelete,
+  resourceListDirectory,
+  resourceOpen,
+  resourceOpenSession,
+  resourceRead,
+  resourceReadChunk,
+  resourceRegisterTempScope,
+  resourceRelease,
+  resourceRename,
+  resourceStat,
 } from 'chips-native';
 
 declare const handle: ContextHandle;
@@ -283,3 +306,111 @@ export const wrongViewField: Promise<string> = documentView.then((value) => {
   // @ts-expect-error 箱子分支没有 card_id 字段
   return value.card_id as string;
 });
+
+// 资源管理域十五导出：正例调用（《核心接口规范》§7.3，《04.11》§11.3 表序）。
+export const resourceOpened: Promise<IResourceOpenResult> = resourceOpen(
+  'chips-resource://workspace/notes/a.txt',
+  1
+);
+export const resourceStatResult: Promise<IResourceMetadata> = resourceStat(1);
+export const resourceRangeRead: Promise<Uint8Array> = resourceRead(1, 0, 4096);
+export const resourceChunk: Promise<Uint8Array | null> = resourceReadChunk(1, 65536);
+resourceRelease(1);
+export const resourceCommitted: Promise<IResourceMetadata> = resourceCommitWrite(
+  'temp-0',
+  'notes/a.txt',
+  new Uint8Array([1, 2, 3]),
+  1
+);
+export const resourceStream: Promise<IWriteStreamHandle> = resourceCommitWriteStream(
+  'temp-0',
+  'notes/b.txt',
+  1
+);
+export const resourceListed: Promise<IDirectoryEntry[]> = resourceListDirectory(
+  'chips-resource://workspace/notes',
+  1
+);
+export const resourceDeleted: Promise<void> = resourceDelete(
+  'chips-resource://workspace/notes/a.txt',
+  false,
+  1
+);
+export const resourceRenamed: Promise<void> = resourceRename(
+  'chips-resource://workspace/a.txt',
+  'chips-resource://workspace/b.txt',
+  1
+);
+export const resourceCopied: Promise<IResourceMetadata> = resourceCopy(
+  'chips-resource://workspace/a.txt',
+  'chips-resource://workspace/copy.txt',
+  1
+);
+export const resourceDirectoryCreated: Promise<void> = resourceCreateDirectory(
+  'chips-resource://workspace/notes/sub',
+  1
+);
+export const resourceSession: number = resourceOpenSession('plugin', 'chips.official.host');
+resourceCloseSession(resourceSession);
+export const tempScopeId: string = resourceRegisterTempScope('/tmp/chips-temp-scope', true);
+
+// 资源投影形状探针：DTO 字段与写流方法面必须按声明面可用。
+export const resourceMetadataFields: Promise<[string, number, string, string, IResourceScopeKind]> =
+  resourceStatResult.then((metadata) => [
+    metadata.uri,
+    metadata.size,
+    metadata.mimeType,
+    metadata.version,
+    metadata.scope,
+  ]);
+export const resourceOpenFields: Promise<[number, string]> = resourceOpened.then((opened) => [
+  opened.handleId,
+  opened.metadata.uri,
+]);
+export const resourceEntryFields: Promise<[string, boolean, number, number]> = resourceListed.then(
+  (entries) => {
+    const first: IDirectoryEntry | undefined = entries[0];
+    return first === undefined
+      ? ['', false, 0, 0]
+      : [first.name, first.isDirectory, first.size, first.modifiedUnixSeconds];
+  }
+);
+export const resourceStreamAppend: Promise<void> = resourceStream.then((stream) =>
+  stream.append(new Uint8Array([4, 5]))
+);
+export const resourceStreamCommit: Promise<IResourceMetadata> = resourceStream.then((stream) =>
+  stream.commit()
+);
+export const resourceStreamAbort: Promise<void> = resourceStream.then((stream) => stream.abort());
+export const resourceStreamIdentity: Promise<[number, string]> = resourceStream.then((stream) => [
+  stream.id,
+  stream.uri,
+]);
+
+// 资源管理域负例。
+// @ts-expect-error handleId 必须是数值
+void resourceStat('1');
+// @ts-expect-error resourceOpen 必须提供会话 ID
+void resourceOpen('chips-resource://workspace/a.txt');
+// @ts-expect-error resourceRelease 不接受第二个参数
+void resourceRelease(1, 2);
+// @ts-expect-error offset 必须是数值
+void resourceRead(1, '0', 4096);
+// @ts-expect-error bytes 必须是 Uint8Array，不接受字符串
+void resourceCommitWrite('temp-0', 'notes/a.txt', 'text', 1);
+// @ts-expect-error recursive 必须是布尔值
+void resourceDelete('chips-resource://workspace/a.txt', 1, 1);
+// @ts-expect-error resourceRename 缺少目标 URI
+void resourceRename('chips-resource://workspace/a.txt', 1);
+// @ts-expect-error resourceRegisterTempScope 的 writable 必须是布尔值
+void resourceRegisterTempScope('/tmp/chips-temp-scope', 'yes');
+// @ts-expect-error resourceOpenSession 必须提供 owner
+void resourceOpenSession('plugin');
+// @ts-expect-error 写流 append 必须提供字节实参
+void resourceStream.then((stream) => stream.append());
+// @ts-expect-error 写流 commit 不接受参数
+void resourceStream.then((stream) => stream.commit(1));
+// @ts-expect-error 目录条目字段为 camelCase，snake_case 必须被拒绝
+void resourceListed.then((entries) => entries[0]?.is_directory);
+// @ts-expect-error 资源元数据没有 mime_type 字段
+void resourceStatResult.then((metadata) => metadata.mime_type);

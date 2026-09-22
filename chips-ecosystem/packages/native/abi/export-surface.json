@@ -170,6 +170,81 @@
       "name": "documentClose",
       "kind": "async",
       "signature": "(handle: DocumentHandle) => Promise<void>"
+    },
+    {
+      "name": "resourceOpen",
+      "kind": "async",
+      "signature": "(uri: string, sessionId: number) => Promise<IResourceOpenResult>"
+    },
+    {
+      "name": "resourceStat",
+      "kind": "async",
+      "signature": "(handleId: number) => Promise<IResourceMetadata>"
+    },
+    {
+      "name": "resourceRead",
+      "kind": "async",
+      "signature": "(handleId: number, offset: number, length: number) => Promise<Uint8Array>"
+    },
+    {
+      "name": "resourceReadChunk",
+      "kind": "async",
+      "signature": "(handleId: number, maxBytes: number) => Promise<Uint8Array | null>"
+    },
+    {
+      "name": "resourceRelease",
+      "kind": "sync",
+      "signature": "(handleId: number) => void"
+    },
+    {
+      "name": "resourceCommitWrite",
+      "kind": "async",
+      "signature": "(scope: string, path: string, bytes: Uint8Array, sessionId: number) => Promise<IResourceMetadata>"
+    },
+    {
+      "name": "resourceCommitWriteStream",
+      "kind": "async",
+      "signature": "(scope: string, path: string, sessionId: number) => Promise<IWriteStreamHandle>"
+    },
+    {
+      "name": "resourceListDirectory",
+      "kind": "async",
+      "signature": "(uri: string, sessionId: number) => Promise<IDirectoryEntry[]>"
+    },
+    {
+      "name": "resourceDelete",
+      "kind": "async",
+      "signature": "(uri: string, recursive: boolean, sessionId: number) => Promise<void>"
+    },
+    {
+      "name": "resourceRename",
+      "kind": "async",
+      "signature": "(fromUri: string, toUri: string, sessionId: number) => Promise<void>"
+    },
+    {
+      "name": "resourceCopy",
+      "kind": "async",
+      "signature": "(fromUri: string, toUri: string, sessionId: number) => Promise<IResourceMetadata>"
+    },
+    {
+      "name": "resourceCreateDirectory",
+      "kind": "async",
+      "signature": "(uri: string, sessionId: number) => Promise<void>"
+    },
+    {
+      "name": "resourceOpenSession",
+      "kind": "sync",
+      "signature": "(kind: string, owner: string) => number"
+    },
+    {
+      "name": "resourceCloseSession",
+      "kind": "sync",
+      "signature": "(sessionId: number) => void"
+    },
+    {
+      "name": "resourceRegisterTempScope",
+      "kind": "sync",
+      "signature": "(path: string, writable: boolean) => string"
     }
   ],
   "blocked": []
