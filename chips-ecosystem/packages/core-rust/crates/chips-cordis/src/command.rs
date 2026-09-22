@@ -1,10 +1,13 @@
 //! 命令循环：生命周期状态的唯一写者。
 //!
-//! 对应《薯片内核设计》§6.3、§10.2：`load` / `enable` / `disable` / `unload`
-//! 经命令队列串行执行；`apply` / `stop` 在循环外以任务执行并带超时，循环在
-//! 等待期间继续处理其他命令。
+//! 对应《薯片内核设计》§6.3、§6.8、§10.2：`load` / `enable` / `disable` /
+//! `unload` 经命令队列串行执行；`apply` / `stop` 在循环外以隔离任务执行并带
+//! 超时（§6.8 崩溃隔离：回调 panic 不拖垮命令链），循环在等待期间继续处理
+//! 其他命令。
 
+use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
 use chips_core::{ContextId, PluginId};
 use tokio::sync::{mpsc, oneshot};
@@ -19,7 +22,9 @@ use crate::plugin::{LoadPlan, LoadRequest, PluginConfig, PluginRunner, PluginSta
 pub(crate) enum ActivationOutcome {
     /// apply 成功返回。
     Applied,
-    /// apply 返回错误。
+    /// apply 返回错误，或 runner 在 Rust 侧 panic（《薯片内核设计》§6.8：
+    /// 崩溃与被隔离的失败判定同形，统一经 `RunnerFailed` 收敛到 `Failed`；
+    /// `TimedOut` 专指 §6.7 超时，panic 不属于该语义，故归入本变体）。
     RunnerFailed,
     /// apply 超时。
     TimedOut,
@@ -36,6 +41,52 @@ pub(crate) struct ActivationTicket {
 pub(crate) struct StopTicket {
     pub(crate) context: Context,
     pub(crate) runner: Arc<dyn PluginRunner>,
+}
+
+/// 隔离生命周期回调的终局判定（《薯片内核设计》§6.8）。
+enum Isolated<T> {
+    /// 回调正常返回（含返回 `Err` 的在册失败路径）。
+    Returned(T),
+    /// 回调在 Rust 侧 panic，或隔离任务异常终止；按崩溃隔离臂收敛，
+    /// 命令链自身不受影响。
+    Crashed,
+    /// 回调超过 §6.7 生命周期上限；回调 future 已在隔离任务内就地丢弃。
+    TimedOut,
+}
+
+/// 以隔离任务执行 `PluginRunner` 生命周期回调并施加超时上限。
+///
+/// panic 捕获面取 `tokio::spawn` 任务边界的 `JoinError::is_panic` 形态，
+/// 依据（工单047 臂①裁定，比照 §6.8 与 crate 现状）：
+///
+/// 1. 与本 crate 既有异步 panic 在册形态一致——`task.rs` 的任务监视器即以
+///    `JoinHandle` + `is_panic` 归一插件任务 panic（§4.2 / §9.1），此处是
+///    判定/清理链上对应未覆盖位的同形收口。
+/// 2. 不引入 `futures` 等新第三方依赖（AGENTS 依赖红线），也不需要对跨
+///    await 点的回调 future 作 `UnwindSafe` 断言：panic 只在隔离任务内
+///    展开，回调 future 与其独占数据在现场被销毁；内核状态锁在用户回调
+///    执行期间不持有（§10.2 全部锁窗口为短时同步段），不存在持锁展开路径。
+/// 3. 超时放进隔离任务内部执行：上限到期时回调 future 在任务内被就地
+///    drop，与修复前直接 await 的同步取消语义一致（不产生超时后仍在后台
+///    续跑的 detached 回调）。
+async fn run_isolated<F>(
+    runtime: &tokio::runtime::Handle,
+    limit: Duration,
+    work: F,
+) -> Isolated<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send,
+{
+    match runtime.spawn(tokio::time::timeout(limit, work)).await {
+        Ok(Ok(output)) => Isolated::Returned(output),
+        Ok(Err(_elapsed)) => Isolated::TimedOut,
+        Err(join_error) if join_error.is_panic() => Isolated::Crashed,
+        // 非 panic 的 `JoinError` 只可能来自外部强制 abort；本模块隔离任务
+        // 不向外暴露 abort 句柄。该臂不可达，但仍归入崩溃隔离收敛，
+        // 绝不允许留下无人管理的出口。
+        Err(_) => Isolated::Crashed,
+    }
 }
 
 /// 内核命令。
@@ -256,15 +307,23 @@ async fn run_chain(
             Err(_) => return target_outcome(kernel, target),
         };
         let apply_timeout = kernel.options().apply_timeout;
-        let outcome = match tokio::time::timeout(
-            apply_timeout,
-            ticket.runner.apply(&ticket.context, &ticket.config),
-        )
+        let ActivationTicket {
+            context,
+            config,
+            runner,
+        } = ticket;
+        // §6.8 崩溃隔离：apply 在隔离任务内执行；runner 的 Rust 侧 panic 与
+        // 返回 `Err` 一样收敛到 `RunnerFailed`，激活链任务不再整体溃灭，
+        // spawn_chain 尾部的善后三件套（reply / queued 清理 / resume_pending）
+        // 在 panic 臂同样得到执行。
+        let outcome = match run_isolated(&kernel.runtime(), apply_timeout, async move {
+            runner.apply(&context, &config).await
+        })
         .await
         {
-            Ok(Ok(())) => ActivationOutcome::Applied,
-            Ok(Err(_)) => ActivationOutcome::RunnerFailed,
-            Err(_) => ActivationOutcome::TimedOut,
+            Isolated::Returned(Ok(())) => ActivationOutcome::Applied,
+            Isolated::Returned(Err(_)) | Isolated::Crashed => ActivationOutcome::RunnerFailed,
+            Isolated::TimedOut => ActivationOutcome::TimedOut,
         };
         let proceed = kernel
             .finish_activation_command(id, outcome)
@@ -631,18 +690,26 @@ fn handle_disable(
 async fn disable_one(kernel: &Kernel, id: &str) -> Result<(), KernelError> {
     let ticket = kernel.begin_stop_command(id).await?;
     let stop_timeout = kernel.options().stop_timeout;
-    let outcome = tokio::time::timeout(stop_timeout, ticket.runner.stop(&ticket.context)).await;
+    let StopTicket { context, runner } = ticket;
+    // §6.8 崩溃隔离同样覆盖清理路径：stop 的 Rust 侧 panic 不溃灭停用链任务，
+    // 按 §6.4 规则 2「stop 失败不阻断撤销」收敛到 `Installed`，panic 本体记入
+    // 诊断（在册错误 `KERNEL_PLUGIN_PANICKED`，比照 task.rs 的任务 panic 归一）。
+    let outcome = run_isolated(&kernel.runtime(), stop_timeout, async move {
+        runner.stop(&context).await
+    })
+    .await;
     let diagnostic = match outcome {
-        Ok(Ok(())) => None,
-        Ok(Err(error)) => Some(error),
-        Err(_) => Some(KernelError::LifecycleTimeout {
+        Isolated::Returned(Ok(())) => None,
+        Isolated::Returned(Err(error)) => Some(error),
+        Isolated::TimedOut => Some(KernelError::LifecycleTimeout {
             id: id.to_owned(),
             phase: LifecyclePhase::Stop,
         }),
+        Isolated::Crashed => Some(KernelError::PluginPanicked { id: id.to_owned() }),
     };
     kernel.finish_stop_command(id).await?;
     if let Some(error) = diagnostic {
-        // stop 失败/超时不阻断停用（内核设计 §6.4、§6.7）：仅记录诊断。
+        // stop 失败/超时/panic 不阻断停用（内核设计 §6.4、§6.7）：仅记录诊断。
         kernel.record_plugin_diagnostic(id, error);
     }
     Ok(())
@@ -871,6 +938,43 @@ mod tests {
             role: PluginRole::Service,
             parent: None,
             runner: Arc::new(NullRunner),
+        }
+    }
+
+    /// 构造以定制执行器承载的加载请求。
+    fn request_with_runner(id: &str, runner: Arc<dyn PluginRunner>) -> LoadRequest {
+        LoadRequest {
+            id: id.to_owned(),
+            version: version("1.0.0"),
+            available_versions: vec![version("1.0.0")],
+            dependencies: Vec::new(),
+            role: PluginRole::Service,
+            parent: None,
+            runner,
+        }
+    }
+
+    /// panic 型执行器：在被调用的生命周期回调内于 Rust 侧溃灭，
+    /// 用于锁测 §6.8 崩溃隔离（工单047 臂①）。
+    struct PanicRunner {
+        panic_on_apply: bool,
+        panic_on_stop: bool,
+    }
+
+    #[async_trait::async_trait]
+    impl PluginRunner for PanicRunner {
+        async fn apply(&self, _ctx: &Context, _config: &PluginConfig) -> Result<(), KernelError> {
+            if self.panic_on_apply {
+                panic!("测试注入：apply 在 Rust 侧 panic");
+            }
+            Ok(())
+        }
+
+        async fn stop(&self, _ctx: &Context) -> Result<(), KernelError> {
+            if self.panic_on_stop {
+                panic!("测试注入：stop 在 Rust 侧 panic");
+            }
+            Ok(())
         }
     }
 
@@ -1426,5 +1530,124 @@ mod tests {
         }));
         assert!(result.is_ok(), "毒锁时诊断记录必须静默降级，不得 panic");
         kernel.shutdown().await.expect("命令循环应仍然存活");
+    }
+
+    #[tokio::test]
+    async fn test_apply_panic_converges_and_chain_aftercare_completes() {
+        // §6.8 崩溃隔离锁测（工单047 臂①）：apply 的 Rust 侧 panic 与返回
+        // `Err` 同形收敛——应答收敛、终态非 Starting、queued/in_flight 无
+        // 残留、失败记录在案、链尾 `resume_pending` 恢复挂起插件。
+        let kernel = new_kernel();
+        // 预置 Pending 插件：只有激活链尾部的善后流程真实走完，它才会被
+        // `resume_pending` 驱动到 `Active`。
+        register_at(
+            &kernel,
+            "resume-after-panic",
+            Vec::new(),
+            PluginState::Pending,
+        );
+
+        let error = tokio::time::timeout(
+            Duration::from_secs(2),
+            kernel.load(request_with_runner(
+                "panicky",
+                Arc::new(PanicRunner {
+                    panic_on_apply: true,
+                    panic_on_stop: false,
+                }),
+            )),
+        )
+        .await
+        .expect("panic 臂的加载应答必须收敛，不得悬挂")
+        .expect_err("apply panic 应回传失败结果");
+        assert!(
+            matches!(error, KernelError::ApplyFailed { ref id } if id == "panicky"),
+            "应回传收敛后的 apply 失败：{error:?}"
+        );
+        assert_eq!(
+            kernel.plugin_state("panicky"),
+            Some(PluginState::Failed),
+            "panic 臂终态不得滞留 Starting"
+        );
+
+        // 链尾善后（queued 清理 → resume_pending 驱动挂起插件）全部走完的
+        // 可观察形态：挂起插件 Active，且两个集合都已清空。
+        assert!(
+            wait_until(|| {
+                kernel.lock_state().is_ok_and(|state| {
+                    state.plugins.queued.is_empty()
+                        && state.plugins.in_flight.is_empty()
+                        && state
+                            .plugins
+                            .record("resume-after-panic")
+                            .is_some_and(|record| record.state == PluginState::Active)
+                })
+            })
+            .await,
+            "panic 臂必须同样执行善后三件套：queued 清理与 resume_pending 恢复挂起插件"
+        );
+        {
+            let guard = kernel.lock_state().expect("状态锁应可用");
+            let record = guard.plugins.record("panicky").expect("插件记录应存在");
+            assert!(
+                record.last_failure.is_some(),
+                "崩溃应留下失败记录（last_failure）"
+            );
+        }
+
+        kernel
+            .shutdown()
+            .await
+            .expect("命令循环应在 apply panic 隔离后继续存活");
+    }
+
+    #[tokio::test]
+    async fn test_stop_panic_disable_still_reaches_installed() {
+        // §6.8 崩溃隔离锁测（清理路径）：stop 的 Rust 侧 panic 不溃灭停用链，
+        // 按 §6.4 规则 2 继续撤销并进入 `Installed`，panic 记入在册诊断。
+        let kernel = new_kernel();
+        kernel
+            .load(request_with_runner(
+                "stop-panicky",
+                Arc::new(PanicRunner {
+                    panic_on_apply: false,
+                    panic_on_stop: true,
+                }),
+            ))
+            .await
+            .expect("apply 正常，插件应激活");
+
+        tokio::time::timeout(
+            Duration::from_secs(2),
+            kernel.disable("stop-panicky", false),
+        )
+        .await
+        .expect("stop panic 臂的停用应答必须收敛，不得悬挂")
+        .expect("stop panic 不阻断停用（§6.4）");
+
+        assert_eq!(
+            kernel.plugin_state("stop-panicky"),
+            Some(PluginState::Installed),
+            "stop panic 后仍应完成撤销进入 Installed"
+        );
+        assert!(
+            wait_until(|| kernel
+                .lock_state()
+                .is_ok_and(|state| state.plugins.in_flight.is_empty()))
+            .await,
+            "停用链不得留下在飞残留"
+        );
+        let diagnostic = kernel
+            .plugin_last_error("stop-panicky")
+            .expect("stop panic 应记入诊断");
+        assert_eq!(
+            diagnostic.code(),
+            "KERNEL_PLUGIN_PANICKED",
+            "panic 归一应在册错误码 KERNEL_PLUGIN_PANICKED"
+        );
+        kernel
+            .shutdown()
+            .await
+            .expect("命令循环应在 stop panic 隔离后继续存活");
     }
 }
