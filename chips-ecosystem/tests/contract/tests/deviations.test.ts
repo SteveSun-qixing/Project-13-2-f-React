@@ -73,8 +73,10 @@ describe('能力表偏差注入', () => {
       {
         file: CAPABILITY_SOURCE.file,
         description: '删除 file:read 登记行',
-        mutate: (text) =>
-          removeLineContaining(text, '| `file:read` / `file:list` / `file:watch` |'),
+        // 锚点随 4247b7914 落文后的表格列宽对齐（prettier padding）更新：
+        // 旧锚「| …/ `file:watch` |」的收尾管道在补齐宽度的行内不再与单元格内容相邻；
+        // 改用行内唯一子串定位整行，注入语义（删除该行）不变。
+        mutate: (text) => removeLineContaining(text, '`file:read` / `file:list` / `file:watch`'),
       },
     ]);
     const violations = checkCapabilities({
@@ -91,12 +93,10 @@ describe('能力表偏差注入', () => {
       {
         file: CAPABILITY_SOURCE.file,
         description: 'file:read 权限改为 filesystem:write',
-        mutate: (text) =>
-          replaceOnce(
-            text,
-            '| `file:read` / `file:list` / `file:watch` | `filesystem:read` |',
-            '| `file:read` / `file:list` / `file:watch` | `filesystem:write` |'
-          ),
+        // 锚点随 4247b7914 落文后的整行 padding 更新：改用文档中首次出现即位于
+        // file:read / file:list / file:watch 行的权限单元格 token 定位，注入语义
+        // （该行权限列 read → write）不变；锚缺失时夹具自身抛错，不会静默失效。
+        mutate: (text) => replaceOnce(text, '`filesystem:read`', '`filesystem:write`'),
       },
     ]);
     const violations = checkCapabilities({
@@ -111,8 +111,10 @@ describe('能力表偏差注入', () => {
     const deviated = loadDeviatedDocModels([
       {
         file: CAPABILITY_SOURCE.file,
-        description: '计数改为 59',
-        mutate: (text) => replaceOnce(text, '本表的 60 项计数', '本表的 59 项计数'),
+        description: '计数改为 63',
+        // 计数锚随 4247b7914 落文 60→64 随动（工单046 注册表随及波）；注入语义
+        // （声明计数与实际登记数错开）不变。
+        mutate: (text) => replaceOnce(text, '本表的 64 项计数', '本表的 63 项计数'),
       },
     ]);
     const violations = checkCapabilities({

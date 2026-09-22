@@ -68,4 +68,8 @@ export const CAPABILITY_PERMISSIONS: Readonly<Record<CapabilityId, readonly Perm
   'cli:task-progress': [],
   'cli:task-complete': [],
   'cli:task-fail': [],
+  'permission:grant': [],
+  'permission:revoke': [],
+  'permission:restore': [],
+  'permission:audit-read': [],
 };

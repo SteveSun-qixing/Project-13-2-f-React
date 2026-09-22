@@ -16,7 +16,7 @@ describe('真实文档库契约', () => {
   it.skipIf(!docsAvailable)('解析与全部门禁规则通过', () => {
     const parsed = parseContract(reader, contractSources);
     expect(validateContract(parsed)).toEqual([]);
-    expect(parsed.capabilities).toHaveLength(60);
+    expect(parsed.capabilities).toHaveLength(64);
     expect(parsed.permissions).toHaveLength(25);
     expect(parsed.events).toHaveLength(39);
     expect(parsed.errorCodes.length).toBeGreaterThan(0);

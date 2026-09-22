@@ -9,9 +9,9 @@ import {
 import { BUILTIN_PERMISSION_IDS, isKnownBasePermission, parsePermissionId } from './permissions.js';
 
 describe('内置能力登记表（R19 全表）', () => {
-  it('登记 60 项且 ID 唯一、文法合法', () => {
-    expect(BUILTIN_CAPABILITIES).toHaveLength(60);
-    expect(new Set(BUILTIN_CAPABILITIES.map((item) => item.id)).size).toBe(60);
+  it('登记 64 项且 ID 唯一、文法合法', () => {
+    expect(BUILTIN_CAPABILITIES).toHaveLength(64);
+    expect(new Set(BUILTIN_CAPABILITIES.map((item) => item.id)).size).toBe(64);
     // 与 tools/contract-gen 同一口径：domain 全小写，action 允许驼峰（如 window:setTitle）。
     const pattern = /^[a-z][a-z0-9-]*:[a-z][A-Za-z0-9-]*(:[a-z0-9][a-z0-9.-]*)?$/;
     for (const contract of BUILTIN_CAPABILITIES) {
@@ -70,6 +70,22 @@ describe('内置能力登记表（R19 全表）', () => {
       const contract = findBuiltinCapability(id);
       expect(contract?.permissions).toEqual([]);
       expect(contract?.ownerBound).toBe(true);
+    }
+  });
+
+  it('权限治理四项为空权限登记面（§6.2 注 8，治理身份校验归实现波次）', () => {
+    for (const id of [
+      'permission:grant',
+      'permission:revoke',
+      'permission:restore',
+      'permission:audit-read',
+    ]) {
+      const contract = findBuiltinCapability(id);
+      expect(isBuiltinCapability(id)).toBe(true);
+      expect(contract?.permissions).toEqual([]);
+      expect(contract?.targets).toEqual([]);
+      // 平台治理身份校验不是 owner 归属校验，登记表不标记 ownerBound。
+      expect(contract?.ownerBound).toBeUndefined();
     }
   });
 

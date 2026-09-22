@@ -45,7 +45,7 @@ function target(permission: string, ...targetFields: string[]): IPermissionTarge
   return { permission, targetFields };
 }
 
-/** R19 内置能力与权限总表（60 项）。 */
+/** R19 内置能力与权限总表（64 项）。 */
 export const BUILTIN_CAPABILITIES: readonly IBuiltinCapabilityContract[] = [
   contract('file:read', ['filesystem:read'], [target('filesystem:read', 'path')]),
   contract('file:list', ['filesystem:read'], [target('filesystem:read', 'directory')]),
@@ -119,6 +119,13 @@ export const BUILTIN_CAPABILITIES: readonly IBuiltinCapabilityContract[] = [
   contract('cli:task-progress', [], [], true),
   contract('cli:task-complete', [], [], true),
   contract('cli:task-fail', [], [], true),
+  // 权限治理四项（04-能力契约规范 §6.2 注 8，工单046 登记）：声明空权限数组、不进入权限词表，
+  // 按调用方平台治理身份校验——该校验属实现面（授权存储写入链路与审计采集归工单046 后续波次），
+  // 本登记表只承担契约登记（注册校验与权限映射数据），不标记 ownerBound（治理身份非 owner 归属）。
+  contract('permission:grant', []),
+  contract('permission:revoke', []),
+  contract('permission:restore', []),
+  contract('permission:audit-read', []),
 ];
 
 const CONTRACT_BY_ID: ReadonlyMap<string, IBuiltinCapabilityContract> = new Map(

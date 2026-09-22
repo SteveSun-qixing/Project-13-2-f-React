@@ -58,7 +58,7 @@ const BUILT_IN_PERMISSION_SCOPES: Readonly<Record<string, readonly string[]>> = 
   command: ['read', 'write', 'execute'],
 };
 
-/** 04-能力契约规范 §3.2 平台语义域，外加 §7.16、§7.17 登记的命令与 CLI 任务域。 */
+/** 04-能力契约规范 §3.2 平台语义域，外加 §7.16、§7.17、§7.18 登记的命令、CLI 任务与权限治理域。 */
 const CAPABILITY_DOMAINS: readonly string[] = [
   'file',
   'resource',
@@ -80,6 +80,7 @@ const CAPABILITY_DOMAINS: readonly string[] = [
   'event',
   'command',
   'cli',
+  'permission',
 ];
 
 /** 05-事件契约规范 §2.2 保留域与逐域事件数（`internal` 域不公开，故不在内）。 */
@@ -259,7 +260,7 @@ describe('权限映射（04-能力契约规范 §6.2）', () => {
     }
   });
 
-  it('免权限能力恰为处理器列举与五项 CLI 任务能力（§6.2 表内「无」）', () => {
+  it('免权限能力恰为处理器列举、五项 CLI 任务与四项权限治理（§6.2 表内「无」，注 7、注 8）', () => {
     const empty = Object.entries(CAPABILITY_PERMISSIONS)
       .filter(([, required]) => required.length === 0)
       .map(([id]) => id)
@@ -270,6 +271,10 @@ describe('权限映射（04-能力契约规范 §6.2）', () => {
       'cli:task-fail',
       'cli:task-get',
       'cli:task-progress',
+      'permission:audit-read',
+      'permission:grant',
+      'permission:restore',
+      'permission:revoke',
       'resource:list-handlers',
     ]);
   });

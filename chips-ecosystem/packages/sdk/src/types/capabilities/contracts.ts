@@ -75,6 +75,12 @@ import type {
   ITransferDownloadOutput,
 } from './net.js';
 import type {
+  IPermissionAuditReadInput,
+  IPermissionAuditReadOutput,
+  IPermissionGrantInput,
+  IPermissionGrantOutput,
+} from './permission.js';
+import type {
   IResourceReadInput,
   IResourceReadOutput,
   IResourceWriteInput,
@@ -120,7 +126,7 @@ import type {
 } from './cli-task.js';
 
 /**
- * 内置能力的输入 / 输出契约映射（04 §2.3 全表，60 项）。
+ * 内置能力的输入 / 输出契约映射（04 §2.3 全表，64 项）。
  *
  * 键为能力 ID，值为 `{ input; output }`；`output: void` 表示无返回数据。
  */
@@ -185,6 +191,13 @@ export interface ICapabilityContracts {
   'cli:task-progress': { input: ICliTaskProgressInput; output: ICliTaskProgressOutput };
   'cli:task-complete': { input: ICliTaskCompleteInput; output: ICliTaskCompleteOutput };
   'cli:task-fail': { input: ICliTaskFailInput; output: ICliTaskFailOutput };
+  'permission:grant': { input: IPermissionGrantInput; output: IPermissionGrantOutput };
+  'permission:revoke': { input: IPermissionGrantInput; output: IPermissionGrantOutput };
+  'permission:restore': { input: IPermissionGrantInput; output: IPermissionGrantOutput };
+  'permission:audit-read': {
+    input: IPermissionAuditReadInput;
+    output: IPermissionAuditReadOutput;
+  };
 }
 
 /**

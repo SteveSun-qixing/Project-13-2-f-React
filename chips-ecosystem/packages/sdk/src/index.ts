@@ -158,6 +158,20 @@ export type {
   ICliTaskProgressOutput,
 } from './types/capabilities/cli-task.js';
 
+/* 权限治理类型：能力契约面见 04-能力契约规范 §7.18（工单046 登记），审计条目形状权威见
+   08-权限系统设计 §8.2。治理身份校验与审计写入链路归工单046 后续实现波次，此处只导出编译期契约形状。 */
+export type {
+  IPermissionAuditEntry,
+  IPermissionAuditReadInput,
+  IPermissionAuditReadOutput,
+  IPermissionGrantInput,
+  IPermissionGrantOutput,
+  PermissionAuditAction,
+  PermissionAuditSource,
+  PermissionDenyReason,
+  PermissionGovernanceState,
+} from './types/capabilities/permission.js';
+
 /* CLI 扩展类型：`ChipsBridge.cliCommand` / `cliTask` 两个只读命名空间的形状与结果类型，
    方法与语义权威见 07-CLI完整参考 §5.6、§5.8，命名空间本身见 02-SDK-API规范 §3.5。
    `CliTaskStatus` 与 `CliTaskRecord` 由上方「CLI 任务」段导出，此处不重复导出。 */

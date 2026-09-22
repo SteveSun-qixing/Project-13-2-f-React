@@ -65,6 +65,10 @@ export const Capability = {
   CLI_TASK_PROGRESS: 'cli:task-progress',
   CLI_TASK_COMPLETE: 'cli:task-complete',
   CLI_TASK_FAIL: 'cli:task-fail',
+  PERMISSION_GRANT: 'permission:grant',
+  PERMISSION_REVOKE: 'permission:revoke',
+  PERMISSION_RESTORE: 'permission:restore',
+  PERMISSION_AUDIT_READ: 'permission:audit-read',
 } as const;
 
 export type CapabilityId = (typeof Capability)[keyof typeof Capability];
@@ -130,4 +134,8 @@ export const CAPABILITY_IDS = [
   'cli:task-progress',
   'cli:task-complete',
   'cli:task-fail',
+  'permission:grant',
+  'permission:revoke',
+  'permission:restore',
+  'permission:audit-read',
 ] as const satisfies readonly CapabilityId[];
