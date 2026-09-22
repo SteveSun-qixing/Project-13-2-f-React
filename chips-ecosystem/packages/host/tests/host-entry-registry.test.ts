@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 import rendererConfigFactory from '../vite.renderer.config.js';
 import { CARD_WINDOW_ENTRY_URL, PLATFORM_ENTRY_HTML, PLATFORM_ENTRY_URLS } from '../src/main/window-entries.js';
 import { FRAME_ENTRY_URL as MAIN_FRAME_ENTRY_URL } from '../src/main/window-entries.js';
+import { assertSecureRenderFrameCsp, MAIN_WINDOW_CSP, RENDER_FRAME_CSP } from '../src/main/window-security.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -111,7 +112,7 @@ describe('HTML 复制链与源文件锁', () => {
     expect(copyScript).toContain("join('entries', 'frame.html'), join('entries', 'frame.html')");
   });
 
-  it('卡片窗口 HTML：根容器、脚本引用与壳页同一 CSP', () => {
+  it('卡片窗口 HTML：根容器、脚本引用与壳页同一 CSP（主窗口形唯一交付面）', () => {
     const html = readSource('src/renderer/entries/card.html');
     expect(html).toContain('id="chips-card-root"');
     expect(html).toContain('card.js');
@@ -119,17 +120,21 @@ describe('HTML 复制链与源文件锁', () => {
     const shellHtml = readSource('src/renderer/shell.html');
     const cspOf = (content: string): string => /Content-Security-Policy"\s+content="([^"]+)"/.exec(content)?.[1] ?? '';
     expect(cspOf(html)).toBe(cspOf(shellHtml));
+    expect(cspOf(html)).toBe(MAIN_WINDOW_CSP);
     expect(cspOf(html)).not.toBe('');
   });
 
-  it('帧入口 HTML：节点容器宿主、脚本引用与壳页同一 CSP', () => {
+  it('帧入口 HTML：节点容器宿主、脚本引用与渲染帧 CSP 唯一交付面逐字一致（#190-N-3 收紧形）', () => {
     const html = readSource('src/renderer/entries/frame.html');
     expect(html).toContain('id="chips-frame-nodes"');
     expect(html).toContain('frame.js');
     expect(html).toContain('<title>薯片 · 渲染帧</title>');
     const shellHtml = readSource('src/renderer/shell.html');
     const cspOf = (content: string): string => /Content-Security-Policy"\s+content="([^"]+)"/.exec(content)?.[1] ?? '';
-    expect(cspOf(html)).toBe(cspOf(shellHtml));
+    expect(cspOf(html)).toBe(RENDER_FRAME_CSP);
+    // 帧形不得回退为主窗口形（收紧清单任一值漂移即红）。
+    expect(cspOf(html)).not.toBe(cspOf(shellHtml));
+    expect(() => assertSecureRenderFrameCsp(cspOf(html))).not.toThrow();
   });
 });
 

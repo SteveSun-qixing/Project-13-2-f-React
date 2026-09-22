@@ -118,6 +118,36 @@ describe('createResourceHandle：预检', () => {
     }
   });
 
+  it('NFC 差异输入 preload 腿放行：分解形态预检通过并正常触发 open（#190-D1 对偶锁测·preload 臂）', async () => {
+    // 《06.02》§2.4 权威文面下 preload 与核心双双放行同一异序输入（核心臂锁测在册
+    // chips-resource path_guard「cafe%CC%81 ≡ caf%C3%A9 双双通过且相等」）；旧臂在此同步
+    // 抛 unicode 拒收合法输入，随任务 #190 翻正。
+    const fixture = createHarness({ uri: 'chips-resource://platform/cafe\u0301.bin' });
+    const metadata = await fixture.handle.metadata();
+    expect(metadata.uri).toBe('chips-resource://platform/cafe\u0301.bin');
+    expect(
+      fixture.transport.invocations.filter((entry) => (entry.payload as { operation?: string }).operation === 'open'),
+    ).toHaveLength(1);
+  });
+
+  it('非字符全集输入 preload 预检早拒：RESOURCE_PATH_INVALID 定形（#190-D2 对偶锁测·预检臂）', () => {
+    // 预检弱位收口后，非字符/替换字符在 preload 即确定性拒（省一次无谓往返），
+    // 判定面与核心 `is_forbidden_unicode` 全集触发臂等值。
+    for (const uri of [
+      'chips-resource://platform/a\uFFFDb.bin',
+      'chips-resource://platform/a%EF%BF%BE.bin',
+      'chips-resource://platform/%EF%B7%90.bin',
+      'chips-resource://external/https/example.com/a%F4%8F%BF%BF.bin',
+    ]) {
+      try {
+        createHarness({ uri });
+        expect.unreachable(`应预检早拒：${uri}`);
+      } catch (error) {
+        expect((error as ChipsError).code, uri).toBe('RESOURCE_PATH_INVALID');
+      }
+    }
+  });
+
   it('平台作用域在快照未就绪时不拦截，在明确未授权时拒绝', () => {
     expect(() => createHarness()).not.toThrow();
     const blocked = createHarness();

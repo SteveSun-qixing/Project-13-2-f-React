@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertSecureRenderFrameCsp,
   assertSecureWebPreferences,
   buildWindowWebPreferences,
   createSecureWindowWebPreferences,
   isAllowedWindowLoadUrl,
   MAIN_WINDOW_CSP,
+  RENDER_FRAME_CSP,
   WINDOW_SECURITY_BASELINE,
 } from '../src/main/window-security.js';
 
@@ -98,5 +100,68 @@ describe('窗口加载地址白名单', () => {
     expect(MAIN_WINDOW_CSP).toContain("script-src 'self' chips-resource:");
     expect(MAIN_WINDOW_CSP).toContain("object-src 'none'");
     expect(MAIN_WINDOW_CSP).not.toContain("'unsafe-eval'");
+  });
+});
+
+describe('渲染帧 CSP：唯一交付面 + 硬闸（#190-N-3，比照 A4 母型）', () => {
+  it('RENDER_FRAME_CSP 与《05.04》§4.3 渲染帧权威形逐指令一致（卡片帧活臂 frame-src none）', () => {
+    expect(RENDER_FRAME_CSP).toBe(
+      [
+        "default-src 'none'",
+        'script-src chips-resource:',
+        "style-src chips-resource: 'unsafe-inline'",
+        'img-src chips-resource: data:',
+        'media-src chips-resource:',
+        'font-src chips-resource:',
+        "connect-src 'none'",
+        "frame-src 'none'",
+        "object-src 'none'",
+        'base-uri chips-resource:',
+        "form-action 'none'",
+      ].join('; '),
+    );
+    // 收紧清单逐值：帧形不得携带主窗口形的任何放宽。
+    expect(RENDER_FRAME_CSP).not.toContain("'self'");
+    expect(RENDER_FRAME_CSP).toContain("connect-src 'none'");
+    expect(RENDER_FRAME_CSP).not.toContain("'unsafe-eval'");
+    expect(RENDER_FRAME_CSP.match(/'unsafe-inline'/g)).toHaveLength(1); // 仅 style-src 一处（权威形在册）
+    expect(() => assertSecureRenderFrameCsp(RENDER_FRAME_CSP)).not.toThrow();
+  });
+
+  it('unsafe shape rejected：主窗口形、缺 connect-src、逐值放宽与权威外追加都被硬闸拒绝', () => {
+    const frameCspOf = (overrides: Record<string, string | null>): string =>
+      RENDER_FRAME_CSP.split('; ')
+        .map((directive) => {
+          const name = directive.slice(0, directive.search(/\s/));
+          if (name in overrides) {
+            return overrides[name];
+          }
+          return directive;
+        })
+        .filter((directive) => directive !== null)
+        .join('; ');
+    // 1) 直接携带主窗口形（帧形收紧前的旧漂移）必红。
+    expect(() => assertSecureRenderFrameCsp(MAIN_WINDOW_CSP)).toThrow(/渲染帧 CSP/);
+    const unsafeForms: string[] = [
+      frameCspOf({ 'default-src': "'self'" }),
+      frameCspOf({ 'script-src': "'self' chips-resource:" }),
+      frameCspOf({ 'script-src': "chips-resource: 'unsafe-inline'" }),
+      frameCspOf({ 'connect-src': null }), // 缺 connect-src 'none'（回落 default-src 即网络直连面）
+      frameCspOf({ 'connect-src': "'self'" }),
+      frameCspOf({ 'connect-src': 'chips-resource:' }),
+      frameCspOf({ 'frame-src': 'chips-resource:' }), // 布局帧臂未随帧种类下发机制落地前不得入活臂
+      frameCspOf({ 'img-src': "'self' chips-resource: data:" }),
+      frameCspOf({ 'base-uri': "'self'" }),
+      frameCspOf({ 'form-action': "'none' https:" }),
+    ];
+    for (const form of unsafeForms) {
+      expect(() => assertSecureRenderFrameCsp(form), form).toThrow(/渲染帧 CSP 被放宽/);
+    }
+    // 权威形之外的追加指令与重复指令同判漂移拒绝。
+    expect(() => assertSecureRenderFrameCsp(`${RENDER_FRAME_CSP}; worker-src 'self'`)).toThrow(
+      /权威形之外的指令 worker-src/,
+    );
+    expect(() => assertSecureRenderFrameCsp(`${RENDER_FRAME_CSP}; script-src 'none'`)).toThrow(/script-src/);
+    expect(() => assertSecureRenderFrameCsp('')).toThrow(/缺少权威指令 default-src/);
   });
 });

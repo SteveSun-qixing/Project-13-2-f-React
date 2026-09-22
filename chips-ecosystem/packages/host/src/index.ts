@@ -264,10 +264,12 @@ export {
 } from './main/resource-protocol.js';
 export type { RangeParseResult, ResourceProtocolDeps } from './main/resource-protocol.js';
 export {
+  assertSecureRenderFrameCsp,
   assertSecureWebPreferences,
   buildWindowWebPreferences,
   isAllowedWindowLoadUrl,
   MAIN_WINDOW_CSP,
+  RENDER_FRAME_CSP,
   SHELL_WINDOW_CSP,
   WINDOW_SECURITY_BASELINE,
 } from './main/window-security.js';

@@ -91,12 +91,121 @@ describe('parseResourceUri：路径安全', () => {
     }
   });
 
-  it('拒绝未做 NFC 规范化的路径', () => {
-    const decomposed = 'chips-resource://platform/cafe\u0301.txt';
-    const result = parseResourceUri(decomposed);
-    expect(isResourceUriFailure(result)).toBe(true);
-    if (isResourceUriFailure(result)) {
-      expect(result.pathReason).toBe('unicode');
+  it('NFC 规范化差异不构成拒绝：未规范化输入归一为 NFC 后放行且与规范形判定等值（#190-D1 权威翻正）', () => {
+    // 《06.02》§2.4 Unicode 行权威文面：NFC 差异归一后校验与比较（核心 path_guard 同判，
+    // 旧臂「直接拒绝未规范化输入」拒了内核会收的合法形，随任务 #190 翻正）。
+    const decomposed = parseResourceUri('chips-resource://platform/cafe\u0301.txt');
+    const composed = parseResourceUri('chips-resource://platform/caf\u00e9.txt');
+    expect(decomposed.ok).toBe(true);
+    expect(composed.ok).toBe(true);
+    if (decomposed.ok && composed.ok) {
+      expect(decomposed.path).toBe('caf\u00e9.txt');
+      expect(composed.path).toBe('caf\u00e9.txt');
+      expect(toCanonicalResourceUri(decomposed)).toBe(toCanonicalResourceUri(composed));
+    }
+  });
+
+  it('百分号解码产物 NFC 等值：cafe%CC%81 ≡ caf%C3%A9（镜像核心 path_guard 对偶锁测）', () => {
+    const decomposedEncoded = parseResourceUri('chips-resource://platform/cafe%CC%81.txt');
+    const composedEncoded = parseResourceUri('chips-resource://platform/caf%C3%A9.txt');
+    expect(decomposedEncoded.ok).toBe(true);
+    expect(composedEncoded.ok).toBe(true);
+    if (decomposedEncoded.ok && composedEncoded.ok) {
+      expect(decomposedEncoded.path).toBe('caf\u00e9.txt');
+      expect(composedEncoded.path).toBe('caf\u00e9.txt');
+    }
+    const bareDecoded = normalizeResourceInput('chips-resource://platform/cafe\u0301.txt');
+    expect(bareDecoded.ok).toBe(true);
+    if (bareDecoded.ok) {
+      expect(bareDecoded.path).toBe('caf\u00e9.txt');
+    }
+  });
+
+  it('D1 翻正零放宽：NFC 归一产物上全部拒绝臂原样执行（归一不能洗白违规形）', () => {
+    for (const [uri, reason] of [
+      // `cafe\u0301.` 归一后 `café.` 仍命中尾随点平台特例。
+      ['chips-resource://platform/cafe%CC%81.', 'platform'],
+      // 分解形态中夹 `..` 段照常按段拒。
+      ['chips-resource://platform/cafe%CC%81/../x', 'segment'],
+      // 分解形态中夹控制符照常拒。
+      ['chips-resource://platform/cafe%CC%81%00', 'control'],
+      // 分解形态中夹反斜杠照常拒。
+      ['chips-resource://platform/cafe%CC%81\\x', 'separator'],
+      // NFC 归一不能洗白双编码段：`%252e%252e` 解码一次得字面 `%2e%2e` 按字面名放行，
+      // 而 `%2e%2e` 独立成段仍按解码后 `..` 拒。
+      ['chips-resource://platform/cafe%CC%81/%2e%2e', 'segment'],
+    ] as const) {
+      const result = parseResourceUri(uri);
+      expect(isResourceUriFailure(result), uri).toBe(true);
+      if (isResourceUriFailure(result)) {
+        expect(result.code, uri).toBe('RESOURCE_PATH_INVALID');
+        expect(result.pathReason, uri).toBe(reason);
+      }
+    }
+  });
+
+  it('非字符与替换字符全集触发臂：解码产物逐码位族拒绝（#190-D2，§2.4 v1.0.4 全集镜像）', () => {
+    // 全集 = U+FFFD 替换字符 + 非字符区 U+FDD0–U+FDEF + U+nFFFE/U+nFFFF（n=0–16 全 17 平面），
+    // 与核心 path_guard.rs::is_forbidden_unicode 逐码位镜像（工单043 A1 收紧 + 工单049 端点勘误）。
+    const forbidden: ReadonlyArray<readonly [string, string]> = [
+      ['U+FFFD 字面量', 'chips-resource://platform/a\uFFFDb'],
+      ['U+FFFE 字面量', 'chips-resource://platform/a\uFFFEb'],
+      ['U+FFFF 字面量', 'chips-resource://platform/a\uFFFFb'],
+      ['U+FDD0 非字符区起点', 'chips-resource://platform/a\u{FDD0}b'],
+      ['U+FDEF 非字符区终点', 'chips-resource://platform/a\u{FDEF}b'],
+      ['U+FFFD 百分号形', 'chips-resource://platform/%EF%BF%BD'],
+      ['U+FFFE 百分号形', 'chips-resource://platform/%EF%BF%BE'],
+      ['U+FFFF 百分号形', 'chips-resource://platform/%EF%BF%BF'],
+      ['U+FDD0 百分号形', 'chips-resource://platform/%EF%B7%90'],
+      ['U+FDEF 百分号形', 'chips-resource://platform/%EF%B7%AF'],
+      ['U+1FFFE 平面 1 尾', 'chips-resource://platform/%F0%9F%BF%BE'],
+      ['U+1FFFF 平面 1 尾', 'chips-resource://platform/%F0%9F%BF%BF'],
+      ['U+FFFFE 平面 15 尾', 'chips-resource://platform/%F3%BF%BF%BE'],
+      ['U+10FFFE 平面 16 尾', 'chips-resource://platform/%F4%8F%BF%BE'],
+      ['U+10FFFF 码位上界', 'chips-resource://platform/%F4%8F%BF%BF'],
+    ];
+    for (const [label, uri] of forbidden) {
+      const result = parseResourceUri(uri);
+      expect(isResourceUriFailure(result), `${label} 必须拒`).toBe(true);
+      if (isResourceUriFailure(result)) {
+        expect(result.code, label).toBe('RESOURCE_PATH_INVALID');
+        expect(result.pathReason, label).toBe('unicode');
+      }
+    }
+  });
+
+  it('非字符全集不设防旧臂收口：external 路径同扫、合法码位不误伤', () => {
+    const externalForbidden = parseResourceUri('chips-resource://external/https/example.com/a%EF%BF%BDb');
+    expect(isResourceUriFailure(externalForbidden)).toBe(true);
+    if (isResourceUriFailure(externalForbidden)) {
+      expect(externalForbidden.pathReason).toBe('unicode');
+    }
+    // 平面 16 合法码位（U+10FFFF 之外的常用形与 U+FFFF 邻位 U+FFA0 等）不误伤。
+    expect(parseResourceUri('chips-resource://platform/%F0%9F%8E%A8').ok).toBe(true); // U+1F3A8 🎨
+    expect(parseResourceUri('chips-resource://platform/%EF%BF%AC').ok).toBe(true); // U+FFFC 对象替换符（非 U+FFFD）
+    expect(parseResourceUri('chips-resource://platform/%EF%B7%8F').ok).toBe(true); // U+FDCF（非字符区外一位）
+  });
+
+  it('解码两臂分流：非法百分号语法属 URI 级、解码产物非合法 UTF-8 属 Unicode 触发臂（镜像核心两臂）', () => {
+    const malformed = parseResourceUri('chips-resource://platform/%zz');
+    expect(isResourceUriFailure(malformed)).toBe(true);
+    if (isResourceUriFailure(malformed)) {
+      expect(malformed.code).toBe('RESOURCE_INVALID_URI');
+      expect(malformed.reason).toBe('invalid_encoding');
+    }
+    for (const [label, uri] of [
+      ['裸高位字节 %FF', 'chips-resource://platform/%FF'],
+      ['overlong %C0%80', 'chips-resource://platform/%C0%80'],
+      ['代理区编码 %ED%A0%80', 'chips-resource://platform/%ED%A0%80'],
+      ['越界码位 %F4%90%80%80', 'chips-resource://platform/%F4%90%80%80'],
+      ['截断序列 %E4%B8', 'chips-resource://platform/%E4%B8'],
+    ] as const) {
+      const result = parseResourceUri(uri);
+      expect(isResourceUriFailure(result), label).toBe(true);
+      if (isResourceUriFailure(result)) {
+        expect(result.code, label).toBe('RESOURCE_PATH_INVALID');
+        expect(result.pathReason, label).toBe('unicode');
+      }
     }
   });
 
@@ -203,6 +312,35 @@ describe('parseResourceUri：External 作用域', () => {
     expect(isResourceUriFailure(fragment)).toBe(true);
     if (isResourceUriFailure(fragment)) {
       expect(fragment.reason).toBe('fragment_not_allowed');
+    }
+  });
+
+  it('External 路径段平台特例臂与受管形判定等值（#190-D4 跳检收口，镜像核心全臂同走）', () => {
+    // 核心 PathGuard 对 external 路径同走 check_platform_segment 全臂（uri.rs External 腿
+    // 复用 VirtualPath::validate）；host TS 旧臂 `isExternal=true` 直接跳过盘符/冒号/
+    // 设备名/尾点臂为预检弱位，随任务 #190 收口，判定面两侧等值。
+    for (const [suffix, pathReason] of [
+      ['C:/x.png', 'absolute'],
+      ['a:b', 'platform'],
+      ['con.txt', 'platform'],
+      ['NUL', 'platform'],
+      ['name.', 'platform'],
+    ] as const) {
+      const external = parseResourceUri(`chips-resource://external/https/example.com/${suffix}`);
+      const managed = parseResourceUri(`chips-resource://card-7f3a/${suffix}`);
+      expect(isResourceUriFailure(external), suffix).toBe(true);
+      expect(isResourceUriFailure(managed), suffix).toBe(true);
+      if (isResourceUriFailure(external) && isResourceUriFailure(managed)) {
+        expect(external.code, suffix).toBe('RESOURCE_PATH_INVALID');
+        expect(external.pathReason, suffix).toBe(pathReason);
+        expect(managed.pathReason, suffix).toBe(pathReason);
+      }
+    }
+    // 裸 http(s) 归一腿同闸。
+    const bareHttp = normalizeResourceInput('https://example.com/con.txt');
+    expect(isResourceUriFailure(bareHttp)).toBe(true);
+    if (isResourceUriFailure(bareHttp)) {
+      expect(bareHttp.pathReason).toBe('platform');
     }
   });
 });

@@ -180,13 +180,23 @@ function hasControlCharacter(value: string): boolean {
 }
 
 /**
- * 百分号解码一次。
+ * 百分号解码的失败类别（与核心 `path_guard.rs::PercentDecodeFailure` 两臂分流镜像）。
  *
- * @returns 解码结果；非法编码或解码后非合法 UTF-8 时返回 `null`。
+ * - `malformed`：`%` 后非两位十六进制、串尾截断等编码语法非法（§2.6 `invalid_encoding`，URI 级）；
+ * - `not-unicode`：解码字节序列不是合法 UTF-8（overlong、代理区、越界码位等，
+ *   §2.4 Unicode 行触发臂，路径级 `unicode`，工单042 裁定④）。
  */
-function decodeOnce(value: string): string | null {
+type PercentDecodeFailure = 'malformed' | 'not-unicode';
+
+/**
+ * 百分号解码一次并区分失败臂。
+ *
+ * @returns 解码产物文本；编码语法非法或解码产物非合法 UTF-8（含替换字符哨兵检出）
+ * 时返回对应失败类别。
+ */
+function decodeOnceChecked(value: string): { readonly text: string } | PercentDecodeFailure {
   if (!value.includes('%')) {
-    return value;
+    return { text: value };
   }
   const bytes: number[] = [];
   for (let index = 0; index < value.length; index += 1) {
@@ -194,7 +204,7 @@ function decodeOnce(value: string): string | null {
     if (character === '%') {
       const hex = value.slice(index + 1, index + 3);
       if (!HEX_PATTERN.test(hex)) {
-        return null;
+        return 'malformed';
       }
       bytes.push(Number.parseInt(hex, 16));
       index += 2;
@@ -202,7 +212,7 @@ function decodeOnce(value: string): string | null {
     }
     const codePoint = value.codePointAt(index);
     if (codePoint === undefined) {
-      return null;
+      return 'not-unicode';
     }
     const encoded = new TextEncoder().encode(String.fromCodePoint(codePoint));
     for (const byte of encoded) {
@@ -211,13 +221,49 @@ function decodeOnce(value: string): string | null {
   }
   const decoded = new TextDecoder('utf-8', { fatal: false }).decode(Uint8Array.from(bytes));
   if (decoded.includes('\uFFFD')) {
-    return null;
+    return 'not-unicode';
   }
-  return decoded;
+  return { text: decoded };
 }
 
-/** 校验单段路径（解码后、NFC 规范化后）。 */
-function validateSegment(segment: string, isExternal: boolean): ResourcePathErrorReason | null {
+/** 百分号解码仅一次；任一失败臂返回 `null`（origin 段等不区分臂的调用方使用）。 */
+function decodeOnce(value: string): string | null {
+  const result = decodeOnceChecked(value);
+  return typeof result === 'string' ? null : result.text;
+}
+
+/**
+ * 判定 Unicode 触发臂禁止出现的码位（《06.02》§2.4 Unicode 行 v1.0.4，
+ * 工单043 裁定 A1 收紧为 Unicode 非字符全集 + 工单049 端点勘误；
+ * 与核心 `path_guard.rs::is_forbidden_unicode` 逐码位镜像）：
+ * 替换字符 U+FFFD；非字符全集——U+nFFFE/U+nFFFF（n = 0–16，全 17 平面，
+ * 含 U+FFFE/U+FFFF；JS 串码位上界同为 U+10FFFF，`codePoint & 0xFFFE === 0xFFFE`
+ * 天然覆盖全部平面）与非字符区 U+FDD0–U+FDEF。NFC 归一差异本身不在此列
+ * （归一后校验与比较，永不因归一差异拒绝）。
+ */
+function isForbiddenUnicodeCodePoint(codePoint: number): boolean {
+  return codePoint === 0xfffd || (codePoint >= 0xfdd0 && codePoint <= 0xfdef) || (codePoint & 0xfffe) === 0xfffe;
+}
+
+/** 扫描文本是否命中非字符/替换字符全集触发臂（解码后、NFC 归一前，镜像核心顺序）。 */
+function hasForbiddenUnicode(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const codePoint = value.codePointAt(index);
+    if (codePoint === undefined) {
+      continue;
+    }
+    if (isForbiddenUnicodeCodePoint(codePoint)) {
+      return true;
+    }
+    if (codePoint > 0xffff) {
+      index += 1;
+    }
+  }
+  return false;
+}
+
+/** 校验单段路径（解码后、NFC 归一后的文本上执行；全部作用域同走全臂）。 */
+function validateSegment(segment: string): ResourcePathErrorReason | null {
   if (segment.length === 0 || segment === '.' || segment === '..') {
     return 'segment';
   }
@@ -230,14 +276,10 @@ function validateSegment(segment: string, isExternal: boolean): ResourcePathErro
   if (segment.length > RESOURCE_PATH_SEGMENT_MAX_LENGTH) {
     return 'length';
   }
-  if (segment.normalize('NFC') !== segment) {
-    return 'unicode';
-  }
-  if (isExternal) {
-    return null;
-  }
   // 相对性先于平台特例（06-资源协议规范 2.4）：独立成段的盘符（`C:/x.png` 的 `C:`）是绝对路径形态；
   // 段内其余 `:` 属 Windows ADS 文件名（04-资源管理设计 9.3），归为平台特例。
+  // External 作用域路径段不做豁免：核心 PathGuard 对 external 路径同走平台特例全臂
+  // （任务 #190 D4 判定面等值翻正，旧臂跳检为预检弱位）。
   if (/^[A-Za-z]:$/.test(segment)) {
     return 'absolute';
   }
@@ -255,26 +297,33 @@ function validateSegment(segment: string, isExternal: boolean): ResourcePathErro
 }
 
 /** 校验并归一化虚拟路径；失败返回错误原因。 */
-function normalizePath(rawPath: string, isExternal: boolean): { readonly path: string } | ResourcePathErrorReason {
+function normalizePath(rawPath: string): { readonly path: string } | ResourcePathErrorReason {
   if (rawPath.includes('\\')) {
     return 'separator';
   }
-  const decoded = decodeOnce(rawPath);
-  if (decoded === null) {
+  const decodedResult = decodeOnceChecked(rawPath);
+  if (decodedResult === 'malformed') {
     return 'encoding';
   }
-  // NFC 差异不静默修正：未规范化输入直接拒绝（06-资源协议规范 2.4 `unicode`、
-  // 04-资源管理设计 9.4 要求覆盖“Unicode 规范化差异”）。
-  if (decoded.normalize('NFC') !== decoded) {
+  if (decodedResult === 'not-unicode') {
     return 'unicode';
   }
-  const normalized = decoded;
+  const decoded = decodedResult.text;
+  // 非字符/替换字符全集触发臂（《06.02》§2.4 Unicode 行 v1.0.4）：解码产物扫描即拒，
+  // 字面 U+FFFD / U+FFFE / U+FFFF / U+FDD0–U+FDEF / U+nFFFE / U+nFFFF 全不设防旧臂随本行收口。
+  if (hasForbiddenUnicode(decoded)) {
+    return 'unicode';
+  }
+  // NFC 规范化差异本身不构成拒绝（《06.02》§2.4 Unicode 行权威文面，任务 #190 D1 翻正）：
+  // 解码产物归一为 NFC 后继续执行全部校验与比较（04-资源管理设计 9.4「覆盖 Unicode
+  // 规范化差异」的归一形态）；零放宽——全部拒绝臂在归一产物上原样执行。
+  const normalized = decoded.normalize('NFC');
   if (normalized.length > RESOURCE_PATH_MAX_LENGTH) {
     return 'length';
   }
   const segments = normalized.length === 0 ? [] : normalized.split('/');
   for (const segment of segments) {
-    const reason = validateSegment(segment, isExternal);
+    const reason = validateSegment(segment);
     if (reason !== null) {
       return reason;
     }
@@ -398,7 +447,7 @@ export function parseResourceUri(raw: string): ResourceUriParseResult {
       return failure(raw, 'RESOURCE_INVALID_URI', originResult);
     }
     const restPath = segments.slice(2).join('/');
-    const pathResult = normalizePath(restPath, true);
+    const pathResult = normalizePath(restPath);
     if (typeof pathResult === 'string') {
       return pathResultFailure(raw, pathResult);
     }
@@ -413,7 +462,7 @@ export function parseResourceUri(raw: string): ResourceUriParseResult {
     return scopeResult;
   }
   const managed = scopeResult as { scope: string };
-  const pathResult = normalizePath(pathAndQuery, false);
+  const pathResult = normalizePath(pathAndQuery);
   if (typeof pathResult === 'string') {
     return pathResultFailure(raw, pathResult);
   }
@@ -464,7 +513,7 @@ function normalizeBareHttpUri(raw: string, scheme: string): ResourceUriParseResu
   const port = portValue !== null && portValue === DEFAULT_PORTS[scheme] ? null : portValue;
   const authority = port === null ? host : `${host}:${port}`;
   const canonical = `chips-resource://external/${scheme}/${authority}${parsed.pathname}${parsed.search}`;
-  const pathResult = normalizePath(parsed.pathname.replace(/^\//, ''), true);
+  const pathResult = normalizePath(parsed.pathname.replace(/^\//, ''));
   if (typeof pathResult === 'string') {
     return pathResultFailure(canonical, pathResult);
   }
