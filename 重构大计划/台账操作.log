@@ -11825,3 +11825,5 @@
 2026-09-21 02:34:55	cmd=symbol-redecide owner=ledger-matrix-gap        rows=32     --symbol 32 个 id 覆写[notes=CASE WHEN notes IS NULL OR notes='' THEN ? ELSE notes || '；' || ? END] from-owner=ledger-sym-office-c 越权拒绝=0 未裁决跳过=0 write=True
 2026-09-21 02:34:55	cmd=symbol-redecide owner=ledger-matrix-gap        rows=12     --symbol 12 个 id 覆写[disposition=?, target=?, notes=CASE WHEN notes IS NULL OR notes='' THEN ? ELSE notes || '；' || ? END] from-owner=ledger-sym-office-c 越权拒绝=0 未裁决跳过=0 write=True
 2026-09-22 23:56:04	cmd=set-status     owner=ledger-sdk-toolkit       rows=1      status=已完成 evidence=task#158 试点波：本行按归档裁决移入 scripts/归档/split-doc-library.mjs，移动前后 越权整批拒绝=0
+2026-09-23 02:47:26	cmd=set-status     owner=ledger-sdk-toolkit       rows=15     status=已完成 evidence=段二#175：15 行 rel_path 已在就近 归档/ 终位（task030 归档批产物，零移动）；2026-09- 越权整批拒绝=0
+2026-09-23 02:47:26	cmd=set-status     owner=ledger-sdk-toolkit       rows=10     status=已完成 evidence=段二#175：废弃类无动作=旧仓保留（《01》裁决表终态即保留），2026-09-23 磁盘原位 sha1 前验 10/ 越权整批拒绝=0
