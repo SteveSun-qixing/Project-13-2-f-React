@@ -231,6 +231,21 @@
           "CliTaskStatus"
         ],
         "patterns": []
+      },
+      {
+        "category": "权限治理",
+        "names": [
+          "IPermissionAuditEntry",
+          "IPermissionAuditReadInput",
+          "IPermissionAuditReadOutput",
+          "IPermissionGrantInput",
+          "IPermissionGrantOutput",
+          "PermissionAuditAction",
+          "PermissionAuditSource",
+          "PermissionDenyReason",
+          "PermissionGovernanceState"
+        ],
+        "patterns": []
       }
     ],
     "values": [

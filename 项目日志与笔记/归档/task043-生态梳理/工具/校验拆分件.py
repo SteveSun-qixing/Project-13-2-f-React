@@ -15,8 +15,31 @@ import os
 import re
 from collections import defaultdict
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LIB = os.path.abspath(os.path.join(BASE, "..", "..", "薯片生态文档库"))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# BASE 为本工具目录的上一级（task043 材料根，内含 梳理表/ 报告目录）。
+BASE = os.path.dirname(SCRIPT_DIR)
+
+
+def _find_library_root(start: str) -> str:
+    """自给定目录逐级向上定位《薯片生态文档库》。
+
+    工具目录随 task043 材料整体归档后，固定层级相对偏移会失效；
+    向上查找对目录移动稳健。找不到时立即报错退出，绝不静默返回 0 件。
+    """
+    current = os.path.abspath(start)
+    while True:
+        candidate = os.path.join(current, "薯片生态文档库")
+        if os.path.isdir(candidate):
+            return candidate
+        parent = os.path.dirname(current)
+        if parent == current:
+            raise SystemExit(
+                f"自 {SCRIPT_DIR} 逐级向上未找到 薯片生态文档库/，请检查目录结构"
+            )
+        current = parent
+
+
+LIB = _find_library_root(SCRIPT_DIR)
 TABLE = os.path.join(BASE, "梳理表")
 PIECE_RE = re.compile(r"^(\d+)\.(\d+)-(.+)\.md$")
 HEADING_RE = re.compile(r"^(#{2,4})\s+(.+?)\s*$")
@@ -279,6 +302,8 @@ def main() -> int:
     args = parser.parse_args()
     pieces = scan()
     report, stats = build_report(pieces)
+    report_dir = os.path.dirname(os.path.abspath(args.report))
+    os.makedirs(report_dir, exist_ok=True)  # 材料目录随归档迁移后报告目录可能缺位
     with open(args.report, "w", encoding="utf-8") as fh:
         fh.write(report)
     print(

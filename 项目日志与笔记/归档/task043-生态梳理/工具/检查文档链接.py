@@ -23,10 +23,28 @@ import sys
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
-DEFAULT_ROOT = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "薯片生态文档库",
-)
+def _find_library_root(start: str) -> str:
+    """自给定目录逐级向上定位仓库内的《薯片生态文档库》根目录。
+
+    工具目录随 task043 材料整体归档后，固定层级相对偏移会失效
+    （曾致默认根指向不存在路径）；向上查找对目录移动稳健。
+    找不到时报错退出，绝不静默按空库通过。`--root` 显式传入时不走本推导。
+    """
+    current = os.path.abspath(start)
+    while True:
+        candidate = os.path.join(current, "薯片生态文档库")
+        if os.path.isdir(candidate):
+            return candidate
+        parent = os.path.dirname(current)
+        if parent == current:
+            raise SystemExit(
+                "自工具目录逐级向上未找到 薯片生态文档库/，"
+                "请用 --root 显式指定文档库根目录"
+            )
+        current = parent
+
+
+DEFAULT_ROOT = _find_library_root(os.path.dirname(os.path.abspath(__file__)))
 
 
 def mask_code(text: str) -> str:
