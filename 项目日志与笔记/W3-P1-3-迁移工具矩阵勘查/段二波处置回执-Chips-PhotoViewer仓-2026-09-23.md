@@ -41,7 +41,7 @@
 3. 【停下项】迁移 4+重写 28 共 32 行：落点 chips-ecosystem/plugins/apps/photo-viewer 归 #181 在途独占面，photo-viewer 插件实落+验证后由承接路/主排程转「已验证」；本单零沾染 chips-ecosystem。
 4. 【停下项】保留设计 3 行（3683/3690/3700）：文档库格式支持矩阵承接属 W7 文档补齐计划，归主排程。
 5. 全局在册红 6 条（MATRIX-COUNT Chips-Office×1／RESIDUAL-CRED chips-ecosystem e2e 夹具×4／RESIDUAL-TOPDIR .cargo×1）+幻想target 10／残留 5 维持裁决D 待 W7，本单零诱发；preflight SNAPSHOT-ADD `旧版-标记.md` WARN 维持 #179/#181 同族登记。
-6. 段二收口状态：候选六仓（scripts/Chip-iconMaker/旧版-生态共用技术文档-2/Chips-Ui/旧版-生态设计原稿/Chips-PhotoViewer）全部过波完毕；全局余量 Chips-SDK 3874／ProductFinished 双份系用户待裁，本单未触碰。
+6. 段二收口状态：候选六仓（scripts/Chip-iconMaker/旧版-生态共用技术文档-2/Chips-Ui/旧版-生态设计原稿/Chips-PhotoViewer）全部过波完毕；全局余量 Chips-SDK files.id=3874 单行 MAP-MISMATCH／ProductFinished 双份系用户待裁，本单未触碰。
 
 ## 五、零漂移对账与工作树面
 
