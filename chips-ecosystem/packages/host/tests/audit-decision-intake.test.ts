@@ -174,17 +174,19 @@ describe('三方文本锁：decision-intake 镜像 ↔ chips-native.d.ts ↔ 导
     );
   });
 
-  it('导出表第 55 项 auditBindDecisionSink：sync + 签名逐字，d.ts 声明同形在册', () => {
+  it('导出表第 56 项 auditBindDecisionSink：sync + 签名逐字，d.ts 声明同形在册', () => {
     const entry = manifest.exports.find((item) => item.name === 'auditBindDecisionSink');
     expect(entry).toBeDefined();
-    // 位次锁：波 B 两换算名补登（50→53→55）后 audit 域仍居末位（第 55 项）。
-    expect(manifest.exports[54]?.name).toBe('auditBindDecisionSink');
+    // 双名位次锁：点位五 D1 `resourceGrantSession` 插位（55→56，任务 #244 提交 9fa04e900）
+    // 后，末两位逐名在册——第 55 项资源域末位、第 56 项 audit 域末位；任一插位漂移即翻红。
+    expect(manifest.exports[54]?.name).toBe('resourceGrantSession');
+    expect(manifest.exports[55]?.name).toBe('auditBindDecisionSink');
     expect(entry?.kind).toBe('sync');
     expect(entry?.signature).toBe('(sink: (frame: INativeAuditDecisionFrame) => void) => void');
     // 空白全剥净形锁：d.ts 声明逐 token 与在册签名同形（版式由包内 prettier 定形，锁判不含空白）。
     const normalized = declaration.replace(/\s+/g, '');
     expect(normalized).toContain('functionauditBindDecisionSink(sink:(frame:INativeAuditDecisionFrame)=>void):void;');
-    expect(manifest.exports.length).toBe(55);
+    expect(manifest.exports.length).toBe(56);
   });
 });
 

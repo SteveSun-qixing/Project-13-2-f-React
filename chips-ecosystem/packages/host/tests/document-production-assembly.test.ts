@@ -204,6 +204,18 @@ function makeResourcePorts(): IDocumentResourcePorts & {
       unregistrations.push(input);
       return Promise.resolve();
     },
+    // 点位三正向取回替身（波 B2）：服务侧每次磁盘触达现取，替身恒给夹具登记的路径。
+    localPathOf(managedUri: string): Promise<string> {
+      if (managedUri !== CARD_URI) {
+        return Promise.reject(
+          Object.assign(new Error('夹具未登记该受管引用'), { code: 'RESOURCE_NOT_FOUND', retryable: false }),
+        );
+      }
+      return Promise.resolve(CARD_PATH);
+    },
+    scopeRootOf(managedUri: string): string | null {
+      return managedUri === CARD_URI ? 'chips-resource://default/' : null;
+    },
   };
   const storage: IDocumentStoragePort = {
     commit(request: IDocumentCommitRequest): Promise<void> {

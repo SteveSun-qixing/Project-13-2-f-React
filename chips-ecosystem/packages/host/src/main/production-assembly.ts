@@ -371,8 +371,9 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
       runtimeForGuardSnapshots = runtime;
       // 工单046 段四接线波（任务 #206 收口）：审计观察面绑定臂——native 绑定过装载闸
       // 且运行时审计写入器常开时，把 §8.2 条目唯一组装点（`createPermissionDecisionIntake`，
-      // RFC §九 9.2-2「单条目单落点」）经 `auditBindDecisionSink`（§8.6 第 55 导出，波 B
-      // 任务 #231 两换算名补登后位次随动）绑定进
+      // RFC §九 9.2-2「单条目单落点」）经 `auditBindDecisionSink`（§8.6 第 56 导出，波 B
+      // 任务 #231 两换算名补登 53→55、点位五 D1 任务 #244 `resourceGrantSession` 补登
+      // 55→56 后位次随动）绑定进
       // native 观察者。绑定发生在 `createRuntime` 返回前、`start` 与任何 `bridge*` /
       // `resource*` 判定流量之前（组合根启动序消除未绑定窗口，RFC §八条 2）。构造期注入、
       // 终身不可换（§八条 1）。绑定三态一律诊断留痕、fail-closed 不伪造：export-missing /

@@ -17,6 +17,11 @@
  *   §11.3 Neon 文档挂载 / 作用域注册载体已落位在册（波 A1 任务 #209 三补名），原子提交 /
  *   落盘序列化载体随点位四后续波；scope 正式适配器归波 A2b——未接线期装载段诚实回退、
  *   `document:*` 不注册，工单 036 收口）。
+ * - 点位三（`managedUri ↔ localPath` 双向换算，波 B 任务 #231 原生落位）的**宿主消费臂**在
+ *   波 B2（工单036 残余缺口）接线翻正：作用域端口扩员
+ *   {@link IDocumentScopePort.localPathOf}（正向单源取回）与
+ *   {@link IDocumentScopePort.scopeRootOf}（注册表作用域根查询），文档服务与记录面自此
+ *   **不再自存 `localPath`、不再词法切片自算作用域根**（无双份事实源）。
  * - 服务不自行放行、不缓存授权（`11-文档服务设计` §9.1）：{@link IDocumentGuardPort} 只是
  *   Bridge 权限判定与会话注册表的调用入口，判定逻辑本体在 Bridge。
  */
@@ -50,7 +55,15 @@ export interface IDocumentScopeRegistration {
 export interface IResolvedDocumentSource {
   /** 规范受管引用（`chips-resource://`；输出与会话键均用它）。 */
   readonly managedUri: string;
-  /** 解析器可读的本地绝对路径（目录态包根或归档文件）。 */
+  /**
+   * 解析器可读的本地绝对路径（目录态包根或归档文件）。
+   *
+   * @remarks **只在打开链的挂载前段有效**（`parser.open` 的第一跳输入）：此刻记录尚无原生会话，
+   * 点位三正向换算（会话绑定闸）不可达，故本字段是「归一时的路径」而非「长期路径事实源」。
+   * 挂载建立后（记录存续期）一切磁盘触达改经
+   * {@link IDocumentScopePort.localPathOf} 向资源管理器单源取回（工单036 波 B2 /
+   * RFC §6 消费面「消除 TS 私有路径缓存」），服务与记录面均不再缓存本值。
+   */
   readonly localPath: string;
   /** 源形态：目录态工作副本或归档态单文件。 */
   readonly form: DocumentForm;
@@ -103,6 +116,37 @@ export interface IDocumentScopePort {
    *   禁止转而 close 掩盖（掩盖即不可恢复）；注销入口全仓唯一（INV-6，禁第二注销形）。
    */
   unregisterScope(input: { readonly documentId: string; readonly managedUri: string }): Promise<void>;
+  /**
+   * 记录存续期的本地可读路径单源取回（点位三正向消费臂，`04.11` §11.3 行 19）。
+   *
+   * @remarks
+   * - **形状即承载**：本成员是文档服务在挂载建立后取得磁盘路径的**唯一入口**——服务与记录面
+   *   一律不自存 `localPath`（消除「TS 侧私有路径缓存 vs 核心 `ScopeRegistry` Origin」双份事实
+   *   源；RFC §6.1 消费面「`recomputeDigestFromDisk` 由 record 持有 `localPath` 改为经端口取回」）。
+   *   换算权威在核心：正式适配器以受管引用的**作用域基址形**
+   *   （{@link IDocumentScopePort.scopeRootOf} 的投影，`chips-resource://<scope>/`）调
+   *   `resourceLocalPathOf(uri, nativeSession)`，取回目录态包根 / 归档态归档文件路径
+   *   （§11.3 行 19「归档 scope 恒返回归档文件路径，目录态作用域基址形返回包根」）。
+   * - `nativeSession` 一律取文档记录级的原生会话句柄（INV-1 回执交付值），会话绑定闸
+   *   （`out_of_scope`）即在此生效——服务不猜会话、不缓存路径。
+   * - 失败以已登记 `RESOURCE_*` 码原样抛出并由能力层透传（端口头注口径）：作用域不在册
+   *   `RESOURCE_NOT_FOUND`（陈旧绑定形）、会话未绑定 `RESOURCE_PERMISSION_DENIED`、
+   *   Origin 无本地可读位置 `RESOURCE_NOT_SUPPORTED`；URI 非法 `RESOURCE_INVALID_URI`。
+   */
+  localPathOf(managedUri: string, nativeSession: number): Promise<string>;
+  /**
+   * 受管引用的资源作用域根（`chips-resource://<scope>/`）——**正式作用域注册表的单源查询**。
+   *
+   * @remarks
+   * - 服务侧（卡片窗口装载投递的 `resourceBase` 口径）此前以字符串切片从受管引用自行截出
+   *   authority 段，属注册表之外的第二套派生实现；本成员把该投影收敛到注册表：正式适配器
+   *   以在册账里**挂载回执核验过的 `scope`**（`resourceMountDirectory` / `resourceMountArchive`
+   *   返回值与派生值一致性闸，波 A2b-α）合形，不解释受管引用的其余词法。
+   * - 未在册（未经本适配器归一的引用、已随注销销账的引用）返回 `null`——调用方据此如实
+   *   拒收，不猜测基址（与原「词法不可投影」臂同一处置形，判据从词法升为登记事实）。
+   * - 本成员是注册表内存查询，故同步；路径事实请走 {@link IDocumentScopePort.localPathOf}。
+   */
+  scopeRootOf(managedUri: string): string | null;
 }
 
 /** 解析器只读句柄（chips-parser `DocumentHandle` 的壳侧不透明投影）。 */
@@ -140,7 +184,12 @@ export interface IDocumentPartOutcome {
 export interface IDocumentSerializeRequest {
   readonly kind: DocumentKind;
   readonly form: DocumentForm;
-  /** 目录态包根或归档文件路径（用于未修订成员的字节复用）。 */
+  /**
+   * 目录态包根或归档文件路径（用于未修订成员的字节复用）。
+   *
+   * @remarks 点位三消费臂口径：由服务在每次序列化前经
+   * {@link IDocumentScopePort.localPathOf} 向资源管理器取回（不是记录面缓存值）。
+   */
   readonly localPath: string;
   readonly metadata: DocumentValue;
   /** 卡片结构或箱子结构（含条目）；箱子 `entries` 变更已并入该切片。 */
@@ -205,6 +254,15 @@ export interface IPackageMemberBytes {
 /**
  * 文件系统 / 受控写端口（生产适配器由资源管理器受控提交路径与 WriteCoordinator 承载：
  * 临时物 + fsync + 提交日志 + 原子替换 + 失败回滚，同一目标单写者）。
+ *
+ * @remarks
+ * - **形状冻结（跨层契约）**：三成员的 `localPath` 形参语义不变——本端口是「持本地路径面」的
+ *   契约，正式适配器内部按 RFC §6.1 消费面口径以点位三**反向**换算（`resourceManagedUriOfPath`）
+ *   把路径收敛为受管引用后再走受管面（波 C 载体）。
+ * - **入参来源随动（工单036 波 B2）**：调用侧交付的 `localPath` 一律是
+ *   {@link IDocumentScopePort.localPathOf}（点位三正向）当场取回的值，不再取自文档记录的长期
+ *   缓存——路径事实源唯一在资源管理器；本端口形状与真接位随波 C 的正式适配器落地（生产装载段
+ *   维持 fail-closed，`adapters/production-wiring.ts` 头注在册）。
  */
 export interface IDocumentStoragePort {
   /** 原子提交变更集；失败抛出携带登记码的异常（能力层映射为 `DOCUMENT_SAVE_FAILED`，§10.3）。 */

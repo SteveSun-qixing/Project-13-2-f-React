@@ -34,12 +34,16 @@ const FINGERPRINT: ISourceFingerprint = {
  */
 let nativeSessionFixture = 100;
 
-/** 记录建立输入。 */
+/**
+ * 记录建立输入。
+ *
+ * @remarks 无 `localPath` 形（工单036 波 B2 / 点位三消费臂）：存储层记录面自本波起不持有本地
+ * 路径，路径事实由作用域端口的换算口现取（`IDocumentRecord` 头注在册）。
+ */
 function recordInput(managedUri: string, documentId = DOCUMENT_ID): IOpenRecordInput {
   nativeSessionFixture += 1;
   return {
     managedUri,
-    localPath: `/tmp/${documentId}`,
     form: 'directory',
     kind: 'card',
     documentId,

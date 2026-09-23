@@ -836,6 +836,16 @@ function makeResourcePorts(): IDocumentResourcePorts {
       // `document-session-store.test.ts` 的次序锁；本臂只保证端口形状与装载通道可用）。
       return Promise.resolve();
     },
+    // 点位三消费臂替身（波 B2）：路径与作用域根一律经端口取回（形状与装载通道可用即本臂职责）。
+    localPathOf(managedUri: string): Promise<string> {
+      if (managedUri !== CARD_URI) {
+        return Promise.reject(Object.assign(new Error('夹具未登记该受管引用'), { code: 'RESOURCE_NOT_FOUND' }));
+      }
+      return Promise.resolve(CARD_PATH);
+    },
+    scopeRootOf(managedUri: string): string | null {
+      return managedUri === CARD_URI ? 'chips-resource://default/' : null;
+    },
   };
   const storage: IDocumentStoragePort = {
     commit(request: IDocumentCommitRequest): Promise<void> {

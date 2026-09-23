@@ -23,6 +23,7 @@ import { createDocumentScopeAdapter } from '../src/capabilities/document/adapter
 import type { INativeResourceModule } from '../src/capabilities/document/adapters/native-resource-module.js';
 import { DOCUMENT_SCOPE_OWNER, deriveDocumentScope } from '../src/capabilities/document/scope-derivation.js';
 import { DocumentCapabilityError } from '../src/capabilities/document/errors.js';
+import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 
 /** 一次原生调用记录（sequence 全局面保持跨方法次序）。 */
 interface INativeCall {
@@ -36,6 +37,12 @@ interface IFakeNative {
   readonly module: INativeResourceModule;
   mountDirectoryImpl: ((args: readonly unknown[]) => Promise<string>) | null;
   unregisterImpl: (() => Promise<void>) | null;
+  /** 点位三正向换算覆写臂（故障注入；`null` = 走忠实台账）。 */
+  localPathOfImpl: ((args: readonly unknown[]) => Promise<string>) | null;
+  /** 点位三反向换算覆写臂（未命中 `null` 与漂移形注入；`null` = 走忠实台账）。 */
+  managedUriOfPathImpl: ((args: readonly unknown[]) => Promise<string | null>) | null;
+  /** 直连核心登记面：作用域 → Origin 路径（挂载即登记、注销即摘除）。 */
+  readonly origins: Map<string, string>;
 }
 
 function createFakeNative(): IFakeNative {
@@ -48,13 +55,73 @@ function createFakeNative(): IFakeNative {
   // 覆盖臂保持纯委托不触台账，供各故障注入测试逐字锁参数与次序。
   const liveSessions = new Set<number>();
   const scopeOwners = new Map<string, number>();
+  const origins = new Map<string, string>();
   const record = (name: string, args: readonly unknown[]): void => {
     calls.push({ sequence: nextSequence++, name, args });
+  };
+  /** 挂载成功即登记 Origin（核心 `attach_root` 形）；覆写臂只在回显等于 scope 时落账。 */
+  const settleMount = (scope: string, path: string, sessionId: number, returned: string): string => {
+    if (returned === scope) {
+      scopeOwners.set(scope, sessionId);
+      origins.set(scope, path);
+    }
+    return returned;
+  };
+  /** 忠实正向换算：会话绑定闸 + Origin 单源（§11.3 行 19 口径，基址形 → Origin 根）。 */
+  const localPathOf = (uri: string, sessionId: number): Promise<string> => {
+    if (!uri.startsWith('chips-resource://')) {
+      return Promise.reject(nativeFailure('RESOURCE_INVALID_URI'));
+    }
+    const rest = uri.slice('chips-resource://'.length);
+    const boundary = rest.indexOf('/');
+    const scope = boundary < 0 ? rest : rest.slice(0, boundary);
+    if (boundary < 0 || rest.slice(boundary + 1).length > 0) {
+      // 替身只承载作用域基址形（适配器口径），带产物段的记录键不在换算面内。
+      return Promise.reject(nativeFailure('RESOURCE_INVALID_URI'));
+    }
+    if (!liveSessions.has(sessionId)) {
+      return Promise.reject(nativeFailure('RESOURCE_PERMISSION_DENIED'));
+    }
+    if (!scopeOwners.has(scope)) {
+      return Promise.reject(nativeFailure('RESOURCE_PERMISSION_DENIED'));
+    }
+    if (scopeOwners.get(scope) !== sessionId) {
+      return Promise.reject(nativeFailure('RESOURCE_PERMISSION_DENIED'));
+    }
+    const origin = origins.get(scope);
+    if (origin === undefined) {
+      return Promise.reject(nativeFailure('RESOURCE_NOT_FOUND'));
+    }
+    return Promise.resolve(origin);
+  };
+  /** 忠实反向换算：绑定集内 Origin 等值 / 前缀命中 → 基址形；其余一律 `null`（零泄露）。 */
+  const managedUriOfPath = (path: string, sessionId: number): Promise<string | null> => {
+    if (!liveSessions.has(sessionId)) {
+      return Promise.resolve(null);
+    }
+    let best: { scope: string; depth: number } | null = null;
+    for (const [scope, owner] of scopeOwners) {
+      if (owner !== sessionId) {
+        continue;
+      }
+      const origin = origins.get(scope);
+      if (origin === undefined || !path.startsWith(origin)) {
+        continue;
+      }
+      const depth = origin.split('/').length;
+      if (best === null || depth > best.depth || (depth === best.depth && scope < best.scope)) {
+        best = { scope, depth };
+      }
+    }
+    return Promise.resolve(best === null ? null : `chips-resource://${best.scope}/`);
   };
   const fake: IFakeNative = {
     calls,
     mountDirectoryImpl: null,
     unregisterImpl: null,
+    localPathOfImpl: null,
+    managedUriOfPathImpl: null,
+    origins,
     module: {
       resourceOpenSession(kind: string, owner: string): number {
         record('resourceOpenSession', [kind, owner]);
@@ -75,21 +142,35 @@ function createFakeNative(): IFakeNative {
       ): Promise<string> {
         record('resourceMountDirectory', [sessionId, scope, path, owner, writable]);
         if (fake.mountDirectoryImpl !== null) {
-          return fake.mountDirectoryImpl([sessionId, scope, path, owner, writable]);
+          return fake
+            .mountDirectoryImpl([sessionId, scope, path, owner, writable])
+            .then((returned) => settleMount(scope, path, sessionId, returned));
         }
         if (scopeOwners.has(scope)) {
           return Promise.reject(nativeFailure('RESOURCE_ALREADY_EXISTS'));
         }
-        scopeOwners.set(scope, sessionId);
-        return Promise.resolve(scope);
+        return Promise.resolve(settleMount(scope, path, sessionId, scope));
       },
       resourceMountArchive(sessionId: number, scope: string, path: string, owner: string): Promise<string> {
         record('resourceMountArchive', [sessionId, scope, path, owner]);
         if (scopeOwners.has(scope)) {
           return Promise.reject(nativeFailure('RESOURCE_ALREADY_EXISTS'));
         }
-        scopeOwners.set(scope, sessionId);
-        return Promise.resolve(scope);
+        return Promise.resolve(settleMount(scope, path, sessionId, scope));
+      },
+      resourceLocalPathOf(uri: string, sessionId: number): Promise<string> {
+        record('resourceLocalPathOf', [uri, sessionId]);
+        if (fake.localPathOfImpl !== null) {
+          return fake.localPathOfImpl([uri, sessionId]);
+        }
+        return localPathOf(uri, sessionId);
+      },
+      resourceManagedUriOfPath(path: string, sessionId: number): Promise<string | null> {
+        record('resourceManagedUriOfPath', [path, sessionId]);
+        if (fake.managedUriOfPathImpl !== null) {
+          return fake.managedUriOfPathImpl([path, sessionId]);
+        }
+        return managedUriOfPath(path, sessionId);
       },
       resourceUnregisterScope(scope: string, sessionId: number): Promise<void> {
         record('resourceUnregisterScope', [scope, sessionId]);
@@ -103,6 +184,7 @@ function createFakeNative(): IFakeNative {
           return Promise.reject(nativeFailure('RESOURCE_PERMISSION_DENIED'));
         }
         scopeOwners.delete(scope);
+        origins.delete(scope);
         return Promise.resolve();
       },
     } as unknown as INativeResourceModule,
@@ -447,5 +529,155 @@ describe('scope-adapter · JS 面死锁端到端锁测（工单036 波 A2b-β，
     await adapterB.normalizeSource(target, makeContext());
     await expectRejection(() => adapterB.registerScope({ documentId: 'doc-dl', managedUri, kind: 'card' }));
     expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
+  });
+});
+
+describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 / 反向直读核验 / 注册表基址）', () => {
+  /** 归一 + 挂载建立活绑定（替身首个 `resourceOpenSession` 回执恒为 4100）。 */
+  async function liveMount(
+    adapter: ReturnType<typeof createDocumentScopeAdapter>,
+    target: string,
+    kind: 'card' | 'box',
+  ): Promise<{ readonly managedUri: string; readonly scope: string }> {
+    const scope = deriveDocumentScope(target, kind);
+    const managedUri = `chips-resource://${scope}/${basename(target)}`;
+    await adapter.normalizeSource(target, makeContext());
+    await adapter.registerScope({ documentId: 'doc-p3', managedUri, kind });
+    return { managedUri, scope };
+  }
+
+  function createDiagnosticCapture(): {
+    readonly logs: {
+      level: string;
+      scope: string;
+      message: string;
+      details?: Readonly<Record<string, unknown>> | undefined;
+    }[];
+    readonly diagnostics: DiagnosticsSink;
+  } {
+    const logs: {
+      level: string;
+      scope: string;
+      message: string;
+      details?: Readonly<Record<string, unknown>> | undefined;
+    }[] = [];
+    return {
+      logs,
+      diagnostics: {
+        warn(scope: string, message: string, details?: Readonly<Record<string, unknown>>): void {
+          logs.push({ level: 'warn', scope, message, details });
+        },
+        error(scope: string, message: string, details?: Readonly<Record<string, unknown>>): void {
+          logs.push({ level: 'error', scope, message, details });
+        },
+      },
+    };
+  }
+
+  it('正向取回：恰一次触原生换算口，入参为作用域基址形 + 活会话，返回值以原生 Origin 为准（账本路径不外泄）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('p3-forward.card', true);
+    const { managedUri, scope } = await liveMount(adapter, target, 'card');
+    fake.localPathOfImpl = () => Promise.resolve('/native/single-source/relocated.card');
+    fake.calls.length = 0;
+    await expect(adapter.localPathOf(managedUri, 4100)).resolves.toBe('/native/single-source/relocated.card');
+    expect(fake.calls.map((call) => call.name)).toEqual(['resourceLocalPathOf']);
+    expect(callAt(fake, 0).args).toEqual([`chips-resource://${scope}/`, 4100]);
+  });
+
+  it('正向取回零缓存：同键两次现取两次触原生（记录面与适配器面都不留长期路径）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('p3-twice.card', true);
+    const { managedUri } = await liveMount(adapter, target, 'card');
+    fake.calls.length = 0;
+    await adapter.localPathOf(managedUri, 4100);
+    await adapter.localPathOf(managedUri, 4100);
+    expect(fake.calls.filter((call) => call.name === 'resourceLocalPathOf')).toHaveLength(2);
+  });
+
+  it('正向取回未在册受管引用 ⇒ RESOURCE_NOT_FOUND，零原生调用（不猜路径）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    fake.calls.length = 0;
+    const error = await expectRejection(() =>
+      adapter.localPathOf('chips-resource://card-2222222222222222222222222222222222222222/ghost.card', 4100),
+    );
+    expect(error.code).toBe('RESOURCE_NOT_FOUND');
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('正向取回会话未绑定 ⇒ 原生 RESOURCE_PERMISSION_DENIED 原样透传（不吞、不降级为账本值）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('p3-unbound.card', true);
+    const { managedUri } = await liveMount(adapter, target, 'card');
+    const error = await expectRejection(() => adapter.localPathOf(managedUri, 9999));
+    expect(error.code).toBe('RESOURCE_PERMISSION_DENIED');
+  });
+
+  it('注册表基址：scopeRootOf 以在册账的 scope 合形；未在册 ⇒ null（调用方零切片派生）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('p3-root.box', false);
+    const { managedUri, scope } = await liveMount(adapter, target, 'box');
+    expect(adapter.scopeRootOf(managedUri)).toBe(`chips-resource://${scope}/`);
+    expect(adapter.scopeRootOf('chips-resource://card-3333333333333333333333333333333333333333/none.card')).toBeNull();
+    expect(adapter.scopeRootOf('plain-relative.card')).toBeNull();
+  });
+
+  it('命中已有挂载的再归一：走反向直读核验（活会话 + canonical 路径入参），归一结果与首归一同形', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('p3-reverse.card', true);
+    const { managedUri, scope } = await liveMount(adapter, target, 'card');
+    const first = await adapter.normalizeSource(target, makeContext());
+    fake.calls.length = 0;
+    const again = await adapter.normalizeSource(managedUri, makeContext());
+    expect(fake.calls.map((call) => call.name)).toEqual(['resourceManagedUriOfPath']);
+    expect(callAt(fake, 0).args).toEqual([target, 4100]);
+    expect(again).toEqual({ managedUri, localPath: first.localPath, form: 'directory' });
+    expect(again.managedUri.startsWith(`chips-resource://${scope}/`)).toBe(true);
+  });
+
+  it('反向未命中（null）⇒ fail-closed RESOURCE_NOT_FOUND + 审计留痕，跨层错误不回显真实路径（不泄露存在性）', async () => {
+    const fake = createFakeNative();
+    const capture = createDiagnosticCapture();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, diagnostics: capture.diagnostics });
+    const target = makeFixture('p3-miss.card', true);
+    const { managedUri } = await liveMount(adapter, target, 'card');
+    fake.managedUriOfPathImpl = () => Promise.resolve(null);
+    const error = await expectRejection(() => adapter.normalizeSource(managedUri, makeContext()));
+    expect(error.code).toBe('RESOURCE_NOT_FOUND');
+    expect(error.message).not.toContain(target);
+    expect(JSON.stringify(error.details ?? {})).not.toContain(target);
+    expect(capture.logs.some((log) => log.level === 'error' && log.message.includes('不一致'))).toBe(true);
+    expect(capture.logs.some((log) => JSON.stringify(log.details ?? {}).includes('换算未命中'))).toBe(true);
+  });
+
+  it('反向命中他作用域 ⇒ 同判账本漂移 fail-closed，审计点名「他作用域」（禁抢占、禁回退账本供路径）', async () => {
+    const fake = createFakeNative();
+    const capture = createDiagnosticCapture();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, diagnostics: capture.diagnostics });
+    const target = makeFixture('p3-other.card', true);
+    const { managedUri } = await liveMount(adapter, target, 'card');
+    fake.managedUriOfPathImpl = () =>
+      Promise.resolve('chips-resource://card-4444444444444444444444444444444444444444/');
+    const error = await expectRejection(() => adapter.normalizeSource(managedUri, makeContext()));
+    expect(error.code).toBe('RESOURCE_NOT_FOUND');
+    expect(capture.logs.some((log) => JSON.stringify(log.details ?? {}).includes('他作用域'))).toBe(true);
+    expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
+  });
+
+  it('未挂载账目的再归一零反查（挂载前核心侧无登记面，反查必未命中 ⇒ 不触原生）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('p3-premount.card', true);
+    const first = await adapter.normalizeSource(target, makeContext());
+    fake.calls.length = 0;
+    const again = await adapter.normalizeSource(first.managedUri, makeContext());
+    expect(again).toEqual(first);
+    expect(fake.calls).toHaveLength(0);
   });
 });

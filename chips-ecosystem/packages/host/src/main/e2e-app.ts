@@ -10,13 +10,16 @@
  * - 唯一差异：环境变量 `CHIPS_E2E_DOCUMENT_WIRING_MODULE` 指认测试侧接线模块（绝对路径
  *   CJS，落位 `tests/e2e/host-wiring/`）时，装载其 `createE2EDocumentWiring()` 交付的文档
  *   能力注入项（守卫会话快照提供者 + 资源侧端口）。解析域产物仍走生产缺省装载闸
- *   （`chips-native.node` 55 项导出全量在册、解析域 17 必备名闸真实通过），本入口不注入
+ *   （`chips-native.node` 56 项导出全量在册、解析域 17 必备名闸真实通过），本入口不注入
  *   任何解析替身——禁 mock native 冒充 E2E。
  * - fail-closed 三态：环境变量缺位 → 与正式入口完全一致的诚实回退态（`document:*` 不注册）；
  *   指认但模块不可装载 / 工厂缺位 / 交付形状不完整 → 如实启动失败（不静默降级）；
  *   指认且形状齐备 → 装载段以真实解析产物 + 注入端口注册真实 `document:*` 四能力与取视图通道。
  * - 保存落盘权威归 W3（金链路集成七刀定案·刀6）：注入的资源端口不承载受控提交
  *   （`commit` 以登记码拒绝），解析端口 `serialize` 维持在册诚实失败臂——本入口不伪造保存面。
+ * - 端口成员闸随动（工单036 波 B2 #241）：`resourcePorts.scope` 必含 `localPathOf` /
+ *   `scopeRootOf` 两个点位三消费臂成员——宿主文档域已不再自存 `localPath`、也不再自切作用域根，
+ *   接线模块缺成员即在此闸以中文判据失败，不留到写入链深处抛裸 `TypeError`。
  */
 
 import { createRequire } from 'node:module';
@@ -72,10 +75,14 @@ export function resolveE2EDocumentWiring(
     typeof wiring?.guardSessionSource !== 'function' ||
     typeof wiring?.resourcePorts?.scope?.normalizeSource !== 'function' ||
     typeof wiring?.resourcePorts?.scope?.unregisterScope !== 'function' ||
+    typeof wiring?.resourcePorts?.scope?.localPathOf !== 'function' ||
+    typeof wiring?.resourcePorts?.scope?.scopeRootOf !== 'function' ||
     typeof wiring?.resourcePorts?.storage?.readFileBytes !== 'function'
   ) {
     throw new Error(
-      `E2E 文档接线模块交付形状不完整（guardSessionSource / resourcePorts.scope（含 unregisterScope，波 A2b-α 端口成员）/ resourcePorts.storage 必备）：${modulePath}`,
+      `E2E 文档接线模块交付形状不完整（guardSessionSource / resourcePorts.scope（含 unregisterScope，波 A2b-α 端口成员；` +
+        `含 localPathOf 与 scopeRootOf，工单036 波 B2 #241 点位三消费臂端口成员，缺失即文档写入链无路径单源可取） / ` +
+        `resourcePorts.storage 必备）：${modulePath}`,
     );
   }
   return wiring;

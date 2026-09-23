@@ -79,7 +79,7 @@ export interface IDocumentCapabilityWiringOptions {
    */
   readonly parserModulePath?: string;
   /**
-   * 资源域（§11.3 二十导出）装载判据的产物路径；缺省沿用 {@link parserModulePath}
+   * 资源域（§11.3 二十一导出）装载判据的产物路径；缺省沿用 {@link parserModulePath}
    * （解析域 / 资源域 / Bridge 域同一 `chips-native.node` 文件、单一内核，§11.5，
    * Node 模块缓存保证进程级单例）。
    *
@@ -150,11 +150,11 @@ export interface IDocumentCapabilityWiring {
    */
   readonly service?: IDocumentService;
   /**
-   * 资源域（§11.3 二十导出）装载判据与类型化消费面（任务 #194 交付③的宿主侧合缝位）。
+   * 资源域（§11.3 二十一导出）装载判据与类型化消费面（任务 #194 交付③的宿主侧合缝位）。
    *
    * @remarks 两臂恒在：`available` 交付 `INativeResourceModule` 消费面（现态部署产物
-   * 55 导出、资源域 20 名在册，波 A1 任务 #209 落位、波 A2a 任务 #212 清单补登、波 B
-   * 任务 #231 两换算名补登后过闸）；
+   * 56 导出、资源域 21 名在册，波 A1 任务 #209 落位、波 A2a 任务 #212 清单补登、波 B
+   * 任务 #231 两换算名补登、点位五 D1 任务 #244 `resourceGrantSession` 补登后过闸）；
    * `unavailable` 逐项点名缺位导出（产物缺位 / 旧构建漂移 / ABI 漂移形态）。本字段是端口
    * 注入面之外的独立判据留痕，资源域波次落位即随波机械翻正；文档端口正式适配器的接线条件
    * 与剩余未落载体（跨成员原子提交 / 落盘序列化，点位四后续波）见

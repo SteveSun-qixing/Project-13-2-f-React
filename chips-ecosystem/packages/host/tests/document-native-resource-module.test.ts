@@ -1,21 +1,25 @@
 /**
  * §11.3 资源域导出镜像与装载闸契约锁（W3-P0-1 段三宿主接线波，任务 #194 交付③ / #196 收口；
- * 波 A2a 任务 #212 三名补登落册翻正；波 B 任务 #231 两换算名补登 18→20 名随动）。
+ * 波 A2a 任务 #212 三名补登落册翻正；波 B 任务 #231 两换算名补登 18→20 名随动；
+ * 点位五 D1 任务 #244 补登 `resourceGrantSession` 至 21 名，宿主镜像随动经 #241/#245/#247
+ * 三波未竟，由红案清零波任务 #248 落地）。
  *
- * 权威：《04-资源管理设计》§11.3「Neon 导出」表（20 行逐字，表行序即镜像序）；
+ * 权威：《04-资源管理设计》§11.3「Neon 导出」表（21 行逐字，表行序即镜像序；
+ * 第 21 行文档面随动已由工单053 D1 文档波任务 #246 落位，本表文本锁现行在册）；
  * 三方表文本锁 = §11.3 文档表原文 ↔ `native-resource-module.ts` 镜像常量与类型化注入面
  * ↔ `packages/native` 在册导出表（`abi/export-surface.json` 与 `types/chips-native.d.ts`）
  * （刀2 A 组母型：源码/文档纯文本比对，零 import 编译依赖、零 fabricate）。
  *
  * @remarks
- * - 资源域导出面（34→49→50→53→55）由 Rust 侧波次交付（#195 触顶链 → #199 段三主体收口批
+ * - 资源域导出面（34→49→50→53→55→56）由 Rust 侧波次交付（#195 触顶链 → #199 段三主体收口批
  *   a82bbbd6b 落位 15 名、波 A1 任务 #209 提交 554f761ff 补登挂载 / 注销三名至 18 名、波 B
- *   任务 #231 补登 `managedUri ↔ localPath` 双向换算两名至 20 名）；
+ *   任务 #231 补登 `managedUri ↔ localPath` 双向换算两名至 20 名、点位五 D1 任务 #244
+ *   提交 9fa04e900 补登 `resourceGrantSession` 至 21 名）；
  *   **宿主镜像禁改 `packages/native` 面**，对在册导出表的互锁按预登记口径收紧为
- *   「恰等 20 名镜像」单态判据（本波 #212 执行收紧，「空集（未落位）」历史臂随落位事实
+ *   「恰等 21 名镜像」单态判据（本波 #212 执行收紧，「空集（未落位）」历史臂随落位事实
  *   退役）——漂移（部分落位 / 自造名）即红；
- * - 装载闸对「产物在位」的现态（55 导出、资源域 20 名在册）实测闸判判 available 并
- *   交付 20 函数消费面（落位即收紧，本波 A2a 承接 #199 交回执行，生产判定分支结构零改动，
+ * - 装载闸对「产物在位」的现态（56 导出、资源域 21 名在册）实测闸判判 available 并
+ *   交付 21 函数消费面（落位即收紧，本波 A2a 承接 #199 交回执行，生产判定分支结构零改动，
  *   见该臂注记）；产物缺位形态判 `module-missing`，任一形态绝不交付半截消费面；
  * - 装载闸 fail-closed 四分面（`module-missing` / `load-failed` / `surface-mismatch` /
  *   `abi-mismatch`）经 CJS 替身夹具全臂锁定（`broken.js` / `not-object.js` 为域无关
@@ -61,7 +65,7 @@ function parseExportTableNames(markdown: string): string[] {
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** §11.3 二十导出名镜像全序（旧构建替身夹具的点名全序 = `resource-stale-no-surface.js` 缺位集）。 */
+/** §11.3 二十一导出名镜像全序（旧构建替身夹具的点名全序 = `resource-stale-no-surface.js` 缺位集）。 */
 const ALL_SURFACE_NAMES = [...NATIVE_RESOURCE_SURFACE_EXPORTS];
 
 /* ------------------------------------------------------------------ *
@@ -79,22 +83,22 @@ describe('§11.3 三方表文本锁：文档表原文 ↔ 镜像常量 ↔ nativ
   };
   const declaration = readWorkspaceSource('../../native/types/chips-native.d.ts');
 
-  it('§11.3 表原文 20 行导出名与镜像常量逐项逐序一致（表行序即数组序，面漂移即翻红）', () => {
+  it('§11.3 表原文 21 行导出名与镜像常量逐项逐序一致（表行序即数组序，面漂移即翻红）', () => {
     // 切割窗口止于「JS 投影形状冻结表」小节（#204 臂③扩表：两投影逐字段行
-    // 同为 `| \`字段\` |` 形态，不截断即误捕冻结表字段名——二十名导出表本体判据不变）。
+    // 同为 `| \`字段\` |` 形态，不截断即误捕冻结表字段名——二十一名导出表本体判据不变）。
     const section = resourceDoc.slice(resourceDoc.indexOf('### 11.3'), resourceDoc.indexOf('#### JS 投影形状冻结表'));
     expect(section.length).toBeGreaterThan(0);
     expect(parseExportTableNames(section)).toEqual(ALL_SURFACE_NAMES);
-    expect(ALL_SURFACE_NAMES.length).toBe(20);
+    expect(ALL_SURFACE_NAMES.length).toBe(21);
   });
 
-  it('装载闸必备全集 = 元信息两项 + 资源域 20 名，共 22 项且序一致', () => {
+  it('装载闸必备全集 = 元信息两项 + 资源域 21 名，共 23 项且序一致', () => {
     expect(NATIVE_RESOURCE_REQUIRED_META_EXPORTS).toEqual(['coreVersion', 'coreAbiVersion']);
     expect(NATIVE_RESOURCE_REQUIRED_EXPORTS).toEqual([...NATIVE_RESOURCE_REQUIRED_META_EXPORTS, ...ALL_SURFACE_NAMES]);
-    expect(NATIVE_RESOURCE_REQUIRED_EXPORTS.length).toBe(22);
+    expect(NATIVE_RESOURCE_REQUIRED_EXPORTS.length).toBe(23);
   });
 
-  it('类型化注入面 `INativeResourceModule` 的 20 个方法名与镜像常量逐项逐序一致（禁第二套名）', () => {
+  it('类型化注入面 `INativeResourceModule` 的 21 个方法名与镜像常量逐项逐序一致（禁第二套名）', () => {
     const interfaceBlock = moduleSource.slice(
       moduleSource.indexOf('export interface INativeResourceModule'),
       moduleSource.indexOf('/** 装载失败原因'),
@@ -132,7 +136,7 @@ describe('§11.3 三方表文本锁：文档表原文 ↔ 镜像常量 ↔ nativ
     expect(members(entryBlock)).toEqual(entryTable);
   });
 
-  it('native 在册导出表互锁（落位收紧单态，波 A2a 任务 #212 执行、波 B 任务 #231 两换算名随动）：resource* 名集恰等 20 名镜像，d.ts 声明同序', () => {
+  it('native 在册导出表互锁（落位收紧单态，波 A2a 任务 #212 执行、波 B 任务 #231 两换算名随动、D1 任务 #244 `resourceGrantSession` 随动）：resource* 名集恰等 21 名镜像，d.ts 声明同序', () => {
     // 「空集（未落位）」历史臂按 #199/#209 预登记口径随三名落位事实退役（收紧非放宽：
     // 两态判据的单态化即原注记「落位即自动收紧」的执行形态；漂移即红）。
     const names = manifest.exports.map((entry) => entry.name).filter((name) => /^resource[A-Z]/.test(name));
@@ -147,7 +151,7 @@ describe('§11.3 三方表文本锁：文档表原文 ↔ 镜像常量 ↔ nativ
  * ------------------------------------------------------------------ */
 
 describe('§11.3 装载闸：loadNativeResourceBinding（fail-closed 四分面）', () => {
-  it('可用面：22 项在位且 ABI 等值 → available，交付 20 函数类型化消费面', () => {
+  it('可用面：23 项在位且 ABI 等值 → available，交付 21 函数类型化消费面', () => {
     const binding = loadNativeResourceBinding(fixturePath('resource-available.js'));
     expect(binding.status).toBe('available');
     if (binding.status === 'available') {
@@ -186,7 +190,7 @@ describe('§11.3 装载闸：loadNativeResourceBinding（fail-closed 四分面�
     }
   });
 
-  it('surface-mismatch：二十名全缺位 → 逐项点名（表行序 join，防静默降级）', () => {
+  it('surface-mismatch：二十一名全缺位 → 逐项点名（表行序 join，防静默降级）', () => {
     const binding = loadNativeResourceBinding(fixturePath('resource-stale-no-surface.js'));
     expect(binding.status).toBe('unavailable');
     if (binding.status === 'unavailable') {
@@ -199,11 +203,13 @@ describe('§11.3 装载闸：loadNativeResourceBinding（fail-closed 四分面�
   });
 
   it('surface-mismatch：仅缺末位一名 → 点名恰只含该名（在位名不混入）', () => {
-    const binding = loadNativeResourceBinding(fixturePath('resource-stale-19.js'));
+    // 末位名随点位五 D1 任务 #244 补登 `resourceGrantSession`（§11.3 行 21）翻正；
+    // 夹具 `resource-stale-20.js` 复刻旧构建面（21 名中仅缺该末位名）。
+    const binding = loadNativeResourceBinding(fixturePath('resource-stale-20.js'));
     expect(binding.status).toBe('unavailable');
     if (binding.status === 'unavailable') {
       expect(binding.reason).toBe('surface-mismatch');
-      expect(binding.detail).toContain('：resourceManagedUriOfPath（');
+      expect(binding.detail).toContain('：resourceGrantSession（');
       expect(binding.detail).not.toContain('resourceOpen');
     }
   });
@@ -257,12 +263,13 @@ describe('§11.3 现态部署产物装载闸（生产恒缺省臂，任务 #194 
   });
 
   it(
-    '落位即收紧：产物在位（55 导出在册，含资源域 20 名）则必判 available 并交付 20 函数消费面；' +
+    '落位即收紧：产物在位（56 导出在册，含资源域 21 名）则必判 available 并交付 21 函数消费面；' +
       '缺位则判 module-missing——任一形态绝不交付半截消费面',
     () => {
       // 本臂原锁「resource* 导出未落位」现态事实（任务 #194 M0 结论①），部署产物翻正位
       // （34→49，#199 段三主体收口批 a82bbbd6b 交付；49→50→53，audit 域与波 A1 三补名
-      // 随批落位；53→55，波 B 任务 #231 两换算名补登）后按预登记口径改断 available 收紧形
+      // 随批落位；53→55，波 B 任务 #231 两换算名补登；55→56，点位五 D1 任务 #244 提交
+      // 9fa04e900 补登 `resourceGrantSession`）后按预登记口径改断 available 收紧形
       // （候翻正注记在册，本波 #212 承接执行清单补登）；生产判定分支结构零改动。
       const binding = loadNativeResourceBinding(artifactPath);
       if (existsSync(artifactPath)) {

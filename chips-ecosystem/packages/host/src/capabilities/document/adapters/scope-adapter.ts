@@ -1,9 +1,11 @@
 /**
  * `IDocumentScopePort` 的正式资源管理器适配器（工单036 波 A2b-α，任务 #217；
  * `native-resource-module.ts` 头注登记的「A2b 接线」即本文件与
- * `production-wiring.ts` 的 `resourcePorts` 注入缝）。
+ * `production-wiring.ts` 的 `resourcePorts` 注入缝；波 B2 任务 #241 在本适配器落
+ * 点位三 `managedUri ↔ localPath` 的宿主消费臂——正向取回、反向直读核验与作用域根查询）。
  *
- * 权威：`04-资源管理设计` §5.2（作用域注册）、`04.11` §11.3（挂载/注销导出与 scope 派生）、
+ * 权威：`04-资源管理设计` §5.2（作用域注册）、`04.11` §11.3（挂载/注销导出、点位三
+ * `managedUri ↔ localPath` 双向换算导出行 19–20 与 scope 派生）、
  * `06-资源协议规范` §2.6/§3.2/§3.3（受管引用语法、注销时机表、`chips-resource://<scope>/` 基址口径）、
  * #213 §2.1(g) 六阶段时序表（INV-1~INV-6）。
  *
@@ -19,15 +21,26 @@
  *   （挂载持久于进程、`close_session` 不自动脱绑，#213 §2.1(d)/§2.1(g)）；
  *   注销入口全仓唯一即本成员（禁第二注销形）。调用位已在册（β）：`session-store.ts` 的
  *   `releaseSessionsOf` 经 `releaseScope` 依赖位、`service.ts` 的 `rollbackFreshRecord` 经端口本成员。
- * - **幂等臂＝窄形（M0 核证在册，`/tmp/w217_state.md`）**：`RESOURCE_ALREADY_EXISTS` 是幂等
- *   信号不是错误（RFC `:107`、《04.11》:207-208）；但点位三 lookup 导出未落位（归波 B）、
+ * - **幂等臂＝窄形（M0 核证在册，`/tmp/w217_state.md`；点位三随波 B 已落位，本注记按实读翻正）**：
+ *   `RESOURCE_ALREADY_EXISTS` 是幂等信号不是错误（RFC `:107`、《04.11》:207-208）；但
  *   未绑定会话对 Document scope 读臂恒拒（`permission.rs` document() 臂 + 绑定层空权限集，
- *   `native/src/resource.rs:802`），「已在册未绑定」的宽形复用在 JS 面不可执行 ⇒ 本适配器
- *   仅当**自身在册账**（TS 侧 normalize→register 簿记，RFC §6.3 波 B 后收敛到点位三取回）
+ *   `native/src/resource.rs:802`），且核心反向换算对**绑定集为空**的会话一律 `None`
+ *   （`manager.rs:1052` 首闸），故「他人已登记同一 scope」的宽形复用在 JS 面拿不到任何证据
+ *   ⇒ 本适配器仅当**自身在册账**（TS 侧 normalize→register 簿记；挂载期路径事实已随波 B2
+ *   收敛到点位三取回，见下「点位三消费臂」）
  *   命中同 managedUri 的**活绑定**（本适配器挂载且会话在位）时复用放行；不在册一律视为
  *   真冲突，**打开失败收口**（透传 `RESOURCE_ALREADY_EXISTS`）。**禁抢占他人 scope**（INV-5：
  *   冲突臂绝不先注销后挂载）；owner/kind/origin 一致性按 M0 处置降级为账本核对
  *   （kind/canonicalPath/documentId 三项；owner 由 `DOCUMENT_SCOPE_OWNER` 常量构造恒等）。
+ * - **点位三消费臂（工单036 波 B2，本适配器为宿主侧唯一真接位）**：
+ *   ① 正向 `localPathOf(managedUri, nativeSession)` 直调 `resourceLocalPathOf`（§11.3 行 19），
+ *   在册账只供**作用域身份**、路径事实由核心 `ScopeRegistry` 的 `Origin` 单源给出——文档服务
+ *   自此不在记录面缓存 `localPath`；② 命中已有挂载的再归一经反向 `resourceManagedUriOfPath`
+ *   （§11.3 行 20）**反向直读核验**，未命中（`null`）与命中他域同为账本漂移 ⇒ fail-closed
+ *   `RESOURCE_NOT_FOUND` + 审计留痕，绝不回退 TS 账本供路径、绝不在跨层消息里回显真实路径；
+ *   ③ `scopeRootOf` 以挂载回执核验过的 `scope` 合形，取代调用方的词法切片。
+ *   账本仍承载的两项**不可替代**事实：挂载前的归一路径（`canonicalizeDocumentPath` 产物，
+ *   此刻核心侧尚无登记、换算口必判未命中）与挂载输入路径本身。
  * - **失败码口径（裁决I-②）**：挂载链对宿主机路径零产生 `RESOURCE_PATH_INVALID`；
  *   真实落码 `RESOURCE_NOT_FOUND`（directory.rs:107-114、archive.rs:131-134）/
  *   `RESOURCE_ALREADY_EXISTS` / `RESOURCE_PERMISSION_DENIED` 等，原样透传不造第二套语义。
@@ -35,8 +48,9 @@
  *   `RESOURCE_PERMISSION_DENIED` **不得静默**——审计留痕 + 「疑似孤儿」告警后如实抛出，
  *   **禁转而 closeSession 掩盖**（会话仍持有即保留在册账，留人工/后续波处置）。
  * - **禁裸路径直读（《06.03》:45）**：`normalizeSource` 是本地来源进入文档链路的唯一归一点
- *   （realpath 规范化 + 派生 scope + 受管引用合形），下游只消费 `managedUri` 与 canonical
- *   `localPath`；远端方案（http/https/webdav）物化通道未开（本波诚实拒收
+ *   （realpath 规范化 + 派生 scope + 受管引用合形），下游只消费 `managedUri`（记录存续期的
+ *   本地路径经本适配器的点位三正向口 `localPathOf` 现取，见「点位三消费臂」）；远端方案
+ *   （http/https/webdav）物化通道未开（本波诚实拒收
  *   `RESOURCE_UNSUPPORTED_SCHEME`）。
  * - **写位现状（工单053 波 C）**：目录态挂载按 §11.3 行 16 以 `writable = true` 登记
  *   （挂载 policy 面，非权限注入）；会话权限集仍为空（绑定层无授权注入导出），
@@ -63,6 +77,19 @@ const DOCUMENT_SESSION_KIND = 'document';
 
 /** 受管引用协议头（《06.02》§2.1 authority 段 = scope）。 */
 const MANAGED_URI_PREFIX = 'chips-resource://';
+
+/**
+ * 作用域基址形合形（`chips-resource://<scope>/`，《06-资源协议规范》§3.3 基址口径）。
+ *
+ * @remarks 本函数是适配器内**唯一**的受管引用合形点，输入一律是已登记（并经挂载回执
+ * 核验）的 `scope` 事实，不是任意字符串切片。点位三的两次换算都以此形为输入/比对基准：
+ * 正向 `resourceLocalPathOf(基址形, session)`（§11.3 行 19「目录态作用域基址形返回包根」、
+ * 归档态恒返回归档文件路径），反向 `resourceManagedUriOfPath(物理根, session)` 的规范产物
+ * （核心 `managed_uri_of_path` 对包根/归档文件命中的相对段为空 ⇒ 产物即基址形）。
+ */
+function managedUriOfScopeRoot(scope: string): string {
+  return `${MANAGED_URI_PREFIX}${scope}/`;
+}
 
 /** 单条在册账：normalizeSource 建立、registerScope 转正、unregisterScope 移除。 */
 interface IScopeLedgerEntry {
@@ -166,9 +193,57 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
     }
   }
 
+  /**
+   * 命中已有挂载时的**反向直读核验**（点位三反向，`04.11` §11.3 行 20；RFC §6.1 消费面
+   * 「命中已有挂载：反向直读」）。
+   *
+   * @remarks
+   * - 活绑定在位 ⇒ 本次查询用的是**该挂载自己的原生会话**（作用域已随 `attach_scope` 绑定），
+   *   换算口在绑定集内按 Origin 最长前缀匹配，命中的规范产物即本作用域基址形——一次调用即
+   *   把「在册账声称的挂载仍然可解析」这一事实从 TS 账本断言升格为资源管理器单源证据。
+   * - **未命中（`null`）分支**：核心对「路径不存在 / 会话已收口 / 作用域已被别处注销 /
+   *   他会话作用域」一律返回 `null`、不报错、不区分成因（零信息泄露口径即体现在返回类型，
+   *   `crates/chips-resource/src/manager.rs:1052` 头注），本适配器据此只能判「换算口不可信
+   *   本账」——fail-closed 抛 `RESOURCE_NOT_FOUND`（在册码，零新码），**绝不回退到 TS 账本
+   *   供路径**（回退即保留双份事实源），也绝不在消息里回显真实文件系统路径（同 §11.3 行 19
+   *   错误面 `target` 仅作用域根不回显路径的口径）。
+   * - 命中但指向**别的**作用域（基址形不等）同判为账本漂移（同一物理根被别的 scope 覆盖），
+   *   处置形与 `null` 一致：留痕 + fail-closed，不猜、不抢占（INV-5）。
+   */
+  async function assertLiveMountResolvable(entry: IScopeLedgerEntry): Promise<void> {
+    const mounted = entry.mounted;
+    if (mounted === null) {
+      // 仅归一在册、尚未挂载：此刻核心侧没有该作用域的登记事实，反向换算必为 `null`
+      // （未绑定会话对 Document scope 读臂恒拒，#217 M0 核证），无可核验面 —— 归一事实
+      // 由本账承担，挂载后的一切路径事实改经 `localPathOf`（点位三正向）。
+      return;
+    }
+    let reverse: string | null;
+    try {
+      reverse = await native.resourceManagedUriOfPath(entry.canonicalPath, mounted.nativeSession);
+    } catch (error: unknown) {
+      // 换算口本身失败（非未命中形）：登记码原样上浮，不吞、不回退账本供路径。
+      throw asDocumentCapabilityError(error);
+    }
+    const scopeRoot = managedUriOfScopeRoot(entry.scope);
+    if (reverse === scopeRoot) {
+      return;
+    }
+    diagnostics?.error('document', '在册挂载的反向换算与账本作用域不一致（fail-closed，不回退 TS 账本供路径）', {
+      scope: entry.scope,
+      managedUri: entry.managedUri,
+      documentId: mounted.documentId,
+      // `null` = 未命中（不区分成因、不泄露存在性）；非 null 不等 = 命中他域。两者同为账本漂移。
+      verdict: reverse === null ? '换算未命中' : '换算指向他作用域',
+    });
+    throw new DocumentCapabilityError('RESOURCE_NOT_FOUND', {
+      message: '在册挂载已不可经资源管理器换算（作用域漂移或已失效），拒以陈旧账供路径',
+    });
+  }
+
   function normalizeSource(source: string, ctx: IDocumentCapabilityContext): Promise<IResolvedDocumentSource> {
     void ctx;
-    return enqueue(`normalize:${source}`, (): IResolvedDocumentSource => {
+    return enqueue(`normalize:${source}`, async (): Promise<IResolvedDocumentSource> => {
       if (typeof source !== 'string' || source.length === 0) {
         throw new DocumentCapabilityError('RESOURCE_INVALID_URI', { message: '文档来源不能为空' });
       }
@@ -181,6 +256,8 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
             message: '受管引用未在本作用域适配器在册（文档须先经本地来源打开）',
           });
         }
+        // 命中已有挂载 → 反向直读核验（点位三）。
+        await assertLiveMountResolvable(entry);
         return { managedUri: entry.managedUri, localPath: entry.canonicalPath, form: entry.form };
       }
       if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(source) && !source.startsWith('file://')) {
@@ -211,12 +288,36 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
       const managedUri = `${MANAGED_URI_PREFIX}${scope}/${encodeURIComponent(basename(canonicalPath))}`;
       const existing = ledger.get(managedUri);
       if (existing !== undefined) {
-        // 同物理根再归一：账目在位即复用（活绑定由 registerScope 幂等臂放行）。
+        // 同物理根再归一：账目在位即复用（活绑定由 registerScope 幂等臂放行）；
+        // 已挂载者先经反向直读核验（点位三消费分叉的「命中反查复用」臂）。
+        await assertLiveMountResolvable(existing);
         return { managedUri, localPath: existing.canonicalPath, form: existing.form };
       }
       ledger.set(managedUri, { managedUri, scope, kind, form, canonicalPath, mounted: null });
       return { managedUri, localPath: canonicalPath, form };
     });
+  }
+
+  /**
+   * 点位三正向取回（`04.11` §11.3 行 19）：在册账只供**作用域身份**，路径由核心单源换算。
+   *
+   * 输入取作用域基址形（`managedUriOfScopeRoot`）——目录态包根与归档态归档文件路径都由
+   * 该形直达；以含产物段的记录键直译会落进包根之下（`Origin::Directory` 分支
+   * `resolve_within_root(root, virtual_path)`），故键与换算形在此显式分离。
+   */
+  async function doLocalPathOf(managedUri: string, nativeSession: number): Promise<string> {
+    const entry = ledger.get(managedUri);
+    if (entry === undefined) {
+      throw new DocumentCapabilityError('RESOURCE_NOT_FOUND', {
+        message: '受管引用未在本作用域适配器在册（无登记作用域可供换算）',
+      });
+    }
+    return await native
+      .resourceLocalPathOf(managedUriOfScopeRoot(entry.scope), nativeSession)
+      .catch((error: unknown): never => {
+        // 换算失败的登记码原样上浮（`RESOURCE_*` 族，端口头注口径），不造第二套语义、不回退账本值。
+        throw asDocumentCapabilityError(error);
+      });
   }
 
   async function doRegisterScope(input: {
@@ -340,6 +441,14 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
     },
     unregisterScope(input: { readonly documentId: string; readonly managedUri: string }): Promise<void> {
       return enqueue(`scope:${input.managedUri}`, () => doUnregisterScope(input));
+    },
+    localPathOf(managedUri: string, nativeSession: number): Promise<string> {
+      // 与挂载/注销同键串行：换算不得越过在途挂载（未登记的作用域在核心侧必判未命中）。
+      return enqueue(`scope:${managedUri}`, () => doLocalPathOf(managedUri, nativeSession));
+    },
+    scopeRootOf(managedUri: string): string | null {
+      const entry = ledger.get(managedUri);
+      return entry === undefined ? null : managedUriOfScopeRoot(entry.scope);
     },
   };
 }

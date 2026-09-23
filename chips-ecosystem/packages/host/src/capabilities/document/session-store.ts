@@ -67,10 +67,15 @@ export interface IRecordLazyParts {
   layoutDiagnostics?: readonly IDocumentDiagnostic[];
 }
 
-/** 文档记录：一个受管来源在一次挂载期内的解析基线与共享状态。 */
+/**
+ * 文档记录：一个受管来源在一次挂载期内的解析基线与共享状态。
+ *
+ * @remarks 记录**不持有本地路径**（工单036 波 B2 / 点位三消费臂）：路径事实源唯一在资源管理器，
+ * 消费侧经作用域端口 `localPathOf(managedUri, nativeSession)` 现取；记录侧只保留身份与
+ * 基线（`managedUri` + `nativeSession` 即换算输入的全部所需）。
+ */
 export interface IDocumentRecord {
   readonly managedUri: string;
-  readonly localPath: string;
   readonly form: DocumentForm;
   readonly kind: DocumentKind;
   readonly documentId: string;
@@ -100,10 +105,13 @@ export interface IDocumentRecord {
   lastSavedDigest: string | null;
 }
 
-/** 打开文档记录的输入。 */
+/**
+ * 打开文档记录的输入。
+ *
+ * @remarks 无 `localPath` 形（工单036 波 B2）：见 {@link IDocumentRecord} 头注的单一事实源口径。
+ */
 export interface IOpenRecordInput {
   readonly managedUri: string;
-  readonly localPath: string;
   readonly form: DocumentForm;
   readonly kind: DocumentKind;
   readonly documentId: string;
@@ -236,7 +244,6 @@ export function createDocumentSessionStore(
       }
       const record: IDocumentRecord = {
         managedUri: input.managedUri,
-        localPath: input.localPath,
         form: input.form,
         kind: input.kind,
         documentId: input.documentId,

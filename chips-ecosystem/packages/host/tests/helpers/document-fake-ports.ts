@@ -152,6 +152,8 @@ export interface IFailurePanel {
   normalizeSource?: Error;
   registerScope?: Error;
   unregisterScope?: Error;
+  /** 点位三正向取回失败注入（波 B2 锁测：证服务侧确实现取路径，未调用即不红）。 */
+  localPathOf?: Error;
   open?: Error;
   fingerprint?: Error;
   serialize?: Error;
@@ -204,6 +206,10 @@ export interface IDocumentTestHarness {
   readonly logs: readonly IHarnessLog[];
   readonly scopeRegistrations: readonly { documentId: string; managedUri: string; kind: DocumentKind }[];
   readonly scopeUnregistrations: readonly { documentId: string; managedUri: string }[];
+  /** 点位三正向取回（`localPathOf`）的调用留痕：`{managedUri, nativeSession}` 逐次入参。 */
+  readonly convertedPaths: readonly { managedUri: string; nativeSession: number }[];
+  /** 作用域根查询覆写表（哨兵值即证明调用侧不自算基址）。 */
+  readonly scopeRootOverrides: Map<string, string>;
   readonly openRequests: readonly { localPath: string; kind: DocumentKind | null }[];
   readonly releasedGenerations: readonly number[];
   readonly serializeRequests: readonly IDocumentSerializeRequest[];
@@ -278,6 +284,10 @@ export function createHarness(): IDocumentTestHarness {
   const logs: IHarnessLog[] = [];
   const scopeRegistrations: { documentId: string; managedUri: string; kind: DocumentKind }[] = [];
   const scopeUnregistrations: { documentId: string; managedUri: string }[] = [];
+  /** 点位三正向取回的调用留痕（锁测据以判定服务是否现取路径，波 B2）。 */
+  const convertedPaths: { managedUri: string; nativeSession: number }[] = [];
+  /** 作用域根查询的返回值覆写（「服务侧无双源」锁测用哨兵，波 B2）。 */
+  const scopeRootOverrides = new Map<string, string>();
   /** 替身作用域端口的登记凭号源（模拟原生 `resourceOpenSession` 回执，见 `registerScope` 臂）。 */
   let nativeSessionCounter = 0;
   const openRequests: { localPath: string; kind: DocumentKind | null }[] = [];
@@ -561,6 +571,40 @@ export function createHarness(): IDocumentTestHarness {
         scopeUnregistrations.push(input);
       });
     },
+
+    // 点位三正向取回的替身（工单036 波 B2）：与正式适配器同形——按受管引用给路径，
+    // 不在册即 `RESOURCE_NOT_FOUND`；替身不外接原生会话表，故 `nativeSession` 只作调用留痕。
+    localPathOf(managedUri: string, nativeSession: number): Promise<string> {
+      return toPortCall(() => {
+        if (failures.localPathOf !== undefined) {
+          throw failures.localPathOf;
+        }
+        convertedPaths.push({ managedUri, nativeSession });
+        const resolved = sources.get(managedUri)?.resolved;
+        if (resolved === undefined) {
+          throw portFailure('RESOURCE_NOT_FOUND', '受管引用未在作用域端口在册');
+        }
+        return resolved.localPath;
+      });
+    },
+
+    scopeRootOf(managedUri: string): string | null {
+      const overridden = scopeRootOverrides.get(managedUri);
+      if (overridden !== undefined) {
+        return overridden;
+      }
+      if (sources.get(managedUri)?.resolved.managedUri !== managedUri) {
+        return null;
+      }
+      const separator = managedUri.indexOf('://');
+      if (separator <= 0) {
+        return null;
+      }
+      const authority = managedUri.slice(separator + 3);
+      const boundary = authority.search(/[/?#]/);
+      const scope = boundary < 0 ? authority : authority.slice(0, boundary);
+      return scope.length === 0 ? null : `${managedUri.slice(0, separator + 3 + scope.length)}/`;
+    },
   };
 
   const events = {
@@ -629,6 +673,8 @@ export function createHarness(): IDocumentTestHarness {
     logs,
     scopeRegistrations,
     scopeUnregistrations,
+    convertedPaths,
+    scopeRootOverrides,
     openRequests,
     releasedGenerations,
     serializeRequests,

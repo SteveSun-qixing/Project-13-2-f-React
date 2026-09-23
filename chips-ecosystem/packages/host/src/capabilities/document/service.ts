@@ -21,6 +21,13 @@
  *   打开失败回收）一律「① `unregisterScope` → ② 关句柄」两拍次序（INV-2，经 `session-store.ts`
  *   `releaseScope` 依赖位与 `rollbackFreshRecord` 单点承载），`document:closed` 事件**不承担**
  *   资源注销（裁决I-④ 形态①，禁双注销挂点 INV-6）。
+ * - 路径与基址的单源口径（工单036 波 B2，点位三消费臂接线）：文档记录**不持有** `localPath`，
+ *   挂载建立后每一次磁盘触达（指纹复查、序列化输入、受控提交、摘要复算、句柄重建）都经作用域
+ *   端口的 `localPathOf`（原生 `resourceLocalPathOf`，§11.3 行 19）以 `record.managedUri` +
+ *   `record.nativeSession` 现取（RFC §6.1 消费面「消除 TS 私有路径缓存」）；
+ *   打开链挂载前的那一次路径由 `normalizeSource` 交付（此刻尚无会话，换算口不可达）。
+ *   装载投递的资源基址同理经 `scopeRootOf` 查正式注册表，本模块不做
+ *   字符串切片派生——宿主侧自此只有资源管理器一份路径事实源与一份作用域登记事实源。
  */
 
 import { DOCUMENT_CAPABILITY_IDS, DOCUMENT_CAPABILITY_PERMISSIONS, DOCUMENT_EVENT_IDS } from './contract.js';
@@ -152,8 +159,9 @@ export interface IDocumentService {
    * 按来源引用定位存活会话记录，交付 `document:open` 回包同源的稳定标识与资源作用域根。
    *
    * @remarks 定位口径与 {@link IDocumentService.resolveViewSession} 逐字一致（同一
-   * `findRecord(source)` 会话键口径）；无存活记录或受管引用词法不可投影为作用域根时返回
-   * `null`，由投递臂按在册码 `DOCUMENT_NOT_OPEN` 如实拒收（不伪造装载）。
+   * `findRecord(source)` 会话键口径）；无存活记录、或受管引用在正式作用域注册表查不到登记
+   * 事实（`scopeRootOf` 返回 `null`）时返回 `null`，由投递臂按在册码 `DOCUMENT_NOT_OPEN`
+   * 如实拒收（不伪造装载、不在本模块词法切片自算基址）。
    */
   resolveWindowDocument(source: string): ICardWindowDocumentBinding | null;
   /**
@@ -175,25 +183,6 @@ function contentMemberPath(nodeId: string): string {
   return `content/${nodeId}.yaml`;
 }
 
-/**
- * 受管引用的作用域根 URI（`chips-resource://<scope>/`）——卡片窗口装载投递的资源基址口径。
- *
- * @remarks 只取 `06-资源协议规范` §二 URI 语法的 **authority 段**（作用域段）做词法投影，
- * 不复用 `parseResourceUri` 的完整语法闸：作用域种类的登记事实归资源管理器，本函数只把
- * 打开链路 `normalizeSource` 交付的受管引用收敛为其作用域根（相对资源以该作用域为根解析）。
- * 词法不可投影（缺 `://`、authority 段为空）返回 `null`——投递臂据此如实拒收，不猜测基址。
- */
-function scopeRootUri(managedUri: string): string | null {
-  const separator = managedUri.indexOf('://');
-  if (separator <= 0) {
-    return null;
-  }
-  const authority = managedUri.slice(separator + 3);
-  const boundary = authority.search(/[/?#]/);
-  const scope = boundary < 0 ? authority : authority.slice(0, boundary);
-  return scope.length === 0 ? null : `${managedUri.slice(0, separator + 3 + scope.length)}/`;
-}
-
 /** 包内成员的字节数累加（`document:changed` 的 `size` 口径）。 */
 function totalByteLength(members: readonly { readonly bytes: Uint8Array }[]): number {
   let size = 0;
@@ -208,6 +197,8 @@ function totalByteLength(members: readonly { readonly bytes: Uint8Array }[]): nu
  *
  * @remarks `04-能力契约规范` §7.3：`kind` 缺省时按内容识别。扩展名可判定时作为解析器的
  * 声明格式提示；不可判定时交由解析器按内容自动识别（`06-文档解析器设计` §3），服务不猜格式。
+ * 波 B2 核证保留：本派生只是**解析提示**，不构成路径或作用域的第二事实源（点位三消费臂
+ * 只收敛 `localPath` 与作用域根两项，#234 勘查 §B.2 与裁决I-⑤ 同口径），故随本波保留。
  */
 function kindHintFromManagedUri(managedUri: string): DocumentKind | null {
   const lowered = managedUri.toLowerCase();
@@ -390,6 +381,21 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     return { nodes, removed: removed.sort(comparePackagePath) };
   }
 
+  /**
+   * 记录存续期的本地可读路径现取（点位三正向消费臂，`04.11` §11.3 行 19）。
+   *
+   * @remarks 本方法是挂载建立后本服务取得磁盘路径的**唯一**入口：入参一律是记录级的
+   * `managedUri` + `nativeSession`（INV-1 回执交付值），换算权威在资源管理器
+   * （`resourceLocalPathOf` → 核心 `ScopeRegistry` 的 `Origin`），服务与记录面均不缓存路径
+   * ——「宿主自存 `localPath`」的双份事实源随工单036 波 B2 消除（RFC §6.1 消费面）。
+   * 失败以已登记 `RESOURCE_*` 码原样透传（作用域漂移 `RESOURCE_NOT_FOUND` / 会话未绑定
+   * `RESOURCE_PERMISSION_DENIED` / Origin 无本地形 `RESOURCE_NOT_SUPPORTED`，端口头注口径），
+   * 保存链路上的失败按既有 `DOCUMENT_SAVE_FAILED` 归口承载 `details.cause`。
+   */
+  async function localPathOfRecord(record: IDocumentRecord): Promise<string> {
+    return await deps.scope.localPathOf(record.managedUri, record.nativeSession);
+  }
+
   /** 以当前有效模型构造序列化请求（保存变更集）。 */
   async function buildSerializeRequest(
     record: IDocumentRecord,
@@ -399,6 +405,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   ): Promise<IDocumentSerializeRequest> {
     const metadata = metadataOf(record, session);
     const structure = await ensureStructure(record, session, signal);
+    // 未修订成员的字节复用输入：路径经点位三现取（记录面不自存）。
+    const localPath = await localPathOfRecord(record);
     if (record.kind === 'card') {
       const baselineStructure = await ensureBaselineStructure(record, signal);
       const baselineIds = new Set(cardStructureNodeIds(baselineStructure));
@@ -406,7 +414,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       return {
         kind: 'card',
         form: record.form,
-        localPath: record.localPath,
+        localPath,
         metadata,
         structure,
         contents: collected.nodes,
@@ -419,7 +427,7 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     return {
       kind: 'box',
       form: record.form,
-      localPath: record.localPath,
+      localPath,
       metadata,
       structure,
       contents: [],
@@ -431,14 +439,16 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
 
   /** 从磁盘复算摘要与字节数（保存后与 no-op 保存的权威口径，§5.5）。 */
   async function recomputeDigestFromDisk(record: IDocumentRecord): Promise<{ digest: string; size: number }> {
+    // 磁盘复算的输入路径经点位三现取（RFC §6.1 消费面对本函数的明载口径）。
+    const localPath = await localPathOfRecord(record);
     if (record.form === 'directory') {
-      const members = await deps.storage.listMembers(record.localPath);
+      const members = await deps.storage.listMembers(localPath);
       return {
         digest: computePackageContentDigest(members),
         size: totalByteLength(members),
       };
     }
-    const bytes = await deps.storage.readFileBytes(record.localPath);
+    const bytes = await deps.storage.readFileBytes(localPath);
     return { digest: computeFileDigest(bytes), size: bytes.byteLength };
   }
 
@@ -456,6 +466,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
    *
    * @remarks 任一步失败都不得留下半开状态：身份声明后作用域注册失败即撤回声明并释放句柄；
    * 显式 `kind` 与解析结果矛盾在建立记录前按解析器同码拒绝（§10.3 同场景单码）。
+   * 建立的记录**不含 `localPath`**（工单036 波 B2）：路径只在挂载前的第一跳作为入参出现，
+   * 记录存续期一律经 {@link localPathOfRecord} 现取。
    */
   async function establishRecord(
     resolved: IResolvedDocumentSource,
@@ -463,6 +475,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     ctx: IDocumentCapabilityContext,
   ): Promise<IDocumentRecord> {
     const parsed = await deps.parser.open({
+      // 挂载前的第一跳输入：此刻记录尚无原生会话，点位三换算口不可达（会话绑定闸），
+      // 路径由 `normalizeSource` 的归一产物一次性交付——**不落记录面**（记录存续期改现取）。
       localPath: resolved.localPath,
       kind: requestedKind ?? kindHintFromManagedUri(resolved.managedUri),
       signal: ctx.signal,
@@ -488,7 +502,6 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
     }
     const record = store.openRecord({
       managedUri: resolved.managedUri,
-      localPath: resolved.localPath,
       form: resolved.form,
       kind: parsed.kind,
       documentId: parsed.documentId,
@@ -722,7 +735,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
         details: { capabilityId, documentId: record.documentId, source: record.managedUri },
       });
     }
-    const currentFingerprint = await deps.parser.fingerprint(record.localPath);
+    // 指纹复查的本地路径经点位三现取（记录面不自存路径；口径见 `localPathOfRecord`）。
+    const currentFingerprint = await deps.parser.fingerprint(await localPathOfRecord(record));
     if (!sourceFingerprintsEqual(currentFingerprint, session.baselineFingerprint)) {
       throw documentError(DOCUMENT_BUSINESS_ERROR_CODES.sourceChanged, {
         details: { capabilityId, documentId: record.documentId, source: record.managedUri },
@@ -876,7 +890,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       const removals = built.removedNodeIds.map(contentMemberPath).sort(comparePackagePath);
       try {
         await deps.storage.commit({
-          localPath: record.localPath,
+          // 受控提交输入路径经点位三现取（正式 storage 适配器内部再按反向换算走受管面，波 C）。
+          localPath: await localPathOfRecord(record),
           form: record.form,
           members,
           removals,
@@ -909,10 +924,12 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
    * 磁盘与基线指纹不一致由下一次写入/保存以 `DOCUMENT_SOURCE_CHANGED` 暴露（§7.2 恢复路径是重新打开）。
    */
   async function rebuildAfterCommit(record: IDocumentRecord, signal: AbortSignal): Promise<ISourceFingerprint> {
-    const newFingerprint = await deps.parser.fingerprint(record.localPath);
+    // 提交后重建的输入路径同样经点位三现取（磁盘已换代际，缓存路径在此最易失真）。
+    const localPath = await localPathOfRecord(record);
+    const newFingerprint = await deps.parser.fingerprint(localPath);
     let reloaded: IDocumentParseOutcome;
     try {
-      reloaded = await deps.parser.open({ localPath: record.localPath, kind: record.kind, signal });
+      reloaded = await deps.parser.open({ localPath, kind: record.kind, signal });
     } catch (error: unknown) {
       throw saveFailed(record, error);
     }
@@ -1003,10 +1020,11 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       // 来源无存活记录（文档链路未打开或记录已随会话释放移除）：如实 `null`，投递臂拒收。
       return null;
     }
-    const resourceBase = scopeRootUri(record.managedUri);
+    // 基址口径单源：正式作用域注册表查询（挂载回执核验过的 scope 合形），本模块不切片派生。
+    const resourceBase = deps.scope.scopeRootOf(record.managedUri);
     if (resourceBase === null) {
-      // 会话键不符合受管引用词法：构造性漂移，不猜测资源基址。
-      deps.diagnostics?.warn('document', '装载投递绑定解析的受管引用无法投影为资源作用域根', {
+      // 记录在册而注册表查无登记事实：构造性漂移，不猜测资源基址。
+      deps.diagnostics?.warn('document', '装载投递绑定解析的受管引用未在作用域注册表投影为资源作用域根', {
         managedUri: record.managedUri,
       });
       return null;
