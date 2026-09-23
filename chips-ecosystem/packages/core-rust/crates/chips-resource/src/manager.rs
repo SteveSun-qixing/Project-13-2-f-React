@@ -39,14 +39,19 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use chips_core::{
     emit_permission_decision, ChipsError, DecisionAction, DecisionDomain, DecisionObserver,
     HandleId, PermissionDecision, PluginId, SessionId,
 };
 
-use crate::archive::{ArchiveProvider, ARCHIVE_PROVIDER_ID};
+use chips_parser::source::PackagePath;
+
+use crate::archive::{
+    ArchiveProvider, ArchiveRebuildMember, ArchiveRebuildPlan, ArchiveRebuildReceipt,
+    ARCHIVE_PROVIDER_ID,
+};
 use crate::cache::{CacheKey, CacheStore, CachedMetadata, SingleFlight};
 use crate::constants::ResourceLimits;
 use crate::directory::{
@@ -63,7 +68,7 @@ use crate::provider::{
 use crate::scope::{Origin, ScopeId, ScopeKind, ScopePolicy, ScopeRegistration, ScopeRegistry};
 use crate::session::{ResourceSession, SessionKind, SessionRegistry};
 use crate::uri::{resolve_input, CanonicalUri, ExternalOrigin, MEMORY_SCOPE, RESOURCE_SCHEME};
-use crate::write_coord::{PathWritePermit, WriteCoordinator};
+use crate::write_coord::{PathLockKey, PathWritePermit, WriteCoordinator};
 
 /// 管理器异步面的结果别名：`ChipsError` 单形承载全部在册 `RESOURCE_*` 码。
 pub type ManagerResult<T> = Result<T, ChipsError>;
@@ -177,6 +182,25 @@ pub struct ChangesetRequest {
     pub members: Vec<ChangesetMember>,
     /// 删除成员集（同事务删除，沿 `delete` 的《04.04》§4.9 种类闸）。
     pub removals: Vec<VirtualPath>,
+}
+
+/// 归档态整包重建提交请求（工单036 波 C2a-3，《04.04》§4.8 受控提交路径的
+/// 归档态承载；对照宿主端口形 `IDocumentCommitRequest{members[], removals[]}`
+/// 的归档臂：成员字节集经 `resources:write` 判定与内联体量闸，未变更成员由
+/// 本侧自旧包流式复用，调用方只交付变更集）。
+#[derive(Debug, Clone)]
+pub struct ArchiveRebuildRequest {
+    /// 发起会话。
+    pub session: SessionId,
+    /// 目标归档作用域 ID（限已挂载的 `Origin::Archive` 文档作用域）。
+    pub scope: ScopeId,
+    /// 覆写/新增成员集（路径 + 全量字节；未列出的旧成员原样承接）。
+    pub members: Vec<ChangesetMember>,
+    /// 不再承接的旧成员集（换代后消失；缺失即 `RESOURCE_NOT_FOUND`）。
+    pub removals: Vec<VirtualPath>,
+    /// 保存时刻：新包全部条目时间戳统一取该时刻（《11.05》§5.4「成员时间戳」
+    /// 行），由调用侧（文档服务的保存拍）单源提供。
+    pub saved_at: SystemTime,
 }
 
 /// 流式写入落盘通道：目录域走隐藏临时文件（B2 原子形态的流式承载），
@@ -996,6 +1020,18 @@ impl ResourceManager {
         self.archive_provider.is_mounted(scope)
     }
 
+    /// 归档作用域最近一次挂载的槽位恢复扫描报告（波 C2a-3，处置三态见
+    /// [`crate::journal::recover_package_slot`]）；未挂载为 `None`。
+    /// 挂载扫描失败不改变挂载成败，逐项如实计数（宿主侧接线可据此观测
+    /// 整包换代在崩溃后的收敛质量）。
+    #[must_use]
+    pub fn archive_recovery_report(
+        &self,
+        scope: &ScopeId,
+    ) -> Option<crate::journal::JournalRecoveryReport> {
+        self.archive_provider.recovery_report(scope)
+    }
+
     /// 注册临时作用域（《04》§11.1 `register_temp_scope`，段三主体 #185
     /// 随 `resourceRegisterTempScope` 产化）：对话框授权完成后由平台把
     /// 用户临时授权宿主路径挂载进资源引擎。
@@ -1425,7 +1461,256 @@ impl ResourceManager {
         .to_chips_error())
     }
 
-    /// 删除（《04》§11.1 `delete`，《04.04》§4.9）：写入族鉴权与能力预检后，
+    /// 归档态整包重建提交（整包换代入口，《04.04》§4.8 受控提交路径的归档
+    /// 态承载 + 《11.05》§5.4 发布态重建，工单036 波 C2a-3）：一次事务把
+    /// 「覆写/新增 `members[]` + 不再承接 `removals[]`」重建为**全新归档
+    /// 整包**，经临时归档写出 + 意图账登记 + publish 相 `rename` 原子换代，
+    /// 崩溃由归档挂载即扫（[`crate::journal::recover_package_slot`]）回滚
+    /// 旧态、零残留。与目录态 [`Self::commit_changeset`] 共用同一套两相
+    /// 方言、同一份 [`crate::journal`] 意图账与同一个
+    /// [`WriteCoordinator`] 锁面（禁第二套日志、禁绕锁直写正式路径）。
+    ///
+    /// 语义边界（在册口径，如实登记）：
+    ///
+    /// - **归档永不就地改写**：成员级写族（`commit_write` / `delete` /
+    ///   `rename` / `copy` / `create_directory` / 流式写）在归档作用域上的
+    ///   `RESOURCE_READ_ONLY` 拒绝臂**不变**（《04.03》§3.3）；本入口不是
+    ///   「归档可写」，而是「整包换代」——产出全新归档文件后一次性替换；
+    /// - **策略位**：归档作用域的 `policy.read_only` 由 `mount_archive`
+    ///   强制为真，承载的是「成员就地改写」判定；换代授权单源取会话
+    ///   `resources:write` 在册权限判定（Document 种类写族矩阵，《06》§4.3
+    ///   行 2/3），故本入口不经 `writable_provider` 预检、也不翻转策略位；
+    /// - **载体种类限 [`ScopeKind::Document]`**：`.card` / `.box` 文档载体
+    ///   承载保存语义；`.cpk` 插件包（`ScopeKind::Plugin`）不承载文档保存
+    ///   语义（发布链由插件装载器与签名链管辖），一律
+    ///   `RESOURCE_NOT_SUPPORTED{operation = write}`；非归档 origin →
+    ///   同样 `RESOURCE_NOT_SUPPORTED`（目录态走 `commit_changeset`）；
+    /// - **成员体量**：覆写/新增成员按 `WriteRequest::bytes` 同一内联口径
+    ///   （> `max_inline_bytes` → `RESOURCE_TOO_LARGE`），归档总字节受作用域
+    ///   `max_resource_bytes` 与发布侧经典 ZIP 上限双重把守；
+    /// - **时间戳**：全部条目时间戳统一取 `saved_at`（《11.05》§5.4「成员
+    ///   时间戳」行，权威判定在解析器写侧，越界以防御臂拒绝）。
+    ///
+    /// 拒绝臂错误码零新增（《06.02》§2.4 九词冻结）：作用域未绑定会话 →
+    /// `RESOURCE_PERMISSION_DENIED{reason=out_of_scope}`；缺 `resources:write`
+    /// → `RESOURCE_PERMISSION_DENIED{reason=not_granted}`（判定素材照常发射
+    /// 审计）；路径集合内重复与交叉 → `RESOURCE_ALREADY_EXISTS`（请求歧义，
+    /// 取锁前拒绝）；空变更集 → 幂等 no-op（不取锁、不写账、零换代）；
+    /// 删除目标不在旧包 → `RESOURCE_NOT_FOUND`；超限 → `RESOURCE_TOO_LARGE`；
+    /// 落盘任一步失败 → `RESOURCE_WRITE_FAILED`（正式归档保持旧态）。
+    ///
+    /// 成功返回换代回执（新归档总字节与成员账目）；整包作用域缓存随换代
+    /// 一次性失效（`invalidate_scope`，成员级版本戳全部变化，《04》§6.3）。
+    pub async fn rebuild_archive(
+        &self,
+        request: ArchiveRebuildRequest,
+    ) -> ManagerResult<ArchiveRebuildReceipt> {
+        let scope_root_uri = format!("{RESOURCE_SCHEME}://{}/", request.scope);
+        if request.members.is_empty() && request.removals.is_empty() {
+            // 幂等 no-op：与 `commit_changeset` 同形（不取锁、不写账）。
+            return Ok(ArchiveRebuildReceipt {
+                total_bytes: 0,
+                written_members: 0,
+                reused_members: 0,
+                removed_members: 0,
+            });
+        }
+        // 请求形态闸（先于授权判定，与 `commit_changeset` 的判定序同谱：
+        // 集合内唯一性 → 内联体量 → 授权与载体）。
+        // 集合内唯一性闸（取锁前）：同一路径第二次出现（成员重复、删除重复、
+        // 成员与删除交叉）即请求歧义 → `RESOURCE_ALREADY_EXISTS`。
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        for path in request
+            .members
+            .iter()
+            .map(|member| member.path.as_str())
+            .chain(request.removals.iter().map(VirtualPath::as_str))
+        {
+            if !seen.insert(path) {
+                return Err(ResourceError::AlreadyExists {
+                    uri: format!("{RESOURCE_SCHEME}://{}/{}", request.scope, path),
+                }
+                .to_chips_error());
+            }
+        }
+        // 内联体量闸（取锁前，与 `commit_write` 同形）。
+        for member in &request.members {
+            let size = u64::try_from(member.bytes.len()).unwrap_or(u64::MAX);
+            if size > self.limits.max_inline_bytes {
+                return Err(ResourceError::TooLarge {
+                    uri: format!(
+                        "{RESOURCE_SCHEME}://{}/{}",
+                        request.scope,
+                        member.path.as_str()
+                    ),
+                    size,
+                    limit: self.limits.max_inline_bytes,
+                }
+                .to_chips_error());
+            }
+        }
+        // 载体判定（取锁前）：会话活体/绑定 → 注册项 → 归档 origin →
+        // Document 种类 → 挂载在册 → `resources:write` 权限判定（含审计发射）。
+        let session_record =
+            self.sessions
+                .get(request.session)
+                .ok_or_else(|| ResourceError::PermissionDenied {
+                    target: scope_root_uri.clone(),
+                    permission: "session".to_owned(),
+                    required: Vec::new(),
+                    missing: Vec::new(),
+                    granted: Vec::new(),
+                    reason: crate::error::PermissionDenyReason::OutOfScope,
+                })?;
+        let registration =
+            self.scopes
+                .lookup(&request.scope)
+                .ok_or_else(|| ResourceError::NotFound {
+                    uri: scope_root_uri.clone(),
+                })?;
+        // 会话绑定闸：整包换代直接落宿主文件（作用域根即归档文件本体），
+        // 故按点位三/挂载臂同一拒绝形要求调用会话已绑定该作用域
+        // （`RESOURCE_PERMISSION_DENIED{reason = out_of_scope}`）；Document
+        // 写族权限矩阵本身不查绑定（《06》§4.3 行 2/3），此处不加即成旁路面。
+        self.require_session_bound_scope(request.session, &request.scope)?;
+        let not_supported = || ResourceError::NotSupported {
+            uri: scope_root_uri.clone(),
+            scope: registration.kind,
+            operation: ScopeOperation::Write,
+        };
+        if !matches!(registration.origin, Origin::Archive(_)) {
+            return Err(not_supported().to_chips_error());
+        }
+        if registration.kind != ScopeKind::Document {
+            return Err(not_supported().to_chips_error());
+        }
+        if !self.archive_provider.is_mounted(&request.scope) {
+            // 注册在册但未挂载属装配不变量破坏（`mount_archive` 成对登记），
+            // 与读取面同型兜底。
+            return Err(ResourceError::Internal.to_chips_error());
+        }
+        let (decision, arm) = PermissionChecker::new(
+            &session_record.owner,
+            &session_record,
+            &registration,
+            ResourceOperation::Write,
+            &session_record.permissions,
+            None,
+            scope_root_uri.clone(),
+        )
+        .decide_with_arm();
+        if let Some(material) = resource_decision_material(
+            &arm,
+            &session_record.owner,
+            request.session,
+            &scope_root_uri,
+        ) {
+            emit_permission_decision(&*self.observer, &material);
+        }
+        decision.into_result()?;
+        // 包内路径换算（VirtualPath → PackagePath，产物归本入口持有）：
+        // PathGuard 在册形态与解析器包内路径规则同源，残余失配属不可表示
+        // 形态（与 `ArchiveProvider::package_path` 同口径 → INTERNAL）。
+        let mut members: Vec<ArchiveRebuildMember<'_>> = Vec::with_capacity(request.members.len());
+        for member in &request.members {
+            let path = PackagePath::new(member.path.as_str())
+                .map_err(|_| ResourceError::Internal.to_chips_error())?;
+            members.push(ArchiveRebuildMember {
+                path,
+                bytes: &member.bytes,
+            });
+        }
+        let mut removals: Vec<PackagePath> = Vec::with_capacity(request.removals.len());
+        for path in &request.removals {
+            let removal = PackagePath::new(path.as_str())
+                .map_err(|_| ResourceError::Internal.to_chips_error())?;
+            removals.push(removal);
+        }
+        // WriteCoordinator 取锁（整包槽位键 + 目录载体交叉键，一次交锋、
+        // 升序去重由协调器保证；覆盖 prepare+publish 全程，《04.04》§4.9）。
+        let keys = self.archive_rebuild_lock_keys(request.session, &registration)?;
+        let _write_permit = self.write_coordinator.lock_async(keys).await;
+        let plan = ArchiveRebuildPlan {
+            scope_root_uri: scope_root_uri.clone(),
+            members,
+            removals,
+            saved_at: request.saved_at,
+            max_package_bytes: registration.policy.max_resource_bytes,
+        };
+        let transaction = self
+            .archive_provider
+            .stage_rebuild_package(&request.scope, &plan)?;
+        let receipt = self.archive_provider.publish_rebuild_package(transaction)?;
+        // 换代事件失效：整包作用域一次性失效（成员版本戳与归档源全部变化，
+        // 《04》§6.3 写入族事件；逐成员 invalidate 无法穷举新成员集）。
+        self.cache.invalidate_scope(&request.scope);
+        Ok(receipt)
+    }
+
+    /// 整包重建的锁键集合：整包槽位键 `(归档作用域, "")`（虚拟路径空形即
+    /// 作用域基址，与成员键空间天然不相交）+ 归档文件宿主路径所落入的每个
+    /// 目录态载体作用域的 `(目录作用域, 成员虚拟路径)` 交叉键。
+    ///
+    /// 交叉键的意义：同一个宿主 `.card` 文件既可被归档作用域整包换代，也可
+    /// 被承载它的目录作用域当普通成员 `commit_write` / `commit_changeset`
+    /// 覆写；两侧锁键若不相交即存在「绕锁直写正式路径」的窗口，故这里把
+    /// 目录载体的同宿主路径键一并交锁。换算与本仓点位三 [`Self::managed_uri_of_path`]
+    /// 的目录臂同一素材源（[`std::fs::canonicalize`] 唯一规范化权威 +
+    /// [`canonical_percent_encode`] 逐段编码 + [`VirtualPath::validate`] 单源
+    /// 校验），不复用该入口本身的原因：归档 Origin 以等值命中且深度更长，
+    /// 最长前缀判据必然回吐归档作用域自身，取不到载体。
+    /// 不可表示为受管虚拟路径的载体（超限 / 非法段）按「该载体本就无法寻址」
+    /// 跳过，不猜测键形。
+    fn archive_rebuild_lock_keys(
+        &self,
+        session: SessionId,
+        registration: &ScopeRegistration,
+    ) -> ManagerResult<Vec<PathLockKey>> {
+        let mut keys: Vec<PathLockKey> = vec![(registration.scope.clone(), String::new())];
+        let Origin::Archive(path) = &registration.origin else {
+            return Ok(keys);
+        };
+        let canonical = std::fs::canonicalize(path).map_err(|_| ResourceError::Internal)?;
+        let record = self.sessions.get(session).ok_or(ResourceError::Internal)?;
+        for carrier in self.scopes.snapshot_scopes(&record.scopes) {
+            if carrier.scope == registration.scope {
+                continue;
+            }
+            let Origin::Directory(root) = &carrier.origin else {
+                continue;
+            };
+            let Ok(canonical_root) = std::fs::canonicalize(root) else {
+                continue;
+            };
+            let Ok(relative) = canonical.strip_prefix(&canonical_root) else {
+                continue;
+            };
+            let mut segments: Vec<String> = Vec::new();
+            for component in relative.components() {
+                let Component::Normal(segment) = component else {
+                    continue;
+                };
+                let Some(text) = segment.to_str() else {
+                    segments.clear();
+                    break;
+                };
+                segments.push(canonical_percent_encode(text));
+            }
+            if segments.is_empty() {
+                continue;
+            }
+            let carrier_uri = format!("{RESOURCE_SCHEME}://{}/", carrier.scope);
+            let Ok(virtual_path) =
+                VirtualPath::validate(&segments.join("/"), &carrier_uri, &self.limits)
+            else {
+                continue;
+            };
+            keys.push((carrier.scope, virtual_path.as_str().to_owned()));
+        }
+        Ok(keys)
+    }
+
+    /// 删除（《04》§11.1 `delete`，《04.04》§4.9）：写入族鉴权与能力预检后，，
     /// 仅 Plugin / Temporary / Memory 种类在册接受删除；其余返回
     /// `RESOURCE_NOT_SUPPORTED`（`operation = delete`），不透传 Provider。
     pub async fn delete(&self, request: FsOpRequest) -> ManagerResult<()> {

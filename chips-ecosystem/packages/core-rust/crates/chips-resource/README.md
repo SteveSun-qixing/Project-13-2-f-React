@@ -435,3 +435,99 @@ abort_write_stream`，目录域隐藏 temp 流式落盘、失败/中止/级联�
   read_dir/entry IO 错误与 100_000 条目预算截断，夹具成本失配未锁测、
   如实登记；<90 维持豁免至 2026-10-19）。
 
+## 波 C2a-3 收口记录（任务 #267 随单，2026-09-24）
+
+工单036 波 C2a-3：归档态（`.card` / `.box`）**整包重建写通路**落位，即勘查
+报告 §五 C2a 条④；全部落在本 crate 独占面，`chips-parser` 零改动（只读消费
+其归档写侧公开面）。
+
+- ① 两相通路（`src/archive.rs`，844 → 1382 行）：
+  `ArchiveProvider::stage_rebuild_package`（`:331`，prepare 相）→
+  `ArchiveProvider::publish_rebuild_package`（`:447`，publish 相）——
+  prepare 相按「同目录 sidecar 意图记录先建（`JournalTicket`）→ 同级隐藏临时
+  整包 `.chips-tmp-<pid>-<seq>` 建档 → `ZipArchiveWriter` 全量条目写出 →
+  `finish` + `flush` + `sync_all`」把**全部慢 IO** 收在本相；publish 相是纯
+  元数据动作（`rename` 原子换代 → 撤记录销账 → 以新归档文件重挂作用域）。
+  注：任务书 §五字面枚举为「临时整包写出 → 意图账登记」，实现以 C2a-1 在册
+  不变量**记录先于临时物**为准（否则崩溃中间态不可判读），差异如实登记。
+- ② 写出权威在解析域（跨 crate 只走公开面，零 `#[path]`、零 ZIP 自实现）：
+  `chips_parser::serialize::{ZipArchiveWriter, archive_total_size,
+  entry_overhead}`（`crates/chips-parser/src/serialize/write_archive.rs:158/
+  90/77`）；未变更成员经 `MemberReader`（`src/archive.rs:725`）把
+  `ArchiveSource::read_member_range` 适配为 `&mut dyn Read`，64 KiB 常数内存
+  分块复用（《11.05》§5.4「未变更成员」行，不整包载入）。终成员集 =（旧包
+  成员 − `removals` − 被覆写路径）∪ `members`，`BTreeMap<PackagePath>` 键序
+  即 UTF-8 字节升序，与写侧严格升序要求同源（`assemble_rebuild_entries:562`）。
+- ③ 恢复扫描复用（不新造第二套日志）：`journal::recover_package_slot`
+  （`src/journal.rs:414`）为归档槽位（正式归档文件**同级目录**）的定向单层
+  扫描——归档作用域根是文件本身、`recover_root` 的整树扫描天然覆盖不到该
+  槽位；分拣判据（`slot_collect:422`）与三态处置（`dispose_walked:457`）与
+  `recover_root` **同一函数单源**（含在途账保护、判据 3 无账临时物保留不删、
+  计数口径），`recover_root` 本体已改为「walk_collect + dispose_walked」组合，
+  行为逐字不变（既有 10 例 journal 单测与 `tests/journal_recovery.rs` 全绿
+  自证）。接线位 = `ArchiveProvider::attach_archive`（`:191`，
+  `mount_archive` 唯一入口）挂载即扫，报告存 `recovery_reports` 账
+  （`recovery_report:242` / Manager 查询面 `archive_recovery_report`，
+  `manager.rs:1028`），`detach_archive` 同步清账；扫描失败不改变挂载成败。
+- ④ 锁面（禁绕锁直写正式路径）：`ResourceManager::rebuild_archive`
+  （`manager.rs:1504`）经 `WriteCoordinator::lock_async` 一次性取
+  `archive_rebuild_lock_keys`（`manager.rs:1664`）= 整包槽位键
+  `(归档作用域, "")`（虚拟路径空形 = 作用域基址，与成员键空间天然不相交）+
+  归档宿主文件所落入的**每个目录态载体作用域**的 `(目录作用域, 成员虚拟路径)`
+  交叉键——同一宿主 `.card` 既可被整包换代也可被目录域 `commit_write` /
+  `commit_changeset` 覆写，缺交叉键即成旁路面；素材与点位三同一权威
+  （`fs::canonicalize` + `canonical_percent_encode` + `VirtualPath::validate`）。
+  锁覆盖 prepare+publish 全程；Provider 侧不自行取锁（与目录域
+  `stage_bundle_member` 同方言）。
+- ⑤ 语义边界（如实登记，不改架构）：归档**永不就地改写**的成员级只读臂
+  （`write`/`delete`/`rename`/`copy`/`create_directory`/`set_metadata` →
+  `RESOURCE_READ_ONLY`，`supports_write=false`）**零改动**；整包换代不是
+  「归档可写」，其授权单源 = 会话绑定闸（`require_session_bound_scope`）+
+  Document 种类写族 `resources:write` 判定（判定素材照常发射审计），不经
+  `writable_provider`、不翻转 `mount_archive` 强制的 `policy.read_only`。
+  载体种类限 `Document`：`.cpk` 插件包（Plugin）与非归档 origin 一律
+  `RESOURCE_NOT_SUPPORTED{operation=write}`。换代成功后 Provider 立即重挂
+  新包（读取面与盘上同步）；换代前已打开的句柄仍读旧映射（temp+rename 对
+  读者呈原子替换，《04.04》§4.8 既有口径）。
+- ⑥ 错误码零新增（《06.02》§2.4 九词冻结）：请求形态（重复/交叉 →
+  `ALREADY_EXISTS`、超内联 → `TOO_LARGE`）先于授权判定，与
+  `commit_changeset` 判定序同谱；`removals` 缺失 → `NOT_FOUND`（成员精确
+  uri）；发布格式上限（条目数/名称长度/单成员字节/总字节闭式和，
+  `check_publish_bounds:608` + `check_publish_total_size:650` + `finish` 后
+  实然尺寸闸）→ `TOO_LARGE`（`size`/`limit` 取真实数值，权威判定仍在解析器
+  `check_publish_bounds`，本侧只负责折算在册形，绝不放宽）；解析器
+  `LimitExceeded` → `TOO_LARGE`、其余写侧错误 → `WRITE_FAILED`
+  （`publish_error:701`）；换代 `rename` 失败 → `WRITE_FAILED`（正式归档旧态、
+  零残留）；换代成功但新包重挂失败 → 摘除陈旧挂载 + `INTERNAL`（宁可不交付
+  视图，绝不交付换代前旧包视图）。空变更集 → 幂等 no-op（不取锁、不写账）。
+- 测试账（真实输出）：基线 **298 → 308 全绿**（+10：新册
+  `tests/archive_rebuild.rs` 7 例 + `src/journal.rs` 槽位单测 3 例）。集成锁
+  七判据：① 整包重建往返（覆写+新增+删除+200 KiB 二进制成员逐字节复用、
+  回执总字节即盘上实况、换代后读面即新包、零残留）；② prepare 窗口崩溃残骸
+  由挂载槽位扫描回滚旧态（正式归档字节零触碰 + 报告逐项计数 + 收敛后可正常
+  换代）；③ 失败臂全不现（缺失删除目标 / 超内联 / 超作用域上限前后字节
+  完全一致、同级零 `.chips-tmp-*`）；④ 拒绝臂在册码（`not_granted` /
+  `out_of_scope` / `ALREADY_EXISTS` 双臂 / `NOT_FOUND` / Plugin 与非归档
+  `NOT_SUPPORTED` / 空集 no-op）；⑤ 并发两笔换代串行收敛（终成员集完整 4
+  员、正文取值为两候选之一、盘上总字节等某笔回执）；⑥ 目录载体在途写流
+  未终结时整包换代排队（交叉锁真生效，中止后放行）；⑦ 发布形态合规（全
+  条目 Store、时间戳统一取 `saved_at`、成员尺寸如实）。夹具以解析器写侧
+  `ZipArchiveWriter` 产出真实 ZIP（零手写 ZIP 字节、零 mock）；零删档、零
+  放宽断言、零 skip、无 TODO。
+- 门禁复跑（真实退出码，日志 /tmp/g_*.log，于 core-rust 工作区）：
+  `cargo fmt -p chips-resource --check`=0、
+  `cargo clippy -p chips-resource --all-targets -- -D warnings`=0、
+  `cargo test -p chips-resource`=0（308 passed / 0 failed，14 个
+  `test result: ok` 面求和）、`cargo check -p chips-parser`=0。
+  基线对账：`cargo test -p chips-resource` 起跑前实测 298/0（E=0，
+  /tmp/w267_baseline_test.log），收口 308/0（+10 只增不减）。
+- TD-002 覆盖率复报（同通道、crate 级 src 口径）：
+  `cargo tarpaulin -p chips-resource --ignore-tests --out Lcov Json
+  --output-dir /tmp/w267_cov` EXIT=0，过滤 `crates/chips-resource/src`
+  合计 **3650/4131 = 88.36%**（对照 C2a-1 在册 89.05%：**-0.69pp**，分母
+  +534 行系本波新增通路；`archive.rs 244/317 = 77.0%`（miss 73：换代 rename
+  失败臂、重挂失败 `INTERNAL` 臂、`publish_error`/`MemberReader` IO 臂、
+  ZIP64 数值越界臂需 GiB 级夹具——均属故障注入/不可达防御臂，夹具成本失配
+  未锁测、如实登记）、`journal.rs 159/173 = 91.9%`、`manager.rs 956/1098 =
+  87.1%`；<90 维持 TD-002 豁免至 2026-10-19）。
+

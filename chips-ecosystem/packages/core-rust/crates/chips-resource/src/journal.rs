@@ -41,6 +41,16 @@
 //!    禁止：本 crate 全部在册临时物创建面都先写 journal（协议内不可能出现
 //!    无账临时物），无账文件即协议外对象，其归属不可判读，一律不处置。
 //!
+//! # 归档槽位定向扫描（[`recover_package_slot`]，工单036 波 C2a-3）
+//!
+//! 归档整包重建的临时物落在**正式归档文件的同级目录**（换代目标的父目录），
+//! 而归档作用域的根是归档文件本身、不是目录，故 [`recover_root`] 的整树扫描
+//! 天然覆盖不到该槽位。本模块补一条**定向单层**入口：只遍历归档同级目录的
+//! 单层条目、不递归、不下钻子目录（子目录内的临时物属其他文件系统域，由其
+//! 专责挂载扫描收敛），分拣与处置判据与 [`recover_root`] **完全同源**（同一
+//! [`dispose_walked`] 通道、同一三态规则、同一在途账保护、同一计数口径），
+//! 不新造第二套日志、不新造第二套处置语义。
+//!
 //! # 并发与锁序（与 `WriteCoordinator` 方言一致，禁第二套锁）
 //!
 //! - journal 的建档/撤销全部发生在既有路径写锁
@@ -390,10 +400,65 @@ pub fn read_commit_record(journal_path: &Path) -> Option<CommitRecord> {
 /// `register_temp_scope`）。
 #[must_use]
 pub fn recover_root(root: &Path) -> JournalRecoveryReport {
-    let mut report = JournalRecoveryReport::default();
     let mut walked = Walked::default();
     walk_collect(root, &mut walked);
-    report.walk_truncated = walked.truncated;
+    dispose_walked(&mut walked)
+}
+
+/// 对归档换代槽位（正式归档文件的同级目录）执行定向恢复扫描（波 C2a-3）：
+/// 单层遍历、不递归、不下钻目录；分拣与三态处置与 [`recover_root`] 同源
+/// （[`dispose_walked`] 单通道）。`ArchiveProvider::attach_archive` 挂载即
+/// 调用，崩溃落在整包写出的 prepare 窗口时按判据 1 回滚（临时整包删除、
+/// 正式归档保持旧态）。
+#[must_use]
+pub fn recover_package_slot(dir: &Path) -> JournalRecoveryReport {
+    let mut walked = slot_collect(dir);
+    dispose_walked(&mut walked)
+}
+
+/// 归档槽位的单层分拣（名字判据与 [`walk_collect`] 同一单源函数）：目录条目
+/// 直接跳过（不递归）；条目数沿用 [`RECOVERY_WALK_MAX_ENTRIES`] 预算，超限即
+/// 停止收集并翻截断旗。
+fn slot_collect(dir: &Path) -> Walked {
+    let mut state = Walked::default();
+    let Ok(reader) = fs::read_dir(dir) else {
+        state.io_failures += 1;
+        return state;
+    };
+    for entry in reader {
+        let Ok(entry) = entry else {
+            state.io_failures += 1;
+            continue;
+        };
+        if state.journals.len() + state.temps.len() >= RECOVERY_WALK_MAX_ENTRIES {
+            state.truncated = true;
+            break;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Ok(file_type) = entry.file_type() else {
+            state.io_failures += 1;
+            continue;
+        };
+        if !file_type.is_file() || !name.starts_with(TEMP_FILE_PREFIX) {
+            continue;
+        }
+        if let Some(token) = journal_file_token(&name) {
+            state.journals.push((token.to_owned(), entry.path()));
+        } else if let Some(token) = temp_file_token(&name) {
+            state.temps.insert(token.to_owned(), entry.path());
+        }
+    }
+    state
+}
+
+/// 三态处置单源通道（[`recover_root`] 与 [`recover_package_slot`] 共用）：
+/// 按令牌升序逐条处置意图记录（在途账保护 → 判据 1 回滚临时物 → 判据 2 只撤
+/// 记录），残余无账临时物计数保留（判据 3）；同输入必同输出。
+fn dispose_walked(walked: &mut Walked) -> JournalRecoveryReport {
+    let mut report = JournalRecoveryReport {
+        walk_truncated: walked.truncated,
+        ..JournalRecoveryReport::default()
+    };
     // sidecar 配对以 journal 名为权威：凡有记录的临时物一律先出无账集
     // （在途跳过、已处置、双记录形态同理），其余临时物才可能计判据 3。
     walked
@@ -403,7 +468,7 @@ pub fn recover_root(root: &Path) -> JournalRecoveryReport {
         walked.temps.remove(token);
     }
     // 判据 1/2：逐条意图记录处置（按令牌升序，同输入必同输出）。
-    for (token, journal_path) in walked.journals {
+    for (token, journal_path) in walked.journals.drain(..) {
         if is_in_flight(&token) {
             report.skipped_in_flight += 1;
             continue;
@@ -671,6 +736,101 @@ mod tests {
             .expect_err("父路径非目录，建档必败");
         assert!(!journal_path_of(&temp).exists(), "败途不留半态 journal");
         assert!(!is_in_flight(&token), "败途必销在途账");
+        cleanup(&base);
+    }
+
+    // ===================== 归档槽位定向扫描（波 C2a-3） =====================
+
+    #[test]
+    fn test_slot_recover_reclaims_pair_and_keeps_target_unborn() {
+        // 整包重建 prepare 窗口崩溃的同级残骸（记录 + 临时整包）：槽位扫描
+        // 按判据 1 回滚——临时整包删除、记录终结、正式归档文件零触碰。
+        let base = scratch("slot-crash");
+        let archive = base.join("note.card");
+        write_plain(&archive);
+        let before = fs::read(&archive).expect("夹具可读");
+        let token = "900008-1".to_owned();
+        let temp = base.join(format!("{TEMP_FILE_PREFIX}{token}"));
+        let journal = journal_path_of(&temp);
+        write_plain(&temp);
+        fs::write(
+            &journal,
+            serde_json::to_vec(&CommitRecord {
+                temp: temp.file_name().unwrap().to_string_lossy().into_owned(),
+                target: "note.card".to_owned(),
+                created_unix_ms: 1,
+            })
+            .expect("夹具记录必可序列化"),
+        )
+        .expect("夹具 journal 必须可写");
+        let report = recover_package_slot(&base);
+        assert_eq!(report.removed_records, 1, "槽位记录同表终结：{report:?}");
+        assert_eq!(report.reclaimed_temp_files, 1, "崩溃临时整包回滚");
+        assert_eq!(report.unbacked_temp_files, 0);
+        assert_eq!(report.io_failures, 0);
+        assert!(!temp.exists() && !journal.exists());
+        assert_eq!(
+            fs::read(&archive).expect("归档仍可读"),
+            before,
+            "换代未落定时正式归档保持旧态"
+        );
+        cleanup(&base);
+    }
+
+    #[test]
+    fn test_slot_recover_is_single_level_and_shares_three_state_rules() {
+        // 单层判据：子目录内的残骸不属本槽位（由其专责域扫描收敛）；
+        // 无账临时物按判据 3 计数保留；已换代未终结形态（记录在、临时物没）
+        // 只撤记录，绝不触碰正式归档。
+        let base = scratch("slot-shape");
+        write_plain(&base.join("a.card"));
+        let deep = base.join("sub");
+        fs::create_dir_all(&deep).expect("子目录必须可建");
+        let deep_temp = deep.join(".chips-tmp-900009-1");
+        write_plain(&deep_temp);
+        fs::write(journal_path_of(&deep_temp), b"{}").expect("夹具必可写");
+        let unbacked = base.join(".chips-tmp-900009-2");
+        write_plain(&unbacked);
+        let finalized_journal =
+            base.join(format!("{TEMP_FILE_PREFIX}900009-3{JOURNAL_FILE_SUFFIX}"));
+        fs::write(&finalized_journal, b"junk").expect("夹具必可写");
+        let report = recover_package_slot(&base);
+        assert_eq!(report.removed_records, 1, "只处置单层记录");
+        assert_eq!(report.reclaimed_temp_files, 0, "单层无 sidecar 临时物");
+        assert_eq!(report.unbacked_temp_files, 1, "无账临时物如实计数");
+        assert!(
+            deep_temp.is_file() && journal_path_of(&deep_temp).is_file(),
+            "不递归"
+        );
+        assert!(unbacked.is_file(), "无账临时物保留不删");
+        assert!(!finalized_journal.exists());
+        assert!(base.join("a.card").is_file(), "正式归档零触碰");
+        // 缺失目录：不产错、计一笔 IO 失败（挂载侧据此如实登记）。
+        let absent = recover_package_slot(&base.join("no-such-dir"));
+        assert_eq!(absent.io_failures, 1);
+        assert_eq!(absent.removed_records, 0);
+        cleanup(&base);
+    }
+
+    #[test]
+    fn test_slot_recover_spares_in_flight_pair() {
+        // 在途保护与 `recover_root` 同源：本进程在途整包重建的槽位记录与
+        // 临时物在扫描中零处置（同进程双挂载、并发第二笔的防护臂）。
+        let base = scratch("slot-inflight");
+        let token = next_intent_token();
+        let temp = base.join(format!("{TEMP_FILE_PREFIX}{token}"));
+        let ticket = JournalTicket::prepare(&base, token.clone(), &temp, &base.join("live.card"))
+            .expect("建档必须成功");
+        let journal = ticket.journal_path().to_path_buf();
+        write_plain(&temp);
+        let report = recover_package_slot(&base);
+        assert_eq!(report.skipped_in_flight, 1);
+        assert_eq!(report.removed_records, 0);
+        assert_eq!(report.reclaimed_temp_files, 0);
+        assert!(temp.is_file() && journal.is_file(), "在途整包残体零处置");
+        drop(ticket);
+        assert!(!journal.exists(), "票据终结即撤槽位记录");
+        let _ = fs::remove_file(&temp);
         cleanup(&base);
     }
 }

@@ -57,7 +57,11 @@
 //! 恢复扫描（崩溃中间态收敛 + 无账临时物如实计数）；波 C2a-2 起交付目录态
 //! 包级 changeset 提交入口 [`ResourceManager::commit_changeset`]（覆写成员 +
 //! 删除目标一包事务，持 `WriteCoordinator` 多键锁，意图账复用 C2a-1 phase
-//! 语义，崩溃由既有恢复扫描回滚旧态）。`file:*` /
+//! 语义，崩溃由既有恢复扫描回滚旧态）；波 C2a-3 起交付归档态**整包重建**
+//! 写通路 [`ResourceManager::rebuild_archive`]（临时归档整包写出 + 意图账
+//! 登记 + publish 相 `rename` 原子换代，写出侧消费 `chips-parser` 归档写侧
+//! 公开面，崩溃残骸由归档挂载即扫 [`journal::recover_package_slot`] 收敛；
+//! 归档永不就地改写的只读臂不变）。`file:*` /
 //! `resource:*` 能力面接线与 host 侧网络端口装配、Neon 绑定面
 //! （packages/native）均不在本 crate 本段。
 //!
@@ -104,7 +108,7 @@ pub mod session;
 pub mod uri;
 pub mod write_coord;
 
-pub use archive::{ArchiveProvider, ArchiveStream, ARCHIVE_PROVIDER_ID};
+pub use archive::{ArchiveProvider, ArchiveRebuildReceipt, ArchiveStream, ARCHIVE_PROVIDER_ID};
 pub use cache::{
     CacheKey, CacheStats, CacheStore, CachedMetadata, DiskCache, DiskEntry, DiskMeta, SingleFlight,
 };
@@ -122,14 +126,16 @@ pub use http::{
 };
 pub use http::{HttpProvider, HTTP_PROVIDER_ID};
 pub use journal::{
-    is_in_flight, journal_file_token, next_intent_token, read_commit_record, recover_root,
-    temp_file_token, CommitRecord, JournalRecoveryReport, JournalTicket, JOURNAL_FILE_SUFFIX,
-    JOURNAL_RECORD_MAX_BYTES, RECOVERY_WALK_MAX_DEPTH, RECOVERY_WALK_MAX_ENTRIES, TEMP_FILE_PREFIX,
+    is_in_flight, journal_file_token, next_intent_token, read_commit_record, recover_package_slot,
+    recover_root, temp_file_token, CommitRecord, JournalRecoveryReport, JournalTicket,
+    JOURNAL_FILE_SUFFIX, JOURNAL_RECORD_MAX_BYTES, RECOVERY_WALK_MAX_DEPTH,
+    RECOVERY_WALK_MAX_ENTRIES, TEMP_FILE_PREFIX,
 };
 pub use manager::{
-    external_origin_of, handles_of_session, open_handle_count, ChangesetMember, ChangesetRequest,
-    FsOpRequest, ManagerResult, OpenHandle, OpenRequest, ProviderRegistry, ResolvedResource,
-    ResourceManager, WriteRequest, WriteStreamHandle, WriteStreamRequest,
+    external_origin_of, handles_of_session, open_handle_count, ArchiveRebuildRequest,
+    ChangesetMember, ChangesetRequest, FsOpRequest, ManagerResult, OpenHandle, OpenRequest,
+    ProviderRegistry, ResolvedResource, ResourceManager, WriteRequest, WriteStreamHandle,
+    WriteStreamRequest,
 };
 pub use memory::{guess_mime_type, MemoryProvider, MemoryStream};
 pub use path_guard::{
