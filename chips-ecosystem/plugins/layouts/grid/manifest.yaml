@@ -1,0 +1,17 @@
+id: chips.layout.grid
+version: 0.1.0
+type: boxlayout
+name: 网格布局插件
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  layouts:
+    - id: chips.layout.grid
+      name: 网格布局插件
+      icon: assets/icons/grid.svg
+      configSchema: assets/schemas/grid-config.schema.json
+      schemaVersions: '>=1.0.0 <2.0.0'

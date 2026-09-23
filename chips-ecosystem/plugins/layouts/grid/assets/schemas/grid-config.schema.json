@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "网格布局插件配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "gap": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 64,
+      "default": 16,
+      "description": "条目间距（px）"
+    },
+    "show_tags": {
+      "type": "boolean",
+      "default": true,
+      "description": "是否显示条目标签"
+    },
+    "information_density": {
+      "type": "string",
+      "enum": ["comfortable", "compact"],
+      "default": "comfortable",
+      "description": "信息密度"
+    },
+    "sort_mode": {
+      "type": "string",
+      "enum": ["manual", "name-asc", "name-desc"],
+      "default": "manual",
+      "description": "条目排序方式：手动顺序、按名称升序、按名称降序"
+    },
+    "background": {
+      "$ref": "#/$defs/frameRegion",
+      "description": "背景区域（铺于内容壳层之后的 16:9 区域）"
+    },
+    "top_region": {
+      "$ref": "#/$defs/frameRegion",
+      "description": "顶部内容区（条目网格上方的自适应区域）"
+    }
+  },
+  "$defs": {
+    "frameRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["none", "image", "html"],
+          "description": "区域呈现模式"
+        },
+        "assetPath": {
+          "type": "string",
+          "pattern": "^assets/[^\\\\:?#/]+(?:/[^\\\\:?#/]+)*$",
+          "description": "图片模式的箱子自有资源相对路径（以 assets/ 开头）"
+        },
+        "html": {
+          "type": "string",
+          "minLength": 1,
+          "description": "代码模式的内联 HTML 文档"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "image"
+              }
+            }
+          },
+          "then": {
+            "required": ["assetPath"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "html"
+              }
+            }
+          },
+          "then": {
+            "required": ["html"]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -79,6 +79,14 @@ export default tseslint.config(
     },
   },
   {
+    // 插件渲染入口 `render.js` 是 `src/render.tsx` 的构建产物，运行环境是宿主渲染帧（web 侧），
+    // 不是 Node：按事实声明浏览器全局，避免 `no-undef` 在打包面上误判。
+    files: ['plugins/**/render.js', 'examples/plugins/**/render.js'],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+  {
     files: ['**/*.{ts,tsx,mts,cts}'],
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
