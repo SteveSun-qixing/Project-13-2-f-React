@@ -10,7 +10,8 @@
  *   五个端口的生产载体全部可得时，才经 `createDocumentCapabilityDescriptors` 产出
  *   `document:*` 注册单元——
  *   - `parser`：`chips-native.node` 经 `loadNativeDocumentParserBinding`（17 必备名
- *     fail-closed 闸）装载可用，`createNativeDocumentParserPort` 构造生产适配器；
+ *     fail-closed 闸，解析域面波 A1 未动、维持 17）装载可用，`createNativeDocumentParserPort`
+ *     构造生产适配器；
  *   - `events`：宿主事件总线（`host-event-bus.ts`，载体为组合根运行时 `emitEvent` 出口，
  *     绑定发生在 `pluginLoaderFactory` 构造期，先于注册与调用）；
  *   - `guard`：Bridge 会话注册表判定面（`bridge-session-guard.ts`），快照视图提供者由
@@ -18,9 +19,10 @@
  *     工单 036 §五.3-1 / 刀4 缝①收口）；{@link IDocumentCapabilityWiringOptions.guardSessionSource}
  *     升格为显式覆盖口（真进程 E2E 替身臂与测试注入）；
  *   - `scope` / `storage`：文档载体为资源管理器（chips-resource；
- *     `04-资源管理设计` §5.2 作用域注册与受控提交路径）。crate 已建并交付 Rust 侧
- *     能力面（W3 波次在途，工单 036），但 §11.3 Neon 暴露面（15 导出逐字）尚未承载
- *     文档侧所需的挂载 / 作用域注册 / 跨成员原子提交入口，故端口的正式适配器缺位——
+ *     `04-资源管理设计` §5.2 作用域注册与受控提交路径）。crate 与 §11.3 Neon 暴露面
+ *     （18 导出逐字，波 A1 任务 #209 补登挂载 / 作用域注册三名）已承载作用域注册 /
+ *     挂载入口，但跨成员原子提交与落盘序列化载体仍未在册（点位四后续波，工单 036），
+ *     且两端口的正式适配器未接线（归波 A2b）——
  *     **禁止内存替身**，唯一合法通道是经
  *     {@link IDocumentCapabilityWiringOptions.resourcePorts} 注入资源管理器侧交付的
  *     正式适配器（组合根的资源域装载闸见 `native-resource-module.ts`）。
@@ -48,7 +50,7 @@ import { createDocumentBridgeSessionGuardPort, type DocumentGuardSessionSource }
 import { createDocumentHostEventBusPort, type HostEventBusPublisher } from './host-event-bus.js';
 import { createDocumentViewChannelHandler, createUnavailableDocumentViewChannelEndpoint } from './view-channel.js';
 
-/** 资源管理器侧端口的正式适配器注入面（scope + 受控写；载体 = chips-resource 资源管理器，Rust 侧能力面已交付、§11.3 Neon 载体落位后接线，工单 036）。 */
+/** 资源管理器侧端口的正式适配器注入面（scope + 受控写；载体 = chips-resource 资源管理器，Rust 侧能力面与 §11.3 挂载/注册载体已落位（波 A1），正式适配器归波 A2b 接线，工单 036）。 */
 export interface IDocumentResourcePorts {
   /** 资源作用域端口（受管引用归一与作用域注册，`04-资源管理设计` §5.2）。 */
   readonly scope: IDocumentScopePort;
@@ -64,7 +66,7 @@ export interface IDocumentCapabilityWiringOptions {
    */
   readonly parserModulePath?: string;
   /**
-   * 资源域（§11.3 十五导出）装载判据的产物路径；缺省沿用 {@link parserModulePath}
+   * 资源域（§11.3 十八导出）装载判据的产物路径；缺省沿用 {@link parserModulePath}
    * （解析域 / 资源域 / Bridge 域同一 `chips-native.node` 文件、单一内核，§11.5，
    * Node 模块缓存保证进程级单例）。
    *
@@ -74,7 +76,8 @@ export interface IDocumentCapabilityWiringOptions {
    * E2E 替身臂）时，原生资源导出面缺位不参与 `document:*` 装载判定——否则会把「端口注入面」
    * 与「原生导出面」两条独立通道焊死，令 E2E 通道无法成立（在册判例：刀4a 装载闸五项端口
    * 口径）。资源域导出面的类型化消费面与闸见 `native-resource-module.ts`；导出面落位后
-   * 本判据自动翻正，宿主侧判定逻辑零改动。
+   * 本判据随波机械翻正（消费名清单补登即闸收紧，波 A2a 任务 #212 三名补登在册），
+   * 判定分支结构不动。
    */
   readonly resourceModulePath?: string;
   /**
@@ -89,7 +92,7 @@ export interface IDocumentCapabilityWiringOptions {
    * 测试注入仍可覆盖（S6 口径）。绕过组合根直接调用装载段且未注入即守卫缺位，整体回退。
    */
   readonly guardSessionSource?: DocumentGuardSessionSource;
-  /** 资源管理器侧端口正式适配器（chips-resource Rust 侧已交付，§11.3 Neon 文档载体落位前缺位，装载段整体回退，工单 036）。 */
+  /** 资源管理器侧端口正式适配器（chips-resource Rust 侧与 §11.3 挂载/注册载体已落位（波 A1），正式适配器归波 A2b——未接线期缺位、装载段整体回退，工单 036）。 */
   readonly resourcePorts?: IDocumentResourcePorts;
 }
 
@@ -130,13 +133,14 @@ export interface IDocumentCapabilityWiring {
    */
   readonly service?: IDocumentService;
   /**
-   * 资源域（§11.3 十五导出）装载判据与类型化消费面（任务 #194 交付③的宿主侧合缝位）。
+   * 资源域（§11.3 十八导出）装载判据与类型化消费面（任务 #194 交付③的宿主侧合缝位）。
    *
-   * @remarks 两臂恒在：`unavailable` 逐项点名缺位导出（当前产物 34 导出零资源名的实况），
-   * `available` 交付 `INativeResourceModule` 消费面。本字段是端口注入面之外的独立判据留痕，
-   * 资源域波次落位即自动翻正，宿主侧判定逻辑零改动；文档端口正式适配器的接线条件与
-   * 三项未在册载体（作用域注册 / 跨成员原子提交 / 落盘序列化）见 `native-resource-module.ts`
-   * 头注与工单 036。
+   * @remarks 两臂恒在：`available` 交付 `INativeResourceModule` 消费面（现态部署产物
+   * 53 导出、资源域 18 名在册，波 A1 任务 #209 落位，波 A2a 任务 #212 清单补登后过闸）；
+   * `unavailable` 逐项点名缺位导出（产物缺位 / 旧构建漂移 / ABI 漂移形态）。本字段是端口
+   * 注入面之外的独立判据留痕，资源域波次落位即随波机械翻正；文档端口正式适配器的接线条件
+   * 与剩余未落载体（跨成员原子提交 / 落盘序列化，点位四后续波）及归波 A2b 的 scope 适配器
+   * 见 `native-resource-module.ts` 头注与工单 036。
    */
   readonly resourceBinding: INativeResourceBinding;
 }
@@ -185,16 +189,17 @@ export function createDocumentCapabilityWiring(
     missing.push({
       port: 'scope',
       reason:
-        '资源作用域端口的文档载体为资源管理器（chips-resource，工单 036）：Rust 侧能力面已交付，' +
-        '§11.3 Neon 暴露面尚无作用域注册 / 挂载入口载体，正式适配器随资源域导出面落地；' +
-        `禁止内存替身（原生侧资源域实态判据：${resourceSurfaceVerdict}）`,
+        '资源作用域端口的文档载体为资源管理器（chips-resource，工单 036）：Rust 侧能力面与 ' +
+        '§11.3 Neon 挂载 / 作用域注册载体（resourceMountDirectory / resourceMountArchive / ' +
+        'resourceUnregisterScope 三名，波 A1 任务 #209）已落位在册，正式适配器归波 A2b 接线；' +
+        `适配器落地前禁止内存替身（原生侧资源域实态判据：${resourceSurfaceVerdict}）`,
     });
     missing.push({
       port: 'storage',
       reason:
         '受控写端口的文档载体为资源管理器受控提交路径与 WriteCoordinator（chips-resource，工单 036）：' +
-        'Rust 侧已交付，§11.3 Neon 暴露面尚无跨成员原子提交与落盘序列化载体（刀6 裁决），' +
-        `正式适配器随资源域导出面落地；禁止内存替身（原生侧资源域实态判据：${resourceSurfaceVerdict}）`,
+        'Rust 侧已交付，§11.3 Neon 暴露面尚无跨成员原子提交与落盘序列化载体（刀6 裁决、点位四后续波），' +
+        `正式适配器随该载体落地；禁止内存替身（原生侧资源域实态判据：${resourceSurfaceVerdict}）`,
     });
   }
 

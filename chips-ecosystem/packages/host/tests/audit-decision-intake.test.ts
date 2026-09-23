@@ -174,15 +174,17 @@ describe('三方文本锁：decision-intake 镜像 ↔ chips-native.d.ts ↔ 导
     );
   });
 
-  it('导出表第 50 项 auditBindDecisionSink：sync + 签名逐字，d.ts 声明同形在册', () => {
+  it('导出表第 53 项 auditBindDecisionSink：sync + 签名逐字，d.ts 声明同形在册', () => {
     const entry = manifest.exports.find((item) => item.name === 'auditBindDecisionSink');
     expect(entry).toBeDefined();
+    // 位次锁：波 A1 三资源名补登（50→53）后 audit 域仍居末位（第 53 项）。
+    expect(manifest.exports[52]?.name).toBe('auditBindDecisionSink');
     expect(entry?.kind).toBe('sync');
     expect(entry?.signature).toBe('(sink: (frame: INativeAuditDecisionFrame) => void) => void');
     // 空白全剥净形锁：d.ts 声明逐 token 与在册签名同形（版式由包内 prettier 定形，锁判不含空白）。
     const normalized = declaration.replace(/\s+/g, '');
     expect(normalized).toContain('functionauditBindDecisionSink(sink:(frame:INativeAuditDecisionFrame)=>void):void;');
-    expect(manifest.exports.length).toBe(50);
+    expect(manifest.exports.length).toBe(53);
   });
 });
 

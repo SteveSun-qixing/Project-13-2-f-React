@@ -11,8 +11,9 @@
  * - 外部提供方的接线契约是 {@link IHostCapabilityDescriptor}：一条描述 = 一个可注册单元
  *   （ID + 所需权限 + handler + 超时/并发）。注册冲突或权限校验失败即在 `start` 抛出、壳终止启动。
  * - 文档能力装载段（`capabilities/document/adapters/production-wiring.ts`）：解析域产物过
- *   17 必备名装载闸、资源管理器端口（chips-resource 注入面；Rust 侧能力面已交付，
- *   §11.3 Neon 暴露面尚无文档侧载体，工单 036）可得时，经 `createDocumentCapabilityDescriptors`
+ *   17 必备名装载闸（解析域面波 A1 未动、维持 17）、资源管理器端口（chips-resource 注入面；
+ *   Rust 侧能力面与 §11.3 挂载 / 作用域注册载体已落位在册（波 A1 任务 #209），正式适配器
+ *   归波 A2b 接线——未接线期缺位，工单 036）可得时，经 `createDocumentCapabilityDescriptors`
  *   注册真实 `document:*` 四能力并绑定宿主事件总线；守卫快照提供者由组合根正式默认绑定
  *   （运行时 `sessionPermissionSnapshots()`，工单 036 §五.3-1 / 刀4 缝①收口，注入位保留为
  *   显式覆盖口）；任一硬依赖缺位即整体不装载（诊断留痕，调用维持真实
@@ -371,7 +372,8 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
       runtimeForGuardSnapshots = runtime;
       // 工单046 段四接线波（任务 #206 收口）：审计观察面绑定臂——native 绑定过装载闸
       // 且运行时审计写入器常开时，把 §8.2 条目唯一组装点（`createPermissionDecisionIntake`，
-      // RFC §九 9.2-2「单条目单落点」）经 `auditBindDecisionSink`（§8.6 第 50 导出）绑定进
+      // RFC §九 9.2-2「单条目单落点」）经 `auditBindDecisionSink`（§8.6 第 53 导出，波 A1
+      // 任务 #209 三资源名补登后位次随动）绑定进
       // native 观察者。绑定发生在 `createRuntime` 返回前、`start` 与任何 `bridge*` /
       // `resource*` 判定流量之前（组合根启动序消除未绑定窗口，RFC §八条 2）。构造期注入、
       // 终身不可换（§八条 1）。绑定三态一律诊断留痕、fail-closed 不伪造：export-missing /

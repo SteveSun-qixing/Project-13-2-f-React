@@ -2,7 +2,9 @@
 /**
  * `chips-native.node` 测试替身（工单 025 原生绑定单测的「可用面」夹具，非生产实现）。
  *
- * 契约形状：`packages/native/abi/export-surface.json` 的 15 导出全表面 +
+ * 契约形状：工单 025 时在册 15 导出（`packages/native/abi/export-surface.json` 当时全表面
+ * 形态；现面已扩至 53 项——波 A1 任务 #209 三补名后，解析 / 资源 / 审计域不在本夹具承载面
+ * 内，本夹具只服务 Bridge 域装载闸与消费链）+
  * `abiVersion: 1` + `coreVersion: '0.1.0'`。全部 Bridge 域调用记录进 `__calls`，
  * `bridgeRequest` 行为按 `requestId` 编排：
  * - `r-echo`：成功，返回 `{ echo: input }`；
