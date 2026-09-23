@@ -644,6 +644,17 @@ export function resourceLocalPathOf(uri: string, sessionId: number): Promise<str
 export function resourceManagedUriOfPath(path: string, sessionId: number): Promise<string | null>;
 
 /**
+ * 会话授权注入（工单 053 点位五 D1 波，RFC 裁定 J）：幂等并入会话权限集，
+ * 权限字符串零语法判定全量透传，空数组为合法 no-op。主进程内部使用——
+ * 仅文档服务持有者会话可授：owner 非
+ * `chips.official.document-service` 哨兵值一律 `RESOURCE_PERMISSION_DENIED`
+ * （`out_of_scope`，target 仅 `chips-resource://session/<id>`，零真实路径
+ * 泄漏）；不存在会话 fail-closed 返回 `RESOURCE_NOT_FOUND`。不改动会话
+ * 已绑定作用域集（scopes 零触碰）。
+ */
+export function resourceGrantSession(sessionId: number, permissions: readonly string[]): void;
+
+/**
  * 权限判定出站素材（Rust `PermissionDecision` 的 JSON 投影；键表见
  * RFC-权限审计跨层采集sink裁定 §八条 3——《08-权限系统设计》§8.2
  * camelCase 词表直译 + 域判别 `domain` + 附加素材 `required`/`missing`）。

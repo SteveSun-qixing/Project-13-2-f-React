@@ -272,6 +272,11 @@
       "signature": "(path: string, sessionId: number) => Promise<string | null>"
     },
     {
+      "name": "resourceGrantSession",
+      "kind": "sync",
+      "signature": "(sessionId: number, permissions: readonly string[]) => void"
+    },
+    {
       "name": "auditBindDecisionSink",
       "kind": "sync",
       "signature": "(sink: (frame: INativeAuditDecisionFrame) => void) => void"

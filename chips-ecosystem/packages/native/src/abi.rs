@@ -80,6 +80,7 @@ export_table! {
     "resourceUnregisterScope" => crate::resource::js_resource_unregister_scope,
     "resourceLocalPathOf" => crate::resource::js_resource_local_path_of,
     "resourceManagedUriOfPath" => crate::resource::js_resource_managed_uri_of_path,
+    "resourceGrantSession" => crate::resource::js_resource_grant_session,
     "auditBindDecisionSink" => crate::audit::js_audit_bind_decision_sink,
 }
 

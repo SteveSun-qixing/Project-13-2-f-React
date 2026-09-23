@@ -48,16 +48,16 @@ packages/native/
 
 已注册（`CORE_ABI_VERSION = 1`）：
 
-| 域               | 导出                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 元信息           | `coreVersion`、`coreAbiVersion`                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect`                                                                                                                                                                                                                                                                                                                                             |
-| 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`、`bridgeActivateProvider`、`bridgeDeactivateProvider`、`bridgeGrantCapabilityId`、`bridgeOpenSession`、`bridgeCloseSession`、`bridgeShutdown`                                                                                                                                                                                                                                     |
-| 文档解析         | `openDocument`、`openCard`、`openBox`、`documentMetadata`、`documentStructure`、`documentContent`、`documentEntries`、`documentLayoutConfig`、`documentRevision`、`documentReadResource`、`documentValidate`、`buildDocumentView`、`documentClose`                                                                                                                                                                                                             |
-| 资源管理         | `resourceOpen`、`resourceStat`、`resourceRead`、`resourceReadChunk`、`resourceRelease`、`resourceCommitWrite`、`resourceCommitWriteStream`、`resourceListDirectory`、`resourceDelete`、`resourceRename`、`resourceCopy`、`resourceCreateDirectory`、`resourceOpenSession`、`resourceCloseSession`、`resourceRegisterTempScope`、`resourceMountDirectory`、`resourceMountArchive`、`resourceUnregisterScope`、`resourceLocalPathOf`、`resourceManagedUriOfPath` |
+| 域               | 导出                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 元信息           | `coreVersion`、`coreAbiVersion`                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Cordis / Context | `contextProvide`、`contextInject`、`contextGet`、`contextOn`、`contextUnsubscribe`、`contextEmit`、`contextEffect`                                                                                                                                                                                                                                                                                                                                                                     |
+| 取消令牌         | `createCancelToken`、`cancelTokenCancel`                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Bridge           | `bridgeRegister`、`bridgeUnregister`、`bridgeRequest`、`bridgeCancelSession`、`bridgeActivateProvider`、`bridgeDeactivateProvider`、`bridgeGrantCapabilityId`、`bridgeOpenSession`、`bridgeCloseSession`、`bridgeShutdown`                                                                                                                                                                                                                                                             |
+| 文档解析         | `openDocument`、`openCard`、`openBox`、`documentMetadata`、`documentStructure`、`documentContent`、`documentEntries`、`documentLayoutConfig`、`documentRevision`、`documentReadResource`、`documentValidate`、`buildDocumentView`、`documentClose`                                                                                                                                                                                                                                     |
+| 资源管理         | `resourceOpen`、`resourceStat`、`resourceRead`、`resourceReadChunk`、`resourceRelease`、`resourceCommitWrite`、`resourceCommitWriteStream`、`resourceListDirectory`、`resourceDelete`、`resourceRename`、`resourceCopy`、`resourceCreateDirectory`、`resourceOpenSession`、`resourceCloseSession`、`resourceRegisterTempScope`、`resourceMountDirectory`、`resourceMountArchive`、`resourceUnregisterScope`、`resourceLocalPathOf`、`resourceManagedUriOfPath`、`resourceGrantSession` |
 
-二十个资源管理导出全部转发 `chips-resource` 内核（《核心接口规范》§7.3，
+二十一个资源管理导出全部转发 `chips-resource` 内核（《核心接口规范》§7.3，
 《04.11-04-资源管理设计》§11.3 表序逐字实现）：
 
 - 进程级单例：`ResourceManager` 以 `Arc` 一次初始化、生命周期与主进程一致
@@ -65,8 +65,8 @@ packages/native/
   注入的 `NoopDecisionObserver` 只是构造签名的编译随行，真实
   `DecisionObserver` 接线归后波（与 `bridge.rs` 同款的波界在册注记）；
 - 同步/异步切分按 §11.3 返回形状：`resourceRelease` / `resourceOpenSession` /
-  `resourceCloseSession` / `resourceRegisterTempScope` 四导出为同步
-  （backing 为注册表内存操作），其余十六导出为异步（工作提交绑定层运行时线程、
+  `resourceCloseSession` / `resourceRegisterTempScope` / `resourceGrantSession`
+  五导出为同步（backing 为注册表内存操作），其余十六导出为异步（工作提交绑定层运行时线程、
   经 `Channel` 回投 settle，JS 线程不 `block_on`）；波 A1 挂载/归档/注销三导出
   涉磁盘 IO 与归档索引构建，按 §8.3 线程规则以 `Promise` 交付
   （先例 `resourceCommitWrite`；kind 由绑定层钉死 `document`，JS 面无 kind
@@ -121,9 +121,10 @@ packages/native/
 《核心接口规范》§6.4 总表的 13 行中，`createCancelToken` /
 `cancelTokenCancel` 两行已由取消令牌域注册；文档解析域在 11 行之外补齐
 工单034 正式化两项（`documentLayoutConfig`、`documentRevision`），净增 13 项；
-资源管理域十八项（见上，段三 native 收官波十五项落位三方锁随动 34→49；
+资源管理域二十一项（见上，段三 native 收官波十五项落位三方锁随动 34→49；
 工单046 段四接线波 audit 域首项落位随动 49→50；W3 t036 波 A1 挂载/归档/
-注销三项落位随动 50→53），导出面合计 53 项。
+注销三项落位随动 50→53；W3 t036 波 B 双向换算两项落位随动 53→55；工单053
+点位五 D1 波授权注入一项落位随动 55→56），导出面合计 56 项。
 清单的 `blocked` 段当前为空，`scripts/check-abi.mjs` 强制校验三方一致。
 
 ## 四、命令

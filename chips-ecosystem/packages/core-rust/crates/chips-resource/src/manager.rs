@@ -440,6 +440,20 @@ impl ResourceManager {
         self.sessions.derive_session(parent, scopes, permissions)
     }
 
+    /// 向活会话追加权限字符串集（工单053 点位五，RFC 裁定J §二.2 Rust
+    /// 挂点）：`SessionRegistry::grant_permission` 的薄包装，入参形比照
+    /// [`Self::open_session`] 的 `impl IntoIterator<Item = String>`；
+    /// 语义三问（幂等静默 / 不撤销 / 字符串透传）在注册表单点承载，
+    /// 判定入口（`resolve` 的 `PermissionChecker` 构造与 `granted` 注入）
+    /// 零触碰。
+    pub fn grant_session(
+        &self,
+        session: SessionId,
+        permissions: impl IntoIterator<Item = String>,
+    ) -> ResourceResult<()> {
+        self.sessions.grant_permission(session, permissions)
+    }
+
     /// 关闭会话并级联归还全部租约（句柄失效并释放，《04》§10.1）。
     /// 创建者会话关闭时，Memory 挂载整体失效：内存条目清空、作用域注销
     /// （禁止持久化与跨会话传递，《06.04》§4.3 行 9）。

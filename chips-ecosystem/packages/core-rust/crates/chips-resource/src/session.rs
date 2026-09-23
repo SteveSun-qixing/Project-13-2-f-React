@@ -215,6 +215,37 @@ impl SessionRegistry {
             session.scopes.remove(scope);
         }
     }
+
+    /// 向活会话追加权限字符串集（工单053 点位五，RFC 裁定J §二.2/§三）：
+    /// ①幂等静默——`BTreeSet::insert` 集语义，重复授予同串恒 `Ok(())` 且集
+    ///    不变，与 [`Self::attach_scope`] 的追加原语同方言（§三.1，绑定层
+    ///    不造第二语义；无在籍检查、无新拒绝臂）；②不提供撤销——撤销走
+    ///    [`Self::derive_session`]（子集收窄）或 [`Self::close_session`]
+    ///    （整体回收随记录消亡），不建活会话第二撤销通道（§三.2/§五.1）；
+    /// ③字符串透传——对权限串内容零语法判断，限定串
+    ///    （`resources:write:<scope>`）照投，放行与否由 `PermissionChecker`
+    ///    判定矩阵单点裁决（§三.3，词表知识不复制进授予侧）。
+    ///
+    /// 会话不存在 → `RESOURCE_NOT_FOUND`（比照 [`Self::attach_scope`] 同臂
+    /// 形）；`scopes` 集零触碰——挂载面与授权面职责分离、互不调用互不映射
+    /// （§五.3）。
+    pub fn grant_permission(
+        &self,
+        session: SessionId,
+        permissions: impl IntoIterator<Item = String>,
+    ) -> ResourceResult<()> {
+        let mut state = self.inner.lock().expect("会话锁不得中毒");
+        let current = state
+            .sessions
+            .get_mut(&session)
+            .ok_or_else(|| ResourceError::NotFound {
+                uri: format!("{RESOURCE_SCHEME}://session/{session}"),
+            })?;
+        for permission in permissions {
+            current.permissions.insert(permission);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -314,5 +345,74 @@ mod tests {
         assert!(registry.get(id).unwrap().scopes.contains("plugin-1"));
         registry.detach_scope(&"plugin-1".into());
         assert!(!registry.get(id).unwrap().scopes.contains("plugin-1"));
+    }
+
+    #[test]
+    fn test_grant_permission_idempotent_and_not_found() {
+        // RFC 裁定J §八 T1：幂等静默（§三.1）+ 不在册拒绝（attach_scope
+        // 同臂形）+ 授予不改 scopes（§五.1/§五.3）+ 空数组 no-op 边界臂
+        // （§2.2 参数校验尾/OQ-5）。
+        let registry = SessionRegistry::new();
+        let id = registry
+            .open_session(
+                SessionKind::Document,
+                &"chips.editor".into(),
+                BTreeSet::from(["card-1".to_owned()]),
+                BTreeSet::new(),
+            )
+            .expect("顶层会话必须成功");
+        registry
+            .grant_permission(id, ["resources:write".to_owned()])
+            .expect("首次授予必须成功");
+        registry
+            .grant_permission(id, ["resources:write".to_owned()])
+            .expect("重复授予同串幂等静默（无在籍检查、无新拒绝臂）");
+        let session = registry.get(id).expect("会话必须可查");
+        assert_eq!(
+            session.permissions,
+            BTreeSet::from(["resources:write".to_owned()]),
+            "幂等集语义：重复授予后集不变"
+        );
+        assert_eq!(
+            session.scopes,
+            BTreeSet::from(["card-1".to_owned()]),
+            "授予零触 scopes 集（授权面与挂载面职责分离）"
+        );
+        // 空数组 = 合法 no-op 成功（§三.1 幂等形的边界臂）。
+        registry.grant_permission(id, []).expect("空授予必须成功");
+        assert_eq!(
+            registry.get(id).expect("会话必须可查").permissions,
+            session.permissions
+        );
+        // 不存在会话 → RESOURCE_NOT_FOUND（比照 attach_scope 同臂形）。
+        let error = registry
+            .grant_permission(9_999, ["resources:write".to_owned()])
+            .expect_err("不在册会话授予必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_FOUND);
+    }
+
+    #[test]
+    fn test_attach_scope_does_not_change_permissions() {
+        // RFC 裁定J §八 T6 核心臂（职责分离双向锁之挂载方向）：
+        // attach_scope 只进 scopes 集，permissions 集零变化——授予侧与
+        // 挂载侧两原语互不映射（§五.3 禁语义混流）。
+        let registry = SessionRegistry::new();
+        let id = registry
+            .open_session(
+                SessionKind::Document,
+                &"chips.editor".into(),
+                BTreeSet::new(),
+                BTreeSet::from(["resources:read".to_owned()]),
+            )
+            .expect("顶层会话必须成功");
+        registry.attach_scope(id, &"card-1".into()).unwrap();
+        registry.attach_scope(id, &"card-1".into()).unwrap();
+        let session = registry.get(id).expect("会话必须可查");
+        assert!(session.scopes.contains("card-1"));
+        assert_eq!(
+            session.permissions,
+            BTreeSet::from(["resources:read".to_owned()]),
+            "挂载（含重复挂载）零触 permissions 集"
+        );
     }
 }

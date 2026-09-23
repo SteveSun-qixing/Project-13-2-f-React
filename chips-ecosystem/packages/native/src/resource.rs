@@ -1,4 +1,4 @@
-//! 资源管理域导出（《04-资源管理设计》§11.3 二十导出，《核心接口规范》§7.3、§8.6）。
+//! 资源管理域导出（《04-资源管理设计》§11.3 二十一导出，《核心接口规范》§7.3、§8.6）。
 //!
 //! 导出面与 backing 的一一对应（业务逻辑全部位于 `chips-resource`，本模块
 //! 只做类型转换、错误归一与线程回投，《核心接口规范》§8.1）：
@@ -35,6 +35,9 @@
 //! | `resourceManagedUriOfPath` | `ResourceManager::managed_uri_of_path`（反向换算：
 //!   会话已绑定 scope 快照内最长前缀匹配；未命中一律 `null` 不报错，
 //!   泄漏免疫口径，RFC §六 C2 裁定实形） |
+//! | `resourceGrantSession` | `ResourceManager::grant_session`（核心 `grant_permission`
+//!   薄包装的存续期授权注入；绑定层 owner 哨兵闸——仅文档服务
+//!   `chips.official.document-service` 持有者会话可授，工单053 点位五裁定J） |
 //!
 //! 约定（§8.2、§8.3、§8.5、§11.3、§11.5）：
 //!
@@ -54,7 +57,8 @@
 //!   注入 `NoopDecisionObserver`（RFC §八条 1 测试面）；
 //! - 线程约束：异步导出全部提交绑定层运行时执行，结果经 `Channel` 回投
 //!   JS 线程 settle（§8.3）；`resourceRelease` / `resourceOpenSession` /
-//!   `resourceCloseSession` / `resourceRegisterTempScope` 按 §11.3 表为同步
+//!   `resourceCloseSession` / `resourceRegisterTempScope` /
+//!   `resourceGrantSession` 按 §11.3 表为同步
 //!   导出（backing 为同步签名，只做注册表内存操作）；
 //! - 错误归一：`RESOURCE_*` / `NETWORK_*` 等 backing 契约码经 `ChipsError`
 //!   原样透传（§8.5），绑定层只以 `NATIVE_*` 三码拒绝非法入参，不自造码；
@@ -798,7 +802,9 @@ pub(crate) fn js_resource_create_directory(mut cx: FunctionContext) -> JsResult<
 
 /// `resourceOpenSession(kind, owner)`：创建顶层资源会话（主进程内部使用，
 /// §11.3 同步 `number`）。作用域与权限快照的挂接（§11.2 绑定/派生）归宿主
-/// 装配面：本导出以空绑定起步，`derive_session` 与授权注入不在十五导出面内。
+/// 装配面：本导出以空绑定起步；存续期授权注入由 `resourceGrantSession`
+/// 承接（工单053 点位五裁定J落位——「JS 面会话永不可写」旧不变量至此终结，
+/// 写臂按 grant 结果判定）；`derive_session` 子集收窄派生仍不在 JS 导出面内。
 pub(crate) fn js_resource_open_session(mut cx: FunctionContext) -> JsResult<JsNumber> {
     let kind_text = cx.argument::<JsString>(0)?.value(&mut cx);
     let owner = cx.argument::<JsString>(1)?.value(&mut cx);
@@ -1042,6 +1048,112 @@ pub(crate) fn js_resource_managed_uri_of_path(mut cx: FunctionContext) -> JsResu
         move || Ok(manager.managed_uri_of_path(Path::new(&path), session)),
         settle_optional_string,
     )
+}
+
+// ---------------------------------------------------------------------------
+// 会话授权注入面（工单053 点位五，RFC 裁定J §二.2/§三/§四：第 56 导出）
+// ---------------------------------------------------------------------------
+
+/// 文档服务 owner 哨兵（grant owner 哨兵闸的绑定层期望值，裁定J §四.1：
+/// 闸挂绑定层、核心 `grant_permission` 零 owner 语义）。取值与宿主
+/// `packages/host/src/capabilities/document/scope-derivation.ts` 的
+/// `DOCUMENT_SCOPE_OWNER` 定义逐字等值（宿主文件为权威、本面只读比对禁改）；
+/// §四.2 跨语言常量三侧值锁收口形：登记面（本包 `README.md` 与《04.11》
+/// §11.3）为权威，宿主常量值锁与本侧值锁（`test_grant_owner_sentinel_gate`）
+/// 各钉一条机械锁，漂移即双红、无静默窗口——比照
+/// [`UNCLAIMED_SESSION`] 哨兵先例的「编译期常量 + 值锁」承载形。
+const DOCUMENT_SCOPE_OWNER_SENTINEL: &str = "chips.official.document-service";
+
+/// 哨兵非空的编译期常量断言（裁定J §四.3 母型三要素之「编译期常量断言」
+/// 等价不变量形；与登记面逐字等值由 T3 值锁臂承载）。
+const _: () = {
+    assert!(!DOCUMENT_SCOPE_OWNER_SENTINEL.is_empty());
+};
+
+/// grant owner 哨兵闸的拒绝形：与 [`session_gate_denied`] 逐字同款——
+/// `RESOURCE_PERMISSION_DENIED`、`details.permission = "session"`、
+/// `reason = out_of_scope`、`required` 空、`granted` 携该会话权限集快照
+/// （注入缺失可诊断，工单053 §四.4）；仅 `target` 改携
+/// `chips-resource://session/<id>` 会话坐标形（`derive_session` 拒绝臂
+/// 同款，不泄露任何真实路径，裁定J §四.1）。
+fn grant_gate_denied(session: u64, granted: Vec<String>) -> ChipsError {
+    ResourceError::PermissionDenied {
+        target: format!("chips-resource://session/{session}"),
+        permission: "session".to_owned(),
+        required: Vec::new(),
+        missing: Vec::new(),
+        granted,
+        reason: PermissionDenyReason::OutOfScope,
+    }
+    .to_chips_error()
+}
+
+/// grant 导出的 owner 哨兵闸判定（比照 `resourceUnregisterScope` 绑定层
+/// 补会话归属闸同族判例，裁定J §四.1）：`manager.sessions().get(id)` →
+/// `None` 拒（fail-closed，对应 #203 N-1 母型「未在册回哨兵」形）；
+/// `Some(record) if record.owner != 哨兵` 拒（插件 / 窗口 / dialog 链
+/// `TEMP_SCOPE_OWNER` 会话永不可达，工单053 §四.2）；否则放行核心。
+fn require_document_session_owner(
+    manager: &ResourceManager,
+    session: u64,
+) -> Result<(), ChipsError> {
+    match manager.sessions().get(session) {
+        None => Err(grant_gate_denied(session, Vec::new())),
+        Some(record) if record.owner == DOCUMENT_SCOPE_OWNER_SENTINEL => Ok(()),
+        Some(record) => Err(grant_gate_denied(
+            session,
+            record.permissions.iter().cloned().collect(),
+        )),
+    }
+}
+
+/// grant 绑定层链路完整复刻（owner 哨兵闸 + 核心 `grant_session` 薄包装）：
+/// 导出体与锁测共消费同一函数（比照 `unregister_via_binding` 同款构造，
+/// 测试面与运行面零语义分叉）。
+fn grant_session_via_binding(
+    manager: &ResourceManager,
+    session: u64,
+    permissions: Vec<String>,
+) -> Result<(), ChipsError> {
+    require_document_session_owner(manager, session)?;
+    manager
+        .grant_session(session, permissions)
+        .map_err(|error| error.to_chips_error())
+}
+
+/// `resourceGrantSession(sessionId, permissions)`：向活会话追加权限字符串集
+/// （主进程内部使用，§11.3 同步 `void`，第 56 导出）。同步形依据：核心为
+/// 纯内存 `BTreeSet` 追加零 IO（§8.3 线程规则同步合法；会话域既有导出全同步
+/// 先例在册，裁定J §二.2）。参数校验：`sessionId` 过 `id_argument` 2^53
+/// 线格式闸；`permissions` 逐元素 string 类型闸，非 string →
+/// `NATIVE_TYPE_UNSUPPORTED`（path `/permissions/<i>`）；空数组 = 合法
+/// no-op 成功（§三.1 幂等形边界臂）。错误码零新增（`RESOURCE_*` 18 码封闭
+/// 表与《06.02》§2.4 九 reason 词表双面零触达——grant 不产路径判定、
+/// 不碰挂载链）。
+pub(crate) fn js_resource_grant_session(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let session = arg_or_throw!(id_argument(&mut cx, 0, "/sessionId"), &mut cx);
+    let array = cx.argument::<JsArray>(1)?;
+    let mut permissions = Vec::new();
+    for (index, item) in array.to_vec(&mut cx)?.into_iter().enumerate() {
+        match item.downcast::<JsString, _>(&mut cx) {
+            Ok(string) => permissions.push(string.value(&mut cx)),
+            Err(_) => {
+                return throw_chips_error(
+                    &mut cx,
+                    type_unsupported(
+                        &format!("/permissions/{index}"),
+                        "权限实参必须逐元素为字符串",
+                    ),
+                )
+            }
+        }
+    }
+    let manager = resource_manager();
+    check_sync(
+        &mut cx,
+        grant_session_via_binding(&manager, session, permissions),
+    )?;
+    Ok(cx.undefined())
 }
 
 #[cfg(test)]
@@ -1661,8 +1773,8 @@ mod tests {
         // 返回 Promise 形状），与 RFC §4.2/§5.1 逐字表行一字不差。
         let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
         let exports = surface["exports"].as_array().expect("exports 数组");
-        assert_eq!(exports.len(), 55, "波 B 在册全表 55 项");
-        assert_eq!(crate::abi::EXPORT_NAMES.len(), 55, "注册表同为 55 项");
+        assert_eq!(exports.len(), 56, "点位五 D1 在册全表 56 项");
+        assert_eq!(crate::abi::EXPORT_NAMES.len(), 56, "注册表同为 56 项");
         let expected: [(&str, &str, &str); 3] = [
             (
                 "resourceMountDirectory",
@@ -2339,8 +2451,13 @@ mod tests {
         );
         assert_eq!(
             names[anchor + 3],
+            "resourceGrantSession",
+            "资源域域尾授权注入名同序紧随换算两名（点位五 D1 域尾追加）"
+        );
+        assert_eq!(
+            names[anchor + 4],
             "auditBindDecisionSink",
-            "换算两名之后即 audit 域收尾项"
+            "资源域四名之后即 audit 域收尾项"
         );
     }
 
@@ -2504,5 +2621,268 @@ mod tests {
             "越权会话反查未命中"
         );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    // -----------------------------------------------------------------------
+    // 会话授权注入锁测（工单053 点位五 D1 波，RFC 裁定J §八 T3/T6/T7/T8）
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_grant_owner_sentinel_gate() {
+        // 裁定J §八 T3：owner 哨兵闸三态（不在册 fail-closed / 在册他 owner
+        // 恒拒 / 在册本 owner 放行）+ details 形制逐字 + §四.2 三侧值锁的
+        // native 侧一臂（常量值逐字锁，随本段同位）。
+        assert_eq!(
+            DOCUMENT_SCOPE_OWNER_SENTINEL, "chips.official.document-service",
+            "native 侧哨兵值锁：与宿主 scope-derivation.ts 定义、README/§11.3\n             登记面逐字等值，漂移即双红（裁定J §4.2 三侧值锁）"
+        );
+        let manager = fixture_manager();
+        // 态一：不在册会话 → RESOURCE_PERMISSION_DENIED（fail-closed），
+        // details 形制逐字——permission = "session"、reason = out_of_scope、
+        // required/missing/granted 全空、target 携会话坐标形、零路径泄露。
+        let error = grant_session_via_binding(&manager, 9_999, vec!["resources:write".to_owned()])
+            .expect_err("不在册会话授予必须拒（fail-closed）");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        let details = details_of(&error);
+        assert_eq!(details["permission"], "session");
+        assert_eq!(details["reason"], "out_of_scope");
+        assert_eq!(details["required"], json!([]));
+        assert_eq!(details["missing"], json!([]));
+        assert_eq!(details["granted"], json!([]));
+        assert_eq!(details["target"], "chips-resource://session/9999");
+        // 态二：他域会话恒拒——插件 / 窗口 / dialog 链 TEMP_SCOPE_OWNER
+        // 会话（工单053 §四.2「插件与 dialog 永不可达」双臂锁）。granted 快照
+        // 携该会话在册权限集（诊断性升级）。
+        let foreign_owners: [(SessionKind, String); 4] = [
+            (SessionKind::Document, MOUNT_TEST_OWNER.to_owned()),
+            (SessionKind::Plugin, "chips.some-plugin".to_owned()),
+            (SessionKind::Window, "chips.host".to_owned()),
+            (
+                SessionKind::Document,
+                chips_resource::manager::TEMP_SCOPE_OWNER.to_owned(),
+            ),
+        ];
+        for (kind, owner) in foreign_owners {
+            let session = manager
+                .open_session(
+                    kind,
+                    &owner,
+                    [],
+                    ["resources:read".to_owned(), "resources:write".to_owned()],
+                )
+                .expect("夹具会话必须成功");
+            let error =
+                grant_session_via_binding(&manager, session, vec!["resources:write".to_owned()])
+                    .expect_err("非哨兵持有者会话授予必须恒拒：{owner}");
+            assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+            let details = details_of(&error);
+            assert_eq!(details["permission"], "session");
+            assert_eq!(details["reason"], "out_of_scope");
+            assert_eq!(
+                details["granted"],
+                json!(["resources:read", "resources:write"]),
+                "被拒 details 必携该会话权限集快照"
+            );
+            assert_eq!(
+                details["target"],
+                format!("chips-resource://session/{session}")
+            );
+            assert!(
+                !details
+                    .as_object()
+                    .unwrap()
+                    .values()
+                    .any(|value| match value.as_str() {
+                        Some(text) => text.starts_with('/'),
+                        None => false,
+                    }),
+                "拒绝细节不得泄露任何真实路径"
+            );
+        }
+        // 态三：文档服务哨兵持有者会话 → 放行，权限集如实追加。
+        let official = manager
+            .open_session(
+                SessionKind::Document,
+                &DOCUMENT_SCOPE_OWNER_SENTINEL.to_owned(),
+                [],
+                Vec::<String>::new(),
+            )
+            .expect("文档服务会话必须成功");
+        grant_session_via_binding(&manager, official, vec!["resources:write".to_owned()])
+            .expect("哨兵持有者授予必须放行");
+        assert!(manager
+            .sessions()
+            .get(official)
+            .expect("会话必须可查")
+            .permissions
+            .contains("resources:write"));
+        // 空数组 = 合法 no-op 成功（§2.2/OQ-5 绑定面臂）。
+        grant_session_via_binding(&manager, official, Vec::new())
+            .expect("哨兵持有者空授予必须成功");
+    }
+
+    #[test]
+    fn test_js_surface_write_denied_without_grant() {
+        // 裁定J §八 T7（E12 补建负臂——此前无任何既有用例可翻正）：经绑定层
+        // 复刻的完整 JS 面链 open（空权限，同 `js_resource_open_session`
+        // 投递形）→ mount（writable=true）→ 写判定，恒
+        // `RESOURCE_PERMISSION_DENIED`（Document 写臂 NotGranted）。与
+        // `test_grant_owner_sentinel_gate` 放行臂、核心 `T2` 正臂并立，
+        // 表达「按 grant 结果判定」两态语义不互蚀。
+        let root = temp_root("grant-negative");
+        fs::create_dir_all(root.join("notes")).expect("夹具子目录");
+        let manager = fixture_manager();
+        let session = manager
+            .open_session(
+                SessionKind::Document,
+                &DOCUMENT_SCOPE_OWNER_SENTINEL.to_owned(),
+                [],
+                Vec::<String>::new(),
+            )
+            .expect("JS 面会话创建必须成功（open 导出空权限起步形）");
+        let scope = document_scope("f00d");
+        mount_directory_via_binding(&manager, session, &scope, &root, true)
+            .expect("可写目录挂载必须成功");
+        let error = test_runtime()
+            .block_on(manager.commit_write(WriteRequest {
+                session,
+                scope: scope.clone(),
+                path: write_virtual_path(manager.limits(), &scope, "notes/a.md").expect("在册路径"),
+                bytes: b"payload".to_vec(),
+            }))
+            .expect_err("无 grant 的 JS 面会话写必拒（补建负臂）");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        let details = details_of(&error);
+        assert_eq!(details["permission"], "resources:write");
+        assert_eq!(details["reason"], "not_granted");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_mount_directory_keeps_permissions_unchanged() {
+        // 裁定J §八 T6 绑定面臂（职责分离反混流锁之挂载方向，§五.3）：
+        // 目录挂载（含 writable=true 形，挂载内部经 `attach_scope`）后
+        // `permissions` 集零变化——挂载面与授权面两原语互不映射。
+        let root = temp_root("grant-t6");
+        fs::create_dir_all(root.join("notes")).expect("夹具子目录");
+        let manager = fixture_manager();
+        let session = manager
+            .open_session(
+                SessionKind::Document,
+                &DOCUMENT_SCOPE_OWNER_SENTINEL.to_owned(),
+                [],
+                Vec::<String>::new(),
+            )
+            .expect("夹具会话必须成功");
+        let scope = document_scope("f00e");
+        mount_directory_via_binding(&manager, session, &scope, &root, true)
+            .expect("writable=true 挂载必须成功");
+        let record = manager.sessions().get(session).expect("会话必须可查");
+        assert!(record.scopes.contains(&scope), "挂载应绑定 scope");
+        assert!(
+            record.permissions.is_empty(),
+            "挂载（含 writable=true）零触 permissions 集"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_grant_orthogonal_to_archive_read_only() {
+        // 裁定J §八 T8（归档态与权限面正交，§七「不做条件 grant」决定之
+        // 锁）：文档服务会话 grant 基串后，归档挂载 policy 只读强制不变——
+        // `RESOURCE_READ_ONLY` 臂与权限判定互不借道（`permission.rs`
+        // `NonPermissionDenied` 臂形：只读拒绝载体不产权限明细）。
+        let root = temp_root("grant-t8");
+        let archive_path = root.join("ortho.card");
+        let bytes = zip_store_archive(&[("content/", b""), ("content/note.txt", b"hello zip")]);
+        fs::write(&archive_path, &bytes).expect("夹具归档必须可写");
+        let manager = fixture_manager();
+        let session = manager
+            .open_session(
+                SessionKind::Document,
+                &DOCUMENT_SCOPE_OWNER_SENTINEL.to_owned(),
+                [],
+                Vec::<String>::new(),
+            )
+            .expect("夹具会话必须成功");
+        let scope = document_scope("ab02");
+        mount_archive_via_binding(&manager, session, &scope, &archive_path)
+            .expect("归档挂载必须成功");
+        grant_session_via_binding(&manager, session, vec!["resources:write".to_owned()])
+            .expect("哨兵持有者授予必须放行");
+        let error = test_runtime()
+            .block_on(
+                manager.commit_write(WriteRequest {
+                    session,
+                    scope: scope.clone(),
+                    path: write_virtual_path(manager.limits(), &scope, "content/note.txt")
+                        .expect("在册路径"),
+                    bytes: b"overwrite".to_vec(),
+                }),
+            )
+            .expect_err("grant 后归档就地写仍必须拒");
+        assert_eq!(
+            error.code(),
+            "RESOURCE_READ_ONLY",
+            "只读策略先行于权限判定：grant 不借道、策略不为 grant 让位"
+        );
+        let details = details_of(&error);
+        assert_eq!(
+            details["uri"],
+            format!("chips-resource://{scope}/content/note.txt")
+        );
+        assert!(
+            details.get("permission").is_none() && details.get("reason").is_none(),
+            "READ_ONLY 非权限臂不携权限判定明细（互不借道，《06.07》§7.3 精确目标形）"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_grant_surface_entry_and_declaration_locked() {
+        // 形状锁（裁定J §六 S2/S3、T5 native 半，波 A1/B 判例同型）：授权注入
+        // 导出在清单中的 kind/signature 逐字锁定、abiVersion/blocked 不动在册；
+        // d.ts 声明参数逐位与返回形状锁定。
+        let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
+        assert_eq!(
+            surface["abiVersion"], 1,
+            "CORE_ABI_VERSION 维持 1 不随动（只增不改，§6.3）"
+        );
+        assert!(
+            surface["blocked"]
+                .as_array()
+                .expect("blocked 段")
+                .is_empty(),
+            "blocked 段当前为空在册"
+        );
+        let exports = surface["exports"].as_array().expect("exports 数组");
+        let entry = exports
+            .iter()
+            .find(|entry| entry["name"] == "resourceGrantSession")
+            .expect("清单必须收录 resourceGrantSession");
+        assert_eq!(entry["kind"], "sync", "授权注入导出 kind 锁定");
+        assert_eq!(
+            entry["signature"], "(sessionId: number, permissions: readonly string[]) => void",
+            "授权注入导出签名逐字锁定"
+        );
+        let marker = "export function resourceGrantSession(";
+        let start = DECLARATIONS
+            .find(marker)
+            .expect("d.ts 必须声明 resourceGrantSession");
+        let end = DECLARATIONS[start..]
+            .find(';')
+            .map(|offset| start + offset)
+            .expect("声明必须以分号收口");
+        let declaration = &DECLARATIONS[start..=end];
+        for fragment in [
+            "sessionId: number",
+            "permissions: readonly string[]",
+            "): void;",
+        ] {
+            assert!(
+                declaration.contains(fragment),
+                "授权注入声明逐位锁定：{fragment}"
+            );
+        }
     }
 }
