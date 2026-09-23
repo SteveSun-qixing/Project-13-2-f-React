@@ -8,15 +8,17 @@
  * #213 §2.1(g) 六阶段时序表（INV-1~INV-6）。
  *
  * @remarks
- * - **native 会话自持（INV-1）**：`resourceOpenSession` 返回的 `nativeSession` 由本适配器
- *   在挂载时自行打开、注销时经两拍收口释放——**不以伪造 id 为前提**。现状如实登记：
- *   `service.ts`/`session-store.ts` 记录面上的 `record.nativeSession` 仍是
- *   `session-store.ts:176/200/209` 的 TS 单调计数器（`nativeSessionCounter`，非原生句柄）；
- *   其来源翻正（改取本适配器/原生返回）归波 A2b-β 接线臂，本波不改该源头。
+ * - **native 会话自持与回执（INV-1，波 A2b-β 已接源头）**：`resourceOpenSession` 返回的
+ *   `nativeSession` 由本适配器在挂载时自行打开、在册账留存、注销时经两拍收口释放，并经
+ *   `registerScope` 回执 {@link IDocumentScopeRegistration} 显式交付文档服务落记录面——
+ *   **不以伪造 id 为前提**。记录面该字段的历史形态（`session-store.ts` 的 TS 单调计数器）
+ *   已随 β 删除：假 id 触达原生侧会话表恒 `None`，归属闸恒 `PERMISSION_DENIED`，
+ *   两拍注销与任何按会话归属的资源调用形同虚设（#213 附带发现）。
  * - **两拍时序（INV-2/INV-6）**：`unregisterScope` 内部 ① `resourceUnregisterScope(scope, session)`
  *   → ② `resourceCloseSession(session)`，次序倒置即自造 JS 面不可恢复的孤儿常驻 scope
  *   （挂载持久于进程、`close_session` 不自动脱绑，#213 §2.1(d)/§2.1(g)）；
- *   注销入口全仓唯一即本成员（禁第二注销形）。调用位（释放臂接线）归 β。
+ *   注销入口全仓唯一即本成员（禁第二注销形）。调用位已在册（β）：`session-store.ts` 的
+ *   `releaseSessionsOf` 经 `releaseScope` 依赖位、`service.ts` 的 `rollbackFreshRecord` 经端口本成员。
  * - **幂等臂＝窄形（M0 核证在册，`/tmp/w217_state.md`）**：`RESOURCE_ALREADY_EXISTS` 是幂等
  *   信号不是错误（RFC `:107`、《04.11》:207-208）；但点位三 lookup 导出未落位（归波 B）、
  *   未绑定会话对 Document scope 读臂恒拒（`permission.rs` document() 臂 + 绑定层空权限集，
@@ -53,7 +55,7 @@ import {
   canonicalizeDocumentPath,
   deriveDocumentScopeFromCanonical,
 } from '../scope-derivation.js';
-import type { IDocumentScopePort, IResolvedDocumentSource } from '../ports.js';
+import type { IDocumentScopePort, IDocumentScopeRegistration, IResolvedDocumentSource } from '../ports.js';
 import type { INativeResourceModule } from './native-resource-module.js';
 
 /** 会话种类判别字面量（绑定层 `parse_session_kind` 三值之一，document 域挂载用）。 */
@@ -221,7 +223,7 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
     readonly documentId: string;
     readonly managedUri: string;
     readonly kind: DocumentKind;
-  }): Promise<void> {
+  }): Promise<IDocumentScopeRegistration> {
     const entry = ledger.get(input.managedUri);
     if (entry === undefined) {
       throw new DocumentCapabilityError('RESOURCE_INVALID_URI', {
@@ -229,9 +231,10 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
       });
     }
     if (entry.mounted !== null) {
-      // 幂等复用臂（窄形）：本适配器活绑定在位 → 同 owner（构造恒等）核对账本三一致。
+      // 幂等复用臂（窄形）：本适配器活绑定在位 → 同 owner（构造恒等）核对账本三一致，
+      // 回执既有活绑定的同一原生会话（INV-1：记录面数值会话与在册账同源，不分叉）。
       if (entry.mounted.documentId === input.documentId && entry.kind === input.kind) {
-        return;
+        return { nativeSession: entry.mounted.nativeSession };
       }
       throw new DocumentCapabilityError('RESOURCE_ALREADY_EXISTS', {
         message: '同一受管引用已绑定不同文档标识或种类（真冲突，禁抢占）',
@@ -273,6 +276,7 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
       });
     }
     entry.mounted = { nativeSession, documentId: input.documentId };
+    return { nativeSession };
   }
 
   function closeSessionQuietly(nativeSession: number): void {
@@ -331,7 +335,7 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
       readonly documentId: string;
       readonly managedUri: string;
       readonly kind: DocumentKind;
-    }): Promise<void> {
+    }): Promise<IDocumentScopeRegistration> {
       return enqueue(`scope:${input.managedUri}`, () => doRegisterScope(input));
     },
     unregisterScope(input: { readonly documentId: string; readonly managedUri: string }): Promise<void> {

@@ -133,9 +133,10 @@ export interface ProductionRuntimeOptions {
   readonly cardWindowDocumentBinding?: CardWindowDocumentBindingResolver;
   /**
    * Bridge 会话关闭联动（刀4 缝②）：透传给宿主运行时，在会话订阅/句柄清理完成后
-   * 通知文档服务释放该会话的文档会话与记录（§4.6）。
+   * 通知文档服务释放该会话的文档会话与记录（§4.6）；可返回 Promise 交运行时登记在途释放，
+   * 停机收口前逐条等待（工单036 波 A2b-β 两拍注销的退出清理）。
    */
-  readonly onBridgeSessionClosed?: (sessionId: string) => void;
+  readonly onBridgeSessionClosed?: (sessionId: string) => void | Promise<void>;
   /**
    * `chips-native.node` 原生绑定产物路径；缺省按上下文 `platformRoot` 经
    * {@link defaultNativeBridgeModulePath} 推导生产落位（工单 025 消费链装载点）。
@@ -344,17 +345,15 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
       // 一致性（工单035 §九待裁随账收口）。装载段回退态（service 缺位）不注入，投递臂如实拒收。
       const cardWindowDocumentBinding: CardWindowDocumentBindingResolver | undefined =
         documentService === undefined ? undefined : (source) => documentService.resolveWindowDocument(source);
+      // 刀4 缝② + 工单036 波 A2b-β（任务 #219）退出清理：把释放链的 Promise 如实交回运行时
+      // （不再 fire-and-forget）——运行时登记在途释放，`shutdown()` 停机收口前逐条等待，
+      // 使文档记录驱逐的两拍注销（`unregisterScope` → 关原生会话）不被进程退出抢先；
+      // 异步失败的留痕与终态抛出统一由运行时承载（`host-runtime.ts` `pendingSessionCleanups`
+      // 头注 + `shutdown` 收口臂），本处不再自行吞拒绝。
       const onBridgeSessionClosed =
         documentService === undefined
           ? undefined
-          : (sessionId: string): void => {
-              documentService.releaseSessions(sessionId).catch((error: unknown) => {
-                bridgeDiagnostics.error('document-capability', '会话释放联动失败', {
-                  sessionId,
-                  reason: error instanceof Error ? error.message : typeof error,
-                });
-              });
-            };
+          : (sessionId: string): Promise<void> => documentService.releaseSessions(sessionId);
       const runtime = createProductionRuntime(context, {
         ...(providers === undefined ? {} : { capabilityProviders: providers }),
         ...(sessionProvisioner === undefined ? {} : { sessionProvisioner }),

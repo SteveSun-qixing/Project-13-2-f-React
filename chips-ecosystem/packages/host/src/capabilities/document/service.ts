@@ -16,6 +16,11 @@
  *   发布 `document:closed`。payload 字段以 `05-事件契约规范` §4.2 为准。
  * - 同一文档的 `write` / `save` 经记录级串行队列执行；不同文档互不阻塞（§7.5）。
  * - 事件是通知不是状态：发布失败不回滚已完成的写入，落宿主诊断日志（§7.3）。
+ * - 资源侧生命周期（工单036 裁决I-①/④，波 A2b-β 接线）：文档记录的原生会话来自作用域端口
+ *   `registerScope` 回执（INV-1，真实 `resourceOpenSession` 句柄）；记录驱逐（会话释放、
+ *   打开失败回收）一律「① `unregisterScope` → ② 关句柄」两拍次序（INV-2，经 `session-store.ts`
+ *   `releaseScope` 依赖位与 `rollbackFreshRecord` 单点承载），`document:closed` 事件**不承担**
+ *   资源注销（裁决I-④ 形态①，禁双注销挂点 INV-6）。
  */
 
 import { DOCUMENT_CAPABILITY_IDS, DOCUMENT_CAPABILITY_PERMISSIONS, DOCUMENT_EVENT_IDS } from './contract.js';
@@ -51,6 +56,7 @@ import type {
   DocumentCapabilityExecutor,
   IDocumentHandle,
   IDocumentParseOutcome,
+  IDocumentScopeRegistration,
   IDocumentSerializeRequest,
   IDocumentSerializedMember,
   IDocumentServiceDependencies,
@@ -109,9 +115,10 @@ export interface ICardWindowDocumentBinding {
 /**
  * 视图通道会话解析结果（主进程内部消费面；工单035 裁定 / RFC O3）。
  *
- * @remarks `found` 臂交付的 `nativeSession` 为 backing 数值会话（记录级唯一生成点，
- * 见 `session-store.ts` 头注）：只供主进程视图通道适配器逐调用交原生 `buildDocumentView`
- * 消费，**不得出现在任何跨进程回包**。`not-found` / `conflict` 由适配器映射为
+ * @remarks `found` 臂交付的 `nativeSession` 为 backing 数值会话（作用域端口 `registerScope`
+ * 回执交付的原生 `resourceOpenSession` 句柄，随记录一次落档，INV-1）：只供主进程视图通道适配器
+ * 逐调用交原生 `buildDocumentView` 消费，**不得出现在任何跨进程回包**。`not-found` / `conflict`
+ * 由适配器映射为
  * `DOCUMENT_NOT_OPEN` / `DOCUMENT_ID_CONFLICT`（在册面内，见通道契约错误码表）；
  * `unowned`（工单043-A4 G2）为记录在册且标识相符、但**无一会话归属发起窗口**，由适配器
  * 映射为在册码 `BRIDGE_SESSION_UNKNOWN`（跨窗口取视图如实拒绝，不泄露视图）。
@@ -149,7 +156,12 @@ export interface IDocumentService {
    * `null`，由投递臂按在册码 `DOCUMENT_NOT_OPEN` 如实拒收（不伪造装载）。
    */
   resolveWindowDocument(source: string): ICardWindowDocumentBinding | null;
-  /** Bridge 会话释放联动：移除该会话的全部文档会话与身份声明（§4.6 释放语义的宿主入口）。 */
+  /**
+   * Bridge 会话释放联动（§4.6 释放语义的宿主入口）：移除该会话的全部文档会话与身份声明，
+   * 并对被移除记录执行两拍收口（① 端口 `unregisterScope` → ② 释放解析句柄，INV-2）；
+   * 本方法是主进程退出清理的同一入口（`host-runtime.ts` `shutdown` 逐会话关闭 → 本联动，
+   * 停机链在途释放在 `shutdown` 返回前收口）。
+   */
   releaseSessions(sessionId: string): Promise<void>;
   /** 观察面：当前活动文档记录数（诊断与测试）。 */
   activeRecordCount(): number;
@@ -215,9 +227,17 @@ function sortMembers(members: readonly IDocumentSerializedMember[]): readonly ID
 
 /** 创建文档服务能力服务。 */
 export function createDocumentService(deps: IDocumentServiceDependencies): IDocumentService {
-  const store = createDocumentSessionStore(async (handle) => {
-    await deps.parser.release(handle);
-  });
+  const store = createDocumentSessionStore(
+    async (handle) => {
+      await deps.parser.release(handle);
+    },
+    // 两拍接线单点（INV-2/INV-6）：记录驱逐期经端口注销常驻作用域（正式适配器内部
+    // `resourceUnregisterScope` → `resourceCloseSession`），次序与失败口径见 `session-store.ts`
+    // `releaseSessionsOf`；`document:closed` 事件不承担资源注销（裁决I-④ 形态①）。
+    async (scopeRef) => {
+      await deps.scope.unregisterScope(scopeRef);
+    },
+  );
 
   /** 调用前置判定：取消 → 截止 → 会话活跃 → 权限快照（§5.2 阶段序；判定本体在 Bridge，每调用查询、不缓存）。 */
   async function authorize(capabilityId: DocumentCapabilityId, ctx: IDocumentCapabilityContext): Promise<void> {
@@ -454,8 +474,9 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       });
     }
     claimSessionIdentityOrThrow(ctx, parsed.documentId, resolved.managedUri);
+    let registration: IDocumentScopeRegistration;
     try {
-      await deps.scope.registerScope({
+      registration = await deps.scope.registerScope({
         documentId: parsed.documentId,
         managedUri: resolved.managedUri,
         kind: parsed.kind,
@@ -473,6 +494,8 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       documentId: parsed.documentId,
       title: parsed.title,
       handle: parsed.handle,
+      // INV-1：记录面数值会话只承接端口回执里的原生句柄，本服务不生成、不自增、不猜测。
+      nativeSession: registration.nativeSession,
       baselineMetadata: parsed.metadata,
       baselineDiagnostics: parsed.diagnostics,
       baselineFingerprint: parsed.fingerprint,
@@ -481,15 +504,41 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
       // 并发打开同一来源：记录已由先到的调用建立，本调用的冗余句柄即刻回收（§3.5 单记录单句柄）。
       await deps.parser.release(parsed.handle);
     }
+    if (record.nativeSession !== registration.nativeSession) {
+      // 不变量探测（#213 A2b-4(ii) 形，禁第三注销入口）：同一受管引用的两次登记在适配器
+      // 同键串行化下必回同一在册会话；回执分叉即构造性漂移，如实留痕、不据此另开收口路径。
+      deps.diagnostics?.error('document', '作用域登记回执与在册记录的数值会话不一致（构造性漂移）', {
+        documentId: record.documentId,
+        managedUri: record.managedUri,
+      });
+    }
     return record;
   }
 
-  /** 记录建立后步骤失败时的回收：撤回身份声明、移除无会话记录并释放句柄（§4.2 不留半开状态）。 */
+  /**
+   * 记录建立后步骤失败时的回收：撤回身份声明、移除无会话记录并注销作用域与释放句柄（§4.2 不留半开状态）。
+   *
+   * @remarks 两拍次序（INV-2）：先经端口注销本次已挂载的常驻作用域（适配器内部
+   * `resourceUnregisterScope` → `resourceCloseSession`），后释放解析句柄。本臂是**清理路径**，
+   * 不得掩盖调用方的主失败：注销未达（如归属闸 `PERMISSION_DENIED`）时以 error 级诊断如实留痕
+   * （适配器自身已按「疑似孤儿」审计），随后仍收口句柄、不外抛——静默即孤儿常驻。
+   */
   async function rollbackFreshRecord(record: IDocumentRecord, ctx: IDocumentCapabilityContext): Promise<void> {
     store.withdrawSessionIdentity(ctx.sessionId, record.documentId, record.managedUri);
-    if (store.discardRecord(record)) {
-      await deps.parser.release(record.handle);
+    if (!store.discardRecord(record)) {
+      return;
     }
+    try {
+      await deps.scope.unregisterScope({ documentId: record.documentId, managedUri: record.managedUri });
+    } catch (error: unknown) {
+      const normalized = asDocumentCapabilityError(error);
+      deps.diagnostics?.error('document', '打开失败回收：作用域注销未达（适配器保留在册账与原生会话待处置）', {
+        documentId: record.documentId,
+        managedUri: record.managedUri,
+        cause: normalized.code,
+      });
+    }
+    await deps.parser.release(record.handle);
   }
 
   /**
@@ -966,9 +1015,18 @@ export function createDocumentService(deps: IDocumentServiceDependencies): IDocu
   }
 
   async function releaseSessions(sessionId: string): Promise<void> {
-    const released = await store.releaseSessionsOf(sessionId);
+    const { released, scopeFailures } = await store.releaseSessionsOf(sessionId);
     for (const record of released) {
       await publish(DOCUMENT_EVENT_IDS.closed, { uri: record.managedUri, kind: record.kind });
+    }
+    // 两拍第①拍未达（疑似孤儿在册 scope）：error 级审计留痕，不改写事件口径、不二次注销
+    // （`document:closed` 不承担资源注销，裁决I-④ 形态①；注销入口唯一，INV-6）。
+    for (const failure of scopeFailures) {
+      deps.diagnostics?.error('document', '会话释放：文档作用域注销未达（疑似孤儿在册，待处置）', {
+        documentId: failure.documentId,
+        managedUri: failure.managedUri,
+        cause: failure.cause,
+      });
     }
     if (released.length > 0) {
       deps.diagnostics?.warn('document', '会话释放：文档记录已移除', { count: released.length });

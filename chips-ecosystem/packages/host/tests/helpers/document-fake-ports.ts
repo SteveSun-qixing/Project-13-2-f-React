@@ -31,6 +31,7 @@ import type {
   IDocumentPartRequest,
   IDocumentPartOutcome,
   IDocumentScopePort,
+  IDocumentScopeRegistration,
   IDocumentSerializeRequest,
   IDocumentSerializedMember,
   IDocumentServiceDependencies,
@@ -277,6 +278,8 @@ export function createHarness(): IDocumentTestHarness {
   const logs: IHarnessLog[] = [];
   const scopeRegistrations: { documentId: string; managedUri: string; kind: DocumentKind }[] = [];
   const scopeUnregistrations: { documentId: string; managedUri: string }[] = [];
+  /** 替身作用域端口的登记凭号源（模拟原生 `resourceOpenSession` 回执，见 `registerScope` 臂）。 */
+  let nativeSessionCounter = 0;
   const openRequests: { localPath: string; kind: DocumentKind | null }[] = [];
   const releasedGenerations: number[] = [];
   const serializeRequests: IDocumentSerializeRequest[] = [];
@@ -533,12 +536,20 @@ export function createHarness(): IDocumentTestHarness {
       });
     },
 
-    registerScope(input: { documentId: string; managedUri: string; kind: DocumentKind }): Promise<void> {
+    registerScope(input: {
+      documentId: string;
+      managedUri: string;
+      kind: DocumentKind;
+    }): Promise<IDocumentScopeRegistration> {
       return toPortCall(() => {
         if (failures.registerScope !== undefined) {
           throw failures.registerScope;
         }
         scopeRegistrations.push(input);
+        // 替身自持的登记凭号（原生 `resourceOpenSession` 回执面不外接到替身）：记录面
+        // `nativeSession` 只承接本回执，服务侧不再自增（INV-1，工单036 波 A2b-β）。
+        nativeSessionCounter += 1;
+        return { nativeSession: nativeSessionCounter };
       });
     },
 

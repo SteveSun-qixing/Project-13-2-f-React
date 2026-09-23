@@ -59,6 +59,7 @@ import type {
 import type {
   IDocumentCommitRequest,
   IDocumentScopePort,
+  IDocumentScopeRegistration,
   IDocumentStoragePort,
   IResolvedDocumentSource,
 } from '../src/capabilities/document/ports.js';
@@ -817,6 +818,7 @@ describe('未接线诚实拒绝臂（当前生产恒回退态，工单036）', (
 function makeResourcePorts(): IDocumentResourcePorts {
   const CARD_PATH = '/fake/prod-card.card';
   const CARD_URI = `chips-resource://default/card/${CARD_ID}.card`;
+  let viewNativeSession = 0;
   const scope: IDocumentScopePort = {
     normalizeSource(source: string): Promise<IResolvedDocumentSource> {
       if (source !== CARD_URI) {
@@ -824,11 +826,14 @@ function makeResourcePorts(): IDocumentResourcePorts {
       }
       return Promise.resolve({ managedUri: CARD_URI, localPath: CARD_PATH, form: 'directory' });
     },
-    registerScope(): Promise<void> {
-      return Promise.resolve();
+    registerScope(): Promise<IDocumentScopeRegistration> {
+      // 替身自持登记凭号（模拟原生 `resourceOpenSession` 回执，INV-1 记录面唯一来源）。
+      viewNativeSession += 1;
+      return Promise.resolve({ nativeSession: viewNativeSession });
     },
     unregisterScope(): Promise<void> {
-      // 注入通道形状替身（波 A2b-α 端口新增成员；两拍接线行为面归 A2b-β 锁测）。
+      // 注入通道形状替身（两拍接线行为面见 `document-scope-lifecycle.test.ts` 与
+      // `document-session-store.test.ts` 的次序锁；本臂只保证端口形状与装载通道可用）。
       return Promise.resolve();
     },
   };

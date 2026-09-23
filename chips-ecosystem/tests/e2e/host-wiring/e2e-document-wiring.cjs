@@ -14,6 +14,9 @@
  * - `resourcePorts`（scope / storage）：W3 chips-resource 正式适配器的 tests/ 面替身——
  *   受控工作区根（`CHIPS_E2E_DOCUMENT_ROOT`）内的归档态单文件映射为受管引用
  *   （`chips-resource://e2e-workspace/<编码文件名>`，作用域段符合资源 URI 词法）。
+ *   `scope` 三成员与生产端口形状逐一对齐（`normalizeSource` / `registerScope` 回执
+ *   `nativeSession` / `unregisterScope`，工单036 波 A2b-α 端口扩员 + 波 A2b-β 回执形与
+ *   释放臂接线；宿主侧交付形状探针见 `packages/host/src/main/e2e-app.ts`）。
  *   `commit`（受控提交）与 `listMembers`（目录态枚举）不在 W2 金链路可达面内，
  *   以登记码 `RESOURCE_NOT_SUPPORTED` 诚实拒绝——保存落盘权威归 W3（金链路刀6）。
  *
@@ -68,8 +71,18 @@ function localPathFromSource(source) {
 
 /** 作用域端口替身：受控工作区根内归档态单文件 → 受管引用映射 + 作用域登记簿记。 */
 function createScopePort() {
-  /** documentId → { managedUri, kind } 登记簿记（观察面，不解释语义）。 */
+  /** documentId → { managedUri, kind, nativeSession } 登记簿记（观察面，不解释语义）。 */
   const registry = new Map();
+  /**
+   * 替身自有的登记序号（**面外独立口径**，裁决I-② 同型：替身面不随生产裁定翻正）。
+   *
+   * 生产路径的原生数值会话唯一来源是正式 scope 适配器对 `resourceOpenSession` 的返回值
+   * （`packages/host/src/capabilities/document/adapters/scope-adapter.ts`，工单036 波 A2b-β
+   * 已把记录面字段的源头翻正为该回执，本替身不触达原生会话面）。本序号只在 E2E 进程内
+   * 充当记录面回执的**在册登记凭号**（视图构建臂只把它当关联号消费，原生侧不做会话归属
+   * 校验），不构成生产语义、也不产生第二注销入口。
+   */
+  let registrationSeq = 0;
   return {
     async normalizeSource(source) {
       const root = process.env[DOCUMENT_ROOT_ENV];
@@ -112,7 +125,23 @@ function createScopePort() {
       };
     },
     async registerScope(input) {
-      registry.set(input.documentId, { managedUri: input.managedUri, kind: input.kind });
+      registrationSeq += 1;
+      registry.set(input.documentId, {
+        managedUri: input.managedUri,
+        kind: input.kind,
+        nativeSession: registrationSeq,
+      });
+      // 端口回执形（工单036 波 A2b-β）：`nativeSession` 由适配器回执交付、服务原样落记录面；
+      // 本替身的取值口径见上方 `registrationSeq` 头注（面外独立）。
+      return { nativeSession: registrationSeq };
+    },
+    async unregisterScope(input) {
+      // 两拍次序中的注销臂（INV-2）：本替身不触达原生挂载，登记簿记随记录驱逐移除即收口；
+      // 生产路径的真两拍（`resourceUnregisterScope` → `resourceCloseSession`）在正式适配器内。
+      const entry = registry.get(input.documentId);
+      if (entry !== undefined && entry.managedUri === input.managedUri) {
+        registry.delete(input.documentId);
+      }
     },
   };
 }

@@ -32,6 +32,20 @@ import type {
 import type { ISourceFingerprint } from './digest.js';
 import type { DiagnosticsSink } from '../../shared/diagnostics.js';
 
+/**
+ * 作用域登记回执（INV-1：记录级原生数值会话的唯一来源）。
+ *
+ * @remarks `nativeSession` 必须是 `resourceOpenSession` 的真实返回句柄（backing `SessionId`，
+ * u64 的 JS 安全整数子集形态）。历史上宿主记录面该字段取 `session-store.ts` 的 TS 单调计数器，
+ * 该形态自波 A2b-β 起不存在（计数器已删）：拿非原生返回的 id 去原生侧会话表 `get()` 恒
+ * `None`，归属闸对一切后续资源操作恒 `PERMISSION_DENIED`（`packages/native/src/resource.rs`
+ * 归属判定臂，#213 附带发现），两拍注销与任何按会话归属的资源调用形同虚设。
+ * 消费位（`adapters/view-channel.ts` → 原生 `buildDocumentView`）随本回执取真值。
+ */
+export interface IDocumentScopeRegistration {
+  readonly nativeSession: number;
+}
+
 /** 作用域归一结果：受管引用与本地可读位置。 */
 export interface IResolvedDocumentSource {
   /** 规范受管引用（`chips-resource://`；输出与会话键均用它）。 */
@@ -61,12 +75,18 @@ export interface IDocumentScopePort {
    * `06-资源协议规范` §2.6 归一为受管作用域的路径；远端来源的物化（下载/缓存）由适配器完成。
    */
   normalizeSource(source: string, ctx: IDocumentCapabilityContext): Promise<IResolvedDocumentSource>;
-  /** 文档记录建立后注册资源作用域（`04-资源管理设计` §5.2）；失败即打开失败，不产生半开会话。 */
+  /**
+   * 文档记录建立后注册资源作用域（`04-资源管理设计` §5.2）；失败即打开失败，不产生半开会话。
+   *
+   * @remarks 回执 {@link IDocumentScopeRegistration.nativeSession} 即本次挂载所用的原生会话句柄
+   * （幂等复用臂返回既有活绑定的同一句柄），由服务原样落入文档记录——记录面数值会话的
+   * **唯一来源**（INV-1，波 A2b-β 接线）。
+   */
   registerScope(input: {
     readonly documentId: string;
     readonly managedUri: string;
     readonly kind: DocumentKind;
-  }): Promise<void>;
+  }): Promise<IDocumentScopeRegistration>;
   /**
    * 文档记录驱逐/应用退出清理时注销常驻作用域（工单036 裁决I-① 两拍时序，`06-资源协议规范`
    * §3.2 注销时机表；`04.11` §11.3 挂载/注销会话闸注记）。
@@ -75,8 +95,9 @@ export interface IDocumentScopePort {
    * - **两拍次序（INV-2，形状即承载）**：本成员必须在记录原生会话**关闭之前**被调用——
    *   适配器内部执行 ① `resourceUnregisterScope(scope, nativeSession)` → ② `resourceCloseSession(nativeSession)`；
    *   目录域/归档域持久挂载不随 `close_session` 自动摘除（工单044 裁定⑧-1），次序倒置即自造
-   *   JS 面不可恢复的孤儿常驻 scope（#213 §2.1(d) 死锁推演在册）。释放臂接线（`service.ts` /
-   *   `session-store.ts` 调用位）归波 A2b-β。
+   *   JS 面不可恢复的孤儿常驻 scope（#213 §2.1(d) 死锁推演在册）。释放臂接线已在册（波 A2b-β）：
+   *   `session-store.ts` `releaseSessionsOf` 经 `releaseScope` 依赖位在排空在途任务后、释放解析句柄前
+   *   触达本成员，`service.ts` 打开失败回收臂 `rollbackFreshRecord` 同点接线。
    * - 返回判定式（§2.1(g) 第 6 阶段）：核心形 `RESOURCE_NOT_FOUND`（已被别处注销）视为已达、
    *   放行收口；`RESOURCE_PERMISSION_DENIED` **不得静默**——记审计并置「疑似孤儿」告警后如实抛出，
    *   禁止转而 close 掩盖（掩盖即不可恢复）；注销入口全仓唯一（INV-6，禁第二注销形）。

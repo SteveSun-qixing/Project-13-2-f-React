@@ -120,10 +120,12 @@ export interface HostRuntimeOptions {
    * Bridge 会话关闭联动（刀4 缝②）：会话注册表清理链（订阅 / 句柄释放完成后）逐会话
    * 通知组合根，文档服务据此释放该会话的文档会话与记录（§4.6）。
    *
-   * @remarks 回调以 fire-and-forget 消费：回调内部异步失败自落诊断（组合根职责），
-   * 同步抛出在本运行时兜底捕获，不阻断其余会话清理。
+   * @remarks 回调可返回 Promise：运行时会登记在途释放链，同步抛出处在本运行时兜底捕获，
+   * 不阻断其余会话清理；异步拒绝的处置随消费路径分层——常规关会话时由本运行时落诊断
+   * （不阻塞调用方），`shutdown()` 停机收口时逐条等待并在失败后如实抛出（主进程退出
+   * 清理必须看到两拍注销的终态，工单036 波 A2b-β；组合根自身仍留兜底 catch 防拒绝逃逸）。
    */
-  readonly onBridgeSessionClosed?: (sessionId: string) => void;
+  readonly onBridgeSessionClosed?: (sessionId: string) => void | Promise<void>;
   /**
    * 承载链路服务端选项（《17-CLI承载链路契约》波 1；组合根注入 `userData` 根与宿主版本）。
    *
@@ -388,14 +390,35 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
   };
 
   sessions.onPermissionsChanged(pushSnapshot);
+  /**
+   * 在途会话关闭联动（工单036 波 A2b-β）：登记回调返回的 Promise，`shutdown()` 停机收口时
+   * 逐条等待——文档记录驱逐的两拍注销（`unregisterScope` → 关原生会话）不得被进程退出抢先。
+   */
+  const pendingSessionCleanups = new Set<Promise<void>>();
   sessions.onClosed((session: IHostSession): void => {
     events.releaseSession(session.sessionId);
     handles.releaseSession(session.sessionId);
     // 刀4 缝②：内部清理完成后交组合根联动（文档服务会话释放，§4.6）；同步抛出兜底
-    // 捕获——单会话回调失败不阻断其余会话清理，异步失败由回调方自行落诊断。
+    // 捕获——单会话回调失败不阻断其余会话清理，异步失败落诊断（停机收口路径另在
+    // `shutdown()` 逐条等待，见 `pendingSessionCleanups`）。
     if (options.onBridgeSessionClosed !== undefined) {
       try {
-        options.onBridgeSessionClosed(session.sessionId);
+        const outcome = options.onBridgeSessionClosed(session.sessionId);
+        if (outcome instanceof Promise) {
+          pendingSessionCleanups.add(outcome);
+          const forget = (): void => {
+            pendingSessionCleanups.delete(outcome);
+          };
+          outcome.then(forget, forget);
+          // 常规路径的异步失败留痕（不阻塞调用方）；同一 promise 的终态在 `shutdown()`
+          // 收口时再次被观察并如实抛出，两条观察互不吞。
+          outcome.catch((error: unknown) => {
+            diagnostics.error('host-runtime', '会话关闭联动异步失败', {
+              sessionId: session.sessionId,
+              reason: error instanceof Error ? error.message : typeof error,
+            });
+          });
+        }
       } catch (error: unknown) {
         diagnostics.error('host-runtime', '会话关闭联动回调抛出', {
           sessionId: session.sessionId,
@@ -565,6 +588,20 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
           sessions.close(view.sessionId);
         }
       }
+      // 停机收口（工单036 波 A2b-β）：先等待在途会话关闭联动（文档记录驱逐的两拍注销，
+      // `capabilities/document/service.ts` `releaseSessions`）再摘除通道与 sinks——退出清理
+      // 不得跑在资源注销之前；逐条失败不吞，保留首个失败在审计写入器收口后如实抛出
+      // （由 `main/application.ts` `shutdownCore` 统一落 `shutdown` 域诊断）。
+      let sessionCleanupFailure: unknown = null;
+      for (const pending of [...pendingSessionCleanups]) {
+        try {
+          await pending;
+        } catch (error: unknown) {
+          if (sessionCleanupFailure === null) {
+            sessionCleanupFailure = error;
+          }
+        }
+      }
       channel = null;
       sinks.clear();
       // 审计写入器最后关（工单046 段二裁量，依据「终态可观察一致性」）：承载面按
@@ -573,6 +610,12 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       // flush 收尾保证终态落盘完整；close 幂等且自身不抛出（内部各步故障只落诊断）。
       if (auditWriter !== null) {
         await auditWriter.close();
+      }
+      if (sessionCleanupFailure !== null) {
+        // 非 Error 抛出物按宿主既有同源惯用形包壳透出（`host-event-bus.ts` / `view-channel.ts`
+        // 同款），Error 实例原样保留栈与语义，不改写「如实抛出」口径。
+        const failure: unknown = sessionCleanupFailure;
+        throw failure instanceof Error ? failure : new Error(String(failure));
       }
       return Promise.resolve();
     },

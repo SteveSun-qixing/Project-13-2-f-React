@@ -18,11 +18,15 @@
  *     组合根**正式默认绑定**到运行时 `sessionPermissionSnapshots()`（08 §7.6 快照本体，
  *     工单 036 §五.3-1 / 刀4 缝①收口）；{@link IDocumentCapabilityWiringOptions.guardSessionSource}
  *     升格为显式覆盖口（真进程 E2E 替身臂与测试注入）；
- *   - `scope` / `storage`：文档载体为资源管理器（chips-resource；
- *     `04-资源管理设计` §5.2 作用域注册与受控提交路径）。crate 与 §11.3 Neon 暴露面
- *     （18 导出逐字，波 A1 任务 #209 补登挂载 / 作用域注册三名）已承载作用域注册 /
- *     挂载入口，但跨成员原子提交与落盘序列化载体仍未在册（点位四后续波，工单 036），
- *     且两端口的正式适配器未接线（归波 A2b）——
+ *   - `scope`：文档载体为资源管理器（chips-resource；`04-资源管理设计` §5.2 作用域注册）。
+ *     crate 与 §11.3 Neon 暴露面（18 导出逐字，波 A1 任务 #209 补登挂载 / 作用域注册三名）
+ *     已承载作用域注册 / 挂载入口，**正式 scope 适配器已在册**（波 A2b-α
+ *     `adapters/scope-adapter.ts`，波 A2b-β 任务 #219 在本装载段接线：`resourceBinding`
+ *     可用即以类型化消费面构造，40-hex 派生 + 两拍注销 + `DOCUMENT_SCOPE_OWNER` 注入齐备）；
+ *     {@link IDocumentCapabilityWiringOptions.resourcePorts} 的 `scope` 位降为显式覆盖口
+ *     （真进程 E2E 替身臂与测试注入，同 `guardSessionSource` 口径）。
+ *   - `storage`：跨成员原子提交与落盘序列化载体**仍未在册**（点位四后续波，工单 036），
+ *     正式适配器无原生载体可依赖 ⇒ 本装载段唯一缺位项——
  *     **禁止内存替身**，唯一合法通道是经
  *     {@link IDocumentCapabilityWiringOptions.resourcePorts} 注入资源管理器侧交付的
  *     正式适配器（组合根的资源域装载闸见 `native-resource-module.ts`）。
@@ -46,13 +50,21 @@ import {
   type INativeDocumentParserBinding,
 } from './native-parser-module.js';
 import { loadNativeResourceBinding, type INativeResourceBinding } from './native-resource-module.js';
+import { createDocumentScopeAdapter } from './scope-adapter.js';
 import { createDocumentBridgeSessionGuardPort, type DocumentGuardSessionSource } from './bridge-session-guard.js';
 import { createDocumentHostEventBusPort, type HostEventBusPublisher } from './host-event-bus.js';
 import { createDocumentViewChannelHandler, createUnavailableDocumentViewChannelEndpoint } from './view-channel.js';
 
-/** 资源管理器侧端口的正式适配器注入面（scope + 受控写；载体 = chips-resource 资源管理器，Rust 侧能力面与 §11.3 挂载/注册载体已落位（波 A1），正式适配器归波 A2b 接线，工单 036）。 */
+/**
+ * 资源管理器侧端口的显式注入面（scope 覆盖口 + 受控写唯一合法交付通道）。
+ *
+ * @remarks 波 A2b-β（任务 #219）装载开闸后本注入面的性质分工：
+ * `scope` 位是**显式覆盖口**（真进程 E2E 替身臂与测试注入；生产缺省路径由本装载段以
+ * 资源域类型化消费面构造正式适配器，见文件头注），`storage` 位仍是受控写端口的唯一
+ * 合法交付通道（点位四载体未落位，生产侧必然缺位 ⇒ 整体不装载，工单 036）。
+ */
 export interface IDocumentResourcePorts {
-  /** 资源作用域端口（受管引用归一与作用域注册，`04-资源管理设计` §5.2）。 */
+  /** 资源作用域端口（受管引用归一与作用域注册，`04-资源管理设计` §5.2）——显式覆盖口。 */
   readonly scope: IDocumentScopePort;
   /** 受控写端口（受控提交路径与 WriteCoordinator，`11-文档服务设计` §5.2、§5.3）。 */
   readonly storage: IDocumentStoragePort;
@@ -92,7 +104,11 @@ export interface IDocumentCapabilityWiringOptions {
    * 测试注入仍可覆盖（S6 口径）。绕过组合根直接调用装载段且未注入即守卫缺位，整体回退。
    */
   readonly guardSessionSource?: DocumentGuardSessionSource;
-  /** 资源管理器侧端口正式适配器（chips-resource Rust 侧与 §11.3 挂载/注册载体已落位（波 A1），正式适配器归波 A2b——未接线期缺位、装载段整体回退，工单 036）。 */
+  /**
+   * 资源侧端口显式注入（性质分工见 {@link IDocumentResourcePorts} 头注）：`scope` 为覆盖口
+   * （缺省时由装载段构造正式适配器，波 A2b-β），`storage` 为受控写端口唯一合法交付通道
+   * （点位四载体未落位 ⇒ 生产侧缺位、装载段整体回退，工单 036）。
+   */
   readonly resourcePorts?: IDocumentResourcePorts;
 }
 
@@ -139,8 +155,9 @@ export interface IDocumentCapabilityWiring {
    * 53 导出、资源域 18 名在册，波 A1 任务 #209 落位，波 A2a 任务 #212 清单补登后过闸）；
    * `unavailable` 逐项点名缺位导出（产物缺位 / 旧构建漂移 / ABI 漂移形态）。本字段是端口
    * 注入面之外的独立判据留痕，资源域波次落位即随波机械翻正；文档端口正式适配器的接线条件
-   * 与剩余未落载体（跨成员原子提交 / 落盘序列化，点位四后续波）及归波 A2b 的 scope 适配器
-   * 见 `native-resource-module.ts` 头注与工单 036。
+   * 与剩余未落载体（跨成员原子提交 / 落盘序列化，点位四后续波）见
+   * `native-resource-module.ts` 头注与工单 036——scope 正式适配器随本字段 `available` 臂在装载段
+   * 构造（波 A2b-β 接线），storage 适配器仍无原生载体，装载段维持 fail-closed。
    */
   readonly resourceBinding: INativeResourceBinding;
 }
@@ -172,6 +189,19 @@ export function createDocumentCapabilityWiring(
   const guardSessionSource: DocumentGuardSessionSource | undefined = options?.guardSessionSource;
   const resourcePorts: IDocumentResourcePorts | undefined = options?.resourcePorts;
 
+  // scope 端口两位来源（波 A2b-β 装载开闸）：显式覆盖口（真进程 E2E 替身臂 / 测试注入）优先，
+  // 缺位时以已过闸的资源域类型化消费面构造**正式适配器**（`adapters/scope-adapter.ts`，
+  // 40-hex 派生 + `DOCUMENT_SCOPE_OWNER` + 两拍注销）。资源域消费面未落位即无正式载体，
+  // 如实缺位——禁止任何内存替身顶上（工单 036 红线）。
+  const formalScopePort: IDocumentScopePort | undefined =
+    resourceBinding.status === 'available'
+      ? createDocumentScopeAdapter({ native: resourceBinding.resource, diagnostics })
+      : undefined;
+  const scopePort: IDocumentScopePort | undefined = resourcePorts?.scope ?? formalScopePort;
+  // storage 端口：跨成员原子提交与落盘序列化载体（点位四）尚无原生导出面可依赖，
+  // 正式适配器无载体可构造 ⇒ 唯一合法来源仍是显式注入（真进程 E2E 替身臂 / 测试注入）。
+  const storagePort: IDocumentStoragePort | undefined = resourcePorts?.storage;
+
   const missing: IDocumentWiringMissingPort[] = [];
   if (parserBinding.status === 'unavailable') {
     missing.push({ port: 'parser', reason: `${parserBinding.reason}（${parserBinding.detail}）` });
@@ -185,15 +215,18 @@ export function createDocumentCapabilityWiring(
         '本臂仅在调用方绕过组合根直接装载且未注入时命中；不做本地替身',
     });
   }
-  if (resourcePorts === undefined) {
+  if (scopePort === undefined) {
     missing.push({
       port: 'scope',
       reason:
-        '资源作用域端口的文档载体为资源管理器（chips-resource，工单 036）：Rust 侧能力面与 ' +
-        '§11.3 Neon 挂载 / 作用域注册载体（resourceMountDirectory / resourceMountArchive / ' +
-        'resourceUnregisterScope 三名，波 A1 任务 #209）已落位在册，正式适配器归波 A2b 接线；' +
-        `适配器落地前禁止内存替身（原生侧资源域实态判据：${resourceSurfaceVerdict}）`,
+        '资源作用域端口的文档载体为资源管理器（chips-resource，工单 036）：正式适配器已在册' +
+        '（波 A2b-α `adapters/scope-adapter.ts`，波 A2b-β 装载段接线），构造前提是 §11.3 资源域' +
+        '类型化消费面过装载闸（resourceMountDirectory / resourceMountArchive / ' +
+        'resourceUnregisterScope 三名在册，波 A1 任务 #209）；本臂仅在资源域导出面未落位' +
+        `且无显式注入时命中，禁止内存替身（原生侧资源域实态判据：${resourceSurfaceVerdict}）`,
     });
+  }
+  if (storagePort === undefined) {
     missing.push({
       port: 'storage',
       reason:
@@ -203,13 +236,14 @@ export function createDocumentCapabilityWiring(
     });
   }
 
-  // 后三个析取项与缺位清单判据等价（任一命中则 `missing` 必非空），仅承担编译期收窄，
+  // 后四个析取项与缺位清单判据等价（任一命中则 `missing` 必非空），仅承担编译期收窄，
   // 保证装载分支拿到的全部是已判据的类型化输入——不存在任何缺位形态能进入下方装配。
   if (
     missing.length > 0 ||
     parserBinding.status !== 'available' ||
     guardSessionSource === undefined ||
-    resourcePorts === undefined
+    scopePort === undefined ||
+    storagePort === undefined
   ) {
     if (missing.length > 0) {
       diagnostics.warn(
@@ -243,8 +277,8 @@ export function createDocumentCapabilityWiring(
   const eventBus = createDocumentHostEventBusPort();
   const parserPort = createNativeDocumentParserPort(parserBinding.parser);
   const service = createDocumentService({
-    scope: resourcePorts.scope,
-    storage: resourcePorts.storage,
+    scope: scopePort,
+    storage: storagePort,
     parser: parserPort,
     events: eventBus.port,
     guard: createDocumentBridgeSessionGuardPort(guardSessionSource),

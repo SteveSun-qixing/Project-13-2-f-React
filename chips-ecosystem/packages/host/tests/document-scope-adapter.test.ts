@@ -6,6 +6,10 @@
  * INV-2/INV-6）；幂等臂窄形（M0 核证在册）与第 6 阶段判定式（NOT_FOUND 已达 /
  * PERMISSION_DENIED 不得静默、禁 close 掩盖）逐臂过测。原生面为记录型替身（仅测试使用），
  * 真机链路归波 A2b-β 与金链路收口。
+ *
+ * 波 A2b-β 随波：替身补忠实原生台账语义（在册 scope 重挂 ALREADY_EXISTS、注销归属闸
+ * NOT_FOUND/PERMISSION_DENIED 二回形，逐字引自 #213 §2.1 第 6 阶段判定式），新增「会话先死
+ * 而 scope 在册」JS 面死锁端到端锁测，把「两拍次序是唯一防线」钉成可执行反证。
  */
 
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -38,6 +42,12 @@ function createFakeNative(): IFakeNative {
   const calls: INativeCall[] = [];
   let nextSequence = 0;
   let nextSessionId = 4100;
+  // 忠实原生台账（仅测试面建模，语义逐字引自 /tmp/w213_report.md §2.1 第 6 阶段判定式与
+  // §2.1(d)：挂载对在册 scope 报 ALREADY_EXISTS；注销对不在册报 NOT_FOUND、对非活/非归属
+  // 会话报 PERMISSION_DENIED——绑定层二回形，OQ-4 双向锁）。默认臂（无 impl 覆盖）按台账行事，
+  // 覆盖臂保持纯委托不触台账，供各故障注入测试逐字锁参数与次序。
+  const liveSessions = new Set<number>();
+  const scopeOwners = new Map<string, number>();
   const record = (name: string, args: readonly unknown[]): void => {
     calls.push({ sequence: nextSequence++, name, args });
   };
@@ -48,10 +58,13 @@ function createFakeNative(): IFakeNative {
     module: {
       resourceOpenSession(kind: string, owner: string): number {
         record('resourceOpenSession', [kind, owner]);
-        return nextSessionId++;
+        const sessionId = nextSessionId++;
+        liveSessions.add(sessionId);
+        return sessionId;
       },
       resourceCloseSession(sessionId: number): void {
         record('resourceCloseSession', [sessionId]);
+        liveSessions.delete(sessionId);
       },
       resourceMountDirectory(
         sessionId: number,
@@ -64,10 +77,18 @@ function createFakeNative(): IFakeNative {
         if (fake.mountDirectoryImpl !== null) {
           return fake.mountDirectoryImpl([sessionId, scope, path, owner, writable]);
         }
+        if (scopeOwners.has(scope)) {
+          return Promise.reject(nativeFailure('RESOURCE_ALREADY_EXISTS'));
+        }
+        scopeOwners.set(scope, sessionId);
         return Promise.resolve(scope);
       },
       resourceMountArchive(sessionId: number, scope: string, path: string, owner: string): Promise<string> {
         record('resourceMountArchive', [sessionId, scope, path, owner]);
+        if (scopeOwners.has(scope)) {
+          return Promise.reject(nativeFailure('RESOURCE_ALREADY_EXISTS'));
+        }
+        scopeOwners.set(scope, sessionId);
         return Promise.resolve(scope);
       },
       resourceUnregisterScope(scope: string, sessionId: number): Promise<void> {
@@ -75,6 +96,13 @@ function createFakeNative(): IFakeNative {
         if (fake.unregisterImpl !== null) {
           return fake.unregisterImpl();
         }
+        if (!scopeOwners.has(scope)) {
+          return Promise.reject(nativeFailure('RESOURCE_NOT_FOUND'));
+        }
+        if (!liveSessions.has(sessionId) || scopeOwners.get(scope) !== sessionId) {
+          return Promise.reject(nativeFailure('RESOURCE_PERMISSION_DENIED'));
+        }
+        scopeOwners.delete(scope);
         return Promise.resolve();
       },
     } as unknown as INativeResourceModule,
@@ -377,5 +405,47 @@ describe('scope-adapter · unregisterScope 两拍与第 6 阶段判定式（INV-
       managedUri: 'chips-resource://card-1111111111111111111111111111111111111111/y.card',
     });
     expect(fake.calls).toHaveLength(0);
+  });
+});
+
+describe('scope-adapter · JS 面死锁端到端锁测（工单036 波 A2b-β，钉死 INV-2 次序的不可恢复反例）', () => {
+  it('会话先死而 scope 在册：重挂 ALREADY_EXISTS 真冲突收口，且无任何 JS 面恢复手段 ⇒ 两拍次序是唯一防线', async () => {
+    const fake = createFakeNative();
+    const adapterA = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('deadlock.card', true);
+    const scope = deriveDocumentScope(target, 'card');
+    const managedUri = `chips-resource://${scope}/deadlock.card`;
+    await adapterA.normalizeSource(target, makeContext());
+    await adapterA.registerScope({ documentId: 'doc-dl', managedUri, kind: 'card' });
+    // 步 2（反例注入）：绕过第 6 阶段——宿主异常/崩溃形态下会话 X 先行死亡而 scope 仍在册。
+    // 正常链路不可复现此态（正是 INV-2 两拍次序的保证），故由测试侧直触原生面模拟。
+    // 会话值 4100 为替身首个 `resourceOpenSession` 回执（与既有用例逐字取位口径一致）。
+    fake.module.resourceCloseSession(4100);
+    // 步 3：新账本重挂（模拟进程重启后适配器在册账丢失）→ 忠实台账报 ALREADY_EXISTS，
+    // 适配器按 INV-5 真冲突收口：只关自己新开的事务会话，绝不 unregister 抢占他人在册 scope。
+    const adapterB = createDocumentScopeAdapter({ native: fake.module });
+    await adapterB.normalizeSource(target, makeContext());
+    fake.calls.length = 0;
+    const conflict = await expectRejection(() =>
+      adapterB.registerScope({ documentId: 'doc-dl', managedUri, kind: 'card' }),
+    );
+    expect(conflict.code).toBe('RESOURCE_ALREADY_EXISTS');
+    const conflictNames = fake.calls.map((call) => call.name);
+    expect(conflictNames).toEqual(['resourceOpenSession', 'resourceMountDirectory', 'resourceCloseSession']);
+    expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
+    // 步 4：以新会话强行注销他人在册 scope —— 归属闸恒 PERMISSION_DENIED（绑定层二回形，
+    // OQ-4）；孤儿 scope 常驻，JS 面无任何恢复手段，只能重启清（§2.1(d) 步 3-5 钉死）。
+    await expect(
+      (
+        fake.module as unknown as {
+          resourceUnregisterScope(scope: string, sessionId: number): Promise<void>;
+        }
+      ).resourceUnregisterScope(scope, 4101),
+    ).rejects.toMatchObject({ code: 'RESOURCE_PERMISSION_DENIED' });
+    // 步 5：再重挂仍死锁（永久在册）——反证「先注销作用域、后关闭资源会话」是唯一防线。
+    fake.calls.length = 0;
+    await adapterB.normalizeSource(target, makeContext());
+    await expectRejection(() => adapterB.registerScope({ documentId: 'doc-dl', managedUri, kind: 'card' }));
+    expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
   });
 });

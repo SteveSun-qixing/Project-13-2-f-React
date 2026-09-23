@@ -9,16 +9,22 @@
  *   {@link IDocumentSessionStore.claimSessionIdentity} 判定 `DOCUMENT_ID_CONFLICT`（§3.1）。
  * - 单文档单写者：写租约在文档记录上（首次成功 `document:write` 时获得，保存成功时归还，
  *   §3.6）；同一文档的 `write` / `save` 经记录内串行队列执行（§7.5），不同文档互不阻塞。
- * - 记录级原生数值会话（`nativeSession`）：backing `SessionId`（u64）的唯一生成点，
- *   随记录建立按存储内单调计数分配；宿主 wire 会话 `string` 为对外唯一身份，数值会话
- *   不出主进程（RFC O3 / 工单035 裁定二，消费面见 `adapters/view-channel.ts`）。
+ * - 记录级原生数值会话（`nativeSession`）：**唯一来源是作用域端口 `registerScope` 的回执**
+ *   （原生 `resourceOpenSession` 返回值，见 `ports.ts` `IDocumentScopeRegistration`），由服务随
+ *   {@link IOpenRecordInput} 落档，本存储不再生成任何会话标识（工单036 裁决I-① INV-1：历史上
+ *   本处是 TS 单调计数器，假 id 触达原生会话表恒 `None`、归属闸恒 `PERMISSION_DENIED`，
+ *   两拍注销形同虚设，#213 附带发现，波 A2b-β 翻正）；宿主 wire 会话 `string` 为对外唯一身份，
+ *   数值会话不出主进程（RFC O3 / 工单035 裁定二，消费面见 `adapters/view-channel.ts`）。
  * - 会话释放（拥有者窗口关闭 / Fork 撤销）由组合根在 Bridge 会话清理链路调用
  *   {@link IDocumentSessionStore.releaseSessionsOf}；R19 不提供显式关闭能力（§4.6），
  *   释放即 `close`，被移除的记录由能力层发布 `document:closed`（§7.3）。
+ *   **两拍次序（INV-2）**：记录移除后先经 `releaseScope` 依赖位注销资源作用域（端口内部执行
+ *   `resourceUnregisterScope` → `resourceCloseSession`），其后才释放解析句柄；`document:closed`
+ *   事件不承担资源注销（裁决I-④ 形态①，禁双注销挂点）。
  */
 
 import type { DocumentForm, DocumentKind, DocumentPart, DocumentValue, IDocumentDiagnostic } from './contract.js';
-import { DOCUMENT_CHANNEL_ERROR_CODES, documentError } from './errors.js';
+import { DOCUMENT_CHANNEL_ERROR_CODES, asDocumentCapabilityError, documentError } from './errors.js';
 import type { IDocumentHandle } from './ports.js';
 import type { ISourceFingerprint } from './digest.js';
 
@@ -75,9 +81,10 @@ export interface IDocumentRecord {
    * 记录级原生数值会话（backing `SessionId`，u64 的 JS 安全整数子集形态）。
    *
    * @remarks RFC O3 / 工单035 裁定二：宿主 wire 会话标识 `string` 为对外唯一身份，
-   * backing 数值会话为主进程内部细节、不出主进程；本字段是该数值身份的**唯一生成点**
-   * （存储内单调计数，随记录建立分配、随记录移除作废），string↔u64 归一单点在
-   * 视图通道会话解析器（`adapters/view-channel.ts`）消费本字段完成。
+   * backing 数值会话为主进程内部细节、不出主进程；本字段**只承接**作用域端口
+   * `registerScope` 回执里的原生 `resourceOpenSession` 真实句柄（INV-1，唯一来源在适配器，
+   * 本存储不生成、不猜测、不自增），string↔u64 归一单点在视图通道会话解析器
+   * （`adapters/view-channel.ts`）消费本字段完成。
    */
   readonly nativeSession: number;
   /** L0 元数据基线（保存成功后按重建句柄刷新）。 */
@@ -102,6 +109,11 @@ export interface IOpenRecordInput {
   readonly documentId: string;
   readonly title: string;
   readonly handle: IDocumentHandle;
+  /**
+   * 作用域登记回执交付的原生会话句柄（`resourceOpenSession` 返回值，INV-1 唯一来源）；
+   * 随记录一次落档，记录存续期不变。
+   */
+  readonly nativeSession: number;
   readonly baselineMetadata: DocumentValue;
   readonly baselineDiagnostics: readonly IDocumentDiagnostic[];
   readonly baselineFingerprint: ISourceFingerprint;
@@ -109,6 +121,25 @@ export interface IOpenRecordInput {
 
 /** 会话身份声明结果：`ok` 首次声明、`reuse` 同会话同来源复用、`conflict` §3.1 冲突。 */
 export type SessionIdentityClaim = 'ok' | 'reuse' | 'conflict';
+
+/**
+ * 会话释放结果（§4.6 的释放臂交付形）。
+ *
+ * @remarks `scopeFailures` 承载两拍第①拍未达的记录（`releaseScope` 抛出，含归属闸
+ * `RESOURCE_PERMISSION_DENIED` 形态）——注销未达即「疑似孤儿在册」，本存储不吞、不掩盖，
+ * 交能力层落审计；释放链不因单条注销失败中断（后续记录的句柄收口与 `document:closed`
+ * 发布照常，见 `service.ts` `releaseSessions`）。
+ */
+export interface ISessionReleaseOutcome {
+  /** 已随会话移除的文档记录（能力层按其发布 `document:closed`，§7.3）。 */
+  readonly released: readonly IDocumentRecord[];
+  /** 作用域注销未达项（`cause` 为适配器抛出的登记码）。 */
+  readonly scopeFailures: readonly {
+    readonly documentId: string;
+    readonly managedUri: string;
+    readonly cause: string;
+  }[];
+}
 
 /** 文档会话存储接口。 */
 export interface IDocumentSessionStore {
@@ -146,10 +177,11 @@ export interface IDocumentSessionStore {
   enqueueRecordTask<T>(record: IDocumentRecord, task: () => Promise<T>): Promise<T>;
   /**
    * 拥有者会话释放（§4.6）：标记 `closing`（期间拒绝新请求与查找）→ 等待该文档在途任务收口
-   * → 丢弃未保存模型与写租约 → 移除会话与身份声明 → 记录无会话时移除记录并释放解析句柄。
-   * 返回被移除的记录，由能力层按其发布 `document:closed`（§7.3）。
+   * → 丢弃未保存模型与写租约 → 移除会话与身份声明 → 记录无会话时移除记录，随后按两拍次序
+   * 逐记录注销资源作用域（① `releaseScope`）并释放解析句柄（② `releaseHandle`，INV-2）。
+   * 返回被移除的记录与注销未达项，由能力层按其发布 `document:closed`（§7.3）并落审计。
    */
-  releaseSessionsOf(sessionId: string): Promise<readonly IDocumentRecord[]>;
+  releaseSessionsOf(sessionId: string): Promise<ISessionReleaseOutcome>;
   /** 观察面：当前文档记录数（诊断与测试）。 */
   recordCount(): number;
 }
@@ -162,18 +194,23 @@ function createLazyParts(): IRecordLazyParts {
 }
 
 /**
- * 惰性构建会话存储（纯内存状态；装配由组合根按平台核心实例唯一持有）。
+ * 惰性构建会话存储（纯内存状态 + 记录移除期的资源作用域收口；装配由组合根按平台核心实例唯一持有）。
  *
  * @param releaseHandle 解析句柄释放入口（chips-parser 端口的 `release`）。
+ * @param releaseScope 记录驱逐期的作用域注销入口（组合根接 `IDocumentScopePort.unregisterScope`）：
+ *  {@link IDocumentSessionStore.releaseSessionsOf} 在排空在途任务、移除记录之后、释放解析句柄**之前**
+ *  逐记录触达本入口——两拍次序（INV-2：`unregisterScope` 内部 `resourceUnregisterScope` →
+ *  `resourceCloseSession`）由端口适配器承载，本存储只保证「先注销、后关句柄」的单点调用序
+ *  （INV-6：注销入口全仓唯一，此处不构成第二注销形）。注销失败不吞：登记为释放结果的
+ *  `scopeFailures`（{@link ISessionReleaseOutcome}）交能力层落审计，该记录的句柄仍照常释放。
  */
 export function createDocumentSessionStore(
   releaseHandle: (handle: IDocumentHandle) => Promise<void>,
+  releaseScope: (record: { readonly documentId: string; readonly managedUri: string }) => Promise<void>,
 ): IDocumentSessionStore {
   const recordsByUri = new Map<string, IDocumentRecord>();
   /** 会话 → 文档标识 → 受管 URI（§3.1 冲突判定索引）。 */
   const sessionIdentity = new Map<string, Map<string, string>>();
-  /** 原生数值会话生成点（RFC O3 裁定二的存储侧单点：记录级单调计数，随记录作废不回收）。 */
-  let nativeSessionCounter = 0;
   /** 正在释放的拥有者会话：§4.6 的 `closing` 标记，期间一律拒绝新的文档会话查找。 */
   const releasingSessions = new Set<string>();
   /** 文档记录 → 串行队列尾。 */
@@ -197,7 +234,6 @@ export function createDocumentSessionStore(
       if (existing !== undefined) {
         return existing;
       }
-      nativeSessionCounter += 1;
       const record: IDocumentRecord = {
         managedUri: input.managedUri,
         localPath: input.localPath,
@@ -206,7 +242,7 @@ export function createDocumentSessionStore(
         documentId: input.documentId,
         title: input.title,
         handle: input.handle,
-        nativeSession: nativeSessionCounter,
+        nativeSession: input.nativeSession,
         baselineMetadata: input.baselineMetadata,
         baselineDiagnostics: input.baselineDiagnostics,
         baselineFingerprint: input.baselineFingerprint,
@@ -333,10 +369,28 @@ export function createDocumentSessionStore(
           }
         }
         sessionIdentity.delete(sessionId);
+        // 两拍次序（INV-2）：逐记录先经 `releaseScope` 注销资源作用域（端口适配器内部执行
+        // `resourceUnregisterScope` → `resourceCloseSession`），后释放解析句柄。注销失败不吞、
+        // 不以后续动作掩盖：登记为 `scopeFailures` 交能力层落审计，该记录的句柄仍照常释放
+        // （适配器按 PERMISSION_DENIED 口径自留在册账与原生会话，句柄泄漏比留痕缺失更易处置）。
+        const scopeFailures: {
+          readonly documentId: string;
+          readonly managedUri: string;
+          readonly cause: string;
+        }[] = [];
         for (const record of released) {
+          try {
+            await releaseScope({ documentId: record.documentId, managedUri: record.managedUri });
+          } catch (error: unknown) {
+            scopeFailures.push({
+              documentId: record.documentId,
+              managedUri: record.managedUri,
+              cause: asDocumentCapabilityError(error).code,
+            });
+          }
           await releaseHandle(record.handle);
         }
-        return released;
+        return { released, scopeFailures };
       } finally {
         releasingSessions.delete(sessionId);
       }

@@ -49,6 +49,7 @@ import type { HostRuntimeContext } from '../src/main/runtime-provider.js';
 import type {
   IDocumentCommitRequest,
   IDocumentScopePort,
+  IDocumentScopeRegistration,
   IDocumentStoragePort,
   IResolvedDocumentSource,
 } from '../src/capabilities/document/ports.js';
@@ -168,13 +169,17 @@ const context: HostRuntimeContext = { palHost: host, platformRoot: '/tmp/platfor
 /** 壳主框架会话源（路由侧会话 `session:1:main`，与守卫快照视图同键）。 */
 const SENDER = { windowId: 1, frameId: null };
 
-/** chips-resource 端口注入面的最小替身（正式适配器随 §11.3 Neon 载体落位接线；仅测试使用：证明注入通道形状；生产禁止内存替身，工单 036）。 */
+/** chips-resource 端口注入面的最小替身（正式 scope 适配器已在册：波 A2b-β 装载段以资源域消费面构造，本替身只承载显式覆盖口通道形状；仅测试使用，生产禁止内存替身，工单 036）。 */
 function makeResourcePorts(): IDocumentResourcePorts & {
   readonly registrations: { documentId: string; managedUri: string; kind: string }[];
+  readonly unregistrations: { documentId: string; managedUri: string }[];
   readonly commits: IDocumentCommitRequest[];
 } {
   const registrations: { documentId: string; managedUri: string; kind: string }[] = [];
+  const unregistrations: { documentId: string; managedUri: string }[] = [];
   const commits: IDocumentCommitRequest[] = [];
+  /** 替身自持的登记凭号（模拟原生 `resourceOpenSession` 回执；INV-1：记录面只承接本回执）。 */
+  let nativeSession = 0;
   const scope: IDocumentScopePort = {
     normalizeSource(source: string): Promise<IResolvedDocumentSource> {
       if (source !== CARD_URI) {
@@ -184,12 +189,19 @@ function makeResourcePorts(): IDocumentResourcePorts & {
       }
       return Promise.resolve({ managedUri: CARD_URI, localPath: CARD_PATH, form: 'directory' });
     },
-    registerScope(input: { documentId: string; managedUri: string; kind: 'card' | 'box' }): Promise<void> {
+    registerScope(input: {
+      documentId: string;
+      managedUri: string;
+      kind: 'card' | 'box';
+    }): Promise<IDocumentScopeRegistration> {
       registrations.push({ documentId: input.documentId, managedUri: input.managedUri, kind: input.kind });
-      return Promise.resolve();
+      nativeSession += 1;
+      return Promise.resolve({ nativeSession });
     },
-    unregisterScope(): Promise<void> {
-      // 注入通道形状替身（波 A2b-α 端口新增成员；两拍接线行为面归 A2b-β 锁测）。
+    unregisterScope(input: { documentId: string; managedUri: string }): Promise<void> {
+      // 两拍第①拍在注入面的触达记录（波 A2b-β 接线：会话释放与打开失败回收一律经端口注销；
+      // 真两拍行为面见 `document-scope-adapter.test.ts` / `document-scope-lifecycle.test.ts`）。
+      unregistrations.push(input);
       return Promise.resolve();
     },
   };
@@ -214,7 +226,7 @@ function makeResourcePorts(): IDocumentResourcePorts & {
       );
     },
   };
-  return { scope, storage, registrations, commits };
+  return { scope, storage, registrations, unregistrations, commits };
 }
 
 /** 组装一个覆盖当前壳会话的守卫快照提供者。 */
@@ -523,6 +535,9 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
     expect(newCalls).toContain('documentStructure'); // save 前序列化请求组装
     stop();
     await runtime.shutdown();
+    // 主进程退出清理（工单036 波 A2b-β）：停机链在会话关闭联动后**等待**文档释放收口，
+    // 记录驱逐的两拍第①拍（端口 `unregisterScope`）在 `shutdown()` 返回前即已触达。
+    expect(resourcePorts.unregistrations).toEqual([{ documentId: CARD_ID, managedUri: CARD_URI }]);
   });
 
   it('守卫快照正式默认绑定（刀4 缝① / 工单036 §五.3-1）：不注入覆盖口即装载成功，判定输入就是本运行时会话登记表', async () => {
@@ -556,6 +571,8 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
     expect(resourcePorts.registrations).toEqual([{ documentId: CARD_ID, managedUri: CARD_URI, kind: 'card' }]);
     await runtime.shutdown();
     expect(runtime.sessionPermissionSnapshots()[0]?.state).toBe('closed');
+    // 停机收口的两拍第①拍（退出清理不得跑在资源注销之前）。
+    expect(resourcePorts.unregistrations).toEqual([{ documentId: CARD_ID, managedUri: CARD_URI }]);
   });
 
   it('显式覆盖口优先级（S6）：注入空快照源后，登记表已有活跃会话仍被服务复查拒绝（每调用查询，不缓存）', async () => {

@@ -147,6 +147,10 @@ function resolveViewSessionBinding(
     // 句柄 token 原样投影（工单035 裁定二句柄侧归一）：刀3 构建器逐字回交本侧注入面
     // `native.buildDocumentView`，还原真实原生句柄的唯一触达点在 native-parser 适配器
     // `view` 臂的私有簿记——本行不解释、不复制句柄内部结构。
+    // 数值会话（INV-1，波 A2b-β）：`resolution.nativeSession` 即作用域端口 `registerScope`
+    // 回执交付的原生 `resourceOpenSession` 句柄（历史上它是会话存储的 TS 自增计数器，
+    // 假 id 在原生侧会话表恒 `None`、归属闸恒 `PERMISSION_DENIED`，任何按会话归属的资源调用
+    // 与两拍注销形同虚设，#213 附带发现）；本行只做原样投影，不生成、不换号。
     handle: resolution.handle as unknown as INativeDocumentViewHandle,
     sessionId: resolution.nativeSession,
     managedScope,
