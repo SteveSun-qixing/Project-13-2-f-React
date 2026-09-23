@@ -2,7 +2,7 @@ import { PerfError } from './errors';
 import { isMetricId, type MetricId } from './metrics';
 import type { PerfMarker } from './markers';
 import type { MemorySample } from './memory';
-import { isScenarioId, type ScenarioId } from './scenarios';
+import { PARSE_DOMAIN_SCENARIO_IDS, isScenarioId, type ScenarioId } from './scenarios';
 
 /**
  * 被测量系统接入契约。
@@ -33,14 +33,79 @@ export interface AdapterRunResult {
   readonly notes?: readonly string[];
 }
 
+/** 测量形态标记（工单056 分流在册位）：`real` = 读数来自被测系统真实执行；`synthetic` = 自测夹具值。 */
+export type MeasurementForm = 'real' | 'synthetic';
+
 /** 适配器接口。 */
 export interface PerfAdapter {
   readonly id: string;
   readonly title: string;
   readonly description: string;
+  /**
+   * 测量形态声明（可选；缺省视为未声明）。解析域场景（`PARSE_DOMAIN_SCENARIO_IDS`）
+   * 的真测登记必须显式声明 `real`，合成臂的自测登记必须显式声明 `synthetic`，
+   * 由 {@link assertRealParseDomainAdapter} 双闸把关。
+   */
+  readonly measurementForm?: MeasurementForm;
   /** 该适配器可执行的场景清单。 */
   readonly provides: readonly ScenarioId[];
   run(context: AdapterRunContext): Promise<AdapterRunResult>;
+}
+
+/** 合成适配器 ID 的在册前缀（`synthetic-golden` / `synthetic-regressed` 及一切派生）。 */
+export const SYNTHETIC_ADAPTER_ID_PREFIX = 'synthetic-';
+
+/** 判断适配器 ID 是否为合成臂命名。 */
+export function isSyntheticAdapterId(adapterId: string): boolean {
+  return adapterId.startsWith(SYNTHETIC_ADAPTER_ID_PREFIX);
+}
+
+/** 已声明真测形态、可承载解析域真测登记的适配器。 */
+export interface RealMeasurementAdapter extends PerfAdapter {
+  readonly measurementForm: 'real';
+}
+
+/**
+ * 解析域真测分流闸（工单056 期望行为 1「合成臂与真臂可分辨」的执行位）：
+ * 只有同时满足「契约合法 + 声明覆盖解析域场景 + `measurementForm === 'real'` +
+ * ID 非 `synthetic-*`」的适配器才准予登记为解析域真测来源；任一不满足即
+ * fail-closed 抛错。合成臂即使 `provides` 覆盖解析域场景，也在闸上被逐项点名拒绝，
+ * 不可冒充真测。
+ */
+export function assertRealParseDomainAdapter(
+  value: unknown
+): asserts value is RealMeasurementAdapter {
+  assertValidAdapter(value);
+  const coveredParseScenarios = PARSE_DOMAIN_SCENARIO_IDS.filter((scenarioId) =>
+    value.provides.includes(scenarioId)
+  );
+  if (coveredParseScenarios.length === 0) {
+    throw new PerfError(
+      'PERF_ADAPTER_INVALID',
+      `适配器 ${value.id} 未声明任何解析域场景（${PARSE_DOMAIN_SCENARIO_IDS.join('、')}），不是解析域真测来源`
+    );
+  }
+  if (isSyntheticAdapterId(value.id)) {
+    throw new PerfError(
+      'PERF_ADAPTER_INVALID',
+      `适配器 ${value.id} 命中合成臂命名前缀 ${SYNTHETIC_ADAPTER_ID_PREFIX}，禁止登记为解析域真测来源（工单056 分流闸）`
+    );
+  }
+  if (value.measurementForm !== 'real') {
+    throw new PerfError(
+      'PERF_ADAPTER_INVALID',
+      `适配器 ${value.id} 未显式声明 measurementForm: 'real'（实际 ${String(value.measurementForm)}），禁止登记为解析域真测来源`
+    );
+  }
+  const unclaimed = PARSE_DOMAIN_SCENARIO_IDS.filter(
+    (scenarioId) => !value.provides.includes(scenarioId)
+  );
+  if (unclaimed.length > 0) {
+    throw new PerfError(
+      'PERF_ADAPTER_INVALID',
+      `适配器 ${value.id} 未覆盖解析域场景 ${unclaimed.join('、')}（解析域真测登记必须两场景齐备）`
+    );
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

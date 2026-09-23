@@ -325,6 +325,8 @@ export function createSyntheticAdapter(
     id: `synthetic-${quality}`,
     title: `合成适配器（${quality === 'golden' ? '达标档' : '劣化档'}）`,
     description: '生成确定性的合成标记点、帧时间戳、内存采样与指标样本，用于性能工具自测',
+    // 工单056 分流闸：合成臂显式登记 `synthetic` 形态，真测登记一律被拒绝。
+    measurementForm: 'synthetic',
     provides: [...SCENARIO_IDS],
     run(context): Promise<AdapterRunResult> {
       const definition = scenarioDefinition(context.scenarioId);

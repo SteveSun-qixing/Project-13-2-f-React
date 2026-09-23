@@ -348,6 +348,7 @@ export function createRealHostAdapter(options: RealHostAdapterOptions = {}): Per
     title: '薯片宿主真进程采集适配器（W2-P1-6 段A）',
     description:
       '经 @chips/e2e 承载辅助拉起真实宿主进程，采集外部观测标记点、rAF 帧时间戳与 getAppMetrics RSS 采样；数值全部来自实测，宿主侧标记缺口见真进程采集-设计.md。',
+    measurementForm: 'real',
     provides: ['cold-start', 'open-card', 'scroll-fps', 'idle-memory'],
     async run(context: AdapterRunContext): Promise<AdapterRunResult> {
       switch (context.scenarioId) {

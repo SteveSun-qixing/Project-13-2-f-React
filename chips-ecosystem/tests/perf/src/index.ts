@@ -28,10 +28,13 @@ export {
   MARKERS,
   SCENARIOS,
   SCENARIO_IDS,
+  PARSE_DOMAIN_SCENARIO_IDS,
   isScenarioId,
+  isParseDomainScenario,
   scenarioById,
   scenarioDefinition,
   scenarioPhaseBudgets,
+  type ParseDomainScenarioId,
   type ScenarioDefinition,
   type ScenarioId,
   type ScenarioPhase,
@@ -69,10 +72,15 @@ export {
 } from './parser-bench';
 export {
   assertValidAdapter,
+  assertRealParseDomainAdapter,
+  isSyntheticAdapterId,
   validateMetricSamples,
+  SYNTHETIC_ADAPTER_ID_PREFIX,
   type AdapterRunContext,
   type AdapterRunResult,
+  type MeasurementForm,
   type PerfAdapter,
+  type RealMeasurementAdapter,
 } from './adapters';
 export {
   measureScenario,

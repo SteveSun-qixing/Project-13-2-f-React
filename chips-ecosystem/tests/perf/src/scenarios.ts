@@ -32,6 +32,22 @@ export const SCENARIO_IDS = [
 /** 场景 ID 联合类型。 */
 export type ScenarioId = (typeof SCENARIO_IDS)[number];
 
+/**
+ * 解析域场景清单（工单056 在册口径）：`parse-box-10k` 与 `parse-card-10mb` 两场景的
+ * 读数必须以**真实解析链**（`chips-native` 解析域导出）产生才算实测；合成臂读数
+ * 一律按「合成自测」定性，不得冒充该两场景的实测证据（分流闸见
+ * `src/adapters.ts` 的 `assertRealParseDomainAdapter`）。
+ */
+export const PARSE_DOMAIN_SCENARIO_IDS = ['parse-box-10k', 'parse-card-10mb'] as const;
+
+/** 解析域场景 ID 联合类型。 */
+export type ParseDomainScenarioId = (typeof PARSE_DOMAIN_SCENARIO_IDS)[number];
+
+/** 判断任意场景 ID 是否属于解析域。 */
+export function isParseDomainScenario(scenarioId: ScenarioId): scenarioId is ParseDomainScenarioId {
+  return (PARSE_DOMAIN_SCENARIO_IDS as readonly string[]).includes(scenarioId);
+}
+
 /** 标记点场景内的阶段：跨度 + 预算引用（预算值只存于指标注册表）。 */
 export interface ScenarioPhase {
   readonly id: string;
