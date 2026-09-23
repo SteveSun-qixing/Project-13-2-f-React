@@ -175,6 +175,7 @@ name = "chips-parser"
 version = "0.1.0"
 dependencies = [
  "chips-core",
+ "criterion",
  "serde",
  "serde_json",
  "serde_yaml",
