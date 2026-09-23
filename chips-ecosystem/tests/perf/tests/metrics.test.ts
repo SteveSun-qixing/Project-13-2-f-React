@@ -40,6 +40,7 @@ const FROZEN_GATES: Readonly<
   parse_structure_ms: { gate: 10, statistic: 'median', citationAnchor: '§9.2' },
   parse_content_yaml_ms: { gate: 60, statistic: 'median', citationAnchor: '§9.2' },
   parse_entries_10k_ms: { gate: 100, statistic: 'median', citationAnchor: '§9.2' },
+  parse_box_full_ms: { gate: 200, statistic: 'median', citationAnchor: '§9.2' },
   parse_model_build_ms: { gate: 8, statistic: 'median', citationAnchor: '§9.2' },
   plugin_load_ms: { gate: 100, statistic: 'median', citationAnchor: '§11.1' },
   kernel_service_call_us: { gate: 1, statistic: 'median', citationAnchor: '§11.1' },
@@ -176,14 +177,27 @@ describe('场景注册表（scenarios）', () => {
     }
   });
 
-  it('箱解析场景登记恰等：仅 parse_entries_10k_ms，卡片口径伴生臂已翻正移除', () => {
-    // W3 登记口径翻正：parse-box-10k 只登记它真正测量的指标；
-    // 箱侧「全量解析」测臂缺位（无可登记的形制匹配指标，归工单056 后续处置项），
-    // 不得以卡片口径指标冒充登记。
-    expect([...SCENARIOS['parse-box-10k'].metricIds]).toEqual(['parse_entries_10k_ms']);
-    // 卡片侧登记零扰动：parse_10mb_ms 仍登记在卡片场景与其测量定义所在处。
-    expect(SCENARIOS['parse-card-10mb'].metricIds).toContain('parse_10mb_ms');
+  it('箱解析场景登记恰等：parse_entries_10k_ms + parse_box_full_ms，卡片口径伴生臂已翻正移除', () => {
+    // W3 登记口径翻正：parse-box-10k 只登记它真正测量的指标，卡片口径指标
+    // parse_10mb_ms 不得回填；#263 补臂：箱全量解析由新增指标 parse_box_full_ms
+    // 承载（门禁 median/lte/200，承接《文档解析器设计》§9.2「打开箱子总预算 ≤ 200 ms」）。
+    expect([...SCENARIOS['parse-box-10k'].metricIds]).toEqual([
+      'parse_entries_10k_ms',
+      'parse_box_full_ms',
+    ]);
+    // 卡片侧登记恰等（#263 核对翻正）：parse_content_yaml_ms 的在册口径为
+    // 「10 MB 全为 YAML 的最坏情况」，与卡片臂 1 MiB content YAML 夹具形制不符，
+    // 已自场景登记移除（指标定义保留在 metrics.ts，专用夹具测臂缺位如实登记）。
+    expect([...SCENARIOS['parse-card-10mb'].metricIds]).toEqual([
+      'parse_10mb_ms',
+      'parse_open_ms',
+      'parse_metadata_ms',
+      'parse_structure_ms',
+      'parse_model_build_ms',
+    ]);
     expect(metricDefinition('parse_10mb_ms').title).toContain('卡片');
+    expect(metricDefinition('parse_box_full_ms').title).toContain('箱子');
+    expect(metricDefinition('parse_content_yaml_ms').measurement).toContain('10 MB 全为 YAML');
   });
 
   it('标记点场景跨度与阶段标记点闭合', () => {

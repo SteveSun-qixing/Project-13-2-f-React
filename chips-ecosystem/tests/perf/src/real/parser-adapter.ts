@@ -31,19 +31,22 @@ import {
  * - `parse_open_ms`：`openCard` 调用完整往返（容器打开 + L0 metadata 解析校验，
  *   即《解析器设计》§9.2「目录扫描/EOCD+中央目录 与 metadata 解析校验之和」的导出面形态）；
  * - `parse_structure_ms`：同轮内 `documentStructure` 段（L1 惰性解析触发）；
- * - `parse_content_yaml_ms`：同轮内 `documentContent` 段（1 MiB+ content YAML 单元）；
  * - `parse_10mb_ms`：同轮内 open → structure → content 全链总时长（全量惰性层级解析
  *   收口；资源字节按 §9.5 不进入计时，严格校验 `documentValidate` 另列口径不计入）；
  * - `parse_entries_10k_ms`：同轮内 `openBox` → `documentStructure` 的条目索引解析段
  *  （10 000 条 `structure.yaml` 惰性解析触发）；
+ * - `parse_box_full_ms`（#263 补臂）：同轮内 `openBox` → `documentStructure` →
+ *   `documentLayoutConfig` 全链总时长（箱全量解析，门禁承接《解析器设计》§9.2
+ *   「打开箱子总预算 ≤ 200 ms」；严格校验另列口径不计入）；
  * - `parse_metadata_ms` / `parse_model_build_ms`：解析器内部阶段，导出面无独立可测形
  *  （metadata 融于 open、model build 融于全链），**如实登记缺测臂**（noData + notes），
  *   不做折算、不造数；
- * - 箱子场景登记口径（W3 翻正，工单056 后续处置）：`parse_10mb_ms` 系卡片口径指标，
- *   已从 `parse-box-10k` 场景登记移除（一个场景只登记它真正测量的指标），本适配器
- *   箱臂也不再为其保留 noData 分支；箱侧「全量解析」无形制匹配的已登记指标——
- *   **箱全量解析测臂缺位，归工单056 后续处置项**（新指标 id 属新增测量面，本波禁造，
- *   不折算、不造数、不冒充）。
+ * - `parse_content_yaml_ms`（#263 核对翻正）：在册口径为「10 MB 全为 YAML 的最坏情况」
+ *  （§9.2 原文），本卡片臂夹具的 content YAML 为 1 MiB（10 MB = 1 MiB YAML + 9 MiB
+ *   资源），形制不符——已自 `parse-card-10mb` 场景登记移除，本卡臂不再为其供样
+ *  （不冒充、不折算），其专用夹具测臂缺位如实登记（归后续处置项）；
+ * - 箱子场景登记口径（W3 翻正）：`parse_10mb_ms` 系卡片口径指标，已从 `parse-box-10k`
+ *   场景登记移除（一个场景只登记它真正测量的指标），本适配器箱臂不为其供样。
  */
 
 /** 适配器在册 ID（非 `synthetic-*`；报告 `meta.adapterId` 判定真/合成臂的锚）。 */
@@ -223,14 +226,13 @@ export function createRealParseAdapter(
       parse_10mb_ms: totalMs,
       parse_open_ms: samples.map((sample) => sample.openMs),
       parse_structure_ms: samples.map((sample) => sample.structureMs),
-      parse_content_yaml_ms: samples.map((sample) => sample.contentMs),
     };
     return {
       metricSamples,
       notes: [
         `解析域真测（工单056 形 A）：真实 .card 归档字节（${String(fixturePaths.cardBytes)} 字节，ZIP Store）经 chips-native.node 解析域导出实测；coreVersion=${native.coreVersion()}，coreAbiVersion=${String(native.coreAbiVersion())}。`,
-        `口径：parse_open_ms=openCard 往返；parse_structure_ms/parse_content_yaml_ms=同轮惰性段；parse_10mb_ms=open→structure→content 全链（资源字节读取按 §9.5 不计入）。样本 ${String(rounds)} 轮（warmup ${String(warmupRounds)} 轮不计）。`,
-        '缺测臂（不折算不造数）：parse_metadata_ms 与 parse_model_build_ms 为解析器内部阶段，导出面无独立可测形（metadata 解析融于 open、模型构建融于全链），如实 noData。',
+        `口径：parse_open_ms=openCard 往返；parse_structure_ms=同轮惰性段；parse_10mb_ms=open→structure→content 全链（资源字节读取按 §9.5 不计入）。样本 ${String(rounds)} 轮（warmup ${String(warmupRounds)} 轮不计）。`,
+        '缺测臂（不折算不造数）：parse_metadata_ms 与 parse_model_build_ms 为解析器内部阶段，导出面无独立可测形（metadata 解析融于 open、模型构建融于全链），如实 noData；parse_content_yaml_ms 在册口径为「10 MB 全为 YAML 的最坏情况」（§9.2），本臂 content YAML 为 1 MiB、形制不符，已自场景登记翻正移除，其专用夹具测臂缺位（#263 登记，归后续处置项）。',
         `夹具严格校验体检（documentValidate，另列口径不计入解析样本）：${sanity}。`,
       ],
     };
@@ -245,14 +247,16 @@ export function createRealParseAdapter(
     const sanity = await validateSanity(native, fixturePaths.boxPath, 'box');
     const metricSamples: Partial<Record<MetricId, readonly number[]>> = {
       parse_entries_10k_ms: samples.map((sample) => sample.structureMs),
+      parse_box_full_ms: samples.map(
+        (sample) => sample.openMs + sample.structureMs + sample.layoutConfigMs
+      ),
     };
     return {
       metricSamples,
       notes: [
         `解析域真测（工单056 形 A）：真实 .box 归档字节（${String(fixturePaths.boxBytes)} 字节，10 000 外部引用条目）经 chips-native.node 解析域导出实测；coreVersion=${native.coreVersion()}，coreAbiVersion=${String(native.coreAbiVersion())}。`,
-        `口径：parse_entries_10k_ms=openBox 后 documentStructure 惰性条目索引解析段（同轮打点差值）；open 段与 layoutConfig 段另见注记。样本 ${String(rounds)} 轮（warmup ${String(warmupRounds)} 轮不计）。`,
-        `分段中位量级参考：open 段样本 min=${String(Math.min(...samples.map((sample) => sample.openMs)).toFixed(2))}，layoutConfig 段 min=${String(Math.min(...samples.map((sample) => sample.layoutConfigMs)).toFixed(2))}。`,
-        '口径缺位登记（不折算不造数）：箱子侧「全量解析」无已登记且形制匹配的指标定义可测——箱全量解析测臂缺位，归工单056 后续处置项（新指标 id 属新增测量面，本波不造）；卡片口径指标 parse_10mb_ms 已自本场景登记翻正移除，不再作为恒 noData 伴生臂呈现。',
+        `口径：parse_entries_10k_ms=openBox 后 documentStructure 惰性条目索引解析段；parse_box_full_ms=同轮 open→structure→layoutConfig 全链总时长（#263 补臂，门禁承接《文档解析器设计》§9.2「打开箱子总预算 ≤ 200 ms」）。样本 ${String(rounds)} 轮（warmup ${String(warmupRounds)} 轮不计）。`,
+        '缺测臂（不折算不造数）：卡片口径指标 parse_10mb_ms 已自本场景登记翻正移除（W3），箱臂不为其供样；箱内惰性层级无 content 单元可触发（外部引用条目形制），无其他缺测段。',
         `夹具严格校验体检（documentValidate，另列口径不计入解析样本）：${sanity}。`,
       ],
     };

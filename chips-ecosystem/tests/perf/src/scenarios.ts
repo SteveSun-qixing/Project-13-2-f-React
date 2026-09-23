@@ -207,12 +207,15 @@ export const SCENARIOS: Readonly<Record<ScenarioId, ScenarioDefinition>> = {
     id: 'parse-card-10mb',
     title: '10 MB 卡片全量解析',
     kind: 'samples',
+    // 工单056 后续处置（#263 核对翻正）：`parse_content_yaml_ms` 的在册口径为
+    // 「10 MB 全为 YAML 的最坏情况」（§9.2 原文），与本场景夹具（1 MiB content YAML +
+    // 9 MiB 资源）形制不符，真测臂实测的 1 MiB content 段读数不得冒充该口径——
+    // 已自本场景登记移除，指标定义保留在 `metrics.ts`，其专用夹具测臂缺位如实登记。
     metricIds: [
       'parse_10mb_ms',
       'parse_open_ms',
       'parse_metadata_ms',
       'parse_structure_ms',
-      'parse_content_yaml_ms',
       'parse_model_build_ms',
     ],
     citation: '《文档解析器设计》§9.2、§9.5',
@@ -232,12 +235,11 @@ export const SCENARIOS: Readonly<Record<ScenarioId, ScenarioDefinition>> = {
     id: 'parse-box-10k',
     title: '10 000 条目箱子解析',
     kind: 'samples',
-    // 工单056 后续处置（W3 登记口径翻正）：伴生指标 `parse_10mb_ms` 的注册口径为
-    // 「10 MB 卡片夹具全量解析」（`metrics.ts` measurement 文面），属卡片形制，
-    // 不得挂在箱子场景，已自本场景登记移除（一个场景只登记它真正测量的指标）。
-    // 箱侧「全量解析」目前无已登记且形制匹配的指标定义可挂——箱全量解析测臂缺位，
-    // 归工单056 后续处置项（新指标 id 属新增测量面，本波禁造，此处如实登记为缺位）。
-    metricIds: ['parse_entries_10k_ms'],
+    // 工单056 后续处置（W3 登记口径翻正 + #263 补臂）：卡片口径伴生指标 `parse_10mb_ms`
+    // 已自本场景登记移除（一个场景只登记它真正测量的指标）；箱全量解析测臂由
+    // `parse_box_full_ms` 承载（新增指标定义见 `metrics.ts`，门禁值承接
+    // 《文档解析器设计》§9.2「打开箱子总预算 ≤ 200 ms」既有权威口径）。
+    metricIds: ['parse_entries_10k_ms', 'parse_box_full_ms'],
     citation: '《文档解析器设计》§9.2、§9.5',
     measurement: '10 000 条目、并行解析；打开箱子总预算 ≤ 200 ms。',
     sampling: {},

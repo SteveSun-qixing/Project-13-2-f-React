@@ -229,10 +229,12 @@ describe('解析域真测计时协议（假解析面 + 受控时钟）', () => {
     // 正式两轮分别消耗 40..70 与 80..110 → 每段恒为 10 ms、全链恒为 30 ms。
     expect(result.metricSamples?.['parse_open_ms']).toEqual([10, 10]);
     expect(result.metricSamples?.['parse_structure_ms']).toEqual([10, 10]);
-    expect(result.metricSamples?.['parse_content_yaml_ms']).toEqual([10, 10]);
     expect(result.metricSamples?.['parse_10mb_ms']).toEqual([30, 30]);
     expect(result.metricSamples).not.toHaveProperty('parse_metadata_ms');
     expect(result.metricSamples).not.toHaveProperty('parse_model_build_ms');
+    // #263 核对翻正：content 段实测口径（1 MiB YAML）≠ parse_content_yaml_ms 在册口径
+    // （10 MB 全为 YAML 最坏情况），卡臂不再为其供样（不冒充）。
+    expect(result.metricSamples).not.toHaveProperty('parse_content_yaml_ms');
     // warmup 1 + 正式 2 + 体检 1 = 4 次 open/close；structure 3 + 体检 1 = 4。
     expect(calls.openCard).toBe(4);
     expect(calls.close).toBe(4);
@@ -241,17 +243,21 @@ describe('解析域真测计时协议（假解析面 + 受控时钟）', () => {
     const notes = (result.notes ?? []).join('\n');
     expect(notes).toContain('缺测臂');
     expect(notes).toContain('parse_metadata_ms');
+    expect(notes).toContain('parse_content_yaml_ms');
     expect(notes).toContain('chips-native.node');
     // 夹具真实落盘（>1 MB 运行时生成，不入库）。
     const paths = await writePerfParseFixtures(fixtureDir);
     expect(paths.cardBytes).toBeGreaterThan(10 * 1024 * 1024);
   });
 
-  it('箱子场景：parse_entries_10k_ms 取条目索引解析段；登记面恰等、全量解析测臂缺位在册', async () => {
+  it('箱子场景：条目索引段与箱全量解析全链各自成样；登记面恰等、卡片口径臂不回填', async () => {
     // W3 登记口径翻正：卡片口径伴生臂 parse_10mb_ms 已自 parse-box-10k 场景登记移除，
-    // 箱臂只产形制匹配的 parse_entries_10k_ms 一样本；箱侧「全量解析」测臂缺位
-    // （归工单056 后续处置项）以 notes 如实登记，不折算不造数不冒充。
-    expect([...SCENARIOS['parse-box-10k'].metricIds]).toEqual(['parse_entries_10k_ms']);
+    // 箱臂不为其供样；#263 补臂：箱全量解析由 parse_box_full_ms 承载
+    // （open → structure → layoutConfig 同轮全链，口径见 metrics.ts 测量文面）。
+    expect([...SCENARIOS['parse-box-10k'].metricIds]).toEqual([
+      'parse_entries_10k_ms',
+      'parse_box_full_ms',
+    ]);
     const { surface } = fakeSurface();
     const fixtureDir = await tempFixtureDir('box');
     const parsed = createRealParseAdapter({
@@ -262,12 +268,17 @@ describe('解析域真测计时协议（假解析面 + 受控时钟）', () => {
       fixtureDir,
     });
     const result = await parsed.run({ scenarioId: 'parse-box-10k', iteration: 0 });
-    // 箱子轮 4 次打点（start/opened/structured/layoutAt）→ structure 段恒 10 ms。
+    // 箱子轮 4 次打点（start/opened/structured/layoutAt）→ 各段恒 10 ms。
     expect(result.metricSamples?.['parse_entries_10k_ms']).toEqual([10, 10]);
-    // 样本面恰等：翻正后箱臂不产任何多余指标键（含已移除登记的卡片口径指标）。
-    expect(Object.keys(result.metricSamples ?? {})).toEqual(['parse_entries_10k_ms']);
+    // 全链 = open + structure + layoutConfig = 3 段 × 10 ms。
+    expect(result.metricSamples?.['parse_box_full_ms']).toEqual([30, 30]);
+    // 样本面恰等：箱臂只产场景登记的两个形制匹配指标键。
+    expect(Object.keys(result.metricSamples ?? {})).toEqual([
+      'parse_entries_10k_ms',
+      'parse_box_full_ms',
+    ]);
     const notes = (result.notes ?? []).join('\n');
-    expect(notes).toContain('缺位');
+    expect(notes).toContain('parse_box_full_ms');
     expect(notes).toContain('工单056');
     expect(notes).toContain('不折算不造数');
   });
@@ -420,6 +431,7 @@ describe('解析域真测夹具与装载闸（fail-closed 钉桩）', () => {
       'parse_structure_ms',
       'parse_content_yaml_ms',
       'parse_entries_10k_ms',
+      'parse_box_full_ms',
       'parse_model_build_ms',
     ] as const) {
       expect(parseMetrics).toContain(metricId satisfies MetricId);

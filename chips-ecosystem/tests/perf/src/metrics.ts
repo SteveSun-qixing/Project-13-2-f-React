@@ -80,6 +80,7 @@ export const METRIC_IDS = [
   'parse_structure_ms',
   'parse_content_yaml_ms',
   'parse_entries_10k_ms',
+  'parse_box_full_ms',
   'parse_model_build_ms',
   'plugin_load_ms',
   'kernel_service_call_us',
@@ -294,6 +295,23 @@ export const METRICS: Readonly<Record<MetricId, MetricDefinition>> = {
     formalGate: 100,
     citation: CITATIONS.parserBudget,
     measurement: '10 000 条目箱子基准；打开箱子总预算 ≤ 200 ms（《文档解析器设计》§9.2）。',
+  },
+  // 工单056 后续处置（#263 补臂）：箱全量解析为既有权威预算口径——《文档解析器设计》
+  // §9.2 条目解析行说明列「打开箱子总预算 ≤ 200 ms」；《文档服务设计》§5.7 引 §9.2
+  // 明文「全量 validate 成本……10 000 条目箱子 ≤ 200 ms」（口径=重新打开并全量解析）。
+  // 本指标只承接该既有权威数值，不新立门禁数值。
+  parse_box_full_ms: {
+    id: 'parse_box_full_ms',
+    title: '10 000 条目箱子全量解析',
+    unit: 'ms',
+    group: 'parse',
+    direction: 'lower-is-better',
+    gateStatistic: 'median',
+    gateComparison: 'lte',
+    formalGate: 200,
+    citation: CITATIONS.parserBudget,
+    measurement:
+      '夹具为 10 000 条目箱子；openBox → structure（条目索引）→ layoutConfig 全链总时长，多轮取中位数；资源字节读取与严格校验（documentValidate）另列口径不计入。打开箱子总预算 ≤ 200 ms（《文档解析器设计》§9.2；《文档服务设计》§5.7 全量解析成本口径）。',
   },
   parse_model_build_ms: {
     id: 'parse_model_build_ms',
