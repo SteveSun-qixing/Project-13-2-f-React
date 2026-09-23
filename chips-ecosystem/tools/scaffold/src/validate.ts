@@ -19,6 +19,12 @@ const LEGACY_ID_SUFFIX = '.blp';
 /** 反向域名：至少两段，段内小写字母、数字与连字符，段首尾必须为字母或数字。 */
 const PLUGIN_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
+/**
+ * 命令域文法（《13-命令系统契约》§2.1）：`app` 角色生成的 `cli.commands` 与运行时命令 ID
+ * 的 `domain` 段取插件 ID 末段，必须以字母开头。
+ */
+const COMMAND_DOMAIN_PATTERN = /^[a-z][a-z0-9-]*$/;
+
 const MAX_PLUGIN_ID_LENGTH = 128;
 const MAX_NAME_LENGTH = 64;
 
@@ -61,6 +67,14 @@ export function normalizePluginId(role: PluginRole, value: unknown): string {
   }
   if (value.endsWith(LEGACY_ID_SUFFIX)) {
     fail(`pluginId 不得使用作废的 .blp 后缀`, { pluginId: value });
+  }
+  if (role === 'app' && !COMMAND_DOMAIN_PATTERN.test(value.slice(value.lastIndexOf('.') + 1))) {
+    fail(
+      'app 角色的 pluginId 末段必须匹配命令域文法（以字母开头的小写字母、数字与连字符），该末段即生成命令的命名空间',
+      {
+        pluginId: value,
+      }
+    );
   }
   for (const candidate of PLUGIN_ROLES) {
     const namespace = OFFICIAL_NAMESPACE_BY_ROLE[candidate];

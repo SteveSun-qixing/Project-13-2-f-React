@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ScaffoldError, isScaffoldError } from '../src/errors.js';
+import { validateManifest } from '../src/manifest-validate.js';
 import {
   deriveAssetSlug,
   deriveCapabilityId,
@@ -139,6 +140,18 @@ describe('normalizeScaffoldOptions', () => {
     );
   });
 
+  it('app 拒绝末段以数字开头的插件 ID（命令域文法约束）', () => {
+    const error = expectScaffoldError(() =>
+      normalizeScaffoldOptions({
+        role: 'app',
+        pluginId: 'chips.example.2048',
+        name: '示例应用',
+        targetDir: 'plugins/app-example',
+      })
+    );
+    expect(error.message).toContain('命令域文法');
+  });
+
   it('拒绝非对象选项', () => {
     expectScaffoldError(() => normalizeScaffoldOptions(null));
     expectScaffoldError(() => normalizeScaffoldOptions('app'));
@@ -167,5 +180,139 @@ describe('命名派生', () => {
     expect(deriveTsconfigExtends('plugins/app')).toBe('../../tsconfig.base.json');
     expect(deriveTsconfigExtends('examples/plugins/app')).toBe('../../../tsconfig.base.json');
     expect(deriveTsconfigExtends('/abs/path/app')).toBe('../../tsconfig.base.json');
+  });
+});
+
+/** `cli.commands` 生成物自检（矩阵 G3；权威校验在 `packages/host/src/loader/manifest.ts`）。 */
+describe('cli.commands 清单自检', () => {
+  function appManifest(): Record<string, unknown> {
+    return {
+      id: 'chips.example.app',
+      version: '0.1.0',
+      type: 'app',
+      name: '示例应用',
+      runtime: { targets: ['host'] },
+      ui: { surface: 'window' },
+      cli: {
+        commands: [
+          {
+            commandPath: ['app', 'open-card'],
+            commandId: 'app:open-card',
+            title: '打开卡片',
+            target: {
+              type: 'app',
+              pluginId: 'chips.example.app',
+              surface: { open: true, focus: true, reuse: 'preferred' },
+            },
+            arguments: [{ name: 'path', position: 0, type: 'path', required: true }],
+            output: { mode: 'json', json: 'supported' },
+          },
+        ],
+      },
+    };
+  }
+
+  it('合规的 cli.commands 声明通过自检', () => {
+    expect(validateManifest(appManifest())).toEqual([]);
+  });
+
+  it('basecard 角色声明 cli 即拒绝', () => {
+    const manifest = appManifest();
+    manifest.type = 'basecard';
+    manifest.capabilities = {
+      cardTypes: [{ id: 'base.demo', name: '演示卡片', configSchema: 'assets/schemas/x.json' }],
+    };
+    delete manifest.ui;
+    const errors = validateManifest(manifest);
+    expect(errors).toContain('cli 只允许 app / service 角色声明');
+  });
+
+  it('cli.commands 为空数组即拒绝', () => {
+    const manifest = appManifest();
+    manifest.cli = { commands: [] };
+    expect(validateManifest(manifest)).toContain('cli.commands 必须为非空数组');
+  });
+
+  it('app 目标缺失 commandId 即拒绝', () => {
+    const manifest = appManifest();
+    const command = (manifest.cli as { commands: Record<string, unknown>[] }).commands[0] as Record<
+      string,
+      unknown
+    >;
+    delete command.commandId;
+    expect(validateManifest(manifest)).toContain('cli.commands[0] app 目标必须声明 commandId');
+  });
+
+  it('commandId 文法非法即拒绝', () => {
+    const manifest = appManifest();
+    const command = (manifest.cli as { commands: Record<string, unknown>[] }).commands[0] as Record<
+      string,
+      unknown
+    >;
+    command.commandId = 'app.open-card';
+    expect(
+      validateManifest(manifest).some((message) => message.includes('commandId 文法非法'))
+    ).toBe(true);
+  });
+
+  it('commandPath 命中固定命令根即拒绝', () => {
+    const manifest = appManifest();
+    const command = (manifest.cli as { commands: Record<string, unknown>[] }).commands[0] as Record<
+      string,
+      unknown
+    >;
+    command.commandPath = ['help', 'open-card'];
+    expect(validateManifest(manifest).some((message) => message.includes('命中固定命令根'))).toBe(
+      true
+    );
+  });
+
+  it('target.type 与角色不一致或 pluginId 不匹配即拒绝', () => {
+    const manifest = appManifest();
+    const command = (manifest.cli as { commands: Record<string, unknown>[] }).commands[0] as Record<
+      string,
+      unknown
+    >;
+    command.target = { type: 'service', pluginId: 'other.id', capability: 'app:noop' };
+    const errors = validateManifest(manifest);
+    expect(errors.some((message) => message.includes('target.type 必须等于插件角色'))).toBe(true);
+    expect(errors.some((message) => message.includes('target.pluginId 必须等于插件 ID'))).toBe(
+      true
+    );
+  });
+
+  it('surface.reuse 取值非法即拒绝', () => {
+    const manifest = appManifest();
+    const command = (manifest.cli as { commands: Record<string, unknown>[] }).commands[0] as Record<
+      string,
+      unknown
+    >;
+    (command.target as Record<string, unknown>).surface = { reuse: 'sometimes' };
+    expect(validateManifest(manifest).some((message) => message.includes('surface.reuse'))).toBe(
+      true
+    );
+  });
+
+  it('service 目标不得声明 commandId 或 surface', () => {
+    const manifest: Record<string, unknown> = {
+      id: 'chips.service.demo',
+      version: '0.1.0',
+      type: 'service',
+      name: '示例服务',
+      runtime: { targets: ['host'] },
+      healthCheck: { interval: '30s', timeout: '5s' },
+      cli: {
+        commands: [
+          {
+            commandPath: ['demo', 'run'],
+            commandId: 'demo:run',
+            title: '运行任务',
+            target: { type: 'service', pluginId: 'chips.service.demo', surface: { open: true } },
+          },
+        ],
+      },
+    };
+    const errors = validateManifest(manifest);
+    expect(errors).toContain('cli.commands[0].commandId 不适用于 service 目标');
   });
 });

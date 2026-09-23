@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile as readTextFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as ts from 'typescript';
 import { parse as parseYaml } from 'yaml';
@@ -53,9 +54,12 @@ const EXPECTED_PATHS: Readonly<Record<PluginRole, readonly string[]>> = {
     'vite.render.config.ts',
     'vitest.config.ts',
     'src/index.ts',
+    'src/commands/appCommands.ts',
+    'src/commands/useAppCommands.ts',
     'src/ui/AppView.tsx',
     'assets/icons/app.svg',
     'tests/app.test.ts',
+    'tests/commands.test.ts',
   ],
   service: [
     'manifest.yaml',
@@ -369,5 +373,82 @@ describe('角色差异', () => {
     expect(plan.manifest.capabilities?.cardTypes?.[0]?.id).toBe('base.notes-card');
     const tsconfig = JSON.parse(readFile(plan, 'tsconfig.json')) as { extends: string };
     expect(tsconfig.extends).toBe('../../../tsconfig.base.json');
+  });
+});
+
+/** 矩阵 G3 收口：app 模板命令系统样例（《02-插件清单规范》§7.6、《13-命令系统契约》§5.6）。 */
+describe('app 命令系统样例', () => {
+  const plan = canonicalPlan('app');
+  const files = fileMap(plan);
+  const commandIds = (plan.manifest.cli?.commands ?? []).map((command) => command.commandId);
+
+  it('生成的 manifest 声明 cli.commands 并通过清单校验', () => {
+    const parsed = parseYaml(readFile(plan, 'manifest.yaml')) as unknown;
+    expect(validateManifest(parsed)).toEqual([]);
+    expect(plan.manifest.type).toBe('app');
+    const commands = plan.manifest.cli?.commands ?? [];
+    expect(commands.length).toBeGreaterThan(0);
+    for (const command of commands) {
+      expect(command.commandId).toMatch(/^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/);
+      expect(command.title.length).toBeGreaterThan(0);
+      expect(command.target).toMatchObject({ type: 'app', pluginId: 'chips.official.viewer' });
+    }
+  });
+
+  it('app 声明命令域能力权限以支撑注册与调用', () => {
+    expect(plan.manifest.permissions).toEqual(['command:write', 'command:execute']);
+  });
+
+  it('运行时命令元数据可 JSON 往返且与 manifest 声明逐字一致', async () => {
+    const source = files.get('src/commands/appCommands.ts');
+    expect(source).toBeDefined();
+    const transpiled = ts.transpileModule(source ?? '', {
+      fileName: 'appCommands.ts',
+      reportDiagnostics: true,
+      compilerOptions: {
+        target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.ESNext,
+        strict: true,
+      },
+    });
+    const messages = (transpiled.diagnostics ?? []).map((diagnostic) =>
+      ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+    );
+    expect(messages).toEqual([]);
+    const dir = await mkdtemp(join(tmpdir(), 'chips-scaffold-app-commands-'));
+    try {
+      const modulePath = join(dir, 'appCommands.mjs');
+      await writeFile(modulePath, transpiled.outputText, 'utf8');
+      const module = (await import(pathToFileURL(modulePath).href)) as {
+        appCommandDefinitions: { id: string; handlerId?: string }[];
+        createAppCommandHandlers: (
+          notify: (status: { commandId: string; handlerId: string; payload: unknown }) => void
+        ) => { commandId: string; handlerId: string; handler: (payload: unknown) => void }[];
+      };
+      expect(module.appCommandDefinitions.map((definition) => definition.id)).toEqual(commandIds);
+      for (const definition of module.appCommandDefinitions) {
+        expect(JSON.parse(JSON.stringify(definition))).toEqual(definition);
+        expect(definition.handlerId).toMatch(/^[a-z0-9][a-z0-9-]*$/);
+      }
+      const seen: { commandId: string; handlerId: string; payload: unknown }[] = [];
+      for (const registration of module.createAppCommandHandlers((status) => seen.push(status))) {
+        registration.handler({ path: '~/文档/示例.cpk' });
+      }
+      expect(seen.map((status) => status.commandId)).toEqual(commandIds);
+      expect(seen.every((status) => status.payload !== undefined)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('派发消费位按“注册—attach—注销”形状接线并挂载 CommandProvider', () => {
+    const hook = files.get('src/commands/useAppCommands.ts') ?? '';
+    expect(hook).toContain("chips.request('command:register'");
+    expect(hook).toContain("chips.request('command:unregister'");
+    expect(hook).toContain('runtime.attach(');
+    expect(hook).toContain("source: 'api'");
+    const appView = files.get('src/ui/AppView.tsx') ?? '';
+    expect(appView).toContain('<CommandProvider>');
+    expect(appView).toContain('useAppCommands()');
   });
 });

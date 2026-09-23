@@ -32,7 +32,7 @@ export const MAIN_ENTRY_BY_ROLE: Readonly<Record<PluginRole, string>> = {
 const ROLE_DESCRIPTIONS: Readonly<Record<PluginRole, string>> = {
   basecard: '基础卡片插件：卡片类型注册、查看与编辑渲染、配置校验与内容初值',
   boxlayout: '箱子布局插件：布局类型注册、响应式布局算法与布局配置编辑',
-  app: '应用插件：独立窗口、启动器入口与 React 界面',
+  app: '应用插件：独立窗口、启动器入口、React 界面与命令系统样例',
   service: '服务插件：后台生命周期、健康检查与配置访问',
 };
 
@@ -95,9 +95,12 @@ export function scaffoldFilePaths(role: PluginRole, assetSlug: string): readonly
       return [
         ...common,
         'src/index.ts',
+        'src/commands/appCommands.ts',
+        'src/commands/useAppCommands.ts',
         'src/ui/AppView.tsx',
         'assets/icons/app.svg',
         'tests/app.test.ts',
+        'tests/commands.test.ts',
       ];
     case 'service':
       return [

@@ -1,5 +1,6 @@
 import type {
   IPluginCardType,
+  IPluginCli,
   IPluginLayoutType,
   IPluginManifest,
   IScaffoldBase,
@@ -53,6 +54,51 @@ function buildLauncher(context: IScaffoldBase): Readonly<Record<string, unknown>
   };
 }
 
+/**
+ * `app` 角色的 `cli.commands` 声明样例（《02-插件清单规范》§7.6、《07-CLI完整参考》§5.1）。
+ *
+ * 命令 ID 域取插件 ID 末段（《13-命令系统契约》§2.1），与 `src/commands/appCommands.ts`
+ * 运行时注册的命令记录一一对应：CLI 与 UI 共享同一记录、同一校验、同一审计（§5.7）。
+ * 生成器锁校验权威在 `packages/host/src/loader/manifest.ts` 的 `validateCliCommands`。
+ */
+function buildAppCliCommands(context: IScaffoldBase): IPluginCli {
+  const { options, assetSlug } = context;
+  return {
+    commands: [
+      {
+        commandPath: [assetSlug, 'open-card'],
+        commandId: `${assetSlug}:open-card`,
+        title: '打开卡片',
+        description: `通过「${options.name}」打开指定卡片文件`,
+        examples: [`chips ${assetSlug} open-card ~/文档/示例.cpk`],
+        target: {
+          type: 'app',
+          pluginId: options.pluginId,
+          surface: { open: true, focus: true, reuse: 'preferred' },
+        },
+        arguments: [
+          {
+            name: 'path',
+            position: 0,
+            type: 'path',
+            required: true,
+            mapsTo: 'path',
+            path: { kind: 'file', role: 'input', exists: true },
+          },
+        ],
+      },
+      {
+        commandPath: [assetSlug, 'refresh-view'],
+        commandId: `${assetSlug}:refresh-view`,
+        title: '刷新当前视图',
+        description: `请求「${options.name}」重新拉取当前展示数据`,
+        target: { type: 'app', pluginId: options.pluginId },
+        output: { mode: 'json', json: 'supported' },
+      },
+    ],
+  };
+}
+
 /** 生成结构化 manifest；角色专有字段严格按《02-插件清单规范》§7 的角色差异表。 */
 export function buildManifest(context: IScaffoldBase): IPluginManifest {
   const { options } = context;
@@ -87,7 +133,10 @@ export function buildManifest(context: IScaffoldBase): IPluginManifest {
     case 'app':
       return {
         ...base,
+        // ui 目标命令注册与调用所需的能力权限（《04-能力契约规范》§六命令域）。
+        permissions: ['command:write', 'command:execute'],
         ui: { surface: 'window', launcher: buildLauncher(context) },
+        cli: buildAppCliCommands(context),
       };
     case 'service':
       return {

@@ -196,6 +196,7 @@ const ROLE_TREE: Readonly<Record<string, readonly string[]>> = {
   ],
   app: [
     'src/index.ts      # IAppPlugin 实现 → dist/index.js',
+    'src/commands/     # cli.commands 对应命令元数据与 UI 命令运行时接线',
     'src/ui/AppView.tsx # 应用窗口界面根组件 → render.js',
     'tests/            # vitest 单元测试',
     'assets/icons/     # 启动器图标',

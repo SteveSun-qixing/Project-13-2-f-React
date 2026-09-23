@@ -94,6 +94,100 @@ export interface IPluginHealthCheck {
   readonly timeout: string;
 }
 
+/** CLI 命令参数类型（《07-CLI完整参考》§5.2 在册 11 种）。 */
+export type PluginCliParameterType =
+  | 'string'
+  | 'stringList'
+  | 'number'
+  | 'integer'
+  | 'boolean'
+  | 'enum'
+  | 'path'
+  | 'json'
+  | 'jsonFile'
+  | 'text'
+  | 'textFile';
+
+/** `path` 类型参数的路径约束（《07-CLI完整参考》§5.2）。 */
+export interface IPluginCliParameterPath {
+  readonly kind?: 'file' | 'directory' | 'any';
+  readonly role?: 'input' | 'output';
+  readonly exists?: boolean;
+  readonly create?: boolean;
+  readonly extensions?: readonly string[];
+  readonly overwrite?: 'fail' | 'overwrite' | 'rename' | 'skip';
+}
+
+/** CLI 命令参数条目（`arguments` / `options` 共用形状，《07-CLI完整参考》§5.2）。 */
+export interface IPluginCliParameter {
+  readonly name: string;
+  readonly short?: string;
+  readonly position?: number;
+  readonly type: PluginCliParameterType;
+  readonly required?: boolean;
+  readonly default?: unknown;
+  readonly mapsTo?: string;
+  readonly choices?: readonly string[];
+  readonly multiple?: boolean;
+  readonly path?: IPluginCliParameterPath;
+  readonly validation?: Readonly<Record<string, unknown>>;
+}
+
+/** `app` 目标命令的界面策略（《07-CLI完整参考》§5.3；校验权威 `packages/host/src/loader/manifest.ts`）。 */
+export interface IPluginCliCommandSurface {
+  readonly open?: boolean;
+  readonly focus?: boolean;
+  readonly reuse?: 'always' | 'never' | 'preferred';
+}
+
+/** 命令执行目标；`type` 必须等于插件角色，《02-插件清单规范》§7.6。 */
+export interface IPluginCliCommandTarget {
+  readonly type: PluginRole;
+  readonly pluginId: string;
+  readonly capability?: string;
+  readonly surface?: IPluginCliCommandSurface;
+}
+
+/** 命令输出模式声明（《07-CLI完整参考》§5.4）。 */
+export interface IPluginCliCommandOutput {
+  readonly mode?: 'human' | 'json';
+  readonly json?: 'supported' | 'required' | 'unsupported';
+  readonly artifacts?: readonly string[];
+}
+
+/** 应用命令的 CLI 任务等待与取消声明（《07-CLI完整参考》§5.7）。 */
+export interface IPluginCliCommandJob {
+  readonly wait?: boolean;
+  readonly cancelOnInterrupt?: boolean;
+}
+
+/** 命令路径冲突消解声明（《07-CLI完整参考》§5.5）。 */
+export interface IPluginCliCommandConflict {
+  readonly priority?: number;
+  readonly namespace?: string;
+}
+
+/** 单条 CLI 命令入口声明；字段集合与《02-插件清单规范》§7.6 的在册键一致。 */
+export interface IPluginCliCommand {
+  readonly commandPath: string | readonly string[];
+  readonly commandId?: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly examples?: readonly string[];
+  readonly permissions?: readonly string[];
+  readonly target: IPluginCliCommandTarget;
+  readonly arguments?: readonly IPluginCliParameter[];
+  readonly options?: readonly IPluginCliParameter[];
+  readonly output?: IPluginCliCommandOutput;
+  readonly job?: IPluginCliCommandJob;
+  readonly conflict?: IPluginCliCommandConflict;
+}
+
+/** `cli` 顶层声明对象；只能包含 `commands` 数组且至少一项。 */
+export interface IPluginCli {
+  readonly commands: readonly IPluginCliCommand[];
+}
+
 /** 插件清单（TS 形状）；字段语义与校验以《02-插件清单规范》为准。 */
 export interface IPluginManifest {
   readonly id: string;
@@ -112,6 +206,7 @@ export interface IPluginManifest {
   readonly fileAssociations?: readonly IPluginFileAssociation[];
   readonly deepLinks?: readonly IPluginDeepLink[];
   readonly healthCheck?: IPluginHealthCheck;
+  readonly cli?: IPluginCli;
 }
 
 /** 一个角色的脚手架模板描述。 */

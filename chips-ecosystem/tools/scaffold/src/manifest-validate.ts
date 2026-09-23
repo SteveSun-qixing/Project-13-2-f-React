@@ -15,6 +15,43 @@ const DURATION_PATTERN = /^[1-9]\d*(?:ms|s|m)$/;
 const ASSET_PATH_PATTERN = /^assets\/[^\s]+$/;
 const ROLES: readonly PluginRole[] = ['basecard', 'boxlayout', 'app', 'service'];
 
+// === `cli.commands` 生成物自检规则（镜像 `packages/host/src/loader/manifest.ts` 的 validateCliCommands） ===
+const COMMAND_ID_PATTERN = /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/;
+const COMMAND_PATH_SEGMENT_PATTERN = /^[a-z0-9][a-z0-9-]*$/i;
+const PARAMETER_NAME_PATTERN = /^[a-z][a-z0-9-]*$/i;
+/** 固定命令根清单与宿主 `FIXED_COMMAND_ROOTS` 同源（《13-命令系统契约》、《07-CLI完整参考》§2.3）。 */
+const FIXED_COMMAND_ROOTS: readonly string[] = [
+  'help',
+  'start',
+  'stop',
+  'status',
+  'config',
+  'logs',
+  'plugin',
+  'update',
+  'doctor',
+  'open',
+  'completion',
+  'dev',
+  'host',
+];
+const SURFACE_REUSE_POLICIES = new Set(['always', 'never', 'preferred']);
+const OUTPUT_JSON_POLICIES = new Set(['supported', 'required', 'unsupported']);
+const COMMAND_ENTRY_KEYS: readonly string[] = [
+  'commandPath',
+  'commandId',
+  'title',
+  'description',
+  'examples',
+  'permissions',
+  'target',
+  'arguments',
+  'options',
+  'output',
+  'job',
+  'conflict',
+];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -48,6 +85,215 @@ function checkRuntime(errors: string[], manifest: IPluginManifest): void {
   if (runtime.background === true && manifest.type !== 'service') {
     errors.push('runtime.background: true 仅 service 允许');
   }
+}
+
+/**
+ * 校验 `cli.commands` 声明的入口级形状；深层参数规则（`batch` / `ui` / `validation` 组合约束、
+ * 权限 ID 目录登记等）的权威在 `packages/host/src/loader/manifest.ts` 与《07-CLI完整参考》§5.2，
+ * 平台打包与安装时全量校验，本自检通道覆盖生成器可产出的全部字段形状。
+ */
+function checkCliSection(errors: string[], manifest: IPluginManifest): void {
+  const cli = manifest.cli;
+  if (cli === undefined) {
+    return;
+  }
+  if (manifest.type !== 'app' && manifest.type !== 'service') {
+    errors.push('cli 只允许 app / service 角色声明');
+  }
+  if (!isRecord(cli)) {
+    errors.push('cli 必须是映射');
+    return;
+  }
+  const unknownCliKeys = Object.keys(cli).filter((key) => key !== 'commands');
+  if (unknownCliKeys.length > 0) {
+    errors.push(`cli 只能包含 commands，出现额外键：${unknownCliKeys.join('、')}`);
+  }
+  if (!Array.isArray(cli.commands) || cli.commands.length === 0) {
+    errors.push('cli.commands 必须为非空数组');
+    return;
+  }
+  const pathKeys = new Set<string>();
+  cli.commands.forEach((item, index) => {
+    const pointer = `cli.commands[${index}]`;
+    if (!isRecord(item)) {
+      errors.push(`${pointer} 必须是映射`);
+      return;
+    }
+    const unknownKeys = Object.keys(item).filter((key) => !COMMAND_ENTRY_KEYS.includes(key));
+    if (unknownKeys.length > 0) {
+      errors.push(`${pointer} 出现未在册键：${unknownKeys.join('、')}`);
+    }
+    const rawPath = item.commandPath;
+    const segments = typeof rawPath === 'string' ? [rawPath] : rawPath;
+    if (!Array.isArray(segments) || segments.length === 0) {
+      errors.push(`${pointer}.commandPath 必须为非空字符串或字符串数组`);
+    } else {
+      if (
+        segments.some(
+          (segment) => typeof segment !== 'string' || !COMMAND_PATH_SEGMENT_PATTERN.test(segment)
+        )
+      ) {
+        errors.push(`${pointer}.commandPath 段不符合文法（小写字母、数字与连字符）`);
+      } else {
+        const firstSegment = String(segments[0]).toLowerCase();
+        if (FIXED_COMMAND_ROOTS.includes(firstSegment)) {
+          errors.push(`${pointer}.commandPath 命中固定命令根：${firstSegment}`);
+        }
+        const key = segments.map((segment) => String(segment).toLowerCase()).join(' ');
+        if (pathKeys.has(key)) {
+          errors.push(`${pointer}.commandPath 在插件内重复：${key}`);
+        }
+        pathKeys.add(key);
+      }
+    }
+    if (typeof item.title !== 'string' || item.title.trim().length === 0) {
+      errors.push(`${pointer}.title 必须是非空显示文案`);
+    }
+    if (item.description !== undefined && typeof item.description !== 'string') {
+      errors.push(`${pointer}.description 必须是字符串`);
+    }
+    if (item.examples !== undefined) {
+      if (
+        !Array.isArray(item.examples) ||
+        item.examples.some((example) => typeof example !== 'string')
+      ) {
+        errors.push(`${pointer}.examples 必须是字符串数组`);
+      }
+    }
+    if (item.permissions !== undefined && !Array.isArray(item.permissions)) {
+      errors.push(`${pointer}.permissions 必须是字符串数组`);
+    }
+    const commandId = typeof item.commandId === 'string' ? item.commandId : undefined;
+    if (commandId !== undefined && !COMMAND_ID_PATTERN.test(commandId)) {
+      errors.push(`${pointer}.commandId 文法非法：${commandId}（应为 <domain>:<action>）`);
+    }
+    if (!isRecord(item.target)) {
+      errors.push(`${pointer}.target 必须是映射`);
+      return;
+    }
+    const target = item.target;
+    const unknownTargetKeys = Object.keys(target).filter(
+      (key) => !['type', 'pluginId', 'capability', 'surface'].includes(key)
+    );
+    if (unknownTargetKeys.length > 0) {
+      errors.push(`${pointer}.target 出现未在册键：${unknownTargetKeys.join('、')}`);
+    }
+    if (target.type !== manifest.type) {
+      errors.push(`${pointer}.target.type 必须等于插件角色：${manifest.type}`);
+    }
+    if (target.pluginId !== manifest.id) {
+      errors.push(`${pointer}.target.pluginId 必须等于插件 ID`);
+    }
+    if (manifest.type === 'app') {
+      if (commandId === undefined) {
+        errors.push(`${pointer} app 目标必须声明 commandId`);
+      }
+      if (target.capability !== undefined) {
+        errors.push(`${pointer}.target.capability 不适用于 app 目标`);
+      }
+      if (target.surface !== undefined) {
+        if (!isRecord(target.surface)) {
+          errors.push(`${pointer}.target.surface 必须是映射`);
+        } else {
+          const surface = target.surface;
+          const unknownSurfaceKeys = Object.keys(surface).filter(
+            (key) => !['open', 'focus', 'reuse'].includes(key)
+          );
+          if (unknownSurfaceKeys.length > 0) {
+            errors.push(`${pointer}.target.surface 出现未在册键：${unknownSurfaceKeys.join('、')}`);
+          }
+          if (surface.open !== undefined && typeof surface.open !== 'boolean') {
+            errors.push(`${pointer}.target.surface.open 必须是布尔值`);
+          }
+          if (surface.focus !== undefined && typeof surface.focus !== 'boolean') {
+            errors.push(`${pointer}.target.surface.focus 必须是布尔值`);
+          }
+          if (
+            surface.reuse !== undefined &&
+            !(typeof surface.reuse === 'string' && SURFACE_REUSE_POLICIES.has(surface.reuse))
+          ) {
+            errors.push(`${pointer}.target.surface.reuse 取值非法`);
+          }
+        }
+      }
+    } else if (manifest.type === 'service') {
+      if (commandId !== undefined) {
+        errors.push(`${pointer}.commandId 不适用于 service 目标`);
+      }
+      if (target.surface !== undefined) {
+        errors.push(`${pointer}.target.surface 不适用于 service 目标`);
+      }
+      if (item.job !== undefined) {
+        errors.push(`${pointer}.job 不适用于 service 目标`);
+      }
+      if (typeof target.capability !== 'string' || !COMMAND_ID_PATTERN.test(target.capability)) {
+        errors.push(
+          `${pointer}.target.capability 缺失或文法非法（service 目标必须声明已登记能力 ID）`
+        );
+      }
+    }
+    if (item.output !== undefined) {
+      if (!isRecord(item.output)) {
+        errors.push(`${pointer}.output 必须是映射`);
+      } else {
+        if (
+          item.output.mode !== undefined &&
+          item.output.mode !== 'human' &&
+          item.output.mode !== 'json'
+        ) {
+          errors.push(`${pointer}.output.mode 取值非法`);
+        }
+        if (
+          item.output.json !== undefined &&
+          !(typeof item.output.json === 'string' && OUTPUT_JSON_POLICIES.has(item.output.json))
+        ) {
+          errors.push(`${pointer}.output.json 取值非法`);
+        }
+        if (item.output.artifacts !== undefined && !Array.isArray(item.output.artifacts)) {
+          errors.push(`${pointer}.output.artifacts 必须是字符串数组`);
+        }
+      }
+    }
+    if (item.job !== undefined && !isRecord(item.job)) {
+      errors.push(`${pointer}.job 必须是映射`);
+    }
+    for (const parameterField of ['arguments', 'options'] as const) {
+      const parameters = item[parameterField];
+      if (parameters === undefined) {
+        continue;
+      }
+      if (!Array.isArray(parameters) || parameters.length === 0) {
+        errors.push(`${pointer}.${parameterField} 必须为非空数组`);
+        continue;
+      }
+      const seenNames = new Set<string>();
+      parameters.forEach((parameter, parameterIndex) => {
+        const parameterPointer = `${pointer}.${parameterField}[${parameterIndex}]`;
+        if (!isRecord(parameter)) {
+          errors.push(`${parameterPointer} 必须是映射`);
+          return;
+        }
+        if (typeof parameter.name !== 'string' || !PARAMETER_NAME_PATTERN.test(parameter.name)) {
+          errors.push(`${parameterPointer}.name 不符合参数名文法`);
+        } else {
+          const nameKey = parameter.name.toLowerCase();
+          if (seenNames.has(nameKey)) {
+            errors.push(`${parameterPointer}.name 重复：${parameter.name}`);
+          }
+          seenNames.add(nameKey);
+        }
+        if (typeof parameter.type !== 'string' || parameter.type.length === 0) {
+          errors.push(`${parameterPointer}.type 必须是非空参数类型`);
+        }
+        if (
+          parameter.type === 'enum' &&
+          (!Array.isArray(parameter.choices) || parameter.choices.length === 0)
+        ) {
+          errors.push(`${parameterPointer}.choices enum 参数必须非空`);
+        }
+      });
+    }
+  });
 }
 
 /** 校验 manifest；返回错误消息数组，空数组表示通过。 */
@@ -192,6 +438,8 @@ export function validateManifest(manifest: unknown): readonly string[] {
       errors.push('permissions 元素必须是字符串');
     }
   }
+
+  checkCliSection(errors, candidate);
 
   return errors;
 }
