@@ -1,4 +1,4 @@
-//! 资源管理域导出（《04-资源管理设计》§11.3 十五导出，《核心接口规范》§7.3、§8.6）。
+//! 资源管理域导出（《04-资源管理设计》§11.3 十八导出，《核心接口规范》§7.3、§8.6）。
 //!
 //! 导出面与 backing 的一一对应（业务逻辑全部位于 `chips-resource`，本模块
 //! 只做类型转换、错误归一与线程回投，《核心接口规范》§8.1）：
@@ -23,13 +23,23 @@
 //!   作用域/权限挂接归宿主装配面） |
 //! | `resourceCloseSession` | `ResourceManager::close_session`（级联释放） |
 //! | `resourceRegisterTempScope` | `ResourceManager::register_temp_scope`（dialog 授权后调用） |
+//! | `resourceMountDirectory` | `ResourceManager::mount_directory`（注册+挂根+绑会话
+//!   一体、失败全量回滚；kind 绑定层钉死 `Document`，JS 面无 kind 参数） |
+//! | `resourceMountArchive` | `ResourceManager::mount_archive`（只读强制、索引构建
+//!   失败整体回滚；kind 绑定层钉死 `Document`） |
+//! | `resourceUnregisterScope` | `ResourceManager::unregister_scope`（级联失效句柄/流/
+//!   缓存；绑定层补会话归属闸——核心签名无会话参数，《04.11》§11.3 N-1 注记族） |
 //!
 //! 约定（§8.2、§8.3、§8.5、§11.3、§11.5）：
 //!
 //! - 进程级单例：`ResourceManager` 以 `Arc` 一次初始化、生命周期与主进程
-//!   一致（§11.5）；绑定层不感知作用域挂载细节（`mount_directory` /
-//!   `register_scope` Document 种类等生产端口载体不在 §11.3 十五导出内，
-//!   归宿主装载链接线波，任务 #194/#196 在册）；
+//!   一致（§11.5）；生产端口载体承接在册（W3 t036 波 A1，RFC-原生承载面
+//!   扩表裁定点位一/二）：常驻文档作用域的挂载与注销三项
+//!   （`resourceMountDirectory` / `resourceMountArchive` /
+//!   `resourceUnregisterScope`）已入导出面，kind 由绑定层钉死
+//!   `ScopeKind::Document`（落位即收紧，宿主无法经此入口注册
+//!   Workspace/Plugin/Temporary 域）；`managedUri ↔ localPath` 双向换算
+//!   （点位三）与包级原子提交（点位四）两导出候后续波落地，届时随动；
 //! - 接线波在册（工单046 段四）：单例构造注入进程级唯一
 //!   `NativeDecisionObserver`（与 bridge 单例同一实例，RFC §八条 2），
 //!   资源域判定素材经 `auditBindDecisionSink` 绑定的宿主 TS 消费函数
@@ -66,11 +76,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use chips_core::ChipsError;
+use chips_core::{ChipsError, PermissionDenyReason};
 use chips_resource::provider::ByteRange;
 use chips_resource::{
-    FsOpRequest, OpenRequest, ResourceError, ResourceLimits, ResourceManager, ResourceMetadata,
-    SessionKind, VirtualPath, WriteRequest, WriteStreamHandle, WriteStreamRequest,
+    FsOpRequest, OpenRequest, Origin, ResourceError, ResourceLimits, ResourceManager,
+    ResourceMetadata, ScopeKind, ScopePolicy, ScopeRegistration, SessionKind, VirtualPath,
+    WriteRequest, WriteStreamHandle, WriteStreamRequest, ARCHIVE_PROVIDER_ID,
+    DIRECTORY_PROVIDER_ID,
 };
 use neon::prelude::*;
 use serde_json::{json, Value};
@@ -496,6 +508,12 @@ fn settle_chunk<'a>(cx: &mut Cx<'a>, chunk: Option<Vec<u8>>) -> JsResult<'a, JsV
     }
 }
 
+/// `string` 收口（Promise 臂输出规范 `ScopeId` 文本）。
+fn settle_string<'a>(cx: &mut Cx<'a>, text: String) -> JsResult<'a, JsValue> {
+    let value = cx.string(text);
+    Ok(value.upcast())
+}
+
 /// `void` 收口（Promise 臂输出 `undefined`）。
 fn settle_undefined<'a>(cx: &mut Cx<'a>, (): ()) -> JsResult<'a, JsValue> {
     Ok(cx.undefined().upcast())
@@ -819,11 +837,167 @@ pub(crate) fn js_resource_register_temp_scope(mut cx: FunctionContext) -> JsResu
     }
 }
 
+// ---------------------------------------------------------------------------
+// 常驻文档作用域挂载与注销（W3 t036 波 A1，RFC 点位一 A1 / 点位二 B2）
+// ---------------------------------------------------------------------------
+
+/// 挂载/注销导出共用的「会话闸」拒绝形：与 `chips-resource` 挂载入口
+/// （`mount_directory` / `mount_archive` 的会话存在性臂）同构——
+/// `RESOURCE_PERMISSION_DENIED`、`details.permission = "session"`、
+/// `reason = out_of_scope`、`target` 仅携作用域根 URI（不泄露真实路径，
+/// 《06》§7.1 既有口径）。
+fn session_gate_denied(scope: &str, missing: Vec<String>, granted: Vec<String>) -> ChipsError {
+    ResourceError::PermissionDenied {
+        target: format!("chips-resource://{scope}/"),
+        permission: "session".to_owned(),
+        required: Vec::new(),
+        missing,
+        granted,
+        reason: PermissionDenyReason::OutOfScope,
+    }
+    .to_chips_error()
+}
+
+/// `resourceUnregisterScope` 绑定层会话归属闸：核心 `unregister_scope(scope)`
+/// 签名无会话参数（`manager.rs` 在册），绑定层以「调用会话当前已绑定该
+/// 作用域」为前置（复用会话注册表既有绑定集判定面，与 `attach_scope` 写入
+/// 的集合同源），防止任一带会话调用方枚举注销他域作用域。未绑定/会话不在册
+/// → `RESOURCE_PERMISSION_DENIED`（`out_of_scope`）。幂等性依核心实读形——
+/// 未在册作用域注销返回 `RESOURCE_NOT_FOUND`（`ScopeRegistry::unregister`），
+/// 绑定层不造第二套语义（RFC OQ-4 定案）。
+fn require_session_bound(
+    manager: &ResourceManager,
+    session: u64,
+    scope: &str,
+) -> Result<(), ChipsError> {
+    match manager.sessions().get(session) {
+        None => Err(session_gate_denied(scope, Vec::new(), Vec::new())),
+        Some(record) if record.scopes.contains(scope) => Ok(()),
+        Some(record) => Err(session_gate_denied(
+            scope,
+            vec![scope.to_owned()],
+            record.scopes.iter().cloned().collect(),
+        )),
+    }
+}
+
+/// 文档态 `ScopeRegistration` 绑定层构造：kind 一律钉死
+/// [`ScopeKind::Document`]（JS 面无 kind 参数，落位即收紧——宿主无法经
+/// 挂载入口注册 Workspace/Plugin/Temporary 域）；`provider_id` 与
+/// `read_only` 由各挂载入口显式给定（归档域核心另强制 `read_only = true`
+/// 双保险）；`owner` 为宿主侧固定平台服务身份哨兵 `DOCUMENT_SCOPE_OWNER`
+/// （取值 `chips.official.document-service`，RFC 裁定G OQ-7 随本波定案，
+/// 名与值在册于 `packages/native/README.md` 与《04.11》§11.3 表说明列；
+/// 常量定义归宿主文档服务侧随波 A2 落地，绑定层只透传不改制），
+/// 大小上限取进程级 `ResourceLimits::max_resource_bytes`（与
+/// `register_temp_scope` 折算同源）。
+fn document_registration(
+    limits: &ResourceLimits,
+    scope: String,
+    owner: String,
+    provider_id: &str,
+    origin: Origin,
+    read_only: bool,
+) -> ScopeRegistration {
+    ScopeRegistration {
+        scope,
+        kind: ScopeKind::Document,
+        owner,
+        provider_id: provider_id.to_owned(),
+        origin,
+        policy: ScopePolicy {
+            read_only,
+            max_resource_bytes: limits.max_resource_bytes,
+            allowed_hosts: Vec::new(),
+        },
+    }
+}
+
+/// `resourceMountDirectory(sessionId, scope, path, owner, writable)`：挂载
+/// 目录域 Document 作用域（注册 + 挂根 + 绑会话一体，任一步失败核心侧全量
+/// 回滚、不留半挂载），返回规范 `ScopeId`（§11.3 异步 `Promise<string>`，
+/// 磁盘 IO 经绑定层运行时回投，先例 `resourceCommitWrite`）。
+pub(crate) fn js_resource_mount_directory(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let session = arg_or_throw!(id_argument(&mut cx, 0, "/sessionId"), &mut cx);
+    let scope = cx.argument::<JsString>(1)?.value(&mut cx);
+    let path = cx.argument::<JsString>(2)?.value(&mut cx);
+    let owner = cx.argument::<JsString>(3)?.value(&mut cx);
+    let writable = cx.argument::<JsBoolean>(4)?.value(&mut cx);
+    let manager = resource_manager();
+    spawn_work(
+        &mut cx,
+        move || {
+            let registration = document_registration(
+                manager.limits(),
+                scope,
+                owner,
+                DIRECTORY_PROVIDER_ID,
+                Origin::Directory(PathBuf::from(path)),
+                !writable,
+            );
+            manager
+                .mount_directory(session, registration)
+                .map_err(|error| error.to_chips_error())
+        },
+        settle_string,
+    )
+}
+
+/// `resourceMountArchive(sessionId, scope, path, owner)`：挂载归档域
+/// Document 作用域（只读强制——核心 `mount_archive` 翻真
+/// `policy.read_only`，绑定层构造即给真，双保险；归档索引构建失败整体
+/// 回滚），返回规范 `ScopeId`（§11.3 异步 `Promise<string>`）。
+pub(crate) fn js_resource_mount_archive(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let session = arg_or_throw!(id_argument(&mut cx, 0, "/sessionId"), &mut cx);
+    let scope = cx.argument::<JsString>(1)?.value(&mut cx);
+    let path = cx.argument::<JsString>(2)?.value(&mut cx);
+    let owner = cx.argument::<JsString>(3)?.value(&mut cx);
+    let manager = resource_manager();
+    spawn_work(
+        &mut cx,
+        move || {
+            let registration = document_registration(
+                manager.limits(),
+                scope,
+                owner,
+                ARCHIVE_PROVIDER_ID,
+                Origin::Archive(PathBuf::from(path)),
+                true,
+            );
+            manager
+                .mount_archive(session, registration)
+                .map_err(|error| error.to_chips_error())
+        },
+        settle_string,
+    )
+}
+
+/// `resourceUnregisterScope(scope, sessionId)`：注销常驻作用域，级联失效
+/// 句柄/流/缓存（§11.2 注销级联口径，核心既有形零新语义）。绑定层前置
+/// 会话归属闸 [`require_session_bound`]（核心签名无会话参数，RFC 点位二
+/// B2 补闸）；§11.3 异步 `Promise<void>`（级联含磁盘侧资源归还）。
+pub(crate) fn js_resource_unregister_scope(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let scope = cx.argument::<JsString>(0)?.value(&mut cx);
+    let session = arg_or_throw!(id_argument(&mut cx, 1, "/sessionId"), &mut cx);
+    let manager = resource_manager();
+    spawn_work(
+        &mut cx,
+        move || {
+            require_session_bound(&manager, session, &scope)?;
+            manager
+                .unregister_scope(&scope)
+                .map_err(|error| error.to_chips_error())
+        },
+        settle_undefined,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     // 测试面保留 Noop：crate 集成测试默认注入形态（RFC §八条 1）。
     use chips_core::NoopDecisionObserver;
+    use chips_resource::handles_of_session;
     use std::collections::BTreeSet;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -1224,5 +1398,732 @@ mod tests {
         forget_session_handles(session);
         assert_eq!(owner_of_handle(handle), UNCLAIMED_SESSION);
         assert_eq!(owner_of_handle(handle + 1), UNCLAIMED_SESSION);
+    }
+
+    // -----------------------------------------------------------------------
+    // 挂载/归档/注销三导出锁测（W3 t036 波 A1，RFC 点位一 A1 / 点位二 B2）
+    // -----------------------------------------------------------------------
+
+    /// 导出面清单与类型声明的离线只读副本（三方锁机检夹具）。
+    const SURFACE_JSON: &str = include_str!("../abi/export-surface.json");
+    const DECLARATIONS: &str = include_str!("../types/chips-native.d.ts");
+
+    /// 挂载/注销测试的宿主侧 owner 透传值（测试夹具身份，非生产常量——
+    /// 生产哨兵 `DOCUMENT_SCOPE_OWNER`（`chips.official.document-service`）
+    /// 名与值已随本波定案在册 README/§11.3，常量定义随波 A2 host 侧落地；
+    /// 绑定层对 owner 只透传，本夹具只证透传形）。
+    const MOUNT_TEST_OWNER: &str = "chips.official.tests";
+
+    /// 40 hex 前缀的规范文档作用域名（《04.11》§11.3 派生规则的当前口径形）。
+    fn document_scope(id: &str) -> String {
+        let hash = format!("{id:0<40}");
+        format!("card-{hash}")
+    }
+
+    /// 绑定层链路完整复刻的目录挂载臂（js 导出体的工作闭包同形）。
+    fn mount_directory_via_binding(
+        manager: &ResourceManager,
+        session: u64,
+        scope: &str,
+        root: &Path,
+        writable: bool,
+    ) -> Result<String, ChipsError> {
+        let registration = document_registration(
+            manager.limits(),
+            scope.to_owned(),
+            MOUNT_TEST_OWNER.to_owned(),
+            DIRECTORY_PROVIDER_ID,
+            Origin::Directory(root.to_owned()),
+            !writable,
+        );
+        manager
+            .mount_directory(session, registration)
+            .map_err(|error| error.to_chips_error())
+    }
+
+    /// 绑定层链路完整复刻的归档挂载臂。
+    fn mount_archive_via_binding(
+        manager: &ResourceManager,
+        session: u64,
+        scope: &str,
+        path: &Path,
+    ) -> Result<String, ChipsError> {
+        let registration = document_registration(
+            manager.limits(),
+            scope.to_owned(),
+            MOUNT_TEST_OWNER.to_owned(),
+            ARCHIVE_PROVIDER_ID,
+            Origin::Archive(path.to_owned()),
+            true,
+        );
+        manager
+            .mount_archive(session, registration)
+            .map_err(|error| error.to_chips_error())
+    }
+
+    /// 绑定层链路完整复刻的注销臂（会话闸 + 核心注销）。
+    fn unregister_via_binding(
+        manager: &ResourceManager,
+        session: u64,
+        scope: &str,
+    ) -> Result<(), ChipsError> {
+        require_session_bound(manager, session, scope)?;
+        let scope_id = scope.to_owned();
+        manager
+            .unregister_scope(&scope_id)
+            .map_err(|error| error.to_chips_error())
+    }
+
+    /// 建带读写权限的文档会话（夹具快捷形）。
+    fn mount_session(manager: &ResourceManager, permissions: &[&str]) -> u64 {
+        manager
+            .open_session(
+                SessionKind::Document,
+                &MOUNT_TEST_OWNER.to_owned(),
+                BTreeSet::new(),
+                permissions
+                    .iter()
+                    .map(|permission| (*permission).to_owned())
+                    .collect::<Vec<_>>(),
+            )
+            .expect("夹具会话创建必须成功")
+    }
+
+    /// 错误 `details` 取回（锁测统一入口：拒绝形必须携在册 details 树）。
+    fn details_of(error: &ChipsError) -> Value {
+        error
+            .details()
+            .cloned()
+            .expect("拒绝错误必须携在册 details")
+    }
+
+    /// ZIP Store 条目构造（局部头 + 中央目录记录，偏移由装配函数回填）；
+    /// 形制与 `chips-resource` 集成测试夹具同源（写侧对拍先例）。
+    fn zip_store_entry(name: &str, data: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        fn crc32(data: &[u8]) -> u32 {
+            let mut crc: u32 = 0xFFFF_FFFF;
+            for byte in data {
+                crc ^= u32::from(*byte);
+                for _ in 0..8 {
+                    crc = if crc & 1 == 1 {
+                        (crc >> 1) ^ 0xEDB8_8320
+                    } else {
+                        crc >> 1
+                    };
+                }
+            }
+            !crc
+        }
+        let name_bytes = name.as_bytes();
+        let checksum = crc32(data);
+        let mut local = Vec::new();
+        local.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+        local.extend_from_slice(&20u16.to_le_bytes());
+        local.extend_from_slice(&0x0800u16.to_le_bytes());
+        local.extend_from_slice(&0u16.to_le_bytes()); // method = Store
+        local.extend_from_slice(&0u16.to_le_bytes());
+        local.extend_from_slice(&0x0021u16.to_le_bytes());
+        local.extend_from_slice(&checksum.to_le_bytes());
+        local.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        local.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        local.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
+        local.extend_from_slice(&0u16.to_le_bytes());
+        local.extend_from_slice(name_bytes);
+        local.extend_from_slice(data);
+        let mut central = Vec::new();
+        central.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&0x0800u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0x0021u16.to_le_bytes());
+        central.extend_from_slice(&checksum.to_le_bytes());
+        central.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        central.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        central.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes()); // external attrs（可篡改臂）
+        central.extend_from_slice(name_bytes);
+        (local, central)
+    }
+
+    /// 组装完整 Store 归档（中央目录回填真实偏移 + EOCD）。
+    fn zip_store_archive(specs: &[(&str, &[u8])]) -> Vec<u8> {
+        let entries: Vec<(Vec<u8>, Vec<u8>)> = specs
+            .iter()
+            .map(|(name, data)| zip_store_entry(name, data))
+            .collect();
+        let mut archive = Vec::new();
+        let mut offsets = Vec::new();
+        for (local, _) in &entries {
+            offsets.push(archive.len() as u32);
+            archive.extend_from_slice(local);
+        }
+        let central_offset = archive.len() as u32;
+        for ((_, central), offset) in entries.iter().zip(&offsets) {
+            let mut central = central.clone();
+            central[42..46].copy_from_slice(&offset.to_le_bytes());
+            archive.extend_from_slice(&central);
+        }
+        let central_size = archive.len() as u32 - central_offset;
+        archive.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+        archive.extend_from_slice(&0u16.to_le_bytes());
+        archive.extend_from_slice(&0u16.to_le_bytes());
+        archive.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+        archive.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+        archive.extend_from_slice(&central_size.to_le_bytes());
+        archive.extend_from_slice(&central_offset.to_le_bytes());
+        archive.extend_from_slice(&0u16.to_le_bytes());
+        archive
+    }
+
+    /// 把首条目中央记录篡改为 UNIX 符号链接（非普通文件条目，解析器
+    /// 索引期拒绝臂，《04.03》§3.3 尾部）。
+    fn tamper_first_entry_as_symlink(archive: &mut [u8]) {
+        let eocd = archive
+            .windows(4)
+            .rfind(|window| *window == 0x0605_4b50u32.to_le_bytes())
+            .expect("EOCD 签名必须在册")
+            .as_ptr() as usize
+            - archive.as_ptr() as usize;
+        let central_offset = u32::from_le_bytes([
+            archive[eocd + 16],
+            archive[eocd + 17],
+            archive[eocd + 18],
+            archive[eocd + 19],
+        ]) as usize;
+        // made-by 高字节 = 3（UNIX），外部属性高 16 位 = S_IFLNK。
+        archive[central_offset + 4..central_offset + 6].copy_from_slice(&0x0314u16.to_le_bytes());
+        archive[central_offset + 38..central_offset + 42]
+            .copy_from_slice(&(0o120_000u32 << 16).to_le_bytes());
+    }
+
+    #[test]
+    fn test_mount_unregister_surface_entries_locked_in_manifest() {
+        // 形状锁①：三导出在清单中的 kind/signature 逐字锁定（参数表逐位、
+        // 返回 Promise 形状），与 RFC §4.2/§5.1 逐字表行一字不差。
+        let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
+        let exports = surface["exports"].as_array().expect("exports 数组");
+        assert_eq!(exports.len(), 53, "波 A1 在册全表 53 项");
+        assert_eq!(crate::abi::EXPORT_NAMES.len(), 53, "注册表同为 53 项");
+        let expected: [(&str, &str, &str); 3] = [
+            (
+                "resourceMountDirectory",
+                "async",
+                "(sessionId: number, scope: string, path: string, owner: string, writable: boolean) => Promise<string>",
+            ),
+            (
+                "resourceMountArchive",
+                "async",
+                "(sessionId: number, scope: string, path: string, owner: string) => Promise<string>",
+            ),
+            ("resourceUnregisterScope", "async", "(scope: string, sessionId: number) => Promise<void>"),
+        ];
+        for (name, kind, signature) in expected {
+            let entry = exports
+                .iter()
+                .find(|entry| entry["name"] == name)
+                .unwrap_or_else(|| panic!("清单必须收录 {name}"));
+            assert_eq!(entry["kind"], kind, "{name} kind 锁定");
+            assert_eq!(entry["signature"], signature, "{name} 签名逐字锁定");
+            assert!(
+                !entry["signature"]
+                    .as_str()
+                    .is_some_and(|text| text.contains("kind")),
+                "{name} 参数表不得暴露 kind（绑定层钉死 Document 的机检）"
+            );
+        }
+        // 资源域位次：三名紧随 `resourceRegisterTempScope`、先于 audit 域。
+        let names: Vec<&str> = exports
+            .iter()
+            .map(|entry| entry["name"].as_str().expect("name 字符串"))
+            .collect();
+        assert_eq!(names, crate::abi::EXPORT_NAMES, "清单与注册表逐项同序");
+        let anchor = names
+            .iter()
+            .position(|name| *name == "resourceRegisterTempScope")
+            .expect("temp 注册导出必须在册");
+        assert_eq!(
+            &names[anchor + 1..anchor + 4],
+            &[
+                "resourceMountDirectory",
+                "resourceMountArchive",
+                "resourceUnregisterScope"
+            ],
+            "资源域三名同序紧随 temp 注册导出"
+        );
+    }
+
+    #[test]
+    fn test_mount_unregister_surface_declarations_locked_in_d_ts() {
+        // 形状锁②：d.ts 声明面与清单/注册表三方一致（名称序列全等），
+        // 三声明的参数逐位与返回形状锁定、无 kind 参数。
+        let names: Vec<&str> = DECLARATIONS
+            .lines()
+            .filter_map(|line| line.strip_prefix("export function "))
+            .filter_map(|rest| rest.split('(').next())
+            .collect();
+        assert_eq!(names, crate::abi::EXPORT_NAMES, "d.ts 声明序列与注册表全等");
+        let declaration_of = |name: &str| -> String {
+            let marker = format!("export function {name}(");
+            let start = DECLARATIONS
+                .find(&marker)
+                .unwrap_or_else(|| panic!("d.ts 必须声明 {name}"));
+            let end = DECLARATIONS[start..]
+                .find(';')
+                .map(|offset| start + offset)
+                .expect("声明必须以分号收口");
+            DECLARATIONS[start..=end].to_owned()
+        };
+        let directory = declaration_of("resourceMountDirectory");
+        for fragment in [
+            "sessionId: number",
+            "scope: string",
+            "path: string",
+            "owner: string",
+            "writable: boolean",
+            "): Promise<string>;",
+        ] {
+            assert!(
+                directory.contains(fragment),
+                "目录挂载声明逐位锁定：{fragment}"
+            );
+        }
+        assert!(
+            !directory.contains("kind"),
+            "目录挂载声明不得暴露 kind 参数"
+        );
+        let archive = declaration_of("resourceMountArchive");
+        for fragment in [
+            "sessionId: number",
+            "scope: string",
+            "path: string",
+            "owner: string",
+            "): Promise<string>;",
+        ] {
+            assert!(
+                archive.contains(fragment),
+                "归档挂载声明逐位锁定：{fragment}"
+            );
+        }
+        assert!(
+            !archive.contains("writable"),
+            "归档挂载无 writable（只读强制）"
+        );
+        assert!(!archive.contains("kind"), "归档挂载声明不得暴露 kind 参数");
+        let unregister = declaration_of("resourceUnregisterScope");
+        for fragment in ["scope: string", "sessionId: number", "): Promise<void>;"] {
+            assert!(
+                unregister.contains(fragment),
+                "注销声明逐位锁定：{fragment}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_document_registration_kind_pinned_and_fields_passthrough() {
+        // 形状锁③：绑定层构造面 kind 恒为 Document（JS 面无 kind 参数的落位
+        // 即收紧本体）、owner 透传、writable→read_only 折算、归档臂只读恒真、
+        // 大小上限与进程级 limits 同源。
+        let limits = ResourceLimits::default();
+        let directory = document_registration(
+            &limits,
+            "card-0f3e".to_owned(),
+            "chips.official.host".to_owned(),
+            DIRECTORY_PROVIDER_ID,
+            Origin::Directory(PathBuf::from("/tmp/doc-root")),
+            false,
+        );
+        assert_eq!(directory.kind, ScopeKind::Document, "kind 绑定层钉死");
+        assert_eq!(directory.provider_id, DIRECTORY_PROVIDER_ID);
+        assert_eq!(directory.owner, "chips.official.host", "owner 只透传不改制");
+        assert!(!directory.policy.read_only, "writable=true → 非只读");
+        assert_eq!(
+            directory.policy.max_resource_bytes,
+            limits.max_resource_bytes
+        );
+        assert!(
+            matches!(&directory.origin, Origin::Directory(path) if path == &PathBuf::from("/tmp/doc-root"))
+        );
+        let read_only = document_registration(
+            &limits,
+            "box-0f3e".to_owned(),
+            "chips.official.host".to_owned(),
+            DIRECTORY_PROVIDER_ID,
+            Origin::Directory(PathBuf::from("/tmp/doc-root")),
+            true,
+        );
+        assert!(read_only.policy.read_only, "writable=false → 只读折算");
+        let archive = document_registration(
+            &limits,
+            "card-1a2b".to_owned(),
+            "chips.official.host".to_owned(),
+            ARCHIVE_PROVIDER_ID,
+            Origin::Archive(PathBuf::from("/tmp/doc.card")),
+            true,
+        );
+        assert_eq!(archive.kind, ScopeKind::Document);
+        assert_eq!(archive.provider_id, ARCHIVE_PROVIDER_ID);
+        assert!(
+            archive.policy.read_only,
+            "归档臂构造即只读（核心翻真双保险）"
+        );
+        assert!(
+            matches!(&archive.origin, Origin::Archive(path) if path == &PathBuf::from("/tmp/doc.card"))
+        );
+    }
+
+    #[test]
+    fn test_mount_directory_success_and_read_only_translation() {
+        let root = temp_root("mount-ok");
+        let manager = fixture_manager();
+        let session = mount_session(&manager, &["resources:read", "resources:write"]);
+        let scope = document_scope("0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f");
+        let mounted = mount_directory_via_binding(&manager, session, &scope, &root, true)
+            .expect("目录挂载必须成功");
+        assert_eq!(mounted, scope, "返回规范 ScopeId（原样收口）");
+        assert!(manager.directory_mounted(&scope), "根目录在册");
+        let registration = manager.scopes().lookup(&scope).expect("作用域必须注册");
+        assert_eq!(registration.kind, ScopeKind::Document);
+        assert_eq!(registration.owner, MOUNT_TEST_OWNER);
+        assert_eq!(registration.provider_id, DIRECTORY_PROVIDER_ID);
+        assert!(!registration.policy.read_only);
+        // 挂载即绑创建者会话（`mount_*` 一体形，《06》§3.2）。
+        let record = manager.sessions().get(session).expect("会话在册");
+        assert!(record.scopes.contains(&scope), "创建者会话已绑定");
+        // writable=false 折算：只读目录域写臂必拒（RESOURCE_READ_ONLY）。
+        let locked_root = temp_root("mount-locked");
+        fs::write(locked_root.join("a.txt"), b"seed").expect("夹具文件");
+        let locked_scope = document_scope("1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b");
+        mount_directory_via_binding(&manager, session, &locked_scope, &locked_root, false)
+            .expect("只读目录挂载必须成功");
+        let error = test_runtime()
+            .block_on(manager.commit_write(WriteRequest {
+                session,
+                scope: locked_scope.clone(),
+                path:
+                    write_virtual_path(manager.limits(), &locked_scope, "a.txt").expect("在册路径"),
+                bytes: b"rewrite".to_vec(),
+            }))
+            .expect_err("只读挂载就地写必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_READ_ONLY");
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&locked_root);
+    }
+
+    #[test]
+    fn test_mount_directory_error_arms_and_no_path_leak() {
+        let root = temp_root("mount-arms");
+        let manager = fixture_manager();
+        let session = mount_session(&manager, &["resources:read"]);
+        // 会话不存在 → PERMISSION_DENIED（reason = out_of_scope，target 只携
+        // 作用域根 URI）。
+        let ghost_scope = document_scope("aaaa");
+        let error = mount_directory_via_binding(&manager, 9_999, &ghost_scope, &root, true)
+            .expect_err("无会话挂载必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        assert_eq!(details_of(&error)["reason"], "out_of_scope");
+        assert_eq!(details_of(&error)["permission"], "session");
+        // 根缺失 → NOT_FOUND，细节只携作用域 URI、不泄露真实路径。
+        let missing = root.join("secret-missing-dir-4f7e");
+        let error = mount_directory_via_binding(&manager, session, &ghost_scope, &missing, true)
+            .expect_err("缺失根必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_NOT_FOUND");
+        assert_eq!(
+            details_of(&error)["uri"],
+            format!("chips-resource://{ghost_scope}/")
+        );
+        assert!(
+            !error.message().contains("secret-missing-dir-4f7e"),
+            "错误文本不得携真实路径"
+        );
+        // 根存在但非目录 → 同款 NOT_FOUND。
+        fs::write(root.join("secret-plain-file"), b"x").expect("夹具文件");
+        let error = mount_directory_via_binding(
+            &manager,
+            session,
+            &ghost_scope,
+            &root.join("secret-plain-file"),
+            true,
+        )
+        .expect_err("非目录根必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_NOT_FOUND");
+        assert!(
+            !error.message().contains("secret-plain-file"),
+            "错误文本不得携真实路径"
+        );
+        // 重复挂载 → ALREADY_EXISTS。
+        let scope = document_scope("bbbb");
+        mount_directory_via_binding(&manager, session, &scope, &root, true)
+            .expect("首次挂载必须成功");
+        let error = mount_directory_via_binding(&manager, session, &scope, &root, true)
+            .expect_err("重复挂载必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_ALREADY_EXISTS");
+        // scope 命名违例（非在册前缀）→ INVALID_URI（malformed_scope）。
+        let error = mount_directory_via_binding(&manager, session, "rogue-scope", &root, true)
+            .expect_err("非在册命名必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+        assert_eq!(details_of(&error)["reason"], "malformed_scope");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_mount_directory_kind_forced_rejection_and_rollback() {
+        // 落位即收紧机检：JS 传 workspace 前缀名也注册不了 Workspace 域
+        // （kind 绑定层钉死 Document，前缀-种类匹配由核心校验臂兜底拒绝），
+        // 且中途失败不留半挂载：根 detach 后重试仍挂命名错而非 ALREADY_EXISTS。
+        let root = temp_root("mount-rollback");
+        let manager = fixture_manager();
+        let session = mount_session(&manager, &["resources:read"]);
+        for bad_scope in ["workspace-abc", "plugin-doc", "rogue-x"] {
+            let error = mount_directory_via_binding(&manager, session, bad_scope, &root, true)
+                .expect_err("命名/种类违例必须拒绝");
+            assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+            assert!(
+                !manager.directory_mounted(&bad_scope.to_owned()),
+                "失败回滚不得留半挂载根：{bad_scope}"
+            );
+            assert!(manager.scopes().lookup(bad_scope).is_none(), "不得留半注册");
+            // 重投同 scope：仍挂命名错（若根未 detach 会先挂 ALREADY_EXISTS）。
+            let retry = mount_directory_via_binding(&manager, session, bad_scope, &root, true)
+                .expect_err("重试必须仍拒");
+            assert_eq!(
+                retry.code(),
+                "RESOURCE_INVALID_URI",
+                "零残留判别臂：{bad_scope}"
+            );
+        }
+        // 会话无效中途失败：根未 detach 与否以「后续有效会话可挂」判别。
+        let pending_scope = document_scope("cccc");
+        let error = mount_directory_via_binding(&manager, 8_888, &pending_scope, &root, true)
+            .expect_err("无效会话必须先行拒绝");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        assert!(!manager.directory_mounted(&pending_scope));
+        mount_directory_via_binding(&manager, session, &pending_scope, &root, true)
+            .expect("有效会话重挂同 scope 必须成功（前次零残留）");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_mount_archive_success_with_forced_read_only() {
+        let root = temp_root("archive-ok");
+        let archive_path = root.join("doc.card");
+        let bytes = zip_store_archive(&[("content/", b""), ("content/note.txt", b"hello zip")]);
+        fs::write(&archive_path, &bytes).expect("夹具归档必须可写");
+        let manager = fixture_manager();
+        let session = mount_session(&manager, &["resources:read", "resources:write"]);
+        let scope = document_scope("dddd");
+        let mounted = mount_archive_via_binding(&manager, session, &scope, &archive_path)
+            .expect("归档挂载必须成功");
+        assert_eq!(mounted, scope);
+        let registration = manager.scopes().lookup(&scope).expect("作用域必须注册");
+        assert_eq!(registration.kind, ScopeKind::Document);
+        assert_eq!(registration.provider_id, ARCHIVE_PROVIDER_ID);
+        assert!(registration.policy.read_only, "只读强制未被绕过");
+        // 挂载后经写路径必拒（只读强制锁）。
+        let error = test_runtime()
+            .block_on(
+                manager.commit_write(WriteRequest {
+                    session,
+                    scope: scope.clone(),
+                    path: write_virtual_path(manager.limits(), &scope, "content/note.txt")
+                        .expect("在册路径"),
+                    bytes: b"overwrite".to_vec(),
+                }),
+            )
+            .expect_err("归档域就地写必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_READ_ONLY");
+        // 读侧在册（既有面可组合承载列举，《06.02》§6.2 口径）。
+        let entries = test_runtime()
+            .block_on(manager.list_directory(OpenRequest {
+                uri: format!("chips-resource://{scope}/content"),
+                session,
+            }))
+            .expect("归档列举必须成功");
+        assert!(entries.iter().any(|entry| entry.name == "note.txt"));
+        // 重复挂载 → ALREADY_EXISTS。
+        let error = mount_archive_via_binding(&manager, session, &scope, &archive_path)
+            .expect_err("重复归档挂载必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_ALREADY_EXISTS");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_mount_archive_error_arms() {
+        let root = temp_root("archive-arms");
+        let manager = fixture_manager();
+        let session = mount_session(&manager, &["resources:read"]);
+        let scope = document_scope("eeee");
+        // 会话不存在 → PERMISSION_DENIED（与目录域同臂）。
+        let error = mount_archive_via_binding(&manager, 9_999, &scope, &root.join("absent.card"))
+            .expect_err("无会话归档挂载必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        assert_eq!(details_of(&error)["reason"], "out_of_scope");
+        // 归档缺失 → NOT_FOUND（细节只携作用域 URI）。
+        let missing = root.join("secret-absent.card");
+        let error = mount_archive_via_binding(&manager, session, &scope, &missing)
+            .expect_err("缺失归档必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_NOT_FOUND");
+        assert_eq!(
+            details_of(&error)["uri"],
+            format!("chips-resource://{scope}/")
+        );
+        assert!(!error.message().contains("secret-absent"));
+        // 坏归档（非 ZIP 结构）→ INTERNAL 兜底。
+        fs::write(root.join("junk.card"), b"not-a-zip-at-all").expect("夹具写入");
+        let error = mount_archive_via_binding(&manager, session, &scope, &root.join("junk.card"))
+            .expect_err("坏归档必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_INTERNAL");
+        // 含非普通文件条目（UNIX 符号链接成员）→ 索引期拒绝 → INTERNAL，
+        // 且零残留（后续合法挂载可成）。
+        let mut symlink_archive = zip_store_archive(&[("content/link.txt", b"x")]);
+        tamper_first_entry_as_symlink(&mut symlink_archive);
+        fs::write(root.join("link.card"), &symlink_archive).expect("夹具写入");
+        let error = mount_archive_via_binding(&manager, session, &scope, &root.join("link.card"))
+            .expect_err("非普通文件条目必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_INTERNAL");
+        assert!(
+            manager.scopes().lookup(&scope).is_none(),
+            "坏归档不得留半注册"
+        );
+        let good = zip_store_archive(&[("content/note.txt", b"ok")]);
+        fs::write(root.join("good.card"), &good).expect("夹具写入");
+        mount_archive_via_binding(&manager, session, &scope, &root.join("good.card"))
+            .expect("坏归档回滚后合法挂载必须成功（零残留）");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_unregister_scope_gate_cascade_and_double_arm() {
+        let root = temp_root("unregister");
+        fs::write(root.join("a.txt"), b"hello").expect("夹具文件");
+        let manager = fixture_manager();
+        let owner_session = mount_session(&manager, &["resources:read", "resources:write"]);
+        let other_session = mount_session(&manager, &["resources:read", "resources:write"]);
+        let scope = document_scope("ffff");
+        mount_directory_via_binding(&manager, owner_session, &scope, &root, true)
+            .expect("挂载必须成功");
+        // 名下开一个在册句柄（级联失效面输入）。
+        let runtime = test_runtime();
+        let opened = runtime
+            .block_on(manager.open(OpenRequest {
+                uri: format!("chips-resource://{scope}/a.txt"),
+                session: owner_session,
+            }))
+            .expect("句柄打开必须成功");
+        assert_eq!(
+            handles_of_session(&manager, owner_session),
+            vec![opened.id],
+            "级联失效面输入：名下句柄在册"
+        );
+        // 他会话注销必拒（双会话锁测）：out_of_scope + missing 携作用域。
+        let error = unregister_via_binding(&manager, other_session, &scope)
+            .expect_err("他会话注销必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        assert_eq!(details_of(&error)["reason"], "out_of_scope");
+        assert_eq!(details_of(&error)["missing"][0], scope.as_str());
+        assert!(
+            manager.scopes().lookup(&scope).is_some(),
+            "拒绝不得破坏在册作用域"
+        );
+        assert!(
+            unregister_via_binding(&manager, 7_777, &scope).is_err(),
+            "幽灵会话必拒"
+        );
+        // 本会话注销成功且级联失效（句柄/注册表/根三面）。
+        unregister_via_binding(&manager, owner_session, &scope).expect("本会话注销必须成功");
+        assert!(manager.scopes().lookup(&scope).is_none());
+        assert!(!manager.directory_mounted(&scope));
+        assert!(
+            handles_of_session(&manager, owner_session).is_empty(),
+            "注销必须级联失效名下句柄"
+        );
+        // 核心幂等实读形双向锁定（OQ-4）：绑定闸形——重复注销经闸拒
+        // （绑定集已级联摘除）；核心形——直挂未在册作用域回 NOT_FOUND。
+        let error = unregister_via_binding(&manager, owner_session, &scope)
+            .expect_err("重复注销（绑定层形）必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        let core_error = manager
+            .unregister_scope(&scope)
+            .expect_err("重复注销（核心形）必须失败");
+        assert_eq!(core_error.code(), "RESOURCE_NOT_FOUND");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_mount_scope_naming_arms_document_domain() {
+        // 命名违例逐臂锁（波 A1 覆盖面⑧）：文档域三种违例形态逐一在册——
+        // ① 非 `card-`/`box-` 前缀：核心注册校验臂（`scope.rs` 前缀-种类
+        //    匹配）即时拒绝 `RESOURCE_INVALID_URI`（`malformed_scope`），
+        //    零半挂载（在册 arms 测试与回滚测试双侧锁定，此处补 box 位）；
+        // ② 混入大写与 ③ 超 64 字符：注册阶段校验臂只查前缀与种类匹配
+        //    （实读形），此类名可通过挂载登记；URI 面两臂不同码同源——
+        //    解析先对作用域段做 ASCII 小写归一（《06.02》§2.3 小写集），
+        //    混大写名归一后失配注册表恒 `RESOURCE_NOT_FOUND`（不可达），
+        //    超长名过 `validate_scope_syntax` 的 64 预算闸恒
+        //    `RESOURCE_INVALID_URI`（`malformed_scope`）；两态作用域对
+        //    全部 URI 面不可达、注销闸面仍可清理（零残留）。
+        //    生产臂永不触达：《04.11》§11.3 派生规则保证小写 40 hex。
+        let root = temp_root("naming-arms");
+        fs::write(root.join("a.txt"), b"hello").expect("夹具文件");
+        let manager = fixture_manager();
+        let session = mount_session(&manager, &["resources:read"]);
+        let runtime = test_runtime();
+        // ① 前缀违例（box 位补臂）：注册臂拒绝、不留注册。
+        let error = mount_directory_via_binding(&manager, session, "boxes-0f3e", &root, true)
+            .expect_err("box 近似前缀必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+        assert_eq!(details_of(&error)["reason"], "malformed_scope");
+        assert!(manager.scopes().lookup("boxes-0f3e").is_none());
+        // ② 混入大写：注册阶段放行（前缀+种类臂），URI 解析小写归一后
+        //    失配注册表恒不可达（NOT_FOUND）、注销可清理。
+        let upper = format!("card-{}", "0F3E".repeat(10));
+        mount_directory_via_binding(&manager, session, &upper, &root, true)
+            .expect("大写混入名注册阶段在册放行（实读形锁定）");
+        assert!(manager.scopes().lookup(&upper).is_some());
+        let error = runtime
+            .block_on(manager.list_directory(OpenRequest {
+                uri: format!("chips-resource://{upper}/a.txt"),
+                session,
+            }))
+            .expect_err("大写作用域名对 URI 面必须不可达");
+        assert_eq!(error.code(), "RESOURCE_NOT_FOUND");
+        unregister_via_binding(&manager, session, &upper).expect("违例名注销闸面必须可清理");
+        assert!(manager.scopes().lookup(&upper).is_none(), "注销后零残留");
+        // ③ 超 64 字符：同款形态（注册阶段放行、URI 面拒绝、可清理）。
+        let overlong = format!("box-{}", "a".repeat(70));
+        assert!(overlong.len() > 64, "夹具必须越 64 预算");
+        mount_directory_via_binding(&manager, session, &overlong, &root, true)
+            .expect("超长名注册阶段在册放行（实读形锁定）");
+        let error = runtime
+            .block_on(manager.open(OpenRequest {
+                uri: format!("chips-resource://{overlong}/a.txt"),
+                session,
+            }))
+            .expect_err("超长作用域名对 URI 面必须不可达");
+        assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+        assert_eq!(details_of(&error)["reason"], "malformed_scope");
+        unregister_via_binding(&manager, session, &overlong).expect("超长名注销闸面必须可清理");
+        assert!(
+            !manager.directory_mounted(&overlong),
+            "清理后不得留半挂载根"
+        );
+        // 合法形对照：小写 `card-` + 40 hex（总长 45 ≤ 64）可达。
+        let canonical = document_scope("0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f");
+        mount_directory_via_binding(&manager, session, &canonical, &root, true)
+            .expect("规范派生名必须可挂载");
+        let opened = runtime
+            .block_on(manager.open(OpenRequest {
+                uri: format!("chips-resource://{canonical}/a.txt"),
+                session,
+            }))
+            .expect("规范派生名对 URI 面必须可达");
+        assert_eq!(opened.metadata.size, b"hello".len() as u64);
+        let _ = fs::remove_dir_all(&root);
     }
 }

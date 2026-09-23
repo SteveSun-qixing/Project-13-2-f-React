@@ -88,6 +88,8 @@ import {
   resourceCreateDirectory,
   resourceDelete,
   resourceListDirectory,
+  resourceMountArchive,
+  resourceMountDirectory,
   resourceOpen,
   resourceOpenSession,
   resourceRead,
@@ -96,6 +98,7 @@ import {
   resourceRelease,
   resourceRename,
   resourceStat,
+  resourceUnregisterScope,
 } from 'chips-native';
 
 declare const handle: ContextHandle;
@@ -356,6 +359,23 @@ export const resourceDirectoryCreated: Promise<void> = resourceCreateDirectory(
 export const resourceSession: number = resourceOpenSession('plugin', 'chips.official.host');
 resourceCloseSession(resourceSession);
 export const tempScopeId: string = resourceRegisterTempScope('/tmp/chips-temp-scope', true);
+export const mountedDirectoryScope: Promise<string> = resourceMountDirectory(
+  resourceSession,
+  'card-0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f',
+  '/tmp/chips-doc-root',
+  'chips.official.host',
+  true
+);
+export const mountedArchiveScope: Promise<string> = resourceMountArchive(
+  resourceSession,
+  'box-0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f',
+  '/tmp/chips-doc.card',
+  'chips.official.host'
+);
+export const scopeUnregistered: Promise<void> = resourceUnregisterScope(
+  'card-0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f',
+  resourceSession
+);
 
 // 资源投影形状探针：DTO 字段与写流方法面必须按声明面可用。
 export const resourceMetadataFields: Promise<[string, number, string, string, IResourceScopeKind]> =
@@ -409,6 +429,14 @@ void resourceRename('chips-resource://workspace/a.txt', 1);
 void resourceRegisterTempScope('/tmp/chips-temp-scope', 'yes');
 // @ts-expect-error resourceOpenSession 必须提供 owner
 void resourceOpenSession('plugin');
+// @ts-expect-error resourceMountDirectory 的 writable 必须是布尔值
+void resourceMountDirectory(1, 'card-0f3e', '/tmp/chips-doc-root', 'chips.official.host', 'yes');
+// @ts-expect-error 挂载导出不暴露 kind 参数（绑定层钉死 Document，目录挂载仅五参）
+void resourceMountDirectory(1, 'card-0f3e', '/tmp/x', 'chips.official.host', true, 'workspace');
+// @ts-expect-error resourceMountArchive 没有 writable 参数（只读强制，仅四参）
+void resourceMountArchive(1, 'box-0f3e', '/tmp/x.card', 'chips.official.host', true);
+// @ts-expect-error resourceUnregisterScope 必须提供会话 ID
+void resourceUnregisterScope('card-0f3e');
 // @ts-expect-error 写流 append 必须提供字节实参
 void resourceStream.then((stream) => stream.append());
 // @ts-expect-error 写流 commit 不接受参数

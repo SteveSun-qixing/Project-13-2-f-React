@@ -247,6 +247,21 @@
       "signature": "(path: string, writable: boolean) => string"
     },
     {
+      "name": "resourceMountDirectory",
+      "kind": "async",
+      "signature": "(sessionId: number, scope: string, path: string, owner: string, writable: boolean) => Promise<string>"
+    },
+    {
+      "name": "resourceMountArchive",
+      "kind": "async",
+      "signature": "(sessionId: number, scope: string, path: string, owner: string) => Promise<string>"
+    },
+    {
+      "name": "resourceUnregisterScope",
+      "kind": "async",
+      "signature": "(scope: string, sessionId: number) => Promise<void>"
+    },
+    {
       "name": "auditBindDecisionSink",
       "kind": "sync",
       "signature": "(sink: (frame: INativeAuditDecisionFrame) => void) => void"

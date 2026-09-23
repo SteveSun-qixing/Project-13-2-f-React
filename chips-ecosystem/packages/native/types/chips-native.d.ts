@@ -11,7 +11,7 @@
  * `bridgeCloseSession` / `bridgeShutdown`，《核心接口规范》§5.5–§5.7）、文档解析
  * 域导出（`openDocument` / `openCard` / `openBox` / `document*` /
  * `buildDocumentView`，《核心接口规范》§6.4、§6.6，《06-文档解析器设计》§12）
- * 与资源管理域导出（`resource*` 十五导出，《核心接口规范》§7.3，
+ * 与资源管理域导出（`resource*` 十八导出，《核心接口规范》§7.3，
  * 《04.11-04-资源管理设计》§11.3）、审计观察域导出（`auditBindDecisionSink`，
  * RFC-权限审计跨层采集sink裁定 §八；工单046 段四接线波）共用本入口；
  * 导出表只增不改，签名变化递增 `coreAbiVersion`。
@@ -592,6 +592,39 @@ export function resourceCloseSession(sessionId: number): void;
 
 /** 注册临时作用域（`dialog:*` 授权后调用），返回平台分配的 `ScopeId`。 */
 export function resourceRegisterTempScope(path: string, writable: boolean): string;
+
+/**
+ * 挂载目录域 Document 作用域（注册 + 挂根 + 绑会话一体，失败全量回滚，
+ * 《04.11》§11.3 点位一 A1），返回规范 `ScopeId`；kind 由绑定层钉死
+ * `document`（JS 面无 kind 参数，落位即收紧）。`sessionId` 必须是不超过
+ * 2^53 的非负整数值，否则以 `NATIVE_VALUE_OUT_OF_RANGE` 拒绝。
+ */
+export function resourceMountDirectory(
+  sessionId: number,
+  scope: string,
+  path: string,
+  owner: string,
+  writable: boolean
+): Promise<string>;
+
+/**
+ * 挂载归档域 Document 作用域（只读强制——归档永不就地改写，索引构建失败
+ * 整体回滚），返回规范 `ScopeId`；kind 由绑定层钉死 `document`。
+ */
+export function resourceMountArchive(
+  sessionId: number,
+  scope: string,
+  path: string,
+  owner: string
+): Promise<string>;
+
+/**
+ * 注销常驻作用域：级联失效句柄/流/缓存（§11.2 注销级联口径）；绑定层前置
+ * 会话归属闸——调用会话必须当前已绑定该作用域，否则
+ * `RESOURCE_PERMISSION_DENIED`（`out_of_scope`）；幂等性依核心实读形，
+ * 未在册作用域返回 `RESOURCE_NOT_FOUND`。
+ */
+export function resourceUnregisterScope(scope: string, sessionId: number): Promise<void>;
 
 /**
  * 权限判定出站素材（Rust `PermissionDecision` 的 JSON 投影；键表见
