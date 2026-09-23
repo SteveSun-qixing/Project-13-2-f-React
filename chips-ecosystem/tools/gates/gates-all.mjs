@@ -15,12 +15,14 @@ import { runCheck as runDocs } from './check-docs.mjs';
 import { runCheck as runContracts } from './check-contracts.mjs';
 import { runCheck as runBoundaries } from './check-boundaries.mjs';
 import { runCheck as runCoverage } from './check-coverage.mjs';
+import { runCheck as runGeneratedProject } from './check-generated-project.mjs';
 
 const GATES = [
   { id: 'docs', title: '文档门禁（G12）', run: runDocs },
   { id: 'contracts', title: '契约一致性门禁（G8）', run: runContracts },
   { id: 'boundaries', title: '架构边界门禁（G9）', run: runBoundaries },
   { id: 'coverage', title: '覆盖率门禁（G6）', run: runCoverage },
+  { id: 'generated-project', title: '生成工程门禁（G1）', run: runGeneratedProject },
 ];
 
 const USAGE = `用法：node tools/gates/gates-all.mjs [选项]
@@ -28,7 +30,7 @@ const USAGE = `用法：node tools/gates/gates-all.mjs [选项]
 选项：
   --workspace-root <dir>  工作区根目录（默认取配置文件上级两级）
   --config <file>         门禁配置文件（默认 tools/gates/gates.config.json）
-  --only <a,b>            只执行指定门禁（docs,contracts,boundaries,coverage）
+  --only <a,b>            只执行指定门禁（docs,contracts,boundaries,coverage,generated-project）
   --json                  以 JSON 输出聚合报告
   --no-report             不写入报告文件
   --help                  显示本帮助

@@ -35,6 +35,7 @@
     "gates:boundaries": "node tools/gates/check-boundaries.mjs",
     "gates:coverage": "node tools/gates/check-coverage.mjs",
     "gates:entries": "node tools/gates/check-entries.mjs",
+    "gates:generated-project": "node tools/gates/check-generated-project.mjs",
     "gates:all": "node tools/gates/gates-all.mjs",
     "gates:test": "node --test \"tools/gates/tests/**/*.test.mjs\"",
     "ci": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:contract && pnpm run build && pnpm run gates:all"
