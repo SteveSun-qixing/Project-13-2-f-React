@@ -8,7 +8,9 @@
  * `retryable` 为 `false`），调用方只面对统一错误模型（§6.1、§8.3、§8.4）。
  *
  * 值导出恰为 `createScaffoldPlan` 与 `listScaffoldTemplates` 两项（§8.3）；无默认导出（§2.1）。
- * 类型导出与 §8.3 的形状逐字一致，形状权威即上游公开类型，本入口不重新定义。
+ * 类型导出与上游公开面逐名一致，形状权威即上游公开类型，本入口不重新定义；
+ * `cli?` 字段的 CLI 契约九型随 `IPluginManifest` 同面转发（单源在 `tools/scaffold/src/types.ts`，
+ * 字段文法权威见《02-插件清单规范》§7.6 与《07-CLI完整参考》§五）。
  */
 
 import {
@@ -23,6 +25,15 @@ import { ChipsError, SDK_INVALID_SCAFFOLD_OPTIONS, toChipsError } from '../error
 export type {
   IPluginCapabilities,
   IPluginCardType,
+  IPluginCli,
+  IPluginCliCommand,
+  IPluginCliCommandConflict,
+  IPluginCliCommandJob,
+  IPluginCliCommandOutput,
+  IPluginCliCommandSurface,
+  IPluginCliCommandTarget,
+  IPluginCliParameter,
+  IPluginCliParameterPath,
   IPluginDeepLink,
   IPluginDependency,
   IPluginEngines,
