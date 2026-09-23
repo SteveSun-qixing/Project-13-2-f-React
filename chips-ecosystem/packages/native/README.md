@@ -74,9 +74,17 @@ packages/native/
 - 挂载导出（`resourceMountDirectory` / `resourceMountArchive`）的 `owner` 实参
   取固定平台服务身份哨兵常量 `DOCUMENT_SCOPE_OWNER`（取值
   `chips.official.document-service`；RFC-原生承载面扩表裁定 OQ-7 随波 A1 定案，
-  比照核心 `TEMP_SCOPE_OWNER` 哨兵先例、非伪造用户身份）：常量定义在宿主文档
-  服务侧（随波 A2 落地注入），绑定层对 `owner` 只透传不改写；《04.11-04-资源
-  管理设计》§11.3 表说明列同波在册；
+  比照核心 `TEMP_SCOPE_OWNER` 哨兵先例、非伪造用户身份）：常量定义已随波 A2b-α
+  （任务 #217）落位宿主文档服务侧
+  （`packages/host/src/capabilities/document/scope-derivation.ts`），装载注入臂随波
+  A2b-β 接线，绑定层对 `owner` 只透传不改写；《04.11-04-资源管理设计》§11.3 表说明
+  列同波在册；
+- 挂载/注销导出对 `scope` 一律透传不生成（派生算法本体在宿主侧，同上一条模块）；
+  scope 语法在核心**注册阶段**即强制《06.02》§2.3（1–64 字符、`[a-z][a-z0-9-]*`、
+  全小写 ASCII），判据取单源谓词 `is_valid_scope_syntax`（URI 解析面与注册面共用、
+  禁止双写），违例注册阶段即拒 `RESOURCE_INVALID_URI` + `reason = malformed_scope`
+  （裁决I-③ 落地波 #216 在册；本包波 A1 命名锁测两臂随该波由「注册阶段放行」
+  翻正为「注册阶段拒绝」）；
 - `resourceCommitWriteStream` 返回**写流闭包对象** `{ id, uri, append, commit, abort }`
   （neon 1.1.1 无 class API 实证，方法以捕获共享状态的 `JsFunction::new` 挂属性）：
   `commit` / `abort` 经 `AtomicBool` 换取一次性收口权，对象整体被 GC 回收且
