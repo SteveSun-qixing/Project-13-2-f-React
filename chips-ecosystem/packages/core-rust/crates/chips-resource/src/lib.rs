@@ -52,9 +52,11 @@
 //! #185 交付缓存面（L0/L1/L2 + SingleFlight + epoch 竞态失效，《04》§六）
 //! 与错误模型 NetworkFailed 族；#192 交付 [`http`] 模块网络抓取策略引擎
 //! （SSRF 地址族拦截、逐跳重定向复校验、三超时下发、2 GiB 响应上限、
-//! 请求头净化、L2 条件请求复验，《04》§八）。`file:*` / `resource:*`
-//! 能力面接线与 host 侧网络端口装配、Neon 绑定面（packages/native）
-//! 均不在本 crate 本段。
+//! 请求头净化、L2 条件请求复验，《04》§八）。工单036 波 C2a-1 起交付
+//! [`journal`] 提交日志（目录域写意图落盘 prepare–commit 两相）与挂载时
+//! 恢复扫描（崩溃中间态收敛 + 无账临时物如实计数）。`file:*` /
+//! `resource:*` 能力面接线与 host 侧网络端口装配、Neon 绑定面
+//! （packages/native）均不在本 crate 本段。
 //!
 //! # 示例
 //!
@@ -88,6 +90,7 @@ pub mod directory;
 pub mod error;
 pub mod handle;
 pub mod http;
+pub mod journal;
 pub mod manager;
 pub mod memory;
 pub mod path_guard;
@@ -115,6 +118,11 @@ pub use http::{
     HttpStream, HttpTarget, TargetRejection, IF_MODIFIED_SINCE, IF_NONE_MATCH, PLATFORM_USER_AGENT,
 };
 pub use http::{HttpProvider, HTTP_PROVIDER_ID};
+pub use journal::{
+    is_in_flight, journal_file_token, next_intent_token, read_commit_record, recover_root,
+    temp_file_token, CommitRecord, JournalRecoveryReport, JournalTicket, JOURNAL_FILE_SUFFIX,
+    JOURNAL_RECORD_MAX_BYTES, RECOVERY_WALK_MAX_DEPTH, RECOVERY_WALK_MAX_ENTRIES, TEMP_FILE_PREFIX,
+};
 pub use manager::{
     external_origin_of, handles_of_session, open_handle_count, FsOpRequest, ManagerResult,
     OpenHandle, OpenRequest, ProviderRegistry, ResolvedResource, ResourceManager, WriteRequest,

@@ -363,3 +363,75 @@ abort_write_stream`，目录域隐藏 temp 流式落盘、失败/中止/级联�
   数值倒置（0xFDCF < 0xFDD0，非升序区间），按 Unicode 权威定义（66 非
   字符 = 17 平面末二 + U+FDD0–U+FDEF，Unicode 17 核心规范 §23）实现为
   U+FDD0–U+FDEF 并在此登记；实现臂为原文面所有可解释读法的超集。
+
+## 波 C2a-1 收口记录（任务 #255 随单，2026-09-23）
+
+工单036 波 C2a-1：提交日志（写意图落盘 prepare–commit 两相）+ 恢复扫描
++ 孤儿临时物回收，全部落在本 crate 独占面，公开形状零改动。
+
+- ① 提交日志（`src/journal.rs`，676 行新模块）：sidecar 意图记录形态——
+  journal 文件 = 既有 `.chips-tmp-<pid>-<seq>` 临时物名 + `.j` 后缀、同目录
+  成对（文件名词柄配对为权威判据面，恢复处置不依赖记录内容）；记录内容
+  `CommitRecord{temp,target,createdUnixMs}`（camelCase、`deny_unknown_fields`，
+  仅供判读与一致性锁测）。prepare–commit 两相接入既有全部目录域写路径：
+  `atomic_write_with`（`commit_write`/`create_directory`/`copy` 共同通道，
+  `directory.rs:242`，prepare `:254`、终结 `:273`）与 `begin_stream_write`
+  （写流槽持有 `JournalTicket`，`:315/:332`；`finish` 成败双臂与 `abort`/
+  Drop 通道统一撤记录，`:400/:407`）。IO 口径（有界）：每次提交固定
+  +1 记录写入 +1 记录 fsync +1 父目录 fsync +1 终结 unlink，无按体量/
+  按目录规模的摊销外 IO；终结 unlink 不做 fsync（断电后记录残留由恢复
+  扫描幂等收敛，目标态不受影响）。令牌 = 进程号 + 进程全局原子序号
+  （`static TOKEN_SEQ`），根治同进程多管理器实例/双挂载同根的令牌碰撞。
+- ② 并发与锁序（与 `WriteCoordinator` 方言一致，禁第二套锁）：journal
+  建档/撤销全部发生在既有路径写锁覆盖窗口内，本模块不新增任何路径锁；
+  进程内在途账（`static Mutex<BTreeSet<String>>`）为叶子锁——取锁后不取
+  其他锁、不跨 IO 长期持有，锁序单向（路径许可 → 在途账），无环。
+  登记先于任何 FS 动作、销账后于 journal unlink，维持「记录可见 ⇒ 在途
+  在册」不变量，恢复扫描据此绝不误删本进程并发在途临时物。
+- ③ 恢复扫描（`journal::recover_root`，`:392`）接线于既有公开入口的唯一
+  汇聚 seam = `DirectoryProvider::attach_root`（`directory.rs:115→130`，
+  `mount_directory` 与 `register_temp_scope` 均经此）：作用域 FS 域重启后
+  首次进入引擎时全树一次收敛（迭代栈遍历、lstat 语义不跟随符号链接、
+  预算 `RECOVERY_WALK_MAX_DEPTH=32`/`RECOVERY_WALK_MAX_ENTRIES=100_000`
+  截断如实计数）。选型理由：构造期无根可扫、逐写扫描 = 无界 IO，挂载
+  即「崩溃中间态重启后第一次可达点」；扫描失败绝不使挂载失败（计入
+  报告）。处置三态（确定性）：a) 记录在 + 同名临时物在 + 不在途 → 按
+  既有失败回滚语义删临时物（目标保持旧态）再撤记录；b) 记录在 + 临时
+  物不在（含 rename 已落定未终结、记录内容损坏）→ 只撤记录，绝不触碰
+  目标（已完成未终结记录不误删合法新态）；c) 严格名形态临时物无记录
+  支撑（协议外对象）→ 计数 `unbacked_temp_files` 保留不删（禁「存在即
+  删」 crude 形态，兼防重叠挂载下他域在途临时物误伤）。在途记录计入
+  `skipped_in_flight` 零处置。
+- ④ 孤儿临时物回收与 ①/②/③ 同一张账单源：三者共用「journal 在册 ⇔
+  在途账保护」单一判据面，无第二个不兼容判定面；`attach_root` 返回
+  `JournalRecoveryReport` 按作用域存于 `recovery_reports`（`directory.rs:73`），
+  Manager 新增查询面 `directory_recovery_report`（`manager.rs:893`），
+  `detach_root` 同步清账。
+- ⑤ 错误码零新增：恢复面不产错（计数报告）；写侧 journal 建档失败复用
+  在册 `RESOURCE_WRITE_FAILED`（登记于《06》§7.2 磁盘臂），《06.02》§2.4
+  九词面与 PermissionDenyReason 方言零触碰；native 绑定/export-surface
+  无形状变化（`chips-native` 仅消费 `DIRECTORY_PROVIDER_ID` 常量，
+  `attach_root`/`DirectoryStreamSink` 为 crate 内部形状）。
+- ⑥ 跨进程共挂同一根：超出 Host 唯一运行时承载契约，登记为在册边界
+  （模块头如实陈述）；不引入 pid 存活探测（需新依赖，越红线），进程内
+  在途账 + 单宿主进程契约覆盖全部在册并发形态。
+- 测试账（真实输出）：基线 266 → **287** 全绿（lib 182 = 171 + journal
+  单测 10 + directory 探针单测 1；集成新册 `tests/journal_recovery.rs` 10
+  例覆盖四类判据：崩溃中间态重启收敛 / 并发在途不被误删（双管理器同
+  根竞态）/ 日志与真实 FS 一致性 / 级联中止与日志协同（会话关闭、作用域
+  注销、超限回滚）；archive_ws 6 + audit 14 + cache 7 + dir 12 +
+  errlock 14 + ssrf 25 + mem 6 + session_grant 1 + uri 9 + doctest 1）。
+  零删档零放宽零 skip。
+- 门禁复跑（真实退出码，日志 /tmp/w255_*.log）：
+  `cargo fmt -p chips-resource -- --check`=0、
+  `cargo clippy -p chips-resource --all-targets -- -D warnings`=0、
+  `cargo test -p chips-resource`=0（287 passed / 0 failed）、
+  `cargo check -p chips-parser`=0（core-rust 工作区）、
+  `cargo check -p chips-native`=0（根工作区）。
+- TD-002 覆盖率复报（既有通道、crate 级 src 口径）：
+  `cargo tarpaulin -p chips-resource --engine llvm --out Lcov` EXIT=0，
+  过滤 `crates/chips-resource/src` 合计 **3203/3597 = 89.05%**（对照在册
+  88.89%：+0.16pp 回升；journal.rs 138/146，余 8 行为故障注入类臂——
+  read_dir/entry IO 错误与 100_000 条目预算截断，夹具成本失配未锁测、
+  如实登记；<90 维持豁免至 2026-10-19）。
+

@@ -13,15 +13,19 @@
 //! `RESOURCE_PATH_INVALID` + `reason = symlink`；`details` 不携带真实文件系统
 //! 路径（《06》§7.1，只载规范 URI 与虚拟路径文本）。
 //!
-//! 写入原子性（《04.04》§4.8/§4.9）：一次性 `write` 与 `copy` 走同目录隐藏
-//! 临时文件 + `sync_all` + `rename` 原子替换；失败清理临时物、不产生半写
-//! 文件；宿主写侧 IO 错误 → `RESOURCE_WRITE_FAILED`（《06》§7.2 磁盘臂）。
+//! 写入原子性（《04.04》§4.8/§4.9 + 工单036 波 C2a-1 提交日志）：一次性
+//! `write` 与 `copy` 走同目录隐藏临时文件 + `sync_all` + `rename` 原子替换；
+//! 临时物建档前先落同目录 sidecar 意图记录（`journal` 模块 prepare–commit
+//! 两相），提交终结撤销记录；任一步失败清理临时物与记录、目标保持旧态；
+//! 宿主写侧 IO 错误 → `RESOURCE_WRITE_FAILED`（《06》§7.2 磁盘臂）。
+//! 挂载即恢复扫描：`attach_root` 对根执行一次 `journal::recover_root`
+//! （崩溃中间态收敛 + 无账临时物如实计数、不删），处置账目随挂载返回并可
+//! 经 `recovery_report` 查询。
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::UNIX_EPOCH;
 
@@ -30,6 +34,7 @@ use chips_core::ChipsError;
 
 use crate::constants::DEFAULT_CHUNK_BYTES;
 use crate::error::{ResourceError, ScopeOperation};
+use crate::journal::{self, JournalRecoveryReport, JournalTicket, TEMP_FILE_PREFIX};
 use crate::memory::guess_mime_type;
 use crate::path_guard::resolve_within_root;
 use crate::provider::{
@@ -63,7 +68,9 @@ struct DirectoryMount {
 #[derive(Debug)]
 pub struct DirectoryProvider {
     mounts: Mutex<BTreeMap<ScopeId, DirectoryMount>>,
-    next_temp_id: AtomicU64,
+    /// 挂载时恢复扫描报告账（作用域 → 最近一次进入引擎的处置账目，
+    /// C2a-1；`detach_root` 随注销归还，零泄漏）。
+    recovery_reports: Mutex<BTreeMap<ScopeId, JournalRecoveryReport>>,
     chunk_limit: usize,
 }
 
@@ -85,7 +92,7 @@ impl DirectoryProvider {
     pub fn with_chunk_limit(chunk_limit: usize) -> Self {
         Self {
             mounts: Mutex::new(BTreeMap::new()),
-            next_temp_id: AtomicU64::new(1),
+            recovery_reports: Mutex::new(BTreeMap::new()),
             chunk_limit: chunk_limit.max(1),
         }
     }
@@ -97,12 +104,20 @@ impl DirectoryProvider {
     /// 挂载作用域根：`root` 必须存在且为目录（登记失败不降级，《06》§3.2），
     /// 入表前规范化（消解符号链接根段，如 macOS `/var → /private/var`）；
     /// 重复挂载返回 `RESOURCE_ALREADY_EXISTS`。
+    ///
+    /// 挂载即恢复扫描（C2a-1 接线位）：校验通过后、登记挂载表前，对该根
+    /// 执行一次 [`journal::recover_root`]（提交日志重放回滚 + 无账临时物
+    /// 如实计数，模块头「处置三态」）；扫描处置失败不改变挂载成败，逐项
+    /// 计入返回报告（本作用域最近报告经 [`Self::recovery_report`】可查）。
+    /// 接线理由：`mount_directory` / `register_temp_scope` 两个公开入口的
+    /// 唯一汇聚 seam，即「重启后该文件系统域首次进入引擎」的时刻；构造期
+    /// 无根可扫、写路径逐次扫描为无界 IO，均不可行。
     pub fn attach_root(
         &self,
         scope: &ScopeId,
         root: &Path,
         kind: ScopeKind,
-    ) -> Result<(), ResourceError> {
+    ) -> Result<JournalRecoveryReport, ResourceError> {
         let scope_root_uri = format!("chips-resource://{scope}/");
         let canonical = fs::canonicalize(root).map_err(|_| ResourceError::NotFound {
             uri: scope_root_uri.clone(),
@@ -112,6 +127,7 @@ impl DirectoryProvider {
                 uri: scope_root_uri,
             });
         }
+        let report = journal::recover_root(&canonical);
         let mut table = self.table();
         if table.contains_key(scope) {
             return Err(ResourceError::AlreadyExists { uri: scope.clone() });
@@ -123,12 +139,35 @@ impl DirectoryProvider {
                 kind,
             },
         );
-        Ok(())
+        drop(table);
+        self.recovery_reports
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(scope.clone(), report.clone());
+        Ok(report)
     }
 
     /// 摘除作用域根（注销级联的 Provider 侧归还）；未在册返回 `false`。
+    /// 同步归还该作用域的恢复扫描报告账。
     pub fn detach_root(&self, scope: &ScopeId) -> bool {
-        self.table().remove(scope).is_some()
+        let detached = self.table().remove(scope).is_some();
+        if detached {
+            self.recovery_reports
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(scope);
+        }
+        detached
+    }
+
+    /// 作用域最近一次挂载的恢复扫描报告（只读探测；未挂载为 `None`）。
+    #[must_use]
+    pub fn recovery_report(&self, scope: &ScopeId) -> Option<JournalRecoveryReport> {
+        self.recovery_reports
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(scope)
+            .cloned()
     }
 
     /// 作用域是否已挂载（只读探测）。
@@ -193,11 +232,16 @@ impl DirectoryProvider {
         Err(ResourceError::Internal.to_chips_error())
     }
 
-    /// 原子替换写入（《04.04》§4.8）：同目录隐藏临时文件（`.` 前缀，列举面
-    /// 在册过滤）+ `sync_all` + `rename`；任何一步失败清理临时物；宿主写侧
-    /// IO 错误 → `RESOURCE_WRITE_FAILED`。
+    /// 原子替换写入（《04.04》§4.8 + 工单036 波 C2a-1 提交日志两相）：
+    /// prepare 相先落同目录 sidecar 意图记录（journal 先于临时物建档并
+    /// fsync，崩溃中间态可判读）→ 同目录隐藏临时文件（`.` 前缀，列举面
+    /// 在册过滤）+ `sync_all` + `rename` → commit 相撤销记录；任何一步
+    /// 失败清理临时物与记录（票据 Drop 单通道）；宿主写侧 IO 错误（含
+    /// 记录建档失败）→ `RESOURCE_WRITE_FAILED`（《06》§7.2 磁盘臂，
+    /// 错误码零新增）。
     fn atomic_write_with(
         &self,
+        root: &Path,
         target: &Path,
         uri: &str,
         fill: impl FnOnce(&mut File) -> std::io::Result<()>,
@@ -205,11 +249,14 @@ impl DirectoryProvider {
         let parent = target
             .parent()
             .ok_or_else(|| ResourceError::Internal.to_chips_error())?;
-        let temp_path = parent.join(format!(
-            ".chips-tmp-{}-{}",
-            std::process::id(),
-            self.next_temp_id.fetch_add(1, Ordering::Relaxed)
-        ));
+        let token = journal::next_intent_token();
+        let temp_path = parent.join(format!("{TEMP_FILE_PREFIX}{token}"));
+        let ticket = JournalTicket::prepare(root, token, &temp_path, target).map_err(|_| {
+            ResourceError::WriteFailed {
+                uri: uri.to_owned(),
+            }
+            .to_chips_error()
+        })?;
         let result: std::io::Result<()> = (|| {
             let mut file = File::create(&temp_path)?;
             fill(&mut file)?;
@@ -221,6 +268,9 @@ impl DirectoryProvider {
         if result.is_err() {
             let _ = fs::remove_file(&temp_path);
         }
+        // commit 相终结：撤销意图记录并销账（临时物处置先行、记录最后撤，
+        // 与在途账「记录可见 ⇒ 在途在册」不变量同序）。
+        drop(ticket);
         result.map_err(|_| {
             ResourceError::WriteFailed {
                 uri: uri.to_owned(),
@@ -230,16 +280,18 @@ impl DirectoryProvider {
     }
 
     /// 流式写入落盘槽建档（段二 B3，《04.04》§4.8 `commit_write_stream`
-    /// 的目录域通道）：与一次性提交同款原子形态——同目录隐藏临时文件
-    /// 先建档，逐块 append，提交时 `sync_all` + `rename` 原子替换。
-    /// 目标为在册目录 → `RESOURCE_ALREADY_EXISTS`（不覆盖）；父目录缺失
-    /// → `RESOURCE_NOT_FOUND`（不自动建层）；建档 IO 失败 →
-    /// `RESOURCE_WRITE_FAILED`。
+    /// 的目录域通道 + 工单036 波 C2a-1 提交日志两相）：与一次性提交同款
+    /// 原子形态——prepare 相先落同目录 sidecar 意图记录（journal 先于
+    /// 临时物建档并 fsync，崩溃时在途流重启后可判读回收），同目录临时
+    /// 文件先建档，逐块 append，提交时 `sync_all` + `rename` 原子替换并
+    /// 撤销记录。目标为在册目录 → `RESOURCE_ALREADY_EXISTS`（不覆盖）；
+    /// 父目录缺失 → `RESOURCE_NOT_FOUND`（不自动建层）；记录建档或临时物
+    /// 建档 IO 失败 → `RESOURCE_WRITE_FAILED`（零残留）。
     pub(crate) fn begin_stream_write(
         &self,
         address: &ResourceAddress,
     ) -> Result<DirectoryStreamSink, ChipsError> {
-        let (_, path) = self.locate(address)?;
+        let (mount, path) = self.locate(address)?;
         if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir()) {
             return Err(ResourceError::AlreadyExists {
                 uri: address.uri.clone(),
@@ -255,11 +307,17 @@ impl DirectoryProvider {
             }
             .to_chips_error());
         }
-        let temp_path = parent.join(format!(
-            ".chips-tmp-{}-{}",
-            std::process::id(),
-            self.next_temp_id.fetch_add(1, Ordering::Relaxed)
-        ));
+        let token = journal::next_intent_token();
+        let temp_path = parent.join(format!("{TEMP_FILE_PREFIX}{token}"));
+        // prepare 相：意图记录先于临时物建档；票据局部持有，下方任一步
+        // 失败随票据 Drop 撤记录销账（临时物尚未或即时清理，零残留）。
+        let ticket =
+            JournalTicket::prepare(&mount.root, token, &temp_path, &path).map_err(|_| {
+                ResourceError::WriteFailed {
+                    uri: address.uri.clone(),
+                }
+                .to_chips_error()
+            })?;
         let file = File::create(&temp_path).map_err(|_| {
             ResourceError::WriteFailed {
                 uri: address.uri.clone(),
@@ -271,22 +329,45 @@ impl DirectoryProvider {
             target_path: path,
             uri: address.uri.clone(),
             file: Some(file),
+            journal: Some(ticket),
         })
     }
 }
 
-/// 目录域流式写入落盘槽（B3）：临时文件句柄 + 目标路径；
-/// `finish` 原子替换、`abort`/`Drop` 清理临时文件——失败与中断均零残留
-/// （《04.04》§4.9「管理器清理失败/中断的临时文件」）。
+/// 目录域流式写入落盘槽（B3 + 工单036 波 C2a-1 提交日志）：临时文件句柄 +
+/// 目标路径 + 意图记录票据（[`JournalTicket`]，在途账凭据）；
+/// `finish` 原子替换并撤销记录、`abort`/`Drop` 清理临时文件与记录——失败
+/// 与中断均零残留（《04.04》§4.9「管理器清理失败/中断的临时文件」）。
+/// 进程崩溃时在途流的意图记录已先于临时物落盘（prepare 相），重启挂载的
+/// 恢复扫描据账回滚回收（`journal` 模块头处置三态）。
 #[derive(Debug)]
 pub struct DirectoryStreamSink {
     temp_path: PathBuf,
     target_path: PathBuf,
     uri: String,
     file: Option<File>,
+    /// 意图记录票据：Drop 序在临时文件句柄之后——临时物处置先行、记录
+    /// 撤销与销账最后，全程维持「记录可见 ⇒ 在途在册」不变量。
+    journal: Option<JournalTicket>,
 }
 
 impl DirectoryStreamSink {
+    /// 在途意图记录路径（`#[cfg(test)]` 装配与恢复联动锁测消费面；已终结为
+    /// `None`）。锁测经此直读 sink 内部票据，与文件系统实况对表。
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn journal_path(&self) -> Option<&Path> {
+        self.journal.as_ref().map(JournalTicket::journal_path)
+    }
+
+    /// 在途意图记录内容（`temp` / `target` / `createdUnixMs`，`#[cfg(test)]`
+    /// 一致性锁测消费面；已终结为 `None`）。
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn commit_record(&self) -> Option<&journal::CommitRecord> {
+        self.journal.as_ref().map(JournalTicket::record)
+    }
+
     /// 追加一块字节；宿主 IO 失败 → `RESOURCE_WRITE_FAILED`（临时文件
     /// 由 Drop 通道清理）。
     pub(crate) fn append(&mut self, bytes: &[u8]) -> Result<(), ChipsError> {
@@ -300,6 +381,8 @@ impl DirectoryStreamSink {
 
     /// 提交：`flush` + `sync_all` + `rename` 原子替换；任何一步失败删除
     /// 临时文件并返回 `RESOURCE_WRITE_FAILED`（目标保持旧态，《04.04》§4.8）。
+    /// rename 落定后撤销意图记录（commit 相终结；撤销失败遗留的记录由
+    /// 恢复扫描按「记录在、临时物不在」形态幂等终结，绝不误删目标）。
     pub(crate) fn finish(mut self) -> Result<(), ChipsError> {
         let temp = self.temp_path.clone();
         let outcome: std::io::Result<()> = (|| {
@@ -313,10 +396,15 @@ impl DirectoryStreamSink {
         self.file = None;
         self.temp_path = PathBuf::new();
         match outcome {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                drop(self.journal.take());
+                Ok(())
+            }
             Err(_) => {
-                // `rename` 失败时临时文件仍在原位，删除之（目标保持旧态）。
+                // `rename` 失败时临时文件仍在原位，删除之（目标保持旧态），
+                // 再撤记录销账。
                 let _ = fs::remove_file(&temp);
+                drop(self.journal.take());
                 Err(ResourceError::WriteFailed {
                     uri: self.uri.clone(),
                 }
@@ -328,7 +416,9 @@ impl DirectoryStreamSink {
 
 impl Drop for DirectoryStreamSink {
     fn drop(&mut self) {
-        // 未提交即弃（abort / 会话关闭 / 超限回滚）：删除临时文件零残留。
+        // 未提交即弃（abort / 会话关闭 / 超限回滚）：删除临时文件零残留；
+        // 意图记录票据随字段 Drop 撤销并销账（声明序在 `journal` 之前完成
+        // 本体会体，临时物先、记录后）。
         if !self.temp_path.as_os_str().is_empty() {
             let _ = fs::remove_file(&self.temp_path);
         }
@@ -489,7 +579,7 @@ impl ResourceProvider for DirectoryProvider {
         address: &ResourceAddress,
         data: &[u8],
     ) -> Result<ResourceMetadata, ChipsError> {
-        let (_, path) = self.locate(address)?;
+        let (mount, path) = self.locate(address)?;
         // 目标为在册目录：目录不是可替换的文件目标（《06》§2.4），不覆盖。
         if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir()) {
             return Err(ResourceError::AlreadyExists {
@@ -505,7 +595,9 @@ impl ResourceProvider for DirectoryProvider {
             .to_chips_error());
         }
         let payload = data.to_vec();
-        self.atomic_write_with(&path, &address.uri, move |file| file.write_all(&payload))?;
+        self.atomic_write_with(&mount.root, &path, &address.uri, move |file| {
+            file.write_all(&payload)
+        })?;
         self.stat(address).await
     }
 
@@ -561,7 +653,7 @@ impl ResourceProvider for DirectoryProvider {
 
     async fn copy(&self, from: &ResourceAddress, to: &ResourceAddress) -> Result<(), ChipsError> {
         self.same_scope_guard(from, to)?;
-        let source = self.locate(from)?.1;
+        let (mount, source) = self.locate(from)?;
         let target = self.locate(to)?.1;
         if source == target {
             return Ok(());
@@ -581,7 +673,7 @@ impl ResourceProvider for DirectoryProvider {
         }
         let mut reader = File::open(&source).map_err(|error| read_io_error(error, &from.uri))?;
         // 流式拷贝：64 KiB 中转逐块落临时文件，不整体加载到内存（§4.9）。
-        self.atomic_write_with(&target, &to.uri, move |file| {
+        self.atomic_write_with(&mount.root, &target, &to.uri, move |file| {
             let mut buffer = vec![0u8; TRANSFER_BUFFER_BYTES];
             loop {
                 let read = reader.read(&mut buffer)?;
@@ -689,6 +781,8 @@ impl ResourceStream for FileStream {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use super::*;
     use crate::error::{
         RESOURCE_ALREADY_EXISTS, RESOURCE_INTERNAL, RESOURCE_NOT_EMPTY, RESOURCE_NOT_FOUND,
@@ -748,6 +842,56 @@ mod tests {
             )
             .expect("挂载必须成功");
         provider
+    }
+
+    /// 波 C2a-1 探针消费面：在途写流的意图记录路径与内容与磁盘实况、
+    /// 在途账逐项对表（文件名配对单源、记录相对路径一致），Drop 中止后
+    /// 记录与临时物同步撤销、账目清空、目标不动。
+    #[test]
+    fn test_write_stream_journal_probes_and_in_flight_record() {
+        let fixture = TempRoot::new();
+        fixture.write_file("stream-src.txt", b"OLD");
+        let provider = mounted(&fixture);
+        let mut sink = provider
+            .begin_stream_write(&address("workspace-1", "stream-src.txt"))
+            .expect("流式写建档必须成功");
+        sink.append(b"CHUNK").expect("分块送入");
+        let journal_path = sink
+            .journal_path()
+            .expect("在途流必有意图记录")
+            .to_path_buf();
+        let temp_path = sink.temp_path.clone();
+        let record = sink.commit_record().expect("在途记录内容可判读").clone();
+        // 文件名配对单源：记录名与临时物名解析出同一令牌。
+        let temp_name = temp_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("夹具名必 UTF-8");
+        let journal_name = journal_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("夹具名必 UTF-8");
+        let token = journal::temp_file_token(temp_name).expect("临时物在册名形态");
+        assert_eq!(journal::journal_file_token(journal_name), Some(token));
+        // 内容与磁盘实况逐项对表（相对挂载根）。
+        assert_eq!(record.target, "stream-src.txt");
+        assert_eq!(record.temp, temp_name);
+        assert!(
+            journal_path.is_file() && temp_path.is_file(),
+            "prepare 相双方在册"
+        );
+        assert!(journal::is_in_flight(token), "在途账在册");
+        drop(sink); // Drop 通道中止：临时物先处置、记录与销账同步撤销
+        assert!(
+            !journal_path.exists() && !temp_path.exists(),
+            "中止后账实两清"
+        );
+        assert!(!journal::is_in_flight(token), "中止后销账");
+        assert_eq!(
+            fs::read(fixture.path().join("stream-src.txt")).expect("目标仍可读"),
+            b"OLD",
+            "中止不动目标"
+        );
     }
 
     #[test]

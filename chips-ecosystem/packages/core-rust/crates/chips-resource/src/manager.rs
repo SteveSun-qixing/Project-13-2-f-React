@@ -21,7 +21,12 @@
 //! [`ResourceManager::append_write_stream`] /
 //! [`ResourceManager::commit_write_stream`]，《03.07》§7.1、《04.04》§4.8）
 //! 与 `WriteCoordinator` 路径写锁（目录写族全部提交点单写者化，
-//! 《04.13》§13-3）。缓存与单一飞行属段二后续/段三，本段不挂载。
+//! 《04.13》§13-3）。段三后续（工单036 波 C2a-1）追加：目录域提交日志
+//! （`journal` 模块 prepare–commit 两相，写流/一次性提交的在途意图落盘）
+//! 与挂载时恢复扫描（`mount_directory` / `register_temp_scope` 汇聚 seam
+//! 触发，崩溃中间态确定性收敛，处置账目经
+//! [`ResourceManager::directory_recovery_report`] 可查）。缓存与单一飞行
+//! 属段二后续/段三，本段不挂载。
 //!
 //! 错误口径：同步判定入口返回强类型 [`ResourceError`]；异步入口（会触达
 //! Provider）以跨边界统一单形 `ChipsError` 收口，错误码保持《06》§7.2 在册
@@ -879,6 +884,19 @@ impl ResourceManager {
         self.directory_provider.is_mounted(scope)
     }
 
+    /// 目录域挂载恢复扫描报告（工单036 波 C2a-1）：该作用域最近一次进入
+    /// 引擎（挂载/临时注册）时对崩溃残留提交日志与临时物的处置账目
+    /// （`journal::JournalRecoveryReport`，处置三态见 `journal` 模块头）；
+    /// 未挂载或非目录域为 `None`。扫描随挂载同步执行、失败不改变挂载
+    /// 成败，逐项如实计数（宿主侧接线可据此观测恢复质量）。
+    #[must_use]
+    pub fn directory_recovery_report(
+        &self,
+        scope: &ScopeId,
+    ) -> Option<crate::journal::JournalRecoveryReport> {
+        self.directory_provider.recovery_report(scope)
+    }
+
     /// 挂载内置 ArchiveProvider 归档域作用域（段二 B3，《04.03》§3.3
     /// ArchiveProvider 行）。
     ///
@@ -1403,7 +1421,8 @@ impl ResourceManager {
     /// 解析流水线写鉴权 → 能力预检（归档 / 只读策略 → `RESOURCE_READ_ONLY`
     /// 精确目标 uri 臂）→ `expected_size` 上限预核 → 取得
     /// `WriteCoordinator` 路径写锁并贯穿流生命周期（《04.13》§13-3 写
-    /// 路径唯一）→ 目录域建档隐藏临时文件（B2 原子形态流式承载）。
+    /// 路径唯一）→ 目录域先落提交日志 prepare 相（sidecar 意图记录 fsync
+    /// 后再建隐藏临时文件，波 C2a-1：进程崩溃时在途流重启后可判读回收）。
     /// 目标为在册目录 → `ALREADY_EXISTS`、父目录缺失 → `NOT_FOUND`
     /// （与一次性提交同口径，锁内判定无竞态）。
     pub fn open_write_stream(
@@ -1516,10 +1535,11 @@ impl ResourceManager {
     }
 
     /// 提交流式写入（《03.07》§7.1 `commit_write_stream`，异步签名）：
-    /// 目录域 `flush` + `sync_all` + 原子 `rename`（《04.04》§4.8）；其余
-    /// 可写 Provider 一次性 `Provider::write` 落定；`expected_size` 不符
-    /// 即回滚不提交（《04.07》§7.3 失败回滚临时物）；失败删除临时文件、
-    /// 目标保持旧态；提交成功归还路径写锁并返回新版本元数据。
+    /// 目录域 `flush` + `sync_all` + 原子 `rename`（《04.04》§4.8），rename
+    /// 落定后撤销提交日志意图记录（波 C2a-1）；其余可写 Provider 一次性
+    /// `Provider::write` 落定；`expected_size` 不符即回滚不提交（《04.07》
+    /// §7.3 失败回滚临时物）；失败删除临时文件与意图记录、目标保持旧态；
+    /// 提交成功归还路径写锁并返回新版本元数据。
     pub async fn commit_write_stream(
         &self,
         handle: WriteStreamHandle,
