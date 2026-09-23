@@ -9,7 +9,8 @@
  *
  * 值导出恰为 `createScaffoldPlan` 与 `listScaffoldTemplates` 两项（§8.3）；无默认导出（§2.1）。
  * 类型导出与上游公开面逐名一致，形状权威即上游公开类型，本入口不重新定义；
- * `cli?` 字段的 CLI 契约九型随 `IPluginManifest` 同面转发（单源在 `tools/scaffold/src/types.ts`，
+ * `cli?` 字段的 CLI 契约九型与参数类型标量联合 `PluginCliParameterType` 随 `IPluginManifest`
+ * 同面转发（单源在 `tools/scaffold/src/types.ts`，
  * 字段文法权威见《02-插件清单规范》§7.6 与《07-CLI完整参考》§五）。
  */
 
@@ -48,6 +49,7 @@ export type {
   IScaffoldOptions,
   IScaffoldPlan,
   IScaffoldTemplate,
+  PluginCliParameterType,
   PluginRole,
   PluginSurface,
   PluginTarget,

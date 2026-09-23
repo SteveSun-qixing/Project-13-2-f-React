@@ -5,14 +5,16 @@
  * 1. 源面逐名在册：从 `src/index.ts` 文本解析 `export type { ... } from './types.js'`
  *    与两条值导出语句，断言公开名单与在册名单**精确相等**——名单少一名（漏转发）或
  *    多一名（擅自扩面）都红；再逐名回查 `src/types.ts` 的声明存在性，杜绝入口与单源脱钩。
- * 2. 类型级可达：CLI 契约九型经入口导入后与 `src/types.ts` 单源声明 `expectTypeOf`
- *    全等（同一声明、非结构复刻），并以九型完整装配一份 `IPluginCli` 值，任何一名
+ * 2. 类型级可达：CLI 契约九型与参数类型标量联合 `PluginCliParameterType` 经入口导入后与
+ *    `src/types.ts` 单源声明 `expectTypeOf` 全等（同一声明、非结构复刻），并以九型完整装配
+ *    一份 `IPluginCli` 值、以联合核证其为 `IPluginCliParameter['type']` 的字段类型——任何一名
  *    从入口移除都会在 `pnpm typecheck`（tsconfig include 覆盖 tests）处编译失败。
  * 3. 运行时面：值导出恰为五个在册名、无默认导出，`Object.keys` 精确断言。
  *
- * 在册名单依据：九型 CLI 契约类型经《02-SDK-API规范》§2.2 manifest 行在册类型
- * `IPluginManifest` 的 `cli?` 字段传递在册（字段文法权威《02-插件清单规范》§7.6、
- * 《07-CLI完整参考》§五；现状登记见《02.08》§八 类型面注记），随 manifest 面公开。
+ * 在册名单依据：九型 CLI 契约类型与标量联合 `PluginCliParameterType` 经《02-SDK-API规范》
+ * §2.2 manifest 行在册类型 `IPluginManifest` 的 `cli?` 字段传递在册（字段文法权威
+ * 《02-插件清单规范》§7.6、《07-CLI完整参考》§五；现状登记见《02.08》§八 类型面注记），
+ * 随 manifest 面公开。
  */
 import { readFileSync } from 'node:fs';
 
@@ -29,6 +31,7 @@ import type {
   IPluginCliCommandTarget,
   IPluginCliParameter,
   IPluginCliParameterPath,
+  PluginCliParameterType,
 } from '../src/index.js';
 import type {
   IPluginCli as SourceIPluginCli,
@@ -40,9 +43,10 @@ import type {
   IPluginCliCommandTarget as SourceIPluginCliCommandTarget,
   IPluginCliParameter as SourceIPluginCliParameter,
   IPluginCliParameterPath as SourceIPluginCliParameterPath,
+  PluginCliParameterType as SourcePluginCliParameterType,
 } from '../src/types.js';
 
-/** 入口 `export type` 自 `./types.js` 的在册类型名单（28 名，精确集合）。 */
+/** 入口 `export type` 自 `./types.js` 的在册类型名单（29 名，精确集合）。 */
 const PUBLIC_TYPE_NAMES: readonly string[] = [
   'IPluginCapabilities',
   'IPluginCardType',
@@ -69,12 +73,14 @@ const PUBLIC_TYPE_NAMES: readonly string[] = [
   'IScaffoldOptions',
   'IScaffoldPlan',
   'IScaffoldTemplate',
+  'PluginCliParameterType',
   'PluginRole',
   'PluginSurface',
   'PluginTarget',
 ];
 
-/** CLI 契约九型在册名单（`IPluginManifest.cli?` 的传递在册成员）。 */
+/** CLI 契约九型在册名单（`IPluginManifest.cli?` 的传递在册成员；标量联合 `PluginCliParameterType`
+ *  不带 `IPluginCli` 前缀，单独随 29 名公开名单在册）。 */
 const CLI_CONTRACT_NAMES: readonly string[] = [
   'IPluginCli',
   'IPluginCliCommand',
@@ -113,7 +119,7 @@ function parseExportTypeNames(source: string, specifier: string): string[] {
 describe('@chips/scaffold 入口源面逐名在册（偏差注入双向臂）', () => {
   const indexSource = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
 
-  it('export type 名单与在册 28 名精确相等（少一名或多一名都红）', () => {
+  it('export type 名单与在册 29 名精确相等（少一名或多一名都红）', () => {
     expect(parseExportTypeNames(indexSource, './types.js').sort()).toEqual(
       [...PUBLIC_TYPE_NAMES].sort()
     );
@@ -138,7 +144,7 @@ describe('@chips/scaffold 入口源面逐名在册（偏差注入双向臂）', 
   });
 });
 
-describe('CLI 契约九型经入口可达且与单源同一（类型级）', () => {
+describe('CLI 契约九型与标量联合经入口可达且与单源同一（类型级）', () => {
   it('九个入口类型与 src/types.ts 单源声明两两全等（同一声明、非复刻）', () => {
     expectTypeOf<IPluginCli>().toEqualTypeOf<SourceIPluginCli>();
     expectTypeOf<IPluginCliCommand>().toEqualTypeOf<SourceIPluginCliCommand>();
@@ -149,6 +155,11 @@ describe('CLI 契约九型经入口可达且与单源同一（类型级）', () 
     expectTypeOf<IPluginCliCommandTarget>().toEqualTypeOf<SourceIPluginCliCommandTarget>();
     expectTypeOf<IPluginCliParameter>().toEqualTypeOf<SourceIPluginCliParameter>();
     expectTypeOf<IPluginCliParameterPath>().toEqualTypeOf<SourceIPluginCliParameterPath>();
+  });
+
+  it("标量联合 PluginCliParameterType 入口与单源全等，且即 IPluginCliParameter['type'] 的字段类型", () => {
+    expectTypeOf<PluginCliParameterType>().toEqualTypeOf<SourcePluginCliParameterType>();
+    expectTypeOf<IPluginCliParameter['type']>().toEqualTypeOf<PluginCliParameterType>();
   });
 
   it('以入口九型完整装配一条命令声明，入口任一类型缺失时本文件编译即红', () => {

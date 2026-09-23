@@ -319,7 +319,8 @@ export type {
 /* manifest 类型：字段语义见 03-插件开发/02-插件清单规范，§2.2 把它们登记为主入口类型导出。
    单点定义在 `@chips/scaffold`，经 `./scaffold/index.js` 的既有转发以 `export type` 再导出：
    本入口不复制形状（§11 约束 5），运行时也不引入 scaffold 依赖（§2.1 规则）。
-   `IPluginManifest.cli?` 的 CLI 契约九型随 manifest 面同批再导出（字段文法权威见
+   `IPluginManifest.cli?` 的 CLI 契约九型与参数类型标量联合 `PluginCliParameterType`
+   随 manifest 面同批再导出（字段文法权威见
    《02-插件清单规范》§7.6 与《07-CLI完整参考》§五），主入口消费侧可逐名 `import type`。
    脚手架开发期类型（`IScaffoldOptions` / `IScaffoldPlan` / `IScaffoldTemplate` / `IScaffoldFile`）
    不在 §2.2 主入口清单内，仍只从 `@chips/sdk/scaffold` 导出（§8.3）。 */
@@ -345,6 +346,7 @@ export type {
   IPluginManifest,
   IPluginRuntime,
   IPluginUi,
+  PluginCliParameterType,
   PluginRole,
   PluginSurface,
   PluginTarget,

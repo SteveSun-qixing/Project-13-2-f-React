@@ -194,6 +194,15 @@
         "names": [
           "IPluginCapabilities",
           "IPluginCardType",
+          "IPluginCli",
+          "IPluginCliCommand",
+          "IPluginCliCommandConflict",
+          "IPluginCliCommandJob",
+          "IPluginCliCommandOutput",
+          "IPluginCliCommandSurface",
+          "IPluginCliCommandTarget",
+          "IPluginCliParameter",
+          "IPluginCliParameterPath",
           "IPluginDeepLink",
           "IPluginDependency",
           "IPluginEngines",
@@ -204,6 +213,7 @@
           "IPluginManifest",
           "IPluginRuntime",
           "IPluginUi",
+          "PluginCliParameterType",
           "PluginRole",
           "PluginSurface",
           "PluginTarget"

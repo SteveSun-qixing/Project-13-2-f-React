@@ -1,20 +1,22 @@
 /**
- * `IPluginCli*` 九型 SDK 转发面锁测（工单 #225 交回项收口，任务 #237）。
+ * `IPluginCli*` 九型与标量联合 `PluginCliParameterType` SDK 转发面锁测
+ * （工单 #225 交回项收口，任务 #237；同缺陷类补齐，任务 #239）。
  *
  * 锁三件事：
  * 1. 源面逐名在册（偏差注入双向臂）：`src/scaffold/index.ts` 自 `@chips/scaffold` 的
  *    转发名单、`src/index.ts` manifest 块自 `./scaffold/index.js` 的再导出名单，都与
  *    在册名单**精确相等**——少一名（漏转发）或多一名（擅自扩面）都红；两块的
- *    `IPluginCli` 前缀子集恰为九型。
- * 2. 同一引用可达性（类型级）：九型经主入口、`@chips/sdk/scaffold` 子入口与上游
- *    `@chips/scaffold` 三处 `expectTypeOf` 全等，证明 SDK 面是转发而非第二份形状
- *    （§2.3 单源纪律、§11 约束 5）。
+ *    `IPluginCli` 前缀子集恰为九型（标量联合不带该前缀，单独随名单在册）。
+ * 2. 同一引用可达性（类型级）：九型与标量联合 `PluginCliParameterType` 经主入口、
+ *    `@chips/sdk/scaffold` 子入口与上游 `@chips/scaffold` 三处 `expectTypeOf` 全等，
+ *    证明 SDK 面是转发而非第二份形状（§2.3 单源纪律、§11 约束 5）；联合并核证其为
+ *    `IPluginCliParameter['type']` 的字段类型（可赋值臂）。
  * 3. 消费形状：以主入口再导出的九型装配一份含 `cli` 的 `IPluginManifest`，任一类型
  *    在链路中断可达即 `pnpm typecheck` 编译失败。
  *
  * 边界照登：脚手架开发期四型（`IScaffoldOptions` / `IScaffoldPlan` / `IScaffoldTemplate` /
- * `IScaffoldFile`）不入主入口（§2.2 末段、§8.3），主入口 manifest 块 24 名 = 在册 15 名
- * + CLI 九型；子入口 28 名 = 主入口 24 名 + 开发期四型。
+ * `IScaffoldFile`）不入主入口（§2.2 末段、§8.3），主入口 manifest 块 25 名 = 在册 15 名
+ * + CLI 九型 + 标量联合 `PluginCliParameterType`；子入口 29 名 = 主入口 25 名 + 开发期四型。
  */
 import { readFileSync } from 'node:fs';
 
@@ -38,7 +40,7 @@ const CLI_CONTRACT_NAMES: readonly string[] = [
   'IPluginCliParameterPath',
 ];
 
-/** `@chips/sdk` 主入口 manifest 再导出块在册名单（24 名，精确集合）。 */
+/** `@chips/sdk` 主入口 manifest 再导出块在册名单（25 名 = CLI 九型 + 标量联合 + 在册 15 名，精确集合）。 */
 const MAIN_MANIFEST_NAMES: readonly string[] = [
   ...CLI_CONTRACT_NAMES,
   'IPluginCapabilities',
@@ -53,12 +55,13 @@ const MAIN_MANIFEST_NAMES: readonly string[] = [
   'IPluginManifest',
   'IPluginRuntime',
   'IPluginUi',
+  'PluginCliParameterType',
   'PluginRole',
   'PluginSurface',
   'PluginTarget',
 ];
 
-/** `@chips/sdk/scaffold` 子入口类型转发在册名单（28 名 = 上游公开类型面全集）。 */
+/** `@chips/sdk/scaffold` 子入口类型转发在册名单（29 名 = 上游公开类型面全集）。 */
 const SUB_ENTRY_TYPE_NAMES: readonly string[] = [
   ...MAIN_MANIFEST_NAMES,
   'IScaffoldFile',
@@ -85,13 +88,13 @@ describe('SDK 两入口源面逐名在册（偏差注入双向臂）', () => {
   const mainSource = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
   const subSource = readFileSync(new URL('../src/scaffold/index.ts', import.meta.url), 'utf8');
 
-  it('主入口 manifest 块与在册 24 名精确相等（少一名或多一名都红）', () => {
+  it('主入口 manifest 块与在册 25 名精确相等（少一名或多一名都红）', () => {
     expect(parseExportTypeNames(mainSource, './scaffold/index.js').sort()).toEqual(
       [...MAIN_MANIFEST_NAMES].sort()
     );
   });
 
-  it('子入口转发名单与上游公开类型面 28 名精确相等（少一名或多一名都红）', () => {
+  it('子入口转发名单与上游公开类型面 29 名精确相等（少一名或多一名都红）', () => {
     expect(parseExportTypeNames(subSource, '@chips/scaffold').sort()).toEqual(
       [...SUB_ENTRY_TYPE_NAMES].sort()
     );
@@ -109,7 +112,7 @@ describe('SDK 两入口源面逐名在册（偏差注入双向臂）', () => {
   });
 });
 
-describe('九型三层同一引用（§2.3 单源纪律，类型级）', () => {
+describe('九型与标量联合三层同一引用（§2.3 单源纪律，类型级）', () => {
   it('主入口 ≡ 子入口 ≡ 上游：九型逐名两两全等，SDK 面是转发不是第二份形状', () => {
     expectTypeOf<sdkMain.IPluginCli>().toEqualTypeOf<sdkScaffold.IPluginCli>();
     expectTypeOf<sdkScaffold.IPluginCli>().toEqualTypeOf<upstreamScaffold.IPluginCli>();
@@ -129,6 +132,16 @@ describe('九型三层同一引用（§2.3 单源纪律，类型级）', () => {
     expectTypeOf<sdkScaffold.IPluginCliParameter>().toEqualTypeOf<upstreamScaffold.IPluginCliParameter>();
     expectTypeOf<sdkMain.IPluginCliParameterPath>().toEqualTypeOf<sdkScaffold.IPluginCliParameterPath>();
     expectTypeOf<sdkScaffold.IPluginCliParameterPath>().toEqualTypeOf<upstreamScaffold.IPluginCliParameterPath>();
+  });
+
+  it("PluginCliParameterType 主入口 ≡ 子入口 ≡ 上游同一引用，且即 IPluginCliParameter['type'] 的字段类型（可赋值臂）", () => {
+    expectTypeOf<sdkMain.PluginCliParameterType>().toEqualTypeOf<sdkScaffold.PluginCliParameterType>();
+    expectTypeOf<sdkScaffold.PluginCliParameterType>().toEqualTypeOf<upstreamScaffold.PluginCliParameterType>();
+    expectTypeOf<
+      sdkMain.IPluginCliParameter['type']
+    >().toEqualTypeOf<sdkMain.PluginCliParameterType>();
+    const typeField: sdkMain.PluginCliParameterType = 'stringList';
+    expect(typeField).toBe('stringList');
   });
 });
 
