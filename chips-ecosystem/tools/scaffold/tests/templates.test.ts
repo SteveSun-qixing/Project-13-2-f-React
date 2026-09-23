@@ -42,6 +42,7 @@ const EXPECTED_PATHS: Readonly<Record<PluginRole, readonly string[]>> = {
     'src/index.ts',
     'assets/icons/grid.svg',
     'assets/schemas/grid-config.schema.json',
+    'tests/setup.ts',
     'tests/render.test.ts',
   ],
   app: [
@@ -354,6 +355,65 @@ describe('角色差异', () => {
     expect(files.get('vite.render.config.ts')).toContain("entry: 'src/render.tsx'");
     expect(files.get('src/index.ts')).toContain("from './main'");
     expect(files.get('src/index.ts')).toContain("from './render'");
+  });
+
+  it('basecard 聚合转发面的 validateConfig 直发于 config，不经 main 中转', () => {
+    const files = fileMap(canonicalPlan('basecard'));
+    const index = files.get('src/index.ts') ?? '';
+    expect(index).toContain("export { validateConfig } from './config';");
+    expect(index).not.toMatch(/export \{[^}]*validateConfig[^}]*\} from '\.main'/);
+    const render = files.get('src/render.tsx') ?? '';
+    expect(render).not.toMatch(/\bvalidateConfig\b/);
+  });
+
+  it('boxlayout 渲染入口逐项具备 IBoxLayoutPlugin 必填成员', () => {
+    const files = fileMap(canonicalPlan('boxlayout'));
+    const render = files.get('src/render.tsx') ?? '';
+    expect(render).toMatch(/import \{[\s\S]*\bvalidateConfig\b[\s\S]*\} from '\.\/config';/);
+    expect(render).toMatch(
+      /renderPlugin: IBoxLayoutPlugin & IBoxLayoutRuntimeAware = \{[\s\S]*validateConfig,[\s\S]*\};/
+    );
+    // 必填成员逐项具备：禁止以 Pick/Partial 或类型断言绕过渲染面成员。
+    expect(render).not.toMatch(/renderPlugin:\s*(Pick|Partial)</);
+    expect(render).not.toMatch(/renderPlugin[\s\S]{0,80}as unknown as/);
+  });
+
+  it('boxlayout 编辑器用例在挂载宿主内查询表单并隔离悬挂定时器', () => {
+    const files = fileMap(canonicalPlan('boxlayout'));
+    const test = files.get('tests/render.test.ts') ?? '';
+    expect(test).toContain('document.body.replaceChildren(host);');
+    expect(test).toContain("host.querySelector('form')");
+    expect(test).not.toContain("document.querySelector('form')");
+    expect(test).toContain('vi.useFakeTimers()');
+    expect(test).toContain('vi.clearAllTimers()');
+    expect(test).toContain('vi.useRealTimers()');
+  });
+
+  it('jsdom 角色 vitest 配置完成 React 单实例收口并接入 tests/setup.ts', () => {
+    const jsdomConfig = readFile(canonicalPlan('boxlayout'), 'vitest.config.ts');
+    expect(jsdomConfig).toContain("setupFiles: ['./tests/setup.ts']");
+    expect(jsdomConfig).toContain("dedupe: ['react', 'react-dom']");
+    expect(jsdomConfig).toContain("mainFields: ['module', 'jsnext:main', 'jsnext', 'main']");
+    expect(jsdomConfig).toContain('find: /^react$/');
+    expect(jsdomConfig).toContain('find: /^react-dom$/');
+    expect(jsdomConfig).toContain('/@chips\\/ui/');
+    expect(jsdomConfig).toContain('/@chips\\/antd/');
+    for (const role of ['basecard', 'app', 'service'] as const) {
+      const nodeConfig = readFile(canonicalPlan(role), 'vitest.config.ts');
+      expect(nodeConfig).not.toContain('setupFiles');
+      expect(nodeConfig).not.toContain('dedupe');
+    }
+  });
+
+  it('tests/setup.ts 只随 jsdom 角色 emit，且桩内容齐备', () => {
+    const boxFiles = fileMap(canonicalPlan('boxlayout'));
+    const setup = boxFiles.get('tests/setup.ts') ?? '';
+    expect(setup).toContain('window.matchMedia');
+    expect(setup).toContain('configurable: true');
+    for (const role of ['basecard', 'app', 'service'] as const) {
+      const paths = canonicalPlan(role).files.map((file) => file.path);
+      expect(paths, `${role} 不应生成 tests/setup.ts`).not.toContain('tests/setup.ts');
+    }
   });
 
   it('app 渲染入口指向 AppView，主进程入口指向 index', () => {

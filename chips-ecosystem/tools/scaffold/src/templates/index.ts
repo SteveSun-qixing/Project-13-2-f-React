@@ -6,6 +6,7 @@ import { buildBoxlayoutFiles } from './boxlayout.js';
 import {
   packageJson,
   readmeMd,
+  testsSetupTs,
   tsconfigJson,
   viteMainConfigTs,
   viteRenderConfigTs,
@@ -89,6 +90,7 @@ export function scaffoldFilePaths(role: PluginRole, assetSlug: string): readonly
         'src/index.ts',
         `assets/icons/${assetSlug}.svg`,
         `assets/schemas/${assetSlug}-config.schema.json`,
+        'tests/setup.ts',
         'tests/render.test.ts',
       ];
     case 'app':
@@ -177,6 +179,10 @@ export function buildScaffoldFiles(context: IScaffoldContext): IScaffoldFile[] {
 
   if (renderEntry !== undefined) {
     commonFiles.push({ path: 'vite.render.config.ts', content: viteRenderConfigTs(renderEntry) });
+  }
+
+  if (testEnvironment(role) === 'jsdom') {
+    commonFiles.push({ path: 'tests/setup.ts', content: testsSetupTs() });
   }
 
   return [...commonFiles, ...buildRoleFiles(context)];

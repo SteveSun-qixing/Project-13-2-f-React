@@ -148,14 +148,49 @@ export default defineConfig({
 `;
 }
 
-/** 生成 `vitest.config.ts`：包级测试配置，使本包可被根 vitest 工作区发现并独立执行。 */
+/**
+ * 生成 `vitest.config.ts`：包级测试配置，使本包可被根 vitest 工作区发现并独立执行。
+ *
+ * `jsdom` 变体额外承担 React 单实例收口：`@chips/ui` / `@chips/antd` 以 workspace 链接
+ * 进入安装树时，其自身依赖上下文里已解析的 `react` / `antd`（CJS 主入口）会绕开
+ * 包级解析产生第二份 React，DOM 测试挂载即触发 invalid hook call。这里用
+ * `resolve.mainFields` 强制 antd 链走 ESM 入口、`server.deps.inline` 把平台 UI 链
+ * 纳入 Vite 模块图、`alias` + `dedupe` 把 `react` / `react-dom` 钉死为本包副本，
+ * 三者共同保证任意仓库布局下只存在一份 React。
+ */
 export function vitestConfigTs(environment: 'node' | 'jsdom'): string {
-  return `import { defineConfig } from 'vitest/config';
+  if (environment === 'jsdom') {
+    return `import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
+
+/** 本包根目录：React 单实例别名锚点。 */
+const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 
 /** 包级测试配置：单元测试与包级集成测试（《测试规范》《代码组织规范》§9）。 */
 export default defineConfig({
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+    mainFields: ['module', 'jsnext:main', 'jsnext', 'main'],
+    alias: [
+      { find: /^react$/, replacement: \`\${projectRoot}node_modules/react\` },
+      { find: /^react-dom$/, replacement: \`\${projectRoot}node_modules/react-dom\` },
+    ],
+  },
   test: {
-    environment: '${environment}',
+    environment: 'jsdom',
+    setupFiles: ['./tests/setup.ts'],
+    server: {
+      deps: {
+        inline: [
+          /@chips\\/ui/,
+          /@chips\\/antd/,
+          /[\\\\/]antd[\\\\/]/,
+          /@ant-design/,
+          /@rc-component/,
+          /[\\\\/]rc-/,
+        ],
+      },
+    },
     include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',
@@ -165,6 +200,50 @@ export default defineConfig({
     },
   },
 });
+`;
+  }
+  return `import { defineConfig } from 'vitest/config';
+
+/** 包级测试配置：单元测试与包级集成测试（《测试规范》《代码组织规范》§9）。 */
+export default defineConfig({
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}'],
+    },
+  },
+});
+`;
+}
+
+/**
+ * 生成 jsdom 角色专属的 `tests/setup.ts`：补齐 jsdom 缺失的 `window.matchMedia`，
+ * 与 `packages/ui/tests/setup.ts`、`packages/antd/tests/setup.ts` 同口径；属性以
+ * `configurable: true` 定义，保证用例内 `vi.stubGlobal` 仍可覆写。
+ */
+export function testsSetupTs(): string {
+  return `/** jsdom 测试环境补充：补齐 jsdom 缺失的 matchMedia（antd 响应式观测依赖）。 */
+
+if (!window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  });
+}
 `;
 }
 
@@ -226,6 +305,9 @@ export function readmeMd(context: IScaffoldContext, nextStep: string): string {
     'vite.main.config.ts      # 主进程入口构建 → dist/index.js',
     ...(hasRenderEntry ? ['vite.render.config.ts  # 渲染入口构建 → render.js'] : []),
     'vitest.config.ts         # 测试配置（单元测试与包级集成测试）',
+    ...(options.role === 'boxlayout'
+      ? ['tests/setup.ts           # jsdom 环境补充（matchMedia 桩）']
+      : []),
   ];
   return `# ${options.name}
 

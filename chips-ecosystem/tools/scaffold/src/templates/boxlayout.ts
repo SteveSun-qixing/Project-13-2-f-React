@@ -158,6 +158,7 @@ import {
   GAP_MIN,
   computeColumnCount,
   readConfig,
+  validateConfig,
 } from './config';
 import type { IGridConfig } from './config';
 
@@ -629,11 +630,12 @@ function renderEditor(box: BoxRenderView, container: HTMLElement): ILayoutEditor
   return new GridEditor(box, container);
 }
 
-/** 渲染入口：默认导出 IBoxLayoutPlugin 实现，由布局帧装载。 */
+/** 渲染入口：默认导出 IBoxLayoutPlugin 完整实现，由布局帧装载；validateConfig 直发于 ./config。 */
 export const renderPlugin: IBoxLayoutPlugin & IBoxLayoutRuntimeAware = {
   attachRuntime,
   renderLayout,
   renderEditor,
+  validateConfig,
 };
 
 export { attachRuntime, renderLayout, renderEditor };
@@ -797,8 +799,11 @@ describe('renderLayout', () => {
 
 describe('renderEditor', () => {
   it('产出替换变更并在提交后清脏', () => {
+    vi.useFakeTimers();
     const box = createBox({ layout_config: { gap: 24 } });
-    const editor = renderEditor(box, document.createElement('div'));
+    const host = document.createElement('div');
+    document.body.replaceChildren(host);
+    const editor = renderEditor(box, host);
     expect(editor.state).toBe('active');
     expect(editor.isDirty()).toBe(false);
 
@@ -806,7 +811,7 @@ describe('renderEditor', () => {
     editor.subscribe('change', () => {
       changes.push('change');
     });
-    const form = document.querySelector('form');
+    const form = host.querySelector('form');
     expect(form).not.toBeNull();
 
     editor.dispose();
@@ -814,6 +819,8 @@ describe('renderEditor', () => {
     expect(editor.getChange()).toBeNull();
     expect(editor.isDirty()).toBe(false);
     expect(changes).toHaveLength(0);
+    vi.clearAllTimers();
+    vi.useRealTimers();
   });
 });
 `;
