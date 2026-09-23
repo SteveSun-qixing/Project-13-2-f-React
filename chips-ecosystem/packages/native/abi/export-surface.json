@@ -262,6 +262,16 @@
       "signature": "(scope: string, sessionId: number) => Promise<void>"
     },
     {
+      "name": "resourceLocalPathOf",
+      "kind": "async",
+      "signature": "(uri: string, sessionId: number) => Promise<string>"
+    },
+    {
+      "name": "resourceManagedUriOfPath",
+      "kind": "async",
+      "signature": "(path: string, sessionId: number) => Promise<string | null>"
+    },
+    {
       "name": "auditBindDecisionSink",
       "kind": "sync",
       "signature": "(sink: (frame: INativeAuditDecisionFrame) => void) => void"

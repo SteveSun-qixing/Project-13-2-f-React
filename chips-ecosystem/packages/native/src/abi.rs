@@ -78,6 +78,8 @@ export_table! {
     "resourceMountDirectory" => crate::resource::js_resource_mount_directory,
     "resourceMountArchive" => crate::resource::js_resource_mount_archive,
     "resourceUnregisterScope" => crate::resource::js_resource_unregister_scope,
+    "resourceLocalPathOf" => crate::resource::js_resource_local_path_of,
+    "resourceManagedUriOfPath" => crate::resource::js_resource_managed_uri_of_path,
     "auditBindDecisionSink" => crate::audit::js_audit_bind_decision_sink,
 }
 

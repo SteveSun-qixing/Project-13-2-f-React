@@ -3,7 +3,7 @@
  * （W3-P0-1 段三宿主接线波，任务 #194；《04-资源管理设计》§十一）。
  *
  * 权威：`01-架构设计/01-子系统设计/04.11-04-资源管理设计-十一、Rust ResourceManager 与 Neon 暴露`
- * §11.3「Neon 导出」表（18 行逐字，camelCase 导出名 + 参数位次 + 返回形状）与
+ * §11.3「Neon 导出」表（20 行逐字，camelCase 导出名 + 参数位次 + 返回形状）与
  * §11.4（异步导出经 `cx.channel()` 回主线程 settle、失败路径 `ChipsError` 经 Bridge 归一）、
  * §11.5（单一 `ResourceManager` 实例随主进程生命周期）；
  * `ResourceMetadata` 的 JS 投影形状取
@@ -14,16 +14,20 @@
  *   `native-parser-module.ts` / `main/native-bridge.ts` 的镜像模式同构）。本模块镜像与
  *   `packages/native/abi/export-surface.json`、`packages/native/types/chips-native.d.ts`
  *   及 §11.3 表的三方一致性由 `tests/document-native-resource-module.test.ts` 单点锁定。
- * - 导出表只增不改（§8.6）：判定按「§11.3 十八名 + 元信息两名全部在位」，不要求全等集合；
+ * - 导出表只增不改（§8.6）：判定按「§11.3 二十名 + 元信息两名全部在位」，不要求全等集合；
  *   签名变化递增 `coreAbiVersion`，与宿主期望 `NATIVE_RESOURCE_ABI_VERSION` 不等即
  *   `abi-mismatch`。任一产物在位但缺名即 `surface-mismatch` 并逐项点名，杜绝静默降级。
  * - 产物落位与解析域/Bridge 域同一模块文件：`packages/host/native/chips-native.node`
  *   （Node 模块缓存保证同一 `.node` 进程级单例，三个装载闸共享同一内核与同一
  *   `ResourceManager` 实例，§11.5）。
- * - **本模块只交付消费面，不交付端口适配器**：§11.3 十八导出承载「已归一资源地址」的
- *   读写面与文档侧载体三项中的两项——① 作用域注册 / 挂载（`resourceRegisterTempScope` /
+ * - **本模块只交付消费面，不交付端口适配器**：§11.3 二十导出承载「已归一资源地址」的
+ *   读写面、文档侧载体三项中的两项，以及点位三 `managedUri ↔ localPath` 双向换算两项——
+ *   ① 作用域注册 / 挂载（`resourceRegisterTempScope` /
  *   `resourceMountDirectory` / `resourceMountArchive` / `resourceUnregisterScope`，波 A1
- *   任务 #209 三补名落位在册，行 16–18）；② 挂载即注册与级联注销的核心形（§11.2 在册）。
+ *   任务 #209 三补名落位在册，行 16–18）；② 挂载即注册与级联注销的核心形（§11.2 在册）；
+ *   ③ `managedUri ↔ localPath` 双向换算（`resourceLocalPathOf` / `resourceManagedUriOfPath`，
+ *   行 19–20，波 B 任务 #231 落位在册，本模块仅薄透传镜像、不接进 `document:*` / `file:*`
+ *   能力链路——宿主消费臂接线归后续波）。
  *   仍未承载的一项——跨成员原子提交与落盘序列化（`resourceCommitWrite` 为单成员一次
  *   写入，无包级事务面；序列化归点位四后续波，金链路刀6 裁决）——故
  *   `IDocumentScopePort` / `IDocumentStoragePort` 的正式适配器在该载体落地前**不得**
@@ -49,7 +53,7 @@ import { defaultNativeDocumentParserModulePath } from './native-parser-module.js
 export const NATIVE_RESOURCE_ABI_VERSION = 1;
 
 /**
- * §11.3「Neon 导出」表的 18 个导出名（逐字镜像，表行序即数组序；
+ * §11.3「Neon 导出」表的 20 个导出名（逐字镜像，表行序即数组序；
  * 表原文以 monospace 包裹，锁测比对前双侧去反引号）。
  */
 export const NATIVE_RESOURCE_SURFACE_EXPORTS = [
@@ -71,12 +75,14 @@ export const NATIVE_RESOURCE_SURFACE_EXPORTS = [
   'resourceMountDirectory',
   'resourceMountArchive',
   'resourceUnregisterScope',
+  'resourceLocalPathOf',
+  'resourceManagedUriOfPath',
 ] as const;
 
 /** 装载闸要求的元信息导出名（§8.6 元信息域两项，与解析域 / Bridge 域装载闸同判据）。 */
 export const NATIVE_RESOURCE_REQUIRED_META_EXPORTS = ['coreVersion', 'coreAbiVersion'] as const;
 
-/** 装载闸必备导出全集（元信息 2 + 资源域 18，共 20 项）；缺任一即 `surface-mismatch`。 */
+/** 装载闸必备导出全集（元信息 2 + 资源域 20，共 22 项）；缺任一即 `surface-mismatch`。 */
 export const NATIVE_RESOURCE_REQUIRED_EXPORTS = [
   ...NATIVE_RESOURCE_REQUIRED_META_EXPORTS,
   ...NATIVE_RESOURCE_SURFACE_EXPORTS,
@@ -144,7 +150,7 @@ export interface INativeResourceOpenResult {
 }
 
 /**
- * 资源域注入面（18 函数结构接口）：键名、参数位次、返回形状逐字对齐 §11.3 表。
+ * 资源域注入面（20 函数结构接口）：键名、参数位次、返回形状逐字对齐 §11.3 表。
  * `HandleId` / `SessionId` 为单调递增 `u64`（低于 2^53，§11.3 表后注），JS 侧以 `number`
  * 承载即安全整数域；释放后不复用。
  */
@@ -207,6 +213,17 @@ export interface INativeResourceModule {
    * 跨会话绑定形 `RESOURCE_PERMISSION_DENIED`）。
    */
   resourceUnregisterScope(scope: string, sessionId: number): Promise<void>;
+  /**
+   * 受管 URI → 本地绝对路径（点位三正向，§11.3 行 19）：复用核心 URI 解析与路径守卫
+   * 单源；会话未绑定目标作用域时 `RESOURCE_PERMISSION_DENIED`，Memory/Http/Platform
+   * 来源无本地路径返回 `RESOURCE_NOT_SUPPORTED`，归档 scope 恒返回归档文件路径。
+   */
+  resourceLocalPathOf(uri: string, sessionId: number): Promise<string>;
+  /**
+   * 本地绝对路径 → 受管 URI（点位三反向，§11.3 行 20）：符号链 canonical 化后按最长
+   * 前缀匹配；未命中（路径不存在/未挂载/会话未绑定）一律返回 `null`，不报错、不区分成因。
+   */
+  resourceManagedUriOfPath(path: string, sessionId: number): Promise<string | null>;
 }
 
 /** 装载失败原因（fail-closed 四分面；与解析域 / Bridge 域装载闸同构语义）。 */
@@ -226,7 +243,7 @@ export interface INativeResourceAvailable {
   readonly modulePath: string;
   readonly coreVersion: string;
   readonly abiVersion: number;
-  /** 资源域类型化消费面（18 函数结构接口）。 */
+  /** 资源域类型化消费面（20 函数结构接口）。 */
   readonly resource: INativeResourceModule;
 }
 
@@ -260,10 +277,10 @@ function unavailable(
 }
 
 /**
- * 装载并校验 `chips-native.node` 的资源域消费面（§11.3 十八导出 + §8.6 元信息两项）。
+ * 装载并校验 `chips-native.node` 的资源域消费面（§11.3 二十导出 + §8.6 元信息两项）。
  *
  * @remarks 判定顺序与 `loadNativeDocumentParserBinding` / `loadNativeBridgeBinding` 逐字同构：
- * 文件存在 → 加载成功且导出为对象 → 20 项必备导出全部在位且为函数（缺位逐项点名，
+ * 文件存在 → 加载成功且导出为对象 → 22 项必备导出全部在位且为函数（缺位逐项点名，
  * 旧构建产物零资源导出的形态在此判 `surface-mismatch`）→ `coreVersion` / `coreAbiVersion`
  * 合法且 ABI 等值。任一步失败即返回对应原因，全部通过才交付类型化消费面。
  * 本函数不抛错、不降级：调用方（组合根）按 `status` 如实呈现装载判据。

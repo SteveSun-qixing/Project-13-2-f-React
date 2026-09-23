@@ -88,6 +88,8 @@ import {
   resourceCreateDirectory,
   resourceDelete,
   resourceListDirectory,
+  resourceLocalPathOf,
+  resourceManagedUriOfPath,
   resourceMountArchive,
   resourceMountDirectory,
   resourceOpen,
@@ -376,6 +378,14 @@ export const scopeUnregistered: Promise<void> = resourceUnregisterScope(
   'card-0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f',
   resourceSession
 );
+export const localPath: Promise<string> = resourceLocalPathOf(
+  'chips-resource://card-0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f/a.md',
+  resourceSession
+);
+export const managedUri: Promise<string | null> = resourceManagedUriOfPath(
+  '/tmp/chips-doc-root/a.md',
+  resourceSession
+);
 
 // 资源投影形状探针：DTO 字段与写流方法面必须按声明面可用。
 export const resourceMetadataFields: Promise<[string, number, string, string, IResourceScopeKind]> =
@@ -437,6 +447,10 @@ void resourceMountDirectory(1, 'card-0f3e', '/tmp/x', 'chips.official.host', tru
 void resourceMountArchive(1, 'box-0f3e', '/tmp/x.card', 'chips.official.host', true);
 // @ts-expect-error resourceUnregisterScope 必须提供会话 ID
 void resourceUnregisterScope('card-0f3e');
+// @ts-expect-error resourceLocalPathOf 必须提供会话 ID
+void resourceLocalPathOf('chips-resource://card-0f3e/a.md');
+// @ts-expect-error resourceManagedUriOfPath 的 sessionId 必须是数字
+void resourceManagedUriOfPath('/tmp/chips-doc-root/a.md', 'nope');
 // @ts-expect-error 写流 append 必须提供字节实参
 void resourceStream.then((stream) => stream.append());
 // @ts-expect-error 写流 commit 不接受参数

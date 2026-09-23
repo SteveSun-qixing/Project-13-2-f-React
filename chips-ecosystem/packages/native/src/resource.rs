@@ -1,4 +1,4 @@
-//! 资源管理域导出（《04-资源管理设计》§11.3 十八导出，《核心接口规范》§7.3、§8.6）。
+//! 资源管理域导出（《04-资源管理设计》§11.3 二十导出，《核心接口规范》§7.3、§8.6）。
 //!
 //! 导出面与 backing 的一一对应（业务逻辑全部位于 `chips-resource`，本模块
 //! 只做类型转换、错误归一与线程回投，《核心接口规范》§8.1）：
@@ -29,6 +29,12 @@
 //!   失败整体回滚；kind 绑定层钉死 `Document`） |
 //! | `resourceUnregisterScope` | `ResourceManager::unregister_scope`（级联失效句柄/流/
 //!   缓存；绑定层补会话归属闸——核心签名无会话参数，《04.11》§11.3 N-1 注记族） |
+//! | `resourceLocalPathOf` | `ResourceManager::local_path_of`（正向换算：核心 URI
+//!   解析 + `resolve_within_root` 单源复用；会话未绑定 `PERMISSION_DENIED`
+//!   先行闸，《04.11》§11.3 波 B 注记） |
+//! | `resourceManagedUriOfPath` | `ResourceManager::managed_uri_of_path`（反向换算：
+//!   会话已绑定 scope 快照内最长前缀匹配；未命中一律 `null` 不报错，
+//!   泄漏免疫口径，RFC §六 C2 裁定实形） |
 //!
 //! 约定（§8.2、§8.3、§8.5、§11.3、§11.5）：
 //!
@@ -39,7 +45,8 @@
 //!   `resourceUnregisterScope`）已入导出面，kind 由绑定层钉死
 //!   `ScopeKind::Document`（落位即收紧，宿主无法经此入口注册
 //!   Workspace/Plugin/Temporary 域）；`managedUri ↔ localPath` 双向换算
-//!   （点位三）与包级原子提交（点位四）两导出候后续波落地，届时随动；
+//!   （点位三，波 B）已随 `resourceLocalPathOf` / `resourceManagedUriOfPath`
+//!   两导出落位；包级原子提交（点位四）候后续波落地，届时随动；
 //! - 接线波在册（工单046 段四）：单例构造注入进程级唯一
 //!   `NativeDecisionObserver`（与 bridge 单例同一实例，RFC §八条 2），
 //!   资源域判定素材经 `auditBindDecisionSink` 绑定的宿主 TS 消费函数
@@ -72,7 +79,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -512,6 +519,14 @@ fn settle_chunk<'a>(cx: &mut Cx<'a>, chunk: Option<Vec<u8>>) -> JsResult<'a, JsV
 fn settle_string<'a>(cx: &mut Cx<'a>, text: String) -> JsResult<'a, JsValue> {
     let value = cx.string(text);
     Ok(value.upcast())
+}
+
+/// `string | null` 收口（点位三反向臂：未命中回 `null` 非错误，§11.3 表行）。
+fn settle_optional_string<'a>(cx: &mut Cx<'a>, text: Option<String>) -> JsResult<'a, JsValue> {
+    match text {
+        Some(value) => settle_string(cx, value),
+        None => Ok(cx.null().upcast()),
+    }
 }
 
 /// `void` 收口（Promise 臂输出 `undefined`）。
@@ -989,6 +1004,43 @@ pub(crate) fn js_resource_unregister_scope(mut cx: FunctionContext) -> JsResult<
                 .map_err(|error| error.to_chips_error())
         },
         settle_undefined,
+    )
+}
+
+/// `resourceLocalPathOf(uri, sessionId)`：受管引用 → 本地可读路径（点位三
+/// 正向换算，W3 波 B，RFC §六 C2）。绑定层薄包装：换算判序（解析单源
+/// `resolve_input` → 会话闸 → 作用域查找 → Origin 拼接）全部落
+/// `chips-resource::local_path_of`（路径归一与 scope 语法零绑定层二次实现）；
+/// 错误经核心在册契约码原样透传（§8.5），磁盘规范化臂经运行时线程回投
+/// （§8.3），§11.3 异步 `Promise<string>`。
+pub(crate) fn js_resource_local_path_of(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let uri = cx.argument::<JsString>(0)?.value(&mut cx);
+    let session = arg_or_throw!(id_argument(&mut cx, 1, "/sessionId"), &mut cx);
+    let manager = resource_manager();
+    spawn_work(
+        &mut cx,
+        move || {
+            manager
+                .local_path_of(&uri, session)
+                .map_err(|error| error.to_chips_error())
+        },
+        settle_string,
+    )
+}
+
+/// `resourceManagedUriOfPath(path, sessionId)`：本地绝对路径 → 规范受管引用
+/// （点位三反向换算，绑定会话作用域集内 Origin 最长前缀匹配，含 `temp-*`）。
+/// 未命中（路径不存在 / 会话不在册 / 未绑定 / 他会话作用域覆盖，四类一律
+/// 同臂）返回 `null` 非错误——零存在性泄露口径即体现在返回形状（RFC §6.1
+/// 安全裁定）；§11.3 异步 `Promise<string | null>`。
+pub(crate) fn js_resource_managed_uri_of_path(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let path = cx.argument::<JsString>(0)?.value(&mut cx);
+    let session = arg_or_throw!(id_argument(&mut cx, 1, "/sessionId"), &mut cx);
+    let manager = resource_manager();
+    spawn_work(
+        &mut cx,
+        move || Ok(manager.managed_uri_of_path(Path::new(&path), session)),
+        settle_optional_string,
     )
 }
 
@@ -1609,8 +1661,8 @@ mod tests {
         // 返回 Promise 形状），与 RFC §4.2/§5.1 逐字表行一字不差。
         let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
         let exports = surface["exports"].as_array().expect("exports 数组");
-        assert_eq!(exports.len(), 53, "波 A1 在册全表 53 项");
-        assert_eq!(crate::abi::EXPORT_NAMES.len(), 53, "注册表同为 53 项");
+        assert_eq!(exports.len(), 55, "波 B 在册全表 55 项");
+        assert_eq!(crate::abi::EXPORT_NAMES.len(), 55, "注册表同为 55 项");
         let expected: [(&str, &str, &str); 3] = [
             (
                 "resourceMountDirectory",
@@ -2213,6 +2265,243 @@ mod tests {
         assert!(
             !manager.directory_mounted(&over_limit),
             "拒绝不得留半挂载根"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    // -----------------------------------------------------------------------
+    // 双向换算两导出锁测（W3 t036 波 B，RFC §六 C2 裁定：点位三
+    // `managedUri ↔ localPath` 单源双向换算；形状锁 + 链路锁 + 四类负例）
+    // -----------------------------------------------------------------------
+
+    /// 绑定层链路完整复刻的正向臂（`js_resource_local_path_of` 工作闭包同形：
+    /// 核心换算 + `to_chips_error` 错误归一，§8.5 契约码原样透传）。
+    fn local_path_of_via_binding(
+        manager: &ResourceManager,
+        uri: &str,
+        session: u64,
+    ) -> Result<String, ChipsError> {
+        manager
+            .local_path_of(uri, session)
+            .map_err(|error| error.to_chips_error())
+    }
+
+    /// 绑定层链路完整复刻的反向臂（`js_resource_managed_uri_of_path` 工作
+    /// 闭包同形：未命中 `None` → JS `null`，不报错、不区分成因）。
+    fn managed_uri_of_path_via_binding(
+        manager: &ResourceManager,
+        path: &Path,
+        session: u64,
+    ) -> Option<String> {
+        manager.managed_uri_of_path(path, session)
+    }
+
+    #[test]
+    fn test_local_path_conversion_surface_locked_in_manifest() {
+        // 形状锁①（波 B）：两换算导出在清单中的 kind/signature 逐字锁定
+        // （RFC §六 C2 在册实形），位次紧随 `resourceUnregisterScope`、
+        // 先于 audit 域收尾项。
+        let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
+        let exports = surface["exports"].as_array().expect("exports 数组");
+        let expected: [(&str, &str, &str); 2] = [
+            (
+                "resourceLocalPathOf",
+                "async",
+                "(uri: string, sessionId: number) => Promise<string>",
+            ),
+            (
+                "resourceManagedUriOfPath",
+                "async",
+                "(path: string, sessionId: number) => Promise<string | null>",
+            ),
+        ];
+        for (name, kind, signature) in expected {
+            let entry = exports
+                .iter()
+                .find(|entry| entry["name"] == name)
+                .unwrap_or_else(|| panic!("清单必须收录 {name}"));
+            assert_eq!(entry["kind"], kind, "{name} kind 锁定");
+            assert_eq!(entry["signature"], signature, "{name} 签名逐字锁定");
+        }
+        let names: Vec<&str> = exports
+            .iter()
+            .map(|entry| entry["name"].as_str().expect("name 字符串"))
+            .collect();
+        assert_eq!(names, crate::abi::EXPORT_NAMES, "清单与注册表逐项同序");
+        let anchor = names
+            .iter()
+            .position(|name| *name == "resourceUnregisterScope")
+            .expect("注销导出必须在册");
+        assert_eq!(
+            &names[anchor + 1..anchor + 3],
+            &["resourceLocalPathOf", "resourceManagedUriOfPath"],
+            "资源域换算两名同序紧随注销导出"
+        );
+        assert_eq!(
+            names[anchor + 3],
+            "auditBindDecisionSink",
+            "换算两名之后即 audit 域收尾项"
+        );
+    }
+
+    #[test]
+    fn test_local_path_conversion_declarations_locked_in_d_ts() {
+        // 形状锁②（波 B）：d.ts 两声明的参数逐位与返回形状锁定（正向
+        // `Promise<string>`、反向 `Promise<string | null>`——未命中 `null`
+        // 形即 RFC §6.1 泄漏免疫裁定的类型面承载）。
+        let declaration_of = |name: &str| -> String {
+            let marker = format!("export function {name}(");
+            let start = DECLARATIONS
+                .find(&marker)
+                .unwrap_or_else(|| panic!("d.ts 必须声明 {name}"));
+            let end = DECLARATIONS[start..]
+                .find(';')
+                .map(|offset| start + offset)
+                .expect("声明必须以分号收口");
+            DECLARATIONS[start..=end].to_owned()
+        };
+        let forward = declaration_of("resourceLocalPathOf");
+        for fragment in ["uri: string", "sessionId: number", "): Promise<string>;"] {
+            assert!(
+                forward.contains(fragment),
+                "正向换算声明逐位锁定：{fragment}"
+            );
+        }
+        let reverse = declaration_of("resourceManagedUriOfPath");
+        for fragment in [
+            "path: string",
+            "sessionId: number",
+            "): Promise<string | null>;",
+        ] {
+            assert!(
+                reverse.contains(fragment),
+                "反向换算声明逐位锁定：{fragment}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_local_path_conversion_chain_and_negative_arms_via_binding() {
+        // 链路锁（波 B）：正向/反向互逆回环 + 四类负例（不存在/未挂载/
+        // 越权/陈旧）错误码取在册码值零新码；Memory Origin 换算臂
+        // `NOT_SUPPORTED` 操作词就近归入 `list`（六词封闭禁新词锁）。
+        let manager = fixture_manager();
+        let root = temp_root("conv-chain");
+        fs::create_dir_all(root.join("notes")).expect("夹具子目录");
+        fs::write(root.join("notes/a.md"), b"chain").expect("夹具文件");
+        let session = mount_session(&manager, &["resources:read"]);
+        let scope = document_scope("c0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffee");
+        mount_directory_via_binding(&manager, session, &scope, &root, true)
+            .expect("换算夹具目录挂载必须成功");
+        // 正向成功臂 + 回环互逆：URI → 本地路径 → URI 同字回原位。
+        let uri = format!("chips-resource://{scope}/notes/a.md");
+        let local = local_path_of_via_binding(&manager, &uri, session).expect("正向换算必须成功");
+        assert_eq!(
+            PathBuf::from(&local),
+            root.join("notes/a.md"),
+            "正向产物为 Origin 根 + 相对段拼接（与核心成员形同判）"
+        );
+        assert_eq!(
+            managed_uri_of_path_via_binding(&manager, Path::new(&local), session),
+            Some(uri.clone()),
+            "回环互逆：反向必须原样回到正向规范 URI"
+        );
+        // 反向着陆根：目录根回作用域基址形。
+        assert_eq!(
+            managed_uri_of_path_via_binding(
+                &manager,
+                &fs::canonicalize(&root).expect("夹具根可规范化"),
+                session
+            ),
+            Some(format!("chips-resource://{scope}/")),
+            "根路径反回作用域基址形"
+        );
+        // 负例①不存在（反向臂）：绑定会话下不存在路径反查 → `None`（不报错、
+        // 不区分成因，RFC §6.1 泄漏免疫裁定；正向成员缺失段是 `resolve_within_root`
+        // 拼接合法形——「另存为」预览面，与核心同源，不作负例）。
+        assert_eq!(
+            managed_uri_of_path_via_binding(&manager, &root.join("absent.md"), session),
+            None,
+            "不存在路径反查必须未命中"
+        );
+        // 负例②未挂载（陈旧登记缺位）：合法语法作用域不在册 → NOT_FOUND。
+        let ghost = document_scope("deadbeef");
+        let mut ghost_scopes = BTreeSet::new();
+        ghost_scopes.insert(ghost.clone());
+        let ghost_session = manager
+            .open_session(
+                SessionKind::Document,
+                &MOUNT_TEST_OWNER.to_owned(),
+                ghost_scopes,
+                vec!["resources:read".to_owned()],
+            )
+            .expect("幽灵绑定夹具会话必须创建");
+        let error = local_path_of_via_binding(
+            &manager,
+            &format!("chips-resource://{ghost}/x.md"),
+            ghost_session,
+        )
+        .expect_err("未挂载作用域必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_NOT_FOUND");
+        // 负例③越权：会话在册但未绑定 → PERMISSION_DENIED（out_of_scope，
+        // target 仅作用域根 URI，零真实路径泄漏）。
+        let stranger = mount_session(&manager, &["resources:read"]);
+        let error = local_path_of_via_binding(&manager, &uri, stranger).expect_err("越权必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        let details = details_of(&error);
+        assert_eq!(details["reason"], "out_of_scope");
+        assert_eq!(details["target"], format!("chips-resource://{scope}/"));
+        assert!(
+            !details
+                .to_string()
+                .contains(root.to_string_lossy().as_ref()),
+            "拒绝回执不得泄露真实路径"
+        );
+        // 负例④陈旧：注销级联摘除绑定后再换算 → 会话闸先行为 PERMISSION_DENIED
+        // （《04.11》§11.3 在册双形口径的绑定先例形）。
+        unregister_via_binding(&manager, session, &scope).expect("夹具注销必须成功");
+        let error = local_path_of_via_binding(&manager, &uri, session).expect_err("陈旧必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        // 非本地 Origin 臂：Memory 挂载换算 → NOT_SUPPORTED，操作词
+        // 就近归入 `list`（词表六词封闭，禁新词锁）。
+        manager
+            .mount_memory(session)
+            .expect("Memory 挂载夹具必须成功");
+        let error = local_path_of_via_binding(&manager, "chips-resource://memory/x", session)
+            .expect_err("Memory Origin 无本地可读位置");
+        assert_eq!(error.code(), "RESOURCE_NOT_SUPPORTED");
+        assert_eq!(
+            details_of(&error)["operation"],
+            "list",
+            "禁新词锁：在册六词就近归入"
+        );
+        // 非受管 scheme 与非法语法在绑定链路维持在册码值（零新码）。
+        let error = local_path_of_via_binding(&manager, "file:///tmp/whatever", session)
+            .expect_err("file:// 必须拒收");
+        assert_eq!(error.code(), "RESOURCE_UNSUPPORTED_SCHEME");
+        let error = local_path_of_via_binding(&manager, "notes/a.md", session)
+            .expect_err("无 scheme 输入必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+        // 反向四类未命中一律 `None`（JS `null`）：不存在路径/会话不在册/
+        // 无绑定会话/他域路径，零信息泄漏口径。
+        assert_eq!(
+            managed_uri_of_path_via_binding(&manager, &root.join("notes/a.md"), session),
+            None,
+            "注销后原覆盖路径反查未命中"
+        );
+        assert_eq!(
+            managed_uri_of_path_via_binding(
+                &manager,
+                Path::new("/definitely/not/there.md9"),
+                987_654
+            ),
+            None,
+            "不在册会话反查未命中"
+        );
+        assert_eq!(
+            managed_uri_of_path_via_binding(&manager, Path::new(&root), stranger),
+            None,
+            "越权会话反查未命中"
         );
         let _ = fs::remove_dir_all(&root);
     }

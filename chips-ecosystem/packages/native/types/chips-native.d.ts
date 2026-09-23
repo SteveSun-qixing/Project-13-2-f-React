@@ -627,6 +627,23 @@ export function resourceMountArchive(
 export function resourceUnregisterScope(scope: string, sessionId: number): Promise<void>;
 
 /**
+ * 受管 URI → 本地绝对路径（点位三正向）：复用核心 URI 解析与路径守卫单源
+ * （canonical 化 + `resolve_within_root` 符号链复检），会话未绑定目标作用域
+ * 时 `RESOURCE_PERMISSION_DENIED`（`out_of_scope`，target 仅 scope-root URI）。
+ * Memory/Http/Platform 来源无本地路径，返回 `RESOURCE_NOT_SUPPORTED`；归档
+ * scope 恒返回归档文件路径（成员指针经 §6.2 既有读组合承载）。
+ */
+export function resourceLocalPathOf(uri: string, sessionId: number): Promise<string>;
+
+/**
+ * 本地绝对路径 → 受管 URI（点位三反向）：路径与调用会话已绑定 scope 根
+ * 同为符号链 canonical 化后按最长前缀匹配；未命中（路径不存在/未挂载/
+ * 会话未绑定）一律返回 `null`，不报错、不区分成因（泄漏免疫口径）。
+ * 同根双登记命中首个注册（scope 升序判据，RFC §十一裁定 G 交回项）。
+ */
+export function resourceManagedUriOfPath(path: string, sessionId: number): Promise<string | null>;
+
+/**
  * 权限判定出站素材（Rust `PermissionDecision` 的 JSON 投影；键表见
  * RFC-权限审计跨层采集sink裁定 §八条 3——《08-权限系统设计》§8.2
  * camelCase 词表直译 + 域判别 `domain` + 附加素材 `required`/`missing`）。

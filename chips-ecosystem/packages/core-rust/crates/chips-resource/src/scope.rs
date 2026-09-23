@@ -3,7 +3,7 @@
 //! 作用域是唯一授权单元：注册绑定所有者、来源、策略与创建会话；注册不等于
 //! 授权。External 按 origin 惰性注册；未注册作用域返回 `RESOURCE_NOT_FOUND`。
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -219,6 +219,26 @@ impl ScopeRegistry {
             .cloned()
     }
 
+    /// 按调用方给定的作用域键集只读检索在册项（W3 波 B 点位三反向换算的
+    /// 核心小增量，RFC §6.1：注册表按 scope / 按 `ExternalOrigin` 两检索臂
+    /// 之外补「按键集遍历」一臂）。注册表整体仍不提供全量列举面（《06》§3.4
+    /// 口径不变——本臂只回调用方已持有键的注册项，不泄露键集外任何条目）；
+    /// 返回按 `scope` 升序的稳定序（同根双登记的反向裁决确定性由此序承载，
+    /// 口径随波 B 在《04.11》§11.3 注记在册、候主裁复核）。
+    #[must_use]
+    pub fn snapshot_scopes(&self, scopes: &BTreeSet<ScopeId>) -> Vec<ScopeRegistration> {
+        let mut entries: Vec<ScopeRegistration> = self
+            .entries
+            .lock()
+            .expect("注册表锁不得中毒")
+            .iter()
+            .filter(|(scope, _)| scopes.contains(*scope))
+            .map(|(_, registration)| registration.clone())
+            .collect();
+        entries.sort_by(|left, right| left.scope.cmp(&right.scope));
+        entries
+    }
+
     /// 按 External origin 查找注册项。
     #[must_use]
     pub fn lookup_external(&self, origin: &ExternalOrigin) -> Option<ScopeRegistration> {
@@ -317,6 +337,36 @@ mod tests {
             .unregister("card-7f3a")
             .expect_err("注销后必须不存在");
         assert_eq!(missing.code(), crate::error::RESOURCE_NOT_FOUND);
+    }
+
+    #[test]
+    fn test_snapshot_scopes_keyed_read_only_and_leak_free() {
+        // 波 B 反向换算小增量：只回给定键集内的在册项、按 scope 升序稳定序，
+        // 键集外条目零泄露（《06》§3.4 无列举面口径不变）。
+        let registry = ScopeRegistry::new();
+        registry.register(document_scope()).unwrap();
+        let mut second = document_scope();
+        second.scope = "card-b1f2".into();
+        registry.register(second.clone()).unwrap();
+        let third = ScopeRegistration {
+            scope: "box-c3d4".into(),
+            ..document_scope()
+        };
+        registry.register(third).unwrap();
+        let empty = registry.snapshot_scopes(&BTreeSet::from(["card-nope".to_owned()]));
+        assert!(empty.is_empty(), "键不在册必须回空集");
+        let picked = registry.snapshot_scopes(&BTreeSet::from([
+            "card-b1f2".to_owned(),
+            "box-c3d4".to_owned(),
+            "ghost-scope".to_owned(),
+        ]));
+        let scopes: Vec<&str> = picked.iter().map(|entry| entry.scope.as_str()).collect();
+        assert_eq!(
+            scopes,
+            ["box-c3d4", "card-b1f2"],
+            "快照必须按 scope 升序稳定"
+        );
+        assert_eq!(picked[1], second, "快照项内容必须与注册项全等");
     }
 
     #[test]

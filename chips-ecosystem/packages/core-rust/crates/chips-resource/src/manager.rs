@@ -28,7 +28,7 @@
 //! 值原样上抛——管理器不改写、不折算 Provider 的错误码。
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -45,14 +45,14 @@ use crate::directory::{DirectoryProvider, DirectoryStreamSink, DIRECTORY_PROVIDE
 use crate::error::{InvalidateReason, ResourceError, ResourceResult, ScopeOperation};
 use crate::handle::{HandleEntry, HandleTable, StreamSlot};
 use crate::memory::MemoryProvider;
-use crate::path_guard::VirtualPath;
+use crate::path_guard::{canonical_percent_encode, resolve_within_root, VirtualPath};
 use crate::permission::{DecisionArm, PermissionChecker, ResourceOperation};
 use crate::provider::{
     ByteRange, DirectoryEntry, ResourceAddress, ResourceMetadata, ResourceProvider,
 };
 use crate::scope::{Origin, ScopeId, ScopeKind, ScopePolicy, ScopeRegistration, ScopeRegistry};
 use crate::session::{ResourceSession, SessionKind, SessionRegistry};
-use crate::uri::{resolve_input, CanonicalUri, ExternalOrigin, MEMORY_SCOPE};
+use crate::uri::{resolve_input, CanonicalUri, ExternalOrigin, MEMORY_SCOPE, RESOURCE_SCHEME};
 use crate::write_coord::{PathWritePermit, WriteCoordinator};
 
 /// 管理器异步面的结果别名：`ChipsError` 单形承载全部在册 `RESOURCE_*` 码。
@@ -976,6 +976,179 @@ impl ResourceManager {
         Ok(scope)
     }
 
+    /// 点位三正向换算（W3 波 B，RFC §六 C2 裁定）：受管引用 → 本地可读路径。
+    ///
+    /// 判序与绑定面挂载/注销臂同构：URI 解析单源复用 [`resolve_input`]
+    /// （非法语法 `RESOURCE_INVALID_URI`、非受管 scheme `RESOURCE_UNSUPPORTED_SCHEME`；
+    /// 裸 `http(s)` 与 `webdav://` 归一出的 External 形态**在本导出同样按
+    /// 非受管 scheme 拒绝**——受管引用唯一输入形为 `chips-resource://` 规范形，
+    /// RFC §6.1 错误码口径零新码）→ 会话活体/绑定闸（缺失即
+    /// `RESOURCE_PERMISSION_DENIED`、`reason = out_of_scope`、`target` 仅携作用域
+    /// 根 URI 不回显真实路径，与 `mount_directory` 会话闸同形）→ 作用域查找
+    /// （已绑定但不在册 → `RESOURCE_NOT_FOUND`，陈旧绑定形态）。Origin 臂：
+    /// 目录态成员路径以 [`resolve_within_root`] 单源拼接（符号链接根内复检、
+    /// PathGuard 在册校验，零第二套归一）；作用域基址形返回 Origin 根
+    /// （目录态包根）；归档态恒返回归档文件路径（包内成员无独立本地可读形，
+    /// 经 §6.2 既有读组合承载）；Platform / Memory / Http Origin 无本地可读
+    /// 位置 → `RESOURCE_NOT_SUPPORTED`（操作词表六词封闭《06》§7.3，换算臂
+    /// 就近归入 `list`——directory.rs `set_metadata` 臂「词表无新词、就近归入」
+    /// 同判例族，该归入口径候主裁复核，波 B 报告在册交回）。产物 UTF-8 收口：
+    /// Origin 经非绑定面登记且携非 UTF-8 字节属装配错误，fail-closed 回
+    /// `RESOURCE_INTERNAL`（在册码，零新码）。
+    pub fn local_path_of(&self, input: &str, session: SessionId) -> ResourceResult<String> {
+        let canonical = resolve_input(input, &self.limits)?;
+        if canonical.external.is_some() {
+            // `resolve_input` 对裸 http(s) 的归一产物在读取链合法，但受管引用
+            // 换算面只认 `chips-resource://` 规范形（scheme 非受管拒绝口径）。
+            return Err(ResourceError::UnsupportedScheme {
+                uri: input.to_owned(),
+            });
+        }
+        self.require_session_bound_scope(session, &canonical.scope)?;
+        let registration =
+            self.scopes
+                .lookup(&canonical.scope)
+                .ok_or_else(|| ResourceError::NotFound {
+                    uri: canonical.to_canonical_string(),
+                })?;
+        let path = match &registration.origin {
+            Origin::Directory(root) => match &canonical.path {
+                Some(virtual_path) => resolve_within_root(root, virtual_path)?,
+                None => root.clone(),
+            },
+            Origin::Archive(file) => file.clone(),
+            _ => {
+                return Err(ResourceError::NotSupported {
+                    uri: canonical.to_canonical_string(),
+                    scope: registration.kind,
+                    // 六词封闭表就近归入臂（见方法头注），非新词。
+                    operation: ScopeOperation::List,
+                });
+            }
+        };
+        path.into_os_string()
+            .into_string()
+            .map_err(|_| ResourceError::Internal)
+    }
+
+    /// 点位三反向换算（W3 波 B，RFC §六 C2 裁定）：本地绝对路径 → 规范受管
+    /// 引用（绑定会话作用域集内 Origin 最长前缀匹配，含 `temp-*`）。
+    ///
+    /// 未命中一律返回 `None`（不区分「路径不存在」「会话不在册」「未绑定」「他
+    /// 会话作用域覆盖」——零信息泄露口径即体现在返回类型里，RFC §6.1 安全裁定；
+    /// 装载闸 `registerScope` 失败即打开失败，误配不存在）。路径规范化复用核心
+    /// 既有唯一权威 [`std::fs::canonicalize`]（与 `attach_root` 入表前规范化同一
+    /// 权威，绑定层零二次实现）；匹配只在给定会话绑定集内查注册项
+    /// （[`ScopeRegistry::snapshot_scopes`] 只读遍历小增量）；目录 Origin 取
+    /// `starts_with` 组件前缀、归档 Origin 取等值命中，深度以规范化根的组件数
+    /// 计，最长前缀胜出；「同根双登记」等深平局按 `scope` 升序取先（快照稳定
+    /// 序承载，口径候主裁复核、波 B 报告在册交回）。命中根之下的相对段以
+    /// [`canonical_percent_encode`] 逐段编码后经 [`VirtualPath::validate`] 单源
+    /// 校验构造（NFC / 段规则与 URI 解析面同源），产物经 [`CanonicalUri`]
+    /// `to_canonical_string` 输出规范形——与正向解析共享同一语法权威，互逆由
+    /// 锁测钉死。段文本非 UTF-8 或超 PathGuard 预算属不可表示形态，按未命中
+    /// 收口（`None`，不伪造引用）。
+    #[must_use]
+    pub fn managed_uri_of_path(&self, path: &Path, session: SessionId) -> Option<String> {
+        let record = self.sessions.get(session)?;
+        if record.scopes.is_empty() {
+            return None;
+        }
+        let candidate = std::fs::canonicalize(path).ok()?;
+        let mut best: Option<(usize, ScopeRegistration)> = None;
+        for registration in self.scopes.snapshot_scopes(&record.scopes) {
+            let root = match &registration.origin {
+                Origin::Directory(root) | Origin::Archive(root) => root,
+                _ => continue,
+            };
+            let Ok(canonical_root) = std::fs::canonicalize(root) else {
+                continue;
+            };
+            let matched = match &registration.origin {
+                Origin::Directory(_) => candidate.starts_with(&canonical_root),
+                Origin::Archive(_) => candidate == canonical_root,
+                _ => false,
+            };
+            if !matched {
+                continue;
+            }
+            let depth = canonical_root.components().count();
+            match best {
+                // 严格更长前缀才替换：等深平局保留快照升序下的先到者（确定性裁决）。
+                Some((previous, _)) if previous >= depth => {}
+                _ => best = Some((depth, registration)),
+            }
+        }
+        let (depth, registration) = best?;
+        let (Origin::Directory(root) | Origin::Archive(root)) = &registration.origin else {
+            return None;
+        };
+        let canonical_root = std::fs::canonicalize(root).ok()?;
+        if canonical_root.components().count() != depth {
+            return None;
+        }
+        let scope_uri = format!("{RESOURCE_SCHEME}://{}/", registration.scope);
+        match &registration.origin {
+            // 归档态：命中即归档文件本体，回作用域基址形（成员无独立本地可读形）。
+            Origin::Archive(_) => Some(scope_uri),
+            Origin::Directory(_) => {
+                let relative = candidate.strip_prefix(&canonical_root).ok()?;
+                if relative.as_os_str().is_empty() {
+                    return Some(scope_uri);
+                }
+                let mut segments = Vec::new();
+                for component in relative.components() {
+                    let Component::Normal(segment) = component else {
+                        return None;
+                    };
+                    segments.push(canonical_percent_encode(segment.to_str()?));
+                }
+                let path =
+                    VirtualPath::validate(&segments.join("/"), &scope_uri, &self.limits).ok()?;
+                Some(
+                    CanonicalUri {
+                        scope: registration.scope.clone(),
+                        path: Some(path),
+                        external: None,
+                        query: None,
+                    }
+                    .to_canonical_string(),
+                )
+            }
+            _ => None,
+        }
+    }
+
+    /// 会话活体/绑定闸（正向换算臂）：与 `mount_directory` / `mount_archive`
+    /// 会话存在性臂及绑定层 `require_session_bound` 同一拒绝形——
+    /// `RESOURCE_PERMISSION_DENIED`、`details.permission = "session"`、
+    /// `reason = out_of_scope`、`target` 仅携作用域根 URI。
+    fn require_session_bound_scope(
+        &self,
+        session: SessionId,
+        scope: &ScopeId,
+    ) -> ResourceResult<()> {
+        match self.sessions.get(session) {
+            None => Err(ResourceError::PermissionDenied {
+                target: format!("{RESOURCE_SCHEME}://{scope}/"),
+                permission: "session".to_owned(),
+                required: Vec::new(),
+                missing: Vec::new(),
+                granted: Vec::new(),
+                reason: crate::error::PermissionDenyReason::OutOfScope,
+            }),
+            Some(record) if record.scopes.contains(scope) => Ok(()),
+            Some(record) => Err(ResourceError::PermissionDenied {
+                target: format!("{RESOURCE_SCHEME}://{scope}/"),
+                permission: "session".to_owned(),
+                required: Vec::new(),
+                missing: vec![scope.clone()],
+                granted: record.scopes.iter().cloned().collect(),
+                reason: crate::error::PermissionDenyReason::OutOfScope,
+            }),
+        }
+    }
+
     /// 一次性写入提交（《04》§11.1 `commit_write`，《04.04》§4.8）：
     /// 句柄只读，写入统一由管理器提交。流水线复检（PathGuard + 会话权限
     /// `resources:write`）→ 能力预检（只读策略 / `supports_write` 不支持 →
@@ -1679,6 +1852,7 @@ mod tests {
 
     use crate::provider::{DirectoryEntry, FileMetadata, ResourceStream};
     use crate::scope::{Origin, ScopePolicy};
+    use crate::uri::PLATFORM_SCOPE;
 
     /// 最小 Provider 替身：固定内容 `b"0123456789abcdef"`。
     struct StubProvider {
@@ -2990,5 +3164,389 @@ mod tests {
             .await
             .expect("收尾流读")
             .is_none());
+    }
+
+    // -------------------------------------------------------------------
+    // 点位三双向换算锁测（W3 波 B，RFC §六 C2：managedUri ↔ localPath
+    // 原生单源互逆；四类负例——不存在 / 未挂载 / 越权 / 陈旧——逐臂在册，
+    // 错误码零新增、reason 词表零触碰）。
+    // -------------------------------------------------------------------
+
+    /// 绑定会话 + 直注冊作用域（换算只依赖注册表与会话绑定集，不触 Provider；
+    /// 挂载链形态的换算臂由 `test_local_path_of_stale_after_unregister_core` 覆盖）。
+    fn bound_document_scope(manager: &ResourceManager, scope: &str, origin: Origin) -> SessionId {
+        manager
+            .register_scope(ScopeRegistration {
+                scope: scope.into(),
+                kind: ScopeKind::Document,
+                owner: "chips.official.editor".into(),
+                provider_id: "directory".into(),
+                origin,
+                policy: ScopePolicy {
+                    read_only: false,
+                    max_resource_bytes: 1024,
+                    allowed_hosts: Vec::new(),
+                },
+            })
+            .expect("夹具注册必须成功");
+        writer_session(manager, &[scope])
+    }
+
+    #[test]
+    fn test_local_path_of_directory_member_and_base_form() {
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        let root = temp_root("conv-fwd");
+        std::fs::create_dir_all(root.join("meta")).expect("夹具子目录必须可建");
+        std::fs::write(root.join("meta/卡片.yaml"), b"kind: card").expect("夹具文件必须可写");
+        let session = bound_document_scope(&manager, "card-conv1", Origin::Directory(root.clone()));
+        // 作用域基址形 → 目录态包根（Origin 根原样）。
+        let base = manager
+            .local_path_of("chips-resource://card-conv1/", session)
+            .expect("基址换算必须成功");
+        assert_eq!(base, root.to_string_lossy().as_ref());
+        // 成员形 → Origin 根 + 包内相对段拼接（NFC 中文段与 %20 空格臂）。
+        let member = manager
+            .local_path_of(
+                "chips-resource://card-conv1/meta/%E5%8D%A1%E7%89%87.yaml",
+                session,
+            )
+            .expect("成员换算必须成功");
+        assert_eq!(
+            member,
+            root.join("meta/卡片.yaml").to_string_lossy().as_ref()
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_local_path_of_and_managed_uri_of_path_are_inverse_roundtrip() {
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        let root = temp_root("conv-round");
+        std::fs::create_dir_all(root.join("sub dir")).expect("夹具目录必须可建");
+        std::fs::write(root.join("sub dir/50%.md"), b"x").expect("夹具文件必须可写");
+        let session = bound_document_scope(&manager, "card-conv2", Origin::Directory(root.clone()));
+        let uri = "chips-resource://card-conv2/sub%20dir/50%25.md";
+        let local = manager
+            .local_path_of(uri, session)
+            .expect("正向换算必须成功");
+        assert!(local.ends_with("sub dir/50%.md"), "拼接形失准：{local}");
+        // 回环：localPath → managedUri 与原受管引用逐字互逆（含 `%25` 字面
+        // 百分号与 `%20` 空格的双向编码臂）。
+        let back = manager
+            .managed_uri_of_path(Path::new(&local), session)
+            .expect("反向换算必须命中");
+        assert_eq!(back, uri, "两向互逆锁");
+        // 基址回环：包根目录本身反查回作用域基址形。
+        let base_back = manager
+            .managed_uri_of_path(root.as_path(), session)
+            .expect("包根反查必须命中");
+        assert_eq!(base_back, "chips-resource://card-conv2/");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_local_path_of_archive_returns_archive_file() {
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        let root = temp_root("conv-arch");
+        let archive = root.join("package.card");
+        std::fs::write(&archive, b"not-a-zip-but-registered-origin").expect("夹具归档必须可写");
+        let session =
+            bound_document_scope(&manager, "card-conv3", Origin::Archive(archive.clone()));
+        // 归档态：成员 URI 与基址形都回归档文件路径（成员经 §6.2 既有读组合承载）。
+        for uri in [
+            "chips-resource://card-conv3/",
+            "chips-resource://card-conv3/meta.yaml",
+        ] {
+            let local = manager
+                .local_path_of(uri, session)
+                .expect("归档换算必须成功");
+            assert_eq!(local, archive.to_string_lossy().as_ref(), "{uri} 归档臂");
+        }
+        // 反查：归档文件路径命中作用域基址形；成员相对段无本地可反查形。
+        let back = manager
+            .managed_uri_of_path(archive.as_path(), session)
+            .expect("归档反查必须命中");
+        assert_eq!(back, "chips-resource://card-conv3/");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_local_path_of_uri_arms_use_registered_codes() {
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        let root = temp_root("conv-neg");
+        let session = bound_document_scope(&manager, "card-conv4", Origin::Directory(root.clone()));
+        // `file://` 在资源核心维持拒收（《06》§2.2，归一责任在文档侧零移动）。
+        let error = manager
+            .local_path_of("file:///tmp/whatever", session)
+            .expect_err("file:// 必须拒收");
+        assert_eq!(error.code(), crate::error::RESOURCE_UNSUPPORTED_SCHEME);
+        // 裸 http(s) 归一产物在换算面同样按 scheme 非受管拒绝（RFC §6.1 两码口径）。
+        for bare in ["http://host/a", "https://host/a", "webdav://host/a"] {
+            let error = manager
+                .local_path_of(bare, session)
+                .expect_err("非受管 scheme 必须拒绝：{bare}");
+            assert_eq!(error.code(), crate::error::RESOURCE_UNSUPPORTED_SCHEME);
+        }
+        // 语法非法走 `resolve_input` 既有判定（无 scheme 输入按 INVALID_URI 归位）。
+        let error = manager
+            .local_path_of("card-conv4/meta.yaml", session)
+            .expect_err("无 scheme 输入必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_INVALID_URI);
+        // 目录穿越段维持 PathGuard 在册拒绝形（零第二套校验）。
+        let error = manager
+            .local_path_of("chips-resource://card-conv4/../escape", session)
+            .expect_err("越根段必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_PATH_INVALID);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_local_path_of_permission_and_not_found_arms() {
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        let root = temp_root("conv-gate");
+        let owner_session =
+            bound_document_scope(&manager, "card-conv5", Origin::Directory(root.clone()));
+        let uri = "chips-resource://card-conv5/a.txt";
+        assert!(manager.local_path_of(uri, owner_session).is_ok());
+        // 越权：会话在册但未绑定该作用域 → 在册拒绝形，details 零路径泄漏。
+        let stranger = writer_session(&manager, &[]);
+        let error = manager
+            .local_path_of(uri, stranger)
+            .expect_err("未绑定会话必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+        let details = error.details().expect("拒绝必携在册 details");
+        assert_eq!(details["reason"], "out_of_scope");
+        assert_eq!(details["target"], "chips-resource://card-conv5/");
+        assert!(
+            !details
+                .to_string()
+                .contains(root.to_string_lossy().as_ref()),
+            "拒绝回执不得泄露真实路径"
+        );
+        // 会话不在册 → 同形活体闸。
+        let error = manager
+            .local_path_of(uri, 987_654)
+            .expect_err("不在册会话必须拒绝");
+        assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+        // 陈旧绑定：绑定集在册但注册表已无该项 → RESOURCE_NOT_FOUND（查找臂）。
+        let ghost_session = writer_session(&manager, &["card-ghost"]);
+        let error = manager
+            .local_path_of("chips-resource://card-ghost/x.txt", ghost_session)
+            .expect_err("陈旧绑定必须按未注册收口");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_FOUND);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_local_path_of_non_local_origin_is_not_supported() {
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        // Memory Origin 夹具改走 Memory 种籍合法形（注册闸 kind-origin 配对在册，
+        // 换算臂拒绝的正是「Origin 无本地可读位置」这一事实本身，与种籍无关）。
+        manager
+            .register_scope(ScopeRegistration {
+                scope: MEMORY_SCOPE.into(),
+                kind: ScopeKind::Memory,
+                owner: "chips.official.editor".into(),
+                provider_id: "memory".into(),
+                origin: Origin::Memory,
+                policy: ScopePolicy {
+                    read_only: false,
+                    max_resource_bytes: 1024,
+                    allowed_hosts: Vec::new(),
+                },
+            })
+            .expect("Memory 夹具注册必须成功");
+        let session = writer_session(&manager, &["memory"]);
+        let error = manager
+            .local_path_of("chips-resource://memory/x", session)
+            .expect_err("Memory Origin 无本地可读位置");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_SUPPORTED);
+        // 操作词表六词封闭（《06》§7.3），换算臂就近归入 `list`（在册判例族，
+        // 波 B 交回口径复核）——禁新词锁即此断言。
+        assert_eq!(error.details().unwrap()["operation"], "list");
+        // Platform Origin 同臂。
+        manager
+            .register_scope(ScopeRegistration {
+                scope: PLATFORM_SCOPE.into(),
+                kind: ScopeKind::Platform,
+                owner: "chips.official.editor".into(),
+                provider_id: "platform".into(),
+                origin: Origin::Platform("embedded/icon.png".into()),
+                policy: ScopePolicy {
+                    read_only: true,
+                    max_resource_bytes: 1024,
+                    allowed_hosts: Vec::new(),
+                },
+            })
+            .expect("Platform 形夹具注册必须成功");
+        manager
+            .attach_scope(session, &"platform".to_owned())
+            .expect("夹具绑定必须成功");
+        let error = manager
+            .local_path_of("chips-resource://platform/", session)
+            .expect_err("Platform Origin 无本地可读位置");
+        assert_eq!(error.code(), crate::error::RESOURCE_NOT_SUPPORTED);
+    }
+
+    #[test]
+    fn test_managed_uri_of_path_negative_classes_are_null_and_leak_free() {
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        let root = temp_root("conv-rev");
+        std::fs::create_dir_all(root.join("inner")).expect("夹具目录必须可建");
+        let outsider = temp_root("conv-out");
+        std::fs::write(outsider.join("private.txt"), b"x").expect("夹具文件必须可写");
+        let session = bound_document_scope(&manager, "card-conv7", Origin::Directory(root.clone()));
+        // 不存在：路径不在盘上 → null（与「未绑定」同臂，零存在性泄露）。
+        assert_eq!(
+            manager.managed_uri_of_path(&root.join("nope.txt"), session),
+            None
+        );
+        // 未挂载：路径在盘上但会话绑定集无覆盖 Origin → null。
+        assert_eq!(
+            manager.managed_uri_of_path(outsider.join("private.txt").as_path(), session),
+            None
+        );
+        // 越权：作用域注册于他会话——本会话反查同一路径不得命中（不泄露他会话作用域）。
+        let other_root = temp_root("conv-other");
+        manager
+            .register_scope(ScopeRegistration {
+                scope: "card-secret".into(),
+                kind: ScopeKind::Document,
+                owner: "chips.official.editor".into(),
+                provider_id: "directory".into(),
+                origin: Origin::Directory(other_root.clone()),
+                policy: ScopePolicy {
+                    read_only: false,
+                    max_resource_bytes: 1024,
+                    allowed_hosts: Vec::new(),
+                },
+            })
+            .expect("他会话夹具注册必须成功");
+        assert_eq!(
+            manager.managed_uri_of_path(other_root.as_path(), session),
+            None
+        );
+        // 会话不在册 / 空绑定集 → null。
+        assert_eq!(manager.managed_uri_of_path(root.as_path(), 4242), None);
+        let unbound = writer_session(&manager, &[]);
+        assert_eq!(manager.managed_uri_of_path(root.as_path(), unbound), None);
+        // 陈旧：注销后级联脱绑，原路径反查回 null。
+        manager
+            .unregister_scope(&"card-conv7".to_owned())
+            .expect("注销必须成功");
+        assert_eq!(manager.managed_uri_of_path(root.as_path(), session), None);
+        let error = manager
+            .local_path_of("chips-resource://card-conv7/", session)
+            .expect_err("注销后正向命中绑定闸（绑定形）");
+        assert_eq!(error.code(), crate::error::RESOURCE_PERMISSION_DENIED);
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(outsider);
+        let _ = std::fs::remove_dir_all(other_root);
+    }
+
+    #[test]
+    fn test_managed_uri_of_path_longest_prefix_and_temp_scope_tie() {
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        let outer = temp_root("conv-long");
+        let inner = outer.join("nested");
+        std::fs::create_dir_all(&inner).expect("夹具目录必须可建");
+        std::fs::write(inner.join("leaf.md"), b"x").expect("夹具文件必须可写");
+        // 同会话三层绑定：外层 workspace、内层 temp-*、最深 card-*——最长前缀胜出。
+        let session =
+            bound_document_scope(&manager, "card-deepest", Origin::Directory(inner.clone()));
+        manager
+            .register_scope(ScopeRegistration {
+                scope: "temp-9".into(),
+                kind: ScopeKind::Temporary,
+                owner: TEMP_SCOPE_OWNER.into(),
+                provider_id: "directory".into(),
+                origin: Origin::Directory(outer.clone()),
+                policy: ScopePolicy {
+                    read_only: false,
+                    max_resource_bytes: 1024,
+                    allowed_hosts: Vec::new(),
+                },
+            })
+            .expect("temp 夹具注册必须成功");
+        manager
+            .attach_scope(session, &"temp-9".to_owned())
+            .expect("temp 绑定必须成功");
+        let leaf = inner.join("leaf.md");
+        let hit = manager
+            .managed_uri_of_path(leaf.as_path(), session)
+            .expect("最深作用域必须命中");
+        assert_eq!(hit, "chips-resource://card-deepest/leaf.md");
+        // outer 之下、inner 之外的路径落 temp-* 覆盖集（反向查询含 temp-* 在册）。
+        std::fs::write(outer.join("top.txt"), b"x").expect("夹具文件必须可写");
+        let hit = manager
+            .managed_uri_of_path(outer.join("top.txt").as_path(), session)
+            .expect("temp 覆盖必须命中");
+        assert_eq!(hit, "chips-resource://temp-9/top.txt");
+        // 同根双登记等深平局：快照升序取先，确定性锁（口径候主裁复核，波 B 交回项）。
+        let twin_root = temp_root("conv-twin");
+        std::fs::write(twin_root.join("dup.md"), b"x").expect("夹具文件必须可写");
+        for scope in ["card-zeta", "card-alpha"] {
+            manager
+                .register_scope(ScopeRegistration {
+                    scope: scope.into(),
+                    kind: ScopeKind::Document,
+                    owner: "chips.official.editor".into(),
+                    provider_id: "directory".into(),
+                    origin: Origin::Directory(twin_root.clone()),
+                    policy: ScopePolicy {
+                        read_only: false,
+                        max_resource_bytes: 1024,
+                        allowed_hosts: Vec::new(),
+                    },
+                })
+                .expect("双登记夹具注册必须成功");
+            manager
+                .attach_scope(session, &scope.to_owned())
+                .expect("双登记绑定必须成功");
+        }
+        let hit = manager
+            .managed_uri_of_path(twin_root.join("dup.md").as_path(), session)
+            .expect("同根双登记必须命中");
+        assert_eq!(
+            hit, "chips-resource://card-alpha/dup.md",
+            "等深平局必须按 scope 升序取先（确定性裁决锁）"
+        );
+        let _ = std::fs::remove_dir_all(outer);
+        let _ = std::fs::remove_dir_all(twin_root);
+    }
+
+    #[test]
+    fn test_local_path_of_mounted_directory_chain_matches_provider_root() {
+        // 挂载链形态（非直注册夹具）：`mount_directory` 成功后正向换算与
+        // `attach_root` 规范化同源——symlink 段经 `resolve_within_root` 根内复检。
+        let manager =
+            ResourceManager::new(ResourceLimits::default(), Arc::new(NoopDecisionObserver));
+        let session = writer_session(&manager, &[]);
+        let root = temp_root("conv-mount");
+        std::fs::create_dir_all(root.join("deep")).expect("夹具目录必须可建");
+        std::fs::write(root.join("deep/file.bin"), b"x").expect("夹具文件必须可写");
+        manager
+            .mount_directory(
+                session,
+                directory_registration("card-mount1", ScopeKind::Document, root.clone(), false),
+            )
+            .expect("挂载必须成功");
+        let local = manager
+            .local_path_of("chips-resource://card-mount1/deep/file.bin", session)
+            .expect("挂载链换算必须成功");
+        assert_eq!(local, root.join("deep/file.bin").to_string_lossy().as_ref());
+        let back = manager
+            .managed_uri_of_path(Path::new(&local), session)
+            .expect("挂载链反查必须命中");
+        assert_eq!(back, "chips-resource://card-mount1/deep/file.bin");
+        let _ = std::fs::remove_dir_all(root);
     }
 }

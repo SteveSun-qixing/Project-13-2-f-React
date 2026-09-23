@@ -10,7 +10,7 @@
  * - 唯一差异：环境变量 `CHIPS_E2E_DOCUMENT_WIRING_MODULE` 指认测试侧接线模块（绝对路径
  *   CJS，落位 `tests/e2e/host-wiring/`）时，装载其 `createE2EDocumentWiring()` 交付的文档
  *   能力注入项（守卫会话快照提供者 + 资源侧端口）。解析域产物仍走生产缺省装载闸
- *   （`chips-native.node` 53 项导出全量在册、解析域 17 必备名闸真实通过），本入口不注入
+ *   （`chips-native.node` 55 项导出全量在册、解析域 17 必备名闸真实通过），本入口不注入
  *   任何解析替身——禁 mock native 冒充 E2E。
  * - fail-closed 三态：环境变量缺位 → 与正式入口完全一致的诚实回退态（`document:*` 不注册）；
  *   指认但模块不可装载 / 工厂缺位 / 交付形状不完整 → 如实启动失败（不静默降级）；
