@@ -30,7 +30,8 @@
  *   行 19–20，波 B 任务 #231 落位在册；宿主消费臂已随工单036 波 B2 任务 #241 经
  *   `adapters/scope-adapter.ts` 接进 `document:*` 能力链路）；
  *   ④ 会话授权注入（`resourceGrantSession`，行 21，点位五 D1 任务 #244 落位在册，
- *   第 56 导出；本模块仅随装载闸薄镜像，宿主消费拍归 D2 承载波）。
+ *   第 56 导出；宿主消费拍已随点位五 D2 任务 #249 经 `adapters/scope-adapter.ts`
+ *   `registerScope` 的 grant 拍接线——文档服务建会话成功即注入 `resources:write`）。
  *   仍未承载的一项——跨成员原子提交与落盘序列化（`resourceCommitWrite` 为单成员一次
  *   写入，无包级事务面；序列化归点位四后续波，金链路刀6 裁决）——故
  *   `IDocumentScopePort` / `IDocumentStoragePort` 的正式适配器在该载体落地前**不得**
@@ -235,7 +236,9 @@ export interface INativeResourceModule {
    * （target 仅 `chips-resource://session/<id>`，零真实路径），不存在会话
    * fail-closed `RESOURCE_NOT_FOUND`；不改动会话已绑定作用域集。
    * @remarks 本成员在此仅随装载闸薄镜像（与 `packages/native` 表位次一致）；
-   * 宿主消费拍（文档链路授权调用位）归 D2 承载波，本波不接。
+   * 宿主消费拍（文档链路授权调用位）已随点位五 D2 任务 #249 在
+   * `adapters/scope-adapter.ts` `registerScope` 流程接线（open 成功紧邻同拍、先于挂载分叉，
+   * 被拒即回收会话如实抛出，RFC 裁定J §七）。
    */
   resourceGrantSession(sessionId: number, permissions: readonly string[]): void;
 }

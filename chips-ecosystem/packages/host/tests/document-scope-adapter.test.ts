@@ -10,15 +10,25 @@
  * 波 A2b-β 随波：替身补忠实原生台账语义（在册 scope 重挂 ALREADY_EXISTS、注销归属闸
  * NOT_FOUND/PERMISSION_DENIED 二回形，逐字引自 #213 §2.1 第 6 阶段判定式），新增「会话先死
  * 而 scope 在册」JS 面死锁端到端锁测，把「两拍次序是唯一防线」钉成可执行反证。
+ *
+ * 点位五 D2 随波（任务 #249，RFC 裁定J §七/§八）：替身补 `resourceGrantSession` 忠实面
+ * （会话在册闸 fail-closed + 幂等并入权限集，语义逐字引自 D1 核心形），既有挂载臂调用序
+ * 随 grant 拍机械翻正；新增「grant 消费拍与生命周期不变量（T4 宿主半）」锁族——时序逐字
+ * （open → grant → mount）、释放臂两拍与未 grant 基线形逐字等、scopes 集/detach 触达面
+ * 零变化、注销入口唯一性存在性锁、失败回退（任何码回收会话如实抛出）、无条件 grant（T8
+ * 宿主半）、权限字面量单源值锁与文档域零第二落点存在性锁。
  */
 
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
 import type { IDocumentCapabilityContext } from '../src/capabilities/document/contract.js';
+import { DOCUMENT_PERMISSION_IDS } from '../src/capabilities/document/contract.js';
+import { NATIVE_RESOURCE_SURFACE_EXPORTS } from '../src/capabilities/document/adapters/native-resource-module.js';
 import { createDocumentScopeAdapter } from '../src/capabilities/document/adapters/scope-adapter.js';
 import type { INativeResourceModule } from '../src/capabilities/document/adapters/native-resource-module.js';
 import { DOCUMENT_SCOPE_OWNER, deriveDocumentScope } from '../src/capabilities/document/scope-derivation.js';
@@ -37,12 +47,16 @@ interface IFakeNative {
   readonly module: INativeResourceModule;
   mountDirectoryImpl: ((args: readonly unknown[]) => Promise<string>) | null;
   unregisterImpl: (() => Promise<void>) | null;
+  /** grant 覆写臂（故障注入；`null` = 走忠实授权台账）。同步抛出形与 D1 绑定导出同相。 */
+  grantSessionImpl: ((args: readonly unknown[]) => void) | null;
   /** 点位三正向换算覆写臂（故障注入；`null` = 走忠实台账）。 */
   localPathOfImpl: ((args: readonly unknown[]) => Promise<string>) | null;
   /** 点位三反向换算覆写臂（未命中 `null` 与漂移形注入；`null` = 走忠实台账）。 */
   managedUriOfPathImpl: ((args: readonly unknown[]) => Promise<string | null>) | null;
   /** 直连核心登记面：作用域 → Origin 路径（挂载即登记、注销即摘除）。 */
   readonly origins: Map<string, string>;
+  /** 忠实授权台账：会话 → 已授权限集（幂等并入、去重排序；随 closeSession 整体消亡）。 */
+  readonly grantedPermissions: Map<number, readonly string[]>;
 }
 
 function createFakeNative(): IFakeNative {
@@ -56,6 +70,7 @@ function createFakeNative(): IFakeNative {
   const liveSessions = new Set<number>();
   const scopeOwners = new Map<string, number>();
   const origins = new Map<string, string>();
+  const grantedPermissions = new Map<number, readonly string[]>();
   const record = (name: string, args: readonly unknown[]): void => {
     calls.push({ sequence: nextSequence++, name, args });
   };
@@ -119,9 +134,11 @@ function createFakeNative(): IFakeNative {
     calls,
     mountDirectoryImpl: null,
     unregisterImpl: null,
+    grantSessionImpl: null,
     localPathOfImpl: null,
     managedUriOfPathImpl: null,
     origins,
+    grantedPermissions,
     module: {
       resourceOpenSession(kind: string, owner: string): number {
         record('resourceOpenSession', [kind, owner]);
@@ -132,6 +149,22 @@ function createFakeNative(): IFakeNative {
       resourceCloseSession(sessionId: number): void {
         record('resourceCloseSession', [sessionId]);
         liveSessions.delete(sessionId);
+        // 级联回收（D1 核心形 `close_session` 权限集随会话记录消亡，零残留）。
+        grantedPermissions.delete(sessionId);
+      },
+      resourceGrantSession(sessionId: number, permissions: readonly string[]): void {
+        record('resourceGrantSession', [sessionId, permissions]);
+        if (fake.grantSessionImpl !== null) {
+          fake.grantSessionImpl([sessionId, permissions]);
+          return;
+        }
+        if (!liveSessions.has(sessionId)) {
+          // fail-closed：会话不在册即拒（D1 绑定面 `RESOURCE_NOT_FOUND` 臂形）。
+          throw nativeFailure('RESOURCE_NOT_FOUND');
+        }
+        // 忠实授权台账：幂等并入（重复授予同串集不变、裁定J §三.1），排序去重呈账。
+        const merged = [...new Set([...(grantedPermissions.get(sessionId) ?? []), ...permissions])].sort();
+        grantedPermissions.set(sessionId, merged);
       },
       resourceMountDirectory(
         sessionId: number,
@@ -304,9 +337,16 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
     const managedUri = `chips-resource://${scope}/mount-dir.card`;
     await adapter.normalizeSource(target, makeContext());
     await adapter.registerScope({ documentId: 'doc-1', managedUri, kind: 'card' });
-    expect(fake.calls.map((call) => call.name)).toEqual(['resourceOpenSession', 'resourceMountDirectory']);
+    // grant 拍（D2，RFC 裁定J §七）：open 成功紧邻同拍、先于挂载，权限字面量逐字。
+    expect(fake.calls.map((call) => call.name)).toEqual([
+      'resourceOpenSession',
+      'resourceGrantSession',
+      'resourceMountDirectory',
+    ]);
     expect(callAt(fake, 0).args).toEqual(['document', DOCUMENT_SCOPE_OWNER]);
-    expect(callAt(fake, 1).args).toEqual([4100, scope, target, DOCUMENT_SCOPE_OWNER, true]);
+    expect(callAt(fake, 1).args).toEqual([4100, ['resources:write']]);
+    expect(callAt(fake, 2).args).toEqual([4100, scope, target, DOCUMENT_SCOPE_OWNER, true]);
+    expect(fake.grantedPermissions.get(4100)).toEqual(['resources:write']);
   });
 
   it('归档态：mountArchive 只读形（无 writable 参数位）', async () => {
@@ -320,8 +360,13 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
       managedUri: `chips-resource://${scope}/mount-arch.box`,
       kind: 'box',
     });
-    expect(fake.calls.map((call) => call.name)).toEqual(['resourceOpenSession', 'resourceMountArchive']);
-    expect(callAt(fake, 1).args).toEqual([4100, scope, target, DOCUMENT_SCOPE_OWNER]);
+    expect(fake.calls.map((call) => call.name)).toEqual([
+      'resourceOpenSession',
+      'resourceGrantSession',
+      'resourceMountArchive',
+    ]);
+    expect(callAt(fake, 1).args).toEqual([4100, ['resources:write']]);
+    expect(callAt(fake, 2).args).toEqual([4100, scope, target, DOCUMENT_SCOPE_OWNER]);
   });
 
   it('无归一前置的注册拒绝 RESOURCE_INVALID_URI（禁跳册直挂）', async () => {
@@ -347,7 +392,9 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
     await adapter.normalizeSource(target, makeContext());
     await adapter.registerScope({ documentId: 'doc-3', managedUri, kind: 'card' });
     await adapter.registerScope({ documentId: 'doc-3', managedUri, kind: 'card' });
+    // 幂等复用零新调用：grant 拍随 open 同生同灭（复用臂不重开不重授，窄形在册）。
     expect(fake.calls.filter((call) => call.name === 'resourceOpenSession')).toHaveLength(1);
+    expect(fake.calls.filter((call) => call.name === 'resourceGrantSession')).toHaveLength(1);
     const conflict = await expectRejection(() =>
       adapter.registerScope({ documentId: 'other', managedUri, kind: 'card' }),
     );
@@ -367,6 +414,7 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
     expect(error.code).toBe('RESOURCE_ALREADY_EXISTS');
     expect(fake.calls.map((call) => call.name)).toEqual([
       'resourceOpenSession',
+      'resourceGrantSession',
       'resourceMountDirectory',
       'resourceCloseSession',
     ]);
@@ -490,6 +538,217 @@ describe('scope-adapter · unregisterScope 两拍与第 6 阶段判定式（INV-
   });
 });
 
+describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 点位五 D2，RFC 裁定J §七/§八 T4 宿主半）', () => {
+  /** 归一 + 注册建立活绑定（替身首会话回执恒 4100），返回作用域与记录键。 */
+  async function grantMounted(
+    adapter: ReturnType<typeof createDocumentScopeAdapter>,
+    target: string,
+    kind: 'card' | 'box',
+  ): Promise<{ readonly managedUri: string; readonly scope: string }> {
+    const scope = deriveDocumentScope(target, kind);
+    const managedUri = `chips-resource://${scope}/${basename(target)}`;
+    await adapter.normalizeSource(target, makeContext());
+    await adapter.registerScope({ documentId: 'doc-grant', managedUri, kind });
+    return { managedUri, scope };
+  }
+
+  it('全链路时序逐字：open → grant（紧邻同拍、先于挂载分叉）→ mount → 拍① → 拍②', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('t4-sequence.card', true);
+    const { managedUri, scope } = await grantMounted(adapter, target, 'card');
+    fake.calls.length = 0;
+    await adapter.unregisterScope({ documentId: 'doc-grant', managedUri });
+    // 挂载段完整五拍序（grant 插在 open 与 mount 之间，其余两拍链零位移）：
+    // 释放臂自拍①起 [resourceUnregisterScope, resourceCloseSession] 与上文「两拍次序」
+    // 用例（未 grant 基线形在册锁，:436 族）逐字等——调用名序、逐位实参、调用计数
+    // （unregister 恰 1 / closeSession 恰 1 / 两拍之间零插入）三重等值。
+    expect(fake.calls.map((call) => call.name)).toEqual(['resourceUnregisterScope', 'resourceCloseSession']);
+    expect(callAt(fake, 0).args).toEqual([scope, 4100]);
+    expect(callAt(fake, 1).args).toEqual([4100]);
+  });
+
+  it('挂载段基线对照：grant 拍落位后 open/grant/mount 三拍逐字、释放臂零 grant 痕迹', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('t4-full.card', true);
+    const scope = deriveDocumentScope(target, 'card');
+    const managedUri = `chips-resource://${scope}/t4-full.card`;
+    await adapter.normalizeSource(target, makeContext());
+    await adapter.registerScope({ documentId: 'doc-grant', managedUri, kind: 'card' });
+    expect(fake.calls.map((call) => call.name)).toEqual([
+      'resourceOpenSession',
+      'resourceGrantSession',
+      'resourceMountDirectory',
+    ]);
+    expect(callAt(fake, 1).args).toEqual([4100, ['resources:write']]);
+    await adapter.unregisterScope({ documentId: 'doc-grant', managedUri });
+    const names = fake.calls.map((call) => call.name);
+    expect(names).toEqual([
+      'resourceOpenSession',
+      'resourceGrantSession',
+      'resourceMountDirectory',
+      'resourceUnregisterScope',
+      'resourceCloseSession',
+    ]);
+    // 释放臂（未 grant 基线形在册锁同判据）：零 grant 调用、计数各一。
+    const release = names.slice(names.indexOf('resourceUnregisterScope'));
+    expect(release).toEqual(['resourceUnregisterScope', 'resourceCloseSession']);
+    expect(fake.calls.filter((call) => call.name === 'resourceGrantSession')).toHaveLength(1);
+    expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(1);
+    expect(fake.calls.filter((call) => call.name === 'resourceCloseSession')).toHaveLength(1);
+  });
+
+  it('grant 零触 scope 登记面：作用域账（origins/scopeOwners）随 grant 重放逐字不变（detach 触达面零变化）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const target = makeFixture('t4-scopes.card', true);
+    const { managedUri } = await grantMounted(adapter, target, 'card');
+    const originsBefore = [...fake.origins.entries()];
+    fake.calls.length = 0;
+    // 直接触原生面重放 grant（幂等静默形，裁定J §三.1）＋二次授予他域不相关串零放行扩面。
+    fake.module.resourceGrantSession(4100, ['resources:write']);
+    fake.module.resourceGrantSession(4100, []); // 空数组 = 合法 no-op（§2.2 边界臂，宿主消费面核证）
+    expect(fake.grantedPermissions.get(4100)).toEqual(['resources:write']);
+    expect([...fake.origins.entries()]).toEqual(originsBefore);
+    expect(fake.calls.map((call) => call.name)).toEqual(['resourceGrantSession', 'resourceGrantSession']);
+    // grant 入参零 scope 位（授权面与挂载面职责分离，§五.3 禁语义混流的宿主侧证据）。
+    for (const call of fake.calls) {
+      expect(call.args[1]).not.toContain(managedUri.slice('chips-resource://'.length).split('/')[0]);
+    }
+    // detach/注销触达面在以上全程零变化：无 unregister 调用、作用域账不动。
+    expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
+  });
+
+  it('注销入口唯一性存在性锁：镜像清单单一注销名 + 适配器出口面恰五成员且仅 unregisterScope 触注销', async () => {
+    // 镜像清单：`Unregister` 形注销名恰一（禁第二注销形，INV-6 消费侧证据）。
+    expect(NATIVE_RESOURCE_SURFACE_EXPORTS.filter((name) => name.includes('Unregister'))).toEqual([
+      'resourceUnregisterScope',
+    ]);
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    // 适配器出口面恰五成员（grant 消费拍不增出口：授权注入收敛于 registerScope 流程内部）。
+    expect(Object.keys(adapter).sort()).toEqual([
+      'localPathOf',
+      'normalizeSource',
+      'registerScope',
+      'scopeRootOf',
+      'unregisterScope',
+    ]);
+    const target = makeFixture('t4-single-entry.card', true);
+    const { managedUri } = await grantMounted(adapter, target, 'card');
+    await adapter.normalizeSource(managedUri, makeContext());
+    await adapter.localPathOf(managedUri, 4100);
+    expect(adapter.scopeRootOf(managedUri)).not.toBeNull();
+    // 以上四路触达零注销调用；仅 unregisterScope 一路触注销（注销入口唯一行为证据）。
+    expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
+    await adapter.unregisterScope({ documentId: 'doc-grant', managedUri });
+    expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(1);
+  });
+
+  it('失败回退（grant 被拒任何码）：回收已开会话 + 如实抛出，零挂载、零吞码、消息零真实路径', async () => {
+    for (const deniedCode of ['RESOURCE_PERMISSION_DENIED', 'RESOURCE_NOT_FOUND', 'RESOURCE_INTERNAL'] as const) {
+      const fake = createFakeNative();
+      fake.grantSessionImpl = () => {
+        throw nativeFailure(deniedCode);
+      };
+      const adapter = createDocumentScopeAdapter({ native: fake.module });
+      const target = makeFixture(`fallback-${deniedCode}.card`, true);
+      const scope = deriveDocumentScope(target, 'card');
+      const managedUri = `chips-resource://${scope}/fallback-${deniedCode}.card`;
+      await adapter.normalizeSource(target, makeContext());
+      fake.calls.length = 0;
+      const error = await expectRejection(() =>
+        adapter.registerScope({ documentId: 'doc-fb', managedUri, kind: 'card' }),
+      );
+      // 登记码原样透传（禁吞禁降级静默继续，§七失败回退行）。
+      expect(error.code).toBe(deniedCode);
+      // 回收链逐字：open → grant（被拒）→ closeSession；零挂载、零注销掩盖形。
+      expect(fake.calls.map((call) => call.name)).toEqual([
+        'resourceOpenSession',
+        'resourceGrantSession',
+        'resourceCloseSession',
+      ]);
+      expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
+      expect(fake.calls.filter((call) => call.name === 'resourceMountDirectory')).toHaveLength(0);
+      // 跨层消息不回显真实文件系统路径（本文件既有口径）。
+      expect(error.message).not.toContain(target);
+      expect(JSON.stringify(error.details ?? {})).not.toContain(target);
+      // 账目清除：会话随回收消亡（忠实台账级联清权）、再注册走完整挂载流程（可恢复）。
+      expect(fake.grantedPermissions.has(4100)).toBe(false);
+      fake.grantSessionImpl = null;
+      await adapter.normalizeSource(target, makeContext());
+      await adapter.registerScope({ documentId: 'doc-fb', managedUri, kind: 'card' });
+      expect(fake.grantedPermissions.get(4101)).toEqual(['resources:write']);
+    }
+  });
+
+  it('无条件 grant（T8 宿主半）：目录态与归档态注入拍逐字等，权限面与挂载 policy 面正交', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const dirTarget = makeFixture('t8-dir.card', true);
+    const boxTarget = makeFixture('t8-arch.box', false);
+    await grantMounted(adapter, dirTarget, 'card');
+    await grantMounted(adapter, boxTarget, 'box');
+    const grants = fake.calls.filter((call) => call.name === 'resourceGrantSession');
+    expect(grants).toHaveLength(2);
+    // 两态注入的权限集逐字等（不做按 writable/归档态的条件 grant 分叉）。
+    expect(grants[0]?.args[1]).toEqual(['resources:write']);
+    expect(grants[1]?.args[1]).toEqual(grants[0]?.args[1]);
+    // 归档态挂载仍是只读 policy 形（无 writable 参数位）——归档只读由挂载面单点强制，
+    // 权限注入不为其借道也不改其形（宿主消费侧正交证据）。
+    const archive = fake.calls.find((call) => call.name === 'resourceMountArchive');
+    expect(archive?.args).toHaveLength(4);
+  });
+});
+
+describe('scope-adapter · 权限字面量单源与跨语言等值锁（工单053 点位五 D2，RFC 裁定J §七「权限字面量单源」行）', () => {
+  /** 文档域 src 递归收集 ts 源文件（相对 `src/capabilities/document` 的 POSIX 风格路径）。 */
+  function collectDocumentSources(directory: string, prefix: string): string[] {
+    const found: string[] = [];
+    for (const item of readdirSync(directory, { withFileTypes: true })) {
+      const absolute = join(directory, item.name);
+      const relative = prefix.length === 0 ? item.name : `${prefix}/${item.name}`;
+      if (item.isDirectory()) {
+        found.push(...collectDocumentSources(absolute, relative));
+      } else if (item.isFile() && item.name.endsWith('.ts')) {
+        found.push(relative);
+      }
+    }
+    return found;
+  }
+
+  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const documentSourceRoot = join(packageRoot, 'src', 'capabilities', 'document');
+
+  it('值锁：文档域自持常量恰为 "resources:write"（消费拍注入字面量逐字）', () => {
+    expect(DOCUMENT_PERMISSION_IDS.resourcesWrite).toBe('resources:write');
+    expect(Object.values(DOCUMENT_PERMISSION_IDS)).toContain('resources:write');
+  });
+
+  it('单源锁：`resources:write` 字面量在文档域 src 内唯一落点 = contract.ts 常量定义位', () => {
+    const carriers: string[] = [];
+    for (const relative of collectDocumentSources(documentSourceRoot, '')) {
+      const text = readFileSync(join(documentSourceRoot, relative), 'utf8');
+      // 只数携带字面量者（grant 消费拍经常量引用取字面量，本身零字面量落点）。
+      if (text.includes("'resources:write'")) {
+        carriers.push(relative);
+      }
+    }
+    expect(carriers).toEqual(['contract.ts']);
+  });
+
+  it('跨语言等值锁：注入字面量与核心写权限常量逐字等（permission.rs 只读核对，禁改 crate）', () => {
+    const permissionRs = readFileSync(
+      join(packageRoot, '..', 'core-rust', 'crates', 'chips-resource', 'src', 'permission.rs'),
+      'utf8',
+    );
+    const matched = /pub const PERMISSION_RESOURCES_WRITE: &str = "([^"]+)";/.exec(permissionRs);
+    expect(matched?.[1]).toBe('resources:write');
+    expect(DOCUMENT_PERMISSION_IDS.resourcesWrite).toBe(matched?.[1]);
+  });
+});
+
 describe('scope-adapter · JS 面死锁端到端锁测（工单036 波 A2b-β，钉死 INV-2 次序的不可恢复反例）', () => {
   it('会话先死而 scope 在册：重挂 ALREADY_EXISTS 真冲突收口，且无任何 JS 面恢复手段 ⇒ 两拍次序是唯一防线', async () => {
     const fake = createFakeNative();
@@ -513,7 +772,12 @@ describe('scope-adapter · JS 面死锁端到端锁测（工单036 波 A2b-β，
     );
     expect(conflict.code).toBe('RESOURCE_ALREADY_EXISTS');
     const conflictNames = fake.calls.map((call) => call.name);
-    expect(conflictNames).toEqual(['resourceOpenSession', 'resourceMountDirectory', 'resourceCloseSession']);
+    expect(conflictNames).toEqual([
+      'resourceOpenSession',
+      'resourceGrantSession',
+      'resourceMountDirectory',
+      'resourceCloseSession',
+    ]);
     expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
     // 步 4：以新会话强行注销他人在册 scope —— 归属闸恒 PERMISSION_DENIED（绑定层二回形，
     // OQ-4）；孤儿 scope 常驻，JS 面无任何恢复手段，只能重启清（§2.1(d) 步 3-5 钉死）。

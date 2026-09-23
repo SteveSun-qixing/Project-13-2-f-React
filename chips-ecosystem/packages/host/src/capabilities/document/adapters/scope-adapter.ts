@@ -32,6 +32,8 @@
  *   真冲突，**打开失败收口**（透传 `RESOURCE_ALREADY_EXISTS`）。**禁抢占他人 scope**（INV-5：
  *   冲突臂绝不先注销后挂载）；owner/kind/origin 一致性按 M0 处置降级为账本核对
  *   （kind/canonicalPath/documentId 三项；owner 由 `DOCUMENT_SCOPE_OWNER` 常量构造恒等）。
+ *   点位五 D2 注记：grant 拍只注入 `resources:write` 基串（读臂零注入、`<scope>` 限定形零注入，
+ *   裁定J §三.3），上述 M0 窄形判据不因此改变。
  * - **点位三消费臂（工单036 波 B2，本适配器为宿主侧唯一真接位）**：
  *   ① 正向 `localPathOf(managedUri, nativeSession)` 直调 `resourceLocalPathOf`（§11.3 行 19），
  *   在册账只供**作用域身份**、路径事实由核心 `ScopeRegistry` 的 `Origin` 单源给出——文档服务
@@ -52,9 +54,13 @@
  *   本地路径经本适配器的点位三正向口 `localPathOf` 现取，见「点位三消费臂」）；远端方案
  *   （http/https/webdav）物化通道未开（本波诚实拒收
  *   `RESOURCE_UNSUPPORTED_SCHEME`）。
- * - **写位现状（工单053 波 C）**：目录态挂载按 §11.3 行 16 以 `writable = true` 登记
- *   （挂载 policy 面，非权限注入）；会话权限集仍为空（绑定层无授权注入导出），
- *   受控写链路的授权注入归工单053 波 C，本波不注入、不伪造。
+ * - **grant 消费拍（工单053 点位五 D2，RFC 裁定J §七已接线）**：目录态挂载按 §11.3 行 16 以
+ *   `writable = true` 登记（挂载 policy 面）；会话建立即经第 56 导出
+ *   `resourceGrantSession`（§11.3 行 21，D1 任务 #244 落位）注入 `resources:write`——
+ *   `resourceOpenSession` 成功返回后紧邻同拍调用、先于挂载二态分叉，「活会话无权限」窗口
+ *   收敛为零拍；不做按 `writable`/归档态分叉的条件 grant（T8 锁其不变性，归档只读由
+ *   挂载 policy 面单点强制，与权限面正交）。grant 被拒（任何码）与挂载失败同处理：
+ *   `closeSessionQuietly` 回收已开会话 + 如实抛出，**禁吞禁降级静默继续**。
  */
 
 import { statSync } from 'node:fs';
@@ -62,7 +68,12 @@ import { basename, extname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { DiagnosticsSink } from '../../../shared/diagnostics.js';
-import type { DocumentForm, DocumentKind, IDocumentCapabilityContext } from '../contract.js';
+import {
+  DOCUMENT_PERMISSION_IDS,
+  type DocumentForm,
+  type DocumentKind,
+  type IDocumentCapabilityContext,
+} from '../contract.js';
 import { asDocumentCapabilityError, DocumentCapabilityError } from '../errors.js';
 import {
   DOCUMENT_SCOPE_OWNER,
@@ -74,6 +85,20 @@ import type { INativeResourceModule } from './native-resource-module.js';
 
 /** 会话种类判别字面量（绑定层 `parse_session_kind` 三值之一，document 域挂载用）。 */
 const DOCUMENT_SESSION_KIND = 'document';
+
+/**
+ * 文档会话建立即注入的权限全集（工单053 点位五 D2，RFC 裁定J §七「权限字面量单源」行）。
+ *
+ * @remarks
+ * - 宿主文档域自持常量单源：字面量唯一落点复用 `contract.ts` 的
+ *   `DOCUMENT_PERMISSION_IDS.resourcesWrite`（文档域既有权限 ID 常量），本数组是
+ *   grant 消费拍的注入形；禁经 SDK/Bridge 面转发第二定义位（AGENTS 架构红线）。
+ * - 跨语言等值权威 = `crates/chips-resource/src/permission.rs:23`
+ *   （`PERMISSION_RESOURCES_WRITE = "resources:write"`，Document 写臂只认此精确串，
+ *   裁定J §三.3：`<scope>` 限定形不扩 Document 写臂——属《06.04》§4.3 矩阵协议变更，另走 RFC）。
+ *   值锁与「文档域内字面量零第二落点」存在性锁见 `tests/document-scope-adapter.test.ts`。
+ */
+const DOCUMENT_SESSION_GRANT_PERMISSIONS: readonly string[] = [DOCUMENT_PERMISSION_IDS.resourcesWrite];
 
 /** 受管引用协议头（《06.02》§2.1 authority 段 = scope）。 */
 const MANAGED_URI_PREFIX = 'chips-resource://';
@@ -342,6 +367,18 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
       });
     }
     const nativeSession = native.resourceOpenSession(DOCUMENT_SESSION_KIND, DOCUMENT_SCOPE_OWNER);
+    // grant 拍（RFC 裁定J §七时序行）：open 成功返回后紧邻同拍注入写权限、先于挂载二态分叉，
+    // 「活会话无权限」窗口收敛为零拍；幂等静默形（§三.1）令重放安全，不做条件 grant 分叉（T8）。
+    try {
+      native.resourceGrantSession(nativeSession, DOCUMENT_SESSION_GRANT_PERMISSIONS);
+    } catch (error: unknown) {
+      // grant 被拒（任何码）＝与挂载失败同处理：回收已开会话 + 如实抛出（禁吞、禁降级静默
+      // 继续、禁以任何掩盖形改口）；登记码经 `asDocumentCapabilityError` 原样透传，
+      // 消息面零真实文件系统路径（本文件既有口径，绑定层 target 仅会话坐标）。
+      closeSessionQuietly(nativeSession);
+      forgetUnmounted(entry);
+      throw asDocumentCapabilityError(error);
+    }
     let mountedScope: string;
     try {
       mountedScope =
