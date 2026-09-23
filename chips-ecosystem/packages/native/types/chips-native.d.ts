@@ -315,7 +315,7 @@ export interface BoxRenderView {
   entries: EntryView[];
 }
 
-/** 作用域种类（《06-资源管理设计》§3.1 在册七种，序列化小写字面量）。 */
+/** 作用域种类（《06-资源协议规范》§3.1 在册七种，序列化小写字面量）。 */
 export type IResourceScopeKind =
   'workspace' | 'document' | 'plugin' | 'platform' | 'external' | 'temporary' | 'memory';
 
@@ -341,7 +341,7 @@ export interface IResourceOpenResult {
   metadata: IResourceMetadata;
 }
 
-/** 目录条目（§7.3 `resourceListDirectory` 元素，《06》§3.2）。 */
+/** 目录条目（§7.3 `resourceListDirectory` 元素；Rust DTO 见《04》§3.2，JS 投影逐字段冻结表见《04-资源管理设计》§11.3「JS 投影形状冻结表」，任务 #204 臂③）。 */
 export interface IDirectoryEntry {
   /** 条目名。 */
   name: string;
@@ -355,7 +355,8 @@ export interface IDirectoryEntry {
 
 /**
  * 流式写入句柄（§7.3 `resourceCommitWriteStream` 返回物）：
- * `{ id, uri, append, commit, abort }` 闭包对象。
+ * `{ id, uri, append, commit, abort }` 闭包对象，逐字段冻结表见
+ * 《04-资源管理设计》§11.3「JS 投影形状冻结表」（任务 #204 臂③）。
  * `commit` / `abort` 为一次性收口通道，重复调用以 `RESOURCE_NOT_FOUND` 拒绝；
  * 对象整体被 GC 回收且仍未收口时由绑定层兜底中止并清理临时文件（零残留）。
  */

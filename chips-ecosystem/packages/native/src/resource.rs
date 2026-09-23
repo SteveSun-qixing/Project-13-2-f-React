@@ -1173,10 +1173,7 @@ mod tests {
         assert_eq!(ledger.owner_of(2), Some(100));
         // 清空的会话索引自净：forget(2) 后会话 100 名下集消失。
         ledger.forget(2);
-        assert!(
-            !ledger.sessions.contains_key(&100),
-            "空会话集须自净"
-        );
+        assert!(!ledger.sessions.contains_key(&100), "空会话集须自净");
         // 级联清账：close_session 摘净该会话名下全部句柄、他会话不受扰。
         ledger.forget_session(200);
         assert_eq!(ledger.owner_of(3), None);
@@ -1190,8 +1187,11 @@ mod tests {
     fn test_handle_session_ledger_sentinel_is_fail_closed_and_never_real() {
         // 哨兵会话永不等真实会话 ID（真实 ID 跨边界受 2^53 约束、
         // `normalize_u64_field` 达 `MAX_SAFE_INTEGER` 即拒，§11.3/§8.2），
-        // 未在册经 owner_of_handle 回此值。
-        assert!(UNCLAIMED_SESSION > crate::convert::MAX_SAFE_INTEGER);
+        // 未在册经 owner_of_handle 回此值。哨兵恒大于真实会话 ID 上界是不变量：
+        // 以编译期常量断言承载（零运行时放宽，满足 §8.2 线格式契约的静态自证）。
+        const _: () = {
+            assert!(UNCLAIMED_SESSION > crate::convert::MAX_SAFE_INTEGER);
+        };
         let mut ledger = HandleSessionLedger::default();
         let resolved = ledger.owner_of(7).unwrap_or(UNCLAIMED_SESSION);
         assert_eq!(resolved, UNCLAIMED_SESSION, "未在册必落哨兵（fail-closed）");

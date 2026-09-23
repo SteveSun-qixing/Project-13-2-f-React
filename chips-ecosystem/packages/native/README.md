@@ -73,6 +73,10 @@ packages/native/
   `commit` / `abort` 经 `AtomicBool` 换取一次性收口权，对象整体被 GC 回收且
   仍未收口时由 `Drop` 兜底 `abort_write_stream`（显式释放优先、兜底零残留，
   与 §8.4「Finalize 只作兜底」同构语义）；
+- `resourceListDirectory` 的 `DirectoryEntry` 与上述写流闭包对象两形的**逐字段 JS 投影
+  冻结表**（字段名 / 类型 / 可缺省 / 语义 / 错配拒绝口径）以
+  《04-资源管理设计》§11.3「JS 投影形状冻结表」为唯一权威（任务 #204 臂③落册，
+  文档 ↔ `types/chips-native.d.ts` ↔ 绑定层实投影三处逐字段核对零漂移）；
 - `RESOURCE_*` 契约码经 `ChipsError` 原样透传，绑定层只以
   `NATIVE_TYPE_UNSUPPORTED` / `NATIVE_VALUE_OUT_OF_RANGE` / `NATIVE_INTERNAL`
   三码拒绝非法入参；`handleId` / `sessionId` / `offset` / `length` / `maxBytes`
