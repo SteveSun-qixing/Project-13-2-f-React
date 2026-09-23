@@ -424,6 +424,29 @@ class TestClosure(_SandboxMixin):
         self.assertIn("Chips-Notes/src/a.ts", dups[0]["detail"])
         self.assertEqual(code, lt.EXIT_VERIFY)
 
+    def test_residual_topdir_known_cargo_dir_not_pinned(self):
+        """#221 在册补登记锁测（#184 裁②兑现）：`.cargo/`（工作区级 Cargo 源覆盖配置，已入库）
+        为 RESIDUAL-TOPDIR 白名单成员，单独存在时不钉红；未在册目录仍必钉红且 level=red——
+        判据本身不放宽、不降 WARN。
+        """
+        matrix = self._matrix_md([])
+        os.makedirs(os.path.join(self.ws, ".cargo"))
+        with open(os.path.join(self.ws, ".cargo", "config.toml"), "w") as f:
+            f.write('[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n')
+        code, data = self._closure(strict=False, matrix=matrix)
+        self.assertEqual(code, 0)  # 无红：唯一顶层目录已在册
+        self.assertNotIn("RESIDUAL-TOPDIR", {i["code"] for i in data["issues"]})
+        self.assertEqual(data["double_zero_residual"]["残留"], 0)
+        os.makedirs(os.path.join(self.ws, "stray-dir"))  # 未在册目录仍在场
+        code, data = self._closure(strict=False, matrix=matrix)
+        self.assertEqual(code, lt.EXIT_VERIFY)
+        tops = [i for i in data["issues"] if i["code"] == "RESIDUAL-TOPDIR"]
+        self.assertEqual(len(tops), 1)
+        self.assertEqual(tops[0]["level"], "red")
+        self.assertIn("stray-dir", tops[0]["detail"])
+        self.assertNotIn(".cargo", tops[0]["detail"])
+        self.assertEqual(data["double_zero_residual"]["残留"], 1)
+
     def test_double_zero_pending_counts_registration_statuses_only(self):
         """工单048 回归锁（closure 通道，与 preflight 共用 PENDING_STATUS_SQL 单一口径）：
 

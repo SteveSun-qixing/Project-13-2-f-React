@@ -2211,8 +2211,11 @@ def closure(args):
                 residual_dup += 1
                 _new_issue(issues, "RESIDUAL-DUP", "red", None,
                            "新仓出现废弃/归档行同名尾部（契约 §3.1(c)(ii)）：chips-ecosystem/%s ← %s" % (rel, hit))
+    # 工作区级 Cargo 源覆盖配置（chips-ecosystem/.cargo/config.toml，已入库），属在册顶层结构；
+    # 2026-09-23 主智能体裁定补登记（#184 裁②兑现）。
     known_top = {"packages", "plugins", "tools", "tests", "examples", "docs",
-                 "node_modules", "coverage", "reports", "target", "dist", "归档", ".git"}
+                 "node_modules", "coverage", "reports", "target", "dist", "归档", ".git",
+                 ".cargo"}
     for name in sorted(os.listdir(NEW_WS)):
         if os.path.isdir(os.path.join(NEW_WS, name)) and name not in known_top:
             residual_top += 1
