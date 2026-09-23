@@ -4,7 +4,8 @@
 //! 依赖（《W2 金链路》工单015 工程约束），不引入 `zip` / `sha2` 等第三方
 //! crate。用途：
 //!
-//! - CRC32：ZIP 中央目录成员校验（《06-文档解析器设计》§4.3）；
+//! - CRC32：ZIP 中央目录成员校验（《06-文档解析器设计》§4.3）与写侧归档
+//!   条目 CRC 重算（《11-文档服务设计》§5.4「写入器重算 CRC32 与尺寸」）；
 //! - SHA-256：`content_digest`、索引摘要与 `manifest.resources[].checksum`
 //!   完整性校验（设计稿 §3.7、§6.4，《卡片文件格式》§5.1）。
 
@@ -28,14 +29,44 @@ fn crc32_table() -> &'static [u32; 256] {
     })
 }
 
-/// 计算字节串的 CRC32（ZIP 存储口径：初值 `!0`，末值取反）。
-pub(crate) fn crc32(bytes: &[u8]) -> u32 {
-    let table = crc32_table();
-    let mut crc = !0u32;
-    for byte in bytes {
-        crc = (crc >> 8) ^ table[((crc ^ u32::from(*byte)) & 0xFF) as usize];
+/// CRC32 流式累加器（ZIP 存储口径：初值 `!0`，末值取反）。
+///
+/// 写侧归档（`serialize::write_archive`）需要边写边算 CRC32，且不得与读侧
+/// 分叉出第二张查表，故一次性函数与累加器共用同一实现。
+#[derive(Debug, Clone)]
+pub(crate) struct Crc32 {
+    value: u32,
+}
+
+impl Crc32 {
+    /// 新建累加器（初值 `!0`）。
+    #[must_use]
+    pub(crate) fn new() -> Self {
+        Self { value: !0u32 }
     }
-    !crc
+
+    /// 喂入字节（任意分块，结果与一次性计算一致）。
+    pub(crate) fn update(&mut self, bytes: &[u8]) {
+        let table = crc32_table();
+        for byte in bytes {
+            self.value =
+                (self.value >> 8) ^ table[((self.value ^ u32::from(*byte)) & 0xFF) as usize];
+        }
+    }
+
+    /// 收尾取反得到最终 CRC32。
+    #[must_use]
+    pub(crate) fn finish(self) -> u32 {
+        !self.value
+    }
+}
+
+/// 计算字节串的 CRC32（ZIP 存储口径：初值 `!0`，末值取反）。
+#[must_use]
+pub(crate) fn crc32(bytes: &[u8]) -> u32 {
+    let mut accumulator = Crc32::new();
+    accumulator.update(bytes);
+    accumulator.finish()
 }
 
 /// SHA-256 一轮常数（FIPS 180-4 §4.2.2）。

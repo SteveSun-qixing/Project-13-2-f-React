@@ -51,6 +51,7 @@ pub mod error;
 pub mod model;
 pub mod parser;
 pub mod schema;
+pub mod serialize;
 pub mod source;
 pub mod view;
 pub mod yaml;
