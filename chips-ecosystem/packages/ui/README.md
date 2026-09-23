@@ -1,6 +1,6 @@
 # @chips/ui（共享前端层）
 
-> 版本：v1.0.0
+> 版本：v1.0.1
 > 日期：2026-09-23
 > 状态：正式版
 > 适用范围：`packages/ui` 的包定位、依赖边界、公开导出面（逐项与 `src/index.ts` 导出链一致）、分层职责、与 fork antd（`@chips/antd`）的关系、禁止事项与自检指引、常用命令；Design Tokens 数值以《09-统一视觉规范》为权威，导出与用法契约以《08-@chips-ui共享层使用指南》为权威，命令行为以《13-命令系统契约》为权威
@@ -67,7 +67,7 @@ src/
 ### 3.4 工具与转发面
 
 - `utils` 面：`toChipsUiFailure(error, fallbackMessage)` 与类型 `ChipsUiFailure { code, message }`（与 `ChipsError` 结构兼容；本包不依赖 `@chips/sdk`，按结构接收）。
-- `base` 转发面（`export * from '@chips/antd'`）：fork 组件白名单（当前 42 项，含 `App`；可用集合以 `packages/antd/src/components/index.ts` 为唯一实现事实源，《08》§2.6 只保证常用组件契约稳定，静态成员随组件转发）与 Props 类型、配套图标整集、`theme`（只用 `theme.useToken()`）、`App`（只用 `App.useApp()`）、`GlobalToken` / `ThemeConfig` 类型，以及 CSS 变量契约 `CHIPS_CSS_VAR_PREFIX` / `CHIPS_CSS_VAR_KEY` / `toChipsCssVarName`——后者是渲染帧令牌注入与平台壳样式挂接的唯一可达路径。
+- `base` 转发面（`export * from '@chips/antd'`）：fork 组件白名单（当前 42 项，含 `App`；可用集合以 `packages/antd/src/components/index.ts` 为唯一实现事实源，《08》§2.6 只保证常用组件契约稳定，静态成员随组件转发）与 Props 类型、配套图标整集、`theme`（只用 `theme.useToken()`）、`App`（只用 `App.useApp()`）、`GlobalToken` / `ThemeConfig` / `MappingAlgorithm` 类型与 fork 类型工具 `GetProp` / `GetProps` / `GetRef`（`packages/antd/src/components/index.ts:107`），以及 CSS 变量契约 `CHIPS_CSS_VAR_PREFIX` / `CHIPS_CSS_VAR_KEY` / `toChipsCssVarName`——后者是渲染帧令牌注入与平台壳样式挂接的唯一可达路径。
 - `global.css`：`import '@chips/ui/global.css'` 只允许平台壳窗口渲染层执行一次（《08》§六 06）；插件与业务组件不得导入任何全局样式或样式文件。
 
 ## 四、最小用法
