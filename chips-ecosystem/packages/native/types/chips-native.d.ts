@@ -12,7 +12,8 @@
  * 域导出（`openDocument` / `openCard` / `openBox` / `document*` /
  * `buildDocumentView`，《核心接口规范》§6.4、§6.6，《06-文档解析器设计》§12）
  * 与资源管理域导出（`resource*` 十五导出，《核心接口规范》§7.3，
- * 《04.11-04-资源管理设计》§11.3）、元信息、Context、取消令牌导出共用本入口；
+ * 《04.11-04-资源管理设计》§11.3）、审计观察域导出（`auditBindDecisionSink`，
+ * RFC-权限审计跨层采集sink裁定 §八；工单046 段四接线波）共用本入口；
  * 导出表只增不改，签名变化递增 `coreAbiVersion`。
  *
  * 约束：
@@ -591,3 +592,59 @@ export function resourceCloseSession(sessionId: number): void;
 
 /** 注册临时作用域（`dialog:*` 授权后调用），返回平台分配的 `ScopeId`。 */
 export function resourceRegisterTempScope(path: string, writable: boolean): string;
+
+/**
+ * 权限判定出站素材（Rust `PermissionDecision` 的 JSON 投影；键表见
+ * RFC-权限审计跨层采集sink裁定 §八条 3——《08-权限系统设计》§8.2
+ * camelCase 词表直译 + 域判别 `domain` + 附加素材 `required`/`missing`）。
+ * 素材面非条目面（RFC §5.2）：`id`/`timestamp`/`pluginVersion` 等宿主侧
+ * 字段由主进程消费点组装，不经本形状携带。
+ */
+export interface INativePermissionDecision {
+  /** 判定域：能力权限（`chips-bridge`）或资源作用域（`chips-resource`）。 */
+  domain: 'capability' | 'resource';
+  /** 判定结果；`grant`/`revoke` 属链路二宿主动作，不经本观察面。 */
+  action: 'allow' | 'deny';
+  /** 触发插件 ID（bridge：会话快照；resource：session owner）。 */
+  pluginId: string;
+  /** 判定所在会话（数值 `SessionId`，低于 2^53；字符串化归宿主组装面）。 */
+  sessionId: number;
+  /** 判定基础权限 ID（deny = 首个缺失项；allow = required 声明序首项）。 */
+  permission: string;
+  /** 本次判定核对的所需权限全集（附加素材，不落 §8.2 条目）。 */
+  required: string[];
+  /** 缺失全集；allow 臂恒空（附加素材，不落 §8.2 条目）。 */
+  missing: string[];
+  /** 拒绝原因（§8.2 五值词表）；deny 必携、allow 恒 `null`。 */
+  reason: 'not_granted' | 'revoked' | 'out_of_scope' | 'user_rejected' | 'policy' | null;
+  /** Capability 域目标能力 ID；Resource 域恒 `null`。 */
+  capabilityId: string | null;
+  /** Resource 域规范资源 URI（原值；§8.5 脱敏在宿主写入前）；Capability 域恒 `null`。 */
+  resourceUri: string | null;
+  /** Resource 域判定目标；可缺省。 */
+  target: string | null;
+  /** crate 内请求关联键（bridge 有、resource 无）。 */
+  requestId: string | null;
+  /** crate 内追踪关联键（bridge 有、resource 无；不跨 Neon 生成侧）。 */
+  traceId: string | null;
+  /** 限定值槽（§8.2 `qualifier` 预留）；现恒 `null`。 */
+  qualifier: string | null;
+}
+
+/**
+ * 审计决策帧：native 观察者经非阻塞 Neon Channel 抛给宿主消费函数的载荷。
+ * `dropped` 为观察侧累计丢弃计数（有界队列满丢 / 未绑定窗口 / JS 投递
+ * 失败的丢失可见性载荷，RFC §六条 2；宿主消费点据此告警）。
+ */
+export interface INativeAuditDecisionFrame {
+  decision: INativePermissionDecision;
+  dropped: number;
+}
+
+/**
+ * 绑定宿主主进程 TS 消费函数（审计观察域首导出，RFC §八条 1：构造期注入、
+ * 终身不可换）。重复绑定抛 `NATIVE_INTERNAL`；参数非函数抛
+ * `NATIVE_TYPE_UNSUPPORTED`。宿主侧调用必须先于任何 `bridge*` / `resource*`
+ * 判定流量（组合根启动序）；未绑定窗口的素材按 dropped 计数丢弃。
+ */
+export function auditBindDecisionSink(sink: (frame: INativeAuditDecisionFrame) => void): void;

@@ -11,7 +11,7 @@
  *   a82bbbd6b 落位）；**本波禁改 `packages/native` 面**，对在册导出表的互锁采「空集
  *   （未落位）或恰等 15 名镜像」两态判据——落位即自动收紧为逐字互锁，漂移（部分落位 /
  *   自造名）即红；
- * - 装载闸对「产物在位」的现态（49 导出、资源域 15 名在册）实测闸判判 available 并
+ * - 装载闸对「产物在位」的现态（50 导出、资源域 15 名在册）实测闸判判 available 并
  *   交付 15 函数消费面（落位即收紧，主翻正批随 #199 交回承接执行，生产判定逻辑零改动，
  *   见该臂注记）；产物缺位形态判 `module-missing`，任一形态绝不交付半截消费面；
  * - 装载闸 fail-closed 四分面（`module-missing` / `load-failed` / `surface-mismatch` /
@@ -77,7 +77,9 @@ describe('§11.3 三方表文本锁：文档表原文 ↔ 镜像常量 ↔ nativ
   const declaration = readWorkspaceSource('../../native/types/chips-native.d.ts');
 
   it('§11.3 表原文 15 行导出名与镜像常量逐项逐序一致（表行序即数组序，面漂移即翻红）', () => {
-    const section = resourceDoc.slice(resourceDoc.indexOf('### 11.3'), resourceDoc.indexOf('### 11.4'));
+    // 切割窗口止于「JS 投影形状冻结表」小节（#204 臂③扩表：两投影逐字段行
+    // 同为 `| \`字段\` |` 形态，不截断即误捕冻结表字段名——十五名导出表本体判据不变）。
+    const section = resourceDoc.slice(resourceDoc.indexOf('### 11.3'), resourceDoc.indexOf('#### JS 投影形状冻结表'));
     expect(section.length).toBeGreaterThan(0);
     expect(parseExportTableNames(section)).toEqual(ALL_FIFTEEN);
     expect(ALL_FIFTEEN.length).toBe(15);
@@ -101,6 +103,30 @@ describe('§11.3 三方表文本锁：文档表原文 ↔ 镜像常量 ↔ nativ
 
   it('宿主期望资源域 ABI 与 export-surface.json 的 abiVersion 等值（单一内核一个 ABI 计数，§8.6）', () => {
     expect(manifest.abiVersion).toBe(NATIVE_RESOURCE_ABI_VERSION);
+  });
+
+  it('§11.3 JS 投影形状冻结表两表字段 ↔ 宿主镜像两形逐名逐序一致（#204 臂③权威解码、#205/#206 翻正收口锁）', () => {
+    const freezeSection = resourceDoc.slice(
+      resourceDoc.indexOf('#### JS 投影形状冻结表'),
+      resourceDoc.indexOf('### 11.4'),
+    );
+    expect(freezeSection.length).toBeGreaterThan(0);
+    const secondTable = freezeSection.indexOf('**表二');
+    expect(secondTable).toBeGreaterThan(0);
+    const entryTable = parseExportTableNames(freezeSection.slice(0, secondTable));
+    const streamTable = parseExportTableNames(freezeSection.slice(secondTable));
+    expect(entryTable).toEqual(['name', 'isDirectory', 'size', 'modifiedUnixSeconds']);
+    expect(streamTable).toEqual(['id', 'uri', 'append', 'commit', 'abort']);
+
+    // 表行序即声明序：两镜像接口成员名逐字互锁（冻结表为唯一解码权威，漂移即红）。
+    const members = (block: string): string[] =>
+      [...block.matchAll(/^ {2}(?:readonly )?([A-Za-z]+)[(:]/gm)].map((m) => m[1] as string);
+    const streamStart = moduleSource.indexOf('export interface INativeWriteStreamHandle {');
+    const streamBlock = moduleSource.slice(streamStart, moduleSource.indexOf('\n}', streamStart));
+    expect(members(streamBlock)).toEqual(streamTable);
+    const entryStart = moduleSource.indexOf('export interface INativeDirectoryEntry {');
+    const entryBlock = moduleSource.slice(entryStart, moduleSource.indexOf('\n}', entryStart));
+    expect(members(entryBlock)).toEqual(entryTable);
   });
 
   it('native 在册导出表互锁：resource* 名集现态为空（#195 未落位在册事实）或恰等 15 名镜像（落位即收紧，漂移即红）', () => {
@@ -235,7 +261,7 @@ describe('§11.3 现态部署产物装载闸（生产恒缺省臂，任务 #194 
   });
 
   it(
-    '落位即收紧：产物在位（49 导出在册，含资源域 15 名）则必判 available 并交付 15 函数消费面；' +
+    '落位即收紧：产物在位（50 导出在册，含资源域 15 名）则必判 available 并交付 15 函数消费面；' +
       '缺位则判 module-missing——任一形态绝不交付半截消费面',
     () => {
       // 本臂原锁「resource* 导出未落位」现态事实（任务 #194 M0 结论①），部署产物翻正位

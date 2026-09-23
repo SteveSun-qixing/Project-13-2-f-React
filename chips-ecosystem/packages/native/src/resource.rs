@@ -30,10 +30,11 @@
 //!   一致（§11.5）；绑定层不感知作用域挂载细节（`mount_directory` /
 //!   `register_scope` Document 种类等生产端口载体不在 §11.3 十五导出内，
 //!   归宿主装载链接线波，任务 #194/#196 在册）；
-//! - 波界在册：单例构造注入 `NoopDecisionObserver` 仅为
-//!   `ResourceManager::new(limits, observer)` 构造签名的编译随行——真正的
-//!   `DecisionObserver`（审计素材经 Neon Channel 投递宿主 TS 消费函数）归
-//!   接线波（比照 [`crate::bridge::bridge`] 的同款注记），本波禁顺带接线；
+//! - 接线波在册（工单046 段四）：单例构造注入进程级唯一
+//!   `NativeDecisionObserver`（与 bridge 单例同一实例，RFC §八条 2），
+//!   资源域判定素材经 `auditBindDecisionSink` 绑定的宿主 TS 消费函数
+//!   投递（比照 [`crate::bridge::bridge`] 的同款翻正）；测试夹具仍显式
+//!   注入 `NoopDecisionObserver`（RFC §八条 1 测试面）；
 //! - 线程约束：异步导出全部提交绑定层运行时执行，结果经 `Channel` 回投
 //!   JS 线程 settle（§8.3）；`resourceRelease` / `resourceOpenSession` /
 //!   `resourceCloseSession` / `resourceRegisterTempScope` 按 §11.3 表为同步
@@ -65,7 +66,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use chips_core::{ChipsError, NoopDecisionObserver};
+use chips_core::ChipsError;
 use chips_resource::provider::ByteRange;
 use chips_resource::{
     FsOpRequest, OpenRequest, ResourceError, ResourceLimits, ResourceManager, ResourceMetadata,
@@ -84,12 +85,16 @@ use crate::runtime::{runtime, settle_json, spawn_result};
 static RESOURCE_MANAGER: OnceLock<Arc<ResourceManager>> = OnceLock::new();
 
 /// 取进程级资源管理器句柄；`ResourceLimits::default()` 即《04.12》§12 生产
-/// 默认值（八字段常量口径，段三主体波已翻正），观察面注记见模块头。
+/// 默认值（八字段常量口径，段三主体波已翻正）。
+///
+/// 接线波翻正在册（工单046 段四，RFC §八条 2）：构造期注入与
+/// [`crate::bridge::bridge`] 单例**同一**进程级观察者实例——两 crate
+/// 素材流汇入宿主同一消费点，是 §九「单条目单落点」的结构保证。
 fn resource_manager() -> Arc<ResourceManager> {
     Arc::clone(RESOURCE_MANAGER.get_or_init(|| {
         Arc::new(ResourceManager::new(
             ResourceLimits::default(),
-            Arc::new(NoopDecisionObserver),
+            crate::audit::decision_observer(),
         ))
     }))
 }
@@ -817,6 +822,8 @@ pub(crate) fn js_resource_register_temp_scope(mut cx: FunctionContext) -> JsResu
 #[cfg(test)]
 mod tests {
     use super::*;
+    // 测试面保留 Noop：crate 集成测试默认注入形态（RFC §八条 1）。
+    use chips_core::NoopDecisionObserver;
     use std::collections::BTreeSet;
     use std::fs;
     use std::path::{Path, PathBuf};

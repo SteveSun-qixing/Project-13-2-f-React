@@ -31,11 +31,13 @@ import type {
   IDocumentRevisionResult,
   IDocumentStructureResult,
   IDocumentValidationReport,
+  INativeAuditDecisionFrame,
   INativeBridgeRequest,
   INativeCapabilityContext,
   INativeCapabilityRegistration,
   INativeDiagnostic,
   INativeParseOptions,
+  INativePermissionDecision,
   INativeProviderRegistration,
   INativeSessionRegistration,
   IResourceMetadata,
@@ -44,6 +46,7 @@ import type {
   IWriteStreamHandle,
 } from 'chips-native';
 import {
+  auditBindDecisionSink,
   bridgeActivateProvider,
   bridgeCancelSession,
   bridgeCloseSession,
@@ -414,3 +417,57 @@ void resourceStream.then((stream) => stream.commit(1));
 void resourceListed.then((entries) => entries[0]?.is_directory);
 // @ts-expect-error 资源元数据没有 mime_type 字段
 void resourceStatResult.then((metadata) => metadata.mime_type);
+
+// ---------------------------------------------------------------------------
+// 审计观察域（工单046 段四接线波，《核心接口规范》§8.6 audit 首导出）。
+// ---------------------------------------------------------------------------
+
+export const auditDecisionFixture: INativePermissionDecision = {
+  domain: 'resource',
+  action: 'deny',
+  pluginId: 'chips.official.editor',
+  sessionId: 7,
+  permission: 'filesystem:read',
+  required: ['filesystem:read', 'filesystem:write'],
+  missing: ['filesystem:write'],
+  reason: 'not_granted',
+  capabilityId: null,
+  resourceUri: 'chips-resource://workspace/a.txt',
+  target: null,
+  requestId: null,
+  traceId: null,
+  qualifier: null,
+};
+export const auditFrameFixture: INativeAuditDecisionFrame = {
+  decision: auditDecisionFixture,
+  dropped: 0,
+};
+
+// 正例：绑定宿主消费函数（同步、无返回）；帧键表逐字段消费。
+export const auditBindResult: void = auditBindDecisionSink((frame: INativeAuditDecisionFrame) => {
+  const frameDomain: 'capability' | 'resource' = frame.decision.domain;
+  const frameAction: 'allow' | 'deny' = frame.decision.action;
+  const frameDropped: number = frame.dropped;
+  void frameDomain;
+  void frameAction;
+  void frameDropped;
+});
+
+// 审计观察域负例。
+// @ts-expect-error sink 必须是函数
+void auditBindDecisionSink(42);
+// @ts-expect-error auditBindDecisionSink 只接受一个参数
+void auditBindDecisionSink(() => undefined, 'second');
+// @ts-expect-error 素材字段为 camelCase，snake_case 必须被拒绝
+void auditFrameFixture.decision.plugin_id;
+// 素材对象换行后错误归于属性行，指令随属性锚定（prettier 版式下仍锁同一负例）。
+const auditBadReasonOmitted: INativePermissionDecision = {
+  ...auditDecisionFixture,
+  // @ts-expect-error reason 可空但不可缺省（undefined 不是合法载荷）
+  reason: undefined,
+};
+void auditBadReasonOmitted;
+// @ts-expect-error 帧只携带 decision 与 dropped 两键
+void auditFrameFixture.droppedCount;
+// @ts-expect-error 素材面不携带宿主侧字段 id
+void auditFrameFixture.decision.id;

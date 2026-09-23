@@ -245,6 +245,11 @@
       "name": "resourceRegisterTempScope",
       "kind": "sync",
       "signature": "(path: string, writable: boolean) => string"
+    },
+    {
+      "name": "auditBindDecisionSink",
+      "kind": "sync",
+      "signature": "(sink: (frame: INativeAuditDecisionFrame) => void) => void"
     }
   ],
   "blocked": []

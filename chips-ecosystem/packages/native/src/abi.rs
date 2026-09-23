@@ -75,6 +75,7 @@ export_table! {
     "resourceOpenSession" => crate::resource::js_resource_open_session,
     "resourceCloseSession" => crate::resource::js_resource_close_session,
     "resourceRegisterTempScope" => crate::resource::js_resource_register_temp_scope,
+    "auditBindDecisionSink" => crate::audit::js_audit_bind_decision_sink,
 }
 
 /// `coreVersion()`：平台统一版本（与全部平台包共用同一版本号）。

@@ -29,8 +29,11 @@
  * - PAL 宿主构造由调用方注入（平台差异），本模块只负责运行时装配，保持与自检入口零逻辑分叉。
  */
 
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
+import { bindNativeDecisionSink, createPermissionDecisionIntake } from '../audit/decision-intake.js';
 import type { IPalHost } from '../platform/contracts/index.js';
 import type { CardWindowDocumentBindingResolver, IDocumentViewChannelEndpoint } from '../runtime/contracts.js';
 import type { IHostCapabilityDescriptor } from '../runtime/capability/contracts.js';
@@ -46,6 +49,7 @@ import {
   createEmbeddedTrustRootRegistry,
   openPluginRegistry,
   type IPluginActivationPort,
+  type IPluginRegistry,
   type PluginRole,
 } from '../loader/index.js';
 import {
@@ -73,6 +77,20 @@ export type PluginActivationPortFor = (plugin: {
   readonly role: PluginRole;
   readonly path: string;
 }) => IPluginActivationPort | undefined;
+
+/**
+ * resource 域素材 `traceId` 腿的宿主侧固定来源哨兵（工单046 段四接线波，任务 #206 自裁）。
+ *
+ * @remarks 取值口径（RFC-权限审计跨层采集sink裁定 §5.3 `traceId` 行：「resource 域 crate
+ * 无 → 宿主以段一横切 `InvocationContext.traceId` 贯通链补」）：native 观察帧经 Neon
+ * `Channel` 回投 JS 线程事件循环，回调现场**没有**同步的请求上下文可回读段一横切键；
+ * 逐帧自生成随机键即「另造关联键」（§5.3 原文与立项书段一口径禁止）。故采最小诚实形：
+ * 固定来源哨兵——不伪装任何一侧的关联键、如实标注「宿主观察面直投」，`validateAuditEntry`
+ * 必填非空约束满足，条目可比照既有 `source` 字段「运行时记录缺省不造值」的口径审计定位
+ * （所有 resource 域条目共键，检索/关联价值由后续资源域横切贯通波经 `resolveTraceId`
+ * 端口原位升级，组装面零改动）。
+ */
+export const AUDIT_RESOURCE_DOMAIN_TRACE_SOURCE = 'native-audit:resource-domain';
 
 /** 生产运行时装配选项（在 `runtime/host-runtime.ts` 的 `HostRuntimeOptions` 之上的组合根视图）。 */
 export interface ProductionRuntimeOptions {
@@ -189,7 +207,7 @@ export function createProductionRuntime(
     },
     // 生产装配恒开权限审计写入器（工单046 段二；《08.08》§8.3 落位
     // `<userData>/logs/audit/`，userData 根沿用组合根上下文既有注入形，不新造配置面；
-    // 常开、不受 CHIPS_TRACE 门控，本波形态为「writer 常开待消费」）。
+    // 常开、不受 CHIPS_TRACE 门控；段四接线波起由下方审计绑定臂接入 native 素材流消费）。
     audit: {
       userDataPath: context.userDataPath,
     },
@@ -206,13 +224,18 @@ export function createProductionRuntime(
  *
  * @param context 组合根上下文（取 `userDataPath` 与 PAL 宿主快照的 `appVersion`）。
  * @param activationPortFor 激活端口显式覆盖注入位（缺省走正式通道）。
- * @returns 交予宿主运行时 `pluginLoaderFactory` 的工厂。
+ * @returns 工厂与注册表句柄：`loaderFactory` 交予宿主运行时 `pluginLoaderFactory`；
+ *   `pluginRegistry` 供组合根审计接线臂读取插件版本（工单046 段四，RFC §5.3
+ *   `pluginVersion`「宿主授权/会话权威侧补挂」的在册生产源，禁第二注册表实例）。
  * @throws 注册表文档非法时原样上抛（整表拒绝不静默降级；壳以 `HOST_STARTUP_FAILED` 终止启动）。
  */
 async function createProductionPluginLoaderFactory(
   context: HostRuntimeContext,
   activationPortFor: PluginActivationPortFor | undefined,
-): Promise<(deps: IHostPluginLoaderDeps) => IPluginLoaderSurface> {
+): Promise<{
+  loaderFactory: (deps: IHostPluginLoaderDeps) => IPluginLoaderSurface;
+  pluginRegistry: IPluginRegistry;
+}> {
   const pluginsRoot = join(context.userDataPath, 'chips-plugins');
   const pluginRegistry = await openPluginRegistry({ filePath: join(pluginsRoot, 'registry.json') });
   const trustRoots = createEmbeddedTrustRootRegistry();
@@ -227,16 +250,19 @@ async function createProductionPluginLoaderFactory(
   });
   const portFor: PluginActivationPortFor =
     activationPortFor ?? ((plugin) => activationChannel.activationPortFor(plugin));
-  return (deps) =>
-    createCpkPluginLoader({
-      pluginsRoot,
-      registry: pluginRegistry,
-      hostCapabilityRegistry: deps.hostCapabilityRegistry,
-      emitEvent: deps.emitEvent,
-      hostVersion,
-      trustRoots,
-      activationPortFor: portFor,
-    });
+  return {
+    loaderFactory: (deps) =>
+      createCpkPluginLoader({
+        pluginsRoot,
+        registry: pluginRegistry,
+        hostCapabilityRegistry: deps.hostCapabilityRegistry,
+        emitEvent: deps.emitEvent,
+        hostVersion,
+        trustRoots,
+        activationPortFor: portFor,
+      }),
+    pluginRegistry,
+  };
 }
 
 /**
@@ -295,7 +321,8 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
         guardSessionSource: documentWiring?.guardSessionSource ?? defaultGuardSessionSource,
       };
       const documentAssembly = createDocumentCapabilityWiring(documentWiringOptions, context, bridgeDiagnostics);
-      const productionPluginLoaderFactory = await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
+      const { loaderFactory: productionPluginLoaderFactory, pluginRegistry } =
+        await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
       const pluginLoaderFactory =
         documentAssembly.status === 'wired'
           ? (deps: IHostPluginLoaderDeps): IPluginLoaderSurface => {
@@ -342,6 +369,45 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
       // 守卫快照默认绑定的惰性引用在此闭合（上方 `defaultGuardSessionSource` 读取本变量）：
       // 运行时已构造、尚未 `start`，装载段若已注入显式覆盖口则本引用不参与判定。
       runtimeForGuardSnapshots = runtime;
+      // 工单046 段四接线波（任务 #206 收口）：审计观察面绑定臂——native 绑定过装载闸
+      // 且运行时审计写入器常开时，把 §8.2 条目唯一组装点（`createPermissionDecisionIntake`，
+      // RFC §九 9.2-2「单条目单落点」）经 `auditBindDecisionSink`（§8.6 第 50 导出）绑定进
+      // native 观察者。绑定发生在 `createRuntime` 返回前、`start` 与任何 `bridge*` /
+      // `resource*` 判定流量之前（组合根启动序消除未绑定窗口，RFC §八条 2）。构造期注入、
+      // 终身不可换（§八条 1）。绑定三态一律诊断留痕、fail-closed 不伪造：export-missing /
+      // bind-failed 臂素材流滞留 native 观察侧 dropped 计数（观察失败永不回传判定面，G2），
+      // writer 与宿主 TS 判定臂（段三在册接线位）零扰动。`resolvePluginVersion` 走插件
+      // 持久化注册表在册供给面（无值即拒组装，不伪造版本串）；`resolveTraceId` 为
+      // resource 域固定来源哨兵（口径见 {@link AUDIT_RESOURCE_DOMAIN_TRACE_SOURCE} 头注）。
+      if (nativeBridge.status === 'available' && runtime.auditWriter !== null) {
+        const intake = createPermissionDecisionIntake({
+          auditWriter: runtime.auditWriter,
+          diagnostics: bridgeDiagnostics,
+          resolvePluginVersion: (pluginId) => pluginRegistry.get(pluginId)?.version ?? null,
+          resolveTraceId: () => AUDIT_RESOURCE_DOMAIN_TRACE_SOURCE,
+        });
+        // 同一 `.node` 路径再取：Node 模块缓存保证与装载闸同一进程级导出实例
+        // （`native-bridge.ts` 头注在册单例语义，§5.4），装载闸交付形状零扩面。
+        try {
+          const moduleValue = createRequire(pathToFileURL(nativeBridge.modulePath).href)(
+            nativeBridge.modulePath,
+          ) as Record<string, unknown>;
+          const outcome = bindNativeDecisionSink(moduleValue, intake.consume);
+          if (outcome.status !== 'bound') {
+            bridgeDiagnostics.warn('native-audit', '审计观察面绑定未成功，native 判定素材滞留观察侧计数', {
+              status: outcome.status,
+              detail: outcome.detail,
+              modulePath: nativeBridge.modulePath,
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : typeof error;
+          bridgeDiagnostics.warn('native-audit', '审计观察面绑定臂取模块实例失败', {
+            reason: message,
+            modulePath: nativeBridge.modulePath,
+          });
+        }
+      }
       return runtime;
     },
   });

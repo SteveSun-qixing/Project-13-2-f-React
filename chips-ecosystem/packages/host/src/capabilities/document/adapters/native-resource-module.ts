@@ -76,12 +76,25 @@ export const NATIVE_RESOURCE_REQUIRED_EXPORTS = [
 ] as const;
 
 /**
- * 不透明写入流句柄（§11.3 `resourceCommitWriteStream` 返回 `WriteStreamHandle`；
- * Rust 侧 `WriteStreamHandle` 定义面未在该结构体处展开——见交回项，宿主侧按品牌化
- * 不透明句柄承载，不猜测其内部结构）。
+ * 不透明写入流句柄（§11.3 `resourceCommitWriteStream` 返回 `WriteStreamHandle`）。
+ *
+ * 逐字段形状取《04-资源管理设计》§11.3「JS 投影形状冻结表」表二（任务 #204
+ * 臂③落册权威，工单046 段四接线波 host 批承接翻正，任务 #205）：
+ * `{ id, uri, append, commit, abort }` 闭包对象五成员恒在；`commit` / `abort`
+ * 为互斥一次性收口通道（重复调用 `RESOURCE_NOT_FOUND`），对象被 GC 回收且
+ * 仍未收口时由绑定层兜底中止清理（零残留）。
  */
 export interface INativeWriteStreamHandle {
-  readonly nativeWriteStreamHandleBrand: 'chips-native.write-stream';
+  /** 写流句柄 ID（低于 2^53）。 */
+  readonly id: number;
+  /** 目标资源规范 URI（错误回执与审计定位）。 */
+  readonly uri: string;
+  /** 分块送入（背压承载：不送入即不推进）。 */
+  append(bytes: Uint8Array): Promise<void>;
+  /** 原子提交并返回新版本元数据（《03.07》§7.3 在册形状）。 */
+  commit(): Promise<INativeResourceMetadata>;
+  /** 主动中止并清理临时文件（零残留）。 */
+  abort(): Promise<void>;
 }
 
 /**
@@ -98,12 +111,24 @@ export interface INativeResourceMetadata {
 }
 
 /**
- * 目录条目（§11.3 `resourceListDirectory` 返回 `DirectoryEntry[]`，struct 定义在
- * 《04-资源管理设计》§三）。**JS 投影形状未在册**（文档面只冻结 Rust struct，未给出
- * camelCase / 时间载体的 JS 形状，见交回项），故本视图按不透明记录承载：宿主侧不得
- * 据未冻结的字段名解码（防第二套猜测），端口适配器落地前须先冻结该形状。
+ * 目录条目（§11.3 `resourceListDirectory` 返回 `DirectoryEntry[]`）。
+ *
+ * 逐字段形状取《04-资源管理设计》§11.3「JS 投影形状冻结表」表一（任务 #204
+ * 臂③落册权威，工单046 段四接线波 host 批承接翻正，任务 #205）：四字段恒在
+ * （`name` / `isDirectory` / `size` / `modifiedUnixSeconds`，Unix 秒、不可得为
+ * `0`）；数值腿由绑定层 `json_to_js` 的 2^53 闸把关（越界
+ * `NATIVE_VALUE_OUT_OF_RANGE` 拒绝，不产生部分构造对象）。
  */
-export type INativeDirectoryEntry = Record<string, unknown>;
+export interface INativeDirectoryEntry {
+  /** 条目名（单层名，非路径）。 */
+  readonly name: string;
+  /** 是否目录（归档态按成员路径前缀合成）。 */
+  readonly isDirectory: boolean;
+  /** 字节大小（归档态合成目录行为 `0`）。 */
+  readonly size: number;
+  /** 修改时间（Unix 秒；不可得为 `0`；合成目录行为 `0`）。 */
+  readonly modifiedUnixSeconds: number;
+}
 
 /** `resourceOpen` 返回（§11.3 表逐字：`{ handleId, metadata }`）。 */
 export interface INativeResourceOpenResult {
@@ -136,7 +161,7 @@ export interface INativeResourceModule {
   ): Promise<INativeResourceMetadata>;
   /** 流式写入提交（分块 + 背压 + 失败回滚，§4.8 / §11.3 行 7）。 */
   resourceCommitWriteStream(scope: string, path: string, sessionId: number): Promise<INativeWriteStreamHandle>;
-  /** 列举目录（§4.10 / §11.3 行 8；JS 投影形状未在册，见 {@link INativeDirectoryEntry}）。 */
+  /** 列举目录（§4.10 / §11.3 行 8；元素形状见 §11.3 JS 投影形状冻结表表一）。 */
   resourceListDirectory(uri: string, sessionId: number): Promise<INativeDirectoryEntry[]>;
   /** 删除文件/目录（§4.9 / §11.3 行 9）。 */
   resourceDelete(uri: string, recursive: boolean, sessionId: number): Promise<void>;

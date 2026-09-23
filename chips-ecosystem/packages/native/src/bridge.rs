@@ -29,7 +29,7 @@ use chips_bridge::{
     CapabilityInput, CapabilityOutput, CapabilityRegistration, Concurrency, ProviderKind,
     ProviderRegistration, BRIDGE_CANCELLED,
 };
-use chips_core::{ChipsError, NoopDecisionObserver, PluginId, SessionId};
+use chips_core::{ChipsError, PluginId, SessionId};
 use neon::prelude::*;
 use neon::types::JsFuture;
 
@@ -51,14 +51,13 @@ static BRIDGE: OnceLock<Bridge> = OnceLock::new();
 
 /// 取进程级 Bridge 内核句柄。
 ///
-/// 波界在册（工单046 段四核心 crate 波，RFC §八条 2）：此处注入
-/// `NoopDecisionObserver` 仅为 `Bridge::new` 构造签名翻正的编译随行——
-/// 真正的 `DecisionObserver` 实现（素材序列化 + 非阻塞 Neon Channel 投递
-/// 宿主 TS 消费函数）与 `get_or_init` 翻正归接线波（native observer +
-/// Neon 通道 + 宿主 TS 消费函数），本波禁顺带接线。
+/// 接线波翻正在册（工单046 段四，RFC §八条 2）：构造期注入进程级唯一
+/// [`crate::audit::NativeDecisionObserver`]（与资源域单例共享同一实例），
+/// 素材经非阻塞 Neon Channel 投递宿主 TS 消费函数（`auditBindDecisionSink`
+/// 绑定，组合根启动序保证先绑后流量）；终身不可换。
 pub(crate) fn bridge() -> Bridge {
     BRIDGE
-        .get_or_init(|| Bridge::new(Arc::new(NoopDecisionObserver)))
+        .get_or_init(|| Bridge::new(crate::audit::decision_observer()))
         .clone()
 }
 
@@ -684,6 +683,9 @@ pub(crate) fn js_bridge_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefine
 #[cfg(test)]
 mod tests {
     use super::*;
+    // 测试面保留 Noop：crate 集成测试默认注入形态（RFC §八条 1），
+    // 与生产单例构造路径（真 observer）互不依赖。
+    use chips_core::NoopDecisionObserver;
     use serde_json::json;
     use std::time::Duration;
 

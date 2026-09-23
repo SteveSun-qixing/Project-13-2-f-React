@@ -138,9 +138,10 @@ export interface HostRuntimeOptions {
    * @remarks 装配后写入器**常开**（不受 `CHIPS_TRACE` 门控，工单041 隔离口径）：构造期
    * 即挂启动期留存清理，`start()` 无监听段可开（纯落盘 sink，目录惰性创建），
    * `shutdown()` 中最后关闭（终态可观察一致性——停机清理链任何环节投递的审计条目均在
-   * 同一 flush 收尾中落盘，见 `shutdown` 注）。本波生产接线形态为「writer 常开
-   * 待消费」：判定面挂钩发射位归段三（硬绑 025③，禁双挂点），native observer 抛帧
-   * 归接线波，两者均直连 {@link IHostRuntime.auditWriter} 的 `enqueue` 唯一入口。
+   * 同一 flush 收尾中落盘，见 `shutdown` 注）。段四接线波起 native observer 抛帧经
+   * `audit/decision-intake.ts` 单消费点直投 `enqueue`（工单046，任务 #206）；判定面
+   * 挂钩发射位仍归段三（硬绑 025③，禁双挂点），两者均直连
+   * {@link IHostRuntime.auditWriter} 的 `enqueue` 唯一入口。
    */
   readonly audit?: { readonly userDataPath: string };
 }
@@ -261,8 +262,9 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
   const handles = createResourceHandleCenter();
   const provisioner = options.sessionProvisioner ?? createPlatformSessionProvisioner();
   // 权限审计写入器（工单046 段二）：装配即常开（无环境门控臂，工单041「诊断≠审计、
-  // 审计常开」），构造期即挂启动期留存清理；本波生产接线形态为「常开待消费」，
-  // 判定面挂钩发射位归段三（裁定三硬绑 025③，禁双挂点），此处不挂任何审计钩。
+  // 审计常开」），构造期即挂启动期留存清理；段四接线波（#206）起 native 素材经
+  // `audit/decision-intake.ts` 单消费点直投本写入器 `enqueue` 唯一入口；判定面挂钩
+  // 发射位归段三（裁定三硬绑 025③，禁双挂点），此处不挂任何审计钩。
   const auditWriter: IPermissionAuditWriter | null =
     options.audit === undefined
       ? null
