@@ -275,15 +275,22 @@ fn uri_error(input: &str, reason: UriErrorReason, _limits: &ResourceLimits) -> R
     }
 }
 
-/// 校验 scope 段语法（《06》§2.3）：1–64 字符、`[a-z][a-z0-9-]*`、全小写 ASCII。
-fn validate_scope_syntax(scope: &str, input: &str) -> ResourceResult<()> {
-    let invalid = scope.is_empty()
-        || scope.len() > 64
-        || !scope.chars().next().is_some_and(|c| c.is_ascii_lowercase())
-        || !scope
+/// scope 段语法判据唯一事实源（《06.02》§2.3）：1–64 字符、`[a-z][a-z0-9-]*`、
+/// 全小写 ASCII。URI 解析面（[`validate_scope_syntax`]）与注册面
+/// （`ScopeRegistration::validate`）共用本谓词，禁止判据双写。
+#[must_use]
+pub(crate) fn is_valid_scope_syntax(scope: &str) -> bool {
+    !scope.is_empty()
+        && scope.len() <= 64
+        && scope.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && scope
             .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
-    if invalid {
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// 校验 scope 段语法（《06》§2.3，判据单源自 [`is_valid_scope_syntax`]）。
+fn validate_scope_syntax(scope: &str, input: &str) -> ResourceResult<()> {
+    if !is_valid_scope_syntax(scope) {
         return Err(ResourceError::InvalidUri {
             uri: input.to_owned(),
             reason: UriErrorReason::MalformedScope,

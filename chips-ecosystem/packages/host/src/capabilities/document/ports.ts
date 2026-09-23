@@ -46,7 +46,12 @@ export interface IResolvedDocumentSource {
  * 资源作用域端口（生产适配器由资源管理器承载）。
  *
  * 失败以已登记 `RESOURCE_*` 码抛出（`RESOURCE_NOT_FOUND` / `RESOURCE_PERMISSION_DENIED` /
- * `RESOURCE_PATH_INVALID` 等），由能力层原样透传。
+ * `RESOURCE_ALREADY_EXISTS` 等），由能力层原样透传。
+ *
+ * @remarks 失败码列举按裁决I-② 翻正：挂载链对宿主机路径参数**零产生**
+ * `RESOURCE_PATH_INVALID`（该码按《06.02》§2.4 只覆盖虚拟路径域九词 reason；
+ * canonicalize 失败/根缺失/根非目录/归档缺失的真实落码是 `RESOURCE_NOT_FOUND`，
+ * `chips-resource/src/directory.rs:107-114`、`archive.rs:131-134` 实读在册）。
  */
 export interface IDocumentScopePort {
   /**
@@ -62,6 +67,21 @@ export interface IDocumentScopePort {
     readonly managedUri: string;
     readonly kind: DocumentKind;
   }): Promise<void>;
+  /**
+   * 文档记录驱逐/应用退出清理时注销常驻作用域（工单036 裁决I-① 两拍时序，`06-资源协议规范`
+   * §3.2 注销时机表；`04.11` §11.3 挂载/注销会话闸注记）。
+   *
+   * @remarks
+   * - **两拍次序（INV-2，形状即承载）**：本成员必须在记录原生会话**关闭之前**被调用——
+   *   适配器内部执行 ① `resourceUnregisterScope(scope, nativeSession)` → ② `resourceCloseSession(nativeSession)`；
+   *   目录域/归档域持久挂载不随 `close_session` 自动摘除（工单044 裁定⑧-1），次序倒置即自造
+   *   JS 面不可恢复的孤儿常驻 scope（#213 §2.1(d) 死锁推演在册）。释放臂接线（`service.ts` /
+   *   `session-store.ts` 调用位）归波 A2b-β。
+   * - 返回判定式（§2.1(g) 第 6 阶段）：核心形 `RESOURCE_NOT_FOUND`（已被别处注销）视为已达、
+   *   放行收口；`RESOURCE_PERMISSION_DENIED` **不得静默**——记审计并置「疑似孤儿」告警后如实抛出，
+   *   禁止转而 close 掩盖（掩盖即不可恢复）；注销入口全仓唯一（INV-6，禁第二注销形）。
+   */
+  unregisterScope(input: { readonly documentId: string; readonly managedUri: string }): Promise<void>;
 }
 
 /** 解析器只读句柄（chips-parser `DocumentHandle` 的壳侧不透明投影）。 */

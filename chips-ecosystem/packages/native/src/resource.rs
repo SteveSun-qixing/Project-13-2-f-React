@@ -2057,18 +2057,23 @@ mod tests {
 
     #[test]
     fn test_mount_scope_naming_arms_document_domain() {
-        // 命名违例逐臂锁（波 A1 覆盖面⑧）：文档域三种违例形态逐一在册——
-        // ① 非 `card-`/`box-` 前缀：核心注册校验臂（`scope.rs` 前缀-种类
-        //    匹配）即时拒绝 `RESOURCE_INVALID_URI`（`malformed_scope`），
-        //    零半挂载（在册 arms 测试与回滚测试双侧锁定，此处补 box 位）；
-        // ② 混入大写与 ③ 超 64 字符：注册阶段校验臂只查前缀与种类匹配
-        //    （实读形），此类名可通过挂载登记；URI 面两臂不同码同源——
-        //    解析先对作用域段做 ASCII 小写归一（《06.02》§2.3 小写集），
-        //    混大写名归一后失配注册表恒 `RESOURCE_NOT_FOUND`（不可达），
+        // 命名违例逐臂锁（波 A1 覆盖面⑧ + 裁决I③ 注册面语法强制随动收紧）：
+        // 文档域三种违例形态逐一在册——
+        // ① 非 `card-`/`box-` 前缀：核心注册命名臂即时拒绝
+        //    `RESOURCE_INVALID_URI`（`malformed_scope`），零半挂载（在册
+        //    arms 测试与回滚测试双侧锁定，此处补 box 位）；
+        // ② 混入大写与 ③ 超 64 字符：裁决I③ 后与 ① 同臂族拒绝——
+        //    `ScopeRegistration::validate` 命名前缀之后过单源谓词
+        //    `is_valid_scope_syntax`（判据与 URI 面《06.02》§2.3 同源），
+        //    注册阶段即拒 `RESOURCE_INVALID_URI`（`malformed_scope`），
+        //    零注册、零半挂载；URI 面断言语义随动保留——混大写名经解析
+        //    ASCII 小写归一后失配注册表恒 `RESOURCE_NOT_FOUND`（不可达），
         //    超长名过 `validate_scope_syntax` 的 64 预算闸恒
-        //    `RESOURCE_INVALID_URI`（`malformed_scope`）；两态作用域对
-        //    全部 URI 面不可达、注销闸面仍可清理（零残留）。
-        //    生产臂永不触达：《04.11》§11.3 派生规则保证小写 40 hex。
+        //    `RESOURCE_INVALID_URI`（`malformed_scope`）；两态名对注销闸
+        //    从未绑定恒 `RESOURCE_PERMISSION_DENIED` 拒（两面零残留）。
+        //    生产臂永不触达：《04.11》§11.3 派生规则保证小写 40 hex
+        //    （总长 45 ≤ 64），天然合 `[a-z][a-z0-9-]*`，注册面语法强制
+        //    与生产派生形口径一致。
         let root = temp_root("naming-arms");
         fs::write(root.join("a.txt"), b"hello").expect("夹具文件");
         let manager = fixture_manager();
@@ -2080,12 +2085,19 @@ mod tests {
         assert_eq!(error.code(), "RESOURCE_INVALID_URI");
         assert_eq!(details_of(&error)["reason"], "malformed_scope");
         assert!(manager.scopes().lookup("boxes-0f3e").is_none());
-        // ② 混入大写：注册阶段放行（前缀+种类臂），URI 解析小写归一后
-        //    失配注册表恒不可达（NOT_FOUND）、注销可清理。
+        // ② 混入大写：注册面语法臂即时拒绝（裁决I③ 收紧形），零半挂载；
+        //    URI 面小写归一后失配注册表恒不可达（NOT_FOUND 语义随动保留）；
+        //    注销闸对从未绑定名拒绝、零残留。
         let upper = format!("card-{}", "0F3E".repeat(10));
-        mount_directory_via_binding(&manager, session, &upper, &root, true)
-            .expect("大写混入名注册阶段在册放行（实读形锁定）");
-        assert!(manager.scopes().lookup(&upper).is_some());
+        let error = mount_directory_via_binding(&manager, session, &upper, &root, true)
+            .expect_err("大写混入名注册阶段必须拒绝（语法臂收紧形）");
+        assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+        assert_eq!(details_of(&error)["reason"], "malformed_scope");
+        assert!(
+            manager.scopes().lookup(&upper).is_none(),
+            "语法拒绝不得留注册项"
+        );
+        assert!(!manager.directory_mounted(&upper), "语法拒绝不得留半挂载根");
         let error = runtime
             .block_on(manager.list_directory(OpenRequest {
                 uri: format!("chips-resource://{upper}/a.txt"),
@@ -2093,13 +2105,22 @@ mod tests {
             }))
             .expect_err("大写作用域名对 URI 面必须不可达");
         assert_eq!(error.code(), "RESOURCE_NOT_FOUND");
-        unregister_via_binding(&manager, session, &upper).expect("违例名注销闸面必须可清理");
-        assert!(manager.scopes().lookup(&upper).is_none(), "注销后零残留");
-        // ③ 超 64 字符：同款形态（注册阶段放行、URI 面拒绝、可清理）。
+        let error = unregister_via_binding(&manager, session, &upper)
+            .expect_err("未注册的违例名对注销闸必须拒绝（从未绑定）");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
+        assert!(manager.scopes().lookup(&upper).is_none(), "两面零残留");
+        // ③ 超 64 字符：同款注册阶段拒绝（64 预算臂）；URI 面 64 预算闸
+        //    拒绝臂随动保留，注销闸同款拒绝、零残留。
         let overlong = format!("box-{}", "a".repeat(70));
         assert!(overlong.len() > 64, "夹具必须越 64 预算");
-        mount_directory_via_binding(&manager, session, &overlong, &root, true)
-            .expect("超长名注册阶段在册放行（实读形锁定）");
+        let error = mount_directory_via_binding(&manager, session, &overlong, &root, true)
+            .expect_err("超长名注册阶段必须拒绝（语法臂收紧形）");
+        assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+        assert_eq!(details_of(&error)["reason"], "malformed_scope");
+        assert!(
+            manager.scopes().lookup(&overlong).is_none(),
+            "语法拒绝不得留注册项"
+        );
         let error = runtime
             .block_on(manager.open(OpenRequest {
                 uri: format!("chips-resource://{overlong}/a.txt"),
@@ -2108,10 +2129,12 @@ mod tests {
             .expect_err("超长作用域名对 URI 面必须不可达");
         assert_eq!(error.code(), "RESOURCE_INVALID_URI");
         assert_eq!(details_of(&error)["reason"], "malformed_scope");
-        unregister_via_binding(&manager, session, &overlong).expect("超长名注销闸面必须可清理");
+        let error = unregister_via_binding(&manager, session, &overlong)
+            .expect_err("未注册的超长名对注销闸必须拒绝（从未绑定）");
+        assert_eq!(error.code(), "RESOURCE_PERMISSION_DENIED");
         assert!(
             !manager.directory_mounted(&overlong),
-            "清理后不得留半挂载根"
+            "拒绝与闸面拒绝后均不得留半挂载根"
         );
         // 合法形对照：小写 `card-` + 40 hex（总长 45 ≤ 64）可达。
         let canonical = document_scope("0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f");
@@ -2124,6 +2147,73 @@ mod tests {
             }))
             .expect("规范派生名对 URI 面必须可达");
         assert_eq!(opened.metadata.size, b"hello".len() as u64);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_register_scope_syntax_uppercase_lower_pair() {
+        // 注册面语法强制「精确性」锁（裁决I③）：混大写形注册阶段拒绝，
+        // 其归一小写对照形同场放行且 URI 面可达——两形过命名前缀、
+        // 前缀-种类、(kind, origin) 三臂全等，唯一分叉在语法臂，
+        // 证明拒绝来自《06.02》§2.3 语法本身而非其它臂误伤。
+        let root = temp_root("syntax-upper-pair");
+        fs::write(root.join("a.txt"), b"hello").expect("夹具文件");
+        let manager = fixture_manager();
+        let session = mount_session(&manager, &["resources:read"]);
+        let runtime = test_runtime();
+        let upper = document_scope("0F3E8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f");
+        let error = mount_directory_via_binding(&manager, session, &upper, &root, true)
+            .expect_err("混大写名注册阶段必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+        assert_eq!(details_of(&error)["reason"], "malformed_scope");
+        assert!(manager.scopes().lookup(&upper).is_none());
+        assert!(!manager.directory_mounted(&upper), "拒绝不得留半挂载根");
+        let lower = document_scope("0f3e8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f");
+        mount_directory_via_binding(&manager, session, &lower, &root, true)
+            .expect("全小写对照名必须可注册挂载");
+        let opened = runtime
+            .block_on(manager.open(OpenRequest {
+                uri: format!("chips-resource://{lower}/a.txt"),
+                session,
+            }))
+            .expect("全小写对照名对 URI 面必须可达");
+        assert_eq!(opened.metadata.size, b"hello".len() as u64);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_register_scope_syntax_length_boundary() {
+        // 注册面语法强制「长度预算」锁（裁决I③）：64 字符恰等名注册
+        // 放行且 URI 面可达（生产派生形总长 45，同预算带内），65 字符
+        // 名注册阶段拒绝 `malformed_scope`、零注册零半挂载——与 URI 面
+        // `validate_scope_syntax` 单源判据同预算边界。
+        let root = temp_root("syntax-len-boundary");
+        fs::write(root.join("a.txt"), b"hello").expect("夹具文件");
+        let manager = fixture_manager();
+        let session = mount_session(&manager, &["resources:read"]);
+        let runtime = test_runtime();
+        let at_limit = format!("box-{}", "a".repeat(60));
+        assert_eq!(at_limit.len(), 64, "夹具必须恰等 64 预算上界");
+        mount_directory_via_binding(&manager, session, &at_limit, &root, true)
+            .expect("恰等 64 字符名注册阶段必须放行");
+        let opened = runtime
+            .block_on(manager.open(OpenRequest {
+                uri: format!("chips-resource://{at_limit}/a.txt"),
+                session,
+            }))
+            .expect("恰等 64 字符名对 URI 面必须可达");
+        assert_eq!(opened.metadata.size, b"hello".len() as u64);
+        let over_limit = format!("box-{}", "a".repeat(61));
+        assert_eq!(over_limit.len(), 65, "夹具必须越预算恰 1 字符");
+        let error = mount_directory_via_binding(&manager, session, &over_limit, &root, true)
+            .expect_err("65 字符名注册阶段必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_INVALID_URI");
+        assert_eq!(details_of(&error)["reason"], "malformed_scope");
+        assert!(manager.scopes().lookup(&over_limit).is_none());
+        assert!(
+            !manager.directory_mounted(&over_limit),
+            "拒绝不得留半挂载根"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

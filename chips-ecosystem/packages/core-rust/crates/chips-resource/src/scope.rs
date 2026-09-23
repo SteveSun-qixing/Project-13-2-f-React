@@ -13,8 +13,8 @@ use chips_core::PluginId;
 
 use crate::error::{ResourceError, ResourceResult};
 use crate::uri::{
-    is_registered_scope_naming, CanonicalUri, ExternalOrigin, EXTERNAL_SCOPE, MEMORY_SCOPE,
-    PLATFORM_SCOPE,
+    is_registered_scope_naming, is_valid_scope_syntax, CanonicalUri, ExternalOrigin,
+    EXTERNAL_SCOPE, MEMORY_SCOPE, PLATFORM_SCOPE,
 };
 
 /// 作用域标识（平台分配的不透明小写 ID，《06》§2.3）。
@@ -108,11 +108,18 @@ pub struct ScopeRegistration {
 }
 
 impl ScopeRegistration {
-    /// 校验注册项：scope ID 语法、ID 命名前缀与种类匹配、External origin 形态。
+    /// 校验注册项：scope ID 命名在册、scope ID 语法（《06.02》§2.3，单源谓词
+    /// `is_valid_scope_syntax`）、ID 命名前缀与种类匹配、External origin 形态。
     fn validate(&self) -> ResourceResult<()> {
         if !is_registered_scope_naming(&self.scope) {
             return Err(ResourceError::InvalidUri {
                 uri: format!("{EXTERNAL_SCOPE}-naming:{}", self.scope),
+                reason: crate::error::UriErrorReason::MalformedScope,
+            });
+        }
+        if !is_valid_scope_syntax(&self.scope) {
+            return Err(ResourceError::InvalidUri {
+                uri: self.scope.clone(),
                 reason: crate::error::UriErrorReason::MalformedScope,
             });
         }
@@ -336,6 +343,64 @@ mod tests {
         let mut rogue = document_scope();
         rogue.scope = "rogue-1".into();
         assert!(registry.register(rogue).is_err());
+    }
+
+    /// 注册面语法拒绝臂（t036 波 A1 后续·裁决I③收紧）：过命名前缀但违
+    /// 《06.02》§2.3 语法（`[a-z][a-z0-9-]*`、1–64 字符）的三种可达形态
+    /// ——混大写 / 超长 / 非法字符——注册阶段即拒 `RESOURCE_INVALID_URI`
+    /// （`malformed_scope`，码值零新增，与 URI 面同源），零注册残留。
+    /// 首字符非法形经注册面不可达（过命名前缀者必以小写字母开头），
+    /// 由单源谓词直测臂锁定（见 `test_is_valid_scope_syntax_predicate`）。
+    #[test]
+    fn test_register_scope_syntax_arms_rejected() {
+        let registry = ScopeRegistry::new();
+        let rejections = [
+            // 混大写：过 `card-` 前缀与种类臂，唯语法臂可拒。
+            ("card-0F3E".to_owned(), ScopeKind::Document),
+            // 超 64 字符：`box-` + 61 个 a = 65 字符。
+            (format!("box-{}", "a".repeat(61)), ScopeKind::Document),
+            // 非法字符（下划线）：过 `workspace-` 前缀臂。
+            ("workspace-a_b".to_owned(), ScopeKind::Workspace),
+        ];
+        for (scope, kind) in rejections {
+            let mut rogue = document_scope();
+            rogue.scope = scope.clone();
+            rogue.kind = kind;
+            let error = registry
+                .register(rogue)
+                .expect_err("违《06.02》§2.3 语法名注册阶段必须拒绝（收紧形）");
+            assert_eq!(error.code(), crate::error::RESOURCE_INVALID_URI);
+            match &error {
+                ResourceError::InvalidUri { reason, .. } => {
+                    assert_eq!(*reason, crate::error::UriErrorReason::MalformedScope);
+                }
+                other => panic!("语法拒绝必须为 InvalidUri 形，实得 {other:?}"),
+            }
+            assert!(
+                registry.lookup(&scope).is_none(),
+                "语法拒绝不得留下册项：{scope}"
+            );
+        }
+    }
+
+    /// 单源谓词 `is_valid_scope_syntax` 判据矩阵锁：URI 面与注册面共用同一
+    /// 判据（禁双写由单源结构保证，本测锁四判据逐一生效形——含注册面
+    /// 不可达的首字符非法臂——与边界 64 恰等放行、65 拒）。
+    #[test]
+    fn test_is_valid_scope_syntax_predicate() {
+        // 合法形：在册最小形、连字符/数字体、64 字符边界恰等。
+        assert!(is_valid_scope_syntax("card-7f3a"));
+        assert!(is_valid_scope_syntax("platform"));
+        assert!(is_valid_scope_syntax(&format!("b{}", "c".repeat(63))));
+        // 四判据逐一：空 / 首字符非 ascii_lowercase（数字、连字符两位）/
+        // 超 64 / 非法字符（大写、下划线、非 ASCII）。
+        assert!(!is_valid_scope_syntax(""));
+        assert!(!is_valid_scope_syntax("1card"));
+        assert!(!is_valid_scope_syntax("-card"));
+        assert!(!is_valid_scope_syntax(&format!("b{}", "c".repeat(64))));
+        assert!(!is_valid_scope_syntax("card-0F3E"));
+        assert!(!is_valid_scope_syntax("workspace-a_b"));
+        assert!(!is_valid_scope_syntax("card-作用域"));
     }
 
     #[test]

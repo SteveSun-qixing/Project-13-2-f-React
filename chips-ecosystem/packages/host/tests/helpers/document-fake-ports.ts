@@ -150,6 +150,7 @@ export interface IHarnessLog {
 export interface IFailurePanel {
   normalizeSource?: Error;
   registerScope?: Error;
+  unregisterScope?: Error;
   open?: Error;
   fingerprint?: Error;
   serialize?: Error;
@@ -201,6 +202,7 @@ export interface IDocumentTestHarness {
   readonly published: readonly IPublishedEvent[];
   readonly logs: readonly IHarnessLog[];
   readonly scopeRegistrations: readonly { documentId: string; managedUri: string; kind: DocumentKind }[];
+  readonly scopeUnregistrations: readonly { documentId: string; managedUri: string }[];
   readonly openRequests: readonly { localPath: string; kind: DocumentKind | null }[];
   readonly releasedGenerations: readonly number[];
   readonly serializeRequests: readonly IDocumentSerializeRequest[];
@@ -274,6 +276,7 @@ export function createHarness(): IDocumentTestHarness {
   const published: IPublishedEvent[] = [];
   const logs: IHarnessLog[] = [];
   const scopeRegistrations: { documentId: string; managedUri: string; kind: DocumentKind }[] = [];
+  const scopeUnregistrations: { documentId: string; managedUri: string }[] = [];
   const openRequests: { localPath: string; kind: DocumentKind | null }[] = [];
   const releasedGenerations: number[] = [];
   const serializeRequests: IDocumentSerializeRequest[] = [];
@@ -538,6 +541,15 @@ export function createHarness(): IDocumentTestHarness {
         scopeRegistrations.push(input);
       });
     },
+
+    unregisterScope(input: { documentId: string; managedUri: string }): Promise<void> {
+      return toPortCall(() => {
+        if (failures.unregisterScope !== undefined) {
+          throw failures.unregisterScope;
+        }
+        scopeUnregistrations.push(input);
+      });
+    },
   };
 
   const events = {
@@ -605,6 +617,7 @@ export function createHarness(): IDocumentTestHarness {
     published,
     logs,
     scopeRegistrations,
+    scopeUnregistrations,
     openRequests,
     releasedGenerations,
     serializeRequests,

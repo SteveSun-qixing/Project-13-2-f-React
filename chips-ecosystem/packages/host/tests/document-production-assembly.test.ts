@@ -188,6 +188,10 @@ function makeResourcePorts(): IDocumentResourcePorts & {
       registrations.push({ documentId: input.documentId, managedUri: input.managedUri, kind: input.kind });
       return Promise.resolve();
     },
+    unregisterScope(): Promise<void> {
+      // 注入通道形状替身（波 A2b-α 端口新增成员；两拍接线行为面归 A2b-β 锁测）。
+      return Promise.resolve();
+    },
   };
   const storage: IDocumentStoragePort = {
     commit(request: IDocumentCommitRequest): Promise<void> {

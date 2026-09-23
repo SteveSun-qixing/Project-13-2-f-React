@@ -71,10 +71,11 @@ export function resolveE2EDocumentWiring(
   if (
     typeof wiring?.guardSessionSource !== 'function' ||
     typeof wiring?.resourcePorts?.scope?.normalizeSource !== 'function' ||
+    typeof wiring?.resourcePorts?.scope?.unregisterScope !== 'function' ||
     typeof wiring?.resourcePorts?.storage?.readFileBytes !== 'function'
   ) {
     throw new Error(
-      `E2E 文档接线模块交付形状不完整（guardSessionSource / resourcePorts.scope / resourcePorts.storage 必备）：${modulePath}`,
+      `E2E 文档接线模块交付形状不完整（guardSessionSource / resourcePorts.scope（含 unregisterScope，波 A2b-α 端口成员）/ resourcePorts.storage 必备）：${modulePath}`,
     );
   }
   return wiring;
