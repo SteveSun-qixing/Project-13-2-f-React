@@ -154,6 +154,38 @@ describe('场景注册表（scenarios）', () => {
     }
   });
 
+  it('登记口径-夹具形制匹配闸：形制绑定的指标只能挂同形制场景（禁张冠李戴）', () => {
+    // 机械闸：指标的夹具形制以其权威口径文面（title + measurement）判定——
+    // 「卡片」形制指标（如 parse_10mb_ms：10 MB 卡片夹具全量解析）不得登记进任何
+    // 箱子形制场景；「箱子」形制指标（如 parse_entries_10k_ms：10 000 条目箱子基准）
+    // 不得登记进任何卡片形制场景。场景形制按场景 ID 的 box / card 词面判定。
+    for (const scenarioId of SCENARIO_IDS) {
+      const definition = SCENARIOS[scenarioId];
+      const scenarioIsBox = /box/.test(scenarioId);
+      const scenarioIsCard = /card/.test(scenarioId);
+      for (const metricId of definition.metricIds) {
+        const metric = metricDefinition(metricId);
+        const text = `${metric.title} ${metric.measurement}`;
+        if (/卡片/.test(text)) {
+          expect(scenarioIsBox).toBe(false);
+        }
+        if (/箱子/.test(text)) {
+          expect(scenarioIsCard).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('箱解析场景登记恰等：仅 parse_entries_10k_ms，卡片口径伴生臂已翻正移除', () => {
+    // W3 登记口径翻正：parse-box-10k 只登记它真正测量的指标；
+    // 箱侧「全量解析」测臂缺位（无可登记的形制匹配指标，归工单056 后续处置项），
+    // 不得以卡片口径指标冒充登记。
+    expect([...SCENARIOS['parse-box-10k'].metricIds]).toEqual(['parse_entries_10k_ms']);
+    // 卡片侧登记零扰动：parse_10mb_ms 仍登记在卡片场景与其测量定义所在处。
+    expect(SCENARIOS['parse-card-10mb'].metricIds).toContain('parse_10mb_ms');
+    expect(metricDefinition('parse_10mb_ms').title).toContain('卡片');
+  });
+
   it('标记点场景跨度与阶段标记点闭合', () => {
     const card = SCENARIOS['open-card'];
     const box = SCENARIOS['open-box'];

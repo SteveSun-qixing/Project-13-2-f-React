@@ -39,9 +39,11 @@ import {
  * - `parse_metadata_ms` / `parse_model_build_ms`：解析器内部阶段，导出面无独立可测形
  *  （metadata 融于 open、model build 融于全链），**如实登记缺测臂**（noData + notes），
  *   不做折算、不造数；
- * - 箱子场景伴生指标 `parse_10mb_ms`：口径为 10 MB **卡片**夹具全量解析，本场景夹具是
- *   10 000 条目**箱子**，无该形夹具——**不张冠李戴造读数**，如实 noData 并在交回项登记
- *   场景登记的口径疑义（门禁与场景登记零扰动）。
+ * - 箱子场景登记口径（W3 翻正，工单056 后续处置）：`parse_10mb_ms` 系卡片口径指标，
+ *   已从 `parse-box-10k` 场景登记移除（一个场景只登记它真正测量的指标），本适配器
+ *   箱臂也不再为其保留 noData 分支；箱侧「全量解析」无形制匹配的已登记指标——
+ *   **箱全量解析测臂缺位，归工单056 后续处置项**（新指标 id 属新增测量面，本波禁造，
+ *   不折算、不造数、不冒充）。
  */
 
 /** 适配器在册 ID（非 `synthetic-*`；报告 `meta.adapterId` 判定真/合成臂的锚）。 */
@@ -250,7 +252,7 @@ export function createRealParseAdapter(
         `解析域真测（工单056 形 A）：真实 .box 归档字节（${String(fixturePaths.boxBytes)} 字节，10 000 外部引用条目）经 chips-native.node 解析域导出实测；coreVersion=${native.coreVersion()}，coreAbiVersion=${String(native.coreAbiVersion())}。`,
         `口径：parse_entries_10k_ms=openBox 后 documentStructure 惰性条目索引解析段（同轮打点差值）；open 段与 layoutConfig 段另见注记。样本 ${String(rounds)} 轮（warmup ${String(warmupRounds)} 轮不计）。`,
         `分段中位量级参考：open 段样本 min=${String(Math.min(...samples.map((sample) => sample.openMs)).toFixed(2))}，layoutConfig 段 min=${String(Math.min(...samples.map((sample) => sample.layoutConfigMs)).toFixed(2))}。`,
-        '缺测臂（不折算不造数）：伴生指标 parse_10mb_ms 的注册口径为「10 MB 卡片夹具全量解析」（metrics.ts measurement 文面），本场景夹具为 10 000 条目箱子、无该形夹具；张冠李戴会伪造口径，如实 noData 并已列交回项。',
+        '口径缺位登记（不折算不造数）：箱子侧「全量解析」无已登记且形制匹配的指标定义可测——箱全量解析测臂缺位，归工单056 后续处置项（新指标 id 属新增测量面，本波不造）；卡片口径指标 parse_10mb_ms 已自本场景登记翻正移除，不再作为恒 noData 伴生臂呈现。',
         `夹具严格校验体检（documentValidate，另列口径不计入解析样本）：${sanity}。`,
       ],
     };

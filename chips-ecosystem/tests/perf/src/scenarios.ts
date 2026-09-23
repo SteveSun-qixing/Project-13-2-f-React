@@ -232,7 +232,12 @@ export const SCENARIOS: Readonly<Record<ScenarioId, ScenarioDefinition>> = {
     id: 'parse-box-10k',
     title: '10 000 条目箱子解析',
     kind: 'samples',
-    metricIds: ['parse_entries_10k_ms', 'parse_10mb_ms'],
+    // 工单056 后续处置（W3 登记口径翻正）：伴生指标 `parse_10mb_ms` 的注册口径为
+    // 「10 MB 卡片夹具全量解析」（`metrics.ts` measurement 文面），属卡片形制，
+    // 不得挂在箱子场景，已自本场景登记移除（一个场景只登记它真正测量的指标）。
+    // 箱侧「全量解析」目前无已登记且形制匹配的指标定义可挂——箱全量解析测臂缺位，
+    // 归工单056 后续处置项（新指标 id 属新增测量面，本波禁造，此处如实登记为缺位）。
+    metricIds: ['parse_entries_10k_ms'],
     citation: '《文档解析器设计》§9.2、§9.5',
     measurement: '10 000 条目、并行解析；打开箱子总预算 ≤ 200 ms。',
     sampling: {},

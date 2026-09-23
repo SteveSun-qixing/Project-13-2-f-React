@@ -14,7 +14,7 @@ import {
 import { createSyntheticAdapter } from '../src/fixtures/synthetic';
 import { DEFAULT_CONFIG } from '../src/thresholds';
 import { METRIC_IDS, type MetricId } from '../src/metrics';
-import { PARSE_DOMAIN_SCENARIO_IDS, isParseDomainScenario } from '../src/scenarios';
+import { PARSE_DOMAIN_SCENARIO_IDS, SCENARIOS, isParseDomainScenario } from '../src/scenarios';
 import { measureScenario } from '../src/runner';
 import {
   base62Id,
@@ -247,7 +247,11 @@ describe('解析域真测计时协议（假解析面 + 受控时钟）', () => {
     expect(paths.cardBytes).toBeGreaterThan(10 * 1024 * 1024);
   });
 
-  it('箱子场景：parse_entries_10k_ms 取条目索引解析段；伴生卡片口径指标不张冠李戴', async () => {
+  it('箱子场景：parse_entries_10k_ms 取条目索引解析段；登记面恰等、全量解析测臂缺位在册', async () => {
+    // W3 登记口径翻正：卡片口径伴生臂 parse_10mb_ms 已自 parse-box-10k 场景登记移除，
+    // 箱臂只产形制匹配的 parse_entries_10k_ms 一样本；箱侧「全量解析」测臂缺位
+    // （归工单056 后续处置项）以 notes 如实登记，不折算不造数不冒充。
+    expect([...SCENARIOS['parse-box-10k'].metricIds]).toEqual(['parse_entries_10k_ms']);
     const { surface } = fakeSurface();
     const fixtureDir = await tempFixtureDir('box');
     const parsed = createRealParseAdapter({
@@ -260,10 +264,12 @@ describe('解析域真测计时协议（假解析面 + 受控时钟）', () => {
     const result = await parsed.run({ scenarioId: 'parse-box-10k', iteration: 0 });
     // 箱子轮 4 次打点（start/opened/structured/layoutAt）→ structure 段恒 10 ms。
     expect(result.metricSamples?.['parse_entries_10k_ms']).toEqual([10, 10]);
-    expect(result.metricSamples).not.toHaveProperty('parse_10mb_ms');
+    // 样本面恰等：翻正后箱臂不产任何多余指标键（含已移除登记的卡片口径指标）。
+    expect(Object.keys(result.metricSamples ?? {})).toEqual(['parse_entries_10k_ms']);
     const notes = (result.notes ?? []).join('\n');
-    expect(notes).toContain('张冠李戴');
-    expect(notes).toContain('如实 noData');
+    expect(notes).toContain('缺位');
+    expect(notes).toContain('工单056');
+    expect(notes).toContain('不折算不造数');
   });
 
   it('错误级诊断与 invalid 体检均 fail-closed（句柄仍显式释放）', async () => {
