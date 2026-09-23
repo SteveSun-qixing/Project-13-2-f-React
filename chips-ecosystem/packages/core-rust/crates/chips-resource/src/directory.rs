@@ -21,6 +21,17 @@
 //! 挂载即恢复扫描：`attach_root` 对根执行一次 `journal::recover_root`
 //! （崩溃中间态收敛 + 无账临时物如实计数、不删），处置账目随挂载返回并可
 //! 经 `recovery_report` 查询。
+//!
+//! 包级 changeset 事务（工单036 波 C2a-2，《04.04》§4.8「受控提交路径」的
+//! 目录态包级承载）：[`DirectoryProvider::stage_bundle_member`] /
+//! [`DirectoryProvider::plan_bundle_removal`] / [`BundleTransaction`] 构成
+//! prepare–publish 两相的盘上引擎——prepare 相把全部覆写成员落为隐藏临时
+//! 物 + 同目录 sidecar 意图记录（复用 C2a-1 `journal` phase 语义，全部慢
+//! IO 与 fsync 收在此相），删除目标只做校验不做盘上动作；publish 相为纯
+//! 元数据动作（rename 批量换代 → unlink/rmdir 批量删除）。prepare 任一
+//! 失败经 [`BundleTransaction`] 的 `Drop` 通道整体清扫（临时物与意图记录
+//! 同步撤销、零残留、文件系统全域保持旧态）；崩溃落在 prepare 窗口时由
+//! 既有挂载恢复扫描按「记录在、临时物在 → 回滚删除」收敛到旧态。
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};
@@ -332,6 +343,102 @@ impl DirectoryProvider {
             journal: Some(ticket),
         })
     }
+
+    /// 包级事务 prepare 相——覆写/新建成员的 staging 落盘（波 C2a-2）：与
+    /// 一次性提交同款前置判定（目标为在册目录 → `RESOURCE_ALREADY_EXISTS`
+    /// 不覆盖、父目录缺失 → `RESOURCE_NOT_FOUND` 不自动建层），随后
+    /// prepare 两相落盘：同目录 sidecar 意图记录先建并 fsync（复用
+    /// [`JournalTicket`]，崩溃中间态可判读），隐藏临时文件建档写入新字节
+    /// 并 `sync_all`，**不 rename**——发布（publish）由
+    /// [`BundleTransaction`] 在管理器全事务校验完成后统一执行。任一步
+    /// IO 失败即清理临时物并撤销记录（`RESOURCE_WRITE_FAILED`，零残留）；
+    /// 判定错误即原样上抛（此时尚无盘上动作）。调用方必须持有目标路径的
+    /// 写锁许可（管理器 `commit_changeset` 单源接线，本方法不自行取锁）。
+    pub(crate) fn stage_bundle_member(
+        &self,
+        address: &ResourceAddress,
+        bytes: &[u8],
+    ) -> Result<StagedBundleMember, ChipsError> {
+        let (mount, path) = self.locate(address)?;
+        if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir()) {
+            return Err(ResourceError::AlreadyExists {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error());
+        }
+        let parent = path
+            .parent()
+            .ok_or_else(|| ResourceError::Internal.to_chips_error())?;
+        if !parent.is_dir() {
+            return Err(ResourceError::NotFound {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error());
+        }
+        let token = journal::next_intent_token();
+        let temp_path = parent.join(format!("{TEMP_FILE_PREFIX}{token}"));
+        let ticket =
+            JournalTicket::prepare(&mount.root, token, &temp_path, &path).map_err(|_| {
+                ResourceError::WriteFailed {
+                    uri: address.uri.clone(),
+                }
+                .to_chips_error()
+            })?;
+        let result: std::io::Result<()> = (|| {
+            let mut file = File::create(&temp_path)?;
+            file.write_all(bytes)?;
+            file.flush()?;
+            file.sync_all()
+        })();
+        if result.is_err() {
+            // staging 失败：临时物即时清理、票据撤销销账（与
+            // `atomic_write_with` 失败臂同通道同序：临时物先、记录后）。
+            let _ = fs::remove_file(&temp_path);
+            drop(ticket);
+            return Err(ResourceError::WriteFailed {
+                uri: address.uri.clone(),
+            }
+            .to_chips_error());
+        }
+        Ok(StagedBundleMember {
+            temp_path,
+            target_path: path,
+            uri: address.uri.clone(),
+            journal: Some(ticket),
+        })
+    }
+
+    /// 包级事务 prepare 相——删除目标的纯校验（波 C2a-2）：不存在 →
+    /// `RESOURCE_NOT_FOUND`（与 `delete` 同一读侧错误分流）；目录且非空 →
+    /// `RESOURCE_NOT_EMPTY`（非递归口径沿《06》§7.2 既有语义）；空目录与
+    /// 文件（含根内符号链接本身）登记为可删形态。**不做任何盘上动作**——
+    /// 删除的不可逆动作收在 publish 相，prepare 失败时目标原样幸存。
+    pub(crate) fn plan_bundle_removal(
+        &self,
+        address: &ResourceAddress,
+    ) -> Result<StagedBundleRemoval, ChipsError> {
+        let (_, path) = self.locate(address)?;
+        let metadata =
+            fs::symlink_metadata(&path).map_err(|error| read_io_error(error, &address.uri))?;
+        let remove_directory = metadata.is_dir();
+        if remove_directory {
+            let has_children = fs::read_dir(&path)
+                .map_err(|_| ResourceError::Internal.to_chips_error())?
+                .next()
+                .is_some();
+            if has_children {
+                return Err(ResourceError::NotEmpty {
+                    uri: address.uri.clone(),
+                }
+                .to_chips_error());
+            }
+        }
+        Ok(StagedBundleRemoval {
+            path,
+            uri: address.uri.clone(),
+            remove_directory,
+        })
+    }
 }
 
 /// 目录域流式写入落盘槽（B3 + 工单036 波 C2a-1 提交日志）：临时文件句柄 +
@@ -422,6 +529,121 @@ impl Drop for DirectoryStreamSink {
         if !self.temp_path.as_os_str().is_empty() {
             let _ = fs::remove_file(&self.temp_path);
         }
+    }
+}
+
+/// 包级事务中的已 staging 成员（波 C2a-2 prepare 相产物）：临时物与新字节
+/// 已落盘并 fsync、意图记录在册（[`JournalTicket`] 在途凭据），等待 publish
+/// 相 `rename` 换代。`Drop` 时未发布成员即时清理临时物并撤销记录（临时物
+/// 先、记录后，维持「记录可见 ⇒ 在途在册」不变量），已发布成员两处标记
+/// 均已清空、`Drop` 为 no-op——回滚与终结共用单清理通道。
+#[derive(Debug)]
+pub(crate) struct StagedBundleMember {
+    temp_path: PathBuf,
+    target_path: PathBuf,
+    uri: String,
+    journal: Option<JournalTicket>,
+}
+
+impl Drop for StagedBundleMember {
+    fn drop(&mut self) {
+        if !self.temp_path.as_os_str().is_empty() {
+            let _ = fs::remove_file(&self.temp_path);
+        }
+        // `journal` 字段随本体 Drop 撤销意图记录并销账（上方临时物处置先行）。
+    }
+}
+
+/// 包级事务中的删除目标（prepare 相校验产物，publish 相才执行 unlink /
+/// 空目录 rmdir；无盘上在途形态，故不携意图记录——删除在 unlink 之前对
+/// 文件系统零改动，恢复扫描无处置对象）。
+#[derive(Debug)]
+pub(crate) struct StagedBundleRemoval {
+    path: PathBuf,
+    uri: String,
+    remove_directory: bool,
+}
+
+/// 目录态包级 changeset 事务（波 C2a-2，《04.04》§4.8 受控提交路径的包级
+/// 编排）：持有全部已 staging 成员与已校验删除目标，[`publish`](Self::publish)
+/// 一次性执行发布相。发布序固定为「成员 rename 批量 → 删除目标 unlink/rmdir
+/// 批量」：成员换代全部落定前不发生任何不可逆删除。
+///
+/// 失败与崩溃语义（与模块头「包级 changeset 事务」一致）：
+///
+/// - publish 前任一失败（含调用方弃置本事务）：`Drop` 通道整体清扫未发布
+///   成员的临时物与意图记录，文件系统零变化、零残留；
+/// - publish 中途 IO 失败：失败成员及其后未发布成员经同一 `Drop` 通道即时
+///   清扫（目标保持旧态），此前已 `rename` 成员按 per-member 提交点落定新
+///   态并撤销记录——与单成员原子替换的提交点口径同型，上抛
+///   `RESOURCE_WRITE_FAILED`（失败成员 uri），残余中间态由既有恢复扫描
+///   幂等收敛（记录在、临时物已没 → 只撤记录，绝不误删目标）；
+/// - prepare 窗口崩溃（全部慢 IO 所在窗口）：重启挂载的恢复扫描按
+///   「记录在、临时物在 → 回滚删除」把整包收敛回旧态、零残留。
+#[derive(Debug)]
+pub(crate) struct BundleTransaction {
+    members: Vec<StagedBundleMember>,
+    removals: Vec<StagedBundleRemoval>,
+}
+
+impl BundleTransaction {
+    /// 构造空事务（成员与删除目标由 prepare 相逐个登记）。
+    pub(crate) fn new() -> Self {
+        Self {
+            members: Vec::new(),
+            removals: Vec::new(),
+        }
+    }
+
+    /// 登记一个已 staging 成员（prepare 相产物，发布前保持 Drop 可清扫态）。
+    pub(crate) fn push_member(&mut self, member: StagedBundleMember) {
+        self.members.push(member);
+    }
+
+    /// 登记一个已校验删除目标（prepare 相产物，无盘上动作）。
+    pub(crate) fn push_removal(&mut self, removal: StagedBundleRemoval) {
+        self.removals.push(removal);
+    }
+
+    /// 发布相：成员按请求序 `rename` 原子换代（每落定一员即撤销其意图记录
+    /// = 该成员的提交点），全部落定后删除目标批量 `unlink` / 空目录
+    /// `rmdir`。任一 `rename` 失败即中止（未发布成员随本函数结束的 `Drop`
+    /// 清扫，零残留），上抛失败成员 `RESOURCE_WRITE_FAILED`；删除执行的
+    /// 极端 IO 失败同样上抛 `RESOURCE_WRITE_FAILED`（成员换代此时已全部
+    /// 落定，如实报告）。成功即整体换代完成——本事务无在途残体。
+    pub(crate) fn publish(mut self) -> Result<(), ChipsError> {
+        let mut index = 0usize;
+        while index < self.members.len() {
+            let member = &mut self.members[index];
+            match fs::rename(&member.temp_path, &member.target_path) {
+                Ok(()) => {
+                    member.temp_path = PathBuf::new();
+                    drop(member.journal.take());
+                    index += 1;
+                }
+                Err(_) => break,
+            }
+        }
+        if index < self.members.len() {
+            let uri = self.members[index].uri.clone();
+            // self 在此结束并 Drop：members[index..] 的临时物与意图记录、
+            // 以及失败成员自身残体统一随 Drop 清扫。
+            return Err(ResourceError::WriteFailed { uri }.to_chips_error());
+        }
+        for removal in &self.removals {
+            let outcome = if removal.remove_directory {
+                fs::remove_dir(&removal.path)
+            } else {
+                fs::remove_file(&removal.path)
+            };
+            if outcome.is_err() {
+                return Err(ResourceError::WriteFailed {
+                    uri: removal.uri.clone(),
+                }
+                .to_chips_error());
+            }
+        }
+        Ok(())
     }
 }
 
@@ -892,6 +1114,252 @@ mod tests {
             b"OLD",
             "中止不动目标"
         );
+    }
+
+    /// 包级事务 prepare 相形态锁（波 C2a-2）：staging 产物与 `journal`
+    /// 协议单源同型——sidecar 记录先于临时物在册、令牌配对、记录内容
+    /// （temp/target 相对挂载根）与磁盘实况逐项对表、在途账在册；
+    /// publish 成功后全部临时物与记录同步消失（成员提交点=记录撤销），
+    /// 目标换代、零残留。
+    #[test]
+    fn test_bundle_staging_matches_journal_protocol_and_publish_swaps() {
+        let fixture = TempRoot::new();
+        fixture.write_file("a.txt", b"OLD-A");
+        fs::create_dir(fixture.path().join("empty-dir")).unwrap();
+        let provider = mounted(&fixture);
+        let mut transaction = BundleTransaction::new();
+        transaction.push_member(
+            provider
+                .stage_bundle_member(&address("workspace-1", "a.txt"), b"NEW-A")
+                .expect("覆写成员 staging 必须放行"),
+        );
+        transaction.push_member(
+            provider
+                .stage_bundle_member(&address("workspace-1", "fresh.txt"), b"FRESH")
+                .expect("新建成员 staging 必须放行"),
+        );
+        transaction.push_removal(
+            provider
+                .plan_bundle_removal(&address("workspace-1", "empty-dir"))
+                .expect("空目录删除校验必须放行"),
+        );
+        transaction.push_removal(
+            provider
+                .plan_bundle_removal(&address("workspace-1", "a.txt"))
+                .expect("覆写+删除同路径不合法由管理器集合闸把守，Provider 面独立校验仍放行"),
+        );
+        // 在途形态：两个 staging 成员各携「临时物 + sidecar 记录」一对，
+        // 目标旧态未动（删除臂零盘上动作）。
+        let residue: Vec<String> = fs::read_dir(fixture.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(TEMP_FILE_PREFIX))
+            .collect();
+        assert_eq!(
+            residue.len(),
+            4,
+            "两成员 = 临时物 + 记录各一对：{residue:?}"
+        );
+        let journal_name = residue
+            .iter()
+            .find(|name| name.ends_with(journal::JOURNAL_FILE_SUFFIX))
+            .expect("必有记录")
+            .clone();
+        let journal_path = fixture.path().join(&journal_name);
+        let record = journal::read_commit_record(&journal_path).expect("在册记录必可解析");
+        let token = journal::journal_file_token(&journal_name).expect("记录名在册形态");
+        assert!(
+            residue.contains(&format!("{TEMP_FILE_PREFIX}{token}")),
+            "sidecar 配对单源：记录名与临时物名同令牌"
+        );
+        assert!(journal::is_in_flight(token), "staging 即在途账在册");
+        assert!(
+            record.temp.ends_with(&format!("{TEMP_FILE_PREFIX}{token}")),
+            "记录 temp 指向配对临时物：{record:?}"
+        );
+        assert!(
+            matches!(record.target.as_str(), "a.txt" | "fresh.txt"),
+            "记录 target 为在册成员相对路径：{record:?}"
+        );
+        assert_eq!(
+            fs::read(fixture.path().join("a.txt")).unwrap(),
+            b"OLD-A",
+            "publish 前目标保持旧态"
+        );
+        transaction.publish().expect("发布必须放行");
+        // Provider 面发布序锁形：成员 rename 批量先落定、删除臂后执行——
+        // 同路径「覆写+删除」（管理器集合闸禁止的组合，Provider 独立校验
+        // 放行）的确定性终态 = 删除臂胜出，目标不存在。
+        assert!(
+            !fixture.path().join("a.txt").exists(),
+            "发布序 = 成员换代 → 删除执行，同路径终态为已删除"
+        );
+        assert_eq!(
+            fs::read(fixture.path().join("fresh.txt")).unwrap(),
+            b"FRESH"
+        );
+        assert!(!fixture.path().join("empty-dir").exists(), "空目录删除落定");
+        assert!(
+            fs::read_dir(fixture.path())
+                .unwrap()
+                .filter_map(|entry| entry.ok())
+                .all(|entry| {
+                    !entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with(TEMP_FILE_PREFIX)
+                }),
+            "publish 成功后临时物与记录零残留"
+        );
+        assert!(!journal::is_in_flight(token), "提交点终结即销账");
+    }
+
+    /// 包级事务回滚通道锁（C2a-2）：staging 后未发布即弃置（prepare 中途
+    /// 失败/调用方中止的同一 Drop 通道）——临时物与意图记录同步撤销、
+    /// 在途账清空、目标全域旧态、零残留。
+    #[test]
+    fn test_bundle_transaction_drop_rolls_back_without_trace() {
+        let fixture = TempRoot::new();
+        fixture.write_file("keep.txt", b"OLD");
+        let provider = mounted(&fixture);
+        {
+            let mut transaction = BundleTransaction::new();
+            transaction.push_member(
+                provider
+                    .stage_bundle_member(&address("workspace-1", "keep.txt"), b"NEVER")
+                    .expect("staging 必须放行"),
+            );
+            transaction.push_member(
+                provider
+                    .stage_bundle_member(&address("workspace-1", "ghost.txt"), b"NEVER")
+                    .expect("staging 必须放行"),
+            );
+        }
+        assert_eq!(
+            fs::read(fixture.path().join("keep.txt")).unwrap(),
+            b"OLD",
+            "弃置事务不动目标"
+        );
+        assert!(
+            !fixture.path().join("ghost.txt").exists(),
+            "新建成员不得显形"
+        );
+        let residue: Vec<String> = fs::read_dir(fixture.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(TEMP_FILE_PREFIX))
+            .collect();
+        assert!(residue.is_empty(), "弃置后账实两清：{residue:?}");
+    }
+
+    /// 发布相极端 IO 失败锁（C2a-2）：成员 `rename` 中途失败（此处以临时物
+    /// 被外部消失复现）——失败成员及其后未发布成员即时清扫零残留、目标
+    /// 旧态，此前已落定成员按提交点保持新态，上抛失败成员
+    /// `RESOURCE_WRITE_FAILED`；删除臂在成员未全部落定时不执行（发布序
+    /// 锁形：在册删除目标幸存）。
+    #[test]
+    fn test_bundle_publish_midway_failure_sweeps_unpublished_and_keeps_removals() {
+        let fixture = TempRoot::new();
+        fixture.write_file("first.txt", b"OLD-1");
+        fixture.write_file("second.txt", b"OLD-2");
+        fixture.write_file("victim.txt", b"V");
+        let provider = mounted(&fixture);
+        let mut transaction = BundleTransaction::new();
+        transaction.push_member(
+            provider
+                .stage_bundle_member(&address("workspace-1", "first.txt"), b"NEW-1")
+                .expect("staging 必须放行"),
+        );
+        transaction.push_member(
+            provider
+                .stage_bundle_member(&address("workspace-1", "second.txt"), b"NEW-2")
+                .expect("staging 必须放行"),
+        );
+        transaction.push_removal(
+            provider
+                .plan_bundle_removal(&address("workspace-1", "victim.txt"))
+                .expect("删除校验必须放行"),
+        );
+        // 文件系统异常注入：第二成员的临时物被外部消失 → 其 rename 必败。
+        let second_temp: PathBuf = fs::read_dir(fixture.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .find(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| {
+                        journal::temp_file_token(name).is_some()
+                            && fs::read(path).is_ok_and(|bytes| bytes == b"NEW-2")
+                    })
+            })
+            .expect("第二成员临时物必在册");
+        fs::remove_file(&second_temp).expect("注入清理必须成功");
+        let error = transaction
+            .publish()
+            .expect_err("rename 中途失败必须如实上抛");
+        assert_eq!(error.code(), crate::error::RESOURCE_WRITE_FAILED);
+        assert_eq!(
+            error.details().unwrap()["uri"],
+            "chips-resource://workspace-1/second.txt",
+            "失败回执定位到失败成员"
+        );
+        assert_eq!(
+            fs::read(fixture.path().join("first.txt")).unwrap(),
+            b"NEW-1",
+            "已落定成员按提交点保持新态"
+        );
+        assert_eq!(
+            fs::read(fixture.path().join("second.txt")).unwrap(),
+            b"OLD-2",
+            "失败成员回滚旧态"
+        );
+        assert!(
+            fixture.path().join("victim.txt").is_file(),
+            "成员未全部落定前删除臂不执行"
+        );
+        let residue: Vec<String> = fs::read_dir(fixture.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(TEMP_FILE_PREFIX))
+            .collect();
+        assert!(residue.is_empty(), "未发布成员清扫零残留：{residue:?}");
+    }
+
+    /// prepare 相校验臂锁（C2a-2）：与一次性写/删除同一在册拒绝形——
+    /// 成员目标为在册目录 → `ALREADY_EXISTS`、缺父目录 → `NOT_FOUND`；
+    /// 删除目标缺失 → `NOT_FOUND`、非空目录 → `NOT_EMPTY`；校验失败零盘上
+    /// 动作（无临时物、无记录）。
+    #[test]
+    fn test_bundle_prepare_guards_share_single_member_reject_shapes() {
+        let fixture = TempRoot::new();
+        fixture.write_file("dir/a.txt", b"A");
+        let provider = mounted(&fixture);
+        let error = provider
+            .stage_bundle_member(&address("workspace-1", "dir"), b"x")
+            .expect_err("目录目标不覆盖");
+        assert_eq!(error.code(), RESOURCE_ALREADY_EXISTS);
+        let error = provider
+            .stage_bundle_member(&address("workspace-1", "absent/x.txt"), b"x")
+            .expect_err("缺父目录不自动建层");
+        assert_eq!(error.code(), RESOURCE_NOT_FOUND);
+        let error = provider
+            .plan_bundle_removal(&address("workspace-1", "ghost.txt"))
+            .expect_err("删除目标缺失");
+        assert_eq!(error.code(), RESOURCE_NOT_FOUND);
+        let error = provider
+            .plan_bundle_removal(&address("workspace-1", "dir"))
+            .expect_err("非空目录非递归拒绝");
+        assert_eq!(error.code(), RESOURCE_NOT_EMPTY);
+        let residue: Vec<String> = fs::read_dir(fixture.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(TEMP_FILE_PREFIX))
+            .collect();
+        assert!(residue.is_empty(), "校验失败零盘上动作：{residue:?}");
     }
 
     #[test]

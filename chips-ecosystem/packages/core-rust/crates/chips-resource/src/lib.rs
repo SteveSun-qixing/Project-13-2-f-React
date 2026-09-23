@@ -54,7 +54,10 @@
 //! （SSRF 地址族拦截、逐跳重定向复校验、三超时下发、2 GiB 响应上限、
 //! 请求头净化、L2 条件请求复验，《04》§八）。工单036 波 C2a-1 起交付
 //! [`journal`] 提交日志（目录域写意图落盘 prepare–commit 两相）与挂载时
-//! 恢复扫描（崩溃中间态收敛 + 无账临时物如实计数）。`file:*` /
+//! 恢复扫描（崩溃中间态收敛 + 无账临时物如实计数）；波 C2a-2 起交付目录态
+//! 包级 changeset 提交入口 [`ResourceManager::commit_changeset`]（覆写成员 +
+//! 删除目标一包事务，持 `WriteCoordinator` 多键锁，意图账复用 C2a-1 phase
+//! 语义，崩溃由既有恢复扫描回滚旧态）。`file:*` /
 //! `resource:*` 能力面接线与 host 侧网络端口装配、Neon 绑定面
 //! （packages/native）均不在本 crate 本段。
 //!
@@ -124,9 +127,9 @@ pub use journal::{
     JOURNAL_RECORD_MAX_BYTES, RECOVERY_WALK_MAX_DEPTH, RECOVERY_WALK_MAX_ENTRIES, TEMP_FILE_PREFIX,
 };
 pub use manager::{
-    external_origin_of, handles_of_session, open_handle_count, FsOpRequest, ManagerResult,
-    OpenHandle, OpenRequest, ProviderRegistry, ResolvedResource, ResourceManager, WriteRequest,
-    WriteStreamHandle, WriteStreamRequest,
+    external_origin_of, handles_of_session, open_handle_count, ChangesetMember, ChangesetRequest,
+    FsOpRequest, ManagerResult, OpenHandle, OpenRequest, ProviderRegistry, ResolvedResource,
+    ResourceManager, WriteRequest, WriteStreamHandle, WriteStreamRequest,
 };
 pub use memory::{guess_mime_type, MemoryProvider, MemoryStream};
 pub use path_guard::{

@@ -25,8 +25,11 @@
 //! （`journal` 模块 prepare–commit 两相，写流/一次性提交的在途意图落盘）
 //! 与挂载时恢复扫描（`mount_directory` / `register_temp_scope` 汇聚 seam
 //! 触发，崩溃中间态确定性收敛，处置账目经
-//! [`ResourceManager::directory_recovery_report`] 可查）。缓存与单一飞行
-//! 属段二后续/段三，本段不挂载。
+//! [`ResourceManager::directory_recovery_report`] 可查）。波 C2a-2 追加：
+//! 目录态包级 changeset 提交入口 [`ResourceManager::commit_changeset`]
+//! （覆写成员 + 删除目标一包事务：多键锁一次性取得、prepare 相意图账落盘、
+//! publish 相纯元数据换代，崩溃由既有恢复扫描回滚旧态零残留）。缓存与
+//! 单一飞行属段二后续/段三，本段不挂载。
 //!
 //! 错误口径：同步判定入口返回强类型 [`ResourceError`]；异步入口（会触达
 //! Provider）以跨边界统一单形 `ChipsError` 收口，错误码保持《06》§7.2 在册
@@ -46,7 +49,9 @@ use chips_core::{
 use crate::archive::{ArchiveProvider, ARCHIVE_PROVIDER_ID};
 use crate::cache::{CacheKey, CacheStore, CachedMetadata, SingleFlight};
 use crate::constants::ResourceLimits;
-use crate::directory::{DirectoryProvider, DirectoryStreamSink, DIRECTORY_PROVIDER_ID};
+use crate::directory::{
+    BundleTransaction, DirectoryProvider, DirectoryStreamSink, DIRECTORY_PROVIDER_ID,
+};
 use crate::error::{InvalidateReason, ResourceError, ResourceResult, ScopeOperation};
 use crate::handle::{HandleEntry, HandleTable, StreamSlot};
 use crate::memory::MemoryProvider;
@@ -146,6 +151,32 @@ pub struct WriteStreamHandle {
     pub id: u64,
     /// 目标资源规范 URI（错误回执与审计定位用）。
     pub uri: String,
+}
+
+/// 包级 changeset 的覆写/新建成员（工单036 波 C2a-2，宿主
+/// `IDocumentCommitRequest.members` 单元素的本侧形状）。
+#[derive(Debug, Clone)]
+pub struct ChangesetMember {
+    /// 目标虚拟路径（经 PathGuard 复检，与 `WriteRequest::path` 同口径）。
+    pub path: VirtualPath,
+    /// 覆写/新建字节（≤ `max_inline_bytes`，超限走 `commit_write_stream`
+    /// 的既有口径在包级入口同样先行把守 → `RESOURCE_TOO_LARGE`）。
+    pub bytes: Vec<u8>,
+}
+
+/// 包级 changeset 提交请求（目录态事务入口，《04.04》§4.8 受控提交路径的
+/// 包级承载；对照宿主端口形 `IDocumentCommitRequest{members[], removals[]}`，
+/// 端口字节集经 `resources:write` 判定与内联体量闸）。
+#[derive(Debug, Clone)]
+pub struct ChangesetRequest {
+    /// 发起会话。
+    pub session: SessionId,
+    /// 目标作用域 ID（一次提交限单一目录态作用域）。
+    pub scope: ScopeId,
+    /// 覆写/新建成员集（同事务原子生效）。
+    pub members: Vec<ChangesetMember>,
+    /// 删除成员集（同事务删除，沿 `delete` 的《04.04》§4.9 种类闸）。
+    pub removals: Vec<VirtualPath>,
 }
 
 /// 流式写入落盘通道：目录域走隐藏临时文件（B2 原子形态的流式承载），
@@ -1223,6 +1254,175 @@ impl ResourceManager {
         let key = self.cache_key_for(&resolved.address, &view.version);
         self.l0_fill(&key, &view);
         Ok(view)
+    }
+
+    /// 包级 changeset 提交（目录态提交事务引擎，《04.04》§4.8 受控提交路径
+    /// 的包级承载，工单036 波 C2a-2）：一次事务「覆写/新建 `members[]` +
+    /// 删除 `removals[]`」，全程持 `WriteCoordinator` 多键锁（全部目标路径
+    /// 一次性交锁，升序去重为协调器既有规范，禁止逐笔取锁的 AB-BA 死锁面）。
+    ///
+    /// 两相形态（复用 [`crate::journal`] prepare–commit phase 语义）：
+    ///
+    /// - **prepare**：先取锁前完成全部纯校验（流水线逐目标复检：PathGuard +
+    ///   会话绑定 + `resources:write` + 能力预检 + 目录载体判定 + 内联体量
+    ///   与作用域 `max_resource_bytes` 上限 + 删除种类闸），再落全部慢 IO
+    ///   （成员逐个落隐藏临时物 + 同目录 sidecar 意图记录并 fsync；删除
+    ///   目标仅存在性/空目录校验，零盘上动作）；任一失败即整体弃置事务——
+    ///   临时物与意图记录经同一 Drop 通道清扫、零残留，文件系统全域保持
+    ///   提交前旧态（真 all-or-nothing）；
+    /// - **publish**：纯元数据动作批量执行（成员 `rename` 换代 → 删除目标
+    ///   `unlink`/空目录 `rmdir`），全部盘上 IO 与 fsync 均已在 prepare 落
+    ///   定。崩溃落在 prepare 窗口由既有挂载恢复扫描回滚到旧态、零残留
+    ///   （`journal` 模块头处置三态）；publish 中途极端 IO 失败按成员提交
+    ///   点确定性收敛（未发布即时清扫、已落定新态，上抛在册
+    ///   `RESOURCE_WRITE_FAILED`），语义详见 [`BundleTransaction`] 头注。
+    ///
+    /// 拒绝臂一律在册词表（错误码零新增，《06.02》§2.4 九词冻结）：空变更
+    /// 集（成员与删除皆空）为幂等 no-op（不取锁、不写账）；同一路径在变更
+    /// 集内出现第二次（成员重复、删除重复、成员与删除交叉）→
+    /// `RESOURCE_ALREADY_EXISTS`（请求歧义，取锁前拒绝）；非目录态载体 →
+    /// `RESOURCE_NOT_SUPPORTED`（`operation` 按成员 `write` / 删除 `delete`
+    /// 归口）；删除目标沿 `delete` 同款《04.04》§4.9 种类闸；其余落点错误
+    /// （缺父目录 `NOT_FOUND`、目标为目录 `ALREADY_EXISTS`、删除缺失
+    /// `NOT_FOUND`、非空目录 `NOT_EMPTY`、超限 `TOO_LARGE`、只读
+    /// `READ_ONLY`）与各单成员入口同形。
+    ///
+    /// 成功返回按成员请求序排列的新版本元数据列表；成员与删除目标逐路径
+    /// 执行写提交事件失效与 L0 回填（与 `commit_write` / `delete` 同谱）。
+    pub async fn commit_changeset(
+        &self,
+        request: ChangesetRequest,
+    ) -> ManagerResult<Vec<ResourceMetadata>> {
+        if request.members.is_empty() && request.removals.is_empty() {
+            return Ok(Vec::new());
+        }
+        // 集合内唯一性闸（取锁前）：同一路径第二次出现即请求歧义。
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        for path in request
+            .members
+            .iter()
+            .map(|member| member.path.as_str())
+            .chain(request.removals.iter().map(VirtualPath::as_str))
+        {
+            if !seen.insert(path) {
+                return Err(ResourceError::AlreadyExists {
+                    uri: format!("chips-resource://{}/{}", request.scope, path),
+                }
+                .to_chips_error());
+            }
+        }
+        // 内联体量闸（取锁前，与 `commit_write` 同形）。
+        for member in &request.members {
+            let size = u64::try_from(member.bytes.len()).unwrap_or(u64::MAX);
+            if size > self.limits.max_inline_bytes {
+                return Err(ResourceError::TooLarge {
+                    uri: format!(
+                        "chips-resource://{}/{}",
+                        request.scope,
+                        member.path.as_str()
+                    ),
+                    size,
+                    limit: self.limits.max_inline_bytes,
+                }
+                .to_chips_error());
+            }
+        }
+        // 流水线复检：逐目标（成员在前、删除在后，与事务发布序同向）走
+        // `resolve` 的写鉴权全链 + 能力预检 + 目录载体判定。
+        let mut member_targets: Vec<ResolvedResource> = Vec::with_capacity(request.members.len());
+        for member in &request.members {
+            let resolved = self.resolve(
+                &format!(
+                    "chips-resource://{}/{}",
+                    request.scope,
+                    member.path.as_str()
+                ),
+                request.session,
+                ResourceOperation::Write,
+            )?;
+            self.changeset_directory_carrier(&resolved, ScopeOperation::Write)?;
+            let size = u64::try_from(member.bytes.len()).unwrap_or(u64::MAX);
+            check_size(
+                &resolved.address.uri,
+                resolved.registration.policy.max_resource_bytes,
+                size,
+            )?;
+            member_targets.push(resolved);
+        }
+        let mut removal_targets: Vec<ResolvedResource> = Vec::with_capacity(request.removals.len());
+        for path in &request.removals {
+            let resolved = self.resolve(
+                &format!("chips-resource://{}/{}", request.scope, path.as_str()),
+                request.session,
+                ResourceOperation::Write,
+            )?;
+            self.changeset_directory_carrier(&resolved, ScopeOperation::Delete)?;
+            self.check_write_kind_gate(&resolved, ScopeOperation::Delete)?;
+            removal_targets.push(resolved);
+        }
+        // WriteCoordinator 多键一次性取锁（全部成员与删除目标路径一次交
+        // 锁、锁表内升序去重；覆盖 prepare+publish 全程，《04.04》§4.9、
+        // 《04.13》§13-3）。
+        let keys: Vec<(ScopeId, String)> = member_targets
+            .iter()
+            .chain(removal_targets.iter())
+            .map(path_lock_key)
+            .collect();
+        let _write_permit = self.write_coordinator.lock_async(keys).await;
+        // prepare 相：成员 staging 落盘 + 删除目标校验；任一步失败即弃置
+        // 事务（已 staging 成员随 Drop 清扫，零残留、目标全域旧态）。
+        let mut transaction = BundleTransaction::new();
+        for (resolved, member) in member_targets.iter().zip(&request.members) {
+            let staged = self
+                .directory_provider
+                .stage_bundle_member(&resolved.address, &member.bytes)?;
+            transaction.push_member(staged);
+        }
+        for resolved in &removal_targets {
+            let removal = self
+                .directory_provider
+                .plan_bundle_removal(&resolved.address)?;
+            transaction.push_removal(removal);
+        }
+        // publish 相：纯元数据动作（rename 批量 → unlink/rmdir 批量）。
+        transaction.publish()?;
+        // 写提交事件失效（成员与删除目标逐路径，《04》§6.3）+ 新版本回填
+        // L0（仅成员有后继实体）。
+        for resolved in member_targets.iter().chain(removal_targets.iter()) {
+            self.cache
+                .invalidate_resource(&resolved.address.scope, resolved.address.path.as_str());
+        }
+        let mut views: Vec<ResourceMetadata> = Vec::with_capacity(member_targets.len());
+        for resolved in &member_targets {
+            let metadata = self.directory_provider.stat(&resolved.address).await?;
+            let view = metadata_view(&resolved.address.uri, resolved.registration.kind, metadata);
+            let key = self.cache_key_for(&resolved.address, &view.version);
+            self.l0_fill(&key, &view);
+            views.push(view);
+        }
+        Ok(views)
+    }
+
+    /// 包级 changeset 的载体判定：能力预检（只读策略 / `supports_write`
+    /// 不支持 → `RESOURCE_READ_ONLY`，管理器层直拒不透传）后，载体必须是
+    /// 目录态 Provider——包级事务的意图账与恢复扫描通道目前只为目录域
+    /// 在册（归档永不就地改写，《04.04》§4.8；内存域无崩溃判读需求）。
+    /// 非目录载体 → `RESOURCE_NOT_SUPPORTED`（`operation` 词按臂归口）。
+    fn changeset_directory_carrier(
+        &self,
+        resolved: &ResolvedResource,
+        operation: ScopeOperation,
+    ) -> ManagerResult<()> {
+        let provider = self.writable_provider(resolved)?;
+        if provider.id() == DIRECTORY_PROVIDER_ID {
+            return Ok(());
+        }
+        Err(ResourceError::NotSupported {
+            uri: resolved.address.uri.clone(),
+            scope: resolved.registration.kind,
+            operation,
+        }
+        .to_chips_error())
     }
 
     /// 删除（《04》§11.1 `delete`，《04.04》§4.9）：写入族鉴权与能力预检后，
