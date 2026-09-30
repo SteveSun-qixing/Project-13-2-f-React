@@ -47,6 +47,9 @@ release-artifacts/
 打包/
 .codex-runtime-logs/
 .omo/
+# 2026-09-30 task044 错位与废弃归档：内容保持原 ignore 口径（磁盘留存、不入库），
+# 防止 打包/.chips-host-dev 等旧 ignore 内容因移动目录而逃逸入库（task044 §08）。
+归档/2026-09-30-错位与废弃归档/
 
 # cargo 构建产物目录
 target/
