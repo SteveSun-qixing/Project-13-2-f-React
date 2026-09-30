@@ -1,0 +1,20 @@
+id: chips.basecard.music
+version: 0.1.0
+type: basecard
+name: 音乐基础卡片
+description: 在复合卡片中呈现一个音频内容节点：封面、歌曲信息与制作团队，查看态经平台资源打开链路交给音乐播放器。
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  cardTypes:
+    - id: base.music
+      name: 音乐基础卡片
+      description: 音频资源内容节点，可配置歌曲名、专辑、语种、流派、发行日期、制作团队与封面、歌词资源
+      icon: assets/icons/basecard-icon.svg
+      aliases:
+        - MusicCard
+      configSchema: assets/schemas/music-card-config.schema.json

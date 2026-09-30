@@ -1,0 +1,14 @@
+id: chips.service.markdown
+version: 0.1.0
+type: service
+name: Markdown 服务
+description: Markdown 解析与渲染辅助：把 Markdown 源文渲染为安全 HTML 或结构化块，供富文本卡片查看态与其它插件经 Cordis 服务消费。
+author: 薯片官方
+license: MIT
+runtime:
+  targets: [host]
+  background: false
+healthCheck:
+  interval: 30s
+  timeout: 5s
+permissions: []

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-chips-schema-version": 1,
+  "title": "HTML 转图片输出（content-converter.html-to-image）",
+  "description": "原子操作 htmlToImage 的输出。图片字节以 Uint8Array 承载（JSON 表示 base64）；警告码表见 descriptor.schema.json 的 x-chips-warning-codes。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "mimeType",
+    "bytes",
+    "width",
+    "height",
+    "scaleFactor",
+    "background"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "enum": ["png", "jpeg", "webp"],
+      "title": "输出格式"
+    },
+    "mimeType": {
+      "type": "string",
+      "enum": ["image/png", "image/jpeg", "image/webp"],
+      "title": "输出 MIME 类型"
+    },
+    "bytes": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "title": "图片字节（运行时 Uint8Array）",
+      "description": "上限 64 MiB，超出抛 CONVERTER_OUTPUT_TOO_LARGE"
+    },
+    "width": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "title": "输出像素宽（视口宽 × scaleFactor）"
+    },
+    "height": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "title": "输出像素高（由渲染承载按内容返回）"
+    },
+    "scaleFactor": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "title": "设备像素比缩放系数"
+    },
+    "background": {
+      "type": "string",
+      "title": "已解析的背景（'transparent' 或解析后的 CSS 颜色）"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "title": "警告码（x-chips-warning-codes）" },
+          "message": { "type": "string", "title": "简体中文警告说明" },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["string", "number", "boolean"]
+            },
+            "title": "结构化诊断（不含输入原文、凭证与内部路径）"
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engineId", "assetCount", "viewportWidthPx"],
+      "properties": {
+        "engineId": { "type": "string", "title": "渲染承载标识" },
+        "assetCount": { "type": "integer", "minimum": 0, "title": "资源条目数" },
+        "viewportWidthPx": { "type": "integer", "exclusiveMinimum": 0, "title": "视口宽（CSS 像素）" },
+        "viewportHeightPx": {
+          "type": ["integer", "null"],
+          "exclusiveMinimum": 0,
+          "title": "视口高（CSS 像素；null 表示按内容自适应）"
+        }
+      }
+    }
+  }
+}

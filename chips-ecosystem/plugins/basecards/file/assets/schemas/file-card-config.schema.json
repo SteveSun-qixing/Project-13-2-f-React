@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "文件基础卡片配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "file_file": {
+      "type": "string",
+      "default": "",
+      "description": "文件资源在卡片根目录中的相对路径；非空时必须是合法的包内相对路径（由 validateConfig 补充校验）"
+    },
+    "file_name": {
+      "type": "string",
+      "default": "",
+      "description": "展示用文件名（不含后缀），由编辑器在导入文件时自动识别；为空时从 file_file 派生"
+    },
+    "file_extension": {
+      "type": "string",
+      "default": "",
+      "description": "展示用文件后缀（小写、不含点），由编辑器在导入文件时自动识别；为空时从 file_file 派生"
+    },
+    "cover_image": {
+      "type": "string",
+      "default": "",
+      "description": "可选的自定义封面资源在卡片根目录中的相对路径；未配置时按后缀解析类别使用插件内置类别默认封面"
+    }
+  }
+}

@@ -310,6 +310,366 @@ importers:
         specifier: 3.2.7
         version: 3.2.7(@types/node@24.13.6)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
 
+  plugins/basecards/book:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/basecards/file:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/basecards/hyperlink:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/basecards/image:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/basecards/music:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/basecards/richtext:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/basecards/webpage:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/layouts/document-library:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
   plugins/layouts/grid:
     devDependencies:
       '@chips/cli':
@@ -345,6 +705,233 @@ importers:
       react-dom:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/layouts/map:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/layouts/timeline:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@chips/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@types/react':
+        specifier: 18.3.29
+        version: 18.3.29
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.29)
+      '@vitejs/plugin-react':
+        specifier: 4.7.0
+        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/services/cardtohtml:
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/services/content-image:
+    dependencies:
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+    devDependencies:
+      '@chips/cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/services/file-conversion:
+    dependencies:
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/services/htmltoimage:
+    dependencies:
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/services/htmltopdf:
+    dependencies:
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@20.19.37)(tsx@4.23.13)(yaml@2.8.2)
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2)
+
+  plugins/services/markdown:
+    dependencies:
+      markdown-it:
+        specifier: 15.0.2
+        version: 15.0.2
+    devDependencies:
+      '@chips/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
+      '@types/node':
+        specifier: 20.19.37
+        version: 20.19.37
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@28.1.0)(tsx@4.23.13)(yaml@2.8.2))
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -2110,6 +2697,9 @@ packages:
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
+  argparse@3.0.2:
+    resolution: {integrity: sha512-mFdDM6WqWKraGLsVb+C9CahPnzTXOefAOLq3jYcca2YZ8bEWpr++Tzj+zSaKW9+X9L5uSxcm1AZ3Y6aZJ09OhQ==}
+
   aria-query@5.1.3:
     resolution: {integrity: sha512-R5iJ5lkuHybztUfuOAznmboyjWq8O6sqNqtK7CLOqdydi54VNbORp49mb14KbWgG1QD3JFO9hJdZ+y4KutfdOQ==}
 
@@ -3026,6 +3616,9 @@ packages:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
 
+  linkify-it@6.1.0:
+    resolution: {integrity: sha512-wJ/TwpSDTLepCrQoYWYIExIKg5Zchex2Nn5yk2mFnB+6PtdkHtyLx742md9csRjjOnGkKIS/RrbY7l8D6gT9Vw==}
+
   locate-path@6.0.0:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
@@ -3068,6 +3661,10 @@ packages:
     resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
     engines: {node: '>=10'}
 
+  markdown-it@15.0.2:
+    resolution: {integrity: sha512-q4IGxMv56jCqT4OCRCADBoDP3LO4MhmTXjFbphHPXs4g3j9Xg5RDnxqN8IF/3vIWEU+VCnUq+7JUg/cfy2E6Qw==}
+    hasBin: true
+
   matcher@3.0.0:
     resolution: {integrity: sha512-OkeDaAZ/bQCxeFAozM55PKcKU0yJMPGifLwV4Qgjitu+5MoAfSQN4lsLJeXZ1b8w0x+/Emda6MZgXS1jvsapng==}
     engines: {node: '>=10'}
@@ -3078,6 +3675,9 @@ packages:
 
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
+
+  mdurl@2.1.0:
+    resolution: {integrity: sha512-1+HBaOx0zi/dQWht8rNv9MYf9qqpqL/kxI0hXImU6Y547zM6Sni8BQibt7ifgMcYtQg41ao3Ivd6cnSM86inpg==}
 
   mimic-response@1.0.1:
     resolution: {integrity: sha512-j5EctnkH7amfV/q5Hgmoal1g2QHFJRraOtmx0JpIqkxhBhI/lJSl1nMpQ45hVarwNETOoWEimndZ4QK0RHxuxQ==}
@@ -3277,6 +3877,10 @@ packages:
 
   pump@3.0.4:
     resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
+
+  punycode.js@2.3.1:
+    resolution: {integrity: sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA==}
+    engines: {node: '>=6'}
 
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
@@ -3639,6 +4243,9 @@ packages:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
+
+  uc.micro@3.0.0:
+    resolution: {integrity: sha512-U3PppEkleoTnIfi8BozMx3yju3qc/L6SwqWo2Sw+54PX+PX0q9I+r1Um5HCmqD7n9VDX5/v3vQH/AjA6deDdtw==}
 
   unbox-primitive@1.1.0:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
@@ -5535,6 +6142,8 @@ snapshots:
 
   argparse@2.0.1: {}
 
+  argparse@3.0.2: {}
+
   aria-query@5.1.3:
     dependencies:
       deep-equal: 2.2.3
@@ -6761,6 +7370,10 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
+  linkify-it@6.1.0:
+    dependencies:
+      uc.micro: 3.0.0
+
   locate-path@6.0.0:
     dependencies:
       p-locate: 5.0.0
@@ -6799,6 +7412,15 @@ snapshots:
     dependencies:
       semver: 7.8.5
 
+  markdown-it@15.0.2:
+    dependencies:
+      argparse: 3.0.2
+      entities: 8.1.0
+      linkify-it: 6.1.0
+      mdurl: 2.1.0
+      punycode.js: 2.3.1
+      uc.micro: 3.0.0
+
   matcher@3.0.0:
     dependencies:
       escape-string-regexp: 4.0.0
@@ -6807,6 +7429,8 @@ snapshots:
   math-intrinsics@1.1.0: {}
 
   mdn-data@2.27.1: {}
+
+  mdurl@2.1.0: {}
 
   mimic-response@1.0.1: {}
 
@@ -6993,6 +7617,8 @@ snapshots:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
+
+  punycode.js@2.3.1: {}
 
   punycode@2.3.1: {}
 
@@ -7439,6 +8065,8 @@ snapshots:
       - supports-color
 
   typescript@5.9.3: {}
+
+  uc.micro@3.0.0: {}
 
   unbox-primitive@1.1.0:
     dependencies:

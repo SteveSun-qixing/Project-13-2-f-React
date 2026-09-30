@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "富文本卡片展示配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fontSize": {
+      "type": "integer",
+      "minimum": 12,
+      "maximum": 48,
+      "description": "正文字号（px）"
+    },
+    "lineHeight": {
+      "type": "number",
+      "minimum": 1,
+      "description": "行高倍数"
+    }
+  }
+}

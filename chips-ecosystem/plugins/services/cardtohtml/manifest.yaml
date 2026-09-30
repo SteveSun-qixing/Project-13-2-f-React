@@ -1,0 +1,18 @@
+id: chips.service.cardtohtml
+version: 0.1.0
+type: service
+name: 卡片 HTML 导出服务
+description: 经 document:* 链路读取卡片文档模型并转换为目录态 HTML 产物的内容处理服务（content-converter.card-to-html）。
+author: 薯片官方
+license: MIT
+runtime:
+  targets: [host]
+  background: true
+healthCheck:
+  interval: 30s
+  timeout: 5s
+permissions:
+  - resources:read
+  - filesystem:read
+  - filesystem:write
+  - filesystem:delete

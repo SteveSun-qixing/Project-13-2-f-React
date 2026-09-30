@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.content-image/assets/schemas/normalize.output.schema.json",
+  "title": "图像规范化输出（契约先行，实现缺位）",
+  "description": "content-image.normalize 原子操作 normalize 的输出契约：PNG 字节与像素尺寸（04-能力契约规范 §8.4 行输入→输出的产物侧）。§8.6：details 与输出不含输入原文、凭证与内部路径。本契约随包先行发布，本包尚未实现该操作。",
+  "type": "object",
+  "required": ["image", "format", "width", "height"],
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "x-chips-binary": 67108864,
+      "description": "规范化产物：PNG 图像字节，上限 64 MiB（超出即 IMAGE_ENCODE_FAILED）。"
+    },
+    "format": {
+      "type": "string",
+      "const": "png",
+      "description": "产物格式钉为规范化目标 png（§8.4 输入→输出列）。"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "产物像素宽度。"
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "产物像素高度。"
+    }
+  }
+}

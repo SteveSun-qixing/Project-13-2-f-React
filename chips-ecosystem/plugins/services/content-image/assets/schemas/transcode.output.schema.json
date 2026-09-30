@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.content-image/assets/schemas/transcode.output.schema.json",
+  "title": "图像转码输出（契约先行，实现缺位）",
+  "description": "content-image.transcode 原子操作 transcode 的输出契约：目标格式字节与实际产出尺寸（04-能力契约规范 §8.4 行输入→输出的产物侧）。产物编码失败为 IMAGE_ENCODE_FAILED。本契约随包先行发布，本包尚未实现该操作。",
+  "type": "object",
+  "required": ["image", "format", "width", "height"],
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "x-chips-binary": 67108864,
+      "description": "转码产物字节，上限 64 MiB（E4 §5.3 二进制扩展，经二进制信封 bin 表承载；禁止内联 base64）。"
+    },
+    "format": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "pattern": "^[a-z0-9][a-z0-9+.-]*$",
+      "description": "实际产出的规范化格式名（与请求的 targetFormat 一致）。"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "产物宽度（像素）。"
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "产物高度（像素）。"
+    }
+  }
+}

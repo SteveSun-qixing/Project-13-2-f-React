@@ -1,0 +1,20 @@
+id: chips.basecard.book
+version: 0.1.0
+type: basecard
+name: 电子书基础卡片
+description: 在复合卡片中呈现电子书内容节点：封面、书籍信息与解包图片序列，整卡经平台资源打开链路交付书籍阅读器。
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  cardTypes:
+    - id: base.book
+      name: 电子书基础卡片
+      description: 电子书文件或解包图片序列内容节点，可配置书籍文件与格式、封面、书名、作者与图片序列
+      icon: assets/icons/basecard-icon.svg
+      aliases:
+        - BookCard
+      configSchema: assets/schemas/book-card-config.schema.json

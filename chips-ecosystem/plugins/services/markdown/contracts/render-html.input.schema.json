@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.markdown/contracts/render-html.input.schema.json",
+  "title": "renderHtml 输入",
+  "description": "Markdown 源文与渲染选项；原始 HTML 一律转义，不存在白名单放行面。",
+  "type": "object",
+  "required": ["markdown"],
+  "properties": {
+    "markdown": {
+      "type": "string",
+      "description": "Markdown 源文；长度不得超过服务上限 MAX_MARKDOWN_INPUT_LENGTH。",
+      "maxLength": 1000000
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "breaks": {
+          "type": "boolean",
+          "description": "把段内单换行渲染为 <br>（GFM breaks）；缺省 false。"
+        },
+        "linkify": {
+          "type": "boolean",
+          "description": "把类链接文本自动识别为链接（linkify-it 仅匹配合法 URL）；缺省 false。"
+        },
+        "typographer": {
+          "type": "boolean",
+          "description": "排版替换（弯引号、省略号等）；缺省 false。"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

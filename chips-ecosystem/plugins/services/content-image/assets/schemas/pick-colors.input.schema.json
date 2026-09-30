@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.content-image/assets/schemas/pick-colors.input.schema.json",
+  "title": "颜色选取服务输入",
+  "description": "content-image.pick-colors 原子操作 pickColors 的输入契约（04-能力契约规范 §8.3 约束 1：不读写路径，图像字节由消费方传入）。",
+  "type": "object",
+  "required": ["image"],
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "x-chips-binary": 67108864,
+      "description": "图像字节，上限 64 MiB（E4 §5.3 二进制扩展，经二进制信封 bin 表承载；禁止内联 base64）。"
+    },
+    "sampleSize": {
+      "type": "integer",
+      "minimum": 48,
+      "maximum": 160,
+      "default": 96,
+      "description": "采样边长（像素）：非法值归一到 48–160，缺省 96。"
+    },
+    "format": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "pattern": "^[a-z0-9][a-z0-9+.-]*$",
+      "description": "来源格式提示（规范化名，如 png、jpeg）；缺省由解码端口嗅探。"
+    },
+    "sourceKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "消费方给出的来源标识（如资源 URI 与修订号）：只作 LRU 缓存键，不写日志、不出现在输出与诊断中；缺省时不缓存。"
+    }
+  }
+}

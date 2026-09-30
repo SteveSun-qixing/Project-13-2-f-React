@@ -1,0 +1,14 @@
+id: chips.service.htmltopdf
+version: 0.1.0
+type: service
+name: HTML 转 PDF 服务
+description: 将目录态 HTML 中间产物经平台渲染承载打印导出为 PDF 的内容处理服务（content-converter.html-to-pdf）。
+author: 薯片官方
+license: MIT
+runtime:
+  targets:
+    - host
+healthCheck:
+  interval: 30s
+  timeout: 5s
+permissions: []

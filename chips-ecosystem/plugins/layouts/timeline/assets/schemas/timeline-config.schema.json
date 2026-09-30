@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "时间线布局插件配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "orientation": {
+      "type": "string",
+      "enum": ["vertical", "horizontal"],
+      "default": "vertical",
+      "description": "时间线方向：竖向或横向"
+    },
+    "scale_mode": {
+      "type": "string",
+      "enum": ["equal-points", "date-distance"],
+      "default": "equal-points",
+      "description": "比例方式：时间点等距，或按可解析日期的间距排布（不可解析日期按自由文本参与）"
+    },
+    "show_covers": {
+      "type": "boolean",
+      "default": true,
+      "description": "是否为条目保留平台条目帧槽位（正式封面）"
+    },
+    "card_density": {
+      "type": "string",
+      "enum": ["compact", "comfortable", "spacious"],
+      "default": "comfortable",
+      "description": "卡片密度：紧凑 / 舒适 / 宽松"
+    },
+    "points": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/timelinePoint"
+      },
+      "description": "时间点配置：条目绑定的轴上节点"
+    },
+    "background": {
+      "$ref": "#/$defs/frameRegion",
+      "description": "背景区域（铺于内容壳层之后的 16:9 区域）"
+    },
+    "top_region": {
+      "$ref": "#/$defs/frameRegion",
+      "description": "顶部内容区（时间线上方的自适应区域）"
+    }
+  },
+  "$defs": {
+    "timelinePoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "entry_ids"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "description": "时间点标识，配置内唯一"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "时间点名称"
+        },
+        "date": {
+          "type": "string",
+          "minLength": 1,
+          "description": "日期自由文本；可解析日期参与日期间距比例与本地化呈现"
+        },
+        "entry_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "description": "绑定条目标识；同一时间点内唯一，跨时间点先到先得"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "时间点说明"
+        }
+      }
+    },
+    "frameRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["none", "image", "html"],
+          "description": "区域呈现模式"
+        },
+        "assetPath": {
+          "type": "string",
+          "pattern": "^assets/[^\\\\:?#/]+(?:/[^\\\\:?#/]+)*$",
+          "description": "图片模式的箱子自有资源相对路径（以 assets/ 开头）"
+        },
+        "html": {
+          "type": "string",
+          "minLength": 1,
+          "description": "代码模式的内联 HTML 文档"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "image"
+              }
+            }
+          },
+          "then": {
+            "required": ["assetPath"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "html"
+              }
+            }
+          },
+          "then": {
+            "required": ["html"]
+          }
+        }
+      ]
+    }
+  }
+}

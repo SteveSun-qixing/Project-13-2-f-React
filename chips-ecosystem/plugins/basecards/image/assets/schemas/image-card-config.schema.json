@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "图片基础卡片配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "images": {
+      "type": "array",
+      "default": [],
+      "description": "图片列表，允许为空数组（此时呈现空状态）；条目缺省字段由插件归一为空值",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "图片项唯一 ID；缺失时插件按位次补 image-<n>"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["file", "url"],
+            "description": "图片来源：包内文件或远程地址"
+          },
+          "file_path": {
+            "type": "string",
+            "description": "source=file 时的卡片内相对路径，必须相对于卡片根目录（由 validateConfig 补充校验）"
+          },
+          "url": {
+            "type": "string",
+            "description": "source=url 时的远程图片地址，仅允许 http(s):// 或 webdav://；data: 仅运行时内存形态，禁止持久化（由 validateConfig 拒绝）"
+          },
+          "alt": {
+            "type": "string",
+            "description": "替代文本，供辅助技术使用"
+          },
+          "title": {
+            "type": "string",
+            "description": "查看器标题"
+          }
+        }
+      }
+    },
+    "layout_type": {
+      "type": "string",
+      "enum": ["single", "grid", "long-scroll", "horizontal-scroll"],
+      "default": "single",
+      "description": "布局类型；images 多于一张且传入 single 时归一改写为 grid，至多一张时运行时有效布局强制 single"
+    },
+    "layout_options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grid_mode": {
+          "type": "string",
+          "enum": ["2x2", "3x3", "3-column-infinite"],
+          "default": "2x2",
+          "description": "网格模式；2x2/3x3 裁剪展示并以溢出角标提示，3 列无限完整展示"
+        },
+        "spacing_mode": {
+          "type": "string",
+          "enum": ["none", "comfortable"],
+          "default": "comfortable",
+          "description": "间距模式：none 零间距且无圆角，comfortable 保留适当间距与小圆角"
+        },
+        "single_width_percent": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 100,
+          "default": 100,
+          "description": "单图宽度百分比（由 validateConfig 补充校验）"
+        },
+        "single_alignment": {
+          "type": "string",
+          "enum": ["left", "center", "right"],
+          "default": "center",
+          "description": "单图对齐"
+        }
+      }
+    }
+  }
+}

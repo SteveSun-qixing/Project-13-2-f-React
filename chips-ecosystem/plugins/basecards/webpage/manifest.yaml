@@ -1,0 +1,20 @@
+id: chips.basecard.webpage
+version: 0.1.0
+type: basecard
+name: 网页基础卡片
+description: 在复合卡片中呈现远程网页或卡片内网页目录的内容节点。
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  cardTypes:
+    - id: base.webpage
+      name: 网页基础卡片
+      description: 远程网页与卡片内网页目录显示节点，支持固定比例与自由展开两种视口模式
+      icon: assets/icons/webpage.svg
+      aliases:
+        - WebPageCard
+      configSchema: assets/schemas/webpage-card-config.schema.json

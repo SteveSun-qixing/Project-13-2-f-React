@@ -1,0 +1,20 @@
+id: chips.basecard.hyperlink
+version: 0.1.0
+type: basecard
+name: 超链接基础卡片
+description: 在复合卡片中呈现一个指向外部网页的超链接内容节点。
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - shell:external
+capabilities:
+  cardTypes:
+    - id: base.hyperlink
+      name: 超链接基础卡片
+      description: 指向外部 http(s) 网页的链接内容节点，可配置图标、打开方式、显示密度与安全提示
+      icon: assets/icons/hyperlink.svg
+      aliases:
+        - HyperlinkCard
+      configSchema: assets/schemas/hyperlink-card-config.schema.json

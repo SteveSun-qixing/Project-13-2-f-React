@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="网页基础卡片图标">
+  <rect x="4" y="4" width="40" height="40" rx="10" fill="#0a84ff" opacity="0.12" />
+  <g fill="none" stroke="#0a84ff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="24" cy="24" r="13" />
+    <path d="M11 24h26" />
+    <path d="M24 11c-4.4 3.6-6.6 8-6.6 13s2.2 9.4 6.6 13c4.4-3.6 6.6-8 6.6-13s-2.2-9.4-6.6-13z" />
+  </g>
+</svg>

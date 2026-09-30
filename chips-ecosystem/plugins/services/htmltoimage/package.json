@@ -1,0 +1,23 @@
+{
+  "name": "@chips/service-htmltoimage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HTML 转图片内容处理服务插件（content-converter.html-to-image）",
+  "type": "module",
+  "scripts": {
+    "build": "vite build --config vite.main.config.ts",
+    "test": "vitest run",
+    "lint": "eslint src tests",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node -e \"import('node:fs').then((fs) => { fs.rmSync('dist', { recursive: true, force: true }); })\""
+  },
+  "dependencies": {
+    "@chips/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.37",
+    "typescript": "5.9.3",
+    "vite": "7.3.1",
+    "vitest": "3.2.4"
+  }
+}

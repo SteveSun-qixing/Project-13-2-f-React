@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "卡片 HTML 导出服务输入（content-converter.card-to-html）",
+  "x-chips-schema-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "output"],
+  "properties": {
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "卡片文档受管引用（目录态 .card 路径）；由提供方经 document:open 打开"
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "导出产物目录（目录态 HTML 产物根）"
+        },
+        "packageMode": {
+          "type": "string",
+          "enum": ["directory", "zip"],
+          "description": "产物形态；zip 形态依赖宿主压缩能力域，就绪前运行时以 CONVERTER_INPUT_UNSUPPORTED 拒绝"
+        },
+        "overwrite": {
+          "type": "boolean",
+          "description": "输出目标已存在时是否覆盖；缺省 false"
+        }
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "includeAssets": {
+          "type": "boolean",
+          "description": "是否把卡片资源复制进产物并重写引用；缺省 true"
+        },
+        "includeManifest": {
+          "type": "boolean",
+          "description": "是否写出 conversion-manifest.json；缺省 true"
+        }
+      }
+    }
+  }
+}

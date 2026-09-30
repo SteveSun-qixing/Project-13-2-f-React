@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.markdown/contracts/parse-blocks.input.schema.json",
+  "title": "parseBlocks 输入",
+  "description": "Markdown 源文与解析选项；与 renderHtml 输入同形（markdown + options）。",
+  "type": "object",
+  "required": ["markdown"],
+  "properties": {
+    "markdown": {
+      "type": "string",
+      "description": "Markdown 源文；长度不得超过服务上限 MAX_MARKDOWN_INPUT_LENGTH。",
+      "maxLength": 1000000
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "breaks": {
+          "type": "boolean",
+          "description": "把段内单换行视为硬换行；缺省 false。"
+        },
+        "linkify": {
+          "type": "boolean",
+          "description": "把类链接文本自动识别为链接；缺省 false。"
+        },
+        "typographer": {
+          "type": "boolean",
+          "description": "排版替换；缺省 false。"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

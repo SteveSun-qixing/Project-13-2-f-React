@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "卡片 HTML 导出服务输出（content-converter.card-to-html）",
+  "x-chips-schema-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["packageMode", "outputPath", "entryFile", "documentId", "digest", "assetCount"],
+  "properties": {
+    "packageMode": {
+      "type": "string",
+      "enum": ["directory"],
+      "description": "当前只产出目录态；压缩态候宿主压缩能力域登记后扩枚"
+    },
+    "outputPath": {
+      "type": "string",
+      "description": "导出产物目录"
+    },
+    "entryFile": {
+      "type": "string",
+      "enum": ["index.html"]
+    },
+    "manifestFile": {
+      "type": "string",
+      "enum": ["conversion-manifest.json"],
+      "description": "仅 includeManifest=true 时存在"
+    },
+    "documentId": {
+      "type": "string",
+      "description": "document:open 返回的文档稳定标识（card_id）"
+    },
+    "digest": {
+      "type": "string",
+      "description": "document:open 返回的打开时快速指纹摘要"
+    },
+    "assetCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "实际复制进产物的资源文件数"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "CONVERTER_ASSETS_SKIPPED",
+              "CONVERTER_RESOURCE_MISSING",
+              "CONVERTER_NODE_UNAVAILABLE",
+              "CONVERTER_MANIFEST_SKIPPED"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

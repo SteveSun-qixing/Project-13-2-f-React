@@ -1,0 +1,17 @@
+id: chips.layout.map
+version: 0.1.0
+type: boxlayout
+name: 地图布局插件
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  layouts:
+    - id: chips.layout.map
+      name: 地图布局插件
+      icon: assets/icons/map.svg
+      configSchema: assets/schemas/map-config.schema.json
+      schemaVersions: '>=1.0.0 <2.0.0'

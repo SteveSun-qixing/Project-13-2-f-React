@@ -284,6 +284,7 @@ const ROLE_TREE: Readonly<Record<string, readonly string[]>> = {
     'src/index.ts      # IServicePlugin 实现 → dist/index.js',
     'tests/            # vitest 单元测试',
     'assets/schemas/   # 插件自身配置 schema',
+    'contracts/        # 内容处理能力契约包：描述符与原子操作输入/输出 schema（2020-12）',
   ],
 };
 

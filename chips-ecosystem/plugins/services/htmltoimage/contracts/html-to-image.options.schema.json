@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-chips-schema-version": 1,
+  "title": "HTML 转图片选项（content-converter.html-to-image）",
+  "description": "原子操作 htmlToImage 的选项面；缺省值与语义以本 schema 为准，实现内二次校验口径一致。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "type": "string",
+      "enum": ["png", "jpeg", "webp"],
+      "default": "png",
+      "title": "输出格式"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 20000,
+      "title": "视口宽（CSS 像素）",
+      "default": 794
+    },
+    "height": {
+      "type": ["integer", "null"],
+      "minimum": 16,
+      "maximum": 20000,
+      "title": "视口高（CSS 像素；null 表示按内容自适应）",
+      "default": null
+    },
+    "scaleFactor": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 4,
+      "title": "设备像素比缩放系数",
+      "default": 1
+    },
+    "background": {
+      "type": "string",
+      "enum": ["transparent", "white", "theme"],
+      "title": "背景模式",
+      "description": "缺省：jpeg 为 white，其余为 transparent；theme 使用 options.themeBackground"
+    },
+    "themeBackground": {
+      "type": "string",
+      "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+      "title": "主题底色（CSS 十六进制颜色；background=theme 时使用）"
+    }
+  }
+}

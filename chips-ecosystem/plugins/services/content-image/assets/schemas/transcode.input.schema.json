@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.content-image/assets/schemas/transcode.input.schema.json",
+  "title": "图像转码输入（契约先行，实现缺位）",
+  "description": "content-image.transcode 原子操作 transcode 的输入契约（04-能力契约规范 §8.4 行「图像字节（PNG / JPEG / WebP / GIF / TIFF 等，按支持矩阵）→ 目标格式与尺寸」）。§8.3 约束 1：不读写路径；约束 5：禁内联 base64。来源与目标格式组合不在支持矩阵内时，由文件处理链收口为 FILE_PROCESS_TARGET_UNSUPPORTED（§8.4），服务侧抛 IMAGE_INPUT_UNSUPPORTED。本契约随包先行发布，本包尚未实现该操作。",
+  "type": "object",
+  "required": ["image", "targetFormat"],
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "x-chips-binary": 67108864,
+      "description": "待转码的图像字节，上限 64 MiB（E4 §5.3 二进制扩展，经二进制信封 bin 表承载；禁止内联 base64）。"
+    },
+    "targetFormat": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "pattern": "^[a-z0-9][a-z0-9+.-]*$",
+      "description": "目标格式（规范化名，如 png、jpeg、webp）：具体可取值集合随提供方的支持矩阵发布（§8.4）。"
+    },
+    "format": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "pattern": "^[a-z0-9][a-z0-9+.-]*$",
+      "description": "来源格式提示（规范化名）；缺省由解码侧嗅探。"
+    },
+    "maxWidth": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "目标宽度上限（像素）：等比缩放，不放大；缺省时不改尺寸。"
+    },
+    "maxHeight": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "目标高度上限（像素）：等比缩放，不放大；缺省时不改尺寸。"
+    }
+  }
+}

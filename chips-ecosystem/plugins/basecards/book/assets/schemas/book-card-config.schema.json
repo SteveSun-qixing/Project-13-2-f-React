@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "电子书基础卡片配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "source_type": {
+      "type": "string",
+      "enum": ["ebook", "image-sequence"],
+      "default": "ebook",
+      "description": "内容来源形态：ebook 为电子书文件，image-sequence 为解包图片序列；缺席时由插件按图片序列是否非空归一"
+    },
+    "book_file": {
+      "type": "string",
+      "default": "",
+      "description": "电子书资源在卡片根目录中的相对路径；非空时必须是合法的包内相对路径（由 validateConfig 补充校验）"
+    },
+    "book_format": {
+      "type": "string",
+      "default": "",
+      "description": "电子书格式小写标识（epub/epub3/pdf/txt/md/mobi/azw/azw3/fb2/djvu/djv/rtf/doc/docx/zip/cbz）；ebook 且 book_file 非空时必须记录"
+    },
+    "book_name": {
+      "type": "string",
+      "default": "",
+      "description": "书籍名；为空时查看态从书籍文件名派生展示标题"
+    },
+    "book_author": {
+      "type": "string",
+      "default": "",
+      "description": "书籍作者；为空时查看态显示未知作者"
+    },
+    "cover_image": {
+      "type": "string",
+      "default": "",
+      "description": "封面资源在卡片根目录中的相对路径；未配置时查看态显示包内占位图标"
+    },
+    "image_sequence": {
+      "type": "array",
+      "default": [],
+      "description": "解包图片序列；条目 file_path 非法时由插件归一剔除，id 缺失时按位次补 book-image-<n>",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "图片条目标识"
+          },
+          "file_path": {
+            "type": "string",
+            "description": "图片资源在卡片根目录中的相对路径"
+          },
+          "file_name": {
+            "type": "string",
+            "description": "图片文件名；缺失时从路径派生"
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "图片 MIME；缺失时打开臂从扩展名推断"
+          },
+          "source_entry_path": {
+            "type": "string",
+            "description": "解包来源在压缩包内的原始条目路径（导入臂回填，用于稳定排序兜底）"
+          },
+          "entry_time": {
+            "type": "number",
+            "description": "条目修改时间毫秒值（导入臂回填，entry-time 排序依据）"
+          }
+        }
+      }
+    },
+    "image_sort_basis": {
+      "type": "string",
+      "enum": ["filename", "entry-time"],
+      "default": "filename",
+      "description": "图片序列排序依据：filename 按文件名自然序，entry-time 按条目时间"
+    }
+  }
+}

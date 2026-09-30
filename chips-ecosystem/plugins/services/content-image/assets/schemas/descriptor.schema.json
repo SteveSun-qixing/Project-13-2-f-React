@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.content-image/assets/schemas/descriptor.schema.json",
+  "title": "图像内容处理服务能力描述符",
+  "description": "04-能力契约规范 §8.3 IContentCapabilityDescriptor 的字段级契约（canonical 提供方 chips.service.content-image）。本包只发布已实现能力（pick-colors）的描述符；normalize / transcode 两能力实现缺位，不出描述符。",
+  "type": "object",
+  "required": [
+    "id",
+    "service",
+    "provider",
+    "operations",
+    "sourceFormats",
+    "targetFormats",
+    "streaming",
+    "maxInlineInputBytes",
+    "contractPackage"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^content-[a-z0-9-]+\\.[a-z0-9-]+$" },
+    "service": { "type": "string", "pattern": "^content-[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+    "provider": {
+      "type": "string",
+      "pattern": "^chips\\.service\\.[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" }
+    },
+    "sourceFormats": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "targetFormats": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "streaming": {
+      "type": "object",
+      "required": ["input", "output"],
+      "additionalProperties": false,
+      "properties": { "input": { "type": "boolean" }, "output": { "type": "boolean" } }
+    },
+    "maxInlineInputBytes": { "type": "integer", "minimum": 1 },
+    "contractPackage": { "type": "string", "minLength": 1 }
+  }
+}

@@ -1,0 +1,20 @@
+id: chips.basecard.image
+version: 0.1.0
+type: basecard
+name: 图片基础卡片
+description: 在复合卡片中呈现图片内容节点：包内文件与远程地址两种来源，单图、网格、纵向长图与横向滚动四种排版，查看态经资源打开链路交给图片查看器。
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  cardTypes:
+    - id: base.image
+      name: 图片基础卡片
+      description: 图片内容节点，支持单图宽度与对齐、网格模式、间距模式四种排版选项；历史别名 ImageCard 只读归一
+      icon: assets/icons/basecard-icon.svg
+      aliases:
+        - ImageCard
+      configSchema: assets/schemas/image-card-config.schema.json

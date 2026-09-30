@@ -34,7 +34,7 @@ const ROLE_DESCRIPTIONS: Readonly<Record<PluginRole, string>> = {
   basecard: '基础卡片插件：卡片类型注册、查看与编辑渲染、配置校验与内容初值',
   boxlayout: '箱子布局插件：布局类型注册、响应式布局算法与布局配置编辑',
   app: '应用插件：独立窗口、启动器入口、React 界面与命令系统样例',
-  service: '服务插件：后台生命周期、健康检查与配置访问',
+  service: '服务插件：Bridge 能力注册、Cordis 内容处理服务、异步 job 编排、后台生命周期与健康检查',
 };
 
 function roleNextStep(role: PluginRole, packageName: string): string {
@@ -109,6 +109,9 @@ export function scaffoldFilePaths(role: PluginRole, assetSlug: string): readonly
         ...common,
         'src/index.ts',
         'assets/schemas/config.schema.json',
+        'contracts/descriptor.schema.json',
+        'contracts/convert.input.schema.json',
+        'contracts/convert.output.schema.json',
         'tests/service.test.ts',
       ];
   }

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-chips-contract": "IContentCapabilityDescriptor（04-能力契约规范 §8.3）",
+  "title": "内容处理能力描述符：HTML 转图片",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "service",
+    "provider",
+    "operations",
+    "sourceFormats",
+    "targetFormats",
+    "streaming",
+    "maxInlineInputBytes",
+    "contractPackage"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "const": "content-converter.html-to-image",
+      "description": "内容处理能力 ID（04-能力契约规范 §8.4 登记项，一经登记即稳定）"
+    },
+    "service": {
+      "type": "string",
+      "const": "content-html-to-image",
+      "description": "本插件注册的 Cordis 服务名（内核服务文法，content- 前缀）"
+    },
+    "provider": {
+      "type": "string",
+      "const": "chips.service.htmltoimage",
+      "description": "官方服务插件 ID（chips.service.* 命名空间）"
+    },
+    "operations": {
+      "type": "array",
+      "items": { "type": "string", "const": "htmlToImage" },
+      "minItems": 1,
+      "maxItems": 1,
+      "description": "服务方法名（原子操作）；每个能力 ID 恰好一个操作"
+    },
+    "sourceFormats": {
+      "type": "array",
+      "items": { "type": "string", "const": "html-directory" },
+      "minItems": 1,
+      "description": "接受的规范化来源格式：目录态 HTML 中间产物（上游 content-converter.card-to-html 产物）"
+    },
+    "targetFormats": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["png", "jpeg", "webp"]
+      },
+      "minItems": 3,
+      "description": "产出的规范化目标格式"
+    },
+    "streaming": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": { "type": "boolean", "const": false },
+        "output": { "type": "boolean", "const": false }
+      },
+      "description": "输入输出均为一次性结构化值，不支持流式"
+    },
+    "maxInlineInputBytes": {
+      "type": "integer",
+      "const": 33554432,
+      "description": "一次性输入上限 32 MiB（HTML 文本与全部资源字节之和）；超出必须拒绝"
+    },
+    "contractPackage": {
+      "type": "string",
+      "const": "chips.service.htmltoimage/contracts",
+      "description": "提供方契约包位置"
+    }
+  },
+  "x-chips-error-codes": {
+    "description": "错误统一为 ChipsError（code/message/details/retryable），message 简体中文；码族 CONVERTER_*（04-能力契约规范 §8.6），完整码表如下；禁止复用 BRIDGE_* / FILE_* / RESOURCE_* / DOCUMENT_* 前缀",
+    "codes": [
+      {
+        "code": "CONVERTER_INPUT_UNSUPPORTED",
+        "retryable": false,
+        "meaning": "输入不支持：输入形状非法、字段越界、来源超限、资源路径非法等；details.field / details.reason 携带结构化诊断"
+      },
+      {
+        "code": "CONVERTER_RENDER_FAILED",
+        "retryable": false,
+        "meaning": "渲染承载失败：渲染引擎返回无效结果、空数据、尺寸非法或渲染承载未接入；details.engine 携带引擎标识"
+      },
+      {
+        "code": "CONVERTER_OUTPUT_TOO_LARGE",
+        "retryable": false,
+        "meaning": "产物超出上限：输出字节或页数超限"
+      },
+      {
+        "code": "BRIDGE_CANCELLED",
+        "retryable": false,
+        "meaning": "调用方取消（04-能力契约规范 §11.3 通道码）：AbortSignal 已中止时在安全点抛出"
+      },
+      {
+        "code": "BRIDGE_TIMEOUT",
+        "retryable": true,
+        "meaning": "渲染承载超时（04-能力契约规范 §11.3 通道码）：由引擎端口按 ctx.deadline 语义上抛"
+      }
+    ]
+  },
+  "x-chips-warning-codes": {
+    "description": "警告码随提供方契约发布（15-文件处理契约 §4.2）；警告不是错误，随结果 warnings 面返回",
+    "codes": [
+      {
+        "code": "BACKGROUND_NORMALIZED_OPAQUE",
+        "meaning": "JPEG 不支持透明背景，背景已归一为白色"
+      },
+      {
+        "code": "THEME_BACKGROUND_MISSING",
+        "meaning": "请求 theme 背景但未提供主题底色，背景已回退为白色"
+      }
+    ]
+  }
+}

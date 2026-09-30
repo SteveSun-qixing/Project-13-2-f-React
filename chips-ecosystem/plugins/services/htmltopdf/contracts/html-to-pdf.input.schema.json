@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-chips-schema-version": 1,
+  "title": "HTML 转 PDF 输入（content-converter.html-to-pdf）",
+  "description": "原子操作 htmlToPdf 的输入。纯处理契约：不读写路径、不接触权限系统；输入为结构化克隆兼容值，二进制（资源字节）以 Uint8Array 承载；JSON 表示中资源字节用 base64（contentEncoding）描述。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["html"],
+  "properties": {
+    "html": {
+      "type": "string",
+      "minLength": 1,
+      "title": "入口 HTML 文本",
+      "description": "目录态 HTML 中间产物的入口 HTML（UTF-8 文本）；上限 8 MiB（UTF-8 字节），与 assets 合计不超过 maxInlineInputBytes"
+    },
+    "assets": {
+      "type": "object",
+      "title": "资源表",
+      "description": "相对路径 → 资源字节（运行时 Uint8Array，JSON 表示 base64）；路径必须为相对路径，禁止绝对路径、反斜杠与 .. 段",
+      "additionalProperties": {
+        "type": "string",
+        "contentEncoding": "base64"
+      },
+      "propertyNames": {
+        "pattern": "^(?!/)[^\\\\]{1,256}$",
+        "not": { "pattern": "(^|/)\\.\\.?(/|$)" }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "title": "排版度量块（可选）",
+      "description": "调用方（或打印引擎的排版度量探针）提供的块级高度清单，供分页预估器在打印前计算页数与分页断点；缺省时不做分页预估",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "heightPx"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 256, "title": "块标识" },
+          "heightPx": { "type": "number", "exclusiveMinimum": 0, "title": "块高（CSS 像素）" },
+          "keepTogether": {
+            "type": "boolean",
+            "title": "禁止跨页拆分（break-inside: avoid 语义）",
+            "default": false
+          }
+        }
+      }
+    }
+  }
+}

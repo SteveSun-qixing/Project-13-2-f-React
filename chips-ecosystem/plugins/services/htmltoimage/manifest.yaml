@@ -1,0 +1,14 @@
+id: chips.service.htmltoimage
+version: 0.1.0
+type: service
+name: HTML 转图片服务
+description: 将目录态 HTML 中间产物光栅化导出为 PNG / JPEG / WebP 图片的内容处理服务（content-converter.html-to-image）。
+author: 薯片官方
+license: MIT
+runtime:
+  targets:
+    - host
+healthCheck:
+  interval: 30s
+  timeout: 5s
+permissions: []

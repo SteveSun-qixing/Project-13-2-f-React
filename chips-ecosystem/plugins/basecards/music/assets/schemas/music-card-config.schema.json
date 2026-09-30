@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "音乐基础卡片配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "audio_file": {
+      "type": "string",
+      "default": "",
+      "description": "音频资源在卡片根目录中的相对路径；非空时必须是合法的包内相对路径（由 validateConfig 补充校验）"
+    },
+    "music_name": {
+      "type": "string",
+      "default": "",
+      "description": "歌曲名；为空时查看态从音频文件名派生展示标题"
+    },
+    "album_cover": {
+      "type": "string",
+      "default": "",
+      "description": "专辑封面资源在卡片根目录中的相对路径；未配置时显示包内默认占位封面"
+    },
+    "lyrics_file": {
+      "type": "string",
+      "default": "",
+      "description": "歌词文件在卡片根目录中的相对路径；随打开载荷投递给音乐播放器"
+    },
+    "production_team": {
+      "type": "array",
+      "default": [],
+      "description": "制作团队列表；条目缺省字段由插件归一为空值",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "身份条目标识"
+          },
+          "role": {
+            "type": "string",
+            "description": "身份名称，例如歌手、作词、作曲"
+          },
+          "people": {
+            "type": "array",
+            "description": "成员列表",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "release_date": {
+      "type": "string",
+      "default": "",
+      "description": "发行日期，推荐 YYYY-MM-DD；非空时必须是 YYYY-MM-DD（由 validateConfig 补充校验）"
+    },
+    "album_name": {
+      "type": "string",
+      "default": "",
+      "description": "专辑名字"
+    },
+    "language": {
+      "type": "string",
+      "default": "",
+      "description": "语种"
+    },
+    "genre": {
+      "type": "string",
+      "default": "",
+      "description": "流派"
+    }
+  }
+}

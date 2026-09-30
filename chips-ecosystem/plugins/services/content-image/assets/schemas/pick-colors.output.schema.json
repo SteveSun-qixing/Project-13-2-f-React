@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.content-image/assets/schemas/pick-colors.output.schema.json",
+  "title": "颜色选取服务输出",
+  "description": "content-image.pick-colors 原子操作 pickColors 的输出契约：背景色、强调色、调色板与采样元数据（无来源路径面，见 §8.3 约束 1）。",
+  "type": "object",
+  "required": ["backgroundColor", "accentColor", "palette", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "backgroundColor": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "背景色（十六进制）。"
+    },
+    "accentColor": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "强调色（十六进制）。"
+    },
+    "palette": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 8,
+      "description": "调色板：首项背景、次项强调，其后为去重的代表色。",
+      "items": {
+        "type": "object",
+        "required": ["color", "role", "population", "lightness", "chroma"],
+        "additionalProperties": false,
+        "properties": {
+          "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+          "role": { "type": "string", "enum": ["background", "accent", "representative"] },
+          "population": { "type": "number", "minimum": 0, "maximum": 1 },
+          "lightness": { "type": "number", "minimum": 0, "maximum": 1 },
+          "chroma": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["algorithm", "image", "sample"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": { "type": "string", "enum": ["oklab-kmeans-v1"] },
+        "image": {
+          "type": "object",
+          "required": ["width", "height", "animated", "pageCount", "hasAlpha"],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 },
+            "format": { "type": "string", "minLength": 1 },
+            "animated": { "type": "boolean" },
+            "pageCount": { "type": "integer", "minimum": 1 },
+            "hasAlpha": { "type": "boolean" },
+            "orientation": { "type": "integer", "minimum": 1, "maximum": 8 }
+          }
+        },
+        "sample": {
+          "type": "object",
+          "required": [
+            "width",
+            "height",
+            "sampleSize",
+            "visiblePixelRatio",
+            "transparentPixelRatio",
+            "clusterCount"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 },
+            "sampleSize": { "type": "integer", "minimum": 1 },
+            "visiblePixelRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "transparentPixelRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "clusterCount": { "type": "integer", "minimum": 1, "maximum": 8 }
+          }
+        }
+      }
+    }
+  }
+}

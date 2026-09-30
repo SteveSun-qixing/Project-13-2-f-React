@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-chips-schema-version": 1,
+  "title": "文件转换编排结果回执（content-file-conversion.convert）",
+  "description": "转换完成的产物与链路回执；pipeline 逐腿登记能力 ID、Cordis 服务名与原子操作名。",
+  "type": "object",
+  "required": ["sourceType", "targetType", "outputPath", "artifacts", "pipeline"],
+  "additionalProperties": false,
+  "properties": {
+    "sourceType": {
+      "type": "string",
+      "enum": ["card", "html"],
+      "title": "实际来源类型"
+    },
+    "targetType": {
+      "type": "string",
+      "enum": ["html", "pdf", "image"],
+      "title": "实际目标格式"
+    },
+    "outputPath": {
+      "type": "string",
+      "title": "最终产物路径"
+    },
+    "artifacts": {
+      "type": "array",
+      "title": "产物清单",
+      "items": {
+        "type": "object",
+        "required": ["type", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["html-zip", "html-directory", "pdf", "image"],
+            "title": "产物形态"
+          },
+          "path": {
+            "type": "string",
+            "title": "产物路径"
+          },
+          "entryFile": {
+            "type": "string",
+            "title": "HTML 产物入口文件"
+          },
+          "mimeType": {
+            "type": "string",
+            "title": "产物 MIME 类型"
+          }
+        }
+      }
+    },
+    "pipeline": {
+      "type": "array",
+      "title": "实际执行的链路腿（按执行顺序）",
+      "items": {
+        "type": "object",
+        "required": ["capability", "service", "operation"],
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "type": "string",
+            "title": "内容处理能力 ID（04-能力契约规范 §8.4 登记项）"
+          },
+          "service": {
+            "type": "string",
+            "title": "提供方 Cordis 服务名"
+          },
+          "operation": {
+            "type": "string",
+            "title": "原子操作（服务方法名）"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "title": "链路逐腿收集的非致命警告（原样透传提供方警告）",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "additionalProperties": true,
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "警告码（提供方契约词表）"
+          },
+          "message": {
+            "type": "string",
+            "title": "警告描述（简体中文）"
+          },
+          "details": {
+            "title": "结构化诊断（不含输入原文与内部路径）"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.markdown/contracts/render-html.output.schema.json",
+  "title": "renderHtml 输出",
+  "description": "安全 HTML 片段：不含 <html>/<body> 外壳；原始 HTML 已转义，链接与图片协议经白名单校验。",
+  "type": "object",
+  "required": ["html"],
+  "properties": {
+    "html": {
+      "type": "string",
+      "description": "渲染产物 HTML 片段，可直接进入受控渲染面。"
+    }
+  },
+  "additionalProperties": false
+}

@@ -72,6 +72,9 @@ const EXPECTED_PATHS: Readonly<Record<PluginRole, readonly string[]>> = {
     'vitest.config.ts',
     'src/index.ts',
     'assets/schemas/config.schema.json',
+    'contracts/descriptor.schema.json',
+    'contracts/convert.input.schema.json',
+    'contracts/convert.output.schema.json',
     'tests/service.test.ts',
   ],
 };

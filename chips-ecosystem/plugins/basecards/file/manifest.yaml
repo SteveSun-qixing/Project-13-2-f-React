@@ -1,0 +1,20 @@
+id: chips.basecard.file
+version: 0.1.0
+type: basecard
+name: 文件基础卡片
+description: 在复合卡片中保存任意文件：文件名与后缀自动识别、按类别呈现默认封面回退，查看态经平台资源打开链路打开文件。
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  cardTypes:
+    - id: base.file
+      name: 文件基础卡片
+      description: 任意文件内容节点，展示文件名与后缀，按文件类别呈现默认封面，可配置自定义封面
+      icon: assets/icons/basecard-icon.svg
+      aliases:
+        - FileCard
+      configSchema: assets/schemas/file-card-config.schema.json

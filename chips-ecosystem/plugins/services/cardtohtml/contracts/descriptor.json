@@ -1,0 +1,14 @@
+{
+  "id": "content-converter.card-to-html",
+  "service": "content-converter",
+  "provider": "chips.service.cardtohtml",
+  "operations": ["cardToHtml"],
+  "sourceFormats": ["card"],
+  "targetFormats": ["html"],
+  "streaming": {
+    "input": false,
+    "output": false
+  },
+  "maxInlineInputBytes": 1048576,
+  "contractPackage": "chips.service.cardtohtml/contracts"
+}

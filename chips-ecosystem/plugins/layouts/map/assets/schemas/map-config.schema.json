@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "地图布局插件配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "map_source": {
+      "$ref": "#/$defs/mapSource",
+      "description": "地图底图：来源模式、投影与经纬度边界"
+    },
+    "default_view": {
+      "$ref": "#/$defs/defaultView",
+      "description": "默认视图：初始中心点与缩放"
+    },
+    "marker_style": {
+      "type": "string",
+      "enum": ["dot-title", "pin-title"],
+      "default": "dot-title",
+      "description": "点位标记样式：圆点和标题、图钉和标题"
+    },
+    "show_cover_on_select": {
+      "type": "boolean",
+      "default": true,
+      "description": "选中点位时是否挂载条目预览"
+    },
+    "entries": {
+      "$ref": "#/$defs/entryLocations",
+      "description": "条目定位：条目标识到经纬度的映射"
+    },
+    "top_region": {
+      "$ref": "#/$defs/frameRegion",
+      "description": "顶部内容区（地图上方的自适应区域）"
+    }
+  },
+  "$defs": {
+    "mapSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "projection", "bounds"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["image", "host-map"],
+          "description": "底图来源：静态图片（箱子自有资源）或 Host 地图（预留模式）"
+        },
+        "projection": {
+          "type": "string",
+          "enum": ["linear-bounds", "web-mercator"],
+          "description": "投影：静态图片使用 linear-bounds；web-mercator 为 Host 地图预留"
+        },
+        "assetPath": {
+          "type": "string",
+          "pattern": "^assets/[^\\\\:?#/]+(?:/[^\\\\:?#/]+)*$",
+          "description": "图片模式的底图箱子资源相对路径（以 assets/ 开头）"
+        },
+        "bounds": {
+          "$ref": "#/$defs/geoBounds"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "image"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "projection": {
+                "const": "linear-bounds"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "geoBounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["west", "south", "east", "north"],
+      "properties": {
+        "west": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180,
+          "description": "西边界经度"
+        },
+        "south": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90,
+          "description": "南边界纬度"
+        },
+        "east": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180,
+          "description": "东边界经度"
+        },
+        "north": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90,
+          "description": "北边界纬度"
+        }
+      }
+    },
+    "defaultView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latitude", "longitude", "zoom"],
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90,
+          "default": 0,
+          "description": "中心纬度"
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180,
+          "default": 0,
+          "description": "中心经度"
+        },
+        "zoom": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 8,
+          "default": 1,
+          "description": "缩放倍率"
+        }
+      }
+    },
+    "entryLocations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["latitude", "longitude"],
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90,
+            "description": "纬度"
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180,
+            "description": "经度"
+          },
+          "labelOverride": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "点位显示名称覆盖"
+          }
+        }
+      }
+    },
+    "frameRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["none", "image", "html"],
+          "description": "区域呈现模式"
+        },
+        "assetPath": {
+          "type": "string",
+          "pattern": "^assets/[^\\\\:?#/]+(?:/[^\\\\:?#/]+)*$",
+          "description": "图片模式的箱子自有资源相对路径（以 assets/ 开头）"
+        },
+        "html": {
+          "type": "string",
+          "minLength": 1,
+          "description": "代码模式的内联 HTML 文档"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "image"
+              }
+            }
+          },
+          "then": {
+            "required": ["assetPath"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "html"
+              }
+            }
+          },
+          "then": {
+            "required": ["html"]
+          }
+        }
+      ]
+    }
+  }
+}

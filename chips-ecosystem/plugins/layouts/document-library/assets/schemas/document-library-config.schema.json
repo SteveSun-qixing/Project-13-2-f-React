@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "文档库布局插件配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "sort_mode": {
+      "type": "string",
+      "enum": ["manual", "name-asc", "name-desc"],
+      "default": "manual",
+      "description": "目录树排序方式：手动顺序、按名称升序、按名称降序（递归作用于各层级）"
+    },
+    "tree_nodes": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/treeNode"
+      },
+      "default": [],
+      "description": "目录树节点：目录节点组织层级，条目节点绑定箱子条目；未放入目录树的条目在查看态继续展示"
+    },
+    "sidebar_width": {
+      "type": "string",
+      "enum": ["compact", "regular", "wide"],
+      "default": "regular",
+      "description": "目录侧栏宽度档位：紧凑（220px）、常规（280px）、宽（360px）"
+    },
+    "show_summary": {
+      "type": "boolean",
+      "default": true,
+      "description": "封面态是否显示条目摘要"
+    },
+    "background": {
+      "$ref": "#/$defs/frameRegion",
+      "description": "背景区域（铺于内容壳层之前的 16:9 区域）"
+    },
+    "top_region": {
+      "$ref": "#/$defs/frameRegion",
+      "description": "顶部内容区（目录与预览上方的自适应区域）"
+    }
+  },
+  "$defs": {
+    "treeNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "collapsed", "children"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "节点标识，同层唯一"
+        },
+        "entryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "绑定的箱子条目标识；缺省为目录节点"
+        },
+        "titleOverride": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "显示名称覆盖；缺省取条目展示名"
+        },
+        "presentation": {
+          "type": "string",
+          "enum": ["content", "cover"],
+          "description": "条目节点呈现方式：卡片内容或卡片封面；箱子条目固定封面"
+        },
+        "collapsed": {
+          "type": "boolean",
+          "description": "默认是否折叠"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/treeNode"
+          },
+          "description": "子节点"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["entryId"]
+          },
+          "then": {
+            "required": ["presentation"]
+          },
+          "else": {
+            "not": {
+              "required": ["presentation"]
+            }
+          }
+        }
+      ]
+    },
+    "frameRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["none", "image", "html"],
+          "description": "区域呈现模式"
+        },
+        "assetPath": {
+          "type": "string",
+          "pattern": "^assets/[^\\\\:?#/]+(?:/[^\\\\:?#/]+)*$",
+          "description": "图片模式的箱子自有资源相对路径（以 assets/ 开头）"
+        },
+        "html": {
+          "type": "string",
+          "minLength": 1,
+          "description": "代码模式的内联 HTML 文档"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "image"
+              }
+            }
+          },
+          "then": {
+            "required": ["assetPath"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "html"
+              }
+            }
+          },
+          "then": {
+            "required": ["html"]
+          }
+        }
+      ]
+    }
+  }
+}

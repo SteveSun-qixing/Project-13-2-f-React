@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "网页基础卡片内容配置",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["card_type", "source_type", "display_mode", "fixed_ratio", "max_height_ratio"],
+  "properties": {
+    "card_type": {
+      "const": "base.webpage",
+      "description": "网页基础卡片正式类型标识；历史别名 WebPageCard 只允许读取归一，不作为新写入值"
+    },
+    "theme": {
+      "type": "string",
+      "default": "",
+      "description": "通用保留字段；写入时保持空字符串，当前平台与插件不消费"
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "通用布局参数（01-卡片文件格式 §6.1）",
+      "properties": {
+        "height_mode": {
+          "type": "string",
+          "enum": ["auto", "fixed"],
+          "default": "auto"
+        },
+        "fixed_height": {
+          "type": "integer",
+          "description": "固定高度（像素），仅 height_mode 为 fixed 时有效"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "description": "宽高比，格式：宽:高"
+        }
+      }
+    },
+    "source_type": {
+      "type": "string",
+      "enum": ["url", "bundle"],
+      "description": "网页来源：远程网址 / 卡片内网页目录"
+    },
+    "source_url": {
+      "type": "string",
+      "default": "",
+      "description": "远程网页地址（source_type=url 时使用）；非空时必须是可打开的 http(s) 地址（由 validateConfig 补充校验）"
+    },
+    "bundle_root": {
+      "type": "string",
+      "default": "",
+      "description": "网页目录在卡片根目录中的相对路径（source_type=bundle 时使用）"
+    },
+    "entry_file": {
+      "type": "string",
+      "default": "index.html",
+      "description": "网页目录入口文件，正式必须为 index.html"
+    },
+    "resource_paths": {
+      "type": "array",
+      "default": [],
+      "description": "网页目录中所有已纳入卡片资源清单的文件路径（相对卡片包根）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "display_mode": {
+      "type": "string",
+      "enum": ["fixed", "free"],
+      "description": "视口显示模式：固定比例 / 自由展开"
+    },
+    "fixed_ratio": {
+      "const": "7:16",
+      "description": "固定比例模式的标准比例（宽:高）"
+    },
+    "max_height_ratio": {
+      "const": 20,
+      "description": "自由展开模式最大高度阈值（宽度倍数）"
+    }
+  }
+}

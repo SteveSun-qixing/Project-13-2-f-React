@@ -1,0 +1,25 @@
+{
+  "name": "@chips/plugin-cardtohtml",
+  "version": "0.1.0",
+  "private": true,
+  "description": "卡片 HTML 导出服务插件（content-converter.card-to-html）",
+  "type": "module",
+  "scripts": {
+    "build": "vite build --config vite.main.config.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node -e \"import('node:fs').then((fs) => { fs.rmSync('dist', { recursive: true, force: true }); })\"",
+    "package": "pnpm exec chips plugin pack --out dist/"
+  },
+  "devDependencies": {
+    "@chips/cli": "workspace:*",
+    "@chips/sdk": "workspace:*",
+    "@types/node": "20.19.37",
+    "@vitest/coverage-v8": "3.2.4",
+    "typescript": "5.9.3",
+    "vite": "7.3.1",
+    "vitest": "3.2.4"
+  }
+}

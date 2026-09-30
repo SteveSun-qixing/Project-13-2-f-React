@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-chips-schema-version": 1,
+  "title": "文件转换编排请求（content-file-conversion.convert）",
+  "description": "卡片 / HTML 来源到 HTML / PDF / 图片目标的转换链路请求；链路规划语义与暂存策略由编排服务纯函数实现，兄弟原子能力经 Cordis 服务互调消费。",
+  "type": "object",
+  "required": ["source", "target", "output"],
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "type": "object",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["card", "html"],
+          "title": "来源类型（卡片文档或 HTML 产物）"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "title": "来源路径（卡片文档文件，或 HTML 目录 / 入口 HTML 文件）"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["html", "pdf", "image"],
+          "title": "目标格式"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "title": "最终产物路径"
+        },
+        "overwrite": {
+          "type": "boolean",
+          "default": false,
+          "title": "目标已存在时是否覆盖（缺省 false，冲突时以 CONVERTER_INPUT_UNSUPPORTED + reason=output-exists 收口）"
+        }
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "html": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "packageMode": {
+              "type": "string",
+              "enum": ["zip", "directory"],
+              "title": "HTML 产物形态（zip 当前由提供方诚实拒绝，不缩契约面）"
+            },
+            "includeAssets": {
+              "type": "boolean",
+              "title": "是否复制卡片包内资源"
+            },
+            "includeManifest": {
+              "type": "boolean",
+              "title": "是否携带 conversion-manifest.json"
+            }
+          }
+        },
+        "pdf": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pageSize": {
+              "type": "string",
+              "enum": ["A4", "A3", "Letter", "Legal"],
+              "title": "纸张规格"
+            },
+            "landscape": {
+              "type": "boolean",
+              "title": "横向打印"
+            },
+            "printBackground": {
+              "type": "boolean",
+              "title": "打印背景"
+            },
+            "margins": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "top": { "type": "number", "title": "上边距（毫米）" },
+                "right": { "type": "number", "title": "右边距（毫米）" },
+                "bottom": { "type": "number", "title": "下边距（毫米）" },
+                "left": { "type": "number", "title": "左边距（毫米）" }
+              },
+              "title": "页边距（毫米）"
+            }
+          }
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "type": "string",
+              "enum": ["png", "jpeg", "webp"],
+              "title": "图片格式"
+            },
+            "width": {
+              "type": "number",
+              "title": "视口宽（CSS 像素）"
+            },
+            "height": {
+              "type": "number",
+              "title": "视口高（CSS 像素）"
+            },
+            "scaleFactor": {
+              "type": "number",
+              "title": "设备像素比缩放系数"
+            },
+            "background": {
+              "type": "string",
+              "enum": ["transparent", "white", "theme"],
+              "title": "背景模式"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+id: chips.basecard.richtext
+version: 0.1.0
+type: basecard
+name: 富文本基础卡片
+description: 以 Markdown 为唯一持久化格式的富文本内容节点，查看态经 chips.service.markdown 渲染为安全 HTML。
+author: 薯片官方
+license: MIT
+runtime:
+  targets:
+    - host
+dependencies:
+  - id: chips.service.markdown
+    version: "^0.1.0"
+permissions:
+  - resources:read
+capabilities:
+  cardTypes:
+    - id: base.richtext
+      name: 富文本卡片
+      description: Markdown 唯一持久化的富文本内容节点；200 字阈值内联或文件化，Markdown 能力矩阵显式声明
+      icon: assets/icons/richtext.svg
+      extensions: [.md]
+      configSchema: assets/schemas/richtext-config.schema.json

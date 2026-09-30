@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-chips-schema-version": 1,
+  "title": "HTML 转 PDF 输出（content-converter.html-to-pdf）",
+  "description": "原子操作 htmlToPdf 的输出。PDF 字节以 Uint8Array 承载（JSON 表示 base64）；警告码表见 descriptor.schema.json 的 x-chips-warning-codes。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bytes", "pageCount", "pageSizeMm", "marginMm"],
+  "properties": {
+    "bytes": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "title": "PDF 字节（运行时 Uint8Array）",
+      "description": "上限 128 MiB，超出抛 CONVERTER_OUTPUT_TOO_LARGE"
+    },
+    "pageCount": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 10000,
+      "title": "页数（由打印承载按实际排版返回）"
+    },
+    "pageSizeMm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0, "title": "页宽（毫米）" },
+        "height": { "type": "number", "exclusiveMinimum": 0, "title": "页高（毫米）" }
+      },
+      "title": "应用方向后的页面尺寸"
+    },
+    "marginMm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top", "right", "bottom", "left"],
+      "properties": {
+        "top": { "type": "number", "minimum": 0, "title": "上边距（毫米）" },
+        "right": { "type": "number", "minimum": 0, "title": "右边距（毫米）" },
+        "bottom": { "type": "number", "minimum": 0, "title": "下边距（毫米）" },
+        "left": { "type": "number", "minimum": 0, "title": "左边距（毫米）" }
+      },
+      "title": "钳制后的页边距"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "title": "警告码（x-chips-warning-codes）" },
+          "message": { "type": "string", "title": "简体中文警告说明" },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["string", "number", "boolean"]
+            },
+            "title": "结构化诊断（不含输入原文、凭证与内部路径）"
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engineId", "assetCount", "printableAreaMm"],
+      "properties": {
+        "engineId": { "type": "string", "title": "打印承载标识" },
+        "assetCount": { "type": "integer", "minimum": 0, "title": "资源条目数" },
+        "printableAreaMm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "number", "exclusiveMinimum": 0, "title": "可打印区宽（毫米）" },
+            "height": { "type": "number", "exclusiveMinimum": 0, "title": "可打印区高（毫米）" }
+          },
+          "title": "页边距（与页眉页脚预留）扣除后的可打印区"
+        },
+        "paginationHintPageCount": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "title": "分页预估页数（提供排版度量块时给出，否则 null）"
+        }
+      }
+    }
+  }
+}

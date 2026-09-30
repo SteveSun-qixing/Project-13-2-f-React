@@ -1,0 +1,14 @@
+{
+  "id": "content-image.pick-colors",
+  "service": "content-image",
+  "provider": "chips.service.content-image",
+  "operations": ["pickColors"],
+  "sourceFormats": [],
+  "targetFormats": ["color-palette-json"],
+  "streaming": {
+    "input": false,
+    "output": false
+  },
+  "maxInlineInputBytes": 67108864,
+  "contractPackage": "chips.service.content-image/assets/schemas"
+}

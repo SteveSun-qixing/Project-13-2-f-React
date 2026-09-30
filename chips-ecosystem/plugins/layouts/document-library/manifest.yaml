@@ -1,0 +1,18 @@
+id: chips.layout.documentlibrary
+version: 0.1.0
+type: boxlayout
+name: 文档库布局插件
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  layouts:
+    - id: chips.layout.documentlibrary
+      name: 文档库布局插件
+      icon: assets/icons/document-library.svg
+      description: 左侧目录树 + 右侧内容 / 封面，层级目录组织条目呈现
+      configSchema: assets/schemas/document-library-config.schema.json
+      schemaVersions: '>=1.0.0 <2.0.0'

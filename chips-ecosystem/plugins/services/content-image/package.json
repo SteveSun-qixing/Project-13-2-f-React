@@ -1,0 +1,27 @@
+{
+  "name": "@chips/service-content-image",
+  "version": "0.1.0",
+  "private": true,
+  "description": "图像内容处理服务插件（canonical 包 chips.service.content-image：pick-colors 已实现，normalize / transcode 契约先行）",
+  "type": "module",
+  "scripts": {
+    "build": "vite build --config vite.main.config.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['dist', 'coverage']) fs.rmSync(p, { recursive: true, force: true }); })\"",
+    "package": "pnpm exec chips plugin pack --out dist/"
+  },
+  "dependencies": {
+    "@chips/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@chips/cli": "workspace:*",
+    "@types/node": "20.19.37",
+    "@vitest/coverage-v8": "3.2.4",
+    "typescript": "5.9.3",
+    "vite": "7.3.1",
+    "vitest": "3.2.4"
+  }
+}

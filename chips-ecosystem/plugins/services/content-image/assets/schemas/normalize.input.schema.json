@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.content-image/assets/schemas/normalize.input.schema.json",
+  "title": "图像规范化输入（契约先行，实现缺位）",
+  "description": "content-image.normalize 原子操作 normalize 的输入契约（04-能力契约规范 §8.4 行「图像字节（真实格式为 TIFF 等）→ PNG 字节与像素尺寸」）。§8.3 约束 1：不读写路径、不获取资源句柄；约束 5：禁内联 base64。本契约随包先行发布，本包尚未实现该操作（实现缺位见 README「契约先行 / 实现缺位」表）。",
+  "type": "object",
+  "required": ["image"],
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "x-chips-binary": 67108864,
+      "description": "待规范化的图像字节，上限 64 MiB（E4 §5.3 二进制扩展，经二进制信封 bin 表承载；禁止内联 base64）。真实来源格式（TIFF 等）由解码侧按支持矩阵判定，不支持即 IMAGE_INPUT_UNSUPPORTED。"
+    },
+    "format": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "pattern": "^[a-z0-9][a-z0-9+.-]*$",
+      "description": "来源格式提示（规范化名，如 tiff、jpeg）；缺省由解码侧嗅探。"
+    }
+  }
+}

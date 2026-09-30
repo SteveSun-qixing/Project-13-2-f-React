@@ -1,0 +1,14 @@
+id: chips.service.content-image
+version: 0.1.0
+type: service
+name: 图像内容处理服务
+description: 图像族内容处理服务（content-image）：当前已实现 content-image.pick-colors（图像字节 → 背景色、强调色与代表色调色板，OKLab 加权 k-means）；normalize / transcode 两能力契约已先行随包发布、实现缺位，不进能力声明。
+author: 薯片官方
+license: MIT
+runtime:
+  targets:
+    - host
+healthCheck:
+  interval: 30s
+  timeout: 5s
+permissions: []

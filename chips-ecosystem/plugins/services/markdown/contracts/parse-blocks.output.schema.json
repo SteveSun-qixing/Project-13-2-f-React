@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chips.service.markdown/contracts/parse-blocks.output.schema.json",
+  "title": "parseBlocks 输出",
+  "description": "结构化块文档：Markdown 源文的只读块级视图模型；内联内容只承载经同一安全引擎渲染的 HTML 片段，不携带原始 HTML。",
+  "type": "object",
+  "required": ["document"],
+  "properties": {
+    "document": { "$ref": "#/$defs/markdownDocument" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "markdownDocument": {
+      "type": "object",
+      "required": ["blocks"],
+      "properties": {
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/markdownBlock" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "markdownBlock": {
+      "oneOf": [
+        { "$ref": "#/$defs/headingBlock" },
+        { "$ref": "#/$defs/paragraphBlock" },
+        { "$ref": "#/$defs/codeBlock" },
+        { "$ref": "#/$defs/blockquoteBlock" },
+        { "$ref": "#/$defs/listBlock" },
+        { "$ref": "#/$defs/tableBlock" },
+        { "$ref": "#/$defs/ruleBlock" }
+      ]
+    },
+    "inlineHtml": {
+      "type": "object",
+      "description": "块内内联内容：经同一安全引擎渲染的 HTML 片段（原始 HTML 已转义、协议白名单已生效）。",
+      "required": ["html"],
+      "properties": {
+        "html": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "headingBlock": {
+      "type": "object",
+      "required": ["type", "level", "inline"],
+      "properties": {
+        "type": { "const": "heading" },
+        "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "inline": { "$ref": "#/$defs/inlineHtml" }
+      },
+      "additionalProperties": false
+    },
+    "paragraphBlock": {
+      "type": "object",
+      "required": ["type", "inline"],
+      "properties": {
+        "type": { "const": "paragraph" },
+        "inline": { "$ref": "#/$defs/inlineHtml" }
+      },
+      "additionalProperties": false
+    },
+    "codeBlock": {
+      "type": "object",
+      "required": ["type", "language", "text"],
+      "properties": {
+        "type": { "const": "code" },
+        "language": {
+          "oneOf": [{ "type": "string" }, { "type": "null" }],
+          "description": "围栏代码块信息串标注的语言；缩进代码块为 null。"
+        },
+        "text": {
+          "type": "string",
+          "description": "代码原文（纯文本，消费侧按需自行转义呈现）。"
+        }
+      },
+      "additionalProperties": false
+    },
+    "blockquoteBlock": {
+      "type": "object",
+      "required": ["type", "blocks"],
+      "properties": {
+        "type": { "const": "blockquote" },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/markdownBlock" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "listBlock": {
+      "type": "object",
+      "required": ["type", "ordered", "items"],
+      "properties": {
+        "type": { "const": "list" },
+        "ordered": { "type": "boolean" },
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "有序列表起始编号；仅在 start != 1 时出现。"
+        },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/listItem" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "listItem": {
+      "type": "object",
+      "required": ["blocks"],
+      "properties": {
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/markdownBlock" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "tableBlock": {
+      "type": "object",
+      "required": ["type", "align", "header", "rows"],
+      "properties": {
+        "type": { "const": "table" },
+        "align": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "enum": ["left", "center", "right"] },
+              { "type": "null" }
+            ]
+          }
+        },
+        "header": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/inlineHtml" }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/inlineHtml" }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ruleBlock": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "rule" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
