@@ -11836,3 +11836,35 @@
 2026-09-23 03:50:42	cmd=set-status     owner=ledger-media-viewers     rows=16     status=已完成 evidence=W3-P1-3 段二第六路 #182：归档类 15 行磁盘对账确认已驻本仓就近 归档/ 终位零动作；1 行（3717 a 越权整批拒绝=0
 2026-09-23 07:15:30	cmd=set-status     owner=ledger-doclib            rows=1      status=已完成 evidence=W7提前批承接：词条与概念表按新架构口径重编收录《薯片生态文档库/00-愿景与原则/03-词条与概念.md》v1.0.0 越权整批拒绝=0
 2026-09-23 07:15:37	cmd=set-status     owner=ledger-media-viewers     rows=3      status=已完成 evidence=W7提前批终位确认：三行格式支持面（png/jpg/jpeg/webp/gif/bmp/svg/avif 8 扩展名+查 越权整批拒绝=0
+2026-10-01 02:01:59	cmd=release        owner=ledger-plugins           rows=35     files=35 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=35
+2026-10-01 02:01:59	cmd=dispose-batch  owner=w4-b1-lead               rows=35     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/hyperlink notes=W4-B1 收口：chips.basecard.hyperlink 整包四闸+cpk 五阶段校验全绿（提交 566822 目录组=16 跳过=0
+2026-10-01 02:02:26	cmd=release        owner=ledger-plugins           rows=41     files=41 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=41
+2026-10-01 02:02:26	cmd=dispose-batch  owner=w4-b1-lead               rows=41     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/webpage notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=19 跳过=0
+2026-10-01 02:02:26	cmd=release        owner=ledger-plugins           rows=41     files=41 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=41
+2026-10-01 02:02:26	cmd=dispose-batch  owner=w4-b1-lead               rows=41     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/file notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=14 跳过=0
+2026-10-01 02:02:27	cmd=release        owner=ledger-plugins           rows=40     files=40 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=40
+2026-10-01 02:02:27	cmd=dispose-batch  owner=w4-b1-lead               rows=40     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/image notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=17 跳过=0
+2026-10-01 02:02:27	cmd=release        owner=ledger-plugins           rows=44     files=44 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=44
+2026-10-01 02:02:27	cmd=dispose-batch  owner=w4-b1-lead               rows=44     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/music notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=18 跳过=0
+2026-10-01 02:02:27	cmd=release        owner=ledger-plugins           rows=43     files=43 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=43
+2026-10-01 02:02:27	cmd=dispose-batch  owner=w4-b1-lead               rows=43     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/book notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=17 跳过=0
+2026-10-01 02:02:27	cmd=release        owner=ledger-plugins           rows=33     files=33 symbols=0 keep_disposition=True 仓库分布=Chips-BoxLayoutPlugin=33
+2026-10-01 02:02:27	cmd=dispose-batch  owner=w4-b1-lead               rows=33     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/layouts/grid notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=14 跳过=0
+2026-10-01 02:02:27	cmd=release        owner=ledger-plugins           rows=29     files=29 symbols=0 keep_disposition=True 仓库分布=Chips-BoxLayoutPlugin=29
+2026-10-01 02:02:27	cmd=dispose-batch  owner=w4-b1-lead               rows=29     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/layouts/document-library notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=13 跳过=0
+2026-10-01 02:02:27	cmd=release        owner=ledger-plugins           rows=29     files=29 symbols=0 keep_disposition=True 仓库分布=Chips-BoxLayoutPlugin=29
+2026-10-01 02:02:27	cmd=dispose-batch  owner=w4-b1-lead               rows=29     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/layouts/timeline notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=13 跳过=0
+2026-10-01 02:02:27	cmd=release        owner=ledger-plugins           rows=30     files=30 symbols=0 keep_disposition=True 仓库分布=Chips-BoxLayoutPlugin=30
+2026-10-01 02:02:27	cmd=dispose-batch  owner=w4-b1-lead               rows=30     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/layouts/map notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=13 跳过=0
+2026-10-01 02:02:28	cmd=release        owner=ledger-plugins           rows=34     files=34 symbols=0 keep_disposition=True 仓库分布=Chips-ModulePlugin=34
+2026-10-01 02:02:28	cmd=dispose-batch  owner=w4-b1-lead               rows=34     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/services/cardtohtml notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=9 跳过=0
+2026-10-01 02:02:28	cmd=release        owner=ledger-plugins           rows=29     files=29 symbols=0 keep_disposition=True 仓库分布=Chips-ModulePlugin=29
+2026-10-01 02:02:28	cmd=dispose-batch  owner=w4-b1-lead               rows=29     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/services/content-image notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=8 跳过=0
+2026-10-01 02:02:28	cmd=release        owner=ledger-plugins           rows=35     files=35 symbols=0 keep_disposition=True 仓库分布=Chips-ModulePlugin=35
+2026-10-01 02:02:28	cmd=dispose-batch  owner=w4-b1-lead               rows=35     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/services/file-conversion notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=9 跳过=0
+2026-10-01 02:02:28	cmd=release        owner=ledger-plugins           rows=33     files=33 symbols=0 keep_disposition=True 仓库分布=Chips-ModulePlugin=33
+2026-10-01 02:02:28	cmd=dispose-batch  owner=w4-b1-lead               rows=33     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/services/htmltoimage notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=10 跳过=0
+2026-10-01 02:02:28	cmd=release        owner=ledger-plugins           rows=31     files=31 symbols=0 keep_disposition=True 仓库分布=Chips-ModulePlugin=31
+2026-10-01 02:02:28	cmd=dispose-batch  owner=w4-b1-lead               rows=31     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/services/htmltopdf notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=9 跳过=0
+2026-10-01 02:02:36	cmd=release        owner=ledger-plugins           rows=67     files=67 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=67
+2026-10-01 02:02:37	cmd=dispose-batch  owner=w4-b1-lead               rows=67     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/richtext notes=W4-B1 收口：查看态全量交付（经 markdown 服务契约消费，49 用例四闸绿）；LEGACY 兼容面按零兼容宪 目录组=30 跳过=0
