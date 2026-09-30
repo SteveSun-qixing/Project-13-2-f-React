@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   APP_COMMAND_DOMAIN,
   APP_COMMAND_HANDLER_IDS,
@@ -7,7 +7,6 @@ import {
   appCommandDefinitions,
   createAppCommandHandlers,
   isAppCommandId,
-  type AppCommandStatus,
 } from '../src/commands/appCommands';
 
 const COMMAND_ID_PATTERN = /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/;
@@ -38,27 +37,40 @@ describe('命令元数据（可序列化）', () => {
     const handlerIds = appCommandDefinitions.map((definition) => definition.handlerId);
     expect(new Set(handlerIds).size).toBe(handlerIds.length);
   });
+
+  it('生成命令与 manifest CLI 声明逐字对应（13-命令系统契约 §八示例口径）', () => {
+    expect(APP_COMMAND_IDS.generate).toBe('iconmaker:generate');
+    expect(APP_COMMAND_HANDLER_IDS.generate).toBe('generate');
+    const generate = appCommandDefinitions[0]!;
+    expect(generate.title).toBe('生成图标');
+    expect(generate.group).toBe('导出');
+    expect(generate.paramsSchema).toMatchObject({ type: 'object', additionalProperties: false });
+  });
 });
 
 describe('command:invoked 派发消费', () => {
-  it('本地处理器按 (commandId, handlerId) 配对并在执行时上报状态', () => {
-    const seen: AppCommandStatus[] = [];
-    const registrations = createAppCommandHandlers((status) => {
-      seen.push(status);
-    });
+  it('本地处理器按 (commandId, handlerId) 配对并把派发载荷交给生成执行入口', async () => {
+    const generate = vi.fn((): Promise<void> => Promise.resolve());
+    const registrations = createAppCommandHandlers({ generate });
     expect(registrations.map((registration) => registration.commandId)).toEqual(ids());
     expect(registrations.map((registration) => registration.handlerId)).toEqual(handlerIds());
+
+    const payload = { outputDir: '/tmp/icons', overwrite: true };
     for (const registration of registrations) {
-      // 处理器类型为 `void | Promise<void>`：以 void 运算符显式收口（no-floating-promises）。
-      void registration.handler({ demo: true });
+      await registration.handler(payload);
     }
-    expect(seen.map((status) => status.commandId)).toEqual(ids());
-    expect(seen.every((status) => status.payload !== undefined)).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledWith(payload);
+  });
+
+  it('生成执行入口的拒绝原样上抛（命令通道诚实上报）', async () => {
+    const generate = vi.fn((): Promise<void> => Promise.reject(new Error('请先填写输出目录。')));
+    const registrations = createAppCommandHandlers({ generate });
+    await expect(registrations[0]!.handler(undefined)).rejects.toThrow('请先填写输出目录。');
   });
 
   it('命令 ID 归属守卫放行本应用命令并拒绝外部命令', () => {
-    expect(isAppCommandId(APP_COMMAND_IDS.openCard)).toBe(true);
-    expect(isAppCommandId(APP_COMMAND_IDS.refreshView)).toBe(true);
+    expect(isAppCommandId(APP_COMMAND_IDS.generate)).toBe(true);
     expect(isAppCommandId('platform:noop')).toBe(false);
   });
 });

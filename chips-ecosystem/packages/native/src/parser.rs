@@ -18,6 +18,10 @@
 //! | `documentValidate` | `DocumentHandle::validate` |
 //! | `buildDocumentView` | `build_document_view(&DocumentHandle, SessionId)`（§6.6） |
 //! | `documentClose` | 句柄内映射的显式释放（`Arc` 归还，`Finalize` 兜底） |
+//! | `documentSerialize` | `serialize::serialize_document(&DocumentSerializeRequest, SystemTime)`
+//!   （工单036 波 C3 / RFC 点位四 D3「序列化载体」：格式与清单权威在 `chips-parser`
+//!   序列化模块——C1 交付——本导出只做 DTO 换算与线程回投；保存时刻由调用方单源
+//!   交付 `savedAtUnixMs`，保持 backing 纯函数性质） |
 //! | `createCancelToken` | 已注册于 [`crate::cancel`]（内核 `CancelToken` backing） |
 //! | `cancelTokenCancel` | 已注册于 [`crate::cancel`]（取消触发，幂等） |
 //!
@@ -37,14 +41,18 @@
 //!   DTO 一律经 `serde_json::Value` 中转（§8.2）。
 
 use std::ops::Range;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::SystemTime;
 
 use chips_core::{ChipsError, SessionId};
 use chips_parser::model::NodeId;
+use chips_parser::serialize::{
+    serialize_document, ContentMemberValue, DocumentSerializeRequest, SerializeForm,
+};
 use chips_parser::{
     build_document_view, open_document, BoxParser, CardParser, Diagnostic, DocumentHandle,
-    DocumentKind, PackagePath, ParseLimits, ParseOptions, SourceKind,
+    DocumentKind, DocumentValue, PackagePath, ParseLimits, ParseOptions, SourceKind,
 };
 use neon::prelude::*;
 use serde::Deserialize;
@@ -196,6 +204,30 @@ struct EntriesRangeDto {
 struct ResourceRangeDto {
     offset: u64,
     length: u64,
+}
+
+/// `documentSerialize` 的内容成员入参 `{ nodeId, value }`（RFC 点位四 §7.4 冻结表）。
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct ContentMemberDto {
+    node_id: String,
+    value: Value,
+}
+
+/// `documentSerialize` 请求 DTO（`IDocumentSerializeRequest` 同构 camelCase 形状，
+/// RFC 点位四 §7.4 冻结表；值树经 `DocumentValue::from_json` 单点换算）。
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct DocumentSerializeRequestDto {
+    kind: String,
+    form: String,
+    local_path: String,
+    metadata: Value,
+    structure: Value,
+    contents: Vec<ContentMemberDto>,
+    layout_config: Option<Value>,
+    changed_parts: Vec<String>,
+    removed_node_ids: Vec<String>,
 }
 
 /// 读取可选对象参数为 JSON 值；缺省（未传 / `undefined` / `null`）返回 `None`。
@@ -484,6 +516,88 @@ fn view_result(handle: &DocumentHandle, session: SessionId) -> Result<Value, Chi
 }
 
 // ---------------------------------------------------------------------------
+// 序列化导出（工单036 波 C3：落盘序列化载体，算法权威 chips-parser::serialize）
+// ---------------------------------------------------------------------------
+
+/// 序列化结果成员（宿主 `IDocumentSerializedMember` 同构；字节不经 JSON 文本通道，
+/// settle 阶段逐成员以 `JsBuffer` 交付，零 base64 膨胀）。
+#[derive(Debug)]
+struct SerializedMemberDto {
+    package_path: String,
+    bytes: Vec<u8>,
+}
+
+/// 判别字面量 → `DocumentKind`（backing serde `lowercase` 同字面量）。
+fn parse_document_kind(text: &str) -> Result<DocumentKind, ChipsError> {
+    match text {
+        "card" => Ok(DocumentKind::Card),
+        "box" => Ok(DocumentKind::Box),
+        _ => Err(type_unsupported(
+            "/kind",
+            "文档类别必须是 card / box 判别字面量",
+        )),
+    }
+}
+
+/// 判别字面量 → `SerializeForm`（backing `SerializeForm::from_text` 同字面量）。
+fn parse_serialize_form(text: &str) -> Result<SerializeForm, ChipsError> {
+    SerializeForm::from_text(text).ok_or_else(|| {
+        type_unsupported(
+            "/form",
+            "包形态必须是 directory / archive 判别字面量",
+        )
+    })
+}
+
+/// Unix 毫秒（保存时刻）→ `SystemTime`（换算单源 `convert::system_time_from_unix_millis`，
+/// 与归档整包换代时间戳同一判闸：非有限值、负值、非整数与超上界一律拒绝）。
+fn saved_at_from_unix_millis(raw: f64) -> Result<SystemTime, ChipsError> {
+    crate::convert::system_time_from_unix_millis(raw, "/savedAtUnixMs").map_err(ConvertIssue::into_error)
+}
+
+/// DTO → backing 序列化请求（值树换算单源 `DocumentValue::from_json`，整数保持整数语义）。
+fn serialize_request_from_dto(
+    dto: DocumentSerializeRequestDto,
+) -> Result<DocumentSerializeRequest, ChipsError> {
+    Ok(DocumentSerializeRequest {
+        kind: parse_document_kind(&dto.kind)?,
+        form: parse_serialize_form(&dto.form)?,
+        local_path: PathBuf::from(dto.local_path),
+        metadata: DocumentValue::from_json(&dto.metadata),
+        structure: DocumentValue::from_json(&dto.structure),
+        contents: dto
+            .contents
+            .into_iter()
+            .map(|item| ContentMemberValue {
+                node_id: item.node_id,
+                value: DocumentValue::from_json(&item.value),
+            })
+            .collect(),
+        layout_config: dto
+            .layout_config
+            .map(|value| DocumentValue::from_json(&value)),
+        changed_parts: dto.changed_parts,
+        removed_node_ids: dto.removed_node_ids,
+    })
+}
+
+/// `documentSerialize` 的 backing 调用（纯 Rust，可离线单测）：序列化变更成员与
+/// 依赖成员（`file_info` / `manifest` 重算与未修订成员字节比对过滤全在 backing）。
+fn serialize_members(
+    request: DocumentSerializeRequest,
+    saved_at: SystemTime,
+) -> Result<Vec<SerializedMemberDto>, ChipsError> {
+    let members = serialize_document(&request, saved_at).map_err(ChipsError::from)?;
+    Ok(members
+        .into_iter()
+        .map(|member| SerializedMemberDto {
+            package_path: member.package_path.as_str().to_owned(),
+            bytes: member.bytes,
+        })
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
 // settle 入口（具名函数满足 `spawn_result` 的高阶 `for<'a>` 约束）
 // ---------------------------------------------------------------------------
 
@@ -693,10 +807,57 @@ pub(crate) fn js_document_close(mut cx: FunctionContext) -> JsResult<JsPromise> 
     )
 }
 
+/// 序列化成员数组 settle：`Array<{ packagePath: string, bytes: Buffer }>`（§8.2 字节
+/// 经 `Buffer` 复制一次交付；成员序保持 backing 的包内路径升序）。
+fn settle_members<'a>(cx: &mut Cx<'a>, members: Vec<SerializedMemberDto>) -> JsResult<'a, JsValue> {
+    let array: Handle<JsArray> = cx.empty_array();
+    for (index, member) in members.into_iter().enumerate() {
+        let object: Handle<JsObject> = cx.empty_object();
+        let package_path = cx.string(member.package_path);
+        object.set(cx, "packagePath", package_path)?;
+        let buffer = JsBuffer::from_slice(cx, &member.bytes)?;
+        object.set(cx, "bytes", buffer)?;
+        array.set(cx, index as u32, object)?;
+    }
+    Ok(array.upcast())
+}
+
+/// `documentSerialize(request, savedAtUnixMs)`：序列化变更成员与依赖成员
+/// （工单036 波 C3，RFC 点位四 D3 序列化载体）。backing = `chips-parser::serialize`
+/// 的 C1 纯函数（`file_info` / `manifest` 重算、未修订成员字节比对过滤、防写回校验
+/// 全在 backing）；`savedAtUnixMs` 由调用方单源交付（宿主适配器取保存时刻），
+/// 保持算法纯函数性质。§11.3 同族异步导出：成员字节以 `Buffer` 复制一次交付。
+pub(crate) fn js_document_serialize(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let raw = cx.argument::<JsValue>(0)?;
+    let request_value = js_to_json(&mut cx, &raw).map_err(ConvertIssue::into_error);
+    let request_value = match request_value {
+        Ok(value) => value,
+        Err(error) => return throw_chips_error(&mut cx, error),
+    };
+    let dto: DocumentSerializeRequestDto = match deserialize_dto(
+        request_value,
+        "/request",
+        "序列化请求必须是受支持字段的普通对象（kind/form/localPath/metadata/structure/contents/layoutConfig/changedParts/removedNodeIds）",
+    ) {
+        Ok(dto) => dto,
+        Err(error) => return throw_chips_error(&mut cx, error),
+    };
+    let saved_millis = cx.argument::<JsNumber>(1)?.value(&mut cx);
+    spawn_export(
+        &mut cx,
+        move || {
+            let saved_at = saved_at_from_unix_millis(saved_millis)?;
+            serialize_members(serialize_request_from_dto(dto)?, saved_at)
+        },
+        settle_members,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+    use std::time::{Duration, UNIX_EPOCH};
     use std::path::PathBuf;
 
     /// 测试节点标识（与《核心接口规范》§12.3 示例一致）。
@@ -1231,5 +1392,118 @@ mod tests {
         assert_eq!(error.code(), crate::error::NATIVE_INTERNAL);
         let error = with_diagnostics(Value::from(1), &[]).expect_err("非对象必须拒绝");
         assert_eq!(error.code(), crate::error::NATIVE_INTERNAL);
+    }
+
+    /// 序列化请求夹具（目录态最小卡片；`file_info` 由序列化侧复算，入参不带）。
+    fn serialize_request_dto(root: &Path) -> Value {
+        json!({
+            "kind": "card",
+            "form": "directory",
+            "localPath": root.display().to_string(),
+            "metadata": {
+                "chip_standards_version": "1.0.0",
+                "card_id": NODE,
+                "name": "绑定测试卡片",
+                "created_at": "2026-01-01T00:00:00Z",
+                "modified_at": "2026-01-02T00:00:00Z"
+            },
+            "structure": {
+                "structure": [{ "id": NODE, "type": "base.text" }],
+                "manifest": { "card_count": 1, "resource_count": 0 }
+            },
+            "contents": [
+                { "nodeId": NODE, "value": { "card_type": "base.text", "text": "保存改写" } }
+            ],
+            "layoutConfig": null,
+            "changedParts": ["content"],
+            "removedNodeIds": []
+        })
+    }
+
+    #[test]
+    fn test_saved_at_unix_millis_conversion_and_guards() {
+        let epoch = saved_at_from_unix_millis(0.0).expect("零点合法");
+        assert_eq!(epoch.duration_since(UNIX_EPOCH).expect("正向"), Duration::ZERO);
+        let later = saved_at_from_unix_millis(1_774_166_400_000.0).expect("常规时刻合法");
+        assert_eq!(
+            later.duration_since(UNIX_EPOCH).expect("正向").as_millis(),
+            1_774_166_400_000
+        );
+        for bad in [f64::NAN, f64::INFINITY, -1.0, 1.5] {
+            let error = saved_at_from_unix_millis(bad).expect_err("非法时刻必须拒绝");
+            assert_eq!(error.code(), crate::error::NATIVE_VALUE_OUT_OF_RANGE, "{bad}");
+        }
+        let overflow = saved_at_from_unix_millis(1.0e30).expect_err("超上界必须拒绝");
+        assert_eq!(overflow.code(), crate::error::NATIVE_VALUE_OUT_OF_RANGE);
+    }
+
+    #[test]
+    fn test_serialize_request_literal_guards() {
+        for (literal, pointer) in [("zip", "/form"), ("document", "/kind")] {
+            let mut dto = serialize_request_dto(Path::new("/tmp/unused"));
+            if pointer == "/form" {
+                dto["form"] = Value::from(literal);
+            } else {
+                dto["kind"] = Value::from(literal);
+            }
+            let parsed: DocumentSerializeRequestDto =
+                serde_json::from_value(dto).expect("判别字段在 DTO 层合法");
+            let error = serialize_request_from_dto(parsed).expect_err("非法字面量必须拒绝");
+            assert_eq!(error.code(), crate::error::NATIVE_TYPE_UNSUPPORTED, "{pointer}");
+        }
+    }
+
+    #[test]
+    fn test_serialize_members_writes_revised_members_with_file_info() {
+        let root = temp_root("serialize");
+        write_minimal_card(&root);
+        let dto: DocumentSerializeRequestDto =
+            serde_json::from_value(serialize_request_dto(&root)).expect("夹具请求合法");
+        let request = serialize_request_from_dto(dto).expect("请求换算成功");
+        let saved_at = saved_at_from_unix_millis(1_774_166_400_000.0).expect("时刻合法");
+        let members = serialize_members(request, saved_at).expect("序列化成功");
+
+        // 未修订成员字节比对过滤：`.card/cover.html` 与原字节一致不得产出；修订内容成员 +
+        // 依赖成员（metadata 带 file_info 复算）交付且按包内路径升序。
+        let paths: Vec<&str> = members.iter().map(|m| m.package_path.as_str()).collect();
+        assert!(
+            !paths.contains(&".card/cover.html"),
+            "未修订成员必须被字节比对过滤：{paths:?}"
+        );
+        assert_eq!(paths, {
+            let mut sorted = paths.clone();
+            sorted.sort_unstable();
+            sorted
+        });
+        let revised = members
+            .iter()
+            .find(|m| m.package_path == "content/a1B2c3D4e5.yaml")
+            .expect("修订成员必出");
+        assert!(String::from_utf8_lossy(&revised.bytes).contains("保存改写"));
+        let metadata = members
+            .iter()
+            .find(|m| m.package_path == ".card/metadata.yaml")
+            .expect("metadata 必出");
+        let text = String::from_utf8_lossy(&metadata.bytes);
+        assert!(text.contains("file_info:"), "卡片 metadata 必须复算 file_info：{text}");
+        assert!(text.contains("total_size:"), "total_size 必须由序列化侧求解：{text}");
+        assert!(
+            text.contains("generated_at: \"2026-03-22T08:00:00.000Z\""),
+            "generated_at 必须取调用方交付的保存时刻：{text}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_serialize_members_missing_metadata_maps_contract_code() {
+        let root = temp_root("serialize-missing");
+        write_minimal_card(&root);
+        fs::remove_file(root.join(".card/metadata.yaml")).expect("移除 metadata");
+        let dto: DocumentSerializeRequestDto =
+            serde_json::from_value(serialize_request_dto(&root)).expect("夹具请求合法");
+        let request = serialize_request_from_dto(dto).expect("请求换算成功");
+        let error = serialize_members(request, UNIX_EPOCH).expect_err("缺 metadata 必须拒绝");
+        assert_eq!(error.code(), "DOCUMENT_METADATA_MISSING");
+        let _ = fs::remove_dir_all(&root);
     }
 }

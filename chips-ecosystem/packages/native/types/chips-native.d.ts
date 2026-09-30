@@ -342,6 +342,59 @@ export interface IResourceOpenResult {
   metadata: IResourceMetadata;
 }
 
+/** 序列化产出的包内成员（工单036 波 C3，`IDocumentSerializedMember` 同构形状）。 */
+export interface INativeSerializedMember {
+  /** 包内路径（成员集按路径 UTF-8 字节序升序）。 */
+  packagePath: string;
+  /** 成员字节（`Buffer` 交付，复制一次，Rust 侧不保留）。 */
+  bytes: Uint8Array;
+}
+
+/**
+ * `documentSerialize` 请求（工单036 波 C3，`IDocumentSerializeRequest` 同构
+ * camelCase 形状；值树为 JSON 兼容值，整数保持整数语义）。
+ */
+export interface INativeDocumentSerializeRequest {
+  /** 文档类别。 */
+  kind: 'card' | 'box';
+  /** 包形态。 */
+  form: 'directory' | 'archive';
+  /** 目录态包根或归档文件路径（未修订成员的字节复用输入）。 */
+  localPath: string;
+  /** 元数据切片。 */
+  metadata: unknown;
+  /** 结构切片。 */
+  structure: unknown;
+  /** 卡片内容成员；箱子为空数组。 */
+  contents: readonly { nodeId: string; value: unknown }[];
+  /** 箱子 `.box/content.yaml` 布局配置；卡片为 `null`。 */
+  layoutConfig: unknown | null;
+  /** 被修订的分片集合（建议性：实际过滤以字节比对为准）。 */
+  changedParts: readonly string[];
+  /** 被删除的内容成员节点标识。 */
+  removedNodeIds: readonly string[];
+}
+
+/** 归档整包换代回执（工单036 波 C2a-3，`ArchiveRebuildReceipt` camelCase 投影）。 */
+export interface IResourceArchiveRebuildReceipt {
+  /** 新归档总字节。 */
+  totalBytes: number;
+  /** 覆写/新增成员数。 */
+  writtenMembers: number;
+  /** 流式复用的未变更成员数。 */
+  reusedMembers: number;
+  /** 本次换代不再承接的成员数。 */
+  removedMembers: number;
+}
+
+/** 包级 changeset 提交成员实参（工单036 波 C2a-2，路径为包内相对路径）。 */
+export interface IResourceChangesetMember {
+  /** 目标虚拟路径（经 PathGuard 复检）。 */
+  path: string;
+  /** 覆写/新建字节。 */
+  bytes: Uint8Array;
+}
+
 /** 目录条目（§7.3 `resourceListDirectory` 元素；Rust DTO 见《04》§3.2，JS 投影逐字段冻结表见《04-资源管理设计》§11.3「JS 投影形状冻结表」，任务 #204 臂③）。 */
 export interface IDirectoryEntry {
   /** 条目名。 */
@@ -526,6 +579,18 @@ export function buildDocumentView(handle: DocumentHandle, session: number): Prom
 export function documentClose(handle: DocumentHandle): Promise<void>;
 
 /**
+ * 序列化变更成员与依赖成员（工单036 波 C3，RFC 点位四 D3 序列化载体）：
+ * 算法权威在 `chips-parser` 序列化模块（`file_info` / `manifest` 重算、未修订
+ * 成员字节比对过滤、防写回校验）；`savedAtUnixMs` 为保存时刻（`Date.now()` 形，
+ * 非负整数毫秒，非法则以 `NATIVE_VALUE_OUT_OF_RANGE` 拒绝）。产出成员按包内
+ * 路径升序，字节以 `Buffer` 复制一次交付。解析域契约码（`DOCUMENT_*`）原样透传。
+ */
+export function documentSerialize(
+  request: INativeDocumentSerializeRequest,
+  savedAtUnixMs: number
+): Promise<INativeSerializedMember[]>;
+
+/**
  * 打开资源（解析、权限、打开，《核心接口规范》§7.3）；返回句柄与打开时定值的元数据。
  * `sessionId` 必须是不超过 2^53 的非负整数值，否则以 `NATIVE_VALUE_OUT_OF_RANGE` 拒绝。
  */
@@ -653,6 +718,37 @@ export function resourceManagedUriOfPath(path: string, sessionId: number): Promi
  * 已绑定作用域集（scopes 零触碰）。
  */
 export function resourceGrantSession(sessionId: number, permissions: readonly string[]): void;
+
+/**
+ * 包级 changeset 两相提交（工单036 波 C2a-2 导出面）：一次事务「覆写/新建
+ * `members` + 删除 `removals`」，prepare 相（staging + 意图账 fsync）→ publish 相
+ * （纯元数据动作），全程持多键路径写锁；崩溃由挂载恢复扫描回滚旧态零残留。
+ * 空变更集（两集皆空）为幂等 no-op；同一路径第二次出现（成员重复、删除重复、
+ * 成员与删除交叉）→ `RESOURCE_ALREADY_EXISTS`；非目录态载体 →
+ * `RESOURCE_NOT_SUPPORTED`。成功返回按成员请求序排列的新版本元数据列表。
+ */
+export function resourceCommitChangeset(
+  sessionId: number,
+  scope: string,
+  members: readonly IResourceChangesetMember[],
+  removals: readonly string[]
+): Promise<IResourceMetadata[]>;
+
+/**
+ * 归档态整包换代（工单036 波 C2a-3 导出面）：一次事务把「覆写/新增 `members` +
+ * 不再承接 `removals`」重建为全新归档整包（临时归档写出 + 意图账 + publish 相
+ * `rename` 原子换代，崩溃由归档挂载槽位扫描回滚旧态零残留）。载体限已挂载的
+ * `Origin::Archive` 文档作用域（目录态走 `resourceCommitChangeset`，其余
+ * `RESOURCE_NOT_SUPPORTED`）；`savedAtUnixMs` 为保存时刻（`Date.now()` 形），
+ * 新包全部条目时间戳统一取该时刻。成功返回换代回执。
+ */
+export function resourceRebuildArchive(
+  sessionId: number,
+  scope: string,
+  members: readonly IResourceChangesetMember[],
+  removals: readonly string[],
+  savedAtUnixMs: number
+): Promise<IResourceArchiveRebuildReceipt>;
 
 /**
  * 权限判定出站素材（Rust `PermissionDecision` 的 JSON 投影；键表见

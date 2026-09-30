@@ -1,0 +1,33 @@
+# 薯片生态补丁 use-delay-state-unmount-cleanup（来源工单067：项目日志与笔记/工单067-rc工具库useDelayState卸载不清定时器致测试环境拆除后误触发）。
+# 上游缺陷：@rc-component/util@1.13.0 的 hooks/useDelayState 提供 cancelPending（raf.cancel / clearTimeout）却从未在组件卸载时调用，
+# 挂起的 setTimeout/raf 在卸载后仍触发；antd 6.6.4 Form（useDebounce/ItemHolder/ErrorList）与 Button 经此排定定时器，
+# vitest jsdom 拆除后回调触发即抛 Uncaught Exception（window is not defined），用例全过但进程退出码 1。
+# 补丁仅在 es/lib 两份产物各增补 React.useEffect 卸载清理（最小 diff，不改行为语义）；
+# 上游 react-component/util 提单修复合入并升级后，可整体撤销本补丁并退役台账。
+diff --git a/es/hooks/useDelayState.js b/es/hooks/useDelayState.js
+index 219d9545c4630f3061e00cf3f764abfedf6a2f74..4dccc00aa4201437024a8ccdad8c1569fc7a3258 100644
+--- a/es/hooks/useDelayState.js
++++ b/es/hooks/useDelayState.js
+@@ -32,5 +32,8 @@ export default function useDelayState(defaultValue) {
+       delayRef.current = [true, raf(() => setValue(nextValue), delayConfig.frame)];
+     }
+   });
++  React.useEffect(() => () => {
++    cancelPending();
++  }, []);
+   return [value, setDelayValue];
+ }
+\ No newline at end of file
+diff --git a/lib/hooks/useDelayState.js b/lib/hooks/useDelayState.js
+index e59989e3820a7cdf8f8197c1308e29fe09bdd3d6..50fe2b0bf6fc2bf3dcf816f40b2e2ccaff71b8fb 100644
+--- a/lib/hooks/useDelayState.js
++++ b/lib/hooks/useDelayState.js
+@@ -41,5 +41,8 @@ function useDelayState(defaultValue) {
+       delayRef.current = [true, (0, _raf.default)(() => setValue(nextValue), delayConfig.frame)];
+     }
+   });
++  React.useEffect(() => () => {
++    cancelPending();
++  }, []);
+   return [value, setDelayValue];
+ }

@@ -3,10 +3,11 @@
  * 文档解析域「行为面」替身夹具（仅测试使用，金链路刀4a 组合根装载段正向臂）。
  *
  * 与 `parser-available.js`（仅过装载闸、不承载语义）不同，本夹具为组合根端到端用例
- * 提供确定性的解析行为：17 项必备导出在位（元信息 2 + §6.4 冻结 13 + 工单034 正式化 2），
- * ABI 返回宿主期望 1，`createNativeDocumentParserPort` 的真实调用链
- * （`openCard` / `openDocument` → `documentMetadata` → `documentRevision` →
- * `documentStructure` / `documentContent` → `documentClose`）逐调用可观察。
+ * 提供确定性的解析行为：18 项必备导出在位（元信息 2 + §6.4 冻结 13 + 工单034 正式化 2 +
+ * 工单036 波 C3 存储序列化名 1），ABI 返回宿主期望 1，`createNativeDocumentParserPort`
+ * 的真实调用链（`openCard` / `openDocument` → `documentMetadata` → `documentRevision` →
+ * `documentStructure` / `documentContent` → `documentSerialize` → `documentClose`）
+ * 逐调用可观察。
  *
  * @remarks
  * - 夹具不实现任何 `.card` 字节解析语义（解析算法权威在 chips-parser，工单015）：
@@ -14,8 +15,10 @@
  *   `fingerprint` 复合臂与 `open` 基线指纹逐项一致（`sourceFingerprintsEqual` 可过）。
  * - `__calls` 记录逐次调用（导出名 + 标量参数；句柄以路径标识），供正向用例断言
  *   「四条能力真实路由到 createDocumentService → 原生端口」的调用形态。
- * - `serialize` 无原生对应物（刀6 裁决：落盘序列化权威归 W3 chips-resource），
- *   夹具无需提供——适配器 `IDocumentParserPort.serialize` 自带诚实拒绝臂。
+ * - `documentSerialize(request, savedAtUnixMs)`（工单036 波 C3 起承载）：依赖成员
+ *   （`meta.yaml` / `structure.yaml`，真实载体的清单复算成员）恒在 + 变更内容成员
+ *   逐项 JSON 字节；保存时刻入参原样入调用记录，供端到端用例断言「保存链真经
+ *   序列化载体」。
  * - `buildDocumentView(handle, session)`（任务 #108 刀5 段A 起为已消费面）：按 §6.6
  *   CardRenderView 冻结形状从登记表投影，调用记录含数值会话入参。
  * - 其余未消费的冻结面（`documentReadResource` / `documentValidate` /
@@ -259,5 +262,21 @@ module.exports = {
       return Promise.reject(error);
     }
     return fail('DOCUMENT_PART_UNSUPPORTED', '卡片句柄不支持布局配置切片');
+  },
+  documentSerialize(request, savedAtUnixMs) {
+    record('documentSerialize', { path: request.localPath, savedAtUnixMs });
+    const encode = (payload) => Buffer.from(JSON.stringify(payload), 'utf8');
+    const members = [
+      // 依赖成员恒在（真实载体的清单复算成员，未修订过滤在 backing 字节比对位）。
+      { packagePath: 'meta.yaml', bytes: encode(request.metadata) },
+      { packagePath: 'structure.yaml', bytes: encode(request.structure) },
+    ];
+    for (const item of request.contents) {
+      members.push({ packagePath: `content/${item.nodeId}.yaml`, bytes: encode(item.value) });
+    }
+    if (request.kind === 'box' && request.layoutConfig !== null) {
+      members.push({ packagePath: 'layout.yaml', bytes: encode(request.layoutConfig) });
+    }
+    return Promise.resolve(members.sort((a, b) => (a.packagePath < b.packagePath ? -1 : 1)));
   },
 };

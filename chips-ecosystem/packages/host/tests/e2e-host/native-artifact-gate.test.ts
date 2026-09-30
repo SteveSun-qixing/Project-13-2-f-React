@@ -14,7 +14,9 @@
  *   `packages/host/native/chips-native.node`（`*.node` 不入库，构建脚本
  *   `packages/native/scripts/build-native.mjs` 落位），锁定
  *   「产物导出面 = 契约面 = 宿主装载闸」三者对齐——刀4/工单036 在册的
- *   「当前部署产物缺解析域名 ⇒ `surface-mismatch` 诚实回退」即由本闸终结。
+ *   「当前部署产物缺解析域名 ⇒ `surface-mismatch` 诚实回退」即由本闸终结；
+ *   工单036 波 C3 起产物闸判据随扩表面翻 59（解析域 18 + 资源域 25 含提交链两名），
+ *   并增真机探针⑥（changeset 提交链：真会话授权 + 真目录挂载 + 包级两相提交落盘）。
  * - 生产解析路径复算：断言装载闸消费的正是宿主运行时经
  *   {@link defaultNativeDocumentParserModulePath}（`platformRoot = dist/renderer`）
  *   推导出的同一文件，杜绝「闸测一份、运行时装另一份」的落位漂移。
@@ -23,8 +25,9 @@
  *   任一在位即必跑，fail-closed——产物缺失/面缺位一律红，不降级为告警。
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -75,7 +78,7 @@ describeGate('真 chips-native.node 产物装载闸（CHIPS_HOST_SMOKE / CHIPS_E
     );
   });
 
-  it('判据②：解析域装载闸 available，17 必备名逐项在位且为函数', () => {
+  it('判据②：解析域装载闸 available，18 必备名逐项在位且为函数（含 C3 存储序列化名）', () => {
     const binding = loadNativeDocumentParserBinding(artifactPath);
     expect(binding.status, `解析域装载失败：${binding.status === 'unavailable' ? binding.detail : ''}`).toBe(
       'available',
@@ -89,7 +92,7 @@ describeGate('真 chips-native.node 产物装载闸（CHIPS_HOST_SMOKE / CHIPS_E
     for (const name of NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS) {
       expect(typeof moduleValue[name], `必备导出缺位或非函数：${name}`).toBe('function');
     }
-    expect(NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS.length).toBe(17);
+    expect(NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS.length).toBe(18);
   });
 
   it('判据③：Bridge 域装载闸同产物 available（同一 .node 内核单例）', () => {
@@ -102,12 +105,12 @@ describeGate('真 chips-native.node 产物装载闸（CHIPS_HOST_SMOKE / CHIPS_E
     }
   });
 
-  it('判据④：产物导出面与 export-surface.json 逐项一致（56 项全等，零多余零缺位）', () => {
+  it('判据④：产物导出面与 export-surface.json 逐项一致（59 项全等，零多余零缺位）', () => {
     const surface = readExportSurface();
     expect(surface.abiVersion).toBe(NATIVE_DOCUMENT_PARSER_ABI_VERSION);
     expect(surface.abiVersion).toBe(NATIVE_BRIDGE_ABI_VERSION);
     const surfaceNames = surface.exports.map((entry) => entry.name).sort();
-    expect(surfaceNames.length).toBe(56);
+    expect(surfaceNames.length).toBe(59);
     const moduleValue = requireArtifact(artifactPath);
     const artifactNames = Object.keys(moduleValue).sort();
     expect(artifactNames).toEqual(surfaceNames);
@@ -139,5 +142,62 @@ describeGate('真 chips-native.node 产物装载闸（CHIPS_HOST_SMOKE / CHIPS_E
     await documentClose(handle);
     // 幂等关闭（§12.2 GC 终结器兜底同语义）。
     await documentClose(handle);
+  });
+
+  it('判据⑥（工单036 波 C3）：真机 changeset 提交链——授权会话 + 目录挂载 + 包级两相提交真落盘', async () => {
+    const native = requireArtifact(artifactPath);
+    const openSession = native.resourceOpenSession as (kind: string, owner: string) => number;
+    const grantSession = native.resourceGrantSession as (sessionId: number, permissions: string[]) => void;
+    const mountDirectory = native.resourceMountDirectory as (
+      sessionId: number,
+      scope: string,
+      path: string,
+      owner: string,
+      writable: boolean,
+    ) => Promise<string>;
+    const commitChangeset = native.resourceCommitChangeset as (
+      sessionId: number,
+      scope: string,
+      members: { path: string; bytes: Uint8Array }[],
+      removals: string[],
+    ) => Promise<{ uri: string; size: number }[]>;
+    const closeSession = native.resourceCloseSession as (sessionId: number) => void;
+
+    const scratchRoot = mkdtempSync(join(tmpdir(), 'chips-native-changeset-'));
+    try {
+      // 受控提交链落点闸：缺父目录以 RESOURCE_NOT_FOUND 拒绝（《04.04》§4.8 在册口径），
+      // 探针预建 content/ 父目录（真实链路由 document:create 受控写口建树）。
+      mkdirSync(join(scratchRoot, 'content'), { recursive: true });
+      writeFileSync(join(scratchRoot, 'meta.yaml'), 'name: 真机闸\n', 'utf8');
+      const sessionId = openSession('document', 'chips.official.document-service');
+      grantSession(sessionId, ['resources:write']);
+      const scope = await mountDirectory(
+        sessionId,
+        'card-smoke-probe-scope',
+        scratchRoot,
+        'chips.official.document-service',
+        true,
+      );
+      expect(scope).toBe('card-smoke-probe-scope');
+      // 两成员 + 一删除一包事务（C2a-2 两相语义的真机探针）。
+      const views = await commitChangeset(
+        sessionId,
+        scope,
+        [
+          { path: 'meta.yaml', bytes: new TextEncoder().encode('name: 真机闸换代\n') },
+          { path: 'content/Cd1eFg2Hi3.yaml', bytes: new TextEncoder().encode('card_type: base.text\n') },
+        ],
+        [],
+      );
+      expect(views).toHaveLength(2);
+      expect(readFileSync(join(scratchRoot, 'meta.yaml'), 'utf8')).toBe('name: 真机闸换代\n');
+      expect(readFileSync(join(scratchRoot, 'content/Cd1eFg2Hi3.yaml'), 'utf8')).toBe('card_type: base.text\n');
+      // 意图账终结：事务收口后零 `.chips-tmp-`/`.j` 残留（C2a-1 单通道收口）。
+      const leftovers = readdirSync(scratchRoot).filter((name) => name.startsWith('.chips-tmp-'));
+      expect(leftovers).toEqual([]);
+      closeSession(sessionId);
+    } finally {
+      rmSync(scratchRoot, { recursive: true, force: true });
+    }
   });
 });

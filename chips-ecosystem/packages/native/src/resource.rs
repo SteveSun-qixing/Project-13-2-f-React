@@ -90,10 +90,10 @@ use std::sync::{Arc, Mutex, OnceLock};
 use chips_core::{ChipsError, PermissionDenyReason};
 use chips_resource::provider::ByteRange;
 use chips_resource::{
-    FsOpRequest, OpenRequest, Origin, ResourceError, ResourceLimits, ResourceManager,
-    ResourceMetadata, ScopeKind, ScopePolicy, ScopeRegistration, SessionKind, VirtualPath,
-    WriteRequest, WriteStreamHandle, WriteStreamRequest, ARCHIVE_PROVIDER_ID,
-    DIRECTORY_PROVIDER_ID,
+    ArchiveRebuildRequest, ArchiveRebuildReceipt, ChangesetMember, ChangesetRequest, FsOpRequest,
+    OpenRequest, Origin, ResourceError, ResourceLimits, ResourceManager, ResourceMetadata,
+    ScopeKind, ScopePolicy, ScopeRegistration, SessionKind, VirtualPath, WriteRequest,
+    WriteStreamHandle, WriteStreamRequest, ARCHIVE_PROVIDER_ID, DIRECTORY_PROVIDER_ID,
 };
 use neon::prelude::*;
 use serde_json::{json, Value};
@@ -1156,6 +1156,176 @@ pub(crate) fn js_resource_grant_session(mut cx: FunctionContext) -> JsResult<JsU
     Ok(cx.undefined())
 }
 
+// ---------------------------------------------------------------------------
+// 包级受控提交链（工单036 波 C2a→C3：changeset 两相提交 + 归档整包换代的导出面）
+// ---------------------------------------------------------------------------
+
+/// `resourceCommitChangeset` / `resourceRebuildArchive` 的成员实参元素：
+/// `{ path: string, bytes: Buffer | Uint8Array }` → `ChangesetMember`（路径经
+/// [`write_virtual_path`] 单源复检，越界以 backing 契约码 `RESOURCE_PATH_INVALID`
+/// 拒绝；字节经 `binary_bytes` 复制一次）。JS 线程执行，非法元素
+/// `NATIVE_TYPE_UNSUPPORTED`（指针 `/members/<i>/…`）。
+fn parse_members_argument(
+    cx: &mut FunctionContext,
+    index: usize,
+    limits: &ResourceLimits,
+    scope: &str,
+) -> Result<Result<Vec<ChangesetMember>, ChipsError>, neon::result::Throw> {
+    let array = cx.argument::<JsArray>(index)?;
+    let mut members = Vec::new();
+    for (position, value) in array.to_vec(cx)?.into_iter().enumerate() {
+        let object = match value.downcast::<JsObject, _>(cx) {
+            Ok(object) => object,
+            Err(_) => {
+                return Ok(Err(type_unsupported(
+                    &format!("/members/{position}"),
+                    "成员实参必须逐元素为 { path, bytes } 对象",
+                )))
+            }
+        };
+        let path_text = match object.get_opt::<JsString, _, _>(cx, "path") {
+            Ok(Some(path)) => path.value(cx),
+            Ok(None) => {
+                return Ok(Err(type_unsupported(
+                    &format!("/members/{position}/path"),
+                    "成员路径必须是字符串",
+                )))
+            }
+            Err(throw) => return Err(throw),
+        };
+        let bytes_value = match object.get_opt::<JsValue, _, _>(cx, "bytes") {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => {
+                return Ok(Err(type_unsupported(
+                    &format!("/members/{position}/bytes"),
+                    "成员字节位必填且必须为 Buffer / Uint8Array",
+                )))
+            }
+            Err(throw) => return Err(throw),
+        };
+        let bytes = match binary_bytes(cx, &bytes_value) {
+            Some(bytes) => bytes,
+            None => {
+                return Ok(Err(type_unsupported(
+                    &format!("/members/{position}/bytes"),
+                    "成员字节必须是 Buffer 或 Uint8Array",
+                )))
+            }
+        };
+        let path = match write_virtual_path(limits, scope, &path_text) {
+            Ok(path) => path,
+            Err(error) => return Ok(Err(error)),
+        };
+        members.push(ChangesetMember { path, bytes });
+    }
+    Ok(Ok(members))
+}
+
+/// 删除目标实参（字符串数组）→ `Vec<VirtualPath>`（逐元素 [`write_virtual_path`
+/// 单源复检]；非法元素 `NATIVE_TYPE_UNSUPPORTED`，指针 `/removals/<i>`）。
+fn parse_removals_argument(
+    cx: &mut FunctionContext,
+    index: usize,
+    limits: &ResourceLimits,
+    scope: &str,
+) -> Result<Result<Vec<VirtualPath>, ChipsError>, neon::result::Throw> {
+    let array = cx.argument::<JsArray>(index)?;
+    let mut removals = Vec::new();
+    for (position, value) in array.to_vec(cx)?.into_iter().enumerate() {
+        let text = match value.downcast::<JsString, _>(cx) {
+            Ok(text) => text.value(cx),
+            Err(_) => {
+                return Ok(Err(type_unsupported(
+                    &format!("/removals/{position}"),
+                    "删除目标必须逐元素为字符串",
+                )))
+            }
+        };
+        match write_virtual_path(limits, scope, &text) {
+            Ok(path) => removals.push(path),
+            Err(error) => return Ok(Err(error)),
+        }
+    }
+    Ok(Ok(removals))
+}
+
+/// 归档整包换代回执的 camelCase DTO（`ArchiveRebuildReceipt` 在册字段投影）。
+fn rebuild_receipt_json(receipt: &ArchiveRebuildReceipt) -> Value {
+    json!({
+        "totalBytes": receipt.total_bytes,
+        "writtenMembers": receipt.written_members,
+        "reusedMembers": receipt.reused_members,
+        "removedMembers": receipt.removed_members,
+    })
+}
+
+/// `resourceCommitChangeset(sessionId, scope, members, removals)`：包级 changeset
+/// 两相提交（工单036 波 C2a-2 导出面，C3 消费位 = 宿主 `IDocumentStoragePort.commit`
+/// 目录态臂）。backing = `ResourceManager::commit_changeset`：prepare 相（staging +
+/// 意图账 fsync）→ publish 相（纯元数据动作），WriteCoordinator 多键一次交锁，
+/// 崩溃由挂载恢复扫描回滚旧态零残留；成功返回按成员请求序的新版本元数据列表。
+/// 错误经 backing 契约码原样透传（§8.5）。
+pub(crate) fn js_resource_commit_changeset(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let session = arg_or_throw!(id_argument(&mut cx, 0, "/sessionId"), &mut cx);
+    let scope = cx.argument::<JsString>(1)?.value(&mut cx);
+    let manager = resource_manager();
+    let members = arg_or_throw!(parse_members_argument(&mut cx, 2, manager.limits(), &scope), &mut cx);
+    let removals = arg_or_throw!(parse_removals_argument(&mut cx, 3, manager.limits(), &scope), &mut cx);
+    spawn_promise(
+        &mut cx,
+        async move {
+            let views = manager
+                .commit_changeset(ChangesetRequest {
+                    session,
+                    scope,
+                    members,
+                    removals,
+                })
+                .await?;
+            serialize_json(&views, "/members")
+        },
+        settle_json,
+    )
+}
+
+/// `resourceRebuildArchive(sessionId, scope, members, removals, savedAtUnixMs)`：
+/// 归档态整包换代（工单036 波 C2a-3 导出面，C3 消费位 = 宿主 `IDocumentStoragePort.commit`
+/// 归档臂）。backing = `ResourceManager::rebuild_archive`：临时整包写出 + 意图账 +
+/// publish 相 `rename` 原子换代，崩溃由归档挂载槽位扫描回滚旧态零残留；
+/// `savedAtUnixMs` 为保存时刻（全部条目统一时间戳，《11.05》§5.4），由调用方单源交付；
+/// 成功返回换代回执 `{ totalBytes, writtenMembers, reusedMembers, removedMembers }`。
+pub(crate) fn js_resource_rebuild_archive(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let session = arg_or_throw!(id_argument(&mut cx, 0, "/sessionId"), &mut cx);
+    let scope = cx.argument::<JsString>(1)?.value(&mut cx);
+    let manager = resource_manager();
+    let members = arg_or_throw!(parse_members_argument(&mut cx, 2, manager.limits(), &scope), &mut cx);
+    let removals = arg_or_throw!(parse_removals_argument(&mut cx, 3, manager.limits(), &scope), &mut cx);
+    let saved_millis = cx.argument::<JsNumber>(4)?.value(&mut cx);
+    let saved_at = match crate::convert::system_time_from_unix_millis(saved_millis, "/savedAtUnixMs")
+        .map_err(ConvertIssue::into_error)
+    {
+        Ok(saved_at) => saved_at,
+        Err(error) => return throw_chips_error(&mut cx, error),
+    };
+    let manager = resource_manager();
+    spawn_promise(
+        &mut cx,
+        async move {
+            let receipt = manager
+                .rebuild_archive(ArchiveRebuildRequest {
+                    session,
+                    scope,
+                    members,
+                    removals,
+                    saved_at,
+                })
+                .await?;
+            Ok(rebuild_receipt_json(&receipt))
+        },
+        settle_json,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1773,8 +1943,8 @@ mod tests {
         // 返回 Promise 形状），与 RFC §4.2/§5.1 逐字表行一字不差。
         let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
         let exports = surface["exports"].as_array().expect("exports 数组");
-        assert_eq!(exports.len(), 56, "点位五 D1 在册全表 56 项");
-        assert_eq!(crate::abi::EXPORT_NAMES.len(), 56, "注册表同为 56 项");
+        assert_eq!(exports.len(), 59, "工单036 波 C3 在册全表 59 项");
+        assert_eq!(crate::abi::EXPORT_NAMES.len(), 59, "注册表同为 59 项");
         let expected: [(&str, &str, &str); 3] = [
             (
                 "resourceMountDirectory",
@@ -2456,8 +2626,18 @@ mod tests {
         );
         assert_eq!(
             names[anchor + 4],
+            "resourceCommitChangeset",
+            "资源域 C3 changeset 名同序紧随 grant 导出（工单036 波 C3 域尾追加）"
+        );
+        assert_eq!(
+            names[anchor + 5],
+            "resourceRebuildArchive",
+            "资源域 C3 整包换代名同序紧随 changeset 导出"
+        );
+        assert_eq!(
+            names[anchor + 6],
             "auditBindDecisionSink",
-            "资源域四名之后即 audit 域收尾项"
+            "资源域六名之后即 audit 域收尾项"
         );
     }
 
@@ -2884,5 +3064,254 @@ mod tests {
                 "授权注入声明逐位锁定：{fragment}"
             );
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // 包级受控提交链导出锁测（工单036 波 C2a→C3）
+    // -----------------------------------------------------------------------
+
+    /// 写盘直读（目录域 backing 落盘位置断言用）。
+    fn read_member(root: &Path, relative: &str) -> String {
+        String::from_utf8(fs::read(root.join(relative)).expect("成员必须已落盘")).expect("UTF-8")
+    }
+
+    #[test]
+    fn test_rebuild_receipt_json_projection_shape() {
+        let receipt = ArchiveRebuildReceipt {
+            total_bytes: 4321,
+            written_members: 3,
+            reused_members: 2,
+            removed_members: 1,
+        };
+        let projected = rebuild_receipt_json(&receipt);
+        assert_eq!(projected["totalBytes"], 4321);
+        assert_eq!(projected["writtenMembers"], 3);
+        assert_eq!(projected["reusedMembers"], 2);
+        assert_eq!(projected["removedMembers"], 1);
+        let mut keys: Vec<String> = projected.as_object().expect("对象").keys().cloned().collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            vec![
+                "removedMembers".to_owned(),
+                "reusedMembers".to_owned(),
+                "totalBytes".to_owned(),
+                "writtenMembers".to_owned(),
+            ],
+            "回执键集恰等（serde_json Map 键序为字典序，形状锁取集合面）"
+        );
+    }
+
+    #[test]
+    fn test_commit_changeset_backing_writes_members_and_gates() {
+        let root = temp_root("changeset");
+        let manager = fixture_manager();
+        let (scope, session) = writable_scope(&manager, &root);
+        let runtime = test_runtime();
+        let member = |path: &str, bytes: &[u8]| ChangesetMember {
+            path: write_virtual_path(manager.limits(), &scope, path).expect("在册路径"),
+            bytes: bytes.to_vec(),
+        };
+        let removal = |path: &str| write_virtual_path(manager.limits(), &scope, path).expect("在册路径");
+
+        // 预置一个将被打包事务删除的旧成员。
+        runtime
+            .block_on(manager.commit_write(WriteRequest {
+                session,
+                scope: scope.clone(),
+                path: removal("notes/old.txt"),
+                bytes: b"stale".to_vec(),
+            }))
+            .expect("预置成员必须可写");
+
+        // 成员覆写/新建 + 删除一包事务（两相）。
+        let views = runtime
+            .block_on(manager.commit_changeset(ChangesetRequest {
+                session,
+                scope: scope.clone(),
+                members: vec![member("notes/a.txt", b"alpha"), member("notes/b.txt", b"beta")],
+                removals: vec![removal("notes/old.txt")],
+            }))
+            .expect("changeset 提交必须成功");
+        assert_eq!(views.len(), 2, "回执按成员请求序");
+        assert_eq!(read_member(&root, "notes/a.txt"), "alpha");
+        assert_eq!(read_member(&root, "notes/b.txt"), "beta");
+        assert!(!root.join("notes/old.txt").exists(), "删除目标必须随事务消失");
+        // 意图账终结：事务收口后根内无 `.chips-tmp-`/`.j` 残留。
+        let leftovers: Vec<String> = fs::read_dir(&root)
+            .expect("夹具根可枚举")
+            .map(|entry| entry.expect("条目").file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(".chips-tmp-"))
+            .collect();
+        assert!(leftovers.is_empty(), "事务收口后零意图账残留：{leftovers:?}");
+
+        // 请求歧义闸（取锁前拒绝）：同一路径第二次出现 → RESOURCE_ALREADY_EXISTS。
+        let error = runtime
+            .block_on(manager.commit_changeset(ChangesetRequest {
+                session,
+                scope: scope.clone(),
+                members: vec![member("notes/a.txt", b"x"), member("notes/a.txt", b"y")],
+                removals: vec![],
+            }))
+            .expect_err("成员重复必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_ALREADY_EXISTS");
+
+        // 删除目标缺失 → RESOURCE_NOT_FOUND；全文件系统保持提交前旧态。
+        let error = runtime
+            .block_on(manager.commit_changeset(ChangesetRequest {
+                session,
+                scope: scope.clone(),
+                members: vec![],
+                removals: vec![removal("notes/absent.txt")],
+            }))
+            .expect_err("删除缺失目标必须拒绝");
+        assert_eq!(error.code(), "RESOURCE_NOT_FOUND");
+        assert_eq!(read_member(&root, "notes/a.txt"), "alpha", "拒绝臂全域旧态");
+
+        // 空变更集：幂等 no-op。
+        let empty = runtime
+            .block_on(manager.commit_changeset(ChangesetRequest {
+                session,
+                scope: scope.clone(),
+                members: vec![],
+                removals: vec![],
+            }))
+            .expect("空变更集必须幂等成功");
+        assert!(empty.is_empty());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_rebuild_archive_backing_swaps_package_atomically() {
+        use chips_parser::serialize::ZipArchiveWriter;
+        use chips_parser::PackagePath;
+
+        // 旧归档：写侧产出（chips-parser `ZipArchiveWriter`，C2a-3 对拍先例）。
+        let root = temp_root("rebuild-archive");
+        let old_path = root.join("Sample000001.card");
+        {
+            let file = fs::File::create(&old_path).expect("旧归档可创建");
+            let mut writer = ZipArchiveWriter::new(file, std::time::SystemTime::UNIX_EPOCH
+                    + std::time::Duration::from_millis(1_774_166_400_000))
+                .expect("写器可建");
+            writer
+                .add_entry(&PackagePath::new("notes/drop.txt").expect("合法路径"), b"drop-me")
+                .expect("成员写入");
+            writer
+                .add_entry(&PackagePath::new("notes/keep.txt").expect("合法路径"), b"keep-me")
+                .expect("成员写入");
+            writer.finish().expect("归档收口");
+        }
+        let manager = fixture_manager();
+        let scope = document_scope("rebuild-archive-sample");
+        let session = mount_session(&manager, &["resources:write"]);
+        mount_archive_via_binding(&manager, session, &scope, &old_path).expect("归档挂载必须成功");
+        let runtime = test_runtime();
+
+        let to_virtual = |path: &str| write_virtual_path(manager.limits(), &scope, path).expect("在册路径");
+        let receipt = runtime
+            .block_on(manager.rebuild_archive(ArchiveRebuildRequest {
+                session,
+                scope: scope.clone(),
+                members: vec![ChangesetMember {
+                    path: to_virtual("notes/new.txt"),
+                    bytes: b"brand-new".to_vec(),
+                }],
+                removals: vec![to_virtual("notes/drop.txt")],
+                saved_at: std::time::SystemTime::UNIX_EPOCH
+                    + std::time::Duration::from_millis(1_774_166_400_000),
+            }))
+            .expect("整包换代必须成功");
+        assert_eq!(receipt.written_members, 1);
+        assert_eq!(receipt.reused_members, 1, "未列成员自旧包流式复用");
+        assert_eq!(receipt.removed_members, 1);
+        assert!(receipt.total_bytes > 0, "回执总字节为写侧实然读数");
+
+        // 换代后实形经管理器读取面复证（挂载表已随换代翻新）：
+        // 新成员在、删除目标不在、复用成员保持旧字节、零槽位残留。
+        let opened = runtime
+            .block_on(manager.open(OpenRequest {
+                uri: format!("chips-resource://{scope}/notes/new.txt"),
+                session,
+            }))
+            .expect("新成员必须可经管理器打开");
+        let fresh = runtime
+            .block_on(manager.read_range(opened.id, session, ByteRange {
+                offset: 0,
+                length: None,
+            }))
+            .expect("新成员必须可读");
+        assert_eq!(fresh.as_slice(), b"brand-new");
+        let dropped = runtime
+            .block_on(manager.open(OpenRequest {
+                uri: format!("chips-resource://{scope}/notes/drop.txt"),
+                session,
+            }))
+            .expect_err("删除目标必须不再承接");
+        assert_eq!(dropped.code(), "RESOURCE_NOT_FOUND");
+        let kept = runtime
+            .block_on(manager.open(OpenRequest {
+                uri: format!("chips-resource://{scope}/notes/keep.txt"),
+                session,
+            }))
+            .expect("复用成员必须仍可打开");
+        let kept_bytes = runtime
+            .block_on(manager.read_range(kept.id, session, ByteRange {
+                offset: 0,
+                length: None,
+            }))
+            .expect("复用成员必须可读");
+        assert_eq!(kept_bytes.as_slice(), b"keep-me");
+        let slot_leftovers: Vec<String> = fs::read_dir(&root)
+            .expect("槽位目录可枚举")
+            .map(|entry| entry.expect("条目").file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(".chips-tmp-"))
+            .collect();
+        assert!(slot_leftovers.is_empty(), "换代收口后零槽位残留：{slot_leftovers:?}");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_commit_changeset_surface_entries_locked_in_manifest() {
+        // 形状锁：两导出在清单中的 kind/signature 逐字锁定（工单036 波 C3 补登位）。
+        let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
+        let exports = surface["exports"].as_array().expect("exports 数组");
+        let expected: [(&str, &str); 2] = [
+            (
+                "resourceCommitChangeset",
+                "(sessionId: number, scope: string, members: readonly { path: string; bytes: Uint8Array }[], removals: readonly string[]) => Promise<IResourceMetadata[]>",
+            ),
+            (
+                "resourceRebuildArchive",
+                "(sessionId: number, scope: string, members: readonly { path: string; bytes: Uint8Array }[], removals: readonly string[], savedAtUnixMs: number) => Promise<IResourceArchiveRebuildReceipt>",
+            ),
+        ];
+        for (name, signature) in expected {
+            let entry = exports
+                .iter()
+                .find(|entry| entry["name"] == name)
+                .unwrap_or_else(|| panic!("清单必须收录 {name}"));
+            assert_eq!(entry["kind"], "async", "{name} kind 锁定");
+            assert_eq!(entry["signature"], signature, "{name} 签名逐字锁定");
+        }
+        // 资源域位次：两名紧随 `resourceGrantSession`、先于 audit 域（域尾追加）。
+        let names: Vec<&str> = exports
+            .iter()
+            .map(|entry| entry["name"].as_str().expect("name 字符串"))
+            .collect();
+        let anchor = names
+            .iter()
+            .position(|name| *name == "resourceGrantSession")
+            .expect("grant 导出必须在册");
+        assert_eq!(
+            &names[anchor + 1..anchor + 3],
+            &["resourceCommitChangeset", "resourceRebuildArchive"],
+            "C3 两名同序紧随 grant 导出"
+        );
+        assert!(
+            DECLARATIONS.contains("export function resourceCommitChangeset(")
+                && DECLARATIONS.contains("export function resourceRebuildArchive("),
+            "d.ts 必须声明 C3 两导出"
+        );
     }
 }

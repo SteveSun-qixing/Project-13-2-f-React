@@ -13,8 +13,9 @@
  * - 正向端到端走 `createProductionAssembly` 正式通道：`document:*` 四能力经
  *   `createDocumentCapabilityDescriptors` → `createDocumentService` 真实路由，宿主事件
  *   总线（`emitEvent` 出口）绑定经 `pluginLoaderFactory` 构造期完成，事件信封按 §4.2
- *   形状在 sink 侧观察；脏保存落 `DOCUMENT_SAVE_FAILED`（cause 为刀6 诚实拒绝的
- *   `BRIDGE_CAPABILITY_NOT_FOUND`），不产生提交、不发布 `changed/saved`。
+ *   形状在 sink 侧观察；脏保存经 `documentSerialize` 序列化 → 注入的 storage 端口
+ *   `commit` 真实落账，`document:changed/saved` 事件按序发布（工单036 波 C3 终闸翻正
+ *   形——刀6 诚实拒绝臂已退役，快照见 `chips-ecosystem/归档/工单036-诚实回退臂退役-波C3/`）。
  * - 诚实回退臂：依赖缺位时不注册 `document:*`，调用得到真实注册表未命中
  *   `BRIDGE_CAPABILITY_NOT_FOUND`、预留槽位 `wired=false`、诊断留痕逐项点名。
  */
@@ -90,6 +91,9 @@ const DISK_MEMBERS: readonly { readonly packagePath: string; readonly text: stri
 
 const ENCODER = new TextEncoder();
 const BRIDGE_AVAILABLE_FIXTURE = fileURLToPath(new URL('./fixtures/native-binding/available.js', import.meta.url));
+const RESOURCE_AVAILABLE_FIXTURE = fileURLToPath(
+  new URL('./fixtures/native-binding/resource-available.js', import.meta.url),
+);
 const PARSER_BEHAVIOR_FIXTURE = fileURLToPath(
   new URL('./fixtures/native-binding/parser-document-behavior.js', import.meta.url),
 );
@@ -392,6 +396,45 @@ describe('组合根文档装载段：装载闸正臂（依赖齐备即装配）'
       'document:save',
     ]);
   });
+
+  it('工单036 波 C3：资源域导出面过闸即以正式适配器装配（无 resourcePorts 注入臂）', () => {
+    const wiring = createDocumentCapabilityWiring(
+      {
+        parserModulePath: PARSER_BEHAVIOR_FIXTURE,
+        resourceModulePath: RESOURCE_AVAILABLE_FIXTURE,
+        guardSessionSource: activeGuard(),
+      },
+      context,
+      collectDiagnostics(),
+    );
+    expect(wiring.status).toBe('wired');
+    expect(wiring.missing).toEqual([]);
+    expect(wiring.resourceBinding.status).toBe('available');
+    // 四条注册单元由 scope（波 A2b）+ storage（波 C3）两正式适配器承载，零注入。
+    expect(wiring.descriptors.map((descriptor: IHostCapabilityDescriptor) => descriptor.id)).toEqual([
+      'document:open',
+      'document:read',
+      'document:write',
+      'document:save',
+    ]);
+  });
+
+  it('工单036 波 C3：资源域导出面为 C3 前旧构建（缺提交链两名）→ scope+storage 仍缺位，点名理由含两名', () => {
+    const wiring = createDocumentCapabilityWiring(
+      {
+        parserModulePath: PARSER_BEHAVIOR_FIXTURE,
+        resourceModulePath: fileURLToPath(new URL('./fixtures/native-binding/resource-stale-22.js', import.meta.url)),
+        guardSessionSource: activeGuard(),
+      },
+      context,
+      collectDiagnostics(),
+    );
+    expect(wiring.status).toBe('unavailable');
+    expect(wiring.missing.map((entry) => entry.port)).toEqual(['scope', 'storage']);
+    // storage 缺位理由点名 C3 补登两名（判据随波机械补登的执行形态）。
+    expect(wiring.missing.find((entry) => entry.port === 'storage')?.reason).toContain('resourceCommitChangeset');
+    expect(wiring.missing.find((entry) => entry.port === 'storage')?.reason).toContain('resourceRebuildArchive');
+  });
 });
 
 describe('组合根运行时：诚实回退臂维持真实注册表未命中语义', () => {
@@ -523,28 +566,57 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
     }
     expect(envelopes.filter((entry) => entry.envelope.eventId !== DOCUMENT_EVENT_IDS.opened)).toEqual([]);
 
-    // ⑤ 脏 save：写租约与指纹复查通过后，序列化臂按刀6 裁决诚实拒绝——
-    //    DOCUMENT_SAVE_FAILED，cause=BRIDGE_CAPABILITY_NOT_FOUND，无提交、无 changed/saved 事件。
+    // ⑤ 脏 save（工单036 波 C3 终闸）：写租约与指纹复查通过后，序列化臂真经
+    //    `documentSerialize`，提交经注入的 storage 端口 `commit` 落账，保存回执
+    //    `{ source, digest }`、`document:changed`/`document:saved` 按序发布（§4.2）。
     const save = await runtime.ipc.handleRequest(SENDER, {
       requestId: 'wired-save-dirty',
       capabilityId: 'document:save',
       input: { documentId: CARD_ID },
     });
-    expect(save.ok).toBe(false);
-    if (!save.ok) {
-      expect(save.error.code).toBe('DOCUMENT_SAVE_FAILED');
-      expect(save.error.details).toMatchObject({ documentId: CARD_ID, cause: 'BRIDGE_CAPABILITY_NOT_FOUND' });
+    expect(save.ok).toBe(true);
+    if (save.ok) {
+      expect((save.result as { source: unknown }).source).toBe(CARD_URI);
+      expect((save.result as { digest: unknown }).digest).toBe(
+        computePackageContentDigest(
+          DISK_MEMBERS.map((member) => ({ packagePath: member.packagePath, bytes: ENCODER.encode(member.text) })),
+        ),
+      );
     }
-    expect(resourcePorts.commits).toEqual([]);
-    expect(envelopes.filter((entry) => entry.envelope.eventId !== DOCUMENT_EVENT_IDS.opened)).toEqual([]);
+    // 提交唯一落盘通道：一次 commit，成员含修订内容成员，路径升序、目录态臂。
+    expect(resourcePorts.commits).toHaveLength(1);
+    const commit = resourcePorts.commits[0];
+    expect(commit?.form).toBe('directory');
+    expect(commit?.removals).toEqual([]);
+    expect(commit?.members.map((member) => member.packagePath)).toEqual([
+      'content/Cd1eFg2Hi3.yaml',
+      'content/Jk4lMn5Op6.yaml',
+      'meta.yaml',
+      'structure.yaml',
+    ]);
+    const revisedMember = commit?.members.find((member) => member.packagePath === 'content/Cd1eFg2Hi3.yaml');
+    expect(JSON.parse(new TextDecoder().decode(revisedMember?.bytes ?? new Uint8Array()))).toEqual({
+      text: '组合根改写',
+    });
+    // 事件按序：changed（digest/size 摘要复算面）→ saved。
+    const changedEvents = envelopes.filter((entry) => entry.envelope.eventId === DOCUMENT_EVENT_IDS.changed);
+    const savedEvents = envelopes.filter((entry) => entry.envelope.eventId === DOCUMENT_EVENT_IDS.saved);
+    expect(changedEvents).toHaveLength(1);
+    expect(savedEvents).toHaveLength(1);
+    const changedPayload = changedEvents[0]?.envelope.payload as Record<string, unknown>;
+    expect(Object.keys(changedPayload).sort()).toEqual(['digest', 'documentId', 'kind', 'size', 'uri']);
+    expect(changedPayload).toMatchObject({ uri: CARD_URI, documentId: CARD_ID, kind: 'card' });
+    expect(savedEvents[0]?.envelope.payload).toEqual({ uri: CARD_URI, kind: 'card' });
 
-    // 解析调用形态逐路可观察：open 走严格 openCard 入口，save 走 fingerprint 复合臂与结构/内容读取。
+    // 解析调用形态逐路可观察：open 走严格 openCard 入口，save 走 fingerprint 复合臂、
+    // 结构/内容读取与 documentSerialize 序列化载体（工单036 波 C3）。
     const newCalls = fixtureModule.__calls.slice(callsBefore).map((call) => call.export);
     expect(newCalls).toContain('openCard');
     expect(newCalls).toContain('documentRevision');
     expect(newCalls).toContain('openDocument'); // fingerprint 复合臂
     expect(newCalls).toContain('documentClose'); // 复合臂 finally 回收
     expect(newCalls).toContain('documentStructure'); // save 前序列化请求组装
+    expect(newCalls).toContain('documentSerialize'); // 序列化载体真经原生导出
     stop();
     await runtime.shutdown();
     // 主进程退出清理（工单036 波 A2b-β）：停机链在会话关闭联动后**等待**文档释放收口，

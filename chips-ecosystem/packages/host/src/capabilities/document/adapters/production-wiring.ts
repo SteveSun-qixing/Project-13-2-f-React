@@ -9,9 +9,10 @@
  * - 装载闸（fail-closed，逐项审计，与 `pluginActivationPortFor` 诚实回退臂同型）：
  *   五个端口的生产载体全部可得时，才经 `createDocumentCapabilityDescriptors` 产出
  *   `document:*` 注册单元——
- *   - `parser`：`chips-native.node` 经 `loadNativeDocumentParserBinding`（17 必备名
- *     fail-closed 闸，解析域面波 A1 未动、维持 17）装载可用，`createNativeDocumentParserPort`
- *     构造生产适配器；
+ *   - `parser`：`chips-native.node` 经 `loadNativeDocumentParserBinding`（18 必备名
+ *     fail-closed 闸，工单036 波 C3 补登存储序列化名 `documentSerialize` 后）装载可用，
+ *     `createNativeDocumentParserPort` 构造生产适配器（`serialize` 真接，刀6 诚实拒绝臂
+ *     已退役——快照见 `chips-ecosystem/归档/工单036-诚实回退臂退役-波C3/`）；
  *   - `events`：宿主事件总线（`host-event-bus.ts`，载体为组合根运行时 `emitEvent` 出口，
  *     绑定发生在 `pluginLoaderFactory` 构造期，先于注册与调用）；
  *   - `guard`：Bridge 会话注册表判定面（`bridge-session-guard.ts`），快照视图提供者由
@@ -19,18 +20,19 @@
  *     工单 036 §五.3-1 / 刀4 缝①收口）；{@link IDocumentCapabilityWiringOptions.guardSessionSource}
  *     升格为显式覆盖口（真进程 E2E 替身臂与测试注入）；
  *   - `scope`：文档载体为资源管理器（chips-resource；`04-资源管理设计` §5.2 作用域注册）。
- *     crate 与 §11.3 Neon 暴露面（20 导出逐字，波 A1 任务 #209 补登挂载 / 作用域注册三名、
- *     波 B 任务 #231 补登 `managedUri ↔ localPath` 双向换算两名）
- *     已承载作用域注册 / 挂载入口，**正式 scope 适配器已在册**（波 A2b-α
- *     `adapters/scope-adapter.ts`，波 A2b-β 任务 #219 在本装载段接线：`resourceBinding`
- *     可用即以类型化消费面构造，40-hex 派生 + 两拍注销 + `DOCUMENT_SCOPE_OWNER` 注入齐备）；
- *     {@link IDocumentCapabilityWiringOptions.resourcePorts} 的 `scope` 位降为显式覆盖口
+ *     **正式 scope 适配器已在册**（波 A2b-α `adapters/scope-adapter.ts`，波 A2b-β 任务
+ *     #219 在本装载段接线：`resourceBinding` 可用即以类型化消费面构造，40-hex 派生 +
+ *     两拍注销 + `DOCUMENT_SCOPE_OWNER` 注入齐备）；
+ *     {@link IDocumentCapabilityWiringOptions.resourcePorts} 的 `scope` 位为显式覆盖口
  *     （真进程 E2E 替身臂与测试注入，同 `guardSessionSource` 口径）。
- *   - `storage`：跨成员原子提交与落盘序列化载体**仍未在册**（点位四后续波，工单 036），
- *     正式适配器无原生载体可依赖 ⇒ 本装载段唯一缺位项——
- *     **禁止内存替身**，唯一合法通道是经
- *     {@link IDocumentCapabilityWiringOptions.resourcePorts} 注入资源管理器侧交付的
- *     正式适配器（组合根的资源域装载闸见 `native-resource-module.ts`）。
+ *   - `storage`：**正式 storage 适配器已在册**（工单036 波 C3 `adapters/storage-adapter.ts`，
+ *     `resourceBinding` 可用即以类型化消费面构造——目录态经 `resourceCommitChangeset`
+ *     包级 changeset 两相提交、归档态经 `resourceRebuildArchive` 整包换代，写路径唯一经
+ *     chips-resource 受控提交链，崩溃恢复走 journal 挂载扫描；scope/storage 两适配器共享
+ *     同一 {@link DocumentScopeLedger} 在册账）。
+ *     {@link IDocumentCapabilityWiringOptions.resourcePorts} 的 `storage` 位同为显式覆盖口；
+ *     资源域导出面未落位（产物缺位 / 旧构建漂移 / ABI 漂移）是两端口缺位的唯一剩余成因
+ *     （fail-closed 诚实呈现，禁止内存替身，工单 036 红线）。
  * - 任一硬依赖不可得即整体不装载：产出 `unavailable` + 逐项缺位原因，组合根据此
  *   **不注册** `document:*`（调用得到真实的注册表未命中错误 `BRIDGE_CAPABILITY_NOT_FOUND`，
  *   预留槽位诊断面维持 `wired=false`），诊断留痕后诚实回退，不造假适配器、不部分装配。
@@ -52,22 +54,24 @@ import {
 } from './native-parser-module.js';
 import { loadNativeResourceBinding, type INativeResourceBinding } from './native-resource-module.js';
 import { createDocumentScopeAdapter } from './scope-adapter.js';
+import { DocumentScopeLedger } from './scope-ledger.js';
+import { createDocumentStorageAdapter } from './storage-adapter.js';
 import { createDocumentBridgeSessionGuardPort, type DocumentGuardSessionSource } from './bridge-session-guard.js';
 import { createDocumentHostEventBusPort, type HostEventBusPublisher } from './host-event-bus.js';
 import { createDocumentViewChannelHandler, createUnavailableDocumentViewChannelEndpoint } from './view-channel.js';
 
 /**
- * 资源管理器侧端口的显式注入面（scope 覆盖口 + 受控写唯一合法交付通道）。
+ * 资源管理器侧端口的显式注入面（scope / storage 两位显式覆盖口）。
  *
- * @remarks 波 A2b-β（任务 #219）装载开闸后本注入面的性质分工：
- * `scope` 位是**显式覆盖口**（真进程 E2E 替身臂与测试注入；生产缺省路径由本装载段以
- * 资源域类型化消费面构造正式适配器，见文件头注），`storage` 位仍是受控写端口的唯一
- * 合法交付通道（点位四载体未落位，生产侧必然缺位 ⇒ 整体不装载，工单 036）。
+ * @remarks 波 A2b-β（任务 #219）装载开闸后本注入面的性质分工：`scope` / `storage`
+ * 两位都是**显式覆盖口**（真进程 E2E 替身臂与测试注入；生产缺省路径由本装载段以
+ * 资源域类型化消费面构造两正式适配器，见文件头注——storage 正式适配器随工单036
+ * 波 C3 落位，原「受控写唯一合法交付通道」语义自该波起由缺省构造臂承接）。
  */
 export interface IDocumentResourcePorts {
   /** 资源作用域端口（受管引用归一与作用域注册，`04-资源管理设计` §5.2）——显式覆盖口。 */
   readonly scope: IDocumentScopePort;
-  /** 受控写端口（受控提交路径与 WriteCoordinator，`11-文档服务设计` §5.2、§5.3）。 */
+  /** 受控写端口（受控提交路径与 WriteCoordinator，`11-文档服务设计` §5.2、§5.3）——显式覆盖口。 */
   readonly storage: IDocumentStoragePort;
 }
 
@@ -150,16 +154,17 @@ export interface IDocumentCapabilityWiring {
    */
   readonly service?: IDocumentService;
   /**
-   * 资源域（§11.3 二十一导出）装载判据与类型化消费面（任务 #194 交付③的宿主侧合缝位）。
+   * 资源域（§11.3 二十一导出 + 波 C3 提交链两名）装载判据与类型化消费面
+   * （任务 #194 交付③的宿主侧合缝位）。
    *
-   * @remarks 两臂恒在：`available` 交付 `INativeResourceModule` 消费面（现态部署产物
-   * 56 导出、资源域 21 名在册，波 A1 任务 #209 落位、波 A2a 任务 #212 清单补登、波 B
-   * 任务 #231 两换算名补登、点位五 D1 任务 #244 `resourceGrantSession` 补登后过闸）；
+   * @remarks 两臂恒在：`available` 交付 `INativeResourceModule` 消费面（落位判据随波
+   * 机械补登——波 A1 任务 #209 三名、波 A2a 任务 #212 清单补登、波 B 任务 #231 两换算名、
+   * 点位五 D1 任务 #244 `resourceGrantSession`、工单036 波 C3 `resourceCommitChangeset` /
+   * `resourceRebuildArchive` 两名，全集面 25 项 fail-closed 过闸）；
    * `unavailable` 逐项点名缺位导出（产物缺位 / 旧构建漂移 / ABI 漂移形态）。本字段是端口
-   * 注入面之外的独立判据留痕，资源域波次落位即随波机械翻正；文档端口正式适配器的接线条件
-   * 与剩余未落载体（跨成员原子提交 / 落盘序列化，点位四后续波）见
-   * `native-resource-module.ts` 头注与工单 036——scope 正式适配器随本字段 `available` 臂在装载段
-   * 构造（波 A2b-β 接线），storage 适配器仍无原生载体，装载段维持 fail-closed。
+   * 注入面之外的独立判据留痕；scope / storage 两正式适配器随本字段 `available` 臂在装载段
+   * 构造（scope=波 A2b-β 接线、storage=波 C3 接线，共享同一在册账），资源域导出面未落位
+   * 即整体回退（fail-closed，工单 036 红线）。
    */
   readonly resourceBinding: INativeResourceBinding;
 }
@@ -191,18 +196,31 @@ export function createDocumentCapabilityWiring(
   const guardSessionSource: DocumentGuardSessionSource | undefined = options?.guardSessionSource;
   const resourcePorts: IDocumentResourcePorts | undefined = options?.resourcePorts;
 
-  // scope 端口两位来源（波 A2b-β 装载开闸）：显式覆盖口（真进程 E2E 替身臂 / 测试注入）优先，
-  // 缺位时以已过闸的资源域类型化消费面构造**正式适配器**（`adapters/scope-adapter.ts`，
-  // 40-hex 派生 + `DOCUMENT_SCOPE_OWNER` + 两拍注销）。资源域消费面未落位即无正式载体，
-  // 如实缺位——禁止任何内存替身顶上（工单 036 红线）。
+  // scope / storage 两端口三位来源（波 A2b-β 装载开闸 + 波 C3 storage 正式适配器落位）：
+  // 显式覆盖口（真进程 E2E 替身臂 / 测试注入）优先，缺位时以已过闸的资源域类型化消费面
+  // 构造**正式适配器**（scope=`adapters/scope-adapter.ts` 40-hex 派生 + `DOCUMENT_SCOPE_OWNER`
+  // + 两拍注销；storage=`adapters/storage-adapter.ts` changeset 两相提交 / 归档整包换代，
+  // 两适配器共享同一在册账）。资源域消费面未落位即无正式载体，如实缺位——禁止任何
+  // 内存替身顶上（工单 036 红线）。
+  const formalLedger = resourceBinding.status === 'available' ? new DocumentScopeLedger() : undefined;
   const formalScopePort: IDocumentScopePort | undefined =
-    resourceBinding.status === 'available'
-      ? createDocumentScopeAdapter({ native: resourceBinding.resource, diagnostics })
+    resourceBinding.status === 'available' && formalLedger !== undefined
+      ? createDocumentScopeAdapter({
+          native: resourceBinding.resource,
+          ledger: formalLedger,
+          diagnostics,
+        })
+      : undefined;
+  const formalStoragePort: IDocumentStoragePort | undefined =
+    resourceBinding.status === 'available' && formalLedger !== undefined
+      ? createDocumentStorageAdapter({
+          native: resourceBinding.resource,
+          ledger: formalLedger,
+          diagnostics,
+        })
       : undefined;
   const scopePort: IDocumentScopePort | undefined = resourcePorts?.scope ?? formalScopePort;
-  // storage 端口：跨成员原子提交与落盘序列化载体（点位四）尚无原生导出面可依赖，
-  // 正式适配器无载体可构造 ⇒ 唯一合法来源仍是显式注入（真进程 E2E 替身臂 / 测试注入）。
-  const storagePort: IDocumentStoragePort | undefined = resourcePorts?.storage;
+  const storagePort: IDocumentStoragePort | undefined = resourcePorts?.storage ?? formalStoragePort;
 
   const missing: IDocumentWiringMissingPort[] = [];
   if (parserBinding.status === 'unavailable') {
@@ -233,8 +251,11 @@ export function createDocumentCapabilityWiring(
       port: 'storage',
       reason:
         '受控写端口的文档载体为资源管理器受控提交路径与 WriteCoordinator（chips-resource，工单 036）：' +
-        'Rust 侧已交付，§11.3 Neon 暴露面尚无跨成员原子提交与落盘序列化载体（刀6 裁决、点位四后续波），' +
-        `正式适配器随该载体落地；禁止内存替身（原生侧资源域实态判据：${resourceSurfaceVerdict}）`,
+        'Rust 侧 C2a（提交日志 / changeset 两相 / 归档整包换代）与 Neon 扩表两名' +
+        '（resourceCommitChangeset / resourceRebuildArchive，波 C3）已落位，正式适配器已在册' +
+        '（`adapters/storage-adapter.ts`，写路径唯一经受控提交链，崩溃恢复走 journal 挂载扫描）；' +
+        '本臂仅在资源域导出面未落位且无显式注入时命中，禁止内存替身' +
+        `（原生侧资源域实态判据：${resourceSurfaceVerdict}）`,
     });
   }
 

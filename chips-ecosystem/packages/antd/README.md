@@ -37,8 +37,8 @@
 
 - 版本跟随上游主版本，口径 `<上游版本>-chips.N`（当前 `6.6.4-chips.1`），不参与平台统一版本。
 - 上游版本精确锁定（`antd` 6.6.4、`@ant-design/icons` 6.3.4）；工作区内唯一包管理器为 pnpm，锁文件只在仓库根维护。
-- fork 差异全部落在 `patches/`：台账 `patches.json` + `antd@<版本>.patch`，由根 `pnpm.patchedDependencies` 登记；`pnpm check:patches` 校验台账↔补丁↔pnpm 登记↔安装产物一致。
-- 当前补丁 `default-locale-zh-cn`：上游默认 locale 回退、Pagination 与日期/时间组件默认值、dayjs 语言包统一收敛为简体中文（R5 / ADR-006）。
+- fork 差异全部落在 `patches/`：台账 `patches.json`（按 `upstreams[]` 分节覆盖 antd 及其依赖栈的传递上游）+ `<上游包>@<版本>.patch`，由根 `pnpm.patchedDependencies` 登记；`pnpm check:patches` 校验台账↔补丁↔pnpm 登记↔安装产物一致。
+- 当前补丁 `default-locale-zh-cn`（antd）：上游默认 locale 回退、Pagination 与日期/时间组件默认值、dayjs 语言包统一收敛为简体中文（R5 / ADR-006）；`use-delay-state-unmount-cleanup`（`@rc-component/util`）：`useDelayState` 卸载清理挂起 raf/timeout 定时器（工单067）。
 - 新增补丁与上游升级必须按 `patches/README.md` 的流程执行，并追加 `开发日志.md`。
 
 ## 五、常用命令

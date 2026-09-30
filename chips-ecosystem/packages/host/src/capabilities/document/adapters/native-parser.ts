@@ -32,14 +32,15 @@
  * - 泄漏守卫：`open` 内取得原生句柄后的任何失败（含预检命中、信封形状违约与
  *   `documentRevision` 失败）都以 `documentClose` 回收原生句柄后再上抛原始错误
  *   （关闭自身失败静默，GC 终结器兜底，§12.2）。
- * - `serialize`：主智能体「金链路集成七刀定案」刀6 裁定落盘序列化权威归 W3
- *   chips-resource 波（解析器导出面无序列化项），本臂按诚实失败交付：
- *   以在册码 `BRIDGE_CAPABILITY_NOT_FOUND`（「能力不存在或已注销」，`@chips/bridge`
- *   错误码表；壳侧先例 `runtime/self-check-runtime.ts` 以同码呈现「能力未注册」）拒绝，
- *   `details` 携带端口臂与裁决出处；服务侧按既有链路包装为
- *   `DOCUMENT_SAVE_FAILED`（`details.cause = BRIDGE_CAPABILITY_NOT_FOUND`）。不产生任何原生调用。
+ * - `serialize`（工单036 波 C3 真接）：落盘序列化载体 = `documentSerialize` 导出
+ *   （算法权威 `chips-parser::serialize`，波 C1；保存时刻 `Date.now()` 由本适配器
+ *   单源交付，backing 纯函数性质保持）；成员字节（`Buffer`）按包内路径升序交付，
+ *   形状守卫逐成员校验（路径字符串 + 字节 `Uint8Array`），非法形状归一
+ *   `BRIDGE_INTERNAL`（同族信封守卫口径）；解析域契约码经 `attempt` 原样透传，
+ *   服务侧按既有链路归口 `DOCUMENT_SAVE_FAILED`。诚实拒绝臂（刀6）已随本波退役
+ *   （快照见 `chips-ecosystem/归档/工单036-诚实回退臂退役-波C3/`）。
  * - 生产接线（组合根注入、与资源端口同生命周期）为刀4 范围；工单034 ①②两正式化名
- *   已落 `packages/native`（第 33/34 项导出），装载闸按 15 名消费面交付类型化注入面
+ *   已落 `packages/native`（第 33/34 项导出），装载闸按 16 名消费面交付类型化注入面
  *   （旧表产物在装载点即判 `surface-mismatch`，属预期 fail-closed）。
  */
 
@@ -53,6 +54,7 @@ import type {
   IDocumentPartOutcome,
   IDocumentPartRequest,
   IDocumentParserPort,
+  IDocumentSerializeRequest,
   IDocumentSerializedMember,
 } from '../ports.js';
 import type {
@@ -388,18 +390,46 @@ export function createNativeDocumentParserPort(module: INativeDocumentParserModu
       }
     },
 
-    serialize(): Promise<readonly IDocumentSerializedMember[]> {
-      // 刀6 裁决：落盘序列化权威归 W3 chips-resource 波，13 项解析导出面无序列化项。
-      // 诚实失败以 rejection 交付（端口异步失败语义一致），不产生任何原生调用。
-      return Promise.reject(
-        createBridgeError(BRIDGE_ERROR_CODES.capabilityNotFound, {
-          message: '落盘序列化能力未装配于解析端口',
-          details: {
-            port: 'IDocumentParserPort.serialize',
-            adjudication: '金链路集成七刀定案·刀6：落盘序列化权威归 W3 chips-resource 波',
+    async serialize(
+      request: IDocumentSerializeRequest,
+      signal: AbortSignal,
+    ): Promise<readonly IDocumentSerializedMember[]> {
+      // 工单036 波 C3 真接：落盘序列化载体 = `documentSerialize` 导出（刀6 诚实拒绝臂
+      // 已退役）。阶段边界取消预检（在途原生取消不可达，工单034 第三项同口径）。
+      ensureNotAborted(signal, 'serialize');
+      const members = await attempt(() =>
+        module.documentSerialize(
+          {
+            kind: request.kind,
+            form: request.form,
+            localPath: request.localPath,
+            metadata: request.metadata,
+            structure: request.structure,
+            contents: request.contents.map((content: { readonly nodeId: string; readonly value: unknown }) => ({
+              nodeId: content.nodeId,
+              value: content.value,
+            })),
+            layoutConfig: request.layoutConfig,
+            changedParts: [...request.changedParts],
+            removedNodeIds: [...request.removedNodeIds],
           },
-        }),
+          Date.now(),
+        ),
       );
+      if (!Array.isArray(members)) {
+        throw shapeViolation('documentSerialize', '序列化结果不是成员数组');
+      }
+      return members.map((member) => {
+        if (
+          !isRecord(member) ||
+          typeof member.packagePath !== 'string' ||
+          member.packagePath.length === 0 ||
+          !(member.bytes instanceof Uint8Array)
+        ) {
+          throw shapeViolation('documentSerialize', '序列化成员形状非法（packagePath 字符串 + bytes 字节）');
+        }
+        return { packagePath: member.packagePath, bytes: member.bytes };
+      });
     },
 
     async release(handle: IDocumentHandle): Promise<void> {

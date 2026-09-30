@@ -13,7 +13,8 @@
  * - C 组 适配器直连：open（严格 kind / 自动识别逐导出）、readPart 四臂参数位次与
  *   返回形状逐字对 §6.4、fingerprint 复合臂、release 幂等注册表、backing 抛
  *   `IChipsError` 结构对象的错误还原（工单024 唯一类语义）、取消预检、泄漏守卫、
- *   信封守卫、serialize 诚实失败逐码断言（刀6 裁决口径）。
+ *   信封守卫、serialize 真接（工单036 波 C3 `documentSerialize`：参数位次、保存时刻
+ *   单源交付、成员形状守卫、失败透传与形状违约归一）。
  * - D 组 真实服务链路：`service.ts` 全链（executeOpen/Read/Write/Save/releaseSessions）
  *   以 `{...harness.dependencies, parser: 适配器}` 组装跑通。
  */
@@ -33,6 +34,7 @@ import {
   NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS,
   NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS,
   NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS,
+  NATIVE_DOCUMENT_PARSER_STORAGE_EXPORTS,
   NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS,
   defaultNativeDocumentParserModulePath,
   loadNativeDocumentParserBinding,
@@ -327,6 +329,27 @@ function createFakeNative(docs: Map<string, IFakeDocument>): IFakeNative {
         return { kind: 'box', value: doc.layout, diagnostics: [] };
       });
     },
+    documentSerialize(request, savedAtUnixMs) {
+      return dispatch('documentSerialize', [request, savedAtUnixMs], () => {
+        // 忠实替身：按变更集范围产成员（与 `document-fake-ports.ts` serialize 同谱——
+        // 元数据 / 结构 / 内容成员逐项 JSON 字节；路径升序交付）。
+        const encode = (value: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(value));
+        const members: { packagePath: string; bytes: Uint8Array }[] = [];
+        if (request.changedParts.includes('metadata')) {
+          members.push({ packagePath: 'meta.yaml', bytes: encode(request.metadata) });
+        }
+        if (request.changedParts.includes('structure') || request.changedParts.includes('entries')) {
+          members.push({ packagePath: 'structure.yaml', bytes: encode(request.structure) });
+        }
+        for (const item of request.contents) {
+          members.push({ packagePath: `content/${item.nodeId}.yaml`, bytes: encode(item.value) });
+        }
+        if (request.kind === 'box' && request.layoutConfig !== null) {
+          members.push({ packagePath: 'layout.yaml', bytes: encode(request.layoutConfig) });
+        }
+        return members.sort((left, right) => left.packagePath.localeCompare(right.packagePath));
+      });
+    },
   };
 
   return {
@@ -389,22 +412,29 @@ describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 
   };
   const declaration = readWorkspaceSource('../../native/types/chips-native.d.ts');
 
-  it('§6.4 表原文 15 行导出名与适配器解析域全集面常量逐项一致（面漂移即翻红）', () => {
+  it('§6.4 表原文 15 行导出名与适配器文档表镜像段逐项一致（前缀锁；文档库随动归主批，工单036 波 C3 补登名在镜像尾段）', () => {
     const section = frozenDoc.slice(frozenDoc.indexOf('### 6.4'), frozenDoc.indexOf('### 6.5'));
-    expect(parseExportTableNames(section).sort()).toEqual([...NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS].sort());
+    const documented = [...NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS, ...NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS];
+    expect(parseExportTableNames(section).sort()).toEqual([...documented].sort());
+    // 前缀锁：文档表 15 名按表序与镜像全集面前缀逐位一致（尾段 = C3 存储序列化名）。
+    expect(NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.slice(0, documented.length)).toEqual(documented);
+    expect(NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.slice(documented.length)).toEqual(['documentSerialize']);
   });
 
-  it('§12.1 表原文 14 行 = 解析域全集面去掉 buildDocumentView（两表同源互证）', () => {
+  it('§12.1 表原文 14 行 = 文档表镜像段去掉 buildDocumentView（两表同源互证）', () => {
     const section = parserDoc.slice(parserDoc.indexOf('### 12.1'), parserDoc.indexOf('### 12.2'));
-    const expected = NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.filter((name) => name !== 'buildDocumentView');
+    const documented = [...NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS, ...NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS];
+    const expected = documented.filter((name) => name !== 'buildDocumentView');
     expect(parseExportTableNames(section).sort()).toEqual([...expected].sort());
   });
 
-  it('工单034 正式化名清单与注入面声明一致（documentRevision / documentLayoutConfig）', () => {
+  it('工单034 正式化名清单与注入面声明一致（documentRevision / documentLayoutConfig）；C3 存储序列化名入闸', () => {
     expect(NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS).toEqual(['documentRevision', 'documentLayoutConfig']);
+    expect(NATIVE_DOCUMENT_PARSER_STORAGE_EXPORTS).toEqual(['documentSerialize']);
     expect(NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS.length).toBe(
       NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS.length +
         NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS.length +
+        NATIVE_DOCUMENT_PARSER_STORAGE_EXPORTS.length +
         2 /* 元信息两项 */,
     );
   });
@@ -430,7 +460,7 @@ describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 
     expect(index('documentLayoutConfig')).toBeGreaterThan(index('documentEntries'));
     expect(index('documentRevision')).toBe(index('documentLayoutConfig') + 1);
     expect(index('documentRevision')).toBeLessThan(index('documentReadResource'));
-    expect(NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.length).toBe(15);
+    expect(NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.length).toBe(16);
   });
 
   it('宿主期望解析域 ABI 与 export-surface.json 的 abiVersion 等值', () => {
@@ -443,7 +473,7 @@ describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 
  * ------------------------------------------------------------------ */
 
 describe('刀2装载闸：loadNativeDocumentParserBinding（fail-closed 四分面）', () => {
-  it('可用面：15 项消费面 + 元信息快照交付（parser-available 夹具）', () => {
+  it('可用面：16 项消费面 + 元信息快照交付（parser-available 夹具）', () => {
     const binding = loadNativeDocumentParserBinding(fixturePath('parser-available.js'));
     expect(binding.status).toBe('available');
     if (binding.status === 'available') {
@@ -471,6 +501,16 @@ describe('刀2装载闸：loadNativeDocumentParserBinding（fail-closed 四分�
     if (binding.status === 'unavailable') {
       expect(binding.reason).toBe('surface-mismatch');
       expect(binding.detail).toContain('documentRevision');
+      expect(binding.detail).not.toContain('documentLayoutConfig');
+    }
+  });
+
+  it('C3 前旧产物（仅缺 documentSerialize）：surface-mismatch 且只点名该名（工单036 波 C3 补登闸粒度锁）', () => {
+    const binding = loadNativeDocumentParserBinding(fixturePath('parser-stale-35.js'));
+    expect(binding.status).toBe('unavailable');
+    if (binding.status === 'unavailable') {
+      expect(binding.reason).toBe('surface-mismatch');
+      expect(binding.detail).toContain('documentSerialize');
       expect(binding.detail).not.toContain('documentLayoutConfig');
     }
   });
@@ -762,31 +802,80 @@ describe('刀2适配器 readPart / release / fingerprint：四臂逐导出映射
   });
 });
 
-describe('刀2适配器 serialize：刀6 裁决下的诚实失败（逐码断言）', () => {
-  it('以在册码 BRIDGE_CAPABILITY_NOT_FOUND 拒绝，details 携带端口臂与裁决出处，零原生调用', async () => {
+describe('刀2适配器 serialize：工单036 波 C3 真接（documentSerialize 载体）', () => {
+  const baseRequest = (
+    cardPath: string,
+  ): {
+    kind: 'card';
+    form: 'directory';
+    localPath: string;
+    metadata: Record<string, unknown>;
+    structure: Record<string, unknown>;
+    contents: { nodeId: string; value: { text: string } }[];
+    layoutConfig: null;
+    changedParts: readonly ['metadata', 'content'];
+    removedNodeIds: never[];
+  } => ({
+    kind: 'card' as const,
+    form: 'directory' as const,
+    localPath: cardPath,
+    metadata: cardMetadata(),
+    structure: cardStructure(),
+    contents: [{ nodeId: NODE_ID_ONE, value: { text: '序列化改写' } }],
+    layoutConfig: null,
+    changedParts: ['metadata', 'content'] as const,
+    removedNodeIds: [],
+  });
+
+  it('端口请求逐字段映射 + 保存时刻单源交付；成员按包内路径升序、字节原样透传', async () => {
     const { fake, port, cardPath } = adapterFixture();
-    const error = await rejectAsChipsError(
-      port.serialize(
-        {
-          kind: 'card',
-          form: 'directory',
-          localPath: cardPath,
-          metadata: cardMetadata(),
-          structure: cardStructure(),
-          contents: [],
-          layoutConfig: null,
-          changedParts: ['metadata'],
-          removedNodeIds: [],
-        },
-        freshSignal(),
-      ),
-    );
-    expect(error.code).toBe('BRIDGE_CAPABILITY_NOT_FOUND');
-    expect(error.retryable).toBe(false);
-    expect(error.details).toEqual({
-      port: 'IDocumentParserPort.serialize',
-      adjudication: '金链路集成七刀定案·刀6：落盘序列化权威归 W3 chips-resource 波',
+    const before = Date.now();
+    const members = await port.serialize(baseRequest(cardPath), freshSignal());
+    const after = Date.now();
+    const call = fake.calls.find((entry) => entry.fn === 'documentSerialize');
+    expect(call).toBeDefined();
+    const [nativeRequest, savedAtUnixMs] = call?.args as [Record<string, unknown>, number];
+    expect(nativeRequest).toEqual(baseRequest(cardPath));
+    // 保存时刻由适配器单源交付（Date.now() 形，取调用窗口内的非负整数毫秒）。
+    expect(savedAtUnixMs).toBeGreaterThanOrEqual(before);
+    expect(savedAtUnixMs).toBeLessThanOrEqual(after);
+    expect(Number.isInteger(savedAtUnixMs)).toBe(true);
+    // 成员面：变更集两成员（metadata + content）按路径升序，字节即 JSON 编码。
+    expect(members.map((member) => member.packagePath)).toEqual(['content/Cd1eFg2Hi3.yaml', 'meta.yaml']);
+    expect(JSON.parse(new TextDecoder().decode(members[0]?.bytes ?? new Uint8Array()))).toEqual({
+      text: '序列化改写',
     });
+    expect(JSON.parse(new TextDecoder().decode(members[1]?.bytes ?? new Uint8Array()))).toMatchObject({
+      card_id: CARD_ID,
+    });
+  });
+
+  it('backing 契约码原样透传（失败注入臂）', async () => {
+    const { fake, port, cardPath } = adapterFixture();
+    fake.options.failures.documentSerialize = bindingError('DOCUMENT_METADATA_INVALID', '元数据非法');
+    const error = await rejectAsChipsError(port.serialize(baseRequest(cardPath), freshSignal()));
+    expect(error.code).toBe('DOCUMENT_METADATA_INVALID');
+  });
+
+  it('结果形状违约归一 BRIDGE_INTERNAL（成员缺字节位 / 非数组两臂），不自造解析域码', async () => {
+    const { fake, port, cardPath } = adapterFixture();
+    fake.options.overrides.documentSerialize = { nope: true };
+    const error = await rejectAsChipsError(port.serialize(baseRequest(cardPath), freshSignal()));
+    expect(error.code).toBe('BRIDGE_INTERNAL');
+
+    const other = adapterFixture();
+    other.fake.options.overrides.documentSerialize = [{ packagePath: 'meta.yaml' }];
+    const shapeError = await rejectAsChipsError(other.port.serialize(baseRequest(other.cardPath), freshSignal()));
+    expect(shapeError.code).toBe('BRIDGE_INTERNAL');
+  });
+
+  it('取消预检：signal 已中止即 DOCUMENT_PARSE_CANCELLED，零原生调用', async () => {
+    const { fake, port, cardPath } = adapterFixture();
+    const controller = new AbortController();
+    controller.abort();
+    const error = await rejectAsChipsError(port.serialize(baseRequest(cardPath), controller.signal));
+    expect(error.code).toBe('DOCUMENT_PARSE_CANCELLED');
+    expect(error.retryable).toBe(true);
     expect(fake.calls).toEqual([]);
   });
 });
@@ -889,24 +978,28 @@ describe('刀2真实链路：document:* 服务经适配器跑通', () => {
     expect((error as DocumentCapabilityError).code).toBe('DOCUMENT_SOURCE_CHANGED');
   });
 
-  it('脏写后 executeSave：serialize 诚实失败上抛 DOCUMENT_SAVE_FAILED 且 cause 逐码在册', async () => {
-    const { harness, service } = serviceFixture();
+  it('脏写后 executeSave：serialize 真经 documentSerialize → storage.commit 落盘（工单036 波 C3 终闸）', async () => {
+    const { fake, harness, service } = serviceFixture();
     await service.executeOpen({ source: harness.cardUri }, ctxFor(SESSION_A));
     await service.executeWrite(
       { documentId: CARD_ID, part: 'metadata', value: cardMetadata('待保存') },
       ctxFor(SESSION_A),
     );
-    const error = await service
-      .executeSave({ documentId: CARD_ID }, ctxFor(SESSION_A))
-      .catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(DocumentCapabilityError);
-    const failure = error as DocumentCapabilityError;
-    expect(failure.code).toBe('DOCUMENT_SAVE_FAILED');
-    expect(failure.details?.cause).toBe('BRIDGE_CAPABILITY_NOT_FOUND');
-    expect(harness.commits).toHaveLength(0);
+    const output = await service.executeSave({ documentId: CARD_ID }, ctxFor(SESSION_A));
+    // 序列化臂触达 + 受控提交唯一落盘通道（commit 回执逐成员在账）。
+    expect(fake.calls.some((call) => call.fn === 'documentSerialize')).toBe(true);
+    expect(harness.commits).toHaveLength(1);
+    const commit = harness.commits[0];
+    expect(commit?.form).toBe('directory');
+    expect(commit?.members.some((member) => member.packagePath === 'meta.yaml')).toBe(true);
+    // 保存回执：source 即受管引用，digest 即落盘后磁盘视图的规范摘要（harness 复算同源）。
+    expect(output.source).toBe(harness.cardUri);
+    expect(output.digest).toMatch(/^sha256:/);
+    // 落盘结果可经 harness 磁盘视图回读（真实副作用，非返回值自证）。
+    expect(harness.readMember(harness.cardUri, 'meta.yaml')).toContain('待保存');
   });
 
-  it('无变更 executeSave：no-op 直接返回磁盘摘要，serialize 诚实臂不被触达', async () => {
+  it('无变更 executeSave：no-op 直接返回磁盘摘要，serialize 臂不被触达', async () => {
     const { fake, harness, service } = serviceFixture();
     await service.executeOpen({ source: harness.cardUri }, ctxFor(SESSION_A));
     const before = fake.calls.length;

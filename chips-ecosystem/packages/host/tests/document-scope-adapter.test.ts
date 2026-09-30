@@ -30,6 +30,7 @@ import type { IDocumentCapabilityContext } from '../src/capabilities/document/co
 import { DOCUMENT_PERMISSION_IDS } from '../src/capabilities/document/contract.js';
 import { NATIVE_RESOURCE_SURFACE_EXPORTS } from '../src/capabilities/document/adapters/native-resource-module.js';
 import { createDocumentScopeAdapter } from '../src/capabilities/document/adapters/scope-adapter.js';
+import { DocumentScopeLedger } from '../src/capabilities/document/adapters/scope-ledger.js';
 import type { INativeResourceModule } from '../src/capabilities/document/adapters/native-resource-module.js';
 import { DOCUMENT_SCOPE_OWNER, deriveDocumentScope } from '../src/capabilities/document/scope-derivation.js';
 import { DocumentCapabilityError } from '../src/capabilities/document/errors.js';
@@ -272,7 +273,7 @@ async function expectRejection(run: () => Promise<unknown>): Promise<DocumentCap
 describe('scope-adapter · normalizeSource 归一面', () => {
   it('目录态绝对路径 → canonical 本地位 + card- 前缀受管引用（禁裸路径直读）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('alpha.card', true);
     const resolved = await adapter.normalizeSource(target, makeContext());
     const scope = deriveDocumentScope(target, 'card');
@@ -286,7 +287,7 @@ describe('scope-adapter · normalizeSource 归一面', () => {
 
   it('归档态 file:// URL → archive 形态与 box- 前缀', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('beta.box', false);
     const resolved = await adapter.normalizeSource(new URL(`file://${target}`).href, makeContext());
     expect(resolved.form).toBe('archive');
@@ -296,7 +297,7 @@ describe('scope-adapter · normalizeSource 归一面', () => {
 
   it('受管引用回查在册账：与本地来源归一结果同形；未在册受管引用 RESOURCE_NOT_FOUND', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('gamma.card', true);
     const first = await adapter.normalizeSource(target, makeContext());
     const second = await adapter.normalizeSource(first.managedUri, makeContext());
@@ -309,7 +310,7 @@ describe('scope-adapter · normalizeSource 归一面', () => {
 
   it('拒收臂逐项点名：相对路径 INVALID_URI / 远端 UNSUPPORTED_SCHEME / 非包名 NOT_SUPPORTED / 缺失 NOT_FOUND', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     expect((await expectRejection(() => adapter.normalizeSource('relative/x.card', makeContext()))).code).toBe(
       'RESOURCE_INVALID_URI',
     );
@@ -331,7 +332,7 @@ describe('scope-adapter · normalizeSource 归一面', () => {
 describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () => {
   it('目录态：真 openSession 返回值为会话源，mountDirectory 携 OWNER 与 writable=true', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('mount-dir.card', true);
     const scope = deriveDocumentScope(target, 'card');
     const managedUri = `chips-resource://${scope}/mount-dir.card`;
@@ -351,7 +352,7 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
 
   it('归档态：mountArchive 只读形（无 writable 参数位）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('mount-arch.box', false);
     const scope = deriveDocumentScope(target, 'box');
     await adapter.normalizeSource(target, makeContext());
@@ -371,7 +372,7 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
 
   it('无归一前置的注册拒绝 RESOURCE_INVALID_URI（禁跳册直挂）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const error = await expectRejection(() =>
       adapter.registerScope({
         documentId: 'doc-x',
@@ -385,7 +386,7 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
 
   it('幂等复用（窄形）：同 managedUri 重复注册零新调用；documentId/kind 不符转真冲突', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('idem.card', true);
     const scope = deriveDocumentScope(target, 'card');
     const managedUri = `chips-resource://${scope}/idem.card`;
@@ -404,7 +405,7 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
   it('外部在册冲突（窄形 M0）：ALREADY_EXISTS → 关会话收口，绝不调用 unregister 抢占（INV-5）', async () => {
     const fake = createFakeNative();
     fake.mountDirectoryImpl = () => Promise.reject(nativeFailure('RESOURCE_ALREADY_EXISTS'));
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('stale.card', true);
     const scope = deriveDocumentScope(target, 'card');
     await adapter.normalizeSource(target, makeContext());
@@ -433,7 +434,7 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
   it('挂载回显 scope 与派生值不符 = 构造性漂移：fail-closed RESOURCE_INTERNAL 并关会话', async () => {
     const fake = createFakeNative();
     fake.mountDirectoryImpl = () => Promise.resolve('card-ffffffffffffffffffffffffffffffffffffffff');
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('drift.card', true);
     const scope = deriveDocumentScope(target, 'card');
     await adapter.normalizeSource(target, makeContext());
@@ -446,7 +447,7 @@ describe('scope-adapter · registerScope 挂载臂（INV-1/参数逐字）', () 
 
   it('并发双注册串行化：同键两次 register 仅一次挂载，两次均放行', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('race.card', true);
     const scope = deriveDocumentScope(target, 'card');
     const managedUri = `chips-resource://${scope}/race.card`;
@@ -475,7 +476,7 @@ describe('scope-adapter · unregisterScope 两拍与第 6 阶段判定式（INV-
 
   it('两拍次序：① unregister(scope, session) → ② closeSession(session)，随后销账', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('two-beat.card', true);
     const managedUri = await mounted(adapter, target, 'card');
     const scope = managedUri.slice('chips-resource://'.length).split('/')[0];
@@ -492,7 +493,7 @@ describe('scope-adapter · unregisterScope 两拍与第 6 阶段判定式（INV-
 
   it('NOT_FOUND 已达臂：作用域已被别处注销仍走拍②收口会话，整体放行', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('notfound.card', true);
     const managedUri = await mounted(adapter, target, 'card');
     fake.unregisterImpl = () => Promise.reject(nativeFailure('RESOURCE_NOT_FOUND'));
@@ -506,6 +507,7 @@ describe('scope-adapter · unregisterScope 两拍与第 6 阶段判定式（INV-
     const logs: { level: string; message: string; details?: Readonly<Record<string, unknown>> }[] = [];
     const adapter = createDocumentScopeAdapter({
       native: fake.module,
+      ledger: new DocumentScopeLedger(),
       diagnostics: {
         warn: () => undefined,
         error: (_scope, message, details) => {
@@ -529,7 +531,7 @@ describe('scope-adapter · unregisterScope 两拍与第 6 阶段判定式（INV-
 
   it('未在册注销 = 已达口径静默收口（零原生调用）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     await adapter.unregisterScope({
       documentId: 'doc-none',
       managedUri: 'chips-resource://card-1111111111111111111111111111111111111111/y.card',
@@ -554,7 +556,7 @@ describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 �
 
   it('全链路时序逐字：open → grant（紧邻同拍、先于挂载分叉）→ mount → 拍① → 拍②', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('t4-sequence.card', true);
     const { managedUri, scope } = await grantMounted(adapter, target, 'card');
     fake.calls.length = 0;
@@ -570,7 +572,7 @@ describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 �
 
   it('挂载段基线对照：grant 拍落位后 open/grant/mount 三拍逐字、释放臂零 grant 痕迹', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('t4-full.card', true);
     const scope = deriveDocumentScope(target, 'card');
     const managedUri = `chips-resource://${scope}/t4-full.card`;
@@ -601,7 +603,7 @@ describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 �
 
   it('grant 零触 scope 登记面：作用域账（origins/scopeOwners）随 grant 重放逐字不变（detach 触达面零变化）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('t4-scopes.card', true);
     const { managedUri } = await grantMounted(adapter, target, 'card');
     const originsBefore = [...fake.origins.entries()];
@@ -626,7 +628,7 @@ describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 �
       'resourceUnregisterScope',
     ]);
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     // 适配器出口面恰五成员（grant 消费拍不增出口：授权注入收敛于 registerScope 流程内部）。
     expect(Object.keys(adapter).sort()).toEqual([
       'localPathOf',
@@ -652,7 +654,7 @@ describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 �
       fake.grantSessionImpl = () => {
         throw nativeFailure(deniedCode);
       };
-      const adapter = createDocumentScopeAdapter({ native: fake.module });
+      const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
       const target = makeFixture(`fallback-${deniedCode}.card`, true);
       const scope = deriveDocumentScope(target, 'card');
       const managedUri = `chips-resource://${scope}/fallback-${deniedCode}.card`;
@@ -685,7 +687,7 @@ describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 �
 
   it('无条件 grant（T8 宿主半）：目录态与归档态注入拍逐字等，权限面与挂载 policy 面正交', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const dirTarget = makeFixture('t8-dir.card', true);
     const boxTarget = makeFixture('t8-arch.box', false);
     await grantMounted(adapter, dirTarget, 'card');
@@ -752,7 +754,7 @@ describe('scope-adapter · 权限字面量单源与跨语言等值锁（工单05
 describe('scope-adapter · JS 面死锁端到端锁测（工单036 波 A2b-β，钉死 INV-2 次序的不可恢复反例）', () => {
   it('会话先死而 scope 在册：重挂 ALREADY_EXISTS 真冲突收口，且无任何 JS 面恢复手段 ⇒ 两拍次序是唯一防线', async () => {
     const fake = createFakeNative();
-    const adapterA = createDocumentScopeAdapter({ native: fake.module });
+    const adapterA = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('deadlock.card', true);
     const scope = deriveDocumentScope(target, 'card');
     const managedUri = `chips-resource://${scope}/deadlock.card`;
@@ -764,7 +766,7 @@ describe('scope-adapter · JS 面死锁端到端锁测（工单036 波 A2b-β，
     fake.module.resourceCloseSession(4100);
     // 步 3：新账本重挂（模拟进程重启后适配器在册账丢失）→ 忠实台账报 ALREADY_EXISTS，
     // 适配器按 INV-5 真冲突收口：只关自己新开的事务会话，绝不 unregister 抢占他人在册 scope。
-    const adapterB = createDocumentScopeAdapter({ native: fake.module });
+    const adapterB = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     await adapterB.normalizeSource(target, makeContext());
     fake.calls.length = 0;
     const conflict = await expectRejection(() =>
@@ -840,7 +842,7 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
 
   it('正向取回：恰一次触原生换算口，入参为作用域基址形 + 活会话，返回值以原生 Origin 为准（账本路径不外泄）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('p3-forward.card', true);
     const { managedUri, scope } = await liveMount(adapter, target, 'card');
     fake.localPathOfImpl = () => Promise.resolve('/native/single-source/relocated.card');
@@ -852,7 +854,7 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
 
   it('正向取回零缓存：同键两次现取两次触原生（记录面与适配器面都不留长期路径）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('p3-twice.card', true);
     const { managedUri } = await liveMount(adapter, target, 'card');
     fake.calls.length = 0;
@@ -863,7 +865,7 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
 
   it('正向取回未在册受管引用 ⇒ RESOURCE_NOT_FOUND，零原生调用（不猜路径）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     fake.calls.length = 0;
     const error = await expectRejection(() =>
       adapter.localPathOf('chips-resource://card-2222222222222222222222222222222222222222/ghost.card', 4100),
@@ -874,7 +876,7 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
 
   it('正向取回会话未绑定 ⇒ 原生 RESOURCE_PERMISSION_DENIED 原样透传（不吞、不降级为账本值）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('p3-unbound.card', true);
     const { managedUri } = await liveMount(adapter, target, 'card');
     const error = await expectRejection(() => adapter.localPathOf(managedUri, 9999));
@@ -883,7 +885,7 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
 
   it('注册表基址：scopeRootOf 以在册账的 scope 合形；未在册 ⇒ null（调用方零切片派生）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('p3-root.box', false);
     const { managedUri, scope } = await liveMount(adapter, target, 'box');
     expect(adapter.scopeRootOf(managedUri)).toBe(`chips-resource://${scope}/`);
@@ -893,7 +895,7 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
 
   it('命中已有挂载的再归一：走反向直读核验（活会话 + canonical 路径入参），归一结果与首归一同形', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('p3-reverse.card', true);
     const { managedUri, scope } = await liveMount(adapter, target, 'card');
     const first = await adapter.normalizeSource(target, makeContext());
@@ -908,7 +910,11 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
   it('反向未命中（null）⇒ fail-closed RESOURCE_NOT_FOUND + 审计留痕，跨层错误不回显真实路径（不泄露存在性）', async () => {
     const fake = createFakeNative();
     const capture = createDiagnosticCapture();
-    const adapter = createDocumentScopeAdapter({ native: fake.module, diagnostics: capture.diagnostics });
+    const adapter = createDocumentScopeAdapter({
+      native: fake.module,
+      ledger: new DocumentScopeLedger(),
+      diagnostics: capture.diagnostics,
+    });
     const target = makeFixture('p3-miss.card', true);
     const { managedUri } = await liveMount(adapter, target, 'card');
     fake.managedUriOfPathImpl = () => Promise.resolve(null);
@@ -923,7 +929,11 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
   it('反向命中他作用域 ⇒ 同判账本漂移 fail-closed，审计点名「他作用域」（禁抢占、禁回退账本供路径）', async () => {
     const fake = createFakeNative();
     const capture = createDiagnosticCapture();
-    const adapter = createDocumentScopeAdapter({ native: fake.module, diagnostics: capture.diagnostics });
+    const adapter = createDocumentScopeAdapter({
+      native: fake.module,
+      ledger: new DocumentScopeLedger(),
+      diagnostics: capture.diagnostics,
+    });
     const target = makeFixture('p3-other.card', true);
     const { managedUri } = await liveMount(adapter, target, 'card');
     fake.managedUriOfPathImpl = () =>
@@ -936,7 +946,7 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
 
   it('未挂载账目的再归一零反查（挂载前核心侧无登记面，反查必未命中 ⇒ 不触原生）', async () => {
     const fake = createFakeNative();
-    const adapter = createDocumentScopeAdapter({ native: fake.module });
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
     const target = makeFixture('p3-premount.card', true);
     const first = await adapter.normalizeSource(target, makeContext());
     fake.calls.length = 0;

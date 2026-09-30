@@ -99,6 +99,13 @@
         "forbiddenModules": ["electron"]
       },
       {
+        "id": "plugins-apps",
+        "match": "plugins/apps/*",
+        "allowedInternal": ["@chips/ui", "@chips/sdk", "@chips/plugin-book", "@chips/plugin-music"],
+        "forbiddenModules": ["electron", "chips-native", "chips-native.node"],
+        "forbidNodeBuiltins": true
+      },
+      {
         "id": "plugins",
         "match": "plugins/*/*",
         "allowedInternal": ["@chips/ui", "@chips/sdk"],

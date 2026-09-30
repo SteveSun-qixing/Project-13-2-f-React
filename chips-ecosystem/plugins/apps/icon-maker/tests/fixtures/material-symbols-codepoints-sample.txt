@@ -1,0 +1,43 @@
+10k e951
+10mp e952
+11mp e953
+123 eb8d
+12mp e954
+13mp e955
+14mp e956
+15mp e957
+16mp e958
+17mp e959
+18_up_rating f8fd
+18mp e95a
+19mp e95b
+1k e95c
+1k_plus e95d
+1x_mobiledata efcd
+1x_mobiledata_badge f7f1
+20mp e95e
+21mp e95f
+22mp e960
+23mp e961
+24fps_select f3f2
+24mp e962
+2d ef37
+2k e963
+2k_plus e964
+2mp e965
+30fps efce
+30fps_select efcf
+360 e577
+3d ed38
+3d_rotation e84d
+3g_mobiledata efd0
+3g_mobiledata_badge f7f0
+3k e966
+3k_plus e967
+
+favorite e87e
+home e9b2
+search e8b6
+settings e8b8
+not-a-codepoint-line
+

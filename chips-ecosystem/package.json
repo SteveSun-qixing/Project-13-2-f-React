@@ -60,7 +60,8 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "antd@6.6.4": "packages/antd/patches/antd@6.6.4.patch"
+      "antd@6.6.4": "packages/antd/patches/antd@6.6.4.patch",
+      "@rc-component/util@1.13.0": "packages/antd/patches/@rc-component__util@1.13.0.patch"
     }
   }
 }

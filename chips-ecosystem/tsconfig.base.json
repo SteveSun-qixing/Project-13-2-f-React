@@ -36,6 +36,14 @@
       "@chips/host": ["./packages/host/dist/types/index", "./packages/host/src/index"],
       "@chips/native": ["./packages/native/types/chips-native"],
       "@chips/scaffold": ["./tools/scaffold/dist/index", "./tools/scaffold/src/index"],
+      "@chips/plugin-book": [
+        "./plugins/basecards/book/src/index",
+        "./plugins/basecards/book/dist/index"
+      ],
+      "@chips/plugin-music": [
+        "./plugins/basecards/music/src/index",
+        "./plugins/basecards/music/dist/index"
+      ],
       "@chips/contract-gen": ["./tools/contract-gen/dist/index", "./tools/contract-gen/src/index"],
       "@chips/testing/vitest": ["./tools/testing/src/vitest"],
       "@chips/testing/thresholds": ["./tools/testing/src/thresholds"],

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { chips } from '@chips/sdk';
 import { useCommandRuntime } from '@chips/ui';
 import {
@@ -45,17 +45,20 @@ export interface UseAppCommandsResult {
  * 1. 挂载时逐条 `chips.request('command:register', { definition })` 注册携带
  *    `handlerId` 的命令记录（权限 `command:write`，见 manifest permissions）；
  * 2. 用 `@chips/ui` 命令运行时的 `attach` 绑定本地处理器；运行时订阅
- *    `command:invoked`，按 `(commandId, handlerId)` 配对执行；
+ *    `command:invoked`，按 `(commandId, handlerId)` 配对执行，业务效应经
+ *    `onInvoked` 回调交给查看会话（刷新视图 / 打开资源）；
  * 3. 卸载时撤销订阅并注销命令记录（`command:unregister` 幂等）。
  *
  * `command:*` 能力的生产派发随宿主能力面逐能力派单；Bridge 不可用或能力未就绪时，
  * 注册失败收敛为 `phase: 'error'` 与错误码，界面不抛错。
  */
-export function useAppCommands(): UseAppCommandsResult {
+export function useAppCommands(onInvoked?: (status: AppCommandStatus) => void): UseAppCommandsResult {
   const runtime = useCommandRuntime();
   const [phase, setPhase] = useState<CommandRegistryPhase>('registering');
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [lastInvoked, setLastInvoked] = useState<AppCommandStatus | null>(null);
+  const onInvokedRef = useRef(onInvoked);
+  onInvokedRef.current = onInvoked;
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +73,12 @@ export function useAppCommands(): UseAppCommandsResult {
         if (cancelled) {
           return;
         }
-        detach = runtime.attach(createAppCommandHandlers(setLastInvoked));
+        detach = runtime.attach(
+          createAppCommandHandlers((status: AppCommandStatus): void => {
+            setLastInvoked(status);
+            onInvokedRef.current?.(status);
+          }),
+        );
         setPhase('ready');
       } catch (error: unknown) {
         if (!cancelled) {

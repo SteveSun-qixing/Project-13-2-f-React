@@ -11,21 +11,23 @@ runtime:
 permissions:
   - command:write
   - command:execute
+  - filesystem:read:${userHome}
+  - filesystem:write:${userHome}
 ui:
   surface: window
   launcher:
-    icon: assets/icons/app.svg
+    icon: assets/icons/app-icon.svg
     name: 图标工坊
 cli:
   commands:
     - commandPath:
         - iconmaker
-        - open-card
-      commandId: iconmaker:open-card
-      title: 打开卡片
-      description: 通过「图标工坊」打开指定卡片文件
+        - generate
+      commandId: iconmaker:generate
+      title: 生成图标
+      description: 从输入图片生成 PNG、ICO 与 ICNS 图标包
       examples:
-        - chips iconmaker open-card ~/文档/示例.cpk
+        - chips iconmaker generate ~/图片/示例.png
       target:
         type: app
         pluginId: chips.official.iconmaker
@@ -34,24 +36,15 @@ cli:
           focus: true
           reuse: preferred
       arguments:
-        - name: path
+        - name: source
           position: 0
           type: path
           required: true
-          mapsTo: path
+          mapsTo: source
           path:
             kind: file
             role: input
             exists: true
-    - commandPath:
-        - iconmaker
-        - refresh-view
-      commandId: iconmaker:refresh-view
-      title: 刷新当前视图
-      description: 请求「图标工坊」重新拉取当前展示数据
-      target:
-        type: app
-        pluginId: chips.official.iconmaker
       output:
         mode: json
         json: supported

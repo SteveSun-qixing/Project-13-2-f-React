@@ -94,6 +94,25 @@ pub fn safe_u64_number(value: u64, pointer: &str) -> Result<f64, ConvertIssue> {
     }
 }
 
+/// Unix 毫秒数值（JS `Date.now()` 形）→ `SystemTime`：非有限值、负值、非整数与
+/// 超 `u64` 毫秒上界一律 `NATIVE_VALUE_OUT_OF_RANGE`（工单036 波 C3，序列化保存
+/// 时刻与归档整包换代时间戳的跨边界唯一换算点；float → int 转换为饱和语义，
+/// 超上界饱和后由 `try_from` 拒绝）。
+pub(crate) fn system_time_from_unix_millis(raw: f64, pointer: &str) -> Result<std::time::SystemTime, ConvertIssue> {
+    if !raw.is_finite() || raw < 0.0 || raw.fract() != 0.0 {
+        return Err(ConvertIssue::ValueOutOfRange {
+            pointer: pointer.to_owned(),
+            detail: "时间戳必须是非负整数毫秒值（Date.now() 形）",
+        });
+    }
+    u64::try_from(raw as u128)
+        .map(|millis| std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(millis))
+        .map_err(|_| ConvertIssue::ValueOutOfRange {
+            pointer: pointer.to_owned(),
+            detail: "时间戳超出 u64 毫秒可表达范围",
+        })
+}
+
 /// UTF-16 序列转 Rust 字符串；存在孤立代理对时返回 `None`。
 #[must_use]
 pub fn utf16_to_string(units: &[u16]) -> Option<String> {

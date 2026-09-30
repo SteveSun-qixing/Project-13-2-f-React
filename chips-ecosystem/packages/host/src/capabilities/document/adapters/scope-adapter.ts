@@ -82,6 +82,7 @@ import {
 } from '../scope-derivation.js';
 import type { IDocumentScopePort, IDocumentScopeRegistration, IResolvedDocumentSource } from '../ports.js';
 import type { INativeResourceModule } from './native-resource-module.js';
+import { DocumentScopeLedger, type IScopeLedgerEntry } from './scope-ledger.js';
 
 /** 会话种类判别字面量（绑定层 `parse_session_kind` 三值之一，document 域挂载用）。 */
 const DOCUMENT_SESSION_KIND = 'document';
@@ -116,21 +117,18 @@ function managedUriOfScopeRoot(scope: string): string {
   return `${MANAGED_URI_PREFIX}${scope}/`;
 }
 
-/** 单条在册账：normalizeSource 建立、registerScope 转正、unregisterScope 移除。 */
-interface IScopeLedgerEntry {
-  readonly managedUri: string;
-  readonly scope: string;
-  readonly kind: DocumentKind;
-  readonly form: DocumentForm;
-  readonly canonicalPath: string;
-  /** 活绑定（本适配器挂载成功且会话未收口）；`null` = 仅归一在册、未挂载。 */
-  mounted: { readonly nativeSession: number; readonly documentId: string } | null;
-}
+/** 单条在册账形状改由域内单源承载（`scope-ledger.ts`，波 C3 storage 适配器共用）。 */
+export type { IScopeLedgerEntry } from './scope-ledger.js';
 
 /** 适配器依赖。 */
 export interface IDocumentScopeAdapterDeps {
   /** §11.3 资源域类型化消费面（组合根经 `loadNativeResourceBinding` 交付）。 */
   readonly native: INativeResourceModule;
+  /**
+   * 文档域作用域在册账（波 C3 升格为域内单源：storage 适配器在同一账上解析
+   * 提交目标的「作用域 + 原生会话」事实，禁第二套簿记）。
+   */
+  readonly ledger: DocumentScopeLedger;
   /** 宿主诊断口（「疑似孤儿」审计与注销异常留痕）。 */
   readonly diagnostics?: DiagnosticsSink;
 }
@@ -187,34 +185,17 @@ function codeOf(error: unknown): string | null {
 /**
  * 构造 `IDocumentScopePort` 正式适配器。
  *
- * 簿记模型：`managedUri → 在册账`（normalize 建立 / register 转正 / unregister 移除），
- * 同一 key 的 register/unregister 经 promise 链串行化，杜绝并发双挂载竞态。
+ * 簿记模型：在册账由 {@link DocumentScopeLedger} 单源承载（本适配器写、storage
+ * 适配器读），同键（受管引用）的挂载/注销/换算与存储面提交/列举经同一队列串行化，
+ * 杜绝并发双挂载竞态与「提交越过在途注销」。
  */
 export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDocumentScopePort {
-  const { native, diagnostics } = deps;
-  /** 在册账（scope 生命周期与文档记录同驻，注销即删；应用退出全量收口归 β 接线臂）。 */
-  const ledger = new Map<string, IScopeLedgerEntry>();
-  /** 串行队列：key = managedUri，register/unregister 共用，保证两拍与挂载互斥。 */
-  const queues = new Map<string, Promise<unknown>>();
-
-  function enqueue<T>(key: string, task: () => T | Promise<T>): Promise<T> {
-    const previous = queues.get(key) ?? Promise.resolve();
-    const next = previous.then(task, task);
-    // 后继任务挂在「吞拒绝」的尾上排队：任一任务失败不阻塞同键后续；本调用自身 rejection 由 next 呈现。
-    const tail = next.catch(() => undefined);
-    queues.set(key, tail);
-    void tail.then(() => {
-      if (queues.get(key) === tail) {
-        queues.delete(key);
-      }
-    });
-    return next;
-  }
+  const { native, ledger, diagnostics } = deps;
 
   /** 释放臂兜底：仅归一在册（未挂载）即直接销账；已挂载账目保留给 unregisterScope。 */
   function forgetUnmounted(entry: IScopeLedgerEntry): void {
-    if (entry.mounted === null && ledger.get(entry.managedUri) === entry) {
-      ledger.delete(entry.managedUri);
+    if (entry.mounted === null && ledger.lookup(entry.managedUri) === entry) {
+      ledger.forget(entry.managedUri);
     }
   }
 
@@ -268,14 +249,14 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
 
   function normalizeSource(source: string, ctx: IDocumentCapabilityContext): Promise<IResolvedDocumentSource> {
     void ctx;
-    return enqueue(`normalize:${source}`, async (): Promise<IResolvedDocumentSource> => {
+    return ledger.enqueue(`normalize:${source}`, async (): Promise<IResolvedDocumentSource> => {
       if (typeof source !== 'string' || source.length === 0) {
         throw new DocumentCapabilityError('RESOURCE_INVALID_URI', { message: '文档来源不能为空' });
       }
       if (source.startsWith(MANAGED_URI_PREFIX)) {
         // 受管引用回查：仅受理本适配器在册的键（会话键与受管引用同源）；
         // 远端物化/他域作用域直读通道未开（本波拒收，不猜内容）。
-        const entry = ledger.get(source);
+        const entry = ledger.lookup(source);
         if (entry === undefined) {
           throw new DocumentCapabilityError('RESOURCE_NOT_FOUND', {
             message: '受管引用未在本作用域适配器在册（文档须先经本地来源打开）',
@@ -311,14 +292,14 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
       }
       const scope = deriveDocumentScopeFromCanonical(canonicalPath, kind);
       const managedUri = `${MANAGED_URI_PREFIX}${scope}/${encodeURIComponent(basename(canonicalPath))}`;
-      const existing = ledger.get(managedUri);
+      const existing = ledger.lookup(managedUri);
       if (existing !== undefined) {
         // 同物理根再归一：账目在位即复用（活绑定由 registerScope 幂等臂放行）；
         // 已挂载者先经反向直读核验（点位三消费分叉的「命中反查复用」臂）。
         await assertLiveMountResolvable(existing);
         return { managedUri, localPath: existing.canonicalPath, form: existing.form };
       }
-      ledger.set(managedUri, { managedUri, scope, kind, form, canonicalPath, mounted: null });
+      ledger.upsert({ managedUri, scope, kind, form, canonicalPath, mounted: null });
       return { managedUri, localPath: canonicalPath, form };
     });
   }
@@ -331,7 +312,7 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
    * `resolve_within_root(root, virtual_path)`），故键与换算形在此显式分离。
    */
   async function doLocalPathOf(managedUri: string, nativeSession: number): Promise<string> {
-    const entry = ledger.get(managedUri);
+    const entry = ledger.lookup(managedUri);
     if (entry === undefined) {
       throw new DocumentCapabilityError('RESOURCE_NOT_FOUND', {
         message: '受管引用未在本作用域适配器在册（无登记作用域可供换算）',
@@ -350,7 +331,7 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
     readonly managedUri: string;
     readonly kind: DocumentKind;
   }): Promise<IDocumentScopeRegistration> {
-    const entry = ledger.get(input.managedUri);
+    const entry = ledger.lookup(input.managedUri);
     if (entry === undefined) {
       throw new DocumentCapabilityError('RESOURCE_INVALID_URI', {
         message: '作用域注册缺少归一前置（managedUri 未经 normalizeSource 归一）',
@@ -429,7 +410,7 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
   }
 
   async function doUnregisterScope(input: { readonly documentId: string; readonly managedUri: string }): Promise<void> {
-    const entry = ledger.get(input.managedUri);
+    const entry = ledger.lookup(input.managedUri);
     if (entry === undefined) {
       // 未在册 = 本适配器从未建立该作用域（重复注销/未挂载文档）：按第 6 阶段 NOT_FOUND
       // 已达口径收口，禁造第二注销通道。
@@ -462,8 +443,8 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
     }
     // 拍②：释放原生会话（两拍次序即 INV-2；永不在注销之前关闭）。
     native.resourceCloseSession(nativeSession);
-    if (ledger.get(entry.managedUri) === entry) {
-      ledger.delete(entry.managedUri);
+    if (ledger.lookup(entry.managedUri) === entry) {
+      ledger.forget(entry.managedUri);
     }
   }
 
@@ -474,17 +455,17 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
       readonly managedUri: string;
       readonly kind: DocumentKind;
     }): Promise<IDocumentScopeRegistration> {
-      return enqueue(`scope:${input.managedUri}`, () => doRegisterScope(input));
+      return ledger.enqueue(input.managedUri, () => doRegisterScope(input));
     },
     unregisterScope(input: { readonly documentId: string; readonly managedUri: string }): Promise<void> {
-      return enqueue(`scope:${input.managedUri}`, () => doUnregisterScope(input));
+      return ledger.enqueue(input.managedUri, () => doUnregisterScope(input));
     },
     localPathOf(managedUri: string, nativeSession: number): Promise<string> {
       // 与挂载/注销同键串行：换算不得越过在途挂载（未登记的作用域在核心侧必判未命中）。
-      return enqueue(`scope:${managedUri}`, () => doLocalPathOf(managedUri, nativeSession));
+      return ledger.enqueue(managedUri, () => doLocalPathOf(managedUri, nativeSession));
     },
     scopeRootOf(managedUri: string): string | null {
-      const entry = ledger.get(managedUri);
+      const entry = ledger.lookup(managedUri);
       return entry === undefined ? null : managedUriOfScopeRoot(entry.scope);
     },
   };

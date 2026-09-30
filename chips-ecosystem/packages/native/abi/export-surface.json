@@ -172,6 +172,11 @@
       "signature": "(handle: DocumentHandle) => Promise<void>"
     },
     {
+      "name": "documentSerialize",
+      "kind": "async",
+      "signature": "(request: INativeDocumentSerializeRequest, savedAtUnixMs: number) => Promise<INativeSerializedMember[]>"
+    },
+    {
       "name": "resourceOpen",
       "kind": "async",
       "signature": "(uri: string, sessionId: number) => Promise<IResourceOpenResult>"
@@ -275,6 +280,16 @@
       "name": "resourceGrantSession",
       "kind": "sync",
       "signature": "(sessionId: number, permissions: readonly string[]) => void"
+    },
+    {
+      "name": "resourceCommitChangeset",
+      "kind": "async",
+      "signature": "(sessionId: number, scope: string, members: readonly { path: string; bytes: Uint8Array }[], removals: readonly string[]) => Promise<IResourceMetadata[]>"
+    },
+    {
+      "name": "resourceRebuildArchive",
+      "kind": "async",
+      "signature": "(sessionId: number, scope: string, members: readonly { path: string; bytes: Uint8Array }[], removals: readonly string[], savedAtUnixMs: number) => Promise<IResourceArchiveRebuildReceipt>"
     },
     {
       "name": "auditBindDecisionSink",

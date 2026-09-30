@@ -9,6 +9,8 @@ runtime:
   background: false
 permissions:
   - resources:read
+  - dialogs:use
+  - filesystem:write:${userHome}
   - command:write
   - command:execute
 ui:

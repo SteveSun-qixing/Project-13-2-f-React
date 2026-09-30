@@ -1,7 +1,7 @@
 'use strict';
 /**
- * §11.3 资源域装载闸表面变体夹具工厂（仅测试使用）：元信息两项 + 资源域 21 导出的
- * 可参数化盘形——`omit` 指名缺位导出（模拟旧构建产物面漂移）、`throwOnVersionCall`
+ * §11.3 资源域装载闸表面变体夹具工厂（仅测试使用）：元信息两项 + 资源域 21 导出 +
+ * 工单036 波 C3 提交链两名的可参数化盘形——`omit` 指名缺位导出（模拟旧构建产物面漂移）、`throwOnVersionCall`
  * 模拟元信息调用抛错、两个返回值注入面模拟 ABI / 版本非法。
  *
  * 判据分支各落一份薄文件共用本工厂（`variant-factory.js` 同法）；夹具不承载资源语义
@@ -15,7 +15,7 @@
  * }} options
  */
 
-/** §11.3 二十一导出名（表行序）；与 `native-resource-module.ts` 镜像常量的一致性由锁测单点锁定。 */
+/** 资源域导出名（§11.3 表 21 行序 + 波 C3 域尾两名）；与 `native-resource-module.ts` 镜像常量的一致性由锁测单点锁定。 */
 const RESOURCE_NAMES = [
   'resourceOpen',
   'resourceStat',
@@ -38,6 +38,8 @@ const RESOURCE_NAMES = [
   'resourceLocalPathOf',
   'resourceManagedUriOfPath',
   'resourceGrantSession',
+  'resourceCommitChangeset',
+  'resourceRebuildArchive',
 ];
 
 module.exports = function makeResourceBindingVariant(options) {

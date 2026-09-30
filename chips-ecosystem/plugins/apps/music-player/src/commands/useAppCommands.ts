@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { chips } from '@chips/sdk';
 import { useCommandRuntime } from '@chips/ui';
 import {
   APP_COMMAND_IDS,
   appCommandDefinitions,
   createAppCommandHandlers,
+  type AppCommandActionMap,
   type AppCommandStatus,
 } from './appCommands';
 
@@ -48,14 +49,19 @@ export interface UseAppCommandsResult {
  *    `command:invoked`，按 `(commandId, handlerId)` 配对执行；
  * 3. 卸载时撤销订阅并注销命令记录（`command:unregister` 幂等）。
  *
- * `command:*` 能力的生产派发随宿主能力面逐能力派单；Bridge 不可用或能力未就绪时，
- * 注册失败收敛为 `phase: 'error'` 与错误码，界面不抛错。
+ * `actions` 携带播放控制/队列命令的业务动作（界面层以控制器与队列 hook 装配）；
+ * `command:*` 能力的生产派发随宿主能力面逐能力派单，Bridge 不可用或能力未就绪时，
+ * 注册失败收敛为 `phase: 'error'` 与错误码，界面不抛错（播放控制由界面与键位直接承载）。
  */
-export function useAppCommands(): UseAppCommandsResult {
+export function useAppCommands(actions?: AppCommandActionMap): UseAppCommandsResult {
   const runtime = useCommandRuntime();
   const [phase, setPhase] = useState<CommandRegistryPhase>('registering');
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [lastInvoked, setLastInvoked] = useState<AppCommandStatus | null>(null);
+
+  // 动作表经 ref 现取：控制器对象按渲染换代，注册 effect 不随动作表身份重跑（幂等装配一次）。
+  const actionsRef = useRef<AppCommandActionMap>(actions ?? {});
+  actionsRef.current = actions ?? {};
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +76,7 @@ export function useAppCommands(): UseAppCommandsResult {
         if (cancelled) {
           return;
         }
-        detach = runtime.attach(createAppCommandHandlers(setLastInvoked));
+        detach = runtime.attach(createAppCommandHandlers(() => actionsRef.current, setLastInvoked));
         setPhase('ready');
       } catch (error: unknown) {
         if (!cancelled) {

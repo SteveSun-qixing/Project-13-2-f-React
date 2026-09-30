@@ -80,18 +80,29 @@ export const NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS = [
 export const NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS = ['documentRevision', 'documentLayoutConfig'] as const;
 
 /**
- * 装载闸要求的解析域导出名集合（13 冻结 + 2 正式化，共 15 项）。
+ * 工单036 波 C3 存储序列化名（1 项）：RFC 点位四 D3「序列化载体」导出名。
+ * backing = `chips-parser::serialize::serialize_document`（波 C1 纯函数），保存时刻由
+ * 调用方单源交付（`savedAtUnixMs`）。文档表（§6.4 15 行 / §12.1 14 行）为冻结原文
+ * 且文档库随动归主批，本名以「镜像尾段」形态补登：装载闸 fail-closed 全集面含本名
+ * （旧 15+2 名产物在此判 `surface-mismatch`，杜绝静默降级），文档表原文锁对既有
+ * 15 名维持**前缀锁**（恰等锁候主批落文后机械复原）。
+ */
+export const NATIVE_DOCUMENT_PARSER_STORAGE_EXPORTS = ['documentSerialize'] as const;
+
+/**
+ * 装载闸要求的解析域导出名集合（13 冻结 + 2 正式化 + 1 存储序列化，共 16 项）。
  * 元信息两项（`coreVersion` / `coreAbiVersion`）另见 {@link NATIVE_DOCUMENT_PARSER_REQUIRED_META_EXPORTS}。
  */
 export const NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS = [
   ...NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS,
   ...NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS,
+  ...NATIVE_DOCUMENT_PARSER_STORAGE_EXPORTS,
 ] as const;
 
 /** 装载闸要求的元信息导出名（§8.6 元信息域两项，与 native-bridge 装载闸同判据）。 */
 export const NATIVE_DOCUMENT_PARSER_REQUIRED_META_EXPORTS = ['coreVersion', 'coreAbiVersion'] as const;
 
-/** 装载闸必备导出全集（元信息 2 + 解析域 15）；缺任一即 `surface-mismatch`。 */
+/** 装载闸必备导出全集（元信息 2 + 解析域 16）；缺任一即 `surface-mismatch`。 */
 export const NATIVE_DOCUMENT_PARSER_REQUIRED_EXPORTS = [
   ...NATIVE_DOCUMENT_PARSER_REQUIRED_META_EXPORTS,
   ...NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS,
@@ -189,6 +200,29 @@ export interface INativeValidationReport {
 /** 文档视图（§6.6 `DocumentView = CardRenderView | BoxRenderView` 的壳侧不透明投影；渲染路由 Rust 侧构建器消费）。 */
 export type INativeDocumentView = Record<string, unknown>;
 
+/**
+ * 序列化请求（工单036 波 C3，`IDocumentSerializeRequest` 同构 camelCase 形状；
+ * 与 `packages/native/types/chips-native.d.ts` 的 `INativeDocumentSerializeRequest` 逐字同构，
+ * 零依赖结构视图不 import 其类型）。
+ */
+export interface INativeDocumentSerializeRequest {
+  readonly kind: 'card' | 'box';
+  readonly form: 'directory' | 'archive';
+  readonly localPath: string;
+  readonly metadata: unknown;
+  readonly structure: unknown;
+  readonly contents: readonly { readonly nodeId: string; readonly value: unknown }[];
+  readonly layoutConfig: unknown;
+  readonly changedParts: readonly string[];
+  readonly removedNodeIds: readonly string[];
+}
+
+/** 序列化产出的包内成员（`IDocumentSerializedMember` 同构；字节为 `Buffer` 交付的 `Uint8Array` 投影）。 */
+export interface INativeSerializedMember {
+  readonly packagePath: string;
+  readonly bytes: Uint8Array;
+}
+
 /** 源指纹成员（工单034 冻结形状：`modifiedMillis`/`crc32` 对应 Rust `Option` → `null`）。 */
 export interface INativeSourceMember {
   path: string;
@@ -211,7 +245,7 @@ export interface INativeDocumentRevision {
 }
 
 /**
- * 文档解析域注入面（15 函数结构接口）：调用方（组合根，刀4）经
+ * 文档解析域注入面（16 函数结构接口）：调用方（组合根，刀4）经
  * {@link loadNativeDocumentParserBinding} 或直接构造兼容对象注入；本工单不做生产接线。
  * 键名、参数位次、返回形状逐字对齐 §6.4 / §12.1 表（含两正式化名的冻结形状）。
  */
@@ -246,6 +280,15 @@ export interface INativeDocumentParserModule {
   documentRevision(handle: INativeDocumentHandle): Promise<INativeDocumentRevision>;
   /** 箱子布局配置（工单034 正式化名；`DocumentHandle::layout_config()`，卡片句柄误用按契约码拒绝）。 */
   documentLayoutConfig(handle: INativeDocumentHandle): Promise<INativeLayoutConfigResult>;
+  /**
+   * 序列化变更成员与依赖成员（工单036 波 C3 存储序列化名；算法权威
+   * `chips-parser::serialize`，`savedAtUnixMs` 为保存时刻 `Date.now()` 形）。
+   * 产出成员按包内路径升序、字节以 `Buffer` 交付；解析域契约码原样透传。
+   */
+  documentSerialize(
+    request: INativeDocumentSerializeRequest,
+    savedAtUnixMs: number,
+  ): Promise<readonly INativeSerializedMember[]>;
 }
 
 /** 装载失败原因（fail-closed 四分面；与 `native-bridge.ts` 同构语义）。 */
@@ -265,7 +308,7 @@ export interface INativeDocumentParserAvailable {
   readonly modulePath: string;
   readonly coreVersion: string;
   readonly abiVersion: number;
-  /** 解析域类型化消费面（15 函数结构接口）。 */
+  /** 解析域类型化消费面（16 函数结构接口）。 */
   readonly parser: INativeDocumentParserModule;
 }
 
@@ -302,7 +345,7 @@ function unavailable(
  * 装载并校验 `chips-native.node` 的文档解析域消费面（§8.6 元信息 + §6.4/工单034 解析域）。
  *
  * @remarks 判定顺序与 `loadNativeBridgeBinding` 同构：文件存在 → 加载成功且导出为对象 →
- * 17 项必备导出全部在位且为函数（13 冻结 + 2 正式化 + 元信息 2；旧 13 项产物与
+ * 18 项必备导出全部在位且为函数（13 冻结 + 2 正式化 + 1 存储序列化 + 元信息 2；旧 13 项产物与
  * 缺任一正式化名的 33 项产物在此被判
  * `surface-mismatch` 并逐项点名）→ `coreVersion` / `coreAbiVersion` 合法且 ABI 等值。
  * 任一步失败即返回对应原因，全部通过才交付类型化消费面。

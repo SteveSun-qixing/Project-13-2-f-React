@@ -31,16 +31,18 @@
  *   `adapters/scope-adapter.ts` 接进 `document:*` 能力链路）；
  *   ④ 会话授权注入（`resourceGrantSession`，行 21，点位五 D1 任务 #244 落位在册，
  *   第 56 导出；宿主消费拍已随点位五 D2 任务 #249 经 `adapters/scope-adapter.ts`
- *   `registerScope` 的 grant 拍接线——文档服务建会话成功即注入 `resources:write`）。
- *   仍未承载的一项——跨成员原子提交与落盘序列化（`resourceCommitWrite` 为单成员一次
- *   写入，无包级事务面；序列化归点位四后续波，金链路刀6 裁决）——故
- *   `IDocumentScopePort` / `IDocumentStoragePort` 的正式适配器在该载体落地前**不得**
- *   以「部分实现」形态拼装（工单 036 禁止内存替身与临时实现；正式 scope 适配器与
- *   `DOCUMENT_SCOPE_OWNER` 常量注入归波 A2b），装载段维持诚实回退。
- *   孤儿常驻 scope 生命周期（文档域 `close_session` 不自动脱绑、最后绑定会话关闭后
- *   归属闸恒拒 `RESOURCE_PERMISSION_DENIED`）的裁定归波 A2b，本处如实登记现状。
- *   本模块闸判据即剩余载体的宿主侧接收面：导出落位即 `available`，端口适配器随
- *   A2b 接线（消费名清单随波机械补登，本波 #212 三名翻正即该承接的执行形态）。
+ *   `registerScope` 的 grant 拍接线——文档服务建会话成功即注入 `resources:write`）；
+ *   ⑤ 包级受控提交链（`resourceCommitChangeset` / `resourceRebuildArchive`，波 C2a-2/3
+ *   核心形 + 波 C3 第 57/58 导出补登在册；宿主消费拍 = `storage-adapter.ts` 正式
+ *   存储适配器两臂——目录态 changeset 两相提交、归档态整包换代，写路径唯一经此链，
+ *   禁绕开受控提交链直写文件）。落盘序列化归解析域 `documentSerialize`（第 35 导出，
+ *   算法权威 chips-parser 序列化模块，闸见 `native-parser-module.ts`）。
+ *   至此 `IDocumentScopePort` / `IDocumentStoragePort` 的正式适配器载体全部在册
+ *   （scope=A2b-α、storage=C3），装载段不再因 storage 缺位回退；资源域导出面未落位
+ *   （产物缺位 / 旧构建漂移 / ABI 漂移）仍是唯一缺位成因（fail-closed 诚实呈现）。
+ *   孤儿常驻 scope 生命周期裁定已随波 A2b 在册（两拍注销纪律）。
+ *   本模块闸判据即载体的宿主侧接收面：导出落位即 `available`（消费名清单随波机械
+ *   补登，波 A2a #212 三名、波 B #231 两名、点位五 D1 #244 一名、波 C3 两名先后翻正）。
  */
 
 import { existsSync } from 'node:fs';
@@ -84,13 +86,29 @@ export const NATIVE_RESOURCE_SURFACE_EXPORTS = [
   'resourceGrantSession',
 ] as const;
 
+/**
+ * 工单036 波 C3 包级受控提交链补登名（2 项，资源域域尾追加）：跨成员原子提交
+ * （`ResourceManager::commit_changeset`，波 C2a-2）与归档整包换代
+ * （`ResourceManager::rebuild_archive`，波 C2a-3）——`IDocumentStoragePort` 正式
+ * 适配器的唯一写载体（`storage-adapter.ts` 消费）。§11.3 表 21 行为冻结原文且
+ * 文档库随动归主批，本两名以「镜像尾段」形态补登：装载闸 fail-closed 全集面含
+ * 本两名（旧 21 名产物在此判 `surface-mismatch`），文档表原文锁对既有 21 名维持
+ * **前缀锁**（恰等锁候主批落文后机械复原）。
+ */
+export const NATIVE_RESOURCE_STORAGE_EXPORTS = ['resourceCommitChangeset', 'resourceRebuildArchive'] as const;
+
 /** 装载闸要求的元信息导出名（§8.6 元信息域两项，与解析域 / Bridge 域装载闸同判据）。 */
 export const NATIVE_RESOURCE_REQUIRED_META_EXPORTS = ['coreVersion', 'coreAbiVersion'] as const;
 
-/** 装载闸必备导出全集（元信息 2 + 资源域 21，共 23 项）；缺任一即 `surface-mismatch`。 */
+/**
+ * 装载闸必备导出全集（元信息 2 + 资源域 21 + 波 C3 提交链 2，共 25 项）；
+ * 缺任一即 `surface-mismatch`（旧 21 名产物 = C2b 前旧构建，拒绝臂逐项点名
+ * `resourceCommitChangeset` / `resourceRebuildArchive`，杜绝静默降级）。
+ */
 export const NATIVE_RESOURCE_REQUIRED_EXPORTS = [
   ...NATIVE_RESOURCE_REQUIRED_META_EXPORTS,
   ...NATIVE_RESOURCE_SURFACE_EXPORTS,
+  ...NATIVE_RESOURCE_STORAGE_EXPORTS,
 ] as const;
 
 /**
@@ -155,7 +173,23 @@ export interface INativeResourceOpenResult {
 }
 
 /**
- * 资源域注入面（21 函数结构接口）：键名、参数位次、返回形状逐字对齐 §11.3 表。
+ * 归档整包换代回执（工单036 波 C2a-3 `ArchiveRebuildReceipt` 的 camelCase 投影；
+ * 与 `packages/native/types/chips-native.d.ts` 的 `IResourceArchiveRebuildReceipt`
+ * 逐字段同构，零依赖结构视图不 import 其类型）。
+ */
+export interface INativeArchiveRebuildReceipt {
+  /** 新归档总字节（解析器写侧实然读数）。 */
+  readonly totalBytes: number;
+  /** 覆写/新增成员数。 */
+  readonly writtenMembers: number;
+  /** 流式复用的未变更成员数。 */
+  readonly reusedMembers: number;
+  /** 本次换代不再承接的成员数。 */
+  readonly removedMembers: number;
+}
+
+/**
+ * 资源域注入面（23 函数结构接口）：§11.3 表 21 名逐字对齐 + 工单036 波 C3 补登两名（域尾）。
  * `HandleId` / `SessionId` 为单调递增 `u64`（低于 2^53，§11.3 表后注），JS 侧以 `number`
  * 承载即安全整数域；释放后不复用。
  */
@@ -241,6 +275,33 @@ export interface INativeResourceModule {
    * 被拒即回收会话如实抛出，RFC 裁定J §七）。
    */
   resourceGrantSession(sessionId: number, permissions: readonly string[]): void;
+  /**
+   * 包级 changeset 两相提交（工单036 波 C2a-2 导出面，波 C3 宿主消费位 =
+   * `storage-adapter.ts` 目录态臂）：一次事务「覆写/新建 members + 删除 removals」，
+   * prepare 相（staging + 意图账 fsync）→ publish 相（纯元数据动作），全程持
+   * WriteCoordinator 多键锁。成功返回按成员请求序的新版本元数据列表；
+   * `RESOURCE_*` 契约码原样透传（同路径二次出现 `RESOURCE_ALREADY_EXISTS`、
+   * 删除缺失 `RESOURCE_NOT_FOUND`、非目录载体 `RESOURCE_NOT_SUPPORTED`）。
+   */
+  resourceCommitChangeset(
+    sessionId: number,
+    scope: string,
+    members: readonly { readonly path: string; readonly bytes: Uint8Array }[],
+    removals: readonly string[],
+  ): Promise<INativeResourceMetadata[]>;
+  /**
+   * 归档态整包换代（工单036 波 C2a-3 导出面，波 C3 宿主消费位 = 归档臂）：
+   * 临时整包写出 + 意图账 + publish 相 `rename` 原子换代，崩溃由归档挂载槽位
+   * 扫描回滚旧态零残留。`savedAtUnixMs` 为保存时刻（`Date.now()` 形，全部条目
+   * 统一时间戳）；成功返回换代回执。
+   */
+  resourceRebuildArchive(
+    sessionId: number,
+    scope: string,
+    members: readonly { readonly path: string; readonly bytes: Uint8Array }[],
+    removals: readonly string[],
+    savedAtUnixMs: number,
+  ): Promise<INativeArchiveRebuildReceipt>;
 }
 
 /** 装载失败原因（fail-closed 四分面；与解析域 / Bridge 域装载闸同构语义）。 */
@@ -260,7 +321,7 @@ export interface INativeResourceAvailable {
   readonly modulePath: string;
   readonly coreVersion: string;
   readonly abiVersion: number;
-  /** 资源域类型化消费面（21 函数结构接口）。 */
+  /** 资源域类型化消费面（23 函数结构接口）。 */
   readonly resource: INativeResourceModule;
 }
 
@@ -294,10 +355,10 @@ function unavailable(
 }
 
 /**
- * 装载并校验 `chips-native.node` 的资源域消费面（§11.3 二十一导出 + §8.6 元信息两项）。
+ * 装载并校验 `chips-native.node` 的资源域消费面（§11.3 二十一导出 + 波 C3 提交链两名 + §8.6 元信息两项）。
  *
  * @remarks 判定顺序与 `loadNativeDocumentParserBinding` / `loadNativeBridgeBinding` 逐字同构：
- * 文件存在 → 加载成功且导出为对象 → 23 项必备导出全部在位且为函数（缺位逐项点名，
+ * 文件存在 → 加载成功且导出为对象 → 25 项必备导出全部在位且为函数（缺位逐项点名，
  * 旧构建产物零资源导出的形态在此判 `surface-mismatch`）→ `coreVersion` / `coreAbiVersion`
  * 合法且 ABI 等值。任一步失败即返回对应原因，全部通过才交付类型化消费面。
  * 本函数不抛错、不降级：调用方（组合根）按 `status` 如实呈现装载判据。

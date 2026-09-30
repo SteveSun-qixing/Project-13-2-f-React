@@ -60,6 +60,7 @@ export_table! {
     "documentValidate" => crate::parser::js_document_validate,
     "buildDocumentView" => crate::parser::js_build_document_view,
     "documentClose" => crate::parser::js_document_close,
+    "documentSerialize" => crate::parser::js_document_serialize,
     "resourceOpen" => crate::resource::js_resource_open,
     "resourceStat" => crate::resource::js_resource_stat,
     "resourceRead" => crate::resource::js_resource_read,
@@ -81,6 +82,8 @@ export_table! {
     "resourceLocalPathOf" => crate::resource::js_resource_local_path_of,
     "resourceManagedUriOfPath" => crate::resource::js_resource_managed_uri_of_path,
     "resourceGrantSession" => crate::resource::js_resource_grant_session,
+    "resourceCommitChangeset" => crate::resource::js_resource_commit_changeset,
+    "resourceRebuildArchive" => crate::resource::js_resource_rebuild_archive,
     "auditBindDecisionSink" => crate::audit::js_audit_bind_decision_sink,
 }
 
