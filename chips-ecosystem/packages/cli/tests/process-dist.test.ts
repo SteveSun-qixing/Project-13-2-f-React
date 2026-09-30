@@ -27,7 +27,7 @@ function manifestVersion(): string {
 
 beforeAll(() => {
   execFileSync('pnpm', ['run', 'build'], { cwd: PACKAGE_ROOT, encoding: 'utf8' });
-});
+}, 120_000);
 
 describe('chips dist 产物：--version 版本事实源（§2.1）', () => {
   it('dist/bin.js 进程输出与 package.json 版本一致，不回退 0.0.0', () => {

@@ -56,7 +56,7 @@
     "testFilePatterns": ["\\.test\\.", "\\.spec\\.", "\\.stories\\."],
     "workspaceProtocol": "workspace:",
     "forbiddenProtocolPrefixes": ["file:", "link:"],
-    "allowedDevInternal": ["@chips/testing"],
+    "allowedDevInternal": ["@chips/testing", "@chips/cli"],
     "rules": [
       { "id": "root", "match": ".", "kind": "root" },
       {

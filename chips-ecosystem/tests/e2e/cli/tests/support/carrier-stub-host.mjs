@@ -51,7 +51,8 @@ if (typeof root !== 'string' || root.length === 0) {
   process.stderr.write('缺少 --root <userDataDir>\n');
   process.exit(1);
 }
-const socketPath = typeof args.socket === 'string' ? args.socket : path.join(root, 'chips-carrier.sock');
+const socketPath =
+  typeof args.socket === 'string' ? args.socket : path.join(root, 'chips-carrier.sock');
 const discoveryFile = path.join(root, DISCOVERY_FILE_NAME);
 const instanceId = args.instance ?? `stub-${crypto.randomBytes(4).toString('hex')}`;
 const hostVersion = args['host-version'] ?? '0.0.0-stub';
@@ -232,7 +233,9 @@ function handleConnection(socket) {
     try {
       frame = JSON.parse(line);
     } catch {
-      s.end(`${JSON.stringify({ requestId: '', ok: false, error: wireError('BRIDGE_PROTOCOL_ERROR', '帧非法') })}\n`);
+      s.end(
+        `${JSON.stringify({ requestId: '', ok: false, error: wireError('BRIDGE_PROTOCOL_ERROR', '帧非法') })}\n`
+      );
       return;
     }
     if (!handshakeDone) {
@@ -320,7 +323,9 @@ function cleanup() {
 
 server.listen(socketPath, () => {
   writeDiscovery();
-  process.stdout.write(`${JSON.stringify({ ready: true, pid: process.pid, instanceId, socketPath })}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ ready: true, pid: process.pid, instanceId, socketPath })}\n`
+  );
 });
 
 /** §2.5-5 清理权只属写入方：SIGTERM/SIGINT 优雅收口；SIGKILL 残留供陈旧判据臂。 */

@@ -1,8 +1,7 @@
-import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
-/** 本包根目录：React 单实例别名锚点。 */
-const projectRoot = fileURLToPath(new URL('.', import.meta.url));
+/** 本包根目录：React 单实例别名锚点。测试期配置，路径锚点仅服务开发机（平台优先级 macOS 优先）；非 POSIX 平台的测试配置收口归属跨端测试波次。 */
+const projectRoot = new URL('.', import.meta.url).pathname;
 
 /** 包级测试配置：单元测试与包级集成测试（《测试规范》《代码组织规范》§9）。 */
 export default defineConfig({

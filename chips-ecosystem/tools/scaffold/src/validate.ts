@@ -124,17 +124,38 @@ function normalizeOptionalText(field: string, value: unknown): string | undefine
   return text;
 }
 
-/** 校验目标目录：非空、无空字节、归一为 POSIX 形式。 */
+/**
+ * 校验目标目录：非空、无空字节、归一为 POSIX 形式。
+ *
+ * 契约：`targetDir` 是相对工作区根目录的路径（脚手架按其相对深度推导
+ * `tsconfig.base.json` 继承层级），因此绝对路径与 `..` 段直接拒绝，
+ * 冗余的 `.` 段与重复分隔符在归一中去除，不进入派生。
+ */
 export function normalizeTargetDir(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
-    fail('targetDir 必须是非空路径', { targetDir: value });
+    fail('targetDir 必须是相对工作区根目录的非空路径', { targetDir: value });
   }
   if (value.includes('\u0000')) {
     fail('targetDir 不得包含空字节', { targetDir: value });
   }
-  const normalized = value.trim().replaceAll('\\', '/').replace(/\/+$/, '');
+  const posix = value.trim().replaceAll('\\', '/');
+  if (posix.startsWith('/') || /^[A-Za-z]:/.test(posix)) {
+    fail(
+      'targetDir 必须是相对工作区根目录的路径，不得为绝对路径（绝对路径无法推导 tsconfig 继承深度）',
+      { targetDir: value }
+    );
+  }
+  const normalized = posix
+    .split('/')
+    .filter((segment) => segment.length > 0 && segment !== '.')
+    .join('/');
   if (normalized.length === 0) {
-    fail('targetDir 必须是非空路径', { targetDir: value });
+    fail('targetDir 必须是相对工作区根目录的非空路径', { targetDir: value });
+  }
+  if (normalized.split('/').includes('..')) {
+    fail('targetDir 不得包含上级目录段（..）：目标目录必须位于工作区根之内', {
+      targetDir: value,
+    });
   }
   return normalized;
 }
@@ -175,15 +196,27 @@ export function derivePackageSlug(targetDir: string, pluginId: string): string {
 /**
  * 计算相对目标目录的 `tsconfig.base.json` 继承路径。
  *
- * 约定 `targetDir` 为相对工作区根目录的路径（如 `plugins/hello`、`examples/plugins/hello`）；
- * 绝对路径无法推导深度，回退为 `../../tsconfig.base.json` 并要求调用方在落盘后核对。
+ * `targetDir` 契约为相对工作区根目录的 POSIX 路径（`normalizeTargetDir` 已归一），
+ * 继承深度即路径段数：`plugins/app` → `../../tsconfig.base.json`。
+ * 绝对路径与 `..` 段无法推导工作区深度，显式失败而不是回退固定层级的猜测
+ * （工单058 根因修口：调用方必须传入工作区相对路径）。
  */
 export function deriveTsconfigExtends(targetDir: string): string {
-  if (targetDir.startsWith('/') || /^[A-Za-z]:/.test(targetDir)) {
-    return '../../tsconfig.base.json';
+  const segments = targetDir.split('/').filter((segment) => segment.length > 0 && segment !== '.');
+  if (
+    targetDir.startsWith('/') ||
+    targetDir.startsWith('\\') ||
+    /^[A-Za-z]:/.test(targetDir) ||
+    segments.includes('..')
+  ) {
+    fail('无法从目标目录推导 tsconfig 继承深度：targetDir 必须是相对工作区根目录的路径', {
+      targetDir,
+    });
   }
-  const depth = targetDir.split('/').filter((segment) => segment.length > 0).length;
-  return `${'../'.repeat(Math.max(depth, 1))}tsconfig.base.json`;
+  if (segments.length === 0) {
+    fail('无法从空目标目录推导 tsconfig 继承深度', { targetDir });
+  }
+  return `${'../'.repeat(segments.length)}tsconfig.base.json`;
 }
 
 /** 由角色与资源命名基派生卡片类型 ID 或布局类型 ID。 */

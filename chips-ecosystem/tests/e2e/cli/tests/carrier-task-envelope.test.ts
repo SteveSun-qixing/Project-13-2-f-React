@@ -39,7 +39,7 @@ function tempDir(kind: string): string {
   return dir;
 }
 
-afterAll(async () => {
+afterAll(() => {
   for (const dir of tempDirs) {
     cleanupCarrierDir(dir);
   }
@@ -97,13 +97,19 @@ describe('cli.task.* 全链信封逐字段（07.12 §5.8 记录形状）', () =>
         phase: 'render',
         percent: 40,
       });
-      expect(progressed).toMatchObject({ status: 'running', progress: { phase: 'render', percent: 40 } });
+      expect(progressed).toMatchObject({
+        status: 'running',
+        progress: { phase: 'render', percent: 40 },
+      });
 
       const fetched = await h.client.cliTask.get(created.taskId);
       expect(fetched.taskId).toBe(created.taskId);
       expect(fetched.progress).toMatchObject({ percent: 40 });
 
-      const settled = await h.client.cliTask.complete(created.taskId, { message: 'ok', files: ['a.txt'] });
+      const settled = await h.client.cliTask.complete(created.taskId, {
+        message: 'ok',
+        files: ['a.txt'],
+      });
       expect(settled.status).toBe('completed');
       expect(settled.output).toEqual({ message: 'ok', files: ['a.txt'] });
       expect(settled.updatedAt).toBeGreaterThanOrEqual(settled.createdAt);
@@ -194,7 +200,7 @@ describe('cli.task.* 全链信封逐字段（07.12 §5.8 记录形状）', () =>
       expect(raw.instanceId).toBe('inst-envelope-check');
       expect(raw.pid).toBe(h.stub.pid);
       expect(typeof raw.bearerToken).toBe('string');
-      expect(((raw.bearerToken as string).length ?? 0)).toBe(64);
+      expect((raw.bearerToken as string).length ?? 0).toBe(64);
       expect(Number.isInteger(raw.startedAt)).toBe(true);
 
       const task: ICliTaskRecord = await h.client.cliTask.create({

@@ -144,6 +144,7 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
   it('默认组装走真实 @chips/sdk/scaffold 链路生成计划并落盘', async () => {
     // `@chips/sdk` 已正式导出 `./scaffold` 子路径；缺省组装必须经真实生成器落盘，
     // 解析失败（未安装 / 未构建）时才按 `CLI_TARGET_UNAVAILABLE` 显式失败。
+    // targetDir 契约为工作区相对路径（工单058）：继承层级按相对深度推导。
     const provider = await resolveScaffoldProvider();
     expect(provider).toBeDefined();
     const fileSystem = new MemoryFileSystem();
@@ -152,14 +153,18 @@ describe('本地产物引擎（§3.5 离线可用）', () => {
       role: 'app',
       pluginId: 'chips.demo.app',
       name: '示例',
-      dir: '/out/demo',
+      dir: 'out/layout/demo',
       fileSystem,
     });
     expect(result.pluginId).toBe('chips.demo.app');
     expect(result.role).toBe('app');
-    expect(result.targetDir).toBe('/out/demo');
+    expect(result.targetDir).toBe('out/layout/demo');
     expect(result.files).toContain('manifest.yaml');
-    expect(fileSystem.exists('/out/demo/manifest.yaml')).toBe(true);
+    expect(fileSystem.exists('out/layout/demo/manifest.yaml')).toBe(true);
+    // 三级深度的目标目录必须继承到三级之上的工作区基线（工单058 回归锚）。
+    expect(fileSystem.readText('out/layout/demo/tsconfig.json')).toContain(
+      '"extends": "../../../tsconfig.base.json"'
+    );
   });
 
   it('pack 产物可被同一引擎 validate 通过（未签名跳过签名阶段）', async () => {

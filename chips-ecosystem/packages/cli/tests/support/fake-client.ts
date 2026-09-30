@@ -392,7 +392,7 @@ export class FakeCliClient implements ICliClient {
       name: string;
       dir: string;
     }): Promise<ICliArtifactCreateResult> => {
-      this.calls.push(`artifacts.create:${input.role}:${input.pluginId}`);
+      this.calls.push(`artifacts.create:${input.role}:${input.pluginId}:${input.dir}`);
       if (this.createError !== undefined) {
         return Promise.reject(this.createError);
       }

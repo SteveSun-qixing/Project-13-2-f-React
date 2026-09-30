@@ -7,6 +7,9 @@
  * - `install` / `enable` / `disable` / `uninstall` / `list` / `info`：经平台承载适配器执行。
  */
 
+import { realpathSync } from 'node:fs';
+import { basename, dirname, isAbsolute, relative } from 'node:path';
+
 import { cliError } from '../errors.js';
 import { TRUST_ROOTS_ENV } from '../artifacts/trust-roots.js';
 import type {
@@ -112,6 +115,70 @@ function readRole(value: string | undefined): CliPluginRole {
   throw cliError('CLI_ARGUMENT_INVALID', `插件角色无效：${value ?? ''}`, { param: 'role' });
 }
 
+/**
+ * 判定换算结果是否逃出工作目录：空结果（目录即工作目录本身）与 `..` 起步均视为逃出。
+ */
+function isOutsideWorkspace(relativeDir: string): boolean {
+  return relativeDir.length === 0 || relativeDir === '..' || relativeDir.startsWith('../');
+}
+
+/**
+ * 目标目录的物理路径：对最深的已存在祖先做 realpath，再拼回其余段；
+ * 到根仍无已存在祖先时原样返回。目标目录在生成前通常尚不存在，必须沿祖先下探。
+ */
+function toPhysicalPath(target: string): string {
+  let prefix = target;
+  const tail: string[] = [];
+  for (;;) {
+    try {
+      const resolved = realpathSync(prefix);
+      // `tail` 经 unshift 构建时已按根到叶排序，直接拼接即为目标物理路径。
+      return tail.length === 0 ? resolved : `${resolved}/${tail.join('/')}`;
+    } catch {
+      const parent = dirname(prefix);
+      if (parent === prefix) {
+        return target;
+      }
+      tail.unshift(basename(prefix));
+      prefix = parent;
+    }
+  }
+}
+
+/**
+ * 把 `plugin create` 的目标目录归一为工作区根相对路径。
+ *
+ * 脚手架按 `targetDir` 的相对深度推导 `tsconfig.base.json` 继承层级
+ * （[CLI 完整参考] §3.5.1：`--dir` 缺省 `./<插件 ID 末段>`，示例为工作区相对路径），
+ * 因此相对输入原样透传（由 SDK 归一 `.` 段），绝对输入换算为相对当前工作目录的路径；
+ * macOS `/tmp` 等符号链接前缀场景按物理路径归一后重试；落在当前工作目录之外时显式失败，
+ * 不做会生成错误继承层级的固定层级猜测。
+ */
+function toWorkspaceRelativeTargetDir(cwd: string, dir: string): string {
+  if (!isAbsolute(dir)) {
+    return dir;
+  }
+  const relativeDir = relative(cwd, dir).replaceAll('\\', '/');
+  if (!isOutsideWorkspace(relativeDir)) {
+    return relativeDir;
+  }
+  let cwdPhysical: string;
+  try {
+    cwdPhysical = realpathSync(cwd);
+  } catch {
+    cwdPhysical = cwd;
+  }
+  const physicalRelative = relative(cwdPhysical, toPhysicalPath(dir)).replaceAll('\\', '/');
+  if (!isOutsideWorkspace(physicalRelative)) {
+    return physicalRelative;
+  }
+  throw cliError(
+    'CLI_PATH_INVALID',
+    `目标目录必须位于当前工作目录内（脚手架按工作区相对路径推导 tsconfig 继承层级）：${dir}`,
+    { path: dir, cwd }
+  );
+}
+
 function sourceChoices(context: ICommandContext): readonly string[] {
   return context.entry === 'dev' ? ['builtin', 'user', 'development'] : ['builtin', 'user'];
 }
@@ -156,7 +223,12 @@ const createCommand: ICliCommandDefinition = {
     }
     const explicitDir = readString(values, 'dir');
     const lastSegment = pluginId.split('.').pop() ?? pluginId;
-    const dir = explicitDir ?? `${context.cwd}/${lastSegment}`;
+    // 脚手架按 targetDir 的相对深度推导 tsconfig 继承层级（工单058），本命令始终传
+    // 工作区相对路径：缺省即 `./<插件 ID 末段>`（§3.5.1），绝对输入换算为相对当前工作目录。
+    const dir =
+      explicitDir === undefined
+        ? lastSegment
+        : toWorkspaceRelativeTargetDir(context.cwd, explicitDir);
     const result = await context.client.artifacts.create({
       role,
       pluginId,

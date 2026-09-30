@@ -52,7 +52,7 @@ function tempDir(kind: string): string {
   return dir;
 }
 
-afterAll(async () => {
+afterAll(() => {
   for (const dir of tempDirs) {
     cleanupCarrierDir(dir);
   }
@@ -110,7 +110,14 @@ describe('发现阶段臂（承载不在场 / 定性收口）', () => {
       expectTokenMismatch: true,
       commandsFile: writeCommandsFile(home.userdataRoot, {
         index: {},
-        commands: [appCommand({ pluginId: 'chips.demo', path: ['demo', 'hello'], commandId: 'demo.hello', wait: false })],
+        commands: [
+          appCommand({
+            pluginId: 'chips.demo',
+            path: ['demo', 'hello'],
+            commandId: 'demo.hello',
+            wait: false,
+          }),
+        ],
       }),
     });
     try {
@@ -219,7 +226,9 @@ describe('承载在线臂（真 bin × 桩宿主）', () => {
       expect(typeof (parsed.output as { invocationId?: unknown }).invocationId).toBe('string');
 
       const frames = readFrameLog(frameLog);
-      const handshake = frames.find((entry) => entry.direction === 'in' && 'clientId' in entry.frame);
+      const handshake = frames.find(
+        (entry) => entry.direction === 'in' && 'clientId' in entry.frame
+      );
       expect(handshake?.frame).toMatchObject({
         protocol: 'chips-cli-carrier/1',
         bearerTokenPresent: true,
@@ -230,9 +239,7 @@ describe('承载在线臂（真 bin × 桩宿主）', () => {
         .filter((entry) => entry.direction === 'in' && 'capabilityId' in entry.frame)
         .map((entry) => entry.frame.capabilityId);
       expect(capabilityIds).toEqual(['cli.command.list', 'command:invoke']);
-      const invokeIn = frames.find(
-        (entry) => entry.frame.capabilityId === 'command:invoke'
-      );
+      const invokeIn = frames.find((entry) => entry.frame.capabilityId === 'command:invoke');
       expect(invokeIn?.frame.input).toMatchObject({ commandId: 'demo.hello', source: 'cli' });
     } finally {
       await stub.stop();

@@ -233,9 +233,7 @@ export function readFrameLog(file: string): readonly IFrameEntry[] {
   return readFileSync(file, 'utf8')
     .split('\n')
     .filter((line) => line.trim().length > 0)
-    .map(
-      (line) => JSON.parse(line) as unknown as IFrameEntry
-    );
+    .map((line) => JSON.parse(line) as unknown as IFrameEntry);
 }
 
 /** fake HOME 注入的 CLI 运行环境（承载在线态：显式撤闸离线缺省并接管 HOME 派生）。
@@ -256,7 +254,11 @@ export function carrierRunEnv(home: IFakeHome): Record<string, string | undefine
 }
 
 /** 以承载在线态运行真 bin。 */
-export function runChipsWithCarrier(home: IFakeHome, args: readonly string[], cwd: string): ICliRun {
+export function runChipsWithCarrier(
+  home: IFakeHome,
+  args: readonly string[],
+  cwd: string
+): ICliRun {
   return runChips(args, { cwd, env: carrierRunEnv(home) });
 }
 
@@ -357,7 +359,11 @@ export function buildLaunchBundle(input: {
   if (process.platform === 'win32') {
     writeFileSync(hostFile, `@echo off\r\n"${process.execPath}" ${stubArgs.join(' ')}\r\n`, 'utf8');
   } else {
-    writeFileSync(hostFile, `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${stubArgs.join(' ')}\n`, 'utf8');
+    writeFileSync(
+      hostFile,
+      `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${stubArgs.join(' ')}\n`,
+      'utf8'
+    );
     chmodSync(hostFile, 0o755);
   }
   return { binFile: path.posix.join(binDir, 'bin.js'), hostFile };

@@ -7,6 +7,7 @@ import {
   derivePackageSlug,
   deriveTsconfigExtends,
   normalizeScaffoldOptions,
+  normalizeTargetDir,
 } from '../src/validate.js';
 
 function expectScaffoldError(run: () => unknown): ScaffoldError {
@@ -176,10 +177,45 @@ describe('命名派生', () => {
     expect(deriveCapabilityId('app', 'viewer')).toBe('viewer');
   });
 
-  it('tsconfig 继承路径按目标目录深度计算', () => {
+  it('tsconfig 继承路径按目标目录相对深度计算（一至四级全臂）', () => {
+    expect(deriveTsconfigExtends('plugins')).toBe('../tsconfig.base.json');
     expect(deriveTsconfigExtends('plugins/app')).toBe('../../tsconfig.base.json');
-    expect(deriveTsconfigExtends('examples/plugins/app')).toBe('../../../tsconfig.base.json');
-    expect(deriveTsconfigExtends('/abs/path/app')).toBe('../../tsconfig.base.json');
+    expect(deriveTsconfigExtends('plugins/layout/grid')).toBe('../../../tsconfig.base.json');
+    expect(deriveTsconfigExtends('examples/plugins/basecard/notes')).toBe(
+      '../../../../tsconfig.base.json'
+    );
+  });
+
+  it('tsconfig 继承路径拒绝绝对路径与上级目录段（工单058：不再回退固定两级猜测）', () => {
+    for (const targetDir of [
+      '/abs/path/app',
+      'C:/workspaces/app',
+      '\\\\server/share/app',
+      'plugins/../app',
+    ]) {
+      expectScaffoldError(() => deriveTsconfigExtends(targetDir));
+    }
+  });
+
+  it('目标目录归一去除冗余当前目录段与重复分隔符，并拒绝绝对路径与上级目录段', () => {
+    expect(normalizeTargetDir('./plugins/app')).toBe('plugins/app');
+    expect(normalizeTargetDir('plugins/./app')).toBe('plugins/app');
+    expect(normalizeTargetDir('plugins//app///')).toBe('plugins/app');
+    expect(normalizeTargetDir('plugins\\app')).toBe('plugins/app');
+    for (const targetDir of ['/abs/path/app', 'C:/workspaces/app', 'plugins/../app', '.', './']) {
+      expectScaffoldError(() => normalizeTargetDir(targetDir));
+    }
+  });
+
+  it('归一先于派生：冗余当前目录段不参与继承深度计算', () => {
+    const { options, derived } = normalizeScaffoldOptions({
+      role: 'basecard',
+      pluginId: 'chips.basecard.demo',
+      name: '演示',
+      targetDir: './plugins/demo',
+    });
+    expect(options.targetDir).toBe('plugins/demo');
+    expect(derived.tsconfigExtends).toBe('../../tsconfig.base.json');
   });
 });
 

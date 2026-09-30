@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
 import { describe, expect, it } from 'vitest';
 
 import { FakeCliClient } from './support/fake-client.js';
@@ -24,7 +28,7 @@ describe('插件命令（§3.5）', () => {
       { client }
     );
     expect(outcome.exitCode).toBe(0);
-    expect(client.calls).toContain('artifacts.create:app:chips.example.hello-world');
+    expect(client.calls).toContain('artifacts.create:app:chips.example.hello-world:hello-world');
     expect(outcome.stdout).toContain('已创建 app 角色插件');
     expect(outcome.stdout).toContain('下一步：pnpm install');
 
@@ -48,6 +52,77 @@ describe('插件命令（§3.5）', () => {
       }
     );
     expect(badRole.exitCode).toBe(2);
+  });
+
+  it('plugin create 目标目录归一为工作区相对路径（工单058：脚手架按相对深度推导 tsconfig 继承层级）', async () => {
+    const client = new FakeCliClient();
+    const base = ['--role', 'basecard', '--id', 'chips.basecard.demo', '--name', '演示'] as const;
+
+    // 缺省目录 = `./<插件 ID 末段>`（§3.5.1），以相对路径传递。
+    const fallback = await runUser(['plugin', 'create', ...base], { client });
+    expect(fallback.exitCode).toBe(0);
+    expect(client.calls).toContain('artifacts.create:basecard:chips.basecard.demo:demo');
+
+    // 相对目录原样透传。
+    const relative = await runUser(['plugin', 'create', ...base, '--dir', 'plugins/layout/demo'], {
+      client,
+    });
+    expect(relative.exitCode).toBe(0);
+    expect(client.calls).toContain(
+      'artifacts.create:basecard:chips.basecard.demo:plugins/layout/demo'
+    );
+
+    // 工作目录内的绝对目录换算为相对路径（默认 cwd 为 /work）。
+    const absoluteInside = await runUser(
+      ['plugin', 'create', ...base, '--dir', '/work/plugins/demo'],
+      {
+        client,
+      }
+    );
+    expect(absoluteInside.exitCode).toBe(0);
+    expect(client.calls).toContain('artifacts.create:basecard:chips.basecard.demo:plugins/demo');
+
+    // 工作目录之外的绝对目录无法推导工作区深度，显式拒绝（退出码 5）。
+    const outside = await runUser(['plugin', 'create', ...base, '--dir', '/etc/demo'], { client });
+    expect(outside.exitCode).toBe(5);
+    expect((outside.json() as { code: string }).code).toBe('CLI_PATH_INVALID');
+
+    const escaped = await runUser(['plugin', 'create', ...base, '--dir', '/work/../esc/demo'], {
+      client,
+    });
+    expect(escaped.exitCode).toBe(5);
+    expect((escaped.json() as { code: string }).code).toBe('CLI_PATH_INVALID');
+  });
+
+  it('plugin create 目标目录在符号链接前缀（如 macOS /tmp）下按物理路径归一', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'chips-cli-w262-'));
+    try {
+      const physical = join(root, 'workspace');
+      mkdirSync(physical);
+      const logical = join(root, 'workspace-link');
+      symlinkSync(physical, logical);
+      const client = new FakeCliClient();
+      // cwd 为物理路径（与 process.cwd() 口径一致），--dir 走符号链接前缀。
+      const outcome = await runUser(
+        [
+          'plugin',
+          'create',
+          '--role',
+          'basecard',
+          '--id',
+          'chips.basecard.sym',
+          '--name',
+          '符号演示',
+          '--dir',
+          join(logical, 'plugins/demo'),
+        ],
+        { client, cwd: physical }
+      );
+      expect(outcome.exitCode).toBe(0);
+      expect(client.calls).toContain('artifacts.create:basecard:chips.basecard.sym:plugins/demo');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('plugin pack 默认输出目录与 --sign 校验', async () => {
