@@ -1,0 +1,62 @@
+id: chips.official.music-player
+version: 0.1.0
+type: app
+name: 音乐播放器
+description: 音频播放、播放控制、队列、封面与歌词呈现
+license: MIT
+runtime:
+  targets:
+    - host
+  background: false
+permissions:
+  - resources:read
+  - command:write
+  - command:execute
+ui:
+  surface: window
+  launcher:
+    icon: assets/icons/app.svg
+    name: 音乐播放器
+fileAssociations:
+  - extensions: []
+    mimeTypes: [audio/*]
+    action: open
+cli:
+  commands:
+    - commandPath:
+        - music-player
+        - open-card
+      commandId: music-player:open-card
+      title: 打开卡片
+      description: 通过「音乐播放器」打开指定卡片文件
+      examples:
+        - chips music-player open-card ~/文档/示例.cpk
+      target:
+        type: app
+        pluginId: chips.official.music-player
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+      arguments:
+        - name: path
+          position: 0
+          type: path
+          required: true
+          mapsTo: path
+          path:
+            kind: file
+            role: input
+            exists: true
+    - commandPath:
+        - music-player
+        - refresh-view
+      commandId: music-player:refresh-view
+      title: 刷新当前视图
+      description: 请求「音乐播放器」重新拉取当前展示数据
+      target:
+        type: app
+        pluginId: chips.official.music-player
+      output:
+        mode: json
+        json: supported

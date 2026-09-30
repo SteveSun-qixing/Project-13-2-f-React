@@ -1,0 +1,62 @@
+id: chips.official.office
+version: 0.1.0
+type: app
+name: 薯片办公
+description: Office 四件套查看与编辑：Word（.docx）、电子表格（.xlsx / .xls / .csv）、演示文稿（.pptx）与 PDF
+license: MIT
+runtime:
+  targets:
+    - host
+  background: false
+permissions:
+  - resources:read
+  - document:write
+  - command:write
+  - command:execute
+ui:
+  surface: window
+  launcher:
+    icon: assets/icons/app.svg
+    name: 薯片办公
+fileAssociations:
+  - extensions: [.docx, .xlsx, .xls, .csv, .pptx, .pdf]
+    action: open
+cli:
+  commands:
+    - commandPath:
+        - office
+        - open-card
+      commandId: office:open-card
+      title: 打开卡片
+      description: 通过「薯片办公」打开指定卡片文件
+      examples:
+        - chips office open-card ~/文档/示例.cpk
+      target:
+        type: app
+        pluginId: chips.official.office
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+      arguments:
+        - name: path
+          position: 0
+          type: path
+          required: true
+          mapsTo: path
+          path:
+            kind: file
+            role: input
+            exists: true
+    - commandPath:
+        - office
+        - refresh-view
+      commandId: office:refresh-view
+      title: 刷新当前视图
+      description: 请求「薯片办公」重新拉取当前展示数据
+      target:
+        type: app
+        pluginId: chips.official.office
+      output:
+        mode: json
+        json: supported

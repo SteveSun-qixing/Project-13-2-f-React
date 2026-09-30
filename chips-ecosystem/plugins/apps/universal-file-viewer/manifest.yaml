@@ -1,0 +1,63 @@
+id: chips.official.universal-file-viewer
+version: 0.1.0
+type: app
+name: 万能文件查看器
+description: 专用查看器之外的广谱兜底文件预览
+license: MIT
+runtime:
+  targets:
+    - host
+  background: false
+permissions:
+  - resources:read
+  - command:write
+  - command:execute
+ui:
+  surface: window
+  launcher:
+    icon: assets/icons/app.svg
+    name: 万能文件查看器
+fileAssociations:
+  - extensions: [.pdf, .epub, .zip, .7z, .txt, .json, .yaml]
+    mimeTypes: [application/pdf, application/epub+zip, application/zip, text/*]
+    tier: fallback
+    action: open
+cli:
+  commands:
+    - commandPath:
+        - universal-file-viewer
+        - open-card
+      commandId: universal-file-viewer:open-card
+      title: 打开卡片
+      description: 通过「万能文件查看器」打开指定卡片文件
+      examples:
+        - chips universal-file-viewer open-card ~/文档/示例.cpk
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+      arguments:
+        - name: path
+          position: 0
+          type: path
+          required: true
+          mapsTo: path
+          path:
+            kind: file
+            role: input
+            exists: true
+    - commandPath:
+        - universal-file-viewer
+        - refresh-view
+      commandId: universal-file-viewer:refresh-view
+      title: 刷新当前视图
+      description: 请求「万能文件查看器」重新拉取当前展示数据
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+      output:
+        mode: json
+        json: supported
