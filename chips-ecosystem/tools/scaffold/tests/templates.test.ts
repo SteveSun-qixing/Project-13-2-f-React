@@ -514,4 +514,22 @@ describe('app 命令系统样例', () => {
     expect(appView).toContain('<CommandProvider>');
     expect(appView).toContain('useAppCommands()');
   });
+
+  it('生成物满足根 lint 闸：返回接口为属性签名、测试无 async 空挂与浮动 Promise', () => {
+    // W5 脚手架试点回填（create 即四闸绿）：方法签名在 AppView 解构面触发
+    // unbound-method，属性箭头签名与实现的箭头函数属性一致；
+    // 测试样例 setTitle 不得用无 await 的 async；handler 返回 `void | Promise<void>`
+    // 的调用以 void 运算符显式收口（no-floating-promises）。
+    const hook = files.get('src/commands/useAppCommands.ts') ?? '';
+    expect(hook).toContain('invokeOpenCard: (path: string) => Promise<void>;');
+    expect(hook).toContain('invokeRefreshView: () => Promise<void>;');
+    expect(hook).not.toMatch(/invokeOpenCard\(path: string\): Promise<void>;/);
+    expect(hook).not.toMatch(/invokeRefreshView\(\): Promise<void>;/);
+    const appTest = files.get('tests/app.test.ts') ?? '';
+    expect(appTest).toContain('setTitle: (title: string): Promise<void> =>');
+    expect(appTest).toContain('return Promise.resolve();');
+    expect(appTest).not.toContain('async (title: string)');
+    const commandsTest = files.get('tests/commands.test.ts') ?? '';
+    expect(commandsTest).toContain('void registration.handler({ demo: true });');
+  });
 });

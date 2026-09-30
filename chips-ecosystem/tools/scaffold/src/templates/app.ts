@@ -160,8 +160,9 @@ export interface UseAppCommandsResult {
   readonly phase: CommandRegistryPhase;
   readonly errorCode: string | null;
   readonly lastInvoked: AppCommandStatus | null;
-  invokeOpenCard(path: string): Promise<void>;
-  invokeRefreshView(): Promise<void>;
+  /** 属性箭头签名：实现即箭头函数属性，界面层解构消费；方法签名会触发 unbound-method。 */
+  invokeOpenCard: (path: string) => Promise<void>;
+  invokeRefreshView: () => Promise<void>;
 }
 
 /**
@@ -336,8 +337,9 @@ function createContext(titles: string[]): IAppContext {
   return {
     appId: '${context.options.pluginId}',
     window: {
-      setTitle: async (title: string): Promise<void> => {
+      setTitle: (title: string): Promise<void> => {
         titles.push(title);
+        return Promise.resolve();
       },
     },
     logger: {
@@ -411,7 +413,8 @@ describe('command:invoked 派发消费', () => {
     expect(registrations.map((registration) => registration.commandId)).toEqual(ids());
     expect(registrations.map((registration) => registration.handlerId)).toEqual(handlerIds());
     for (const registration of registrations) {
-      registration.handler({ demo: true });
+      // 处理器类型为 \`void | Promise<void>\`：以 void 运算符显式收口（no-floating-promises）。
+      void registration.handler({ demo: true });
     }
     expect(seen.map((status) => status.commandId)).toEqual(ids());
     expect(seen.every((status) => status.payload !== undefined)).toBe(true);
