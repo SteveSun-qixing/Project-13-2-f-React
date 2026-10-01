@@ -143,6 +143,8 @@ describe('生产组合根：清单装配', () => {
     const runtime = createProductionRuntime(context, { capabilityProviders: [documentProvider] });
     await runtime.start(host, { pushSessionPermissions: () => undefined });
     const report = runtime.report();
+    // `createProductionRuntime` 只装配内置 + 注入提供方；资源打开路由域由
+    // `createProductionAssembly` 装载段拼接（工单036 T4，见下套件计数）。
     expect(report.capabilities.byDomain).toMatchObject({ system: 1, document: 1 });
 
     const response = await runtime.ipc.handleRequest(
@@ -163,7 +165,8 @@ describe('生产组合根：清单装配', () => {
     expect(typeof assembly.createRuntime).toBe('function');
     const runtime = await assembly.createRuntime(context);
     await runtime.start(host, { pushSessionPermissions: () => undefined });
-    expect(runtime.report().capabilities.active).toBe(3);
+    // 内置 2（system/event）+ 资源打开路由域 2（工单036 T4）+ documentProvider 1 = 5。
+    expect(runtime.report().capabilities.active).toBe(5);
     await runtime.shutdown();
   });
 });
@@ -214,7 +217,8 @@ describe('生产组合根：原生绑定装载（工单 025 消费链接线点�
     });
     const runtime = await assembly.createRuntime(context);
     await runtime.start(host, { pushSessionPermissions: () => undefined });
-    expect(runtime.report().capabilities.active).toBe(2);
+    // 内置 2 + 资源打开路由域 2（工单036 T4）。
+    expect(runtime.report().capabilities.active).toBe(4);
 
     const nativeEntries = diagnostics.entries.filter((entry) => entry.scope === 'native-bridge');
     expect(nativeEntries).toHaveLength(1);
@@ -237,7 +241,8 @@ describe('生产组合根：原生绑定装载（工单 025 消费链接线点�
     });
     const runtime = await assembly.createRuntime(context);
     await runtime.start(host, { pushSessionPermissions: () => undefined });
-    expect(runtime.report().capabilities.active).toBe(3);
+    // 内置 2 + 资源打开路由域 2（工单036 T4）+ documentProvider 1 = 5。
+    expect(runtime.report().capabilities.active).toBe(5);
     expect(diagnostics.entries.filter((entry) => entry.scope === 'native-bridge')).toEqual([]);
     await runtime.shutdown();
   });

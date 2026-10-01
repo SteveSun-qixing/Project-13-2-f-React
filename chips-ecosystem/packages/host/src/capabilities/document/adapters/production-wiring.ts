@@ -167,6 +167,12 @@ export interface IDocumentCapabilityWiring {
    * 即整体回退（fail-closed，工单 036 红线）。
    */
   readonly resourceBinding: INativeResourceBinding;
+  /**
+   * 文档域作用域在册账（工单036 残段 T4 消费位：资源打开路由的 §4.6 文档形态探针单点；
+   * 组合根经 `createLedgerDocumentScopeForm` 只读消费，禁第二套簿记）。
+   * `unavailable`（资源域导出面未落位）或显式注入 `resourcePorts` 时缺位。
+   */
+  readonly scopeLedger?: DocumentScopeLedger;
 }
 
 /** 装载段诊断域标识（组合根留痕口径）。 */
@@ -317,6 +323,8 @@ export function createDocumentCapabilityWiring(
     descriptors: createDocumentCapabilityDescriptors(service),
     missing: [],
     resourceBinding,
+    // 工单036 残段 T4 消费位：文档域在册账交资源打开路由做 §4.6 形态探针（只读单点）。
+    ...(formalLedger === undefined ? {} : { scopeLedger: formalLedger }),
     // 刀5 段A（缝③收口）：视图通道端点与四能力共用同一服务实例、同一原生装载闸产物——
     // 构建执行位主进程，句柄与数值会话经 `view-channel.ts` 归一单点消费。
     viewChannel: createDocumentViewChannelHandler({ service, native: parserPort.view }),

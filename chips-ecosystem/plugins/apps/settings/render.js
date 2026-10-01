@@ -1,7 +1,7 @@
-import { jsxs as u, jsx as s } from "chips-resource://platform/vendor/react-jsx-runtime.js";
-import { useState as I, useRef as W, useEffect as $, useCallback as D, useMemo as C } from "chips-resource://platform/vendor/react.js";
-import { useCommandRuntime as z, theme as R, SettingsLayout as G, SettingsGroup as H, SettingsRow as X, Button as j, Typography as y, StateBoundary as Y, Alert as J, Switch as Q, Input as Z, Select as L, ChipsProvider as ee, CommandProvider as ne, App as F, Flex as A, Menu as te, InfoCircleOutlined as re, DatabaseOutlined as ie, FileDoneOutlined as oe, KeyOutlined as se, SafetyCertificateOutlined as ae, AppstoreOutlined as le, FolderOpenOutlined as de, ThunderboltOutlined as ce, BgColorsOutlined as ue } from "chips-resource://platform/vendor/chips-ui.js";
-const E = [
+import { jsx as a, jsxs as E } from "chips-resource://platform/vendor/react-jsx-runtime.js";
+import { useState as C, useRef as v, useEffect as ee, useCallback as _, useMemo as F } from "chips-resource://platform/vendor/react.js";
+import { useCommandRuntime as be, theme as te, SettingsLayout as J, StateBoundary as fe, Alert as Q, SettingsGroup as _e, SettingsRow as Ce, Button as pe, Typography as A, Switch as we, Input as ke, Select as se, ChipsProvider as Ae, CommandProvider as Ne, App as me, Flex as z, Menu as Te, InfoCircleOutlined as Oe, DatabaseOutlined as ve, FileDoneOutlined as Re, KeyOutlined as De, SafetyCertificateOutlined as Pe, AppstoreOutlined as Ve, FolderOpenOutlined as Le, ThunderboltOutlined as Ke, BgColorsOutlined as Ge } from "chips-resource://platform/vendor/chips-ui.js";
+const M = [
   {
     id: "appearance",
     title: "外观",
@@ -75,13 +75,13 @@ const E = [
     requiredDomains: ["system:info"]
   }
 ];
-function pe() {
-  return [...E].sort((n, e) => n.order - e.order);
+function Me() {
+  return [...M].sort((e, t) => e.order - t.order);
 }
-function M(n) {
-  return E.find((e) => e.id === n) ?? null;
+function oe(e) {
+  return M.find((t) => t.id === e) ?? null;
 }
-const _ = [
+const G = [
   {
     key: "platform.appearance.density",
     sceneId: "appearance",
@@ -153,220 +153,179 @@ const _ = [
     ]
   }
 ];
-function fe(n) {
-  return _.filter((e) => e.sceneId === n);
+function xe(e) {
+  return G.filter((t) => t.sceneId === e);
 }
-function T(n) {
-  return _.find((e) => e.key === n) ?? null;
+function D(e) {
+  return G.find((t) => t.key === e) ?? null;
 }
-function me(n, e) {
-  if (n.kind === "boolean")
-    return typeof e == "boolean" ? e : n.defaultValue;
-  if (n.kind === "integer") {
-    if (typeof e != "number" || !Number.isInteger(e))
-      return n.defaultValue;
-    const r = n.minValue ?? Number.NEGATIVE_INFINITY, o = n.maxValue ?? Number.POSITIVE_INFINITY;
-    return Math.min(o, Math.max(r, e));
+function U(e, t) {
+  if (e.kind === "boolean")
+    return typeof t == "boolean" ? t : e.defaultValue;
+  if (e.kind === "integer") {
+    if (typeof t != "number" || !Number.isInteger(t))
+      return e.defaultValue;
+    const s = e.minValue ?? Number.NEGATIVE_INFINITY, r = e.maxValue ?? Number.POSITIVE_INFINITY;
+    return Math.min(r, Math.max(s, t));
   }
-  const t = n.options?.find((r) => r.value === e);
-  return t === void 0 ? n.defaultValue : t.value;
+  const n = e.options?.find((s) => s.value === t);
+  return n === void 0 ? e.defaultValue : n.value;
 }
-function x(n, e) {
-  return e === n.defaultValue;
+function $e(e, t) {
+  return t === e.defaultValue;
 }
-function he() {
-  const n = /* @__PURE__ */ new Map(), e = (t) => {
-    const r = n.get(t.key);
-    return r === void 0 ? t.defaultValue : r;
-  };
-  return {
-    read: (t) => {
-      const r = T(t);
-      if (r === null)
-        throw new Error(`未登记的配置键：${t}`);
-      return e(r);
-    },
-    write: (t, r) => {
-      const o = T(t);
-      if (o === null)
-        throw new Error(`未登记的配置键：${t}`);
-      const l = me(o, r);
-      return n.set(o.key, l), l;
-    },
-    reset: (t) => {
-      const r = T(t);
-      if (r === null)
-        throw new Error(`未登记的配置键：${t}`);
-      return n.delete(r.key), r.defaultValue;
-    },
-    resetScene: (t) => {
-      for (const r of _)
-        r.sceneId === t && n.delete(r.key);
-    },
-    snapshot: () => {
-      const t = {};
-      for (const r of _)
-        t[r.key] = e(r);
-      return { values: t, layer: "session-memory" };
-    }
-  };
-}
-const ge = he();
-function ye() {
-  return ge;
-}
-class b extends Error {
+class N extends Error {
   code;
   details;
   retryable;
-  constructor(e) {
-    super(e.message), this.name = "ChipsError", this.code = e.code, this.details = e.details, this.retryable = e.retryable ?? !1;
+  constructor(t) {
+    super(t.message), this.name = "ChipsError", this.code = t.code, this.details = t.details, this.retryable = t.retryable ?? !1;
   }
   /** 归一为结构化克隆兼容的普通对象，用于跨 IPC / Neon 传输。 */
   toPlain() {
-    const e = {
+    const t = {
       code: this.code,
       message: this.message,
       retryable: this.retryable
     };
-    return this.details !== void 0 && (e.details = this.details), e;
+    return this.details !== void 0 && (t.details = this.details), t;
   }
-  static fromPlain(e) {
-    return new b({
-      code: e.code,
-      message: e.message,
-      retryable: e.retryable ?? !1,
-      ...e.details !== void 0 ? { details: e.details } : {}
+  static fromPlain(t) {
+    return new N({
+      code: t.code,
+      message: t.message,
+      retryable: t.retryable ?? !1,
+      ...t.details !== void 0 ? { details: t.details } : {}
     });
   }
 }
-function be(n) {
-  if (typeof n != "object" || n === null)
+function Be(e) {
+  if (typeof e != "object" || e === null)
     return !1;
-  const e = n;
-  return typeof e.code == "string" && e.code.length > 0 && typeof e.message == "string" && (e.retryable === void 0 || typeof e.retryable == "boolean");
+  const t = e;
+  return typeof t.code == "string" && t.code.length > 0 && typeof t.message == "string" && (t.retryable === void 0 || typeof t.retryable == "boolean");
 }
-const Ie = "SDK_BRIDGE_UNAVAILABLE", P = "SDK_UNKNOWN_ERROR", K = "发生未知错误";
-function ke(n) {
-  return n instanceof Error;
+const Fe = "SDK_BRIDGE_UNAVAILABLE", ie = "SDK_UNKNOWN_ERROR", ae = "发生未知错误";
+function Ue(e) {
+  return e instanceof Error;
 }
-function Se(n) {
-  if (n instanceof b)
-    return n;
-  if (be(n)) {
-    const e = n, t = {
-      code: e.code,
-      message: e.message,
-      retryable: e.retryable ?? !1,
-      ...e.details !== void 0 ? { details: e.details } : {}
+function qe(e) {
+  if (e instanceof N)
+    return e;
+  if (Be(e)) {
+    const t = e, n = {
+      code: t.code,
+      message: t.message,
+      retryable: t.retryable ?? !1,
+      ...t.details !== void 0 ? { details: t.details } : {}
     };
-    return new b(t);
+    return new N(n);
   }
-  return ke(n) ? new b({
-    code: P,
-    message: K,
-    details: { name: n.name, cause: n.message },
+  return Ue(e) ? new N({
+    code: ie,
+    message: ae,
+    details: { name: e.name, cause: e.message },
     retryable: !1
-  }) : new b({
-    code: P,
-    message: K,
-    details: { value: String(n) },
+  }) : new N({
+    code: ie,
+    message: ae,
+    details: { value: String(e) },
     retryable: !1
   });
 }
-function Ee() {
-  return new b({
-    code: Ie,
+function We() {
+  return new N({
+    code: Fe,
     message: "未找到可用的 Bridge：window.chips 尚未注入",
     retryable: !1
   });
 }
-function f(n, e, t) {
-  let r;
+function b(e, t, n) {
+  let s;
   try {
-    r = n();
-  } catch (o) {
-    return Promise.reject(Se(o));
+    s = e();
+  } catch (r) {
+    return Promise.reject(qe(r));
   }
-  return r.request(e, t);
+  return s.request(t, n);
 }
-const Ce = "cli.command.list", _e = "cli.command.get", we = "cli.command.resolve";
-function ve(n) {
+const je = "cli.command.list", He = "cli.command.get", Ye = "cli.command.resolve";
+function ze(e) {
   return {
-    list(e) {
-      return f(n, Ce, e ?? {});
+    list(t) {
+      return b(e, je, t ?? {});
     },
-    get(e) {
-      return f(n, _e, e);
+    get(t) {
+      return b(e, He, t);
     },
-    resolve(e) {
-      return f(n, we, e);
+    resolve(t) {
+      return b(e, Ye, t);
     }
   };
 }
-const S = {
+const V = {
   CLI_TASK_ACTIVE: "cli:task-active",
   CLI_TASK_GET: "cli:task-get",
   CLI_TASK_PROGRESS: "cli:task-progress",
   CLI_TASK_COMPLETE: "cli:task-complete",
   CLI_TASK_FAIL: "cli:task-fail"
-}, Ae = "cli.task.create", Te = "cli.task.bindInvocation", Oe = "cli.task.cancel";
-function De(n) {
+}, Xe = "cli.task.create", Je = "cli.task.bindInvocation", Qe = "cli.task.cancel";
+function Ze(e) {
   return {
-    create(e) {
-      return f(n, Ae, e).then((t) => t.task);
+    create(t) {
+      return b(e, Xe, t).then((n) => n.task);
     },
-    bindInvocation(e) {
-      return f(n, Te, e).then((t) => t.task);
+    bindInvocation(t) {
+      return b(e, Je, t).then((n) => n.task);
     },
-    get(e) {
-      const t = { taskId: e };
-      return f(n, S.CLI_TASK_GET, t).then((r) => r.task);
+    get(t) {
+      const n = { taskId: t };
+      return b(e, V.CLI_TASK_GET, n).then((s) => s.task);
     },
-    active(e) {
-      const t = { commandId: e };
-      return f(n, S.CLI_TASK_ACTIVE, t).then((r) => r.task);
+    active(t) {
+      const n = { commandId: t };
+      return b(e, V.CLI_TASK_ACTIVE, n).then((s) => s.task);
     },
-    progress(e, t) {
-      const r = { taskId: e, progress: t };
-      return f(n, S.CLI_TASK_PROGRESS, r).then((o) => o.task);
+    progress(t, n) {
+      const s = { taskId: t, progress: n };
+      return b(e, V.CLI_TASK_PROGRESS, s).then((r) => r.task);
     },
-    complete(e, t) {
-      const r = {
-        taskId: e,
-        ...t === void 0 ? {} : { output: t }
+    complete(t, n) {
+      const s = {
+        taskId: t,
+        ...n === void 0 ? {} : { output: n }
       };
-      return f(n, S.CLI_TASK_COMPLETE, r).then((o) => o.task);
+      return b(e, V.CLI_TASK_COMPLETE, s).then((r) => r.task);
     },
-    fail(e, t) {
-      const r = { taskId: e, error: t };
-      return f(n, S.CLI_TASK_FAIL, r).then((o) => o.task);
+    fail(t, n) {
+      const s = { taskId: t, error: n };
+      return b(e, V.CLI_TASK_FAIL, s).then((r) => r.task);
     },
-    cancel(e) {
-      return f(n, Oe, { taskId: e }).then((t) => t.task);
+    cancel(t) {
+      return b(e, Qe, { taskId: t }).then((n) => n.task);
     }
   };
 }
-function Ne() {
+function et() {
   return globalThis.window?.chips;
 }
-class Re {
-  #n;
+class tt {
+  #t;
   /**
    * CLI 命令发现扩展命名空间（§3.5）。
    *
    * 只读实例成员，不是模块级值导出（§2.2 末段）；与三个方法面共用同一目标解析链路。
    */
-  cliCommand = ve(() => this.#e());
+  cliCommand = ze(() => this.#e());
   /**
    * CLI 任务生命周期扩展命名空间（§3.5）。
    *
    * 只读实例成员；插件侧五方法经 `cli:task-active` 至 `cli:task-fail` 能力转发，
    * CLI 调度侧三方法经平台服务路由转发（§5.6、§5.8）。
    */
-  cliTask = De(() => this.#e());
-  constructor(e) {
-    this.#n = e;
+  cliTask = Ze(() => this.#e());
+  constructor(t) {
+    this.#t = t;
   }
   /**
    * 解析本次调用的目标 Bridge。
@@ -375,12 +334,12 @@ class Re {
    * @throws ChipsError 两者均不可用时抛 `SDK_BRIDGE_UNAVAILABLE`
    */
   #e() {
-    if (this.#n !== void 0)
-      return this.#n;
-    const e = Ne();
-    if (e === void 0)
-      throw Ee();
-    return e;
+    if (this.#t !== void 0)
+      return this.#t;
+    const t = et();
+    if (t === void 0)
+      throw We();
+    return t;
   }
   /**
    * 唯一能力调用入口；转发给目标 Bridge。
@@ -389,8 +348,8 @@ class Re {
    * @param input - 能力输入，校验与权限判定由平台完成
    * @returns 能力输出；目标不可用或平台调用失败时以 `ChipsError` 拒绝
    */
-  request(e, t) {
-    return f(() => this.#e(), e, t);
+  request(t, n) {
+    return b(() => this.#e(), t, n);
   }
   /**
    * 订阅标准事件；转发给目标 Bridge。
@@ -400,8 +359,8 @@ class Re {
    * @returns 可退订句柄，`dispose()` 幂等
    * @throws ChipsError 目标不可用时同步抛 `SDK_BRIDGE_UNAVAILABLE`
    */
-  subscribe(e, t) {
-    return this.#e().subscribe(e, t);
+  subscribe(t, n) {
+    return this.#e().subscribe(t, n);
   }
   /**
    * 创建 `chips-resource://` 懒打开句柄；转发给目标 Bridge。
@@ -410,14 +369,14 @@ class Re {
    * @returns 资源句柄；预检失败由目标同步抛出 `ChipsError`
    * @throws ChipsError 目标不可用时同步抛 `SDK_BRIDGE_UNAVAILABLE`
    */
-  resource(e) {
-    return this.#e().resource(e);
+  resource(t) {
+    return this.#e().resource(t);
   }
 }
-function Ve(n) {
-  return new Re(n?.bridge);
+function nt(e) {
+  return new tt(e?.bridge);
 }
-const B = Ve(), q = "chips.official.settings", v = {
+const R = nt(), le = "chips.official.settings", W = {
   refreshView: "settings:refresh-view",
   appearance: "settings:open-appearance",
   behavior: "settings:open-behavior",
@@ -428,7 +387,7 @@ const B = Ve(), q = "chips.official.settings", v = {
   "file-open": "settings:open-file-open",
   storage: "settings:open-storage",
   about: "settings:open-about"
-}, w = {
+}, q = {
   refreshView: "refresh-view",
   appearance: "open-appearance",
   behavior: "open-behavior",
@@ -439,291 +398,653 @@ const B = Ve(), q = "chips.official.settings", v = {
   "file-open": "open-file-open",
   storage: "open-storage",
   about: "open-about"
-}, Le = "分类导航", N = [
+}, rt = "分类导航", Z = [
   {
-    id: v.refreshView,
+    id: W.refreshView,
     title: "刷新当前视图",
     description: "重新读取偏好快照并刷新设置面板展示",
     shortcut: "F5",
-    scope: { kind: "app", appId: q },
-    handlerId: w.refreshView,
+    scope: { kind: "app", appId: le },
+    handlerId: q.refreshView,
     keywords: ["refresh", "刷新"],
     group: "视图"
   },
-  ...E.map(
-    (n) => ({
-      id: n.commandId,
-      title: `打开${n.title}设置`,
-      description: `跳转到设置面板的「${n.title}」分类`,
-      scope: { kind: "app", appId: q },
-      handlerId: w[n.id],
-      keywords: [n.id, n.title],
-      group: Le
+  ...M.map(
+    (e) => ({
+      id: e.commandId,
+      title: `打开${e.title}设置`,
+      description: `跳转到设置面板的「${e.title}」分类`,
+      scope: { kind: "app", appId: le },
+      handlerId: q[e.id],
+      keywords: [e.id, e.title],
+      group: rt
     })
   )
 ];
-new Set(Object.values(v));
-function Me(n, e) {
-  const t = /* @__PURE__ */ new Map();
-  t.set(w.refreshView, () => {
-    n.refreshView(), e({ commandId: v.refreshView, handlerId: "refresh-view", ok: !0 });
+new Set(Object.values(W));
+function st(e, t) {
+  const n = /* @__PURE__ */ new Map();
+  n.set(q.refreshView, () => {
+    e.refreshView(), t({ commandId: W.refreshView, handlerId: "refresh-view", ok: !0 });
   });
-  for (const r of E) {
-    const o = w[r.id];
-    t.set(o, (l) => {
-      const d = xe(l);
-      if (d.kind === "invalid" || d.kind === "ok" && d.sceneId !== r.id) {
-        e({ commandId: r.commandId, handlerId: o, ok: !1 });
+  for (const s of M) {
+    const r = q[s.id];
+    n.set(r, (l) => {
+      const o = ot(l);
+      if (o.kind === "invalid" || o.kind === "ok" && o.sceneId !== s.id) {
+        t({ commandId: s.commandId, handlerId: r, ok: !1 });
         return;
       }
-      n.openScene(r.id), e({ commandId: r.commandId, handlerId: o, ok: !0 });
+      e.openScene(s.id), t({ commandId: s.commandId, handlerId: r, ok: !0 });
     });
   }
-  return N.map((r) => {
-    const o = r.handlerId ?? "", l = t.get(o);
+  return Z.map((s) => {
+    const r = s.handlerId ?? "", l = n.get(r);
     return {
-      commandId: r.id,
-      handlerId: o,
-      handler: (d) => {
-        l?.(d);
+      commandId: s.id,
+      handlerId: r,
+      handler: (o) => {
+        l?.(o);
       }
     };
   });
 }
-function xe(n) {
-  if (n === void 0)
+function ot(e) {
+  if (e === void 0)
     return { kind: "absent" };
-  if (typeof n != "object" || n === null)
+  if (typeof e != "object" || e === null)
     return { kind: "invalid" };
-  const e = n;
-  if (!("sceneId" in e))
+  const t = e;
+  if (!("sceneId" in t))
     return { kind: "absent" };
-  const t = e.sceneId;
-  return typeof t == "string" && t.length > 0 ? { kind: "ok", sceneId: t } : { kind: "invalid" };
+  const n = t.sceneId;
+  return typeof n == "string" && n.length > 0 ? { kind: "ok", sceneId: n } : { kind: "invalid" };
 }
-const Pe = {
+const it = {
   registering: "命令注册中",
   ready: "命令已就绪",
   error: "命令通道异常"
 };
-function U(n) {
-  if (typeof n == "object" && n !== null && "code" in n) {
-    const e = n.code;
-    if (typeof e == "string" && e.length > 0)
-      return e;
+function ce(e) {
+  if (typeof e == "object" && e !== null && "code" in e) {
+    const t = e.code;
+    if (typeof t == "string" && t.length > 0)
+      return t;
   }
   return "COMMAND_RUNTIME_ERROR";
 }
-function Ke() {
-  const n = z(), [e, t] = I("registering"), [r, o] = I(null), [l, d] = I(null), m = W(null);
-  $(() => {
-    let p = !1, a = null;
-    return t("registering"), o(null), (async () => {
+function at() {
+  const e = be(), [t, n] = C("registering"), [s, r] = C(null), [l, o] = C(null), d = v(null);
+  ee(() => {
+    let m = !1, c = null;
+    return n("registering"), r(null), (async () => {
       try {
-        for (const i of N)
-          await B.request("command:register", { definition: i });
-        if (p)
+        for (const y of Z)
+          await R.request("command:register", { definition: y });
+        if (m)
           return;
-        a = n.attach(
-          Me(
+        c = e.attach(
+          st(
             {
-              openScene: (i) => {
-                m.current?.openScene(i);
+              openScene: (y) => {
+                d.current?.openScene(y);
               },
               refreshView: () => {
-                m.current?.refreshView();
+                d.current?.refreshView();
               }
             },
-            (i) => {
-              d(i);
+            (y) => {
+              o(y);
             }
           )
-        ), t("ready");
-      } catch (i) {
-        p || (o(U(i)), t("error"));
+        ), n("ready");
+      } catch (y) {
+        m || (r(ce(y)), n("error"));
       }
     })(), () => {
-      p = !0, a?.dispose();
-      for (const i of N)
-        B.request("command:unregister", { commandId: i.id }).catch(() => {
+      m = !0, c?.dispose();
+      for (const y of Z)
+        R.request("command:unregister", { commandId: y.id }).catch(() => {
         });
     };
-  }, [n]);
-  const k = D((p) => {
-    m.current = p;
-  }, []), g = D(() => {
-    n.invoke({ commandId: v.refreshView, source: "api" }).catch((a) => {
-      o(U(a));
+  }, [e]);
+  const g = _((m) => {
+    d.current = m;
+  }, []), u = _(() => {
+    e.invoke({ commandId: W.refreshView, source: "api" }).catch((c) => {
+      r(ce(c));
     });
-  }, [n]);
-  return { phase: e, errorCode: r, lastInvoked: l, setActions: k, invokeRefresh: g };
+  }, [e]);
+  return { phase: t, errorCode: s, lastInvoked: l, setActions: g, invokeRefresh: u };
 }
-const O = "会话内存（未持久化，工单066）", Be = [960, 1200, 1440, 1680, 1920], qe = ({ descriptor: n, value: e, onChange: t }) => {
-  const [r, o] = I(null);
-  if (n.kind === "boolean")
-    return /* @__PURE__ */ s(Q, { checked: e === !0, onChange: (l) => t(l), "aria-label": n.label });
-  if (n.kind === "integer") {
-    const l = r ?? String(e);
-    return /* @__PURE__ */ s(
-      Z,
+const L = "platform", he = `${L}.`, lt = "SETTINGS_SNAPSHOT_RECEIPT_INVALID", ct = "SETTINGS_KEY_OUT_OF_NAMESPACE", dt = "SETTINGS_GATEWAY_ERROR";
+class K extends Error {
+  code;
+  constructor(t, n) {
+    super(n), this.name = "SettingsConfigError", this.code = t;
+  }
+}
+function B(e) {
+  if (e instanceof K)
+    return e;
+  if (typeof e == "object" && e !== null && "code" in e) {
+    const t = e.code;
+    if (typeof t == "string" && t.length > 0)
+      return new K(t, e instanceof Error ? e.message : "未知错误");
+  }
+  return new K(dt, e instanceof Error ? e.message : "未知错误");
+}
+function de(e) {
+  const t = B(e);
+  return { code: t.code, message: t.message };
+}
+function ge(e) {
+  return e.startsWith(he);
+}
+function X(e) {
+  if (!ge(e))
+    throw new K(
+      ct,
+      `配置键 ${e} 不属于 ${L} 命名空间`
+    );
+  return e.slice(he.length);
+}
+function ut(e) {
+  return e === "CONFIG_POLICY_LOCKED" ? "该键由平台策略管理，不可在此修改" : e === "CONFIG_KEY_UNKNOWN" ? "该键未在平台配置注册，请刷新视图；若持续出现属于面板缺陷" : e === "CONFIG_VALUE_INVALID" ? "取值不符合该键的配置约束，请重新选择" : e === "CONFIG_NAMESPACE_DENIED" ? "缺少 platform 命名空间配置授权，请在权限设置中核查" : e === "CONFIG_SCOPE_INVALID" ? "当前写入层不可用，请刷新视图后重试" : e === "CONFIG_EXTERNAL_MODIFIED" ? "配置文件被外部修改，请刷新视图后重试" : e === "CONFIG_WRITE_FAILED" ? "配置落盘失败，请重试" : e === "BRIDGE_PERMISSION_DENIED" ? "缺少配置读写授权（config:write:platform），请核查应用权限" : "配置通道异常，请刷新视图重试";
+}
+function ue(e) {
+  return typeof e == "object" && e !== null && !Array.isArray(e);
+}
+function ft(e) {
+  if (!ue(e) || !ue(e.values))
+    throw new K(lt, "配置快照回执缺少生效视图记录");
+  return e.values;
+}
+function pt() {
+  return {
+    async loadPlatformSnapshot() {
+      let e;
+      try {
+        e = await R.request("config:snapshot", {
+          namespace: L,
+          prefix: ""
+        });
+      } catch (t) {
+        throw B(t);
+      }
+      return ft(e);
+    },
+    async writePlatformValue(e, t) {
+      try {
+        await R.request("config:set", {
+          namespace: L,
+          key: e,
+          value: t,
+          scope: "user"
+        });
+      } catch (n) {
+        throw B(n);
+      }
+    },
+    async resetPlatformKeys(e) {
+      try {
+        await R.request("config:reset", {
+          namespace: L,
+          keys: [...e],
+          scope: "user"
+        });
+      } catch (t) {
+        throw B(t);
+      }
+    },
+    subscribePlatformChanges(e) {
+      const t = R.subscribe("config:changed", (s) => {
+        e(s);
+      });
+      let n = !1;
+      return {
+        dispose() {
+          n || (n = !0, t.dispose());
+        }
+      };
+    }
+  };
+}
+const mt = pt();
+function ht() {
+  return mt;
+}
+function gt() {
+  const e = /* @__PURE__ */ new Map(), t = (s) => {
+    const r = e.get(s.key);
+    return r === void 0 ? s.defaultValue : r;
+  }, n = (s) => {
+    const r = D(s);
+    if (r === null)
+      throw new Error(`未登记的配置键：${s}`);
+    return r;
+  };
+  return {
+    read: (s) => t(n(s)),
+    write: (s, r) => {
+      const l = n(s), o = U(l, r);
+      return e.set(l.key, o), o;
+    },
+    reset: (s) => {
+      const r = n(s);
+      return e.delete(r.key), r.defaultValue;
+    },
+    resetKeys: (s) => {
+      for (const r of s) {
+        const l = n(r);
+        e.delete(l.key);
+      }
+    },
+    resetScene: (s) => {
+      for (const r of G)
+        r.sceneId === s && e.delete(r.key);
+    },
+    snapshot: () => {
+      const s = {};
+      for (const r of G)
+        s[r.key] = t(r);
+      return { values: s, layer: "session-memory" };
+    }
+  };
+}
+function yt(e) {
+  const t = {}, n = {};
+  for (const r of G) {
+    const l = e[r.key];
+    if (l === void 0) {
+      t[r.key] = r.defaultValue, n[r.key] = "default";
+      continue;
+    }
+    t[r.key] = U(r, l), n[r.key] = "user";
+  }
+  const s = Object.values(n).includes("user") ? "user" : "default";
+  return { values: t, layer: s, layers: n };
+}
+function It(e) {
+  const t = (r) => {
+    const l = D(r);
+    if (l === null)
+      throw new Error(`未登记的配置键：${r}`);
+    return l;
+  };
+  let n = null;
+  const s = async () => (n = yt(await e.loadPlatformSnapshot()), n);
+  return {
+    load: s,
+    async write(r, l) {
+      const o = t(r), d = U(o, l);
+      return await e.writePlatformValue(X(o.key), d), s();
+    },
+    async reset(r) {
+      const l = t(r);
+      return await e.resetPlatformKeys([X(l.key)]), s();
+    },
+    async resetKeys(r) {
+      if (r.length === 0)
+        return s();
+      const l = r.map((o) => X(t(o).key));
+      return await e.resetPlatformKeys(l), s();
+    },
+    subscribe(r) {
+      const l = (o) => {
+        if (!ge(o.key))
+          return;
+        const d = D(o.key);
+        if (d === null || n === null)
+          return;
+        const g = { ...n.values }, u = { ...n.layers ?? {} };
+        g[d.key] = U(d, o.effectiveValue), u[d.key] = o.isDefault || o.value === null ? "default" : "user", n = {
+          values: g,
+          layers: u,
+          layer: Object.values(u).includes("user") ? "user" : "default"
+        }, r(n);
+      };
+      return e.subscribePlatformChanges(l);
+    }
+  };
+}
+const St = /* @__PURE__ */ new Set([
+  "SDK_BRIDGE_UNAVAILABLE",
+  "BRIDGE_CAPABILITY_NOT_FOUND",
+  "SETTINGS_GATEWAY_ERROR",
+  "SETTINGS_SNAPSHOT_RECEIPT_INVALID"
+]);
+function Et(e) {
+  const [t, n] = C("loading"), [s, r] = C(null), [l, o] = C(/* @__PURE__ */ new Set()), [d, g] = C(null), [u, m] = C(null), [c, y] = C(0), I = v(null), w = v(null), T = v(null), x = v("loading"), k = v(e.onNotify);
+  k.current = e.onNotify;
+  const P = _((i) => {
+    x.current = i, n(i);
+  }, []), j = _((i, p) => {
+    o((f) => {
+      const h = new Set(f);
+      for (const S of i)
+        p ? h.add(S) : h.delete(S);
+      return h;
+    });
+  }, []), $ = _((i) => {
+    const p = gt();
+    w.current = p, T.current?.dispose(), T.current = null, I.current = null, r(p.snapshot()), m(i), g(null), P("degraded");
+  }, [P]), O = _(
+    (i, p, f, h) => {
+      const S = I.current;
+      S !== null && (g(null), j(i, !0), (async () => {
+        try {
+          const H = await f(S);
+          r(H), k.current(p);
+        } catch (H) {
+          const { code: Y, message: ne } = de(H);
+          if (St.has(Y)) {
+            $({ code: Y, message: ne });
+            const re = w.current;
+            re !== null && h !== void 0 && h(re);
+          } else
+            g({ key: i[0] ?? "", code: Y, message: ne });
+        } finally {
+          j(i, !1);
+        }
+      })());
+    },
+    [$, j]
+  );
+  ee(() => {
+    let i = !1;
+    P("loading"), g(null), m(null);
+    const p = It(ht());
+    return I.current = p, (async () => {
+      try {
+        const f = await p.load();
+        if (i)
+          return;
+        r(f), P("config"), T.current?.dispose(), T.current = p.subscribe((h) => {
+          i || r(h);
+        });
+      } catch (f) {
+        if (i)
+          return;
+        $(de(f));
+      }
+    })(), () => {
+      i = !0, T.current?.dispose(), T.current = null, I.current = null;
+    };
+  }, [c, $, P]);
+  const ye = _(
+    (i, p) => {
+      const f = D(i)?.label ?? i;
+      if (x.current === "degraded") {
+        const h = w.current;
+        if (h === null)
+          return;
+        h.write(i, p), r(h.snapshot()), k.current(`「${f}」已更新（会话内存，未持久化）`);
+        return;
+      }
+      O(
+        [i],
+        `「${f}」已更新并持久化`,
+        (h) => h.write(i, p),
+        (h) => {
+          h.write(i, p), r(h.snapshot()), k.current(`「${f}」已更新（会话内存，未持久化）`);
+        }
+      );
+    },
+    [O]
+  ), Ie = _(
+    (i) => {
+      const p = D(i)?.label ?? i;
+      if (x.current === "degraded") {
+        const f = w.current;
+        if (f === null)
+          return;
+        f.reset(i), r(f.snapshot()), k.current(`「${p}」已恢复默认（会话内存）`);
+        return;
+      }
+      O(
+        [i],
+        `「${p}」已恢复默认`,
+        (f) => f.reset(i),
+        (f) => {
+          f.reset(i), r(f.snapshot()), k.current(`「${p}」已恢复默认（会话内存）`);
+        }
+      );
+    },
+    [O]
+  ), Se = _(
+    (i, p) => {
+      if (i.length === 0)
+        return;
+      const f = p === void 0 ? `「${D(i[0] ?? "")?.label ?? i[0] ?? ""}」已恢复默认` : `「${p}」分组已恢复默认`, h = `${f}（会话内存）`;
+      if (x.current === "degraded") {
+        const S = w.current;
+        if (S === null)
+          return;
+        S.resetKeys(i), r(S.snapshot()), k.current(h);
+        return;
+      }
+      O(
+        i,
+        f,
+        (S) => S.resetKeys(i),
+        (S) => {
+          S.resetKeys(i), r(S.snapshot()), k.current(h);
+        }
+      );
+    },
+    [O]
+  ), Ee = _(() => {
+    y((i) => i + 1);
+  }, []);
+  return {
+    phase: t,
+    snapshot: s,
+    busyKeys: l,
+    writeError: d,
+    degradeNotice: u,
+    reload: Ee,
+    writeKey: ye,
+    resetKey: Ie,
+    resetKeys: Se
+  };
+}
+const bt = [960, 1200, 1440, 1680, 1920];
+function _t(e) {
+  return e === "user" ? "生效层：用户层持久化配置（未覆盖项为默认值）" : e === "default" ? "生效层：默认值（无显式覆盖）" : "生效层：会话内存（未持久化）";
+}
+const Ct = ({ descriptor: e, value: t, busy: n, onChange: s }) => {
+  const [r, l] = C(null);
+  if (e.kind === "boolean")
+    return /* @__PURE__ */ a(
+      we,
       {
-        value: l,
+        checked: t === !0,
+        loading: n,
+        disabled: n,
+        onChange: (o) => s(o),
+        "aria-label": e.label
+      }
+    );
+  if (e.kind === "integer") {
+    const o = r ?? String(t);
+    return /* @__PURE__ */ a(
+      ke,
+      {
+        value: o,
         inputMode: "numeric",
         style: { width: 240 },
-        "aria-label": n.label,
+        "aria-label": e.label,
+        disabled: n,
         onChange: (d) => {
-          o(d.target.value);
-          const m = Number.parseInt(d.target.value, 10);
-          Number.isInteger(m) && t(m);
+          l(d.target.value);
+          const g = Number.parseInt(d.target.value, 10);
+          Number.isInteger(g) && s(g);
         },
-        addonAfter: /* @__PURE__ */ s(
-          L,
+        addonAfter: /* @__PURE__ */ a(
+          se,
           {
             size: "small",
             variant: "borderless",
             placeholder: "常用档",
             style: { minWidth: 96 },
-            options: Be.map((d) => ({ value: d, label: `${d}px` })),
+            loading: n,
+            disabled: n,
+            options: bt.map((d) => ({ value: d, label: `${d}px` })),
             onChange: (d) => {
-              o(null), t(d);
+              l(null), s(d);
             }
           }
         )
       }
     );
   }
-  return /* @__PURE__ */ s(
-    L,
+  return /* @__PURE__ */ a(
+    se,
     {
-      value: String(e),
+      value: String(t),
       style: { minWidth: 160 },
-      options: (n.options ?? []).map((l) => ({ value: l.value, label: l.label })),
-      onChange: (l) => t(l),
-      "aria-label": n.label
+      loading: n,
+      disabled: n,
+      options: (e.options ?? []).map((o) => ({ value: o.value, label: o.label })),
+      onChange: (o) => s(o),
+      "aria-label": e.label
     }
   );
-}, Ue = ({ sceneId: n, store: e, onNotify: t }) => {
-  const { token: r } = R.useToken(), o = C(() => fe(n), [n]), [l, d] = I(
-    () => Object.fromEntries(o.map((a) => [a.key, e.read(a.key)]))
-  ), m = C(() => {
-    const a = [];
-    for (const i of o) {
-      const h = a.find((c) => c.group === i.group);
-      h === void 0 ? a.push({ group: i.group, items: [i] }) : h.items.push(i);
+}, wt = ({ sceneId: e, runtime: t }) => {
+  const { token: n } = te.useToken(), s = F(() => xe(e), [e]), r = F(() => {
+    const u = [];
+    for (const m of s) {
+      const c = u.find((y) => y.group === m.group);
+      c === void 0 ? u.push({ group: m.group, items: [m] }) : c.items.push(m);
     }
-    return a;
-  }, [o]), k = (a, i) => {
-    const h = e.write(a.key, i);
-    d((c) => ({ ...c, [a.key]: h })), t(`「${a.label}」已更新（${O}）`);
-  }, g = (a) => {
-    const i = e.reset(a.key);
-    d((h) => ({ ...h, [a.key]: i })), t(`「${a.label}」已恢复默认`);
-  }, p = (a) => l[a.key] ?? e.read(a.key);
-  return /* @__PURE__ */ u(G, { subtitle: `生效层：${O}`, children: [
-    m.map((a) => /* @__PURE__ */ u(H, { title: a.group, children: [
-      a.items.map((i) => /* @__PURE__ */ s(
-        X,
-        {
-          label: i.advanced ? `${i.label}（高级）` : i.label,
-          description: i.description,
-          control: /* @__PURE__ */ s(
-            qe,
-            {
-              descriptor: i,
-              value: p(i),
-              onChange: (h) => k(i, h)
-            }
-          )
-        },
-        i.key
-      )),
-      a.items.some((i) => !x(i, p(i))) ? /* @__PURE__ */ s("div", { style: { display: "flex", justifyContent: "flex-end", paddingBlock: 4 }, children: /* @__PURE__ */ s(
-        j,
-        {
-          size: "small",
-          onClick: () => {
-            for (const i of a.items)
-              x(i, p(i)) || g(i);
+    return u;
+  }, [s]);
+  if (t.phase === "loading" || t.snapshot === null)
+    return /* @__PURE__ */ a(J, { subtitle: "正在读取偏好快照", children: /* @__PURE__ */ a(fe, { loading: !0, minHeight: 200 }) });
+  const l = t.snapshot, o = (u) => l.values[u.key] ?? u.defaultValue, d = t.writeError, g = d !== null && s.some((u) => u.key === d.key) ? d : null;
+  return /* @__PURE__ */ E(J, { subtitle: _t(l.layer), children: [
+    t.degradeNotice !== null ? /* @__PURE__ */ a(
+      Q,
+      {
+        type: "warning",
+        showIcon: !0,
+        "data-role": "persistence-degraded",
+        message: "配置持久化通道不可用",
+        description: `错误码 ${t.degradeNotice.code}：${t.degradeNotice.message}。当前偏好为会话内存态，仅本次窗口会话内有效，不写入持久配置。`
+      }
+    ) : null,
+    g !== null ? /* @__PURE__ */ a(
+      Q,
+      {
+        type: "error",
+        showIcon: !0,
+        "data-role": "preference-error",
+        message: `偏好写入失败（${g.code}）`,
+        description: `${g.message}：${ut(g.code)}`
+      }
+    ) : null,
+    r.map((u) => {
+      const m = u.items.filter((c) => !$e(c, o(c))).map((c) => c.key);
+      return /* @__PURE__ */ E(_e, { title: u.group, children: [
+        u.items.map((c) => /* @__PURE__ */ a(
+          Ce,
+          {
+            label: c.advanced ? `${c.label}（高级）` : c.label,
+            description: c.description,
+            control: /* @__PURE__ */ a(
+              Ct,
+              {
+                descriptor: c,
+                value: o(c),
+                busy: t.busyKeys.has(c.key),
+                onChange: (y) => t.writeKey(c.key, y)
+              }
+            )
           },
-          children: "恢复本组默认"
-        }
-      ) }) : null
-    ] }, a.group)),
-    /* @__PURE__ */ u(y.Text, { type: "secondary", style: { fontSize: r.fontSizeSM }, children: [
-      "偏好当前生效层：",
-      O,
-      "。配置域宿主处理器落波后换接持久实现，消费面零改动。"
-    ] })
+          c.key
+        )),
+        m.length > 0 ? /* @__PURE__ */ a("div", { style: { display: "flex", justifyContent: "flex-end", paddingBlock: 4 }, children: /* @__PURE__ */ a(
+          pe,
+          {
+            size: "small",
+            onClick: () => t.resetKeys(m, u.group),
+            children: "恢复本组默认"
+          }
+        ) }) : null
+      ] }, u.group);
+    }),
+    /* @__PURE__ */ a(A.Text, { type: "secondary", style: { fontSize: n.fontSizeSM }, children: "偏好经平台配置域（config:*）读写并持久化到用户层；修改即时生效，恢复默认即清退用户层显式覆盖。" })
   ] });
 };
-function $e(n) {
-  const e = E.find((t) => t.id === n);
-  if (e === void 0)
-    throw new Error(`未登记的设置分类：${n}`);
-  return e;
+function kt(e) {
+  const t = M.find((n) => n.id === e);
+  if (t === void 0)
+    throw new Error(`未登记的设置分类：${e}`);
+  return t;
 }
-const Ge = ({ sceneId: n }) => {
-  const e = C(() => $e(n), [n]), { token: t } = R.useToken();
-  return /* @__PURE__ */ u(G, { title: e.title, subtitle: "该分类依赖的宿主查询域尚未就绪", children: [
-    /* @__PURE__ */ s(Y, { empty: !0, emptyText: "暂无可呈现数据" }),
-    /* @__PURE__ */ s(
-      J,
+const At = ({ sceneId: e }) => {
+  const t = F(() => kt(e), [e]), { token: n } = te.useToken();
+  return /* @__PURE__ */ E(J, { title: t.title, subtitle: "该分类依赖的宿主查询域尚未就绪", children: [
+    /* @__PURE__ */ a(fe, { empty: !0, emptyText: "暂无可呈现数据" }),
+    /* @__PURE__ */ a(
+      Q,
       {
         type: "info",
         showIcon: !0,
         message: "依赖域缺位说明",
-        description: /* @__PURE__ */ u("div", { style: { display: "flex", flexDirection: "column", gap: t.marginXS }, children: [
-          /* @__PURE__ */ u("span", { children: [
+        description: /* @__PURE__ */ E("div", { style: { display: "flex", flexDirection: "column", gap: n.marginXS }, children: [
+          /* @__PURE__ */ E("span", { children: [
             "所需能力族：",
-            e.requiredDomains.join("、")
+            t.requiredDomains.join("、")
           ] }),
-          /* @__PURE__ */ u("span", { children: [
-            e.requiredDomains.includes("config:get") ? "config:get 域缺位已在册工单066；" : "",
+          /* @__PURE__ */ E("span", { children: [
+            t.requiredDomains.includes("config:get") ? "config:get 域已随工单066 第一批翻正就位；工作区状态查询与 shell:openExternal 域仍待落波，" : "",
             "其余域按宿主缺位勘查账随波落位，落位后本页启用对应治理界面。"
           ] })
         ] })
       }
     ),
-    /* @__PURE__ */ s(y.Text, { type: "secondary", children: "本页不做占位实现：宿主查询域落位前不呈现替代内容或不可用控件。" })
+    /* @__PURE__ */ a(A.Text, { type: "secondary", children: "本页不做占位实现：宿主查询域落位前不呈现替代内容或不可用控件。" })
   ] });
-}, je = "chips.official.settings", Fe = {
-  appearance: /* @__PURE__ */ s(ue, {}),
-  behavior: /* @__PURE__ */ s(ce, {}),
-  workspace: /* @__PURE__ */ s(de, {}),
-  plugins: /* @__PURE__ */ s(le, {}),
-  permissions: /* @__PURE__ */ s(ae, {}),
-  shortcuts: /* @__PURE__ */ s(se, {}),
-  "file-open": /* @__PURE__ */ s(oe, {}),
-  storage: /* @__PURE__ */ s(ie, {}),
-  about: /* @__PURE__ */ s(re, {})
-}, We = ({ store: n }) => {
-  const { token: e } = R.useToken(), { message: t } = F.useApp(), [r, o] = I("appearance"), [l, d] = I(0), { phase: m, errorCode: k, setActions: g, invokeRefresh: p } = Ke();
-  $(() => (g({
-    openScene: (c) => {
-      const V = M(c);
-      V !== null && o(V.id);
-    },
-    refreshView: () => {
-      d((c) => c + 1);
-    }
-  }), () => {
-    g(null);
-  }), [g]);
-  const a = D(
-    (c) => {
-      t.info(c);
+}, Nt = "chips.official.settings", Tt = {
+  appearance: /* @__PURE__ */ a(Ge, {}),
+  behavior: /* @__PURE__ */ a(Ke, {}),
+  workspace: /* @__PURE__ */ a(Le, {}),
+  plugins: /* @__PURE__ */ a(Ve, {}),
+  permissions: /* @__PURE__ */ a(Pe, {}),
+  shortcuts: /* @__PURE__ */ a(De, {}),
+  "file-open": /* @__PURE__ */ a(Re, {}),
+  storage: /* @__PURE__ */ a(ve, {}),
+  about: /* @__PURE__ */ a(Oe, {})
+}, Ot = () => {
+  const { token: e } = te.useToken(), { message: t } = me.useApp(), [n, s] = C("appearance"), { phase: r, errorCode: l, setActions: o, invokeRefresh: d } = at(), g = _(
+    (I) => {
+      t.info(I);
     },
     [t]
-  ), i = M(r), h = C(
-    () => pe().map((c) => ({
-      key: c.id,
-      icon: Fe[c.id],
-      label: c.title
+  ), u = Et({ onNotify: g }), { reload: m } = u;
+  ee(() => (o({
+    openScene: (I) => {
+      const w = oe(I);
+      w !== null && s(w.id);
+    },
+    refreshView: () => {
+      m();
+    }
+  }), () => {
+    o(null);
+  }), [o, m]);
+  const c = oe(n), y = F(
+    () => Me().map((I) => ({
+      key: I.id,
+      icon: Tt[I.id],
+      label: I.title
     })),
     []
   );
-  return i === null ? null : /* @__PURE__ */ u(A, { style: { height: "100%", background: e.colorBgLayout }, children: [
-    /* @__PURE__ */ u(
+  return c === null ? null : /* @__PURE__ */ E(z, { style: { height: "100%", background: e.colorBgLayout }, children: [
+    /* @__PURE__ */ E(
       "aside",
       {
         style: {
@@ -737,51 +1058,43 @@ const Ge = ({ sceneId: n }) => {
           overflow: "auto"
         },
         children: [
-          /* @__PURE__ */ s(y.Text, { strong: !0, style: { paddingInline: e.paddingXS, marginBottom: e.marginSM }, children: "生态设置面板" }),
-          /* @__PURE__ */ s(
-            te,
+          /* @__PURE__ */ a(A.Text, { strong: !0, style: { paddingInline: e.paddingXS, marginBottom: e.marginSM }, children: "生态设置面板" }),
+          /* @__PURE__ */ a(
+            Te,
             {
               mode: "inline",
-              selectedKeys: [i.id],
-              items: h,
-              onClick: (c) => o(c.key),
+              selectedKeys: [c.id],
+              items: y,
+              onClick: (I) => s(I.key),
               style: { borderInlineEnd: "none", background: "transparent", flex: 1 }
             }
           ),
-          /* @__PURE__ */ u("div", { style: { paddingInline: e.paddingXS }, children: [
-            /* @__PURE__ */ u(y.Text, { type: "secondary", children: [
+          /* @__PURE__ */ E("div", { style: { paddingInline: e.paddingXS }, children: [
+            /* @__PURE__ */ E(A.Text, { type: "secondary", children: [
               "命令注册状态：",
-              Pe[m]
+              it[r]
             ] }),
-            m === "error" && k !== null ? /* @__PURE__ */ u(y.Text, { type: "secondary", style: { display: "block" }, children: [
+            r === "error" && l !== null ? /* @__PURE__ */ E(A.Text, { type: "secondary", style: { display: "block" }, children: [
               "错误码：",
-              k
+              l
             ] }) : null
           ] })
         ]
       }
     ),
-    /* @__PURE__ */ s("main", { style: { flex: 1, minWidth: 0, overflow: "auto", padding: e.padding }, children: /* @__PURE__ */ u(A, { vertical: !0, gap: e.marginSM, children: [
-      /* @__PURE__ */ u(A, { justify: "space-between", align: "center", children: [
-        /* @__PURE__ */ u("div", { children: [
-          /* @__PURE__ */ s(y.Title, { level: 4, style: { margin: 0 }, children: i.title }),
-          /* @__PURE__ */ s(y.Text, { type: "secondary", children: i.summary })
+    /* @__PURE__ */ a("main", { style: { flex: 1, minWidth: 0, overflow: "auto", padding: e.padding }, children: /* @__PURE__ */ E(z, { vertical: !0, gap: e.marginSM, children: [
+      /* @__PURE__ */ E(z, { justify: "space-between", align: "center", children: [
+        /* @__PURE__ */ E("div", { children: [
+          /* @__PURE__ */ a(A.Title, { level: 4, style: { margin: 0 }, children: c.title }),
+          /* @__PURE__ */ a(A.Text, { type: "secondary", children: c.summary })
         ] }),
-        /* @__PURE__ */ s(j, { onClick: p, children: "刷新当前视图" })
+        /* @__PURE__ */ a(pe, { onClick: d, children: "刷新当前视图" })
       ] }),
-      i.requiredDomains.length === 0 ? /* @__PURE__ */ s(
-        Ue,
-        {
-          sceneId: i.id,
-          store: n,
-          onNotify: a
-        },
-        `${i.id}-${l}`
-      ) : /* @__PURE__ */ s(Ge, { sceneId: i.id })
+      c.requiredDomains.length === 0 ? /* @__PURE__ */ a(wt, { sceneId: c.id, runtime: u }) : /* @__PURE__ */ a(At, { sceneId: c.id })
     ] }) })
   ] });
-}, Ye = () => /* @__PURE__ */ s(ee, { appId: je, surface: "window", children: /* @__PURE__ */ s(ne, { children: /* @__PURE__ */ s(F, { children: /* @__PURE__ */ s(We, { store: ye() }) }) }) });
+}, Pt = () => /* @__PURE__ */ a(Ae, { appId: Nt, surface: "window", children: /* @__PURE__ */ a(Ne, { children: /* @__PURE__ */ a(me, { children: /* @__PURE__ */ a(Ot, {}) }) }) });
 export {
-  Ye as AppView,
-  Ye as default
+  Pt as AppView,
+  Pt as default
 };

@@ -19,8 +19,8 @@ import {
   theme,
 } from '@chips/ui';
 import { findScene, scenesInOrder, type SettingsSceneId } from '../domain/settings/catalog';
-import { getWindowSettingsStore, type SettingsPreferenceStore } from '../domain/settings/preferenceStore';
 import { COMMAND_PHASE_LABELS, useAppCommands } from '../commands/useAppCommands';
+import { usePreferenceRuntime } from './usePreferenceRuntime';
 import { DegradedScene, PreferenceScene } from './Scenes';
 
 const APP_ID = 'chips.official.settings';
@@ -43,16 +43,27 @@ const SCENE_ICONS: Readonly<Record<SettingsSceneId, ReactElement>> = {
  *
  * 壳层按注册表驱动（《05-生态设置面板设计》§2.3）：左侧九类导航行与右侧内容区
  * 只消费 `SETTINGS_SCENES`，禁止在组件内条件分支追加页面；窄屏切换器随导航臂后续
- * 形态落位（消费同一套注册表）。
+ * 形态落位（消费同一套注册表）。偏好读写经偏好运行时（config:* 真实现消费，
+ * 工单066 翻正第一批）。
  */
-const AppContent: FC<{ store: SettingsPreferenceStore }> = ({ store }) => {
+const AppContent: FC = () => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
   const [activeScene, setActiveScene] = useState<SettingsSceneId>('appearance');
-  const [refreshToken, setRefreshToken] = useState(0);
   const { phase, errorCode, setActions, invokeRefresh } = useAppCommands();
 
-  // 命令动作装配：分类跳转 + 刷新本地处理器（装配一次，动作内部读取最新状态）。
+  // 成功类反馈走顶部浮层短提示（失败类反馈在页面行内，须显式处置）。
+  const notify = useCallback(
+    (text: string): void => {
+      message.info(text);
+    },
+    [message],
+  );
+
+  const runtime = usePreferenceRuntime({ onNotify: notify });
+  const { reload } = runtime;
+
+  // 命令动作装配：分类跳转 + 刷新偏好快照（装配一次，动作内部读取最新状态）。
   useEffect(() => {
     setActions({
       openScene: (sceneId: string): void => {
@@ -63,21 +74,13 @@ const AppContent: FC<{ store: SettingsPreferenceStore }> = ({ store }) => {
         setActiveScene(scene.id);
       },
       refreshView: (): void => {
-        setRefreshToken((token_) => token_ + 1);
+        reload();
       },
     });
     return (): void => {
       setActions(null);
     };
-  }, [setActions]);
-
-  // 成功类反馈走顶部浮层短提示（失败类反馈在页面行内，须显式处置）。
-  const notify = useCallback(
-    (text: string): void => {
-      message.info(text);
-    },
-    [message],
-  );
+  }, [setActions, reload]);
 
   const scene = findScene(activeScene);
   const menuItems = useMemo(
@@ -140,12 +143,7 @@ const AppContent: FC<{ store: SettingsPreferenceStore }> = ({ store }) => {
             <Button onClick={invokeRefresh}>刷新当前视图</Button>
           </Flex>
           {scene.requiredDomains.length === 0 ? (
-            <PreferenceScene
-              key={`${scene.id}-${refreshToken}`}
-              sceneId={scene.id}
-              store={store}
-              onNotify={notify}
-            />
+            <PreferenceScene sceneId={scene.id} runtime={runtime} />
           ) : (
             <DegradedScene sceneId={scene.id} />
           )}
@@ -168,7 +166,7 @@ export const AppView: FC = () => (
   <ChipsProvider appId={APP_ID} surface="window">
     <CommandProvider>
       <App>
-        <AppContent store={getWindowSettingsStore()} />
+        <AppContent />
       </App>
     </CommandProvider>
   </ChipsProvider>

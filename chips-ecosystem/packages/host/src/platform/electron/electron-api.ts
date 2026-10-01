@@ -353,6 +353,8 @@ export interface ElectronNetLike {
 export interface ElectronShellLike {
   /** 用系统默认程序打开 URL。 */
   openExternal(url: string): Promise<void> | void;
+  /** 用操作系统默认程序打开本地路径；失败时 resolve 携带错误描述字符串（Electron 契约）。 */
+  openPath(path: string): Promise<string> | string;
 }
 
 /**

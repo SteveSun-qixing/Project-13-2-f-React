@@ -11,6 +11,8 @@ runtime:
 permissions:
   - command:write
   - command:execute
+  - config:read:platform
+  - config:write:platform
 ui:
   surface: window
   launcher:

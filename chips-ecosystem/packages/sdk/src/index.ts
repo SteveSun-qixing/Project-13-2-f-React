@@ -5,7 +5,8 @@
  * - 值导出固定为 `chips`、`createClient`、`ChipsBridge`、`ChipsError`、`isChipsError`、
  *   `toChipsError` 六项；`testing` 与 `scaffold` 两组开发期工具不从本入口导出（§2.2 末段）。
  * - 类型导出按 §2.2 的分类组织：Bridge 协议与能力类型转发 `@chips/bridge`（§2.3、§11 约束 5），
- *   能力契约、命令、资源打开、内核上下文、插件角色、文档模型、渲染视图、manifest 与 CLI 扩展等类型
+ *   能力契约、命令、资源打开、内核上下文、插件角色、文档模型、渲染视图、编辑链路（会话面，
+ *   12-编辑引擎设计 §三）、manifest 与 CLI 扩展等类型
  *   由 SDK 定义或以既有单点定义再导出，本入口不复制其内容（§1.3）。manifest 类型经
  *   `./scaffold/index.js` 的既有转发以 `export type` 再导出：编译期可达、运行时完全擦除，
  *   插件运行时依赖图里不出现 `@chips/sdk/scaffold` 与 `@chips/scaffold`（§2.1 规则）。
@@ -301,6 +302,31 @@ export type {
   StructureModel,
   Tag,
 } from './types/document.js';
+
+/* 编辑链路类型：会话面权威见 12-编辑引擎设计 §三（IEditSession 是编辑链路对应用插件的
+   唯一入口，12 §3.1 规则 1；应用插件经 IEditEngine.open 打开会话、把 session.preview
+   挂载到自身容器，12 §3.3 规则 3），预览会话权威见 05-渲染引擎设计 §2.4。
+   类型面落位在 `./edit/index.js` 域（工单036 残段 T1），此处按 §2.2 分类口径再导出；
+   受管门面 `IPluginRuntime`（12 §4.1）禁止应用插件持有（12 §4.1 规则 1）且主入口同名
+   已被 manifest runtime 声明占用（下方 manifest 块），历史记录模型（12 §7.2）归编辑链路
+   持有，两者只经 `@chips/sdk` 包内 `./edit/index.js` 在册、不经主入口导出。
+   `EDIT_*` 错误域为生成契约常量（12 §9.2 新增表，`generated/error-codes.ts` 单源）。 */
+export type {
+  EditEventMap,
+  EditOptions,
+  EditRequest,
+  EditSessionState,
+  EntryInput,
+  IEditEngine,
+  IEditSession,
+  MetadataPatch,
+} from './edit/index.js';
+export type {
+  IRenderSession,
+  RenderEventMap,
+  RenderMode,
+  RenderSessionState,
+} from './types/render-session.js';
 
 /* 渲染视图类型：权威表见 03-核心接口规范 §6.6。 */
 export type {

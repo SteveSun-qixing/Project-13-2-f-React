@@ -141,4 +141,45 @@ FORBIDDEN_ANTD_EXPORTS 零命中（本臂新增导入仅 Alert/Flex/Input 复用
 
 ---
 
+## 八、settings 偏好持久化翻正臂（后续臂，2026-10-01 追记）
+
+> 任务：settings 独占（`plugins/apps/settings/`）；工单066 翻正第一批——G6 第二批已交付 `config:*` 域宿主真实现（`packages/host/src/runtime/capabilities/config.ts`，PAL 用户层持久化承载），本臂把起步臂「窗口会话内存态」偏好存储翻正为 `config:*` 真实现消费。假桥舞台测试形制参照 photo-viewer / notes 写面臂。
+
+### 8.1 交付清单
+
+| 交付面 | 判定 | 落点 | 说明 |
+|---|---|---|---|
+| 配置域消费面 | 全新建（真实现消费） | `src/domain/settings/configGateway.ts` | `config:snapshot`/`config:set`/`config:reset` 经 `chips.request` 正式面（§7.11；命名空间固定 `platform`、键为相对键、写入层固定 `user`，§8.1/§8.6 映射）；快照回包 `values` 形状守卫；错误归一携带码原样传播（禁止匹配错误文本）；`config:changed` 订阅面经 `chips.subscribe`（05-事件契约 §4.5——能力面无 `config:watch`，变更一致性以事件契约为准）；行内处置指引 `configErrorGuidance` 按 §8.2/§8.6 错误码分支（CONFIG_POLICY_LOCKED/CONFIG_KEY_UNKNOWN/CONFIG_VALUE_INVALID/CONFIG_NAMESPACE_DENIED/CONFIG_SCOPE_INVALID/CONFIG_EXTERNAL_MODIFIED/CONFIG_WRITE_FAILED + BRIDGE_PERMISSION_DENIED）；插件侧防御复核码分列（`SETTINGS_SNAPSHOT_RECEIPT_INVALID`/`SETTINGS_KEY_OUT_OF_NAMESPACE`/`SETTINGS_GATEWAY_ERROR`，与在册码不混用） |
+| 配置域偏好存储 | 重写（主路径） | `src/domain/settings/preferenceStore.ts` | `ConfigSettingsStore`：读初值 `config:snapshot` 按注册表归一投影（未命中键回落注册表默认、层标记逐键 `user`/`default`）；写臂「归一 → `config:set` 回执 → 快照重读 → 新投影」回执驱动，不本地拼装第二事实源；恢复默认 `config:reset` 一次调用提交全部键；`config:changed` 载荷按注册表过滤、以 `effectiveValue` 归一刷新（§8.2/§8.4 多窗口一致性）；会话内存降级件原样保留（接口增 `resetKeys`），降级语义与既有 6 用例零放宽 |
+| 偏好运行时 | 全新建 | `src/ui/usePreferenceRuntime.ts` | 挂载读初值 → 成功进入配置域阶段并订阅变更；通道不可用（`SDK_BRIDGE_UNAVAILABLE`/`BRIDGE_CAPABILITY_NOT_FOUND`/防御复核码）降级会话内存并携带降级通知；写臂回执驱动 UI 锁（在途键集合锁定控件、不乐观翻面），回执后翻正并如实反馈「已更新并持久化」；通道中断时降级会话内存并落实本次操作意图（反馈如实标注会话内存）；`reload` 供 `settings:refresh-view` 命令重读快照并重试配置域通道 |
+| 偏好页与壳层接线 | 重写 | `src/ui/Scenes.tsx` + `AppView.tsx` | `PreferenceScene` 受控化（快照投影取值）：读取态 `StateBoundary loading`；降级横幅（`data-role="persistence-degraded"`，错误码 + 会话内存口径如实呈现）；配置域写臂失败行内 Alert（`data-role="preference-error"`，错误码 + 通道消息 + 同码处置指引，不吞错、取值回滚不前移）；生效层如实标记（用户层持久化配置/默认值/会话内存三态）；分组「恢复本组默认」经 `config:reset` 一次提交；工作区降级页文案翻正（config:get 域已就位、工作区状态查询与 shell:openExternal 仍待落波） |
+| manifest 权限翻正 | 修正 | `manifest.yaml` | 按《05-生态设置面板设计》§8.3 最小权限集补 `config:read:platform` / `config:write:platform`（R19 §6.2 限定值物化形式；`config:*` platform 命名空间读写所需），起步臂「治理域缺位不声明」随本臂消费面翻正 |
+
+### 8.2 测试（先测后码，30 旧用例零放宽）
+
+- `tests/config-gateway.test.ts`（10 用例，全新，假桥形制）：命名空间常量与键位映射（跨命名空间键如实拒绝）、`config:snapshot` 调用形状与 `values` 回包守卫、`config:set`/`config:reset` 形状（相对键 + `scope: 'user'`、keys 数组一次调用）、配置域错误码原样传播不吞错、无码兜底归一、`config:changed` 订阅转发与 dispose 幂等。
+- `tests/config-preference-store.test.ts`（14 用例，全新，受控网关替身）：快照投影合并（命中 `user`/未命中回落默认、越界与非法取值归一、聚合生效层）、写臂回执链（归一后才出网关、回执后重读投影、未登记键不出网关、失败不前移投影）、恢复默认臂（单项/分组一次调用、失败传播）、变更订阅投影（注册表过滤、归一生效值、覆盖移除/默认值回填层标记、dispose 透传）。
+- `tests/app-view.test.tsx`（5 旧用例诚实化更新 + 6 新增，假桥舞台）：持久化就绪快照初值投影与生效层标记；**持久化回执 UI 锁测**（写入期间控件锁定且取值不前移，`config:set` 回执后经重读翻正并持久化反馈）；写臂失败行内错误码提示不吞错、取值回滚；写臂通道中断降级会话内存继续生效并呈现降级横幅；`config:changed` 事件按注册表驱动界面刷新（多窗口一致性）；降级横幅/偏好错误面按 `data-role` 精确定位（antd message 与 Alert 均带 `role="alert"`）。旧 5 用例仅随真实现呈现面诚实化（降级横幅、会话内存反馈文案、工作区文案翻正），断言强度不减。
+
+### 8.3 边界与登记
+
+- **能力面 `config:watch` 不存在**（§7.11 仅 get/snapshot/set/reset）：多窗口一致性按 §8.2/§8.4 走 `config:changed` 事件面（05-事件契约 §4.5），订阅载荷以 `effectiveValue` 为准；不私造 watch 通道。
+- **默认值层缺口延续**（宿主 `config.ts` 头注明：内核 `ConfigStore` 交付前宿主承载未命中即 `CONFIG_KEY_UNKNOWN`、`isDefault` 恒 `false`）：读初值以 `config:snapshot` 整表消费规避逐键 `CONFIG_KEY_UNKNOWN` 误读；未命中键按注册表默认值投影并如实标记「默认值」层；内核 `ConfigStore` 落波后投影语义按同契约自动收正，消费面零改动。
+- **`config:get` 单键读取未接**：§8.1 允许 `config:get`/`config:snapshot` 二选一，本臂取快照整表（六键一次往返、含全部在册键投影）；单键通道随需要臂再开放。
+- **七类治理页依赖域缺位延续**：工作区/插件治理/权限/快捷键/文件打开方式/存储缓存/关于更新各自查询域仍未落波，页面诚实呈现不铺替代数据；`config:read:platform` 已就位为后续工作区页（`platform.workspace.path`）铺路。
+- **既有边界延续**：命令通道缺位收敛状态行、触禁件零触达（`InputNumber` 以键入+预设档承担、`message` 走 `App.useApp()` 许可通道）、命令 ID 文法收口沿用起步臂 §2.2 登记，本臂未触碰。
+
+### 8.4 验证（亲跑，2026-10-01，四闸全绿）
+
+| 闸 | 结果 |
+|---|---|
+| test | 7 文件 60 用例全绿（起步臂 30 + 本臂 30：网关 10 / 存储 14 / 舞台 +6） |
+| typecheck | EXIT=0 |
+| lint | 0 错 0 警 |
+| build | `dist/index.js` 0.24 kB + `render.js` 33.57 kB（vendor 外部化，构建期红线守卫通过） |
+
+FORBIDDEN_ANTD_EXPORTS 零命中（本臂新增导入 Alert/StateBoundary 等均经 `@chips/ui`）；未跑 `gates:all`（按派单约束）。
+
+---
+
 **文档结束**

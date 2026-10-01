@@ -924,8 +924,12 @@ export class MockNetModule implements ElectronNetLike {
 export class MockShellModule implements ElectronShellLike {
   /** 已打开的外部地址。 */
   readonly opened: string[] = [];
+  /** 已用系统默认程序打开的本地路径。 */
+  readonly openedPaths: string[] = [];
   /** `openExternal` 注入异常。 */
   openError: Error | null = null;
+  /** `openPath` 注入失败描述（非空字符串按 Electron 契约视为失败）。 */
+  openPathError: string | null = null;
 
   openExternal(url: string): Promise<void> {
     if (this.openError !== null) {
@@ -933,6 +937,14 @@ export class MockShellModule implements ElectronShellLike {
     }
     this.opened.push(url);
     return Promise.resolve();
+  }
+
+  openPath(path: string): Promise<string> {
+    if (this.openPathError !== null) {
+      return Promise.resolve(this.openPathError);
+    }
+    this.openedPaths.push(path);
+    return Promise.resolve('');
   }
 }
 

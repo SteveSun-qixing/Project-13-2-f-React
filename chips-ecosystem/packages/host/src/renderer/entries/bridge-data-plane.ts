@@ -52,11 +52,11 @@ export function createFrameActionForwarder(chips: IChipsWindowFacade): (action: 
         return;
       }
       case 'open-resource': {
-        // §9.3：RenderHost 以 `origin: 'frame'` 调用资源打开路由（契约规范 §14 §2.2）。
-        await chips.request(FRAME_ACTION_CAPABILITY_IDS['open-resource'], {
-          ...action.request,
-          origin: 'frame',
-        });
+        // §9.2 表：`request` 为 `IResourceOpenRequest`（14-资源打开与默认处理器契约 §2.2，
+        // additionalProperties: false——顶层仅 intent / resource，无 origin 字段）；帧来源
+        // （`origin: 'frame'`）身份归 RenderHost 校验臂以承载文档会话的应用身份调用路由
+        // （14 §2.1，装载臂候 #85 落波），转发面按契约原样透传，禁自造字段。
+        await chips.request(FRAME_ACTION_CAPABILITY_IDS['open-resource'], action.request);
         return;
       }
       case 'copy-text': {

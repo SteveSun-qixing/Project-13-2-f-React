@@ -10,6 +10,10 @@
  * 取到，否则包级 `typecheck` 失败。§2.2「CLI 扩展」行的 11 个类型名与「manifest」行的
  * 15 个类型名同样在本文件被消费并用于注解夹具：02-SDK-API规范 §3.5 与 07-CLI完整参考 §5.6
  * 的权威示例按原文落地为可执行用例，导入路径缺失或形状不符时包级 `typecheck` 直接失败。
+ * 编辑链路会话面（工单036 残段 T1，12-编辑引擎设计 §三）随单扩入：`EditRequest` /
+ * `EntryInput` / `MetadataPatch` / `IEditEngine` / `IEditSession` 的主入口消费点在本文件
+ * 注解夹具与消费函数中承担；受管门面与历史记录模型不经主入口（各自契约归属见
+ * `tests/edit-contract-lock.test.ts` 的在册名单锁）。
  *
  * 绕开的口径（工单 009 登记）：§3.2、§3.3 的 `CapabilityInput` / `CapabilityOutput` 编译期映射
  * 已由主入口导出；本文件的插件示例仍按显式契约接口 `IFileReadInput` / `IFileReadOutput`
@@ -65,6 +69,11 @@ import type {
   IPluginUi,
   IResourceHandle,
   ISubscription,
+  EditRequest,
+  EntryInput,
+  IEditEngine,
+  IEditSession,
+  MetadataPatch,
   PluginRole,
   PluginSurface,
   PluginTarget,
@@ -193,6 +202,46 @@ const MANIFEST: IPluginManifest = {
   deepLinks: [DEEP_LINK],
   healthCheck: HEALTH_CHECK,
 };
+
+/** 编辑链路会话面（12-编辑引擎设计 §3.1）：打开请求夹具。 */
+const EDIT_REQUEST: EditRequest = {
+  kind: 'card',
+  source: 'chips-resource://card-7f3a/.card',
+  options: { autoSave: true, autoSaveDelayMs: 500, historyLimit: 100 },
+};
+/** 箱子条目输入夹具（url 为受管引用）。 */
+const EDIT_ENTRY: EntryInput = {
+  url: 'chips-resource://box-9c4a/pages/p1.card',
+  enabled: true,
+};
+/** 卡片元数据补丁夹具（cover_ratio 为 '宽:高'）。 */
+const EDIT_METADATA_PATCH: MetadataPatch = { name: '示例卡片', tags: ['示例'], cover_ratio: '3:4' };
+
+/**
+ * §三 会话面消费形态：应用插件把 `session.preview` 挂载到自身容器（12 §3.3 规则 3），
+ * 并订阅 revision 事件（回流后修订号前进）。
+ *
+ * @param session - 编辑会话句柄
+ * @param container - 应用自身容器
+ */
+function mountEditPreview(session: IEditSession, container: HTMLElement): void {
+  void session.preview.mount(container);
+  session.subscribe('revision-changed', (payload) => {
+    expect(payload.revision).toBeGreaterThan(0);
+  });
+}
+
+/**
+ * §三 引擎入口消费形态：由平台注入的 `IEditEngine` 打开会话并按会话面编排
+ * （`IEditSession` 是编辑链路对应用插件的唯一入口，12 §3.1 规则 1）。
+ *
+ * @param engine - 平台注入的编辑引擎
+ * @returns 编辑会话 ID
+ */
+async function openEditSession(engine: IEditEngine): Promise<string> {
+  const session = await engine.open(EDIT_REQUEST);
+  return session.id;
+}
 
 /**
  * §3.5 插件侧完整示例：在命令处理中上报当前 CLI 任务的进度与终态。
@@ -557,6 +606,24 @@ describe('主入口 CLI 扩展与 manifest 类型面（§2.2 CLI 扩展行、man
     expect(MANIFEST.fileAssociations).toEqual([FILE_ASSOCIATION]);
     expect(MANIFEST.deepLinks).toEqual([DEEP_LINK]);
     expect(MANIFEST.healthCheck).toEqual(HEALTH_CHECK);
+  });
+});
+
+describe('主入口编辑链路类型面（12-编辑引擎设计 §三）', () => {
+  it('会话请求、条目输入与元数据补丁可从主入口逐名装配', () => {
+    expect(EDIT_REQUEST.kind).toBe('card');
+    expect(EDIT_REQUEST.options?.autoSave).toBe(true);
+    expect(EDIT_REQUEST.options?.autoSaveDelayMs).toBe(500);
+    expect(EDIT_REQUEST.options?.historyLimit).toBe(100);
+    expect(EDIT_ENTRY.enabled).toBe(true);
+    expect(EDIT_METADATA_PATCH.name).toBe('示例卡片');
+    expect(EDIT_METADATA_PATCH.tags).toEqual(['示例']);
+    expect(EDIT_METADATA_PATCH.cover_ratio).toBe('3:4');
+  });
+
+  it('会话面消费形态可从主入口类型标注（preview 挂载、订阅与引擎打开链路编译期可达）', () => {
+    expect(typeof mountEditPreview).toBe('function');
+    expect(typeof openEditSession).toBe('function');
   });
 });
 

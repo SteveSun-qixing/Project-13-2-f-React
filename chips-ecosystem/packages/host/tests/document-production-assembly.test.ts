@@ -442,7 +442,8 @@ describe('组合根运行时：诚实回退臂维持真实注册表未命中语�
   it('无注入（当前真实生产判据）：document:* 不注册，调用得 BRIDGE_CAPABILITY_NOT_FOUND，槽位 wired=false', async () => {
     const { runtime, diagnostics } = await startAssemblyRuntime(undefined);
     const report = runtime.report();
-    expect(report.capabilities.active).toBe(2);
+    // 内置 2（system/event）+ 资源打开路由域 2（工单036 残段 T4 恒注册）。
+    expect(report.capabilities.active).toBe(4);
     expect(report.capabilities.byDomain['document'] ?? 0).toBe(0);
     expect(report.reserved.every((item) => item.wired === false)).toBe(true);
 
@@ -484,9 +485,10 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
       resourcePorts,
     });
 
-    // 注册面：四条 document:* 覆盖预留槽位（wired=true），加内置 system:info 共 5 条。
+    // 注册面：四条 document:* 覆盖预留槽位（wired=true），加内置 system:info 与
+    // 资源打开路由域两能力（工单036 T4）共 8 条。
     const report = runtime.report();
-    expect(report.capabilities.active).toBe(6);
+    expect(report.capabilities.active).toBe(8);
     expect(report.capabilities.byDomain['document']).toBe(4);
     expect(report.reserved.every((item) => item.wired === true)).toBe(true);
     // 装载段无缺位留痕。
@@ -633,9 +635,9 @@ describe('组合根运行时：依赖齐备臂四能力真实路由到 createDoc
       parserModulePath: PARSER_BEHAVIOR_FIXTURE,
       resourcePorts,
     });
-    // 无缺位留痕、四能力注册（+ 内置 system:info = 5）。
+    // 无缺位留痕、四能力注册（+ 内置 system:info + 资源打开路由域两能力 = 8）。
     expect(diagnostics.entries.filter((entry) => entry.scope === DOCUMENT_WIRING_DIAGNOSTIC_SCOPE)).toEqual([]);
-    expect(runtime.report().capabilities.active).toBe(6);
+    expect(runtime.report().capabilities.active).toBe(8);
     expect(runtime.report().reserved.every((item) => item.wired === true)).toBe(true);
     // 调用前会话登记表为空（快照如实反映，不猜授权）。
     expect(runtime.sessionPermissionSnapshots()).toEqual([]);

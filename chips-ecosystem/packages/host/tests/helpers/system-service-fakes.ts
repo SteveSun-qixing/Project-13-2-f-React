@@ -144,21 +144,40 @@ export function createNotificationFakePort(): INotificationFakePort {
   return port;
 }
 
-/** 外部打开端口替身：记录 `openExternal` 入参并回放注入失败。 */
+/** 外部打开端口替身：记录 `openExternal` / `openPath` 入参并回放注入失败。 */
 export interface IShellOpenFakePort extends IPalShellOpenPort, IProgrammablePort {
   /** `openExternal` 调用记录。 */
   readonly opens: { readonly url: string; readonly call: PortCallContext | undefined }[];
+  /** `openPath` 调用记录。 */
+  readonly pathOpens: { readonly path: string; readonly call: PortCallContext | undefined }[];
+  /** 注入 `openPath` 的失败描述（Electron 契约：非空字符串即失败）。 */
+  pathError: string | null;
 }
 
 /** 构造外部打开端口替身。 */
 export function createShellOpenFakePort(): IShellOpenFakePort {
   const opens: { url: string; call: PortCallContext | undefined }[] = [];
+  const pathOpens: { path: string; call: PortCallContext | undefined }[] = [];
   const port: IShellOpenFakePort = {
     opens,
+    pathOpens,
+    pathError: null,
     openExternal(url: string, call?: PortCallContext): Promise<void> {
       opens.push({ url, call });
       if (port.error !== undefined) {
         return Promise.reject(port.error);
+      }
+      return Promise.resolve();
+    },
+    openPath(path: string, call?: PortCallContext): Promise<void> {
+      pathOpens.push({ path, call });
+      if (port.error !== undefined) {
+        return Promise.reject(port.error);
+      }
+      if (port.pathError !== null) {
+        return Promise.reject(
+          Object.assign(new Error('系统默认程序打开失败'), { code: 'SHELL_OPEN_FAILED', retryable: false }),
+        );
       }
       return Promise.resolve();
     },

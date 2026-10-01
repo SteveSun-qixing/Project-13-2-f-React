@@ -8,9 +8,10 @@
  * 设计文档 §2.3 所记 `<面板插件ID>.scene.<sceneId>` 为点号文法旧记法，注册期校验
  * （`COMMAND_DEFINITION_INVALID`）不允许点号，以契约文法为准（随开发日志勘误候裁，不代改文档）。
  *
- * 偏好读写口径：《10-配置系统设计》——偏好应写入插件自身配置命名空间经 `config:*`；
- * 宿主 `config:*` 域处理器缺位（工单066 在册），本臂按诚实降级收敛为窗口会话内存态
- * （见 `preferenceStore.ts`），本模块只承载键位/取值/分组的类型化契约。
+ * 偏好读写口径：《10-配置系统设计》——偏好写入平台命名空间经 `config:*`；宿主 `config:*`
+ * 域处理器已随工单066 第一批翻正为真实现（`packages/host/src/runtime/capabilities/config.ts`），
+ * 读写消费面见 `configGateway.ts` 与 `preferenceStore.ts` 的 `ConfigSettingsStore`，
+ * 本模块只承载键位/取值/分组的类型化契约。
  */
 
 /** 设置分类标识（九类导航，Scene ID 与设计文档 §2.1 逐字对应）。 */
@@ -138,8 +139,8 @@ export interface SettingEnumOption {
 /** 偏好项取值。 */
 export type SettingValue = string | boolean | number;
 
-/** 偏好项生效层（配置层叠语义的最简呈现；降级期只有会话内存层）。 */
-export type SettingEffectLayer = 'session-memory';
+/** 偏好项生效层（配置层叠语义的最简呈现：用户层覆盖 / 默认值 / 降级会话内存）。 */
+export type SettingEffectLayer = 'user' | 'default' | 'session-memory';
 
 /** 偏好项描述符：键位、分组、取值约束与默认值的类型化契约。 */
 export interface SettingDescriptor {

@@ -56,6 +56,11 @@ import { createHostCallScheduler } from './capability/scheduler.js';
 import { createHostCapabilityRouter } from './capability/router.js';
 import { createEventSubscriptionCenter, createResourceHandleCenter } from './capability/subscription.js';
 import { createPlatformResourceBackend } from './platform-resource.js';
+import {
+  createManagedResourceAccess,
+  createManagedResourceBackend,
+  type IManagedResourceAccessPort,
+} from './managed-resource-access.js';
 import { RESERVED_CAPABILITIES } from './capabilities/reserved.js';
 import type { IReservedCapabilityDeclaration } from './capabilities/reserved.js';
 import type {
@@ -68,6 +73,7 @@ import type {
 import type { IRestoreReport, IPluginRecord } from '../loader/index.js';
 import { createCarrierService, type ICarrierPluginView, type ICarrierService } from '../carrier/index.js';
 import { createPermissionAuditWriter, type IPermissionAuditWriter } from '../audit/index.js';
+import type { INativeResourceModule } from '../capabilities/document/adapters/native-resource-module.js';
 
 /** 生产运行时选项。 */
 export interface HostRuntimeOptions {
@@ -87,6 +93,19 @@ export interface HostRuntimeOptions {
   readonly resources?: IResourceBackend;
   /** 平台构建产物根目录（缺省资源后端的映射根）。 */
   readonly platformRoot?: string;
+  /**
+   * 全作用域资源访问面（工单036 残段 T5；组合根经资源域装载闸交付）。
+   *
+   * @remarks
+   * 注入后：默认资源后端由 platform-only 扩为全作用域（platform 委托平台后端、其余作用域
+   * 经 chips-resource 句柄正式面，权限判定走会话权限链 + 核心权威判定两级）；`bridge:resource`
+   * 的 `open` / `release` 改经访问面（句柄在原生核心在册、随 Bridge 会话关闭级联释放）。
+   * 缺位即维持 platform-only 旧链路（自检/测试运行时零变化）。
+   */
+  readonly resourceAccess?: {
+    /** chips-resource 句柄正式面（资源域装载闸交付的类型化消费面）。 */
+    readonly native: INativeResourceModule;
+  };
   /** 诊断口；缺省写 `process.stderr`。 */
   readonly diagnostics?: DiagnosticsSink;
   /** 时钟（毫秒）；测试可注入。 */
@@ -272,9 +291,8 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
       ? null
       : createPermissionAuditWriter({ userDataPath: options.audit.userDataPath, diagnostics });
 
-  const resources: IResourceBackend =
-    options.resources ??
-    (options.platformRoot !== undefined
+  const platformBackend: IResourceBackend =
+    options.platformRoot !== undefined
       ? createPlatformResourceBackend(options.platformRoot)
       : {
           // 组合根未提供平台根也未注入后端：如实报内部错误，不伪造空结果。
@@ -283,7 +301,23 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
               Object.assign(new Error('资源管理器未装配'), { code: BRIDGE_ERROR_CODES.internal, retryable: false }),
             );
           },
+        };
+  // 全作用域访问面（T5）：注入 chips-resource 句柄正式面时装配；否则缺位维持 platform-only
+  // 旧链路（自检/测试运行时零变化）。
+  const resourceAccess: IManagedResourceAccessPort | null =
+    options.resourceAccess === undefined
+      ? null
+      : createManagedResourceAccess({
+          native: options.resourceAccess.native,
+          platform: platformBackend,
+          sessionPermissionsOf: (source) => sessions.resolve(source)?.grantedPermissions ?? null,
+          bridgeSessionIdOf: sessionSourceId,
         });
+  const resources: IResourceBackend =
+    options.resources ??
+    (resourceAccess === null
+      ? platformBackend
+      : createManagedResourceBackend({ platform: platformBackend, access: resourceAccess }));
   const reservedDeclarations = options.reservedCapabilities ?? RESERVED_CAPABILITIES;
 
   const sinks = new Set<IEventSink>();
@@ -398,6 +432,8 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
   sessions.onClosed((session: IHostSession): void => {
     events.releaseSession(session.sessionId);
     handles.releaseSession(session.sessionId);
+    // 全作用域句柄面级联（T5）：Bridge 会话关闭 → 原生资源会话收口（核心级联释放句柄）。
+    resourceAccess?.closeBridgeSession(session.sessionId);
     // 刀4 缝②：内部清理完成后交组合根联动（文档服务会话释放，§4.6）；同步抛出兜底
     // 捕获——单会话回调失败不阻断其余会话清理，异步失败落诊断（停机收口路径另在
     // `shutdown()` 逐条等待，见 `pendingSessionCleanups`）。
@@ -476,6 +512,10 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
         return { requestId: request.requestId, ok: false, error: bridgeWireError(BRIDGE_ERROR_CODES.sessionUnknown) };
       }
       if (request.operation === 'release') {
+        if (resourceAccess !== null) {
+          // 句柄正式面（T5）：原生核心句柄释放 + 在册账清账（幂等）。
+          resourceAccess.release(session.sessionId, request.uri);
+        }
         handles.release(session.sessionId, request.uri);
         return { requestId: request.requestId, ok: true, metadata: null };
       }
@@ -499,14 +539,21 @@ export function createHostRuntime(options: HostRuntimeOptions = {}): IHostRuntim
           };
         }
       }
-      const readRequest: IResourceReadRequest = {
-        uri: parsed.uri,
-        session: source,
-        method: 'HEAD',
-        range: null,
-        headers: {},
-      };
       try {
+        if (resourceAccess !== null) {
+          // 全作用域句柄面（T5）：元数据经 `resourceOpen` 取得（权限判定走会话权限链 +
+          // 核心权威判定，06 §4.1 会话内读取免重复校验）。
+          const metadata = await resourceAccess.open(session, parsed.uri);
+          handles.acquire(session.sessionId, parsed.uri, metadata);
+          return { requestId: request.requestId, ok: true, metadata };
+        }
+        const readRequest: IResourceReadRequest = {
+          uri: parsed.uri,
+          session: source,
+          method: 'HEAD',
+          range: null,
+          headers: {},
+        };
         const result = await resources.read(readRequest);
         const metadata = metadataFromHeaders(parsed.uri, parsed.scope, result.headers);
         handles.acquire(session.sessionId, parsed.uri, metadata);

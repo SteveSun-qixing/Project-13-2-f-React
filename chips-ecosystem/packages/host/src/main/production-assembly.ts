@@ -35,6 +35,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { bindNativeDecisionSink, createPermissionDecisionIntake } from '../audit/decision-intake.js';
+import type { INativeResourceModule } from '../capabilities/document/adapters/native-resource-module.js';
 import type { IPalHost } from '../platform/contracts/index.js';
 import type { CardWindowDocumentBindingResolver, IDocumentViewChannelEndpoint } from '../runtime/contracts.js';
 import type { IHostCapabilityDescriptor } from '../runtime/capability/contracts.js';
@@ -49,6 +50,7 @@ import {
   createCpkPluginLoader,
   createEmbeddedTrustRootRegistry,
   openPluginRegistry,
+  type ICpkPluginLoader,
   type IPluginActivationPort,
   type IPluginRegistry,
   type PluginRole,
@@ -60,6 +62,10 @@ import {
   type IPluginLoaderSurface,
 } from '../runtime/host-runtime.js';
 import { createBuiltinCapabilities } from '../runtime/capabilities/system-info.js';
+import {
+  createResourceOpenCapabilityWiring,
+  type IResourceOpenWiringOptions,
+} from '../capabilities/resource-open/wiring.js';
 import type { DiagnosticsSink } from '../shared/diagnostics.js';
 import { createStderrDiagnostics } from '../shared/diagnostics.js';
 import { defaultNativeBridgeModulePath, loadNativeBridgeBinding } from './native-bridge.js';
@@ -138,6 +144,11 @@ export interface ProductionRuntimeOptions {
    */
   readonly onBridgeSessionClosed?: (sessionId: string) => void | Promise<void>;
   /**
+   * 全作用域资源访问面注入（工单036 残段 T5）：chips-resource 句柄正式面（资源域装载闸
+   * 交付的类型化消费面）。缺位即宿主维持 platform-only 读面（自检/测试运行时零变化）。
+   */
+  readonly resourceAccess?: { readonly native: INativeResourceModule };
+  /**
    * `chips-native.node` 原生绑定产物路径；缺省按上下文 `platformRoot` 经
    * {@link defaultNativeBridgeModulePath} 推导生产落位（工单 025 消费链装载点）。
    */
@@ -201,6 +212,8 @@ export function createProductionRuntime(
       ? {}
       : { cardWindowDocumentBinding: options.cardWindowDocumentBinding }),
     ...(options.onBridgeSessionClosed === undefined ? {} : { onBridgeSessionClosed: options.onBridgeSessionClosed }),
+    // 工单036 残段 T5：全作用域资源访问面（缺位维持 platform-only 旧链路）。
+    ...(options.resourceAccess === undefined ? {} : { resourceAccess: options.resourceAccess }),
     ...(options.diagnostics === undefined ? {} : { diagnostics: options.diagnostics }),
     // 生产装配恒开承载面（《17》§2.6 的 socket 覆盖/离线条款属 CLI 侧消费面，波 2）。
     carrier: {
@@ -235,8 +248,16 @@ async function createProductionPluginLoaderFactory(
   context: HostRuntimeContext,
   activationPortFor: PluginActivationPortFor | undefined,
 ): Promise<{
-  loaderFactory: (deps: IHostPluginLoaderDeps) => IPluginLoaderSurface;
+  /** 生产装载器工厂（构造产物即 `ICpkPluginLoader`，满足 `IPluginLoaderSurface` 消费面）。 */
+  loaderFactory: (deps: IHostPluginLoaderDeps) => ICpkPluginLoader;
   pluginRegistry: IPluginRegistry;
+  /** 已激活入口保管投影（资源打开路由投递臂消费，激活通道同一实例）。 */
+  activatedEntryOf: (pluginId: string) =>
+    | {
+        readonly role: PluginRole;
+        readonly entry: Readonly<Record<string, unknown>>;
+      }
+    | undefined;
 }> {
   const pluginsRoot = join(context.userDataPath, 'chips-plugins');
   const pluginRegistry = await openPluginRegistry({ filePath: join(pluginsRoot, 'registry.json') });
@@ -264,6 +285,7 @@ async function createProductionPluginLoaderFactory(
         activationPortFor: portFor,
       }),
     pluginRegistry,
+    activatedEntryOf: (pluginId) => activationChannel.activatedEntry(pluginId),
   };
 }
 
@@ -323,19 +345,70 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
         guardSessionSource: documentWiring?.guardSessionSource ?? defaultGuardSessionSource,
       };
       const documentAssembly = createDocumentCapabilityWiring(documentWiringOptions, context, bridgeDiagnostics);
-      const { loaderFactory: productionPluginLoaderFactory, pluginRegistry } =
-        await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
-      const pluginLoaderFactory =
+      const {
+        loaderFactory: productionPluginLoaderFactory,
+        pluginRegistry,
+        activatedEntryOf,
+      } = await createProductionPluginLoaderFactory(context, pluginActivationPortFor);
+      // 工单036 残段 T4：资源打开路由域装载段——候选目录（装载器记录 → manifest 槽位声明）、
+      // 偏好（PAL config）、投递（装载器 + 激活通道入口保管面）与降级（PAL shellOpen）各归
+      // 生产端口；`launch` 调用臂候应用窗口运行时（工单066 / 判定表 T6，见适配器头注）。
+      // 装载器实例与事件出口在 `createHostRuntime` 构造期经工厂闭包交接，组合根以惰性引用
+      // 承载（与守卫快照默认绑定同形）：任一调用发生前引用已闭合，构造期零投递。
+      const loaderRef: { current: ICpkPluginLoader | null } = { current: null };
+      const publishRef: { current: (eventId: string, payload: unknown) => void } = {
+        current: (): void => {
+          // 闭包交接前的理论空档（构造期无任何投递）：空操作，不造队列。
+        },
+      };
+      const resourceOpenWiringOptions: IResourceOpenWiringOptions = {
+        listPlugins: () => loaderRef.current?.list() ?? [],
+        loader: {
+          get: (id) => loaderRef.current?.get(id),
+          enable: (id) => {
+            const loader = loaderRef.current;
+            if (loader === null) {
+              return Promise.reject(
+                Object.assign(new Error('插件装载器未装配'), {
+                  code: 'KERNEL_PLUGIN_NOT_FOUND',
+                  retryable: false,
+                  details: { pluginId: id },
+                }),
+              );
+            }
+            return loader.enable(id);
+          },
+          activatedEntryOf,
+        },
+        publishEvent: (eventId, payload) => publishRef.current(eventId, payload),
+        ...(documentAssembly.scopeLedger === undefined ? {} : { documentScopeLedger: documentAssembly.scopeLedger }),
+        ...(diagnostics === undefined ? {} : { diagnostics }),
+      };
+      // PAL 分面从上下文宿主取（组合根自检后的宿主实例）——分面缺位由适配器按各自诚实臂处置。
+      const resourceOpenWiring = createResourceOpenCapabilityWiring({
+        ...resourceOpenWiringOptions,
+        config: context.palHost.ports.config,
+        shellOpen: context.palHost.ports.shellOpen,
+      });
+      const resourceOpenProvider = resourceOpenWiring.descriptors;
+      const wrappedLoaderFactory =
         documentAssembly.status === 'wired'
           ? (deps: IHostPluginLoaderDeps): IPluginLoaderSurface => {
               documentAssembly.bindEventBus(deps.emitEvent);
               return productionPluginLoaderFactory(deps);
             }
           : productionPluginLoaderFactory;
-      const providers =
-        documentAssembly.status === 'wired'
-          ? [...(capabilityProviders ?? []), documentAssembly.descriptors]
-          : capabilityProviders;
+      const pluginLoaderFactory = (deps: IHostPluginLoaderDeps): IPluginLoaderSurface => {
+        // 工单036 T4/T5 交接点：装载器实例与事件出口在此闭合（先于 start 注册与任何调用）。
+        loaderRef.current = productionPluginLoaderFactory(deps);
+        publishRef.current = deps.emitEvent;
+        return wrappedLoaderFactory(deps);
+      };
+      const providers = [
+        ...(capabilityProviders ?? []),
+        ...(documentAssembly.status === 'wired' ? [documentAssembly.descriptors] : []),
+        resourceOpenProvider,
+      ];
       // 刀4 缝②落地：Bridge 会话关闭 → 文档服务释放该会话的文档会话与记录（§4.6）。
       // 释放链内部完成事件发布与诊断留痕；此处兜底 catch 防异步拒绝逃逸（fire-and-forget
       // 口径见 `host-runtime.ts` `onBridgeSessionClosed` 选项头注）。
@@ -355,10 +428,15 @@ export function createProductionAssembly(options: ProductionAssemblyOptions): Ho
           ? undefined
           : (sessionId: string): Promise<void> => documentService.releaseSessions(sessionId);
       const runtime = createProductionRuntime(context, {
-        ...(providers === undefined ? {} : { capabilityProviders: providers }),
+        capabilityProviders: providers,
         ...(sessionProvisioner === undefined ? {} : { sessionProvisioner }),
         ...(registryOptions === undefined ? {} : { registryOptions }),
         pluginLoaderFactory,
+        // 工单036 残段 T5：全作用域资源访问面——资源域装载闸可用时以类型化消费面注入
+        // （platform 委托平台后端、其余作用域经 chips-resource 句柄正式面，权限链两级判定）。
+        ...(documentAssembly.resourceBinding.status === 'available'
+          ? { resourceAccess: { native: documentAssembly.resourceBinding.resource } }
+          : {}),
         // 刀5 段A：视图通道端点两臂恒在（wired = 真实构建臂，unavailable = 诚实拒绝臂），
         // 交壳 `ipc` 段注册 `document-view:request`。
         documentViewChannel: documentAssembly.viewChannel,

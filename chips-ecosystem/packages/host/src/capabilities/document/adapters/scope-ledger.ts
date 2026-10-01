@@ -73,6 +73,21 @@ export class DocumentScopeLedger {
   }
 
   /**
+   * 按作用域 ID 解析在册账（资源打开路由的 §4.6 形态探针消费位；未在册返回 `undefined`）。
+   *
+   * @remarks 同一作用域在册账中至多一条（INV-5 禁抢占：同 scope 重复登记在挂载入口即拒），
+   * 线性扫描规模受打开文档数约束，读路径无锁（账目变更只在 scope 适配器串行队列内发生）。
+   */
+  findByScope(scope: string): IScopeLedgerEntry | undefined {
+    for (const entry of this.byManagedUri.values()) {
+      if (entry.scope === scope) {
+        return entry;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * 同键串行队列。
    *
    * @remarks 后继任务挂在「吞拒绝」的尾上排队：任一任务失败不阻塞同键后续；

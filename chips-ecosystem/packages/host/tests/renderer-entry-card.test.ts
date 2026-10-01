@@ -235,9 +235,12 @@ describe('createFrameActionForwarder：四类动作逐 kind 映射冻结能力',
   const actionCases: ReadonlyArray<[FrameActionPayload, string, unknown]> = [
     [{ kind: 'open-external', url: 'https://example.com' }, 'shell:openExternal', { url: 'https://example.com' }],
     [
+      // 工单036 T4 契约对齐：`request` 为 `IResourceOpenRequest`（14 §2.2 顶层仅
+      // intent / resource），转发面按契约原样透传，禁自造 `origin` 字段；帧来源身份归
+      // RenderHost 校验臂（14 §2.1，装载臂候 #85 落波）。
       { kind: 'open-resource', request: { resource_id: 'res-1', mode: 'view' } },
       'resource:open',
-      { resource_id: 'res-1', mode: 'view', origin: 'frame' },
+      { resource_id: 'res-1', mode: 'view' },
     ],
     [{ kind: 'copy-text', text: '复制内容' }, 'clipboard:write', { text: '复制内容' }],
     [{ kind: 'notify', level: 'info', message: '提示' }, 'notification:send', { level: 'info', message: '提示' }],

@@ -159,8 +159,9 @@ describe('组合根全链：壳启动 → PAL 自举 → 运行时装配 → 能
     const { fake, runtime } = await startComposition();
     const report = runtime.report();
     expect(report.state).toBe('running');
-    expect(report.capabilities.active).toBe(2);
-    expect(report.capabilities.byDomain).toMatchObject({ system: 1, event: 1 });
+    // 工单036 残段 T4：组合根恒注册资源打开路由域两能力（`resource:open` / `resource:list-handlers`）。
+    expect(report.capabilities.active).toBe(4);
+    expect(report.capabilities.byDomain).toMatchObject({ system: 1, event: 1, resource: 2 });
 
     const response = await runtime.ipc.handleRequest(
       { windowId: bootstrapWindowId(fake), frameId: null },
@@ -236,8 +237,8 @@ describe('组合根全链：壳启动 → PAL 自举 → 运行时装配 → 能
     });
 
     const report = runtime.report();
-    expect(report.capabilities.active).toBe(3);
-    expect(report.capabilities.byDomain).toMatchObject({ system: 1, document: 1, event: 1 });
+    expect(report.capabilities.active).toBe(5);
+    expect(report.capabilities.byDomain).toMatchObject({ system: 1, document: 1, event: 1, resource: 2 });
     const reserved = new Map(report.reserved.map((item) => [item.id, item]));
     expect(reserved.get('document:open')).toMatchObject({ wired: true, provider: 'document' });
     expect(reserved.get('document:save')?.wired).toBe(false);
