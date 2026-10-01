@@ -28,18 +28,18 @@ export const APP_COMMAND_HANDLER_IDS = {
 export const appCommandDefinitions: readonly ICommandDefinition[] = [
   {
     id: APP_COMMAND_IDS.openCard,
-    title: '打开卡片',
-    description: '打开指定的卡片文件并在主窗口中展示',
+    title: '打开笔记文档',
+    description: '按来源引用打开指定卡片或箱子并加入笔记库定位',
     shortcut: 'CommandOrControl+O',
     scope: { kind: 'app', appId: APP_PLUGIN_ID },
     handlerId: APP_COMMAND_HANDLER_IDS.openCard,
-    keywords: ['open', 'card', '打开', '卡片'],
+    keywords: ['open', 'card', 'box', '打开', '笔记', '笔记本'],
     group: '文件',
   },
   {
     id: APP_COMMAND_IDS.refreshView,
     title: '刷新当前视图',
-    description: '重新拉取当前展示数据',
+    description: '重新读取当前选中文档的元数据与内容',
     shortcut: 'F5',
     scope: { kind: 'app', appId: APP_PLUGIN_ID },
     handlerId: APP_COMMAND_HANDLER_IDS.refreshView,
@@ -59,30 +59,69 @@ export function isAppCommandId(commandId: string): boolean {
   return APP_COMMAND_ID_SET.has(commandId);
 }
 
+/** 命令业务动作：本地处理器解析载荷后调用的领域入口（由界面层装配）。 */
+export interface NotesCommandActions {
+  /** 打开来源引用指向的卡片/箱子并定位。 */
+  openCard(path: string): void;
+  /** 刷新当前选中文档。 */
+  refreshView(): void;
+}
+
 /** 派发执行记录：本地处理器执行后上报给界面层消费。 */
 export interface AppCommandStatus {
   readonly commandId: string;
   readonly handlerId: AppCommandHandlerId;
-  readonly payload: unknown;
+  readonly ok: boolean;
 }
 
 /**
  * 构造与 `command:invoked` 派发配对的本地处理器集合（《13-命令系统契约》§5.6）。
  *
- * 每条注册以 `(commandId, handlerId)` 与平台登记记录配对；处理器体执行对应命令的
- * 业务侧效应，本样例把执行记录上报给界面层展示。
+ * 每条注册以 `(commandId, handlerId)` 与平台登记记录配对；载荷按命令语义防御性收窄，
+ * 非法载荷如实上报失败，不静默忽略。
  */
 export function createAppCommandHandlers(
+  actions: NotesCommandActions,
   notify: (status: AppCommandStatus) => void,
 ): readonly ICommandLocalRegistration[] {
+  const handlers: Readonly<
+    Record<AppCommandHandlerId, (payload: unknown) => void>
+  > = {
+    'open-card': (payload: unknown): void => {
+      const path = readPayloadPath(payload);
+      if (path === null) {
+        notify({ commandId: APP_COMMAND_IDS.openCard, handlerId: 'open-card', ok: false });
+        return;
+      }
+      actions.openCard(path);
+      notify({ commandId: APP_COMMAND_IDS.openCard, handlerId: 'open-card', ok: true });
+    },
+    'refresh-view': (): void => {
+      actions.refreshView();
+      notify({ commandId: APP_COMMAND_IDS.refreshView, handlerId: 'refresh-view', ok: true });
+    },
+  };
+
   return appCommandDefinitions.map((definition) => {
     const handlerId = (definition.handlerId ?? '') as AppCommandHandlerId;
     return {
       commandId: definition.id,
       handlerId,
       handler: (payload: unknown): void => {
-        notify({ commandId: definition.id, handlerId, payload });
+        handlers[handlerId](payload);
       },
     };
   });
+}
+
+/** 打开命令载荷收窄：`{ path: 非空字符串 }`，其余形状一律拒绝。 */
+function readPayloadPath(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+  const candidate = (payload as { path?: unknown }).path;
+  if (typeof candidate !== 'string' || candidate.trim().length === 0) {
+    return null;
+  }
+  return candidate.trim();
 }

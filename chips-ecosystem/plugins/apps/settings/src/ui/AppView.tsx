@@ -1,63 +1,158 @@
-import React from 'react';
-import { Button, ChipsProvider, CommandProvider, theme } from '@chips/ui';
+import { useCallback, useEffect, useMemo, useState, type FC, type ReactElement } from 'react';
+import {
+  App,
+  AppstoreOutlined,
+  BgColorsOutlined,
+  Button,
+  ChipsProvider,
+  CommandProvider,
+  DatabaseOutlined,
+  FileDoneOutlined,
+  Flex,
+  FolderOpenOutlined,
+  InfoCircleOutlined,
+  KeyOutlined,
+  Menu,
+  SafetyCertificateOutlined,
+  ThunderboltOutlined,
+  Typography,
+  theme,
+} from '@chips/ui';
+import { findScene, scenesInOrder, type SettingsSceneId } from '../domain/settings/catalog';
+import { getWindowSettingsStore, type SettingsPreferenceStore } from '../domain/settings/preferenceStore';
 import { COMMAND_PHASE_LABELS, useAppCommands } from '../commands/useAppCommands';
+import { DegradedScene, PreferenceScene } from './Scenes';
 
 const APP_ID = 'chips.official.settings';
 
-/** 应用界面内容：处于 ChipsProvider 提供的窗口级运行环境内（令牌与消息上下文可用）。 */
-const AppContent: React.FC = () => {
-  const { token } = theme.useToken();
-  const [count, setCount] = React.useState(0);
-
-  return (
-    <section
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: token.marginSM,
-        padding: token.padding,
-      }}
-    >
-      <p style={{ margin: 0 }}>你好，这是「生态设置面板」的应用界面。</p>
-      <Button type="primary" onClick={() => setCount((value) => value + 1)}>
-        点击次数：{count}
-      </Button>
-    </section>
-  );
+/** 导航行图标（@ant-design/icons 在册图标名；禁止 emoji、字符图标与占位字形）。 */
+const SCENE_ICONS: Readonly<Record<SettingsSceneId, ReactElement>> = {
+  appearance: <BgColorsOutlined />,
+  behavior: <ThunderboltOutlined />,
+  workspace: <FolderOpenOutlined />,
+  plugins: <AppstoreOutlined />,
+  permissions: <SafetyCertificateOutlined />,
+  shortcuts: <KeyOutlined />,
+  'file-open': <FileDoneOutlined />,
+  storage: <DatabaseOutlined />,
+  about: <InfoCircleOutlined />,
 };
 
 /**
- * 命令消费展示区：挂载命令注册状态与 `command:invoked` 派发执行记录。
+ * 应用界面内容：处于 ChipsProvider 提供的窗口级运行环境内（令牌与消息上下文可用）。
  *
- * 两个按钮以 `source: 'api'` 经 `command:invoke` 触发本应用登记的 ui 目标命令，
- * 平台向本窗口派发后由 `attach` 的本地处理器执行并回写状态。
+ * 壳层按注册表驱动（《05-生态设置面板设计》§2.3）：左侧九类导航行与右侧内容区
+ * 只消费 `SETTINGS_SCENES`，禁止在组件内条件分支追加页面；窄屏切换器随导航臂后续
+ * 形态落位（消费同一套注册表）。
  */
-const CommandSection: React.FC = () => {
+const AppContent: FC<{ store: SettingsPreferenceStore }> = ({ store }) => {
   const { token } = theme.useToken();
-  const { phase, errorCode, lastInvoked, invokeOpenCard, invokeRefreshView } = useAppCommands();
+  const { message } = App.useApp();
+  const [activeScene, setActiveScene] = useState<SettingsSceneId>('appearance');
+  const [refreshToken, setRefreshToken] = useState(0);
+  const { phase, errorCode, setActions, invokeRefresh } = useAppCommands();
+
+  // 命令动作装配：分类跳转 + 刷新本地处理器（装配一次，动作内部读取最新状态）。
+  useEffect(() => {
+    setActions({
+      openScene: (sceneId: string): void => {
+        const scene = findScene(sceneId);
+        if (scene === null) {
+          return;
+        }
+        setActiveScene(scene.id);
+      },
+      refreshView: (): void => {
+        setRefreshToken((token_) => token_ + 1);
+      },
+    });
+    return (): void => {
+      setActions(null);
+    };
+  }, [setActions]);
+
+  // 成功类反馈走顶部浮层短提示（失败类反馈在页面行内，须显式处置）。
+  const notify = useCallback(
+    (text: string): void => {
+      message.info(text);
+    },
+    [message],
+  );
+
+  const scene = findScene(activeScene);
+  const menuItems = useMemo(
+    () =>
+      scenesInOrder().map((item) => ({
+        key: item.id,
+        icon: SCENE_ICONS[item.id],
+        label: item.title,
+      })),
+    [],
+  );
+
+  if (scene === null) {
+    // 注册表保证在册标识；防御性分支（未知标识不渲染，避免静默回退首项）。
+    return null;
+  }
 
   return (
-    <section
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: token.marginXS,
-        paddingInline: token.padding,
-        paddingBottom: token.padding,
-      }}
-    >
-      <p style={{ margin: 0 }}>命令注册状态：{COMMAND_PHASE_LABELS[phase]}</p>
-      {errorCode === null ? null : <p style={{ margin: 0 }}>最近错误码：{errorCode}</p>}
-      <div style={{ display: 'flex', gap: token.marginXS }}>
-        <Button onClick={() => void invokeOpenCard('~/文档/示例.cpk')}>触发打开卡片命令</Button>
-        <Button onClick={() => void invokeRefreshView()}>触发刷新视图命令</Button>
-      </div>
-      <p style={{ margin: 0 }}>
-        {lastInvoked === null
-          ? '本窗口尚未执行过命令派发'
-          : '最近执行：' + lastInvoked.commandId}
-      </p>
-    </section>
+    <Flex style={{ height: '100%', background: token.colorBgLayout }}>
+      <aside
+        style={{
+          width: 232,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: token.paddingSM,
+          background: token.colorBgContainer,
+          borderInlineEnd: `1px solid ${token.colorBorderSecondary}`,
+          overflow: 'auto',
+        }}
+      >
+        <Typography.Text strong style={{ paddingInline: token.paddingXS, marginBottom: token.marginSM }}>
+          生态设置面板
+        </Typography.Text>
+        <Menu
+          mode="inline"
+          selectedKeys={[scene.id]}
+          items={menuItems}
+          onClick={(info) => setActiveScene(info.key as SettingsSceneId)}
+          style={{ borderInlineEnd: 'none', background: 'transparent', flex: 1 }}
+        />
+        <div style={{ paddingInline: token.paddingXS }}>
+          <Typography.Text type="secondary">命令注册状态：{COMMAND_PHASE_LABELS[phase]}</Typography.Text>
+          {phase === 'error' && errorCode !== null ? (
+            <Typography.Text type="secondary" style={{ display: 'block' }}>
+              错误码：{errorCode}
+            </Typography.Text>
+          ) : null}
+        </div>
+      </aside>
+      <main style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: token.padding }}>
+        <Flex vertical gap={token.marginSM}>
+          <Flex justify="space-between" align="center">
+            <div>
+              <Typography.Title level={4} style={{ margin: 0 }}>
+                {scene.title}
+              </Typography.Title>
+              <Typography.Text type="secondary">{scene.summary}</Typography.Text>
+            </div>
+            <Button onClick={invokeRefresh}>刷新当前视图</Button>
+          </Flex>
+          {scene.requiredDomains.length === 0 ? (
+            <PreferenceScene
+              key={`${scene.id}-${refreshToken}`}
+              sceneId={scene.id}
+              store={store}
+              onNotify={notify}
+            />
+          ) : (
+            <DegradedScene sceneId={scene.id} />
+          )}
+
+        </Flex>
+      </main>
+    </Flex>
   );
 };
 
@@ -66,13 +161,15 @@ const CommandSection: React.FC = () => {
  *
  * 挂载窗口级 ChipsProvider 一次（appId 与 manifest 一致、surface 与 manifest ui.surface 一致），
  * 包裹整个应用界面树；不得重复挂载或自建主题根（《@chips/ui 共享层使用指南》§3.1）。
- * CommandProvider 为窗口内命令运行时单例（《13-命令系统契约》§5.6），包裹全部命令消费组件。
+ * CommandProvider 为窗口内命令运行时单例（《13-命令系统契约》§5.6），包裹全部命令消费组件；
+ * App 提供消息上下文（`App.useApp()` 为许可通道）。
  */
-export const AppView: React.FC = () => (
+export const AppView: FC = () => (
   <ChipsProvider appId={APP_ID} surface="window">
     <CommandProvider>
-      <AppContent />
-      <CommandSection />
+      <App>
+        <AppContent store={getWindowSettingsStore()} />
+      </App>
     </CommandProvider>
   </ChipsProvider>
 );

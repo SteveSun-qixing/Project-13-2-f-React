@@ -13,6 +13,9 @@
     "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['dist', 'render.js', 'coverage']) fs.rmSync(p, { recursive: true, force: true }); })\"",
     "package": "pnpm exec chips plugin pack --out dist/"
   },
+  "dependencies": {
+    "yaml": "2.8.2"
+  },
   "devDependencies": {
     "@chips/cli": "workspace:*",
     "@chips/sdk": "workspace:*",

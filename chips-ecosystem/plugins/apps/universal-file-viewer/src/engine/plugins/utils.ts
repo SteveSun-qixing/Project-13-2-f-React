@@ -1,0 +1,157 @@
+import type { PreviewFile } from "../types";
+
+export async function readArrayBuffer(file: PreviewFile): Promise<ArrayBuffer> {
+  if (file.source instanceof ArrayBuffer) {
+    return file.source;
+  }
+  if (file.blob) {
+    return file.blob.arrayBuffer();
+  }
+  if (typeof file.source === "string") {
+    const response = await fetch(file.source);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.status}`);
+    }
+    return response.arrayBuffer();
+  }
+  throw new Error("Unsupported file source.");
+}
+
+export async function readTextFile(file: PreviewFile): Promise<string> {
+  const decode = (buffer: ArrayBuffer): string => decodeTextBuffer(buffer);
+  if (typeof file.source === "string") {
+    const response = await fetch(file.source);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch text file: ${response.status}`);
+    }
+    return decode(await response.arrayBuffer());
+  }
+  if (file.blob) {
+    return decode(await file.blob.arrayBuffer());
+  }
+  if (file.source instanceof ArrayBuffer) {
+    return decode(file.source);
+  }
+  // 兜底分支与上游一致：File 源在无 blob 时字符串化仅为占位输出。
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
+  return String(file.source);
+}
+
+export function createPanel(className = ""): HTMLElement {
+  const panel = document.createElement("div");
+  panel.className = `ofv-panel ${className}`.trim();
+  return panel;
+}
+
+/** Scroll a rendered, paginated preview to a 1-based page. */
+export function goToRenderedPage(
+  root: ParentNode,
+  selector: string,
+  page: number,
+  scroller: HTMLElement
+): boolean {
+  const pages = Array.from(root.querySelectorAll<HTMLElement>(selector));
+  if (pages.length === 0) {
+    return false;
+  }
+  const rounded = Math.round(page);
+  const pageNumber = Math.min(pages.length, Math.max(1, Number.isFinite(rounded) ? rounded : 1));
+  const target = pages[pageNumber - 1];
+  if (!target) {
+    return false;
+  }
+  const targetTop = scroller.scrollTop + target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  const top = Math.max(0, targetTop - 16);
+  if (typeof scroller.scrollTo === "function") {
+    scroller.scrollTo({ top, behavior: "smooth" });
+  } else {
+    scroller.scrollTop = top;
+  }
+  return true;
+}
+
+export function getInitialZoom(ctx: { options: { zoom: number | undefined } }, min = 0.1, max = 8): number {
+  return Math.min(max, Math.max(min, ctx.options.zoom ?? 1));
+}
+
+export function createSection(title: string): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "ofv-section";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  section.append(heading);
+  return section;
+}
+
+export function appendMeta(parent: HTMLElement, label: string, value: string | number): void {
+  const row = document.createElement("div");
+  row.className = "ofv-meta-row";
+  const key = document.createElement("span");
+  key.textContent = label;
+  const content = document.createElement("strong");
+  content.textContent = String(value);
+  row.append(key, content);
+  parent.append(row);
+}
+
+export function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+export function bytesToText(bytes: Uint8Array): string {
+  return decodeTextBytes(bytes);
+}
+
+export function decodeTextBuffer(buffer: ArrayBuffer): string {
+  return decodeTextBytes(new Uint8Array(buffer));
+}
+
+export function decodeTextBytes(bytes: Uint8Array): string {
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder("utf-8").decode(bytes.subarray(3));
+  }
+  if (bytes.length >= 2) {
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+      return new TextDecoder("utf-16le").decode(bytes.subarray(2));
+    }
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+      return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+    }
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return decodeWithFallback(bytes, "gb18030") || decodeWithFallback(bytes, "gbk") || new TextDecoder("utf-8").decode(bytes);
+  }
+}
+
+function decodeWithFallback(bytes: Uint8Array, encoding: string): string | undefined {
+  try {
+    return new TextDecoder(encoding).decode(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+/** 未知错误的字符串化兜底：Error 取 message，字符串直取，其余走兜底。 */
+export function errorToText(error: unknown, fallback = ""): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error || fallback;
+  }
+  return fallback;
+}
+
+export function resolveFormat(
+  file: Pick<PreviewFile, "extension" | "mimeType">,
+  mimeMap: Record<string, string>
+): string {
+  return file.extension || mimeMap[file.mimeType] || "";
+}

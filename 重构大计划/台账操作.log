@@ -11868,3 +11868,126 @@
 2026-10-01 02:02:28	cmd=dispose-batch  owner=w4-b1-lead               rows=31     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/services/htmltopdf notes=W4-B1 收口：整包迁移四闸+cpk 校验全绿（提交 566822780/2870ce65e）；宿主面缺位见工单060 目录组=9 跳过=0
 2026-10-01 02:02:36	cmd=release        owner=ledger-plugins           rows=67     files=67 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=67
 2026-10-01 02:02:37	cmd=dispose-batch  owner=w4-b1-lead               rows=67     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/richtext notes=W4-B1 收口：查看态全量交付（经 markdown 服务契约消费，49 用例四闸绿）；LEGACY 兼容面按零兼容宪 目录组=30 跳过=0
+2026-10-01 08:08:58	cmd=release        owner=ledger-media-viewers     rows=64     files=64 symbols=0 keep_disposition=True 仓库分布=Chips-PhotoViewer=64
+2026-10-01 08:08:58	cmd=dispose-batch  owner=w4-b1-lead               rows=4      disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：整包/臂交付 目录组=4 跳过=0
+2026-10-01 08:08:58	cmd=release        owner=ledger-media-viewers     rows=92     files=92 symbols=0 keep_disposition=True 仓库分布=Chips-VideoPlayer=92
+2026-10-01 08:08:58	cmd=dispose-batch  owner=w4-b1-lead               rows=10     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：整包/臂交付 目录组=4 跳过=0
+2026-10-01 08:08:58	cmd=release        owner=ledger-media-community   rows=103    files=103 symbols=0 keep_disposition=True 仓库分布=Chips-MusicPlayer=103
+2026-10-01 08:08:59	cmd=dispose-batch  owner=w4-b1-lead               rows=21     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：整包/臂交付 目录组=6 跳过=0
+2026-10-01 08:08:59	cmd=release        owner=ledger-apps              rows=179    files=179 symbols=0 keep_disposition=True 仓库分布=Chips-BookReader=179
+2026-10-01 08:08:59	cmd=dispose-batch  owner=w4-b1-lead               rows=77     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：整包/臂交付 目录组=12 跳过=0
+2026-10-01 08:08:59	cmd=release        owner=ledger-sdk-toolkit       rows=72     files=72 symbols=0 keep_disposition=True 仓库分布=Chip-iconMaker=72
+2026-10-01 08:08:59	cmd=dispose-batch  owner=w4-b1-lead               rows=23     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：整包/臂交付 目录组=5 跳过=0
+2026-10-01 08:08:59	cmd=release        owner=ledger-media-viewers     rows=105    files=105 symbols=0 keep_disposition=True 仓库分布=Chips-UniversalFileViewer=105
+2026-10-01 08:08:59	cmd=dispose-batch  owner=w4-b1-lead               rows=46     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：整包/臂交付 目录组=6 跳过=0
+2026-10-01 08:08:59	cmd=release        owner=ledger-media-community   rows=67     files=67 symbols=0 keep_disposition=True 仓库分布=Chips-RichTextEditor=67
+2026-10-01 08:08:59	cmd=dispose-batch  owner=w4-b1-lead               rows=7      disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：臂交付进行中（壳/端到端候前置件） 目录组=4 跳过=0
+2026-10-01 08:08:59	cmd=release        owner=ledger-engine-ui         rows=280    files=280 symbols=0 keep_disposition=True 仓库分布=Chips-EditingEngine=280
+2026-10-01 08:08:59	cmd=dispose-batch  owner=w4-b1-lead               rows=11     disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：臂交付进行中（壳/端到端候前置件） 目录组=4 跳过=0
+2026-10-01 08:09:00	cmd=release        owner=ledger-apps              rows=299    files=299 symbols=0 keep_disposition=True 仓库分布=Chips-Notes=299
+2026-10-01 08:09:00	cmd=dispose-batch  owner=w4-b1-lead               rows=8      disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：臂交付进行中（壳/端到端候前置件） 目录组=2 跳过=0
+2026-10-01 08:09:00	cmd=release        owner=ledger-engine-ui         rows=155    files=155 symbols=0 keep_disposition=True 仓库分布=Chips-EcoSettingsPanel=155
+2026-10-01 08:09:00	cmd=dispose-batch  owner=w4-b1-lead               rows=4      disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/*（W5 应用波） notes=W5 应用波回写：臂交付进行中（壳/端到端候前置件） 目录组=1 跳过=0
+2026-10-01 08:09:25	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决） 目录组=1 跳过=0
+2026-10-01 08:10:09	cmd=dispose-batch  owner=w4-b1-lead               rows=28     disposition=重写 status=已完成 target=chips-ecosystem/plugins/apps/photo-viewer notes=W5 应用波回写：重写交付 目录组=9 跳过=0
+2026-10-01 08:10:09	cmd=dispose-batch  owner=w4-b1-lead               rows=40     disposition=重写 status=已完成 target=chips-ecosystem/plugins/apps/video-player notes=W5 应用波回写：重写交付 目录组=10 跳过=0
+2026-10-01 08:10:09	cmd=dispose-batch  owner=w4-b1-lead               rows=26     disposition=重写 status=已完成 target=chips-ecosystem/plugins/apps/music-player notes=W5 应用波回写：重写交付 目录组=15 跳过=0
+2026-10-01 08:10:10	cmd=dispose-batch  owner=w4-b1-lead               rows=62     disposition=重写 status=已完成 target=chips-ecosystem/plugins/apps/book-reader notes=W5 应用波回写：重写交付 目录组=14 跳过=0
+2026-10-01 08:10:10	cmd=dispose-batch  owner=w4-b1-lead               rows=21     disposition=重写 status=进行中 target=chips-ecosystem/plugins/apps/icon-maker notes=W5 应用波回写：重写臂进行中（壳/端到端候前置件） 目录组=10 跳过=0
+2026-10-01 08:10:10	cmd=dispose-batch  owner=w4-b1-lead               rows=27     disposition=重写 status=进行中 target=chips-ecosystem/plugins/apps/universal-file-viewer notes=W5 应用波回写：重写臂进行中（壳/端到端候前置件） 目录组=12 跳过=0
+2026-10-01 08:10:10	cmd=dispose-batch  owner=w4-b1-lead               rows=21     disposition=重写 status=进行中 target=chips-ecosystem/plugins/apps/rich-text-editor notes=W5 应用波回写：重写臂进行中（壳/端到端候前置件） 目录组=8 跳过=0
+2026-10-01 08:10:10	cmd=dispose-batch  owner=w4-b1-lead               rows=151    disposition=重写 status=进行中 target=chips-ecosystem/plugins/apps/editor notes=W5 应用波回写：重写臂进行中（壳/端到端候前置件） 目录组=33 跳过=0
+2026-10-01 08:10:10	cmd=dispose-batch  owner=w4-b1-lead               rows=204    disposition=重写 status=进行中 target=chips-ecosystem/plugins/apps/notes notes=W5 应用波回写：重写臂进行中（壳/端到端候前置件） 目录组=40 跳过=0
+2026-10-01 08:10:10	cmd=dispose-batch  owner=w4-b1-lead               rows=33     disposition=重写 status=进行中 target=chips-ecosystem/plugins/apps/settings notes=W5 应用波回写：重写臂进行中（壳/端到端候前置件） 目录组=10 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=提炼入 W5 icon-maker 新实现说明（简体中文直写；§08-@chips/ui 共享层使用指南文案口径） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=保留设计 status=已裁决 target=提炼入 W5 icon-maker 重写的新实现说明；正式标识与命令/权限登记以 薯片生态文档库/03-插件开发/09-官方插件与应用目录.md 为准 notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=9      disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/app.ts notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=15     disposition=归档 status=已裁决 target=计划归属：Chip-iconMaker/归档/（就地保留，历史证据） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=8 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=W5 重写 book-reader 的现有实现说明参考 notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=W5 重写 book-reader 的选型依据（开源吸收评估结论仍成立：只吸收阅读域模型与 ReadiumCSS，不吸收 Electron 壳） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=chips-ecosystem/plugins/apps/book-reader（计划归属，W5，目录尚未落地） 的 assets 归属记录 notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=chips-ecosystem/plugins/apps/book-reader（计划归属，W5，目录尚未落地） 的 third-party 归属记录 notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/03-插件开发/09-官方插件与应用目录.md（应用条目）；W5 新包按脚手架模板重写 README notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:11	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/08-产品与交互/03-查看器设计.md（§8.2 书籍阅读器）与 09-官方插件与应用目录.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=不搬运；旧仓库冻结保留 notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=33     disposition=归档 status=已裁决 target=归档于旧仓库原位（只读冻结，不删除） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=9 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/02-开发规范/05-测试规范.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/02-开发规范/10-设计资产与图标规范.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/05-接口与契约/04-能力契约规范.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=5      disposition=保留设计 status=已裁决 target=薯片生态文档库/08-产品与交互/05-生态设置面板设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=6      disposition=废弃 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=4 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/cli notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=3      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/sdk/src notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:12	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/components notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/components/PanelHeader notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/components/SettingsGroup notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=4      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/components/SettingsRow notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/components/StateBoundary notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=3      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/index.ts notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=3      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/theme/ChipsProvider.tsx notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/utils/failure.test.ts notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/utils/failure.ts notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=4      disposition=废弃 status=已裁决 target=chips-ecosystem/plugins/apps/settings（W5 计划归属，目录未落地；新 ID chips.official.settings） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=4 跳过=0
+2026-10-01 08:10:13	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/tests/e2e notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=3      disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/app.ts notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/tools/testing notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=废弃 status=已裁决 target=chips-ecosystem/tsconfig.base.json notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=薯片生态文档库/01-架构设计/01-子系统设计/08-权限系统设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=薯片生态文档库/03-插件开发/02-插件清单规范.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=薯片生态文档库/08-产品与交互/05-生态设置面板设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=68     disposition=归档 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=32 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/01-架构设计/01-子系统设计/12-编辑引擎设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:14	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/02-开发规范/10-设计资产与图标规范.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=5      disposition=废弃 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=4 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/.gitignore notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=8      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/sdk/src notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/index.ts notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/packages/ui/src/utils/failure.ts notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=chips-ecosystem/plugins/apps/editor（W5 计划归属，目录未落地；新 ID chips.official.editor） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=9      disposition=废弃 status=已裁决 target=chips-ecosystem/tools/scaffold/src/templates/app.ts notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=12     disposition=废弃 status=已裁决 target=薯片生态文档库/01-架构设计/01-子系统设计/05-渲染引擎设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:15	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=薯片生态文档库/01-架构设计/01-子系统设计/11-文档服务设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=8      disposition=废弃 status=已裁决 target=薯片生态文档库/01-架构设计/01-子系统设计/12-编辑引擎设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=废弃 status=已裁决 target=薯片生态文档库/01-架构设计/01-子系统设计/13-工作区设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=废弃 status=已裁决 target=薯片生态文档库/03-插件开发/02-插件清单规范.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=废弃 status=已裁决 target=薯片生态文档库/03-插件开发/10-官方内容处理与阅读服务设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=废弃 status=已裁决 target=薯片生态文档库/04-文件格式规范/01-卡片文件格式.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=2 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=废弃 status=已裁决 target=薯片生态文档库/05-接口与契约/04-能力契约规范.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=4      disposition=废弃 status=已裁决 target=薯片生态文档库/08-产品与交互/05-生态设置面板设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=56     disposition=归档 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=26 跳过=0
+2026-10-01 08:10:16	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/05-接口与契约/14-资源打开与默认处理器契约.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=保留设计 status=已裁决 target=薯片生态文档库/08-产品与交互/03-查看器设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=7      disposition=保留设计 status=已裁决 target=薯片生态文档库/08-产品与交互/08-官方应用功能总览.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=25     disposition=废弃 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=8 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=18     disposition=归档 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=10 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=3      disposition=归档 status=已裁决 target=归档于旧仓库原位（只读冻结，不删除） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=W5 新包 README/用户文档素材（面向用户手册文案提炼） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=2      disposition=保留设计 status=已裁决 target=W5 重写 plugins/apps/notes 参考（应用侧设计意图）；平台卡片链路以薯片生态文档库 04-文件格式规范/03-插件开发 为权威 notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=chips-ecosystem/plugins/apps/notes（计划归属，W5，目录尚未落地） 的 assets 归属记录 notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:17	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/02-开发规范/ 与 chips-ecosystem 根 AGENTS.md（工程约束承接） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=1      disposition=保留设计 status=已裁决 target=薯片生态文档库/03-插件开发/09-官方插件与应用目录.md（应用条目）；W5 新包按脚手架模板重写 README notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=1 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=27     disposition=废弃 status=已裁决 target=不搬运；旧仓库冻结保留 notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=6 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=54     disposition=归档 status=已裁决 target=归档于旧仓库原位（只读冻结，不删除） notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=25 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=3      disposition=保留设计 status=已裁决 target=薯片生态文档库/08-产品与交互/03.08-03-查看器设计-八、格式支持矩阵.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=12     disposition=废弃 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=4 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=17     disposition=归档 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=10 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=10     disposition=保留设计 status=已裁决 target=薯片生态文档库/08-产品与交互/08-官方应用功能总览.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=11     disposition=废弃 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=18     disposition=归档 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=12 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=3      disposition=保留设计 status=已裁决 target=薯片生态文档库/08-产品与交互/03.08-03-查看器设计-八、格式支持矩阵.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=17     disposition=废弃 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=8 跳过=0
+2026-10-01 08:10:18	cmd=dispose-batch  owner=w4-b1-lead               rows=12     disposition=归档 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=5 跳过=0
+2026-10-01 08:10:19	cmd=dispose-batch  owner=w4-b1-lead               rows=12     disposition=保留设计 status=已裁决 target=薯片生态文档库/03-插件开发/10-官方内容处理与阅读服务设计.md notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=3 跳过=0
+2026-10-01 08:10:19	cmd=dispose-batch  owner=w4-b1-lead               rows=13     disposition=废弃 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=4 跳过=0
+2026-10-01 08:10:19	cmd=dispose-batch  owner=w4-b1-lead               rows=17     disposition=归档 status=已裁决 target=- notes=修复：恢复 release 面过宽误放的裁决行（保原裁决原 target） 目录组=10 跳过=0
+2026-10-01 08:10:41	cmd=dispose-batch  owner=w4-b1-lead               rows=4      disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/photo-viewer notes=W5 应用波回写（target 精确化） 目录组=4 跳过=0
+2026-10-01 08:10:41	cmd=dispose-batch  owner=w4-b1-lead               rows=10     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/video-player notes=W5 应用波回写（target 精确化） 目录组=4 跳过=0
+2026-10-01 08:10:41	cmd=dispose-batch  owner=w4-b1-lead               rows=21     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/music-player notes=W5 应用波回写（target 精确化） 目录组=6 跳过=0
+2026-10-01 08:10:41	cmd=dispose-batch  owner=w4-b1-lead               rows=77     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/book-reader notes=W5 应用波回写（target 精确化） 目录组=12 跳过=0
+2026-10-01 08:10:41	cmd=dispose-batch  owner=w4-b1-lead               rows=23     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/apps/icon-maker notes=W5 应用波回写（target 精确化） 目录组=5 跳过=0
+2026-10-01 08:10:41	cmd=dispose-batch  owner=w4-b1-lead               rows=46     disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/universal-file-viewer notes=W5 应用波回写（target 精确化） 目录组=6 跳过=0
+2026-10-01 08:10:42	cmd=dispose-batch  owner=w4-b1-lead               rows=7      disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/rich-text-editor notes=W5 应用波回写（target 精确化） 目录组=4 跳过=0
+2026-10-01 08:10:42	cmd=dispose-batch  owner=w4-b1-lead               rows=11     disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/editor notes=W5 应用波回写（target 精确化） 目录组=4 跳过=0
+2026-10-01 08:10:42	cmd=dispose-batch  owner=w4-b1-lead               rows=8      disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/notes notes=W5 应用波回写（target 精确化） 目录组=2 跳过=0
+2026-10-01 08:10:42	cmd=dispose-batch  owner=w4-b1-lead               rows=4      disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/settings notes=W5 应用波回写（target 精确化） 目录组=1 跳过=0

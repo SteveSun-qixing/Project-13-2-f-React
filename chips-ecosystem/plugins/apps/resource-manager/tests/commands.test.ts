@@ -8,10 +8,25 @@ import {
   createAppCommandHandlers,
   isAppCommandId,
   type AppCommandStatus,
+  type BrowseCommandActions,
 } from '../src/commands/appCommands';
 
 const COMMAND_ID_PATTERN = /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/;
 const HANDLER_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+/** manifest `cli.commands` 在册两入口的锁测对照（逐字对应，与 video-player 判例同形）。 */
+const MANIFEST_CLI_COMMANDS: readonly { id: string; title: string; description: string }[] = [
+  {
+    id: 'resource-manager:open-card',
+    title: '打开文档浏览',
+    description: '按来源引用打开指定卡片或箱子并进入只读浏览',
+  },
+  {
+    id: 'resource-manager:refresh-view',
+    title: '刷新当前视图',
+    description: '重新读取当前浏览文档的元数据与条目',
+  },
+];
 
 describe('命令元数据（可序列化）', () => {
   it('每条命令元数据 JSON 往返稳定且不含函数字段', () => {
@@ -32,6 +47,16 @@ describe('命令元数据（可序列化）', () => {
     }
   });
 
+  it('运行时命令与 manifest cli.commands 逐字对应（title/description 锁测）', () => {
+    expect(appCommandDefinitions).toHaveLength(MANIFEST_CLI_COMMANDS.length);
+    for (const manifestCommand of MANIFEST_CLI_COMMANDS) {
+      const definition = appCommandDefinitions.find((item) => item.id === manifestCommand.id);
+      expect(definition, `manifest 命令 ${manifestCommand.id} 未在运行时登记`).toBeDefined();
+      expect(definition?.title).toBe(manifestCommand.title);
+      expect(definition?.description).toBe(manifestCommand.description);
+    }
+  });
+
   it('命令 ID 与处理器 ID 各自唯一且一一对应', () => {
     const ids = appCommandDefinitions.map((definition) => definition.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -41,19 +66,62 @@ describe('命令元数据（可序列化）', () => {
 });
 
 describe('command:invoked 派发消费', () => {
-  it('本地处理器按 (commandId, handlerId) 配对并在执行时上报状态', () => {
+  function makeHarness(): {
+    seen: AppCommandStatus[];
+    actions: BrowseCommandActions & { opened: string[]; refreshed: number };
+    handlerOf: (handlerId: string) => (payload: unknown) => void;
+  } {
     const seen: AppCommandStatus[] = [];
-    const registrations = createAppCommandHandlers((status) => {
+    const actions: BrowseCommandActions & { opened: string[]; refreshed: number } = {
+      opened: [],
+      refreshed: 0,
+      openCard: (path: string): void => {
+        actions.opened.push(path);
+      },
+      refreshView: (): void => {
+        actions.refreshed += 1;
+      },
+    };
+    const registrations = createAppCommandHandlers(actions, (status) => {
       seen.push(status);
     });
     expect(registrations.map((registration) => registration.commandId)).toEqual(ids());
     expect(registrations.map((registration) => registration.handlerId)).toEqual(handlerIds());
-    for (const registration of registrations) {
-      // 处理器类型为 `void | Promise<void>`：以 void 运算符显式收口（no-floating-promises）。
-      void registration.handler({ demo: true });
-    }
-    expect(seen.map((status) => status.commandId)).toEqual(ids());
-    expect(seen.every((status) => status.payload !== undefined)).toBe(true);
+    return {
+      seen,
+      actions,
+      handlerOf: (handlerId: string): ((payload: unknown) => void) => {
+        const registration = registrations.find((item) => item.handlerId === handlerId);
+        expect(registration).toBeDefined();
+        return (registration as unknown as { handler: (payload: unknown) => void }).handler;
+      },
+    };
+  }
+
+  it('打开命令按载荷 path 触发领域动作并上报成功', () => {
+    const harness = makeHarness();
+    harness.handlerOf('open-card')({ path: ' ~/文档/素材.box ' });
+    expect(harness.actions.opened).toEqual(['~/文档/素材.box']);
+    expect(harness.seen).toEqual([
+      { commandId: APP_COMMAND_IDS.openCard, handlerId: APP_COMMAND_HANDLER_IDS.openCard, ok: true },
+    ]);
+  });
+
+  it('刷新命令无载荷直接触发领域动作', () => {
+    const harness = makeHarness();
+    harness.handlerOf('refresh-view')(undefined);
+    expect(harness.actions.refreshed).toBe(1);
+    expect(harness.seen[0]).toMatchObject({ commandId: APP_COMMAND_IDS.refreshView, ok: true });
+  });
+
+  it('打开命令载荷非法时如实上报失败、不触发领域动作', () => {
+    const harness = makeHarness();
+    harness.handlerOf('open-card')({ path: '   ' });
+    harness.handlerOf('open-card')(undefined);
+    harness.handlerOf('open-card')({ path: 42 });
+    expect(harness.actions.opened).toEqual([]);
+    expect(harness.seen).toHaveLength(3);
+    expect(harness.seen.every((status) => status.ok === false)).toBe(true);
   });
 
   it('命令 ID 归属守卫放行本应用命令并拒绝外部命令', () => {

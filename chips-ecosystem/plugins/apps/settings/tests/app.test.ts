@@ -5,6 +5,7 @@ import plugin from '../src/index';
 function createContext(titles: string[]): IAppContext {
   return {
     appId: 'chips.official.settings',
+    args: { source: 'launcher', files: [] },
     window: {
       setTitle: (title: string): Promise<void> => {
         titles.push(title);
@@ -21,7 +22,7 @@ function createContext(titles: string[]): IAppContext {
 }
 
 describe('AppPlugin.launch', () => {
-  it('启动时把窗口标题设为插件显示名', async () => {
+  it('启动时把窗口标题设为插件显示名并记录启动来源', async () => {
     const titles: string[] = [];
     await plugin.launch(createContext(titles));
     expect(titles).toEqual(['生态设置面板']);

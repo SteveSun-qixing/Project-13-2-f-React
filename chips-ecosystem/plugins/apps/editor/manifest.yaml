@@ -15,7 +15,7 @@ permissions:
 ui:
   surface: window
   launcher:
-    icon: assets/icons/app.svg
+    icon: assets/icons/app-icon.svg
     name: 编辑引擎
 fileAssociations:
   - extensions: [.card, .box]

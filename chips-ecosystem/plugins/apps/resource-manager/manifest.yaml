@@ -23,10 +23,10 @@ cli:
         - resource-manager
         - open-card
       commandId: resource-manager:open-card
-      title: 打开卡片
-      description: 通过「资源管理器」打开指定卡片文件
+      title: 打开文档浏览
+      description: 按来源引用打开指定卡片或箱子并进入只读浏览
       examples:
-        - chips resource-manager open-card ~/文档/示例.cpk
+        - chips resource-manager open-card ~/文档/示例.card
       target:
         type: app
         pluginId: chips.official.resource-manager
