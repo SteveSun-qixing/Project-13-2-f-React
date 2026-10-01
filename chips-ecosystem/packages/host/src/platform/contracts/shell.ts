@@ -1,4 +1,5 @@
 import type { IPalClipboardPort } from './clipboard.js';
+import type { IPalConfigPort } from './config.js';
 import type { IPalDialogPort } from './dialog.js';
 import type { IPalHttpPort } from './http.js';
 import type { IPalMenuPort } from './menu.js';
@@ -74,6 +75,8 @@ export interface IPalCapabilityMatrix {
   readonly shellOpen: boolean;
   /** HTTP 分面（`http:request`）。 */
   readonly http: boolean;
+  /** 配置分面（`config:*`）。 */
+  readonly config: boolean;
 }
 
 /**
@@ -112,6 +115,8 @@ export interface IPalPorts {
   readonly shellOpen?: IPalShellOpenPort;
   /** HTTP 端口。 */
   readonly http?: IPalHttpPort;
+  /** 配置端口。 */
+  readonly config?: IPalConfigPort;
 }
 
 /** 无头壳在需要服务端渲染时提供的离屏帧宿主；桌面与移动壳不使用该字段。 */
@@ -154,6 +159,7 @@ export const PAL_FACETS = [
   'transfer',
   'shellOpen',
   'http',
+  'config',
 ] as const;
 
 /** 能力分面名。 */
@@ -173,4 +179,5 @@ export const PAL_FACET_PORT_KEYS: Readonly<Record<PalFacet, keyof IPalPorts>> = 
   transfer: 'transfer',
   shellOpen: 'shellOpen',
   http: 'http',
+  config: 'config',
 };

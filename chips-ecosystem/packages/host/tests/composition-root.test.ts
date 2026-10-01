@@ -159,8 +159,8 @@ describe('组合根全链：壳启动 → PAL 自举 → 运行时装配 → 能
     const { fake, runtime } = await startComposition();
     const report = runtime.report();
     expect(report.state).toBe('running');
-    expect(report.capabilities.active).toBe(1);
-    expect(report.capabilities.byDomain).toMatchObject({ system: 1 });
+    expect(report.capabilities.active).toBe(2);
+    expect(report.capabilities.byDomain).toMatchObject({ system: 1, event: 1 });
 
     const response = await runtime.ipc.handleRequest(
       { windowId: bootstrapWindowId(fake), frameId: null },
@@ -236,8 +236,8 @@ describe('组合根全链：壳启动 → PAL 自举 → 运行时装配 → 能
     });
 
     const report = runtime.report();
-    expect(report.capabilities.active).toBe(2);
-    expect(report.capabilities.byDomain).toMatchObject({ system: 1, document: 1 });
+    expect(report.capabilities.active).toBe(3);
+    expect(report.capabilities.byDomain).toMatchObject({ system: 1, document: 1, event: 1 });
     const reserved = new Map(report.reserved.map((item) => [item.id, item]));
     expect(reserved.get('document:open')).toMatchObject({ wired: true, provider: 'document' });
     expect(reserved.get('document:save')?.wired).toBe(false);

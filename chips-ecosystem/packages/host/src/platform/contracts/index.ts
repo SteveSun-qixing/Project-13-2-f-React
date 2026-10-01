@@ -52,6 +52,17 @@ export type {
 } from './transfer.js';
 export type { IPalShellOpenPort } from './shell-open.js';
 export type { HttpMethod, HttpRequestOptions, HttpResponse, IPalHttpPort } from './http.js';
+export type {
+  ConfigChange,
+  ConfigGetPortInput,
+  ConfigLayer,
+  ConfigResetPortInput,
+  ConfigSetPortInput,
+  ConfigSnapshotPortInput,
+  ConfigView,
+  ConfigWatchSubscription,
+  IPalConfigPort,
+} from './config.js';
 export { PAL_FACET_PORT_KEYS, PAL_FACETS } from './shell.js';
 export type {
   IPalCapabilityMatrix,

@@ -12,6 +12,7 @@ import { assemblePalHost } from '../matrix.js';
 import { createElectronApi, type IElectronApi } from '../electron/electron-api.js';
 import { createChildProcessCommandRunner, type CommandRunner } from './command-runner.js';
 import { createMacClipboardPort } from './clipboard-port.js';
+import { createMacConfigPort } from './config-port.js';
 import { createMacDialogPort } from './dialog-port.js';
 import { createMacHttpPort } from './http-port.js';
 import { createMacMenuPort } from './menu-port.js';
@@ -89,11 +90,14 @@ export function createMacPalHost(electronModule: unknown, options: MacPalHostOpt
     transfer: electron.net !== undefined,
     shellOpen: electron.shell !== undefined,
     http: electron.net !== undefined,
+    config: true,
   };
 
   const trayController = createTrayController(electron, options);
+  const storage = createMacStoragePort();
   const ports = {
-    storage: createMacStoragePort(),
+    storage,
+    config: createMacConfigPort({ userConfigDir: readUserConfigDir(electron), storage }),
     ...(availability.window && electron.BrowserWindow !== undefined
       ? {
           window: createMacWindowPort(
@@ -165,6 +169,19 @@ export function createMacPalHost(electronModule: unknown, options: MacPalHostOpt
       trayController?.dispose();
     },
   };
+}
+
+/** 读取用户级配置目录（`userData`；`10-配置系统设计` §3.2 用户级目录）。 */
+function readUserConfigDir(electron: IElectronApi): string {
+  try {
+    const value = electron.app.getPath('userData');
+    if (typeof value !== 'string' || value.length === 0) {
+      throw new Error('userData 路径为空');
+    }
+    return value;
+  } catch (error) {
+    throw new PalBootstrapError('用户级配置目录解析失败', { cause: error });
+  }
 }
 
 /** 构造壳信息；任一必需信息读取失败视为启动失败。 */

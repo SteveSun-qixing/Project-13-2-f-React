@@ -38,7 +38,7 @@ function fullFacetHost(): IPalHost {
 }
 
 describe('组合根内置能力清单（G6 系统服务族第一批）', () => {
-  it('四分面就绪：system:info + dialog ×2 + clipboard ×2 + notification ×1 + shell ×1 按域序拼接', () => {
+  it('四分面就绪：system:info + dialog ×2 + clipboard ×2 + notification ×1 + shell ×1 + event（无分面恒在册）按域序拼接', () => {
     const manifest = createBuiltinCapabilities(fullFacetHost());
     expect(manifest.map((descriptor) => descriptor.id)).toEqual([
       'system:info',
@@ -48,11 +48,15 @@ describe('组合根内置能力清单（G6 系统服务族第一批）', () => {
       'clipboard:write',
       'notification:send',
       'shell:openExternal',
+      'event:publish',
     ]);
   });
 
-  it('分面缺位：仅 system:info 在册（17 §5.1/§5.2：分面 false 整体不注册）', () => {
-    expect(createBuiltinCapabilities(createFakePalHost()).map((descriptor) => descriptor.id)).toEqual(['system:info']);
+  it('分面缺位：仅 system:info 与 event 域在册（17 §5.1/§5.2：分面 false 整体不注册；event 无 PAL 端口恒在册）', () => {
+    expect(createBuiltinCapabilities(createFakePalHost()).map((descriptor) => descriptor.id)).toEqual([
+      'system:info',
+      'event:publish',
+    ]);
   });
 
   it('单分面逐域闸：任一分面缺失时其域整体缺位、其余域不受牵连', () => {
@@ -65,6 +69,7 @@ describe('组合根内置能力清单（G6 系统服务族第一批）', () => {
       'system:info',
       'clipboard:read',
       'clipboard:write',
+      'event:publish',
     ]);
   });
 

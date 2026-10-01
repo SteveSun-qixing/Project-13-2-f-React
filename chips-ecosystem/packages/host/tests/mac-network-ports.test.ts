@@ -23,7 +23,12 @@ function fastLimits(overrides: Partial<NetworkLimits>): Partial<NetworkLimits> {
   };
 }
 
-/** 传输事件收集器。 */
+/** 读取收集器注入的任务 ID（事件载荷与 `download` 输出一致性的断言辅助）。 */
+function transferIdOf(collector: { readonly transferId: string }): string {
+  return collector.transferId;
+}
+
+/** 传输事件收集器（`transferId` 由 `downloadAndWait` 注入，供载荷一致性断言）。 */
 function collectTransferEvents(): {
   readonly events: {
     onProgress(event: TransferProgress): void;
@@ -33,6 +38,8 @@ function collectTransferEvents(): {
   readonly completed: Promise<TransferCompleted>;
   readonly failed: Promise<TransferFailure>;
   readonly progress: TransferProgress[];
+  /** 注入的任务 ID（载荷中的 ID 与能力输出一致，05-事件契约规范 §4.10）。 */
+  transferId: string;
 } {
   let resolveCompleted: (event: TransferCompleted) => void = () => undefined;
   let resolveFailed: (event: TransferFailure) => void = () => undefined;
@@ -43,16 +50,20 @@ function collectTransferEvents(): {
     resolveFailed = resolve;
   });
   const progress: TransferProgress[] = [];
-  return {
+  const collector = {
     events: {
-      onProgress: (event) => progress.push(event),
-      onCompleted: (event) => resolveCompleted(event),
-      onFailed: (event) => resolveFailed(event),
+      onProgress: (event: TransferProgress): void => {
+        progress.push(event);
+      },
+      onCompleted: (event: TransferCompleted): void => resolveCompleted(event),
+      onFailed: (event: TransferFailure): void => resolveFailed(event),
     },
     completed,
     failed,
     progress,
+    transferId: '',
   };
+  return collector;
 }
 
 describe('isHttpUrl', () => {
@@ -366,7 +377,7 @@ describe('createMacTransferPort', () => {
   ): Promise<{
     port: ReturnType<typeof createMacTransferPort>;
     transferId: string;
-    collector: ReturnType<typeof collectTransferEvents>;
+    collector: ReturnType<typeof collectTransferEvents> & { readonly transferId: string };
   }> {
     const collector = collectTransferEvents();
     const port = createMacTransferPort({
@@ -382,6 +393,7 @@ describe('createMacTransferPort', () => {
       ...(options.authorizeRedirect !== undefined ? { authorizeRedirect: options.authorizeRedirect } : {}),
     };
     const { transferId } = await port.download(downloadOptions, collector.events);
+    collector.transferId = transferId;
     return { port, transferId, collector };
   }
 
@@ -397,9 +409,14 @@ describe('createMacTransferPort', () => {
     const completed = await collector.completed;
     expect(completed.target).toBe(target);
     expect(completed.digest).toBe(`sha256:${createHash('sha256').update('hello world').digest('hex')}`);
+    expect(completed.transferId).toBe(transferIdOf(collector));
     expect(await readFile(target, 'utf8')).toBe('hello world');
     expect(collector.progress.length).toBeGreaterThan(0);
-    expect(collector.progress.at(-1)).toEqual({ transferredBytes: 11, totalBytes: 11 });
+    expect(collector.progress.at(-1)).toEqual({
+      transferId: transferIdOf(collector),
+      transferredBytes: 11,
+      totalBytes: 11,
+    });
     expect(await readdir(root)).toEqual(['template.card']);
   });
 

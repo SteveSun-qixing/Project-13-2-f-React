@@ -10,15 +10,24 @@
  * - 平台内置能力对平台自身免权限（08 §4.4），故 `permissions` 为空；处理器直连 PAL `system` 端口。
  * - PAL `system` 端口缺位或读取失败时抛 `SYSTEM_INFO_UNAVAILABLE`（不返回残缺快照），由路由归一为结构化错误。
  * - 本文件同时承载组合根内置能力清单组装（`createBuiltinCapabilities`）：G6 系统服务族各域
- *   （dialog / clipboard / notification / shell）按分面闸拼接进清单，域实现各自成模块。
+ *   （dialog / clipboard / notification / shell / http / power / transfer / menu / tray /
+ *   shortcut / config / event）按分面闸拼接进清单，域实现各自成模块。
  */
 
 import type { IPalHost } from '../../platform/contracts/index.js';
 import type { IHostCapabilityDescriptor } from '../capability/contracts.js';
 import { createClipboardCapabilities } from './clipboard.js';
+import { createConfigCapabilities } from './config.js';
 import { createDialogCapabilities } from './dialog.js';
+import { createEventCapabilities } from './event.js';
+import { createHttpCapabilities } from './http.js';
+import { createMenuCapabilities } from './menu.js';
 import { createNotificationCapabilities } from './notification.js';
+import { createPowerCapabilities } from './power.js';
 import { createShellCapabilities } from './shell.js';
+import { createShortcutCapabilities } from './shortcut.js';
+import { createTransferCapabilities } from './transfer.js';
+import { createTrayCapabilities } from './tray.js';
 
 /** 内置 `system:info` 能力 ID（单一事实源常量）。 */
 export const SYSTEM_INFO_CAPABILITY_ID = 'system:info';
@@ -51,7 +60,7 @@ export function createSystemInfoCapability(host: IPalHost): IHostCapabilityDescr
  *
  * 权威：`17-跨端Shell与平台抽象设计` §5.1/§5.2——分面由矩阵声明，分面为 `false` 的能力域
  * 整体不注册（调用得到真实注册表未命中语义），分面在册而环境不可用时仍注册、由端口返回
- * 正式域错误码。
+ * 正式域错误码。事件域无端口分面，恒在册。
  *
  * @param host 已通过壳自检的 PAL 宿主。
  * @returns 内置能力描述符数组；文档等外部能力由提供方经组合根注入点附加。
@@ -63,5 +72,15 @@ export function createBuiltinCapabilities(host: IPalHost): readonly IHostCapabil
     ...createClipboardCapabilities(host),
     ...createNotificationCapabilities(host),
     ...createShellCapabilities(host),
+    // G6 第二批（W4 勘查派单表序）：http → power → transfer → desktop-shell（menu/tray/shortcut）
+    // → config → event。
+    ...createHttpCapabilities(host),
+    ...createPowerCapabilities(host),
+    ...createTransferCapabilities(host),
+    ...createMenuCapabilities(host),
+    ...createTrayCapabilities(host),
+    ...createShortcutCapabilities(host),
+    ...createConfigCapabilities(host),
+    ...createEventCapabilities(),
   ];
 }

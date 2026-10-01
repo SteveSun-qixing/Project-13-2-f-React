@@ -68,6 +68,15 @@ export interface IHostEventCorrelation {
 export interface IHostCapabilityContext {
   /** 取消信号；会话销毁、超时、能力注销或运行时停机时触发。 */
   readonly signal: AbortSignal;
+  /**
+   * 会话级取消信号；会话销毁或运行时停机时触发。
+   *
+   * @remarks 与 {@link signal}（本次调用的收口信号）不同：调用收口后本信号随会话存活，
+   * 供「绑定调用方会话」的资源在会话结束后释放（`power:prevent-sleep` 抑制自动释放、
+   * `transfer:download` 随会话取消，04-能力契约规范 §7.14/§7.15）。
+   * 路由总装供给；测试替身缺省时消费方回退 {@link signal}（仅覆盖调用窗口内的取消）。
+   */
+  readonly sessionSignal?: AbortSignal;
   /** 调用截止时间（Unix epoch 毫秒）；与注册超时同源。 */
   readonly deadline: number;
   /** 触发调用的会话标识；仅用于诊断与审计。 */

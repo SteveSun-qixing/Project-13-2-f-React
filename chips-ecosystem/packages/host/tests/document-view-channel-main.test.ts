@@ -1108,6 +1108,7 @@ const host: IPalHost = {
     transfer: false,
     shellOpen: false,
     http: false,
+    config: false,
   },
   ports: {
     storage: {},

@@ -151,6 +151,7 @@ export function createHostCapabilityRouter(deps: IHostCapabilityRouterDeps): IHo
 
     const context: IHostCapabilityContext = {
       signal: controller.signal,
+      ...(sessionSignal !== undefined ? { sessionSignal } : {}),
       deadline,
       sessionId: session.sessionId,
       callerId: session.pluginId,

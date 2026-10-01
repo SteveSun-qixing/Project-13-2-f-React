@@ -3,8 +3,10 @@ import type { PortCallContext } from './call.js';
 /** 传输任务 ID。 */
 export type TransferId = string;
 
-/** 传输失败信息。 */
+/** 传输失败信息；`transfer:failed` 事件载荷 `error` 字段的归一来源（05-事件契约规范 §4.10）。 */
 export interface TransferFailure {
+  /** 任务 ID；与 `transfer:download` 输出一致（§4.10：载荷中的 ID 与能力输出一致）。 */
+  readonly transferId: TransferId;
   /** 归一错误码（能力契约 §11.4 中的 `TRANSFER_*` / `HTTP_*` / `BRIDGE_*` 等已登记码）。 */
   readonly code: string;
   /** 面向用户的简体中文错误消息。 */
@@ -35,16 +37,20 @@ export interface TransferDownloadOptions extends PortCallContext {
   readonly authorizeRedirect?: (url: string) => Promise<boolean>;
 }
 
-/** 传输进度；对应 `transfer:progress` 载荷。 */
+/** 传输进度；即 `transfer:progress` 事件载荷（05-事件契约规范 §4.10）。 */
 export interface TransferProgress {
+  /** 任务 ID；与 `transfer:download` 输出一致（§4.10：载荷中的 ID 与能力输出一致）。 */
+  readonly transferId: TransferId;
   /** 已传输字节数。 */
   readonly transferredBytes: number;
   /** 总字节数；响应未提供 `Content-Length` 时为 `null`。 */
   readonly totalBytes: number | null;
 }
 
-/** 传输完成信息；对应 `transfer:completed` 载荷。 */
+/** 传输完成信息；即 `transfer:completed` 事件载荷（05-事件契约规范 §4.10）。 */
 export interface TransferCompleted {
+  /** 任务 ID；与 `transfer:download` 输出一致（§4.10：载荷中的 ID 与能力输出一致）。 */
+  readonly transferId: TransferId;
   /** 目标路径。 */
   readonly target: string;
   /** 产物摘要（`sha256:<hex>`）。 */
@@ -53,11 +59,11 @@ export interface TransferCompleted {
 
 /** 传输事件回调；壳据此发布 `transfer:progress` / `transfer:completed` / `transfer:failed`。 */
 export interface TransferEvents {
-  /** 进度回调；端口内已按事件契约限流（最小间隔 200ms）。 */
+  /** 进度回调；载荷即事件契约 §4.10 `transfer:progress`，端口内已限流（最小间隔 200ms）。 */
   onProgress(event: TransferProgress): void;
-  /** 完成回调；临时文件已原子替换到目标路径。 */
+  /** 完成回调；载荷即事件契约 §4.10 `transfer:completed`，临时文件已原子替换到目标路径。 */
   onCompleted(event: TransferCompleted): void;
-  /** 失败或取消回调；临时物已清理、目标路径未被修改。 */
+  /** 失败或取消回调；载荷归一为事件契约 §4.10 `transfer:failed`，临时物已清理、目标路径未被修改。 */
   onFailed(event: TransferFailure): void;
 }
 

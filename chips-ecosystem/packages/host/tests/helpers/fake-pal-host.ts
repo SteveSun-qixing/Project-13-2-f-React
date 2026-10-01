@@ -21,6 +21,7 @@ export const EMPTY_MATRIX: IPalCapabilityMatrix = {
   transfer: false,
   shellOpen: false,
   http: false,
+  config: false,
 };
 
 /** 壳信息替身。 */

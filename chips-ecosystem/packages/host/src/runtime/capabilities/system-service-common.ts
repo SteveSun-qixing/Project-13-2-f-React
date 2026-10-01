@@ -119,6 +119,82 @@ export function optionalBooleanField(
   return value;
 }
 
+/** 读取必填布尔字段（存在性由路由顶层准入把守，此处把关类型）。 */
+export function requireBooleanField(capabilityId: string, record: Record<string, unknown>, field: string): boolean {
+  const value = record[field];
+  if (typeof value !== 'boolean') {
+    throw systemServiceInputError(capabilityId, `${field} 必须是布尔值`);
+  }
+  return value;
+}
+
+/** 读取必填且必须命中文法的字符串字段（契约 schema `pattern` 逐字对齐）。 */
+export function patternStringField(
+  capabilityId: string,
+  record: Record<string, unknown>,
+  field: string,
+  pattern: RegExp,
+  reason: string,
+  constraints: { readonly maxLength?: number } = {},
+): string {
+  const value = requireStringField(capabilityId, record, field, constraints);
+  if (!pattern.test(value)) {
+    throw systemServiceInputError(capabilityId, reason);
+  }
+  return value;
+}
+
+/** 读取可选且必须命中文法的字符串字段（缺省返回 `null`）。 */
+export function optionalPatternStringField(
+  capabilityId: string,
+  record: Record<string, unknown>,
+  field: string,
+  pattern: RegExp,
+  reason: string,
+  constraints: { readonly maxLength?: number } = {},
+): string | null {
+  if (record[field] === undefined) {
+    return null;
+  }
+  return patternStringField(capabilityId, record, field, pattern, reason, constraints);
+}
+
+/** 读取必填枚举字符串字段（契约 schema `enum` 逐字对齐）。 */
+export function enumStringField<T extends string>(
+  capabilityId: string,
+  record: Record<string, unknown>,
+  field: string,
+  allowed: readonly T[],
+): T {
+  const value = requireStringField(capabilityId, record, field);
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw systemServiceInputError(capabilityId, `${field} 必须是 ${allowed.join(' / ')}`);
+  }
+  return value as T;
+}
+
+/**
+ * 读取必填 JSON 值字段（契约 schema `type: ['object','array','string','number','boolean','null']`）。
+ *
+ * @remarks 顶层类型在此闸（`BRIDGE_INVALID_INPUT`）；嵌套成员的可序列化性归存储/端口域校验
+ * （如配置值落盘前的 `CONFIG_VALUE_INVALID`），本层不复制第二套深度检查。
+ */
+export function jsonValueField(capabilityId: string, record: Record<string, unknown>, field: string): unknown {
+  const value = record[field];
+  if (value === null) {
+    return value;
+  }
+  if (
+    typeof value !== 'object' &&
+    typeof value !== 'string' &&
+    typeof value !== 'number' &&
+    typeof value !== 'boolean'
+  ) {
+    throw systemServiceInputError(capabilityId, `${field} 必须是 JSON 值`);
+  }
+  return value;
+}
+
 /**
  * 判断分面是否就绪（17 §5.2 分面闸）：矩阵声明可用且端口实现存在。
  *

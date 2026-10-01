@@ -77,9 +77,9 @@ export function createMacTransferPort(dependencies: MacTransferPortDependencies)
       const transferId = randomUUID();
       const controller = new AbortController();
       const unbindCallSignal = bindCallSignal(options, controller);
-      const task = runDownload(net, limits, progressIntervalMs, options, events, controller.signal)
+      const task = runDownload(net, limits, progressIntervalMs, transferId, options, events, controller.signal)
         .catch((error: unknown) => {
-          events.onFailed(normalizeTransferFailure(error));
+          events.onFailed(normalizeTransferFailure(transferId, error));
         })
         .finally(() => {
           unbindCallSignal();
@@ -105,6 +105,7 @@ async function runDownload(
   net: ElectronNetLike,
   limits: Partial<NetworkLimits> | undefined,
   progressIntervalMs: number,
+  transferId: TransferId,
   options: TransferDownloadOptions,
   events: TransferEvents,
   signal: AbortSignal,
@@ -139,7 +140,7 @@ async function runDownload(
         const now = Date.now();
         if (now - lastProgressAt >= progressIntervalMs) {
           lastProgressAt = now;
-          events.onProgress({ transferredBytes: receivedBytes, totalBytes });
+          events.onProgress({ transferId, transferredBytes: receivedBytes, totalBytes });
         }
       },
     };
@@ -159,7 +160,7 @@ async function runDownload(
     handle = undefined;
 
     await commitTempFile(tempPath, options.target, options.overwrite === true);
-    events.onCompleted({ target: options.target, digest: actualDigest });
+    events.onCompleted({ transferId, target: options.target, digest: actualDigest });
   } catch (error) {
     throw toTransferError(error);
   } finally {
@@ -196,10 +197,11 @@ async function commitTempFile(tempPath: string, target: string, overwrite: boole
 }
 
 /** 归一传输失败信息；`retryable` 与失败码的登记语义一致。 */
-function normalizeTransferFailure(error: unknown): TransferFailure {
+function normalizeTransferFailure(transferId: TransferId, error: unknown): TransferFailure {
   const portError = isPalPortError(error) ? error : undefined;
   const cancelled = portError?.code === PAL_ERROR_CODES.BRIDGE_CANCELLED;
   const failure: TransferFailure = {
+    transferId,
     code: cancelled ? PAL_ERROR_CODES.BRIDGE_CANCELLED : (portError?.code ?? PAL_ERROR_CODES.TRANSFER_FAILED),
     message: portError?.message ?? '传输失败',
     retryable: portError?.retryable ?? false,

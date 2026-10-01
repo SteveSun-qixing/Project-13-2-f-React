@@ -110,6 +110,7 @@ const host: IPalHost = {
     transfer: false,
     shellOpen: false,
     http: false,
+    config: false,
   },
   ports: {
     storage: {},
@@ -127,14 +128,14 @@ const context: HostRuntimeContext = { palHost: host, platformRoot: '/tmp/platfor
 describe('生产组合根：清单装配', () => {
   it('清单 = 内置 + 外部提供方（内置在前）', () => {
     const manifest = buildProductionManifest(host, [documentProvider]);
-    expect(manifest.map((d) => d.id)).toEqual(['system:info', 'document:open']);
+    expect(manifest.map((d) => d.id)).toEqual(['system:info', 'event:publish', 'document:open']);
     expect(manifest[0]).toMatchObject({ id: 'system:info', permissions: [] });
-    expect(manifest[1]).toMatchObject({ id: 'document:open', permissions: ['resources:read'] });
+    expect(manifest[2]).toMatchObject({ id: 'document:open', permissions: ['resources:read'] });
   });
 
   it('无外部提供方时清单只有内置能力（document:* 不在其中）', () => {
     const manifest = buildProductionManifest(host);
-    expect(manifest.map((d) => d.id)).toEqual(['system:info']);
+    expect(manifest.map((d) => d.id)).toEqual(['system:info', 'event:publish']);
     expect(manifest.some((d) => d.id.startsWith('document:'))).toBe(false);
   });
 
@@ -162,7 +163,7 @@ describe('生产组合根：清单装配', () => {
     expect(typeof assembly.createRuntime).toBe('function');
     const runtime = await assembly.createRuntime(context);
     await runtime.start(host, { pushSessionPermissions: () => undefined });
-    expect(runtime.report().capabilities.active).toBe(2);
+    expect(runtime.report().capabilities.active).toBe(3);
     await runtime.shutdown();
   });
 });
@@ -213,7 +214,7 @@ describe('生产组合根：原生绑定装载（工单 025 消费链接线点�
     });
     const runtime = await assembly.createRuntime(context);
     await runtime.start(host, { pushSessionPermissions: () => undefined });
-    expect(runtime.report().capabilities.active).toBe(1);
+    expect(runtime.report().capabilities.active).toBe(2);
 
     const nativeEntries = diagnostics.entries.filter((entry) => entry.scope === 'native-bridge');
     expect(nativeEntries).toHaveLength(1);
@@ -236,7 +237,7 @@ describe('生产组合根：原生绑定装载（工单 025 消费链接线点�
     });
     const runtime = await assembly.createRuntime(context);
     await runtime.start(host, { pushSessionPermissions: () => undefined });
-    expect(runtime.report().capabilities.active).toBe(2);
+    expect(runtime.report().capabilities.active).toBe(3);
     expect(diagnostics.entries.filter((entry) => entry.scope === 'native-bridge')).toEqual([]);
     await runtime.shutdown();
   });
