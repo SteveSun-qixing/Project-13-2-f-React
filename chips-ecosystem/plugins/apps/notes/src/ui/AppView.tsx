@@ -92,6 +92,18 @@ const AppContent: FC = () => {
             detail={library.detail}
             nodeContents={library.nodeContents}
             onLoadNodeContent={(nodeId) => void library.loadNodeContent(nodeId)}
+            revision={library.revision}
+            savedDigest={library.savedDigest}
+            writeError={library.writeError}
+            pendingChange={library.pendingChange}
+            commitBusy={library.commitBusy}
+            saveBusy={library.saveBusy}
+            onStageRename={library.stageRename}
+            onStageDescription={library.stageDescription}
+            onStageNodeContent={library.stageNodeContent}
+            onDiscardEdits={library.discardEdits}
+            onCommitEdits={() => void library.commitPending()}
+            onSaveToDisk={() => void library.saveToDisk()}
           />
         </Flex>
       </main>

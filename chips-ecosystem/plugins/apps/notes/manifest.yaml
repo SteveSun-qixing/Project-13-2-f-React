@@ -10,6 +10,7 @@ runtime:
   background: false
 permissions:
   - resources:read
+  - resources:write
   - command:write
   - command:execute
 ui:

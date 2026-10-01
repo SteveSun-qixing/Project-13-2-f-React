@@ -133,3 +133,48 @@ export function normalizeDocumentSource(input: string): string | null {
   const trimmed = input.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
+
+/**
+ * 重命名投影：写后重读元数据得到的名称回填库摘要标题（列表与工作台同源翻正）。
+ *
+ * 投影来源是 `document:read` 重读回包（宿主模型唯一事实源），不是本地输入拼装；
+ * 无命中（文档不在库内）原样返回同一引用。
+ */
+export function applyDocumentTitle(
+  library: NotesLibrary,
+  documentId: string,
+  title: string,
+): NotesLibrary {
+  const rename = (list: readonly OpenedDocumentSummary[]): readonly OpenedDocumentSummary[] =>
+    list.map((item) => (item.documentId === documentId ? { ...item, title } : item));
+  const notebooks = rename(library.notebooks);
+  const notes = rename(library.notes);
+  if (notebooks === library.notebooks && notes === library.notes) {
+    return library;
+  }
+  return { notebooks, notes };
+}
+
+/**
+ * 写链错误的行内处置指引（简体中文；错误码本体始终随提示呈现，不吞错）。
+ *
+ * 文案口径与宿主 `errors.ts` 登记文案同源（冲突可重试 / 外部修改需重开 / 保存失败可重试）。
+ */
+export function writeErrorGuidance(code: string): string {
+  if (code === 'DOCUMENT_WRITE_CONFLICT') {
+    return '文档正被其他会话写入，请稍后重试';
+  }
+  if (code === 'DOCUMENT_SOURCE_CHANGED') {
+    return '文档已在外部修改，请刷新视图或重新打开后再试';
+  }
+  if (code === 'DOCUMENT_NOT_OPEN') {
+    return '文档会话不存在，请重新打开文档';
+  }
+  if (code === 'DOCUMENT_SAVE_FAILED') {
+    return '保存未完成，请核对文档可用性后重试';
+  }
+  if (code === 'DOCUMENT_REVISION_INVALID' || code === 'DOCUMENT_SAVE_RECEIPT_INVALID') {
+    return '通道回执异常，请重试；若持续出现请重新打开文档';
+  }
+  return '请重试；若持续失败请重新打开文档';
+}

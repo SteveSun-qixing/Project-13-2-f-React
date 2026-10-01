@@ -100,4 +100,45 @@
 
 ---
 
+## 七、notes 写面翻正臂（后续臂，2026-10-01 追记）
+
+> 任务：notes 独占（`plugins/apps/notes/`）；C3 已交付 `document:write`/`document:save` 宿主真实现（changeset 两相 + revision 严格递增），本臂把起步臂「只读消费」的写面翻正为真实现消费。假桥舞台测试形制参照 photo-viewer，编辑时序判例同 `plugins/basecards/richtext` 编辑器。
+
+### 7.1 交付清单
+
+| 交付面 | 判定 | 落点 | 说明 |
+|---|---|---|---|
+| 网关写臂 | 真实现消费 | `src/domain/notes/documentGateway.ts` | `document:write`（回执 `{revision}`，正整数守卫）与 `document:save`（回执 `{source,digest}` 形状守卫）经 `chips.request` 正式面；插件侧防御复核码分列（`DOCUMENT_REVISION_INVALID`/`DOCUMENT_SAVE_RECEIPT_INVALID`，与在册码不混用）；写面开放 `metadata`/`content` 两族切片，`structure`/`entries` 写属编辑链路与箱子组织臂（裁决 B4 同保存一致性，应用不拆开写）——边界在网关头注明载 |
+| 编辑会话 | 全新建 | `src/domain/notes/editSession.ts` | 《本轮架构收口裁决》B3 唯一时序的应用前端侧落点：`getChange()` → 校验（宿主 `validation.ts` 同场景同码镜像：name 空→`DOCUMENT_METADATA_INVALID`、内容非对象→`BRIDGE_INVALID_INPUT`）→ `document:write` → 投影更新（update）→ `markCommitted(revision)`；修订水位严格递增锁（不大于当前水位的回执一律拒绝，与 richtext 编辑器同型）；投影失败不确认提交（可重试），失败不丢待提交变更 |
+| 写后重读投影 | 全新建 | `useNotesLibrary.ts` + `model.ts` | 提交链第④拍以 `document:read` 重读宿主模型更新投影（元数据重读回填详情面 + `applyDocumentTitle` 翻正列表标题；内容节点重读更新呈现），不本地拼装第二事实源；保存成功后整卷重读（宿主已按新磁盘基线收口） |
+| UI 编辑保存链 | 重写 | `NoteEditor.tsx` + `AppView.tsx` | 重命名/描述（箱子）输入暂存 → 待提交条（facet 标签 + 提交/放弃）→ 修订徽标（`修订号 N`/`未写入`，回执驱动）→「保存到磁盘」（`document:save`，摘要回执呈现）；内容节点 JSON 对象文本编辑（按节点读改写整体替换，保留 `node_id`/`file`/`card_type` 包络） |
+| 冲突/失败臂 | 全新建 | 同上 | `DOCUMENT_WRITE_CONFLICT`/`DOCUMENT_SAVE_FAILED`/`DOCUMENT_SOURCE_CHANGED`/`DOCUMENT_NOT_OPEN` 等真实错误码行内 Alert（简体中文 + 通道消息 + 同源处置指引 `writeErrorGuidance`），不吞错、不假成功；修订徽标失败不前移，待提交保留可重试 |
+| manifest 权限翻正 | 修正 | `manifest.yaml` | 起步臂「编辑链路缺位不声明写权限」随本臂翻正：补 `resources:write`（`document:write`/`document:save` 所需，宿主 `DOCUMENT_CAPABILITY_PERMISSIONS` R19 映射同源） |
+
+### 7.2 测试（先测后码，28 旧用例零放宽）
+
+- `tests/edit-session.test.ts`（21 用例，全新）：校验臂同码镜像、JSON 装配守卫、切片装配（整体替换语义）、暂存臂、修订水位严格递增锁、提交链严格时序（journal 断言 write→projection→committed 次序；no-change/invalid/write-failed/revision-stale/projection-failed 各臂）。
+- `tests/document-gateway.test.ts`（+7）：写链契约（metadata/content 调用形状、`{revision}` 正整数守卫、冲突与失败码原样传播）、save 链契约（`{documentId}` 形状、回包形状守卫、失败传播）。
+- `tests/app-view.test.tsx`（+6，假桥舞台）：按已登记能力 ID 回放宿主语义的受控假桥（changeset 覆盖层 + revision 计数）；重命名全链（写切片完整性、写后重读、修订徽标与列表标题翻正）、revision 回执递增驱动 UI 状态（两次提交徽标 1→2）、冲突臂行内提示、内容节点编辑链（包络保留）、保存成功/失败臂。
+- 断言定位注记：antd `Alert` 与 `message` 通知均带 `role="alert"`，写链错误面按 `data-role` 精确定位；内容呈现面按 `data-role="node-display"` 与编辑框区分。
+
+### 7.3 边界与登记
+
+- **新建文档不接**：`document:create`/`document:export` 不在宿主文档能力单范围（`packages/host/src/capabilities/document/contract.ts` 头注明载），新建笔记无正式面可消费——不伪造入口；宿主落波后随臂接线。
+- **`structure`/`entries` 写不开放**：结构替换须与内容成员同保存一致（裁决 B4），结构新增节点初值唯一来源为插件 `createInitialContent()`（应用不可提交）；`entries` 组织（启停/排序）属箱子组织臂，候派。
+- **既有边界延续**：工作区枚举通道缺位（打开臂显式收录）、工单066、触禁件裁定等沿用起步臂 §1.2/§六 登记，本臂未触碰。
+
+### 7.4 验证（亲跑，2026-10-01，四闸全绿）
+
+| 闸 | 结果 |
+|---|---|
+| test | 6 文件 62 用例全绿（起步臂 28 + 本臂 34） |
+| typecheck | EXIT=0 |
+| lint | 0 错 0 警 |
+| build | `dist/index.js` + `render.js` 42.67 kB（vendor 外部化） |
+
+FORBIDDEN_ANTD_EXPORTS 零命中（本臂新增导入仅 Alert/Flex/Input 复用件）；未跑 `gates:all`（按派单约束）。
+
+---
+
 **文档结束**

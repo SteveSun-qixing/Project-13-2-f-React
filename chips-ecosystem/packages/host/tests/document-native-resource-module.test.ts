@@ -3,12 +3,14 @@
  * 波 A2a 任务 #212 三名补登落册翻正；波 B 任务 #231 两换算名补登 18→20 名随动；
  * 点位五 D1 任务 #244 补登 `resourceGrantSession` 至 21 名，宿主镜像随动经 #241/#245/#247
  * 三波未竟，由红案清零波任务 #248 落地；工单036 波 C3 补登
- * `resourceCommitChangeset` / `resourceRebuildArchive` 两名至 23 名——§11.3 表 21 行为
- * 冻结原文且文档库随动归主批，两名以「镜像尾段」形态入闸（文档表原文对既有 21 名维持
- * 前缀锁，恰等锁候主批落文后机械复原）。
+ * `resourceCommitChangeset` / `resourceRebuildArchive` 两名至 23 名（落文前两名以
+ * 「镜像尾段」形态入闸，文档表原文对既有 21 名维持前缀锁）；文档库主批落文后
+ * （§11.3 表扩至 23 行），W4-C3 宿主随动波把文档表原文锁机械复原为恰等锁
+ * （表 23 行 ↔ 镜像全集 23 名逐项逐序恰等，前缀锁形态退役）。
  *
- * 权威：《04-资源管理设计》§11.3「Neon 导出」表（21 行逐字，表行序即镜像序；
- * 第 21 行文档面随动已由工单053 D1 文档波任务 #246 落位，本表文本锁现行在册）；
+ * 权威：《04-资源管理设计》§11.3「Neon 导出」表（23 行逐字，表行序即镜像全集序；
+ * 第 21 行文档面随动已由工单053 D1 文档波任务 #246 落位，C3 尾段两名文档面已随
+ * 主批落文在册，本表文本锁以恰等形现行在册）；
  * 三方表文本锁 = §11.3 文档表原文 ↔ `native-resource-module.ts` 镜像常量与类型化注入面
  * ↔ `packages/native` 在册导出表（`abi/export-surface.json` 与 `types/chips-native.d.ts`）
  * （刀2 A 组母型：源码/文档纯文本比对，零 import 编译依赖、零 fabricate）。
@@ -69,11 +71,11 @@ function parseExportTableNames(markdown: string): string[] {
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** §11.3 二十一导出名镜像全序（文档表原文前缀锁；旧构建替身夹具的点名全序 = `resource-stale-no-surface.js` 缺位集）。 */
+/** §11.3 主表面二十一名镜像全序（装载闸逐项点名的域序基线；旧构建替身夹具的点名全序 = `resource-stale-no-surface.js` 缺位集）。 */
 const ALL_SURFACE_NAMES = [...NATIVE_RESOURCE_SURFACE_EXPORTS];
-/** 波 C3 补登的包级受控提交链两名（镜像尾段，域尾追加序）。 */
+/** 波 C3 补登的包级受控提交链两名（域尾追加序，已随主批落文入 §11.3 表第 22/23 行）。 */
 const ALL_STORAGE_NAMES = [...NATIVE_RESOURCE_STORAGE_EXPORTS];
-/** 装载闸全镜像（21 + 2 = 23 名，接口方法与消费面判据的同一序列）。 */
+/** §11.3 文档表 23 行的恰等镜像（21 + 2 = 23 名，接口方法与消费面判据的同一序列）。 */
 const ALL_MODULE_NAMES = [...ALL_SURFACE_NAMES, ...ALL_STORAGE_NAMES];
 
 /* ------------------------------------------------------------------ *
@@ -91,13 +93,15 @@ describe('§11.3 三方表文本锁：文档表原文 ↔ 镜像常量 ↔ nativ
   };
   const declaration = readWorkspaceSource('../../native/types/chips-native.d.ts');
 
-  it('§11.3 表原文 21 行导出名与镜像常量前缀逐项逐序一致（表行序即数组序；尾段两名见下一用例）', () => {
+  it('§11.3 表原文 23 行导出名与镜像全集逐项逐序恰等（表行序即数组序；W4-C3 随动波机械复原）', () => {
     // 切割窗口止于「JS 投影形状冻结表」小节（#204 臂③扩表：两投影逐字段行
-    // 同为 `| \`字段\` |` 形态，不截断即误捕冻结表字段名——二十一名导出表本体判据不变）。
+    // 同为 `| \`字段\` |` 形态，不截断即误捕冻结表字段名——导出表本体判据不变；
+    // 恰等语义不变：文档表原文与镜像全集逐字一致，C3 尾段两名已随主批落文入表）。
     const section = resourceDoc.slice(resourceDoc.indexOf('### 11.3'), resourceDoc.indexOf('#### JS 投影形状冻结表'));
     expect(section.length).toBeGreaterThan(0);
-    expect(parseExportTableNames(section)).toEqual(ALL_SURFACE_NAMES);
+    expect(parseExportTableNames(section)).toEqual(ALL_MODULE_NAMES);
     expect(ALL_SURFACE_NAMES.length).toBe(21);
+    expect(ALL_MODULE_NAMES.length).toBe(23);
   });
 
   it('装载闸必备全集 = 元信息两项 + 资源域 21 名 + 波 C3 提交链两名，共 25 项且序一致', () => {

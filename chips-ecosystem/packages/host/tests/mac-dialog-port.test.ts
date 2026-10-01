@@ -104,3 +104,29 @@ describe('createMacDialogPort · save', () => {
     });
   });
 });
+
+describe('createMacDialogPort · 返回路径绝对性（file 域系统级校验链同源）', () => {
+  it('should reject open results carrying non-absolute paths', async () => {
+    dialog.openResult = { canceled: false, filePaths: ['/abs/a.png', 'relative/b.png'] };
+    await expect(createMacDialogPort(dialog).open()).rejects.toMatchObject({
+      code: PAL_ERROR_CODES.DIALOG_FAILED,
+      retryable: true,
+    });
+  });
+
+  it('should reject save results carrying non-absolute paths', async () => {
+    dialog.saveResult = { canceled: false, filePath: 'not/absolute.png' };
+    await expect(createMacDialogPort(dialog).save()).rejects.toMatchObject({
+      code: PAL_ERROR_CODES.DIALOG_FAILED,
+      retryable: true,
+    });
+  });
+
+  it('should pass absolute paths through unchanged', async () => {
+    dialog.openResult = { canceled: false, filePaths: ['/abs/a.png'] };
+    dialog.saveResult = { canceled: false, filePath: '/abs/b.png' };
+    const port = createMacDialogPort(dialog);
+    await expect(port.open()).resolves.toEqual({ canceled: false, paths: ['/abs/a.png'] });
+    await expect(port.save()).resolves.toEqual({ canceled: false, path: '/abs/b.png' });
+  });
+});

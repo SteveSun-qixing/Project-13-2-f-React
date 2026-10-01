@@ -129,3 +129,99 @@ describe('document:read 切片组合', () => {
     });
   });
 });
+
+describe('document:write 消费（写臂真实现）', () => {
+  it('metadata 写按 { documentId, part, value } 形状调用并回读正整数修订号', async () => {
+    const request = vi.fn<RequestSpy>(() => Promise.resolve({ revision: 1 }));
+    installChips(request);
+    const revision = await createIsolatedDocumentGateway().writeSlice({
+      documentId: 'card-001',
+      part: 'metadata',
+      value: { card_id: 'card-001', name: '会议记录' },
+    });
+    expect(request).toHaveBeenCalledWith('document:write', {
+      documentId: 'card-001',
+      part: 'metadata',
+      value: { card_id: 'card-001', name: '会议记录' },
+    });
+    expect(revision).toBe(1);
+  });
+
+  it('卡片内容写携带 nodeId（组合语义与读臂同源）', async () => {
+    const request = vi.fn<RequestSpy>(() => Promise.resolve({ revision: 2 }));
+    installChips(request);
+    const revision = await createIsolatedDocumentGateway().writeSlice({
+      documentId: 'card-001',
+      part: 'content',
+      nodeId: 'node000001',
+      value: { node_id: 'node000001', card_type: 'base.richtext', value: {} },
+    });
+    expect(request).toHaveBeenCalledWith('document:write', {
+      documentId: 'card-001',
+      part: 'content',
+      nodeId: 'node000001',
+      value: { node_id: 'node000001', card_type: 'base.richtext', value: {} },
+    });
+    expect(revision).toBe(2);
+  });
+
+  it('回执修订号非正整数时拒绝（DOCUMENT_REVISION_INVALID，不白信通道）', async () => {
+    installChips(() => Promise.resolve({ revision: 0 }));
+    await expect(
+      createIsolatedDocumentGateway().writeSlice({ documentId: 'card-001', part: 'metadata', value: {} }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_REVISION_INVALID' });
+    installChips(() => Promise.resolve({ revision: 1.5 }));
+    await expect(
+      createIsolatedDocumentGateway().writeSlice({ documentId: 'card-001', part: 'metadata', value: {} }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_REVISION_INVALID' });
+    installChips(() => Promise.resolve({ revision: '2' }));
+    await expect(
+      createIsolatedDocumentGateway().writeSlice({ documentId: 'card-001', part: 'metadata', value: {} }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_REVISION_INVALID' });
+  });
+
+  it('写冲突与写失败错误码原样归一传播，不吞错', async () => {
+    installChips(() =>
+      Promise.reject(Object.assign(new Error('文档正被其他会话写入'), { code: 'DOCUMENT_WRITE_CONFLICT' })),
+    );
+    await expect(
+      createIsolatedDocumentGateway().writeSlice({ documentId: 'card-001', part: 'metadata', value: {} }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_WRITE_CONFLICT' });
+    installChips(() =>
+      Promise.reject(Object.assign(new Error('结构校验未通过'), { code: 'DOCUMENT_STRUCTURE_INVALID' })),
+    );
+    await expect(
+      createIsolatedDocumentGateway().writeSlice({ documentId: 'card-001', part: 'content', nodeId: 'n1', value: {} }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_STRUCTURE_INVALID' });
+  });
+});
+
+describe('document:save 消费（落盘臂真实现）', () => {
+  it('按 { documentId } 形状调用并回读 { source, digest }', async () => {
+    const request = vi.fn<RequestSpy>(() =>
+      Promise.resolve({ source: 'chips-resource://ws/demo/note.card', digest: 'saved-digest' }),
+    );
+    installChips(request);
+    const saved = await createIsolatedDocumentGateway().saveDocument('card-001');
+    expect(request).toHaveBeenCalledWith('document:save', { documentId: 'card-001' });
+    expect(saved).toEqual({ source: 'chips-resource://ws/demo/note.card', digest: 'saved-digest' });
+  });
+
+  it('保存回包缺 source 或 digest 时拒绝（DOCUMENT_SAVE_RECEIPT_INVALID）', async () => {
+    installChips(() => Promise.resolve({ source: 'chips-resource://ws/demo/note.card' }));
+    await expect(createIsolatedDocumentGateway().saveDocument('card-001')).rejects.toMatchObject({
+      code: 'DOCUMENT_SAVE_RECEIPT_INVALID',
+    });
+    installChips(() => Promise.resolve({ digest: 'saved-digest' }));
+    await expect(createIsolatedDocumentGateway().saveDocument('card-001')).rejects.toMatchObject({
+      code: 'DOCUMENT_SAVE_RECEIPT_INVALID',
+    });
+  });
+
+  it('保存失败错误码原样归一传播（DOCUMENT_SAVE_FAILED 及底层 cause）', async () => {
+    installChips(() => Promise.reject(Object.assign(new Error('文档保存失败'), { code: 'DOCUMENT_SAVE_FAILED' })));
+    await expect(createIsolatedDocumentGateway().saveDocument('card-001')).rejects.toMatchObject({
+      code: 'DOCUMENT_SAVE_FAILED',
+    });
+  });
+});

@@ -1,7 +1,14 @@
-import { useMemo, type ReactElement } from 'react';
-import { Badge, Button, Empty, Input, List, Tag, Typography, theme } from '@chips/ui';
-import { entryDisplayName, flattenTags, type NoteDocumentDetail, type OpenedDocumentSummary } from '../domain/notes/model';
-import type { NodeContentEntry } from './useNotesLibrary';
+import { useState, type ReactElement } from 'react';
+import { Alert, Badge, Button, Empty, Flex, Input, List, Tag, Typography, theme } from '@chips/ui';
+import {
+  entryDisplayName,
+  flattenTags,
+  writeErrorGuidance,
+  type NoteDocumentDetail,
+  type OpenedDocumentSummary,
+} from '../domain/notes/model';
+import type { NoteEditChange } from '../domain/notes/editSession';
+import type { NotesWriteError, NodeContentEntry } from './useNotesLibrary';
 
 /** 左栏列表条目动作：选中库内文档。 */
 export interface NotesListProps {
@@ -21,13 +28,10 @@ export function NotesList({ library, selectedId, onSelect }: NotesListProps): Re
   const { token } = theme.useToken();
   const isEmpty = library.notebooks.length === 0 && library.notes.length === 0;
 
-  const sections = useMemo(
-    () => [
-      { key: 'notebooks', title: '笔记本（箱子文档）', items: [...library.notebooks] },
-      { key: 'notes', title: '笔记（卡片文档）', items: [...library.notes] },
-    ],
-    [library.notebooks, library.notes],
-  );
+  const sections = [
+    { key: 'notebooks', title: '笔记本（箱子文档）', items: [...library.notebooks] },
+    { key: 'notes', title: '笔记（卡片文档）', items: [...library.notes] },
+  ];
 
   if (isEmpty) {
     return (
@@ -93,23 +97,70 @@ export function OpenSourceBar({ onOpen, busy }: OpenSourceBarProps): ReactElemen
   );
 }
 
-/** 编辑区（只读消费骨架）属性。 */
+/** 编辑区属性（写面接线：编辑会话 + 修订回执 + 落盘）。 */
 export interface NoteEditorProps {
   readonly summary: OpenedDocumentSummary | null;
   readonly detail: NoteDocumentDetail | null;
   readonly nodeContents: ReadonlyMap<string, NodeContentEntry>;
   readonly onLoadNodeContent: (nodeId: string) => void;
+  /** 选中文档的修订水位（`document:write` 回执驱动）。 */
+  readonly revision: number;
+  /** 最近一次 `document:save` 回执摘要。 */
+  readonly savedDigest: string | null;
+  /** 写链行内错误（真实错误码，不吞错）。 */
+  readonly writeError: NotesWriteError | null;
+  /** 编辑会话待提交变更投影。 */
+  readonly pendingChange: NoteEditChange | null;
+  readonly commitBusy: boolean;
+  readonly saveBusy: boolean;
+  readonly onStageRename: (nextName: string) => void;
+  readonly onStageDescription: (nextDescription: string) => void;
+  readonly onStageNodeContent: (nodeId: string, jsonText: string) =>
+    { readonly ok: true } | { readonly ok: false; readonly errorCode: string; readonly message: string };
+  readonly onDiscardEdits: () => void;
+  readonly onCommitEdits: () => void;
+  readonly onSaveToDisk: () => void;
+}
+
+/** 待提交变更的呈现名。 */
+function pendingChangeLabel(change: NoteEditChange): string {
+  if (change.facet === 'rename') {
+    return '重命名';
+  }
+  if (change.facet === 'description') {
+    return '描述修改';
+  }
+  return `内容修改（${change.nodeId}）`;
 }
 
 /**
- * 编辑区骨架：选中笔记文档的元数据、标签与组织结构呈现。
+ * 编辑区：选中笔记文档的元数据、标签与组织结构呈现 + 编辑保存链。
  *
- * 本臂为只读消费：内容节点载荷按需读取后以结构化文本如实呈现（插件专有字段
- * 不做语义猜解）；就地编辑与保存属编辑链路臂（候 IEditSession 生产装载，
- * 工单036 波 C 终闸），本臂不接线、不伪造可编辑外观。
+ * 写面时序（《本轮架构收口裁决》B3 应用前端侧）：输入暂存为待提交变更（`getChange`）→
+ * 提交经校验与 `document:write`（`{ revision }` 回执驱动修订徽标）→ 写后重读投影更新 →
+ * `markCommitted`；落盘唯一入口「保存到磁盘」（`document:save`）。内容节点载荷为插件
+ * 专有字段（01-卡片文件格式 §6.1），以 JSON 对象文本编辑、按节点整体替换提交，不做语义猜解。
  */
-export function NoteEditor({ summary, detail, nodeContents, onLoadNodeContent }: NoteEditorProps): ReactElement {
+export function NoteEditor({
+  summary,
+  detail,
+  nodeContents,
+  onLoadNodeContent,
+  revision,
+  savedDigest,
+  writeError,
+  pendingChange,
+  commitBusy,
+  saveBusy,
+  onStageRename,
+  onStageDescription,
+  onStageNodeContent,
+  onDiscardEdits,
+  onCommitEdits,
+  onSaveToDisk,
+}: NoteEditorProps): ReactElement {
   const { token } = theme.useToken();
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
   if (summary === null || detail === null) {
     return (
@@ -124,16 +175,85 @@ export function NoteEditor({ summary, detail, nodeContents, onLoadNodeContent }:
   const nodeIds = detail.kind === 'card' ? detail.structure.structure.map((item) => item.id) : [];
 
   return (
-    <section style={{ display: 'flex', flexDirection: 'column', gap: token.marginSM }}>
+    <section key={summary.documentId} style={{ display: 'flex', flexDirection: 'column', gap: token.marginSM }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: token.marginSM, flexWrap: 'wrap' }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
           {detail.metadata.name}
         </Typography.Title>
         <Badge status="default" text={summary.kind === 'box' ? '笔记本' : '笔记'} />
+        <Typography.Text data-role="revision-badge" type="secondary">
+          {revision > 0 ? `修订徽标：修订号 ${revision}` : '修订徽标：未写入'}
+        </Typography.Text>
         <Typography.Text type="secondary" code>
           {summary.documentId}
         </Typography.Text>
       </header>
+
+      {writeError !== null ? (
+        <Alert
+          type="error"
+          showIcon
+          data-role="write-error"
+          title={`写入失败（${writeError.code}）`}
+          description={`${writeError.message}：${writeErrorGuidance(writeError.code)}`}
+        />
+      ) : null}
+
+      <Flex align="center" gap={token.marginSM} wrap="wrap">
+        <Typography.Text type="secondary">文档名称</Typography.Text>
+        <Input
+          aria-label="文档名称"
+          defaultValue={detail.metadata.name}
+          onChange={(event) => onStageRename(event.target.value)}
+          style={{ maxWidth: 320 }}
+        />
+      </Flex>
+      {detail.kind === 'box' ? (
+        <Flex align="center" gap={token.marginSM} wrap="wrap">
+          <Typography.Text type="secondary">文档描述</Typography.Text>
+          <Input
+            aria-label="文档描述"
+            defaultValue={detail.metadata.description ?? ''}
+            onChange={(event) => onStageDescription(event.target.value)}
+            style={{ maxWidth: 480 }}
+          />
+        </Flex>
+      ) : null}
+
+      <Flex align="center" gap={token.marginSM} wrap="wrap">
+        <Button data-role="save-to-disk" onClick={onSaveToDisk} loading={saveBusy}>
+          保存到磁盘
+        </Button>
+        {savedDigest !== null ? (
+          <Typography.Text data-role="saved-digest" type="secondary" code>
+            已保存摘要：{savedDigest}
+          </Typography.Text>
+        ) : null}
+      </Flex>
+
+      {pendingChange !== null ? (
+        <Flex
+          justify="space-between"
+          align="center"
+          wrap="wrap"
+          gap={token.marginSM}
+          style={{
+            border: `1px solid ${token.colorBorderSecondary}`,
+            borderRadius: token.borderRadiusLG,
+            padding: token.paddingSM,
+          }}
+        >
+          <Typography.Text>待提交修改：{pendingChangeLabel(pendingChange)}（写入文档会话，尚未落盘）</Typography.Text>
+          <Flex gap={token.marginXS}>
+            <Button size="small" onClick={onDiscardEdits} disabled={commitBusy}>
+              放弃修改
+            </Button>
+            <Button size="small" type="primary" data-role="commit-edits" loading={commitBusy} onClick={onCommitEdits}>
+              提交修改
+            </Button>
+          </Flex>
+        </Flex>
+      ) : null}
 
       <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: token.marginXS, columnGap: token.margin }}>
         <dt>
@@ -222,20 +342,41 @@ export function NoteEditor({ summary, detail, nodeContents, onLoadNodeContent }:
                       )}
                     </div>
                     {cached !== undefined && cached.errorCode === null ? (
-                      <pre
-                        style={{
-                          margin: 0,
-                          marginTop: token.marginSM,
-                          padding: token.paddingSM,
-                          background: token.colorFillQuaternary,
-                          borderRadius: token.borderRadiusLG,
-                          overflow: 'auto',
-                          maxHeight: 240,
-                          fontSize: token.fontSizeSM,
-                        }}
-                      >
-                        {cached.display}
-                      </pre>
+                      <>
+                        <pre
+                          data-role="node-display"
+                          style={{
+                            margin: 0,
+                            marginTop: token.marginSM,
+                            padding: token.paddingSM,
+                            background: token.colorFillQuaternary,
+                            borderRadius: token.borderRadiusLG,
+                            overflow: 'auto',
+                            maxHeight: 240,
+                            fontSize: token.fontSizeSM,
+                          }}
+                        >
+                          {cached.display}
+                        </pre>
+                        {editingNodeId === nodeId ? (
+                          <Input.TextArea
+                            aria-label={`内容编辑 ${nodeId}`}
+                            defaultValue={cached.display}
+                            rows={6}
+                            style={{ marginTop: token.marginSM }}
+                            onChange={(event) => onStageNodeContent(nodeId, event.target.value)}
+                          />
+                        ) : (
+                          <Button
+                            size="small"
+                            aria-label="编辑内容"
+                            style={{ marginTop: token.marginSM }}
+                            onClick={() => setEditingNodeId(nodeId)}
+                          >
+                            编辑内容
+                          </Button>
+                        )}
+                      </>
                     ) : null}
                   </div>
                 );
@@ -246,7 +387,7 @@ export function NoteEditor({ summary, detail, nodeContents, onLoadNodeContent }:
       )}
 
       <Typography.Text type="secondary">
-        编辑区骨架（只读消费）：就地编辑与保存候平台编辑链路落位后在本区接线。
+        修改先写入文档会话（document:write，仅内存模型并推进修订号），「保存到磁盘」（document:save）后才落盘。
       </Typography.Text>
     </section>
   );

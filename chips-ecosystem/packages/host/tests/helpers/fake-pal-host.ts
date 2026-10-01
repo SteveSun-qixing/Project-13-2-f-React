@@ -50,3 +50,12 @@ export function createFakePalHost(
     ...overrides,
   };
 }
+
+/**
+ * 以必备 `storage` 端口为底、按需附加分面端口，构造完整 `IPalPorts`。
+ *
+ * @remarks 供测试注入替身端口时免手工 `as` 断言（`IPalPorts` 的可选分面经此收敛为全量形状）。
+ */
+export function createFakePorts(overrides: Partial<IPalPorts> = {}): IPalPorts {
+  return { storage: {} as IPalStoragePort, ...overrides };
+}

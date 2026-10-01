@@ -9,7 +9,6 @@ runtime:
     - host
   background: false
 permissions:
-  - resources:read
   - command:write
   - command:execute
 ui:

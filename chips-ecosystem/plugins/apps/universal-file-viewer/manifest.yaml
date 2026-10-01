@@ -61,3 +61,93 @@ cli:
       output:
         mode: json
         json: supported
+    - commandPath:
+        - universal-file-viewer
+        - previous-file
+      commandId: universal-file-viewer:previous-file
+      title: 上一个文件
+      description: 切换到队列中的上一个文件
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - next-file
+      commandId: universal-file-viewer:next-file
+      title: 下一个文件
+      description: 切换到队列中的下一个文件
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - zoom-in
+      commandId: universal-file-viewer:zoom-in
+      title: 放大
+      description: 放大当前预览视图
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - zoom-out
+      commandId: universal-file-viewer:zoom-out
+      title: 缩小
+      description: 缩小当前预览视图
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - zoom-reset
+      commandId: universal-file-viewer:zoom-reset
+      title: 重置缩放
+      description: 恢复预览视图的默认缩放
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - rotate-left
+      commandId: universal-file-viewer:rotate-left
+      title: 向左旋转
+      description: 当前预览视图向左旋转 90°
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - rotate-right
+      commandId: universal-file-viewer:rotate-right
+      title: 向右旋转
+      description: 当前预览视图向右旋转 90°
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - toggle-info
+      commandId: universal-file-viewer:toggle-info
+      title: 格式信息
+      description: 显示或隐藏当前文件的格式信息面板
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - fullscreen
+      commandId: universal-file-viewer:fullscreen
+      title: 全屏
+      description: 切换预览视图的全屏显示
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer
+    - commandPath:
+        - universal-file-viewer
+        - print
+      commandId: universal-file-viewer:print
+      title: 打印
+      description: 打印当前预览内容
+      target:
+        type: app
+        pluginId: chips.official.universal-file-viewer

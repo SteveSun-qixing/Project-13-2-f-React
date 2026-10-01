@@ -13,6 +13,11 @@
     "clean": "node -e \"import('node:fs').then((fs) => { for (const p of ['dist', 'render.js', 'coverage']) fs.rmSync(p, { recursive: true, force: true }); })\"",
     "package": "pnpm exec chips plugin pack --out dist/"
   },
+  "dependencies": {
+    "jszip": "3.10.1",
+    "pdfjs-dist": "6.3.289",
+    "zod": "4.5.4"
+  },
   "devDependencies": {
     "@chips/cli": "workspace:*",
     "@chips/sdk": "workspace:*",

@@ -412,13 +412,12 @@ describe('刀2契约锁：§6.4/§12.1 导出表 ↔ 适配器冻结名 ↔ ABI 
   };
   const declaration = readWorkspaceSource('../../native/types/chips-native.d.ts');
 
-  it('§6.4 表原文 15 行导出名与适配器文档表镜像段逐项一致（前缀锁；文档库随动归主批，工单036 波 C3 补登名在镜像尾段）', () => {
+  it('§6.4 表原文 16 行导出名与适配器镜像全集逐项恰等（工单036 波 C3 补登名已随文档库主批落文入表，W4-C3 随动波机械复原）', () => {
     const section = frozenDoc.slice(frozenDoc.indexOf('### 6.4'), frozenDoc.indexOf('### 6.5'));
-    const documented = [...NATIVE_DOCUMENT_PARSER_FROZEN_EXPORTS, ...NATIVE_DOCUMENT_PARSER_FORMALIZED_EXPORTS];
-    expect(parseExportTableNames(section).sort()).toEqual([...documented].sort());
-    // 前缀锁：文档表 15 名按表序与镜像全集面前缀逐位一致（尾段 = C3 存储序列化名）。
-    expect(NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.slice(0, documented.length)).toEqual(documented);
-    expect(NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS.slice(documented.length)).toEqual(['documentSerialize']);
+    // 恰等锁：文档表 16 行名集与镜像全集（13 冻结 + 2 正式化 + 1 存储序列化）逐名恰等，
+    // 恰等语义不变（文档表行序与镜像域尾追加序在正式化名两行异位，按原口径双侧排序后
+    // 恰等）——无前缀豁免、无尾段豁免，C3 存储序列化名已在表内。
+    expect(parseExportTableNames(section).sort()).toEqual([...NATIVE_DOCUMENT_PARSER_SURFACE_EXPORTS].sort());
   });
 
   it('§12.1 表原文 14 行 = 文档表镜像段去掉 buildDocumentView（两表同源互证）', () => {

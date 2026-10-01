@@ -1,27 +1,91 @@
 import React from 'react';
-import { Button, ChipsProvider, CommandProvider, theme } from '@chips/ui';
+import { BoxEmptyState, Button, ChipsProvider, CommandProvider, PanelHeader, Tabs, theme } from '@chips/ui';
 import { COMMAND_PHASE_LABELS, useAppCommands } from '../commands/useAppCommands';
 
 const APP_ID = 'chips.official.office';
 
+/** 三域迁移状态（与《W5迁移-office-三域臂-开发日志-2026-10-01.md》一致）。 */
+const DOMAINS: ReadonlyArray<{
+  readonly key: string;
+  readonly label: string;
+  readonly status: string;
+  readonly description: string;
+}> = [
+  {
+    key: 'sheet',
+    label: '表格',
+    status: '领域逻辑已迁移',
+    description:
+      '工作簿模型、自研公式与 xlsx 字节级读写网关已就位（15 个领域模块 + 23 个网关模块，最小合法 xlsx 夹具测试通过）；打开/保存会话链候宿主 document 会话与 file/resource 域处理器。',
+  },
+  {
+    key: 'pdf',
+    label: 'PDF',
+    status: '阅读域逻辑已迁移',
+    description:
+      '搜索/标注/文本行/线程/盖章/页面几何等 21 个纯逻辑模块已就位（pdfjs-dist 真实解析夹具测试通过）；渲染装配候渲染帧插件执行通道。',
+  },
+  {
+    key: 'slide',
+    label: '演示',
+    status: '演示域模型已迁移',
+    description:
+      '动画时序、调整柄几何、放映序列等演示域模型已就位（最小合法 pptx 夹具校验通过）；画布渲染与 pptx 字节解析候选型收口。',
+  },
+  {
+    key: 'word',
+    label: 'Word',
+    status: '候选型裁定',
+    description:
+      'word 编辑逻辑（tiptap + 引擎移植）挂起于「richtext 编辑引擎选型（tiptap 续留 vs 自研）」在册候裁项，与富文本编辑器编辑臂同源；用户裁定前不引入相关依赖。',
+  },
+];
+
+/** 单个域面板：迁移状态与候前置件的如实降级登记。 */
+const DomainPanel: React.FC<{ readonly status: string; readonly description: string }> = ({
+  status,
+  description,
+}) => {
+  const { token } = theme.useToken();
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: token.marginSM }}>
+      <p style={{ margin: 0, color: token.colorTextSecondary }}>
+        迁移状态：{status}
+      </p>
+      <p style={{ margin: 0 }}>{description}</p>
+      <BoxEmptyState
+        title="域界面待端到端臂装配"
+        description="文档打开与编辑界面将随宿主会话链与渲染帧通道收口后接入。"
+        compact
+      />
+    </section>
+  );
+};
+
 /** 应用界面内容：处于 ChipsProvider 提供的窗口级运行环境内（令牌与消息上下文可用）。 */
 const AppContent: React.FC = () => {
   const { token } = theme.useToken();
-  const [count, setCount] = React.useState(0);
-
   return (
     <section
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: token.marginSM,
+        gap: token.margin,
         padding: token.padding,
       }}
     >
-      <p style={{ margin: 0 }}>你好，这是「薯片办公」的应用界面。</p>
-      <Button type="primary" onClick={() => setCount((value) => value + 1)}>
-        点击次数：{count}
-      </Button>
+      <PanelHeader
+        title="薯片办公"
+        description="Word / 表格 / 演示 / PDF 四件套查看与编辑（.docx / .xlsx / .csv / .pptx / .pdf）"
+      />
+      <Tabs
+        defaultActiveKey="sheet"
+        items={DOMAINS.map((domain) => ({
+          key: domain.key,
+          label: domain.label,
+          children: <DomainPanel status={domain.status} description={domain.description} />,
+        }))}
+      />
     </section>
   );
 };

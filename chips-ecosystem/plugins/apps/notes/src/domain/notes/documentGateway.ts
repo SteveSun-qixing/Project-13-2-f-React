@@ -3,14 +3,23 @@
  *
  * 权威链路：`document:open` / `document:read` / `document:write` / `document:save`
  * 四能力已由工单036 波 C3 翻正为宿主真实现（`packages/host/src/capabilities/document/`），
- * 本网关是插件侧唯一读取入口——经 `chips.request` 正式面调用，不私建解析、不直连文件系统。
+ * 本网关是插件侧唯一读写入口——经 `chips.request` 正式面调用，不私建解析、不直连文件系统。
  *
  * 组合语义（《04-能力契约规范》§7.3、宿主 `validation.ts` 判例同源）：
  * - 卡片（card）：`metadata` / `structure` / `content`（必须携带 `nodeId`）；不支持 `entries`；
  * - 箱子（box）：`metadata` / `structure` / `content`（不携带 `nodeId`）/ `entries`（可分页）。
  *
- * 写臂（`document:write` / `document:save`）属编辑链路臂（候 IEditSession 生产装载，
- * 工单036 波 C 终闸），本臂不接线——只读消费，不做半套写入。
+ * 写臂（本臂翻正）：`document:write` 只改宿主内存模型并回执 `{ revision }`（严格递增，
+ * 从 1 开始）；落盘唯一入口是 `document:save`（回执 `{ source, digest }`）。应用写面
+ * 覆盖 `metadata`（重命名/描述）与 `content`（内容节点值，携带 `nodeId`）两族切片；
+ * `structure` / `entries` 写属编辑链路与箱子组织臂（裁决 B4：结构替换与内容成员须在
+ * 同一保存中一致，应用不拆开写），不在本网关写面开放。
+ *
+ * 插件侧防御性复核码（不白信通道；与在册码分列，仅用于通道回执形态异常）：
+ * - `DOCUMENT_PART_MISMATCH`：读回包切片与请求不一致；
+ * - `DOCUMENT_REVISION_INVALID`：写回执修订号缺失/非正整数/未严格递增；
+ * - `DOCUMENT_SAVE_RECEIPT_INVALID`：保存回包缺 `source` / `digest`；
+ * - `DOCUMENT_GATEWAY_ERROR`：无错误码抛出值的兜底归一。
  */
 
 import { chips } from '@chips/sdk';
@@ -22,6 +31,8 @@ import type {
   Entry,
   IDocumentOpenOutput,
   IDocumentReadOutput,
+  IDocumentSaveOutput,
+  IDocumentWriteOutput,
   StructureModel,
 } from '@chips/sdk';
 import type { NotebookDetail, NoteOutline, OpenedDocumentSummary } from './model';
@@ -50,6 +61,12 @@ function toGatewayError(error: unknown): DocumentGatewayError {
   return new DocumentGatewayError('DOCUMENT_GATEWAY_ERROR', error instanceof Error ? error.message : '未知错误');
 }
 
+/** 从抛出值提取归一错误码与消息（编辑会话写通道/投影通道共用）。 */
+export function describeGatewayError(error: unknown): { code: string; message: string } {
+  const normalized = toGatewayError(error);
+  return { code: normalized.code, message: normalized.message };
+}
+
 function toSummary(output: IDocumentOpenOutput): OpenedDocumentSummary {
   return {
     documentId: output.documentId,
@@ -60,7 +77,7 @@ function toSummary(output: IDocumentOpenOutput): OpenedDocumentSummary {
   };
 }
 
-/** 笔记文档读取网关：`document:open` / `document:read` 的类型化封装。 */
+/** 笔记文档读写网关：`document:open` / `document:read` 的类型化读取面与写臂消费面。 */
 export interface NotesDocumentGateway {
   /** 打开来源引用并返回库摘要（幂等：同一来源由宿主会话记录去重）。 */
   open(source: string): Promise<OpenedDocumentSummary>;
@@ -76,6 +93,10 @@ export interface NotesDocumentGateway {
   readCardContent(documentId: string, nodeId: string): Promise<ContentNode>;
   /** 读箱子内容切片（布局配置，不携带 `nodeId`）。 */
   readBoxContent(documentId: string): Promise<ContentNode>;
+  /** 写模型切片（整体替换；`document:write` 回执 `{ revision }`，严格递增）。 */
+  writeSlice(request: NotesDocumentWriteRequest): Promise<number>;
+  /** 持久化文档（落盘唯一入口；`document:save` 回执 `{ source, digest }`）。 */
+  saveDocument(documentId: string): Promise<NotesDocumentSaveReceipt>;
 }
 
 async function requestRead(
@@ -99,6 +120,48 @@ function assertPart(output: IDocumentReadOutput, part: string): void {
   if (output.part !== part) {
     throw new DocumentGatewayError('DOCUMENT_PART_MISMATCH', '文档读取回包切片与请求不一致');
   }
+}
+
+/**
+ * 写切片请求（`document:write` 输入的应用写面收窄：`metadata` / `content` 两族）。
+ *
+ * `value` 为整体替换的模型切片：元数据切片（`CardMetadata` / `BoxMetadata`）、内容节点
+ * （`ContentNode`）或一般对象切片；数组与 null 不在本网关写面取值内（宿主语义：
+ * 仅结构/条目族与成员删除使用，见 `04-能力契约规范` §7.3）。
+ */
+export interface NotesDocumentWriteRequest {
+  readonly documentId: string;
+  readonly part: 'metadata' | 'content';
+  /** `part: 'content'` 且卡片文档时必携（成员定位；`04-能力契约规范` §7.3）。 */
+  readonly nodeId?: string;
+  readonly value: Record<string, unknown> | CardMetadata | BoxMetadata | ContentNode;
+}
+
+/** `document:save` 回执（落盘完成后交付保存位置与包摘要）。 */
+export interface NotesDocumentSaveReceipt {
+  readonly source: string;
+  readonly digest: string;
+}
+
+/** 写回执守卫：修订号必须是正整数（`04-能力契约规范` §7.3：从 1 开始，每次成功写入前进 1）。 */
+function assertRevisionReceipt(output: unknown): number {
+  const revision = (output as { revision?: unknown } | null | undefined)?.revision;
+  if (typeof revision !== 'number' || !Number.isInteger(revision) || revision <= 0) {
+    throw new DocumentGatewayError('DOCUMENT_REVISION_INVALID', '文档写入回执缺少有效的修订号');
+  }
+  return revision;
+}
+
+/** 保存回执守卫：`source` / `digest` 必须为非空字符串。 */
+function assertSaveReceipt(output: unknown): NotesDocumentSaveReceipt {
+  const record = (output ?? {}) as { source?: unknown; digest?: unknown };
+  if (typeof record.source !== 'string' || record.source.length === 0) {
+    throw new DocumentGatewayError('DOCUMENT_SAVE_RECEIPT_INVALID', '文档保存回执缺少来源引用');
+  }
+  if (typeof record.digest !== 'string' || record.digest.length === 0) {
+    throw new DocumentGatewayError('DOCUMENT_SAVE_RECEIPT_INVALID', '文档保存回执缺少包摘要');
+  }
+  return { source: record.source, digest: record.digest };
 }
 
 function createChipsDocumentGateway(): NotesDocumentGateway {
@@ -178,6 +241,34 @@ function createChipsDocumentGateway(): NotesDocumentGateway {
         throw new DocumentGatewayError('DOCUMENT_CONTENT_INVALID', '内容切片缺少 card_type');
       }
       return value;
+    },
+
+    async writeSlice(request: NotesDocumentWriteRequest): Promise<number> {
+      const input: Record<string, unknown> = {
+        documentId: request.documentId,
+        part: request.part,
+        value: request.value,
+      };
+      if (request.nodeId !== undefined) {
+        input.nodeId = request.nodeId;
+      }
+      let output: IDocumentWriteOutput;
+      try {
+        output = await chips.request<IDocumentWriteOutput>('document:write', input);
+      } catch (error: unknown) {
+        throw toGatewayError(error);
+      }
+      return assertRevisionReceipt(output);
+    },
+
+    async saveDocument(documentId: string): Promise<NotesDocumentSaveReceipt> {
+      let output: IDocumentSaveOutput;
+      try {
+        output = await chips.request<IDocumentSaveOutput>('document:save', { documentId });
+      } catch (error: unknown) {
+        throw toGatewayError(error);
+      }
+      return assertSaveReceipt(output);
     },
   };
 }

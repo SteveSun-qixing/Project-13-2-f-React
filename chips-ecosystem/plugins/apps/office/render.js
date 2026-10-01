@@ -1,7 +1,7 @@
-import { jsx as l, jsxs as a } from "chips-resource://platform/vendor/react-jsx-runtime.js";
-import R, { useState as m, useEffect as b, useCallback as w } from "chips-resource://platform/vendor/react.js";
-import { useCommandRuntime as T, ChipsProvider as N, CommandProvider as D, theme as L, Button as C } from "chips-resource://platform/vendor/chips-ui.js";
-class d extends Error {
+import { jsx as o, jsxs as a } from "chips-resource://platform/vendor/react-jsx-runtime.js";
+import { useCommandRuntime as w, ChipsProvider as L, CommandProvider as R, theme as _, PanelHeader as T, Tabs as D, Button as g, BoxEmptyState as N } from "chips-resource://platform/vendor/chips-ui.js";
+import { useState as m, useEffect as x, useCallback as P } from "chips-resource://platform/vendor/react.js";
+class l extends Error {
   code;
   details;
   retryable;
@@ -18,7 +18,7 @@ class d extends Error {
     return this.details !== void 0 && (e.details = this.details), e;
   }
   static fromPlain(e) {
-    return new d({
+    return new l({
       code: e.code,
       message: e.message,
       retryable: e.retryable ?? !1,
@@ -26,43 +26,43 @@ class d extends Error {
     });
   }
 }
-function K(t) {
+function v(t) {
   if (typeof t != "object" || t === null)
     return !1;
   const e = t;
   return typeof e.code == "string" && e.code.length > 0 && typeof e.message == "string" && (e.retryable === void 0 || typeof e.retryable == "boolean");
 }
-const P = "SDK_BRIDGE_UNAVAILABLE", g = "SDK_UNKNOWN_ERROR", A = "发生未知错误";
+const K = "SDK_BRIDGE_UNAVAILABLE", I = "SDK_UNKNOWN_ERROR", k = "发生未知错误";
 function M(t) {
   return t instanceof Error;
 }
-function v(t) {
-  if (t instanceof d)
+function U(t) {
+  if (t instanceof l)
     return t;
-  if (K(t)) {
+  if (v(t)) {
     const e = t, n = {
       code: e.code,
       message: e.message,
       retryable: e.retryable ?? !1,
       ...e.details !== void 0 ? { details: e.details } : {}
     };
-    return new d(n);
+    return new l(n);
   }
-  return M(t) ? new d({
-    code: g,
-    message: A,
+  return M(t) ? new l({
+    code: I,
+    message: k,
     details: { name: t.name, cause: t.message },
     retryable: !1
-  }) : new d({
-    code: g,
-    message: A,
+  }) : new l({
+    code: I,
+    message: k,
     details: { value: String(t) },
     retryable: !1
   });
 }
-function U() {
-  return new d({
-    code: P,
+function V() {
+  return new l({
+    code: K,
     message: "未找到可用的 Bridge：window.chips 尚未注入",
     retryable: !1
   });
@@ -72,85 +72,85 @@ function i(t, e, n) {
   try {
     r = t();
   } catch (s) {
-    return Promise.reject(v(s));
+    return Promise.reject(U(s));
   }
   return r.request(e, n);
 }
-const V = "cli.command.list", B = "cli.command.get", x = "cli.command.resolve";
-function G(t) {
+const B = "cli.command.list", G = "cli.command.get", j = "cli.command.resolve";
+function W(t) {
   return {
     list(e) {
-      return i(t, V, e ?? {});
+      return i(t, B, e ?? {});
     },
     get(e) {
-      return i(t, B, e);
+      return i(t, G, e);
     },
     resolve(e) {
-      return i(t, x, e);
+      return i(t, j, e);
     }
   };
 }
-const p = {
+const u = {
   CLI_TASK_ACTIVE: "cli:task-active",
   CLI_TASK_GET: "cli:task-get",
   CLI_TASK_PROGRESS: "cli:task-progress",
   CLI_TASK_COMPLETE: "cli:task-complete",
   CLI_TASK_FAIL: "cli:task-fail"
-}, j = "cli.task.create", q = "cli.task.bindInvocation", W = "cli.task.cancel";
-function F(t) {
+}, F = "cli.task.create", q = "cli.task.bindInvocation", H = "cli.task.cancel";
+function X(t) {
   return {
     create(e) {
-      return i(t, j, e).then((n) => n.task);
+      return i(t, F, e).then((n) => n.task);
     },
     bindInvocation(e) {
       return i(t, q, e).then((n) => n.task);
     },
     get(e) {
       const n = { taskId: e };
-      return i(t, p.CLI_TASK_GET, n).then((r) => r.task);
+      return i(t, u.CLI_TASK_GET, n).then((r) => r.task);
     },
     active(e) {
       const n = { commandId: e };
-      return i(t, p.CLI_TASK_ACTIVE, n).then((r) => r.task);
+      return i(t, u.CLI_TASK_ACTIVE, n).then((r) => r.task);
     },
     progress(e, n) {
       const r = { taskId: e, progress: n };
-      return i(t, p.CLI_TASK_PROGRESS, r).then((s) => s.task);
+      return i(t, u.CLI_TASK_PROGRESS, r).then((s) => s.task);
     },
     complete(e, n) {
       const r = {
         taskId: e,
         ...n === void 0 ? {} : { output: n }
       };
-      return i(t, p.CLI_TASK_COMPLETE, r).then((s) => s.task);
+      return i(t, u.CLI_TASK_COMPLETE, r).then((s) => s.task);
     },
     fail(e, n) {
       const r = { taskId: e, error: n };
-      return i(t, p.CLI_TASK_FAIL, r).then((s) => s.task);
+      return i(t, u.CLI_TASK_FAIL, r).then((s) => s.task);
     },
     cancel(e) {
-      return i(t, W, { taskId: e }).then((n) => n.task);
+      return i(t, H, { taskId: e }).then((n) => n.task);
     }
   };
 }
-function H() {
+function z() {
   return globalThis.window?.chips;
 }
-class X {
+class J {
   #t;
   /**
    * CLI 命令发现扩展命名空间（§3.5）。
    *
    * 只读实例成员，不是模块级值导出（§2.2 末段）；与三个方法面共用同一目标解析链路。
    */
-  cliCommand = G(() => this.#e());
+  cliCommand = W(() => this.#e());
   /**
    * CLI 任务生命周期扩展命名空间（§3.5）。
    *
    * 只读实例成员；插件侧五方法经 `cli:task-active` 至 `cli:task-fail` 能力转发，
    * CLI 调度侧三方法经平台服务路由转发（§5.6、§5.8）。
    */
-  cliTask = F(() => this.#e());
+  cliTask = X(() => this.#e());
   constructor(e) {
     this.#t = e;
   }
@@ -163,9 +163,9 @@ class X {
   #e() {
     if (this.#t !== void 0)
       return this.#t;
-    const e = H();
+    const e = z();
     if (e === void 0)
-      throw U();
+      throw V();
     return e;
   }
   /**
@@ -200,23 +200,23 @@ class X {
     return this.#e().resource(e);
   }
 }
-function z(t) {
-  return new X(t?.bridge);
+function Q(t) {
+  return new J(t?.bridge);
 }
-const y = z(), E = "chips.official.office", f = {
+const A = Q(), E = "chips.official.office", f = {
   openCard: "office:open-card",
   refreshView: "office:refresh-view"
-}, k = {
+}, S = {
   openCard: "open-card",
   refreshView: "refresh-view"
-}, _ = [
+}, C = [
   {
     id: f.openCard,
     title: "打开卡片",
     description: "打开指定的卡片文件并在主窗口中展示",
     shortcut: "CommandOrControl+O",
     scope: { kind: "app", appId: E },
-    handlerId: k.openCard,
+    handlerId: S.openCard,
     keywords: ["open", "card", "打开", "卡片"],
     group: "文件"
   },
@@ -226,14 +226,14 @@ const y = z(), E = "chips.official.office", f = {
     description: "重新拉取当前展示数据",
     shortcut: "F5",
     scope: { kind: "app", appId: E },
-    handlerId: k.refreshView,
+    handlerId: S.refreshView,
     keywords: ["refresh", "刷新"],
     group: "视图"
   }
 ];
 new Set(Object.values(f));
-function J(t) {
-  return _.map((e) => {
+function Y(t) {
+  return C.map((e) => {
     const n = e.handlerId ?? "";
     return {
       commandId: e.id,
@@ -244,12 +244,12 @@ function J(t) {
     };
   });
 }
-const Q = {
+const Z = {
   registering: "命令注册中",
   ready: "命令已就绪",
   error: "命令通道异常"
 };
-function S(t) {
+function b(t) {
   if (typeof t == "object" && t !== null && "code" in t) {
     const e = t.code;
     if (typeof e == "string" && e.length > 0)
@@ -257,33 +257,33 @@ function S(t) {
   }
   return "COMMAND_RUNTIME_ERROR";
 }
-function Y() {
-  const t = T(), [e, n] = m("registering"), [r, s] = m(null), [h, O] = m(null);
-  b(() => {
-    let o = !1, u = null;
+function $() {
+  const t = w(), [e, n] = m("registering"), [r, s] = m(null), [h, O] = m(null);
+  x(() => {
+    let c = !1, p = null;
     return n("registering"), s(null), (async () => {
       try {
-        for (const c of _)
-          await y.request("command:register", { definition: c });
-        if (o)
+        for (const d of C)
+          await A.request("command:register", { definition: d });
+        if (c)
           return;
-        u = t.attach(J(O)), n("ready");
-      } catch (c) {
-        o || (s(S(c)), n("error"));
+        p = t.attach(Y(O)), n("ready");
+      } catch (d) {
+        c || (s(b(d)), n("error"));
       }
     })(), () => {
-      o = !0, u?.dispose();
-      for (const c of _)
-        y.request("command:unregister", { commandId: c.id }).catch(() => {
+      c = !0, p?.dispose();
+      for (const d of C)
+        A.request("command:unregister", { commandId: d.id }).catch(() => {
         });
     };
   }, [t]);
-  const I = w(
-    async (o, u) => {
+  const y = P(
+    async (c, p) => {
       try {
-        u === void 0 ? await t.invoke({ commandId: o, source: "api" }) : await t.invoke({ commandId: o, payload: u, source: "api" }), s(null);
-      } catch (c) {
-        s(S(c));
+        p === void 0 ? await t.invoke({ commandId: c, source: "api" }) : await t.invoke({ commandId: c, payload: p, source: "api" }), s(null);
+      } catch (d) {
+        s(b(d));
       }
     },
     [t]
@@ -292,32 +292,90 @@ function Y() {
     phase: e,
     errorCode: r,
     lastInvoked: h,
-    invokeOpenCard: (o) => I(f.openCard, { path: o }),
-    invokeRefreshView: () => I(f.refreshView)
+    invokeOpenCard: (c) => y(f.openCard, { path: c }),
+    invokeRefreshView: () => y(f.refreshView)
   };
 }
-const Z = "chips.official.office", $ = () => {
-  const { token: t } = L.useToken(), [e, n] = R.useState(0);
+const ee = "chips.official.office", te = [
+  {
+    key: "sheet",
+    label: "表格",
+    status: "领域逻辑已迁移",
+    description: "工作簿模型、自研公式与 xlsx 字节级读写网关已就位（15 个领域模块 + 23 个网关模块，最小合法 xlsx 夹具测试通过）；打开/保存会话链候宿主 document 会话与 file/resource 域处理器。"
+  },
+  {
+    key: "pdf",
+    label: "PDF",
+    status: "阅读域逻辑已迁移",
+    description: "搜索/标注/文本行/线程/盖章/页面几何等 21 个纯逻辑模块已就位（pdfjs-dist 真实解析夹具测试通过）；渲染装配候渲染帧插件执行通道。"
+  },
+  {
+    key: "slide",
+    label: "演示",
+    status: "演示域模型已迁移",
+    description: "动画时序、调整柄几何、放映序列等演示域模型已就位（最小合法 pptx 夹具校验通过）；画布渲染与 pptx 字节解析候选型收口。"
+  },
+  {
+    key: "word",
+    label: "Word",
+    status: "候选型裁定",
+    description: "word 编辑逻辑（tiptap + 引擎移植）挂起于「richtext 编辑引擎选型（tiptap 续留 vs 自研）」在册候裁项，与富文本编辑器编辑臂同源；用户裁定前不引入相关依赖。"
+  }
+], ne = ({
+  status: t,
+  description: e
+}) => {
+  const { token: n } = _.useToken();
+  return /* @__PURE__ */ a("section", { style: { display: "flex", flexDirection: "column", gap: n.marginSM }, children: [
+    /* @__PURE__ */ a("p", { style: { margin: 0, color: n.colorTextSecondary }, children: [
+      "迁移状态：",
+      t
+    ] }),
+    /* @__PURE__ */ o("p", { style: { margin: 0 }, children: e }),
+    /* @__PURE__ */ o(
+      N,
+      {
+        title: "域界面待端到端臂装配",
+        description: "文档打开与编辑界面将随宿主会话链与渲染帧通道收口后接入。",
+        compact: !0
+      }
+    )
+  ] });
+}, re = () => {
+  const { token: t } = _.useToken();
   return /* @__PURE__ */ a(
     "section",
     {
       style: {
         display: "flex",
         flexDirection: "column",
-        gap: t.marginSM,
+        gap: t.margin,
         padding: t.padding
       },
       children: [
-        /* @__PURE__ */ l("p", { style: { margin: 0 }, children: "你好，这是「薯片办公」的应用界面。" }),
-        /* @__PURE__ */ a(C, { type: "primary", onClick: () => n((r) => r + 1), children: [
-          "点击次数：",
-          e
-        ] })
+        /* @__PURE__ */ o(
+          T,
+          {
+            title: "薯片办公",
+            description: "Word / 表格 / 演示 / PDF 四件套查看与编辑（.docx / .xlsx / .csv / .pptx / .pdf）"
+          }
+        ),
+        /* @__PURE__ */ o(
+          D,
+          {
+            defaultActiveKey: "sheet",
+            items: te.map((e) => ({
+              key: e.key,
+              label: e.label,
+              children: /* @__PURE__ */ o(ne, { status: e.status, description: e.description })
+            }))
+          }
+        )
       ]
     }
   );
-}, ee = () => {
-  const { token: t } = L.useToken(), { phase: e, errorCode: n, lastInvoked: r, invokeOpenCard: s, invokeRefreshView: h } = Y();
+}, se = () => {
+  const { token: t } = _.useToken(), { phase: e, errorCode: n, lastInvoked: r, invokeOpenCard: s, invokeRefreshView: h } = $();
   return /* @__PURE__ */ a(
     "section",
     {
@@ -331,29 +389,29 @@ const Z = "chips.official.office", $ = () => {
       children: [
         /* @__PURE__ */ a("p", { style: { margin: 0 }, children: [
           "命令注册状态：",
-          Q[e]
+          Z[e]
         ] }),
         n === null ? null : /* @__PURE__ */ a("p", { style: { margin: 0 }, children: [
           "最近错误码：",
           n
         ] }),
         /* @__PURE__ */ a("div", { style: { display: "flex", gap: t.marginXS }, children: [
-          /* @__PURE__ */ l(C, { onClick: () => {
+          /* @__PURE__ */ o(g, { onClick: () => {
             s("~/文档/示例.cpk");
           }, children: "触发打开卡片命令" }),
-          /* @__PURE__ */ l(C, { onClick: () => {
+          /* @__PURE__ */ o(g, { onClick: () => {
             h();
           }, children: "触发刷新视图命令" })
         ] }),
-        /* @__PURE__ */ l("p", { style: { margin: 0 }, children: r === null ? "本窗口尚未执行过命令派发" : "最近执行：" + r.commandId })
+        /* @__PURE__ */ o("p", { style: { margin: 0 }, children: r === null ? "本窗口尚未执行过命令派发" : "最近执行：" + r.commandId })
       ]
     }
   );
-}, ie = () => /* @__PURE__ */ l(N, { appId: Z, surface: "window", children: /* @__PURE__ */ a(D, { children: [
-  /* @__PURE__ */ l($, {}),
-  /* @__PURE__ */ l(ee, {})
+}, de = () => /* @__PURE__ */ o(L, { appId: ee, surface: "window", children: /* @__PURE__ */ a(R, { children: [
+  /* @__PURE__ */ o(re, {}),
+  /* @__PURE__ */ o(se, {})
 ] }) });
 export {
-  ie as AppView,
-  ie as default
+  de as AppView,
+  de as default
 };

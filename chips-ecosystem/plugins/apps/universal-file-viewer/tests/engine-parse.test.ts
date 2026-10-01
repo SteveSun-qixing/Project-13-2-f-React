@@ -1,3 +1,8 @@
+// @vitest-environment node
+/**
+ * 引擎字节读取面契约在 Node 环境验证（引擎臂交付口径）：postal-mime 等引擎依赖在
+ * Node 与浏览器分派不同解码路径，jsdom 仿真的浏览器面不构成有效运行环境。
+ */
 import JSZip from "jszip";
 import PostalMime from "postal-mime";
 import * as XLSX from "xlsx";

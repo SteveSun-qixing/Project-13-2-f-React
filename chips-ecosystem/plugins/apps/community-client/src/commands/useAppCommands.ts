@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { chips } from '@chips/sdk';
 import { useCommandRuntime } from '@chips/ui';
 import {
@@ -6,6 +6,7 @@ import {
   appCommandDefinitions,
   createAppCommandHandlers,
   type AppCommandStatus,
+  type CommunityCommandActions,
 } from './appCommands';
 
 /** 命令注册阶段：注册中 → 就绪；失败进入 error 并携带错误码。 */
@@ -33,9 +34,10 @@ export interface UseAppCommandsResult {
   readonly phase: CommandRegistryPhase;
   readonly errorCode: string | null;
   readonly lastInvoked: AppCommandStatus | null;
-  /** 属性箭头签名：实现即箭头函数属性，界面层解构消费；方法签名会触发 unbound-method。 */
-  invokeOpenCard: (path: string) => Promise<void>;
-  invokeRefreshView: () => Promise<void>;
+  /** 装配命令业务动作（界面层以最新状态装配，避免陈旧闭包）。 */
+  readonly setActions: (actions: CommunityCommandActions | null) => void;
+  /** 以 `source: 'api'` 触发刷新视图命令（界面内按钮通道）。 */
+  readonly invokeRefreshView: () => Promise<void>;
 }
 
 /**
@@ -49,13 +51,14 @@ export interface UseAppCommandsResult {
  * 3. 卸载时撤销订阅并注销命令记录（`command:unregister` 幂等）。
  *
  * `command:*` 能力的生产派发随宿主能力面逐能力派单；Bridge 不可用或能力未就绪时，
- * 注册失败收敛为 `phase: 'error'` 与错误码，界面不抛错。
+ * 注册失败收敛为 `phase: 'error'` 与错误码，界面不抛错（诚实降级，不假接线）。
  */
 export function useAppCommands(): UseAppCommandsResult {
   const runtime = useCommandRuntime();
   const [phase, setPhase] = useState<CommandRegistryPhase>('registering');
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [lastInvoked, setLastInvoked] = useState<AppCommandStatus | null>(null);
+  const actionsRef = useRef<CommunityCommandActions | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +73,21 @@ export function useAppCommands(): UseAppCommandsResult {
         if (cancelled) {
           return;
         }
-        detach = runtime.attach(createAppCommandHandlers(setLastInvoked));
+        detach = runtime.attach(
+          createAppCommandHandlers(
+            {
+              openCard: (path: string): void => {
+                actionsRef.current?.openCard(path);
+              },
+              refreshView: (): void => {
+                actionsRef.current?.refreshView();
+              },
+            },
+            (status: AppCommandStatus): void => {
+              setLastInvoked(status);
+            },
+          ),
+        );
         setPhase('ready');
       } catch (error: unknown) {
         if (!cancelled) {
@@ -89,28 +106,18 @@ export function useAppCommands(): UseAppCommandsResult {
     };
   }, [runtime]);
 
-  const invokeCommand = useCallback(
-    async (commandId: string, payload?: unknown): Promise<void> => {
-      try {
-        if (payload === undefined) {
-          await runtime.invoke({ commandId, source: 'api' });
-        } else {
-          await runtime.invoke({ commandId, payload, source: 'api' });
-        }
-        setErrorCode(null);
-      } catch (error: unknown) {
-        setErrorCode(toErrorCode(error));
-      }
-    },
-    [runtime],
-  );
+  const setActions = useCallback((actions: CommunityCommandActions | null): void => {
+    actionsRef.current = actions;
+  }, []);
 
-  return {
-    phase,
-    errorCode,
-    lastInvoked,
-    invokeOpenCard: (path: string): Promise<void> =>
-      invokeCommand(APP_COMMAND_IDS.openCard, { path }),
-    invokeRefreshView: (): Promise<void> => invokeCommand(APP_COMMAND_IDS.refreshView),
-  };
+  const invokeRefreshView = useCallback(async (): Promise<void> => {
+    try {
+      await runtime.invoke({ commandId: APP_COMMAND_IDS.refreshView, source: 'api' });
+      setErrorCode(null);
+    } catch (error: unknown) {
+      setErrorCode(toErrorCode(error));
+    }
+  }, [runtime]);
+
+  return { phase, errorCode, lastInvoked, setActions, invokeRefreshView };
 }

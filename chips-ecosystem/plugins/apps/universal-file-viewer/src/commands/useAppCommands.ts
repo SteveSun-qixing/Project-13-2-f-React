@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { chips } from '@chips/sdk';
 import { useCommandRuntime } from '@chips/ui';
 import {
   APP_COMMAND_IDS,
   appCommandDefinitions,
   createAppCommandHandlers,
+  type AppCommandExecutor,
   type AppCommandStatus,
 } from './appCommands';
 
@@ -33,7 +34,10 @@ export interface UseAppCommandsResult {
   readonly phase: CommandRegistryPhase;
   readonly errorCode: string | null;
   readonly lastInvoked: AppCommandStatus | null;
-  /** 属性箭头签名：实现即箭头函数属性，界面层解构消费；方法签名会触发 unbound-method。 */
+  /** 注入查看场景命令执行器：本地处理器执行时经此施加查看控制效应。 */
+  setExecutor: (executor: AppCommandExecutor) => void;
+  /** 以 `source: 'api'` 经 `command:invoke` 派发本应用命令。 */
+  invoke: (commandId: string, payload?: unknown) => Promise<void>;
   invokeOpenCard: (path: string) => Promise<void>;
   invokeRefreshView: () => Promise<void>;
 }
@@ -45,7 +49,8 @@ export interface UseAppCommandsResult {
  * 1. 挂载时逐条 `chips.request('command:register', { definition })` 注册携带
  *    `handlerId` 的命令记录（权限 `command:write`，见 manifest permissions）；
  * 2. 用 `@chips/ui` 命令运行时的 `attach` 绑定本地处理器；运行时订阅
- *    `command:invoked`，按 `(commandId, handlerId)` 配对执行；
+ *    `command:invoked`，按 `(commandId, handlerId)` 配对执行，业务效应经
+ *    `setExecutor` 注入的执行器交给查看场景（切换视图 / 驱动引擎 / 开关面板）；
  * 3. 卸载时撤销订阅并注销命令记录（`command:unregister` 幂等）。
  *
  * `command:*` 能力的生产派发随宿主能力面逐能力派单；Bridge 不可用或能力未就绪时，
@@ -56,6 +61,11 @@ export function useAppCommands(): UseAppCommandsResult {
   const [phase, setPhase] = useState<CommandRegistryPhase>('registering');
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [lastInvoked, setLastInvoked] = useState<AppCommandStatus | null>(null);
+  const executorRef = useRef<AppCommandExecutor | null>(null);
+
+  const setExecutor = useCallback((executor: AppCommandExecutor): void => {
+    executorRef.current = executor;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +80,12 @@ export function useAppCommands(): UseAppCommandsResult {
         if (cancelled) {
           return;
         }
-        detach = runtime.attach(createAppCommandHandlers(setLastInvoked));
+        detach = runtime.attach(
+          createAppCommandHandlers((status) => {
+            setLastInvoked(status);
+            executorRef.current?.(status);
+          })
+        );
         setPhase('ready');
       } catch (error: unknown) {
         if (!cancelled) {
@@ -89,7 +104,7 @@ export function useAppCommands(): UseAppCommandsResult {
     };
   }, [runtime]);
 
-  const invokeCommand = useCallback(
+  const invoke = useCallback(
     async (commandId: string, payload?: unknown): Promise<void> => {
       try {
         if (payload === undefined) {
@@ -102,15 +117,16 @@ export function useAppCommands(): UseAppCommandsResult {
         setErrorCode(toErrorCode(error));
       }
     },
-    [runtime],
+    [runtime]
   );
 
   return {
     phase,
     errorCode,
     lastInvoked,
-    invokeOpenCard: (path: string): Promise<void> =>
-      invokeCommand(APP_COMMAND_IDS.openCard, { path }),
-    invokeRefreshView: (): Promise<void> => invokeCommand(APP_COMMAND_IDS.refreshView),
+    setExecutor,
+    invoke,
+    invokeOpenCard: (path: string): Promise<void> => invoke(APP_COMMAND_IDS.openCard, { path }),
+    invokeRefreshView: (): Promise<void> => invoke(APP_COMMAND_IDS.refreshView),
   };
 }

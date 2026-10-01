@@ -1,3 +1,5 @@
+import { isAbsolute } from 'node:path';
+
 import type {
   DialogFileFilter,
   DialogOpenOptions,
@@ -27,6 +29,8 @@ interface ElectronFilter {
  * @remarks
  * - 用户取消不是错误：返回 `{ canceled: true }`。
  * - 用户选择不产生文件系统授权；端口只返回路径，不读写文件。
+ * - 返回路径走文件域同源的系统级校验链（绝对路径断言，与 `storage` 端口同口径）：
+ *   契约输出即"选中的绝对路径"，平台返回非绝对路径以 `DIALOG_FAILED` 如实拒绝。
  * - 过滤器扩展名从能力契约的 `.card` 形式归一为 Electron 的 `card` 形式。
  */
 export function createMacDialogPort(dialog: ElectronDialogLike): IPalDialogPort {
@@ -39,9 +43,13 @@ export function createMacDialogPort(dialog: ElectronDialogLike): IPalDialogPort 
         if (result.canceled === true || !Array.isArray(result.filePaths)) {
           return { canceled: true, paths: [] };
         }
-        return { canceled: false, paths: [...(result.filePaths as readonly string[])] };
+        const paths = [...(result.filePaths as readonly string[])];
+        for (const path of paths) {
+          assertAbsoluteResultPath(path);
+        }
+        return { canceled: false, paths };
       } catch (error) {
-        throw new PalPortError(PAL_ERROR_CODES.DIALOG_FAILED, undefined, { cause: error });
+        throw normalizeDialogError(error);
       }
     },
 
@@ -53,12 +61,27 @@ export function createMacDialogPort(dialog: ElectronDialogLike): IPalDialogPort 
         if (result.canceled === true || typeof result.filePath !== 'string' || result.filePath.length === 0) {
           return { canceled: true, path: null };
         }
+        assertAbsoluteResultPath(result.filePath);
         return { canceled: false, path: result.filePath };
       } catch (error) {
-        throw new PalPortError(PAL_ERROR_CODES.DIALOG_FAILED, undefined, { cause: error });
+        throw normalizeDialogError(error);
       }
     },
   };
+}
+
+/** 返回路径绝对性断言（契约输出即"选中的绝对路径"）；非绝对路径以 `DIALOG_FAILED` 拒绝。 */
+function assertAbsoluteResultPath(path: string): void {
+  if (!isAbsolute(path)) {
+    throw new PalPortError(PAL_ERROR_CODES.DIALOG_FAILED);
+  }
+}
+
+/** 对话框失败归一；已归一的 `PalPortError`（如路径断言臂）原样透传。 */
+function normalizeDialogError(error: unknown): PalPortError {
+  return error instanceof PalPortError
+    ? error
+    : new PalPortError(PAL_ERROR_CODES.DIALOG_FAILED, undefined, { cause: error });
 }
 
 /** 构建打开对话框的 Electron 选项。 */
