@@ -26,11 +26,16 @@
 
 ## 编辑态
 
-`renderEditor` 按 04-基础卡片插件开发指南 §九契约基线形制交付：Markdown 源文表单 + 展示配置 + 200 字阈值提示；inline 来源发 `replace` 变更，file 来源仅发 `config` 子树 `patch`（不回写不可读的正文）。Milkdown 所见即所得编辑引擎候用户选型（§三.2 登记项），选型后以正式编辑引擎升级。
+`renderEditor` 交付 Milkdown 真编辑器（用户裁决 2026-10-01 第 3 项；《第三方参考资产清单》RA-11 / §2.14 登记，`@milkdown/kit` 锁测钉定 7.22.2）：
+
+- ProseMirror 实例经 `src/milkdown/engine.ts` 唯一装配点挂载：commonmark + GFM 预设（`singleTilde: false`，与查看态 markdown 服务同方言）+ listener 序列化回流；解析侧归一（`src/milkdown/parse-normalize.ts`）保障图片空属性与容器位原始 HTML 的往返保真；
+- Markdown 唯一持久化不变：编辑产物按 remark 序列化回 `content_text`，经与查看态同一 `normalizeMarkdown` 归一；渲染链无承载的五项扩展语法两态一致按纯文本呈现 + 能力降级提示（同源边界）；
+- 回流走 `IBaseCardEditor` 唯一时序：`getChange` → 宿主校验 → `document:write` → 渲染会话 `update` → `markCommitted`；编辑器不写文件；
+- inline 来源发 `replace` 变更，file 来源仅发 `config` 子树 `patch`（不回写不可读的正文）；`MAX_INLINE_RICHTEXT_LENGTH = 200` 闸在编辑入口实时提示。
 
 ## 不迁移面（零兼容裁决）
 
-`LEGACY_RICHTEXT_CARD_TYPE`（`RichTextCard`）兼容别名不迁移、不声明 `aliases`；Milkdown/remark/katex 绑定臂、`file://` Bridge 读臂、`createRichTextMarkdownFileName`（时间/随机）随旧栈废弃。
+`LEGACY_RICHTEXT_CARD_TYPE`（`RichTextCard`）兼容别名不迁移、不声明 `aliases`；旧栈绑定臂（自建扩展语法 schema、katex、`file://` Bridge 读臂、`createRichTextMarkdownFileName` 时间/随机命名）随旧栈废弃；Milkdown 以 RA-11 登记口径（`@milkdown/kit` 聚合包）重新引入，不搬旧绑定代码。
 
 ## 命令
 

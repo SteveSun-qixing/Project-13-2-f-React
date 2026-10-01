@@ -1,0 +1,20 @@
+id: chips.basecard.video
+version: 0.1.0
+type: basecard
+name: 视频基础卡片
+description: 在复合卡片中呈现视频内容节点：封面、标题与播放参数，查看态经平台资源打开链路交给视频播放器。
+license: MIT
+runtime:
+  targets:
+    - host
+permissions:
+  - resources:read
+capabilities:
+  cardTypes:
+    - id: base.video
+      name: 视频基础卡片
+      description: 视频资源内容节点，可配置视频与封面资源、外挂字幕轨、播放入口参数与标题、创作者、发布时间
+      icon: assets/icons/basecard-icon.svg
+      aliases:
+        - VideoCard
+      configSchema: assets/schemas/video-card-config.schema.json

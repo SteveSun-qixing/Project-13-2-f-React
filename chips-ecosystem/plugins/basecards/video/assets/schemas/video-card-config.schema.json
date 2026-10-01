@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "视频基础卡片配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "video_file": {
+      "type": "string",
+      "default": "",
+      "description": "视频资源在卡片根目录中的相对路径；非空时必须是合法的包内相对路径（由 validateConfig 补充校验）"
+    },
+    "cover_image": {
+      "type": "string",
+      "default": "",
+      "description": "封面图片资源在卡片根目录中的相对路径；未配置时查看态以视频首帧回退呈现"
+    },
+    "subtitles": {
+      "type": "array",
+      "default": [],
+      "description": "外挂字幕轨列表；同一视频卡片最多一个字幕轨 default 为 true（由插件归一）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "字幕轨唯一标识"
+          },
+          "label": {
+            "type": "string",
+            "description": "字幕轨展示名称，可选"
+          },
+          "language": {
+            "type": "string",
+            "description": "BCP 47 语言标识，可选，如 zh-CN / en-US"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["subtitles", "captions"],
+            "default": "subtitles",
+            "description": "字幕轨语义类型"
+          },
+          "file_path": {
+            "type": "string",
+            "description": "字幕文件在卡片根目录中的相对路径；条目存在时必填且必须合法（由 validateConfig 补充校验）"
+          },
+          "default": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否为默认字幕"
+          }
+        }
+      }
+    },
+    "playback": {
+      "type": "object",
+      "default": {},
+      "description": "播放入口参数；播放器应用可按能力选择消费",
+      "additionalProperties": false,
+      "properties": {
+        "autoplay": {
+          "type": "boolean",
+          "default": false
+        },
+        "loop": {
+          "type": "boolean",
+          "default": false
+        },
+        "muted": {
+          "type": "boolean",
+          "default": false
+        },
+        "playback_rate": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 4,
+          "default": 1
+        },
+        "start_time": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+    "video_title": {
+      "type": "string",
+      "default": "",
+      "description": "视频标题；为空时查看态从视频文件名派生展示标题"
+    },
+    "publish_time": {
+      "type": "string",
+      "default": "",
+      "description": "发布时间；非空时与创作者一起显示"
+    },
+    "creator": {
+      "type": "string",
+      "default": "",
+      "description": "创作者名称；非空时与发布时间一起显示"
+    }
+  }
+}

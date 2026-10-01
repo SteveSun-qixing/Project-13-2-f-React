@@ -2,8 +2,11 @@
   "name": "@chips/plugin-richtext",
   "version": "0.1.0",
   "private": true,
-  "description": "富文本基础卡片插件：Markdown 唯一持久化，查看态经 chips.service.markdown 契约消费",
+  "description": "富文本基础卡片插件：Markdown 唯一持久化，查看态经 chips.service.markdown 契约消费，编辑态经 Milkdown（RA-11）真编辑器回流",
   "type": "module",
+  "dependencies": {
+    "@milkdown/kit": "7.22.2"
+  },
   "scripts": {
     "build": "vite build --config vite.main.config.ts && vite build --config vite.render.config.ts",
     "test": "vitest run",

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "评分基础卡片配置",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "style": {
+      "type": "string",
+      "enum": ["stars", "hearts", "score", "progress"],
+      "default": "stars",
+      "description": "展示样式：星星、爱心、分数、进度条"
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0,
+      "description": "获得分数；星星与爱心样式必须为 0–5 的整数（总分固定 5）"
+    },
+    "total_score": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 100000,
+      "default": 5,
+      "description": "总分；取值 1–100000，星星与爱心样式固定为 5"
+    }
+  }
+}

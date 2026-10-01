@@ -2,7 +2,7 @@ id: chips.basecard.richtext
 version: 0.1.0
 type: basecard
 name: 富文本基础卡片
-description: 以 Markdown 为唯一持久化格式的富文本内容节点，查看态经 chips.service.markdown 渲染为安全 HTML。
+description: 以 Markdown 为唯一持久化格式的富文本内容节点，查看态经 chips.service.markdown 渲染为安全 HTML，编辑态经 Milkdown（RA-11）所见即所得编辑并按 IBaseCardEditor 契约回流。
 author: 薯片官方
 license: MIT
 runtime:

@@ -1,0 +1,19 @@
+id: chips.basecard.score
+version: 0.1.0
+type: basecard
+name: 评分基础卡片
+description: 在复合卡片中以星星、爱心、数字分数或进度条呈现评分内容节点。
+license: MIT
+runtime:
+  targets:
+    - host
+permissions: []
+capabilities:
+  cardTypes:
+    - id: base.score
+      name: 评分基础卡片
+      description: 用星星、爱心、数字分数或进度条展示评分数据，支持五分制符号样式与任意分制数值样式
+      icon: assets/icons/score.svg
+      aliases:
+        - ScoreCard
+      configSchema: assets/schemas/score-card-config.schema.json

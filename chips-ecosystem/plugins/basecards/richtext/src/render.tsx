@@ -15,13 +15,20 @@ import { RichTextView } from './view';
 import { RichTextEditorView, buildEditorChange } from './editor';
 import type { IRichTextDraft } from './editor';
 import { readContent } from './config';
+import {
+  focusRichTextEditor,
+  insertTextIntoRichTextEditor,
+  replaceRichTextDocument,
+} from './milkdown/engine';
+import type { MilkdownEditor } from './milkdown/engine';
 
 /**
  * 渲染入口（08-基础卡片插件接口 §2.5）：承载 `renderView` / `renderEditor`，
- * 构建为 `render.js`；React 与 `@chips/ui` 外部化为平台 vendor 引用。
+ * 构建为 `render.js`；React 与 `@chips/ui` 外部化为平台 vendor 引用，Milkdown
+ * （RA-11）随包构建进入渲染面。
  *
- * 容器生命周期（旧 `container-lifecycle.ts` 迁移归宿）：同一容器多次调用时先释放
- * 上一次挂载并覆盖内容；返回的释放句柄幂等（§2.4.1 规则 3~5）。
+ * 容器生命周期：同一容器多次调用时先释放上一次挂载并覆盖内容；返回的释放句柄幂等
+ * （§2.4.1 规则 3~5）。
  */
 
 // ---------- 查看态：renderView ----------
@@ -62,9 +69,12 @@ function renderView(basecard: BaseCardView, container: HTMLElement): Dispose {
 /**
  * 基础卡片编辑器句柄（08 §4.1、§4.2）。
  *
+ * 编辑引擎 = Milkdown（用户裁决 2026-10-01 第 3 项；RA-11）：ProseMirror 实例经
+ * `./milkdown/engine` 唯一装配点挂载，序列化回流经草稿通道进入本句柄。
+ *
  * 回流唯一时序（08 §4.3 规则 1）：`getChange()` → 编辑链路校验 → `document:write` →
  * 渲染会话 `update(view, revision)` → `markCommitted(revision)`；
- * 编辑器不负责保存，`dispose()` 丢弃待提交变更且不发布事件（08 §4.3 规则 9）。
+ * 编辑器不负责保存（不写文件），`dispose()` 丢弃待提交变更且不发布事件（08 §4.3 规则 9）。
  */
 class RichTextEditor implements IBaseCardEditor {
   public state: EditorState = 'active';
@@ -73,6 +83,7 @@ class RichTextEditor implements IBaseCardEditor {
   private revision: number;
   private pending: BaseCardChange | null = null;
   private dirty = false;
+  private milkdown: MilkdownEditor | null = null;
   private readonly host: HTMLElement;
   private readonly root: Root;
   private readonly changeHandlers = new Set<(payload: IBaseCardEditorEventMap['change']) => void>();
@@ -145,18 +156,46 @@ class RichTextEditor implements IBaseCardEditor {
     if (this.state !== 'active') {
       return;
     }
-    this.host.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+    if (this.milkdown !== null) {
+      focusRichTextEditor(this.milkdown);
+      return;
+    }
+    // 引擎仍在异步装载时的兜底：编辑面已挂载即可聚焦，装载完成前为空操作。
+    this.host.querySelector<HTMLElement>('.ProseMirror')?.focus();
   }
   public dispose(): void {
     if (this.state === 'disposed') {
       return;
     }
+    this.milkdown = null;
     this.root.unmount();
     this.changeHandlers.clear();
     this.dirtyHandlers.clear();
     this.pending = null;
     this.dirty = false;
     this.state = 'disposed';
+  }
+
+  /**
+   * 程序化编辑入口（宿主驱动/测试面）：在首个文本块选择处插入文本；
+   * 与键入同一事务路径（transaction → state → listener 序列化 → 草稿 → 待提交变更）。
+   */
+  public insertText(text: string): void {
+    if (this.state !== 'active' || this.milkdown === null) {
+      return;
+    }
+    insertTextIntoRichTextEditor(this.milkdown, text);
+  }
+
+  /**
+   * 程序化全文替换（宿主驱动/测试面）：以 Markdown 源文整体替换文档，
+   * 与 `update()` 基线替换同构，经同一事务路径触发序列化回流。
+   */
+  public replaceDocument(markdown: string): void {
+    if (this.state !== 'active' || this.milkdown === null) {
+      return;
+    }
+    replaceRichTextDocument(this.milkdown, markdown);
   }
 
   private mount(): void {
@@ -167,10 +206,17 @@ class RichTextEditor implements IBaseCardEditor {
           content={this.base}
           contentSource={this.contentSource}
           onDraftChange={this.handleDraftChange}
+          onMilkdownReady={this.handleMilkdownReady}
         />
       );
     });
   }
+  private readonly handleMilkdownReady = (editor: MilkdownEditor): void => {
+    if (this.state !== 'active') {
+      return;
+    }
+    this.milkdown = editor;
+  };
   private readonly handleDraftChange = (draft: IRichTextDraft): void => {
     if (this.state !== 'active') {
       return;
