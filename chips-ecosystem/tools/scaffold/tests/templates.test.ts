@@ -256,7 +256,6 @@ describe.each(['basecard', 'boxlayout', 'app', 'service'] as const)('%s 模板',
         continue;
       }
       expect(content, `${path} 必须使用 Design Tokens`).toContain('theme.useToken()');
-      expect(content, `${path} 不得使用 InputNumber`).not.toContain('InputNumber');
     }
   });
 

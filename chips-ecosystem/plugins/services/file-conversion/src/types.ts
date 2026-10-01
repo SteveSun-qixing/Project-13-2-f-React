@@ -3,8 +3,8 @@
  *
  * 输入/输出形状权威：`contracts/file-convert.input.schema.json` 与
  * `contracts/file-convert.output.schema.json`；链路腿能力归属权威：
- * 04-能力契约规范 §8.4（content-converter 三登记项；编排角色本身无在册 ID，
- * 见 descriptor.ts 头注）。兄弟服务以消费方自有端口视图声明（结构化类型对接
+ * 04-能力契约规范 §8.4（content-converter 三登记项；编排角色
+ * `content-file-conversion.convert` 同表在册）。兄弟服务以消费方自有端口视图声明（结构化类型对接
  * 提供方契约），本包不 import 兄弟插件任何内部模块——服务互调经 ctx.inject
  * 正式面注入运行时对象（06-服务插件开发指南 §4.1）。
  */

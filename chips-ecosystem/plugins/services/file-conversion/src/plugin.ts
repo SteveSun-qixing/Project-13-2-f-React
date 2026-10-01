@@ -2,8 +2,8 @@
  * 服务插件入口实现（10-服务插件接口 §2 `IServicePlugin`）。
  *
  * 编排能力以 Cordis 服务形态提供，服务名 `content-file-conversion`
- * （04-能力契约规范 §8.2 文法自洽推导；§8.4 无编排角色在册 ID，
- * 见 descriptor.ts 头注与 W4 迁移日志）。兄弟服务经 `ctx.inject` 正式面注入
+ * （编排能力 ID `content-file-conversion.convert` 已入 §8.4 正表，
+ * 见 descriptor.ts 头注与 RFC 裁定记录）。兄弟服务经 `ctx.inject` 正式面注入
  * （06-服务插件开发指南 §4.1）：提供方未就绪时不注册本服务、不假接线；
  * 注入回调内完成装配与注册，服务代际随依赖 Fork 更替。
  */

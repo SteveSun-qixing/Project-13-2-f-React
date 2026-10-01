@@ -1,14 +1,18 @@
 /**
  * 文件转换编排服务：登记描述符与常量。
  *
- * 链路腿能力 ID 使用 04-能力契约规范 §8.4 登记的 canonical 值（一经登记即稳定）；
- * 编排角色本身在 §8.4 无在册能力 ID（旧 `converter.file.convert` 明文不登记，转换编排
- * 归 file-processing 会话层），本服务名 `content-file-conversion` 按 §8.2 文法自洽推导，
- * 候登记维护流程（RFC）收口——不冒用在册 ID，服务对象不携带 capabilityId。
+ * 链路腿与编排能力 ID 均为 04-能力契约规范 §8.4 登记的 canonical 值（一经登记即稳定）：
+ * 编排角色 `content-file-conversion.convert` 已按《RFC-file-processing转换编排域命名裁定》
+ * （用户裁决 B1 案，2026-10-01）入册 §8.4 正表，描述符随包发布
+ * （`contracts/descriptor.json`，对齐 cardtohtml 八字段判例）；旧 `converter.file.convert`
+ * 维持不登记，处置行记「已替代」。
  */
 
-/** 提供方插件 ID（09-官方插件与应用目录 §6.2 处置行；候目录回写）。 */
+/** 提供方插件 ID（09-官方插件与应用目录 §6.1/§6.2）。 */
 export const FILE_CONVERSION_PLUGIN_ID = 'chips.service.file-conversion';
+
+/** 编排能力 ID（§8.4 登记项，RFC 裁定 B1 案转正）。 */
+export const FILE_CONVERSION_CAPABILITY_ID = 'content-file-conversion.convert';
 
 /** 本插件注册的 Cordis 服务名（内核服务文法 `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`）。 */
 export const FILE_CONVERSION_SERVICE_NAME = 'content-file-conversion';

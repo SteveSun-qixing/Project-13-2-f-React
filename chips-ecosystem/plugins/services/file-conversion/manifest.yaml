@@ -2,7 +2,7 @@ id: chips.service.file-conversion
 version: 0.1.0
 type: service
 name: 文件转换编排服务
-description: 经 Cordis 服务互调编排 content-converter / content-html-to-pdf / content-html-to-image 兄弟服务，承接卡片与 HTML 来源到 HTML / PDF / 图片目标的转换链路规划与产物提交的内容处理服务。
+description: 经 Cordis 服务互调编排 content-converter / content-html-to-pdf / content-html-to-image 兄弟服务，承接卡片与 HTML 来源到 HTML / PDF / 图片目标的转换链路规划与产物提交的内容处理服务（编排能力 content-file-conversion.convert，§8.4 在册）。
 author: 薯片官方
 license: MIT
 runtime:

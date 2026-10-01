@@ -48,6 +48,8 @@ export { Image } from 'antd';
 export type { ImageProps } from 'antd';
 export { Input } from 'antd';
 export type { InputProps, InputRef } from 'antd';
+export { InputNumber } from 'antd';
+export type { InputNumberProps } from 'antd';
 
 export { List } from 'antd';
 export type { ListProps } from 'antd';

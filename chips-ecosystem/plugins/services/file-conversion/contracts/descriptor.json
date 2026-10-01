@@ -1,0 +1,23 @@
+{
+  "id": "content-file-conversion.convert",
+  "service": "content-file-conversion",
+  "provider": "chips.service.file-conversion",
+  "operations": [
+    "convert"
+  ],
+  "sourceFormats": [
+    "card",
+    "html"
+  ],
+  "targetFormats": [
+    "html",
+    "pdf",
+    "image"
+  ],
+  "streaming": {
+    "input": false,
+    "output": false
+  },
+  "maxInlineInputBytes": 8388608,
+  "contractPackage": "chips.service.file-conversion/contracts"
+}

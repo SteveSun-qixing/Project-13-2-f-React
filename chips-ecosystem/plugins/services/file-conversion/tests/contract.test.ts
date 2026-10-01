@@ -11,6 +11,7 @@ import {
   CARD_TO_HTML_CAPABILITY_ID,
   FILE_CONVERSION_PLUGIN_ID,
   FILE_CONVERSION_SERVICE_NAME,
+  FILE_CONVERSION_CAPABILITY_ID,
   HTML_TO_IMAGE_CAPABILITY_ID,
   HTML_TO_PDF_CAPABILITY_ID,
 } from '../src/descriptor.js';
@@ -32,12 +33,26 @@ describe('服务身份（能力 ID 在册性核对结论的机检锁定）', () 
     expect(HTML_TO_IMAGE_CAPABILITY_ID).toBe('content-converter.html-to-image');
   });
 
-  it('编排服务名与插件 ID：§8.4 未登记编排能力，命名按 §8.2 文法自洽（候 RFC 收口）', () => {
+  it('编排能力 §8.4 在册：descriptor.json 八字段与登记行一致（RFC B1 案转正，2026-10-01）', () => {
     expect(FILE_CONVERSION_SERVICE_NAME).toMatch(/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/);
     expect(FILE_CONVERSION_SERVICE_NAME.startsWith('content-')).toBe(true);
     expect(FILE_CONVERSION_PLUGIN_ID).toMatch(/^chips\.service\.[a-z0-9-]+$/);
-    // 不冒用在册能力 ID：本服务对象不携带 capabilityId（executor 面无该字段）
     expect(FILE_CONVERSION_SERVICE_NAME).not.toBe('content-converter');
+    // §8.4 正表登记行 ↔ 描述符逐字段恰等（04-能力契约规范 §8.4：content-file-conversion.convert）
+    const descriptor = readJson('contracts/descriptor.json');
+    expect(descriptor).toEqual({
+      id: 'content-file-conversion.convert',
+      service: 'content-file-conversion',
+      provider: 'chips.service.file-conversion',
+      operations: ['convert'],
+      sourceFormats: ['card', 'html'],
+      targetFormats: ['html', 'pdf', 'image'],
+      streaming: { input: false, output: false },
+      maxInlineInputBytes: 8388608,
+      contractPackage: 'chips.service.file-conversion/contracts',
+    });
+    expect(FILE_CONVERSION_CAPABILITY_ID).toBe(descriptor.id);
+    expect(FILE_CONVERSION_CAPABILITY_ID).toMatch(/^content-[a-z0-9-]+\.[a-z0-9-]+$/);
   });
 });
 
