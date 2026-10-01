@@ -11991,3 +11991,7 @@
 2026-10-01 08:10:42	cmd=dispose-batch  owner=w4-b1-lead               rows=11     disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/editor notes=W5 应用波回写（target 精确化） 目录组=4 跳过=0
 2026-10-01 08:10:42	cmd=dispose-batch  owner=w4-b1-lead               rows=8      disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/notes notes=W5 应用波回写（target 精确化） 目录组=2 跳过=0
 2026-10-01 08:10:42	cmd=dispose-batch  owner=w4-b1-lead               rows=4      disposition=迁移 status=进行中 target=chips-ecosystem/plugins/apps/settings notes=W5 应用波回写（target 精确化） 目录组=1 跳过=0
+2026-10-01 14:54:06	cmd=release        owner=ledger-plugins           rows=38     files=38 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=38
+2026-10-01 14:54:06	cmd=dispose-batch  owner=w4-b1-lead               rows=13     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/score notes=W4 基础卡族 9/9 收口：整包迁移四闸+cpk 校验全绿（提交 ade12508e） 目录组=9 跳过=0
+2026-10-01 14:54:06	cmd=release        owner=ledger-plugins           rows=34     files=34 symbols=0 keep_disposition=True 仓库分布=Chips-BaseCardPlugin=34
+2026-10-01 14:54:06	cmd=dispose-batch  owner=w4-b1-lead               rows=14     disposition=迁移 status=已完成 target=chips-ecosystem/plugins/basecards/video notes=W4 基础卡族 9/9 收口：整包迁移四闸+cpk 校验全绿（提交 ade12508e） 目录组=10 跳过=0

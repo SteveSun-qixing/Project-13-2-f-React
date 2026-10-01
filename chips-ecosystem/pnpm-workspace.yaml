@@ -1,5 +1,7 @@
 packages:
   - 'packages/*'
+  - 'server/community/packages/*'
+  - 'server/personal/packages/*'
   - 'plugins/*'
   - 'plugins/*/*'
   - 'tools/*'
