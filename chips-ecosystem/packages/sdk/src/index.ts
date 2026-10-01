@@ -307,7 +307,7 @@ export type {
    唯一入口，12 §3.1 规则 1；应用插件经 IEditEngine.open 打开会话、把 session.preview
    挂载到自身容器，12 §3.3 规则 3），预览会话权威见 05-渲染引擎设计 §2.4。
    类型面落位在 `./edit/index.js` 域（工单036 残段 T1），此处按 §2.2 分类口径再导出；
-   受管门面 `IPluginRuntime`（12 §4.1）禁止应用插件持有（12 §4.1 规则 1）且主入口同名
+   受管门面 `IManagedPluginRuntime`（12 §4.1）禁止应用插件持有（12 §4.1 规则 1）且主入口同名
    已被 manifest runtime 声明占用（下方 manifest 块），历史记录模型（12 §7.2）归编辑链路
    持有，两者只经 `@chips/sdk` 包内 `./edit/index.js` 在册、不经主入口导出。
    `EDIT_*` 错误域为生成契约常量（12 §9.2 新增表，`generated/error-codes.ts` 单源）。 */

@@ -5,7 +5,7 @@
  * - 全部类型名与成员按 12 §3.1 原文逐字落位；字段级与文档库契约分件的对照由
  *   `tests/edit-contract-lock.test.ts` 锁定（任一侧漂移即确定性翻红）；
  * - `IEditSession` 是编辑链路对应用插件的**唯一入口**（12 §3.1 规则 1）：应用插件不得持有
- *   `IPluginRuntime`、文档会话或帧对象自行编排回流；
+ *   `IManagedPluginRuntime`、文档会话或帧对象自行编排回流；
  * - 编辑句柄 `IBaseCardEditor` / `ILayoutEditor` 的权威定义在 08 §4.1 / 09 §7.1
  *   （本模块引用 `types/roles/*` 既有单点，不复制形状；SDK 分别导出两者，
  *   不导出笼统的 `IEditor`）；

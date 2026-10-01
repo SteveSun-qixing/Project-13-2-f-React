@@ -5,7 +5,7 @@
  * 各类型的权威与契约出处见各模块头注：
  * - `./session.js`：编辑会话 `IEditEngine` / `IEditSession` 与事件、请求、条目、元数据类型
  *   （12-编辑引擎设计 §三）；
- * - `./facade.js`：渲染侧插件装载受管门面 `IPluginRuntime`（12 §4.1）；
+ * - `./facade.js`：渲染侧插件装载受管门面 `IManagedPluginRuntime`（12 §4.1）；
  * - `./history.js`：撤销/重做历史记录模型 `EditHistoryEntry` / `ChangePayload` /
  *   `EditPayloadPart`（12 §7.2）；
  * - 编辑句柄 `IBaseCardEditor`（08 §4.1）与 `ILayoutEditor`（09 §7.1）及其变更载荷、
@@ -27,7 +27,7 @@ export type {
   MetadataPatch,
 } from './session.js';
 
-export type { IPluginRuntime } from './facade.js';
+export type { IManagedPluginRuntime } from './facade.js';
 
 export type { ChangePayload, EditHistoryEntry, EditPayloadPart } from './history.js';
 

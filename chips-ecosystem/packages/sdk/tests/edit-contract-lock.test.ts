@@ -38,7 +38,7 @@ import type {
   LayoutChange,
 } from '../src/types/roles/boxlayout.js';
 import type { BaseCardView, BoxRenderView } from '../src/types/views.js';
-import type { ChangePayload, EditHistoryEntry, IPluginRuntime } from '../src/edit/index.js';
+import type { ChangePayload, EditHistoryEntry, IManagedPluginRuntime } from '../src/edit/index.js';
 
 /** 文档库两目录（相对 `tests/` 的四级回退到仓库根，host 判例同口径）。 */
 const DOC_SUBSYSTEM = '../../../../薯片生态文档库/01-架构设计/01-子系统设计/';
@@ -120,19 +120,19 @@ describe('编辑会话契约（12.03 §3.1）逐成员锁', () => {
 });
 
 describe('渲染侧受管门面契约（12.04 §4.1）逐成员锁', () => {
-  it('IPluginRuntime 逐成员恰等，门面返回即角色接口单点', () => {
-    expectMembersLocked(DOC_12_04, SRC_FACADE, 'IPluginRuntime');
-    expectTypeOf<IPluginRuntime['loadBaseCard']>().toEqualTypeOf<
+  it('IManagedPluginRuntime 逐成员恰等，门面返回即角色接口单点', () => {
+    expectMembersLocked(DOC_12_04, SRC_FACADE, 'IManagedPluginRuntime');
+    expectTypeOf<IManagedPluginRuntime['loadBaseCard']>().toEqualTypeOf<
       (cardType: string) => Promise<IBaseCardPlugin>
     >();
-    expectTypeOf<IPluginRuntime['loadLayout']>().toEqualTypeOf<
+    expectTypeOf<IManagedPluginRuntime['loadLayout']>().toEqualTypeOf<
       (layoutType: string) => Promise<IBoxLayoutPlugin>
     >();
   });
 
   it('同名不同物锁：编辑链路受管门面非 manifest runtime 声明（{targets, background}）', () => {
     type HasTargets<T> = T extends { targets: unknown } ? true : false;
-    expectTypeOf<HasTargets<IPluginRuntime>>().toEqualTypeOf<false>();
+    expectTypeOf<HasTargets<IManagedPluginRuntime>>().toEqualTypeOf<false>();
     expectTypeOf<HasTargets<sdkMain.IPluginRuntime>>().toEqualTypeOf<true>();
   });
 });
@@ -288,7 +288,7 @@ describe('主入口与编辑链路类型域出口的在册名单锁（偏差注�
         'IEditSession',
         'MetadataPatch',
       ],
-      ['IPluginRuntime'],
+      ['IManagedPluginRuntime'],
       ['ChangePayload', 'EditHistoryEntry', 'EditPayloadPart'],
       ['BaseCardChange', 'IBaseCardEditor', 'IBaseCardEditorEventMap', 'ICardPatchOperation'],
       ['ILayoutEditor', 'ILayoutEditorEventMap', 'ILayoutPatchOperation', 'LayoutChange'],
@@ -308,7 +308,7 @@ describe('主入口与编辑链路类型域出口的在册名单锁（偏差注�
       ...parseExportTypeNames(SRC_INDEX, './edit/index.js'),
       ...parseExportTypeNames(SRC_INDEX, './types/render-session.js'),
     ];
-    expect(mainBlocks).not.toContain('IPluginRuntime');
+    expect(mainBlocks).not.toContain('IManagedPluginRuntime');
     expect(mainBlocks).not.toContain('EditHistoryEntry');
     expect(mainBlocks).not.toContain('ChangePayload');
     expect(mainBlocks).not.toContain('EditPayloadPart');
