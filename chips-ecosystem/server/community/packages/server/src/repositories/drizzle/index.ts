@@ -1,4 +1,17 @@
-import { and, count, desc, eq, ilike, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import type { CommunityDb } from '../../db/client.js';
 import {
   boxes,
@@ -239,32 +252,32 @@ class DrizzleRoomRepository implements RoomRepository {
       .orderBy(desc(rooms.createdAt));
   }
 
-  private visiblePredicate(userId: string, includeAll: boolean) {
+  private visiblePredicate(userId: string, includeAll: boolean): SQL<unknown> | undefined {
     return includeAll
       ? eq(rooms.userId, userId)
       : and(eq(rooms.userId, userId), eq(rooms.visibility, 'public'));
   }
 }
 
-function cardVisibleByUser(userId: string, includeAll: boolean) {
+function cardVisibleByUser(userId: string, includeAll: boolean): SQL<unknown> | undefined {
   return includeAll
     ? eq(cards.userId, userId)
     : and(eq(cards.userId, userId), eq(cards.visibility, 'public'), eq(cards.status, 'ready'));
 }
 
-function cardVisibleByRoom(roomId: string, includeAll: boolean) {
+function cardVisibleByRoom(roomId: string, includeAll: boolean): SQL<unknown> | undefined {
   return includeAll
     ? eq(cards.roomId, roomId)
     : and(eq(cards.roomId, roomId), eq(cards.visibility, 'public'), eq(cards.status, 'ready'));
 }
 
-function boxVisibleByUser(userId: string, includeAll: boolean) {
+function boxVisibleByUser(userId: string, includeAll: boolean): SQL<unknown> | undefined {
   return includeAll
     ? eq(boxes.userId, userId)
     : and(eq(boxes.userId, userId), eq(boxes.visibility, 'public'), eq(boxes.status, 'ready'));
 }
 
-function boxVisibleByRoom(roomId: string, includeAll: boolean) {
+function boxVisibleByRoom(roomId: string, includeAll: boolean): SQL<unknown> | undefined {
   return includeAll
     ? eq(boxes.roomId, roomId)
     : and(eq(boxes.roomId, roomId), eq(boxes.visibility, 'public'), eq(boxes.status, 'ready'));
@@ -596,7 +609,7 @@ class DrizzleIdempotencyRepository implements IdempotencyRepository {
   ): Promise<void> {
     await this.db
       .update(idempotencyRecords)
-      .set({ statusCode: result.statusCode, responseBody: result.responseBody as never })
+      .set({ statusCode: result.statusCode, responseBody: result.responseBody })
       .where(
         and(
           eq(idempotencyRecords.accountId, accountId),

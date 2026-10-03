@@ -39,7 +39,7 @@ describe('箱子内容只读域契约', () => {
         cardFileId: 'commCard02',
         status: 'ready',
         visibility: 'private',
-      }),
+      })
     );
     harness.state.boxes.push(
       fixtureBox({
@@ -64,7 +64,7 @@ describe('箱子内容只读域契约', () => {
             snapshot: { title: '未命中条目', document_id: 'commCard02', content_type: 'chips/box' },
           },
         ],
-      }),
+      })
     );
   });
 
@@ -78,7 +78,7 @@ describe('箱子内容只读域契约', () => {
       url: '/api/v1/boxes/box-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     });
     expect(response.statusCode).toBe(200);
-    const body = response.json() as { data: Record<string, unknown> };
+    const body = response.json<{ data: Record<string, unknown> }>();
     expect(Object.keys(body.data).sort()).toEqual([
       'activeLayoutType',
       'boxFileId',
@@ -101,7 +101,9 @@ describe('箱子内容只读域契约', () => {
       'visibility',
     ]);
     expect(body.data['activeLayoutType']).toBe('chips.layout.grid');
-    expect(body.data['documentUrl']).toBe('/api/v1/boxes/box-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/view');
+    expect(body.data['documentUrl']).toBe(
+      '/api/v1/boxes/box-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/view'
+    );
 
     const entries = body.data['entries'] as Array<Record<string, unknown>>;
     expect(entries).toHaveLength(3);
@@ -153,11 +155,14 @@ describe('箱子内容只读域契约', () => {
         userId: author.userId,
         name: '私密箱子',
         visibility: 'private',
-      }),
+      })
     );
-    const anon = await app.inject({ method: 'GET', url: '/api/v1/boxes/box-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' });
+    const anon = await app.inject({
+      method: 'GET',
+      url: '/api/v1/boxes/box-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    });
     expect(anon.statusCode).toBe(404);
-    expect((anon.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_BOX_NOT_FOUND');
+    expect(anon.json<{ error: { code: string } }>().error.code).toBe('COMMUNITY_BOX_NOT_FOUND');
     const self = await app.inject({
       method: 'GET',
       url: '/api/v1/boxes/box-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -183,7 +188,7 @@ describe('房间只读契约', () => {
         name: '旅行房间',
         slug: 'travel',
         description: '公开房间',
-      }),
+      })
     );
     harness.state.cards.push(
       fixtureCard({
@@ -205,7 +210,7 @@ describe('房间只读契约', () => {
         status: 'pending',
         visibility: 'public',
         createdAt: new Date(Date.parse('2026-09-21T00:00:00.000Z')),
-      }),
+      })
     );
     harness.state.boxes.push(
       fixtureBox({
@@ -216,7 +221,7 @@ describe('房间只读契约', () => {
         status: 'ready',
         visibility: 'public',
         createdAt: new Date(Date.parse('2026-09-22T00:00:00.000Z')),
-      }),
+      })
     );
   });
 
@@ -230,10 +235,11 @@ describe('房间只读契约', () => {
       url: '/api/v1/rooms/room-cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     });
     expect(anon.statusCode).toBe(200);
-    const body = anon.json() as { data: Record<string, unknown> };
+    const body = anon.json<{ data: Record<string, unknown> }>();
+    // ICommunityRoom 字段集（契约 §4.4）；断言按字母序排列。
     expect(Object.keys(body.data).sort()).toEqual([
-      'cardCount',
       'boxCount',
+      'cardCount',
       'coverUrl',
       'createdAt',
       'description',
@@ -253,21 +259,23 @@ describe('房间只读契约', () => {
       url: '/api/v1/rooms/room-cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       headers: authHeader(owner.accessToken),
     });
-    const selfBody = self.json() as { data: { cardCount: number; boxCount: number } };
+    const selfBody = self.json<{ data: { cardCount: number; boxCount: number } }>();
     // 本人视角：全量计数（含未就绪）
     expect(selfBody.data.cardCount).toBe(2);
   });
 
   it('GET /rooms/:roomId/contents：type 区分的混排分页视图，createdAt 倒序', async () => {
+    // owner 视角：total=3（含未就绪卡片，§4.1 本人列表口径）
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/rooms/room-cccccccc-cccc-4ccc-8ccc-cccccccccccc/contents?page=1&pageSize=2',
+      headers: authHeader(owner.accessToken),
     });
     expect(response.statusCode).toBe(200);
-    const body = response.json() as {
+    const body = response.json<{
       data: Array<{ type: string; id?: string }>;
       pagination: { page: number; pageSize: number; total: number; totalPages: number };
-    };
+    }>();
     expect(body.pagination).toEqual({ page: 1, pageSize: 2, total: 3, totalPages: 2 });
     expect(body.data).toHaveLength(2);
     // 倒序：箱子（09-22）→ 未就绪卡片（09-21，owner 视角才可见；访客视角 total=2）
@@ -275,7 +283,10 @@ describe('房间只读契约', () => {
       method: 'GET',
       url: '/api/v1/rooms/room-cccccccc-cccc-4ccc-8ccc-cccccccccccc/contents?page=1&pageSize=2',
     });
-    const anonBody = anon.json() as { data: Array<{ type: string; id: string }>; pagination: { total: number } };
+    const anonBody = anon.json<{
+      data: Array<{ type: string; id: string }>;
+      pagination: { total: number };
+    }>();
     expect(anonBody.pagination.total).toBe(2);
     expect(anonBody.data[0]).toMatchObject({ type: 'box', id: 'box-room-1' });
     expect(anonBody.data[1]).toMatchObject({ type: 'card', id: 'card-room-1' });
@@ -289,11 +300,14 @@ describe('房间只读契约', () => {
         name: '私密房间',
         slug: 'secret',
         visibility: 'private',
-      }),
+      })
     );
-    const anon = await app.inject({ method: 'GET', url: '/api/v1/rooms/room-dddddddd-dddd-4ddd-8ddd-dddddddddddd' });
+    const anon = await app.inject({
+      method: 'GET',
+      url: '/api/v1/rooms/room-dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    });
     expect(anon.statusCode).toBe(404);
-    expect((anon.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_ROOM_NOT_FOUND');
+    expect(anon.json<{ error: { code: string } }>().error.code).toBe('COMMUNITY_ROOM_NOT_FOUND');
     const self = await app.inject({
       method: 'GET',
       url: '/api/v1/rooms/room-dddddddd-dddd-4ddd-8ddd-dddddddddddd',
@@ -340,7 +354,7 @@ describe('发现与检索契约（§4.7、§6.1）', () => {
         status: 'ready',
         visibility: 'private',
         createdAt: new Date(Date.parse('2026-09-03T00:00:00.000Z')),
-      }),
+      })
     );
     harness.state.boxes.push(
       fixtureBox({
@@ -351,7 +365,7 @@ describe('发现与检索契约（§4.7、§6.1）', () => {
         status: 'ready',
         visibility: 'public',
         createdAt: new Date(Date.parse('2026-09-04T00:00:00.000Z')),
-      }),
+      })
     );
   });
 
@@ -362,17 +376,17 @@ describe('发现与检索契约（§4.7、§6.1）', () => {
   it('GET /discover/cards：公开就绪、createdAt 倒序、pagination 四字段', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/v1/discover/cards' });
     expect(response.statusCode).toBe(200);
-    const body = response.json() as {
+    const body = response.json<{
       data: Array<{ id: string; name: string }>;
       pagination: { page: number; pageSize: number; total: number; totalPages: number };
-    };
+    }>();
     expect(body.data.map((card) => card.id)).toEqual(['card-disc-2', 'card-disc-1']);
     expect(body.pagination).toEqual({ page: 1, pageSize: 20, total: 2, totalPages: 1 });
   });
 
   it('GET /discover/boxes 同口径', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/v1/discover/boxes' });
-    const body = response.json() as { data: Array<{ id: string }>; pagination: { total: number } };
+    const body = response.json<{ data: Array<{ id: string }>; pagination: { total: number } }>();
     expect(body.data.map((box) => box.id)).toEqual(['box-disc-1']);
     expect(body.pagination.total).toBe(1);
   });
@@ -380,14 +394,20 @@ describe('发现与检索契约（§4.7、§6.1）', () => {
   it('非法分页参数 → 400 COMMUNITY_VALIDATION_ERROR；超出总页数 → 空数组与正确分页对象', async () => {
     const bad = await app.inject({ method: 'GET', url: '/api/v1/discover/cards?page=0' });
     expect(bad.statusCode).toBe(400);
-    expect((bad.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_VALIDATION_ERROR');
+    expect(bad.json<{ error: { code: string } }>().error.code).toBe('COMMUNITY_VALIDATION_ERROR');
 
     const badSize = await app.inject({ method: 'GET', url: '/api/v1/discover/cards?pageSize=101' });
     expect(badSize.statusCode).toBe(400);
 
-    const beyond = await app.inject({ method: 'GET', url: '/api/v1/discover/cards?page=99&pageSize=20' });
+    const beyond = await app.inject({
+      method: 'GET',
+      url: '/api/v1/discover/cards?page=99&pageSize=20',
+    });
     expect(beyond.statusCode).toBe(200);
-    const body = beyond.json() as { data: unknown[]; pagination: { page: number; total: number; totalPages: number } };
+    const body = beyond.json<{
+      data: unknown[];
+      pagination: { page: number; total: number; totalPages: number };
+    }>();
     expect(body.data).toEqual([]);
     expect(body.pagination).toMatchObject({ page: 99, total: 2, totalPages: 1 });
   });
@@ -395,19 +415,22 @@ describe('发现与检索契约（§4.7、§6.1）', () => {
   it('GET /search：type 缺省 card；按名称与标签匹配；只含公开内容', async () => {
     const defaultType = await app.inject({ method: 'GET', url: '/api/v1/search?q=东京' });
     expect(defaultType.statusCode).toBe(200);
-    const defaultBody = defaultType.json() as { data: Array<{ id: string }> };
+    const defaultBody = defaultType.json<{ data: Array<{ id: string }> }>();
     expect(defaultBody.data.map((card) => card.id)).toEqual(['card-disc-1']);
 
     const byTag = await app.inject({ method: 'GET', url: '/api/v1/search?q=旅行&type=card' });
-    const byTagBody = byTag.json() as { data: Array<{ id: string }> };
+    const byTagBody = byTag.json<{ data: Array<{ id: string }> }>();
     expect(byTagBody.data.map((card) => card.id)).toEqual(['card-disc-1']);
 
     const boxSearch = await app.inject({ method: 'GET', url: '/api/v1/search?q=东京&type=box' });
-    const boxBody = boxSearch.json() as { data: Array<{ id: string }> };
+    const boxBody = boxSearch.json<{ data: Array<{ id: string }> }>();
     expect(boxBody.data.map((box) => box.id)).toEqual(['box-disc-1']);
 
-    const userSearch = await app.inject({ method: 'GET', url: '/api/v1/search?q=finder&type=user' });
-    const userBody = userSearch.json() as { data: Array<{ username: string; email?: string }> };
+    const userSearch = await app.inject({
+      method: 'GET',
+      url: '/api/v1/search?q=finder&type=user',
+    });
+    const userBody = userSearch.json<{ data: Array<{ username: string; email?: string }> }>();
     expect(userBody.data).toHaveLength(1);
     expect(userBody.data[0]?.username).toBe('finder');
     expect(userBody.data[0]?.email).toBeUndefined();
@@ -419,7 +442,9 @@ describe('发现与检索契约（§4.7、§6.1）', () => {
   it('GET /search：q 去首尾空白后长度不足 1 → COMMUNITY_VALIDATION_ERROR', async () => {
     const missing = await app.inject({ method: 'GET', url: '/api/v1/search' });
     expect(missing.statusCode).toBe(400);
-    expect((missing.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_VALIDATION_ERROR');
+    expect(missing.json<{ error: { code: string } }>().error.code).toBe(
+      'COMMUNITY_VALIDATION_ERROR'
+    );
     const blank = await app.inject({ method: 'GET', url: '/api/v1/search?q=%20%20' });
     expect(blank.statusCode).toBe(400);
   });

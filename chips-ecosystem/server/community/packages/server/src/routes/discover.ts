@@ -21,10 +21,7 @@ export interface DiscoverRouteDeps {
 export const SEARCH_TYPE_VALUES = ['card', 'box', 'user'] as const;
 export type SearchType = (typeof SEARCH_TYPE_VALUES)[number];
 
-export async function discoverRoutes(
-  fastify: FastifyInstance,
-  deps: DiscoverRouteDeps
-): Promise<void> {
+export function discoverRoutes(fastify: FastifyInstance, deps: DiscoverRouteDeps): void {
   const { repositories, cardService, boxService, userService } = deps;
 
   fastify.get('/api/v1/discover/cards', { config: { etag: true } }, async (request) => {

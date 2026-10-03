@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { buildApp, type ServerDeps } from '../../src/app.js';
 import { HealthRegistry } from '../../src/routes/health.js';
@@ -44,7 +45,15 @@ export interface FakeState {
 }
 
 export function createFakeState(): FakeState {
-  return { users: [], rooms: [], cards: [], boxes: [], renderCaches: [], refreshSessions: [], idempotency: [] };
+  return {
+    users: [],
+    rooms: [],
+    cards: [],
+    boxes: [],
+    renderCaches: [],
+    refreshSessions: [],
+    idempotency: [],
+  };
 }
 
 function byCreatedAtDesc<T extends { createdAt: Date }>(left: T, right: T): number {
@@ -67,31 +76,34 @@ function paginate<T>(items: T[], page: { page: number; pageSize: number }): Page
 class FakeUserRepository implements UserRepository {
   constructor(private readonly state: FakeState) {}
 
-  async findById(id: string): Promise<User | null> {
-    return this.state.users.find((user) => user.id === id) ?? null;
+  findById(id: string): Promise<User | null> {
+    return Promise.resolve(this.state.users.find((user) => user.id === id) ?? null);
   }
 
-  async findByUsernameLower(usernameLower: string): Promise<User | null> {
-    return this.state.users.find((user) => user.usernameLower === usernameLower) ?? null;
+  findByUsernameLower(usernameLower: string): Promise<User | null> {
+    return Promise.resolve(
+      this.state.users.find((user) => user.usernameLower === usernameLower) ?? null
+    );
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    return this.state.users.find((user) => user.email === email) ?? null;
+  findByEmail(email: string): Promise<User | null> {
+    return Promise.resolve(this.state.users.find((user) => user.email === email) ?? null);
   }
 
-  async findByLoginIdentifier(identifier: string): Promise<User | null> {
+  findByLoginIdentifier(identifier: string): Promise<User | null> {
     const normalized = identifier.toLowerCase();
-    return (
+    return Promise.resolve(
       this.state.users.find(
-        (user) => user.usernameLower === normalized || user.email === normalized,
+        (user) => user.usernameLower === normalized || user.email === normalized
       ) ?? null
     );
   }
 
-  async create(data: typeof users.$inferInsert): Promise<User> {
+  create(data: typeof users.$inferInsert): Promise<User> {
     const now = new Date();
     const user: User = {
-      id: data.id ?? `user-${this.state.users.length + 1}-${Math.random().toString(36).slice(2, 10)}`,
+      // 服务端实体 ID 为 UUID v4（契约 §2.2）；夹具显式传入 id 时按夹具值。
+      id: data.id ?? randomUUID(),
       username: data.username,
       usernameLower: data.usernameLower,
       email: data.email,
@@ -107,14 +119,23 @@ class FakeUserRepository implements UserRepository {
       updatedAt: data.updatedAt ?? now,
     };
     this.state.users.push(user);
-    return user;
+    return Promise.resolve(user);
   }
 
   async update(
     id: string,
     patch: Partial<
-      Pick<User, 'displayName' | 'bio' | 'avatarUrl' | 'passwordHash' | 'failedLoginCount' | 'lockedUntil' | 'updatedAt'>
-    >,
+      Pick<
+        User,
+        | 'displayName'
+        | 'bio'
+        | 'avatarUrl'
+        | 'passwordHash'
+        | 'failedLoginCount'
+        | 'lockedUntil'
+        | 'updatedAt'
+      >
+    >
   ): Promise<User> {
     const user = await this.findById(id);
     if (user === null) {
@@ -124,19 +145,19 @@ class FakeUserRepository implements UserRepository {
     return user;
   }
 
-  async searchActive(query: string, page: { page: number; pageSize: number }): Promise<PagedItems<User>> {
+  searchActive(query: string, page: { page: number; pageSize: number }): Promise<PagedItems<User>> {
     const matched = this.state.users
       .filter((user) => user.isActive)
       .filter((user) => contains(user.username, query) || contains(user.displayName, query))
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 }
 
 class FakeRefreshSessionRepository implements RefreshSessionRepository {
   constructor(private readonly state: FakeState) {}
 
-  async create(data: NewRefreshSession): Promise<void> {
+  create(data: NewRefreshSession): Promise<void> {
     this.state.refreshSessions.push({
       jti: data.jti,
       userId: data.userId,
@@ -144,20 +165,24 @@ class FakeRefreshSessionRepository implements RefreshSessionRepository {
       revokedAt: data.revokedAt ?? null,
       createdAt: new Date(),
     });
+    return Promise.resolve();
   }
 
-  async findByJti(jti: string): Promise<RefreshSession | null> {
-    return this.state.refreshSessions.find((session) => session.jti === jti) ?? null;
+  findByJti(jti: string): Promise<RefreshSession | null> {
+    return Promise.resolve(
+      this.state.refreshSessions.find((session) => session.jti === jti) ?? null
+    );
   }
 
-  async revoke(jti: string, revokedAt: Date): Promise<void> {
+  revoke(jti: string, revokedAt: Date): Promise<void> {
     const session = this.state.refreshSessions.find((item) => item.jti === jti);
     if (session !== undefined && session.revokedAt === null) {
       session.revokedAt = revokedAt;
     }
+    return Promise.resolve();
   }
 
-  async revokeAllForUser(userId: string, exceptJti: string | null, revokedAt: Date): Promise<number> {
+  revokeAllForUser(userId: string, exceptJti: string | null, revokedAt: Date): Promise<number> {
     let count = 0;
     for (const session of this.state.refreshSessions) {
       if (session.userId !== userId || session.revokedAt !== null || session.jti === exceptJti) {
@@ -166,21 +191,21 @@ class FakeRefreshSessionRepository implements RefreshSessionRepository {
       session.revokedAt = revokedAt;
       count += 1;
     }
-    return count;
+    return Promise.resolve(count);
   }
 }
 
 class FakeRoomRepository implements RoomRepository {
   constructor(private readonly state: FakeState) {}
 
-  async findById(id: string): Promise<Room | null> {
-    return this.state.rooms.find((room) => room.id === id) ?? null;
+  findById(id: string): Promise<Room | null> {
+    return Promise.resolve(this.state.rooms.find((room) => room.id === id) ?? null);
   }
 
-  async create(data: typeof rooms.$inferInsert): Promise<Room> {
+  create(data: typeof rooms.$inferInsert): Promise<Room> {
     const now = new Date();
     const room: Room = {
-      id: data.id ?? `room-${this.state.rooms.length + 1}-${Math.random().toString(36).slice(2, 10)}`,
+      id: data.id ?? randomUUID(),
       userId: data.userId,
       name: data.name,
       slug: data.slug,
@@ -191,20 +216,20 @@ class FakeRoomRepository implements RoomRepository {
       updatedAt: data.updatedAt ?? now,
     };
     this.state.rooms.push(room);
-    return room;
+    return Promise.resolve(room);
   }
 
-  async listByUser(
+  listByUser(
     userId: string,
     opts: { includeAll: boolean },
-    page: { page: number; pageSize: number },
+    page: { page: number; pageSize: number }
   ): Promise<PagedItems<Room>> {
     const matched = this.visibleRooms(userId, opts.includeAll);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async listAllByUser(userId: string, opts: { includeAll: boolean }): Promise<Room[]> {
-    return this.visibleRooms(userId, opts.includeAll);
+  listAllByUser(userId: string, opts: { includeAll: boolean }): Promise<Room[]> {
+    return Promise.resolve(this.visibleRooms(userId, opts.includeAll));
   }
 
   private visibleRooms(userId: string, includeAll: boolean): Room[] {
@@ -246,71 +271,78 @@ function boxVisibleInRoom(box: Box, roomId: string, includeAll: boolean): boolea
 class FakeCardRepository implements CardRepository {
   constructor(private readonly state: FakeState) {}
 
-  async findById(id: string): Promise<Card | null> {
-    return this.state.cards.find((card) => card.id === id) ?? null;
+  findById(id: string): Promise<Card | null> {
+    return Promise.resolve(this.state.cards.find((card) => card.id === id) ?? null);
   }
 
-  async listPublicReady(page: { page: number; pageSize: number }): Promise<PagedItems<Card>> {
+  listPublicReady(page: { page: number; pageSize: number }): Promise<PagedItems<Card>> {
     const matched = this.state.cards
       .filter((card) => card.visibility === 'public' && card.status === 'ready')
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async listByUser(
+  listByUser(
     userId: string,
     opts: { includeAll: boolean },
-    page: { page: number; pageSize: number },
+    page: { page: number; pageSize: number }
   ): Promise<PagedItems<Card>> {
     const matched = this.state.cards
       .filter((card) => cardVisibleToUser(card, userId, opts.includeAll))
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async listRootByUser(
+  listRootByUser(
     userId: string,
     opts: { includeAll: boolean },
-    page: { page: number; pageSize: number },
+    page: { page: number; pageSize: number }
   ): Promise<PagedItems<Card>> {
     const matched = this.state.cards
       .filter((card) => cardVisibleToUser(card, userId, opts.includeAll) && card.roomId === null)
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async listByRoom(
+  listByRoom(
     roomId: string,
     opts: { includeAll: boolean },
-    page: { page: number; pageSize: number },
+    page: { page: number; pageSize: number }
   ): Promise<PagedItems<Card>> {
     const matched = this.state.cards
       .filter((card) => cardVisibleInRoom(card, roomId, opts.includeAll))
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async countByRoom(roomId: string, opts: { includeAll: boolean }): Promise<number> {
-    return this.state.cards.filter((card) => cardVisibleInRoom(card, roomId, opts.includeAll)).length;
+  countByRoom(roomId: string, opts: { includeAll: boolean }): Promise<number> {
+    return Promise.resolve(
+      this.state.cards.filter((card) => cardVisibleInRoom(card, roomId, opts.includeAll)).length
+    );
   }
 
-  async searchPublicReady(query: string, page: { page: number; pageSize: number }): Promise<PagedItems<Card>> {
+  searchPublicReady(
+    query: string,
+    page: { page: number; pageSize: number }
+  ): Promise<PagedItems<Card>> {
     const matched = this.state.cards
       .filter((card) => card.visibility === 'public' && card.status === 'ready')
       .filter((card) => contains(card.name, query) || contains(tagsText(card.tags), query))
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async findPublicReadyByCardFileIds(cardFileIds: string[]): Promise<Card[]> {
+  findPublicReadyByCardFileIds(cardFileIds: string[]): Promise<Card[]> {
     if (cardFileIds.length === 0) {
-      return [];
+      return Promise.resolve([]);
     }
-    return this.state.cards.filter(
-      (card) =>
-        cardFileIds.includes(card.cardFileId) &&
-        card.visibility === 'public' &&
-        card.status === 'ready',
+    return Promise.resolve(
+      this.state.cards.filter(
+        (card) =>
+          cardFileIds.includes(card.cardFileId) &&
+          card.visibility === 'public' &&
+          card.status === 'ready'
+      )
     );
   }
 }
@@ -318,122 +350,127 @@ class FakeCardRepository implements CardRepository {
 class FakeBoxRepository implements BoxRepository {
   constructor(private readonly state: FakeState) {}
 
-  async findById(id: string): Promise<Box | null> {
-    return this.state.boxes.find((box) => box.id === id) ?? null;
+  findById(id: string): Promise<Box | null> {
+    return Promise.resolve(this.state.boxes.find((box) => box.id === id) ?? null);
   }
 
-  async listPublicReady(page: { page: number; pageSize: number }): Promise<PagedItems<Box>> {
+  listPublicReady(page: { page: number; pageSize: number }): Promise<PagedItems<Box>> {
     const matched = this.state.boxes
       .filter((box) => box.visibility === 'public' && box.status === 'ready')
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async listByUser(
+  listByUser(
     userId: string,
     opts: { includeAll: boolean },
-    page: { page: number; pageSize: number },
+    page: { page: number; pageSize: number }
   ): Promise<PagedItems<Box>> {
     const matched = this.state.boxes
       .filter((box) => boxVisibleToUser(box, userId, opts.includeAll))
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async listRootByUser(
+  listRootByUser(
     userId: string,
     opts: { includeAll: boolean },
-    page: { page: number; pageSize: number },
+    page: { page: number; pageSize: number }
   ): Promise<PagedItems<Box>> {
     const matched = this.state.boxes
       .filter((box) => boxVisibleToUser(box, userId, opts.includeAll) && box.roomId === null)
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async listByRoom(
+  listByRoom(
     roomId: string,
     opts: { includeAll: boolean },
-    page: { page: number; pageSize: number },
+    page: { page: number; pageSize: number }
   ): Promise<PagedItems<Box>> {
     const matched = this.state.boxes
       .filter((box) => boxVisibleInRoom(box, roomId, opts.includeAll))
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 
-  async countByRoom(roomId: string, opts: { includeAll: boolean }): Promise<number> {
-    return this.state.boxes.filter((box) => boxVisibleInRoom(box, roomId, opts.includeAll)).length;
+  countByRoom(roomId: string, opts: { includeAll: boolean }): Promise<number> {
+    return Promise.resolve(
+      this.state.boxes.filter((box) => boxVisibleInRoom(box, roomId, opts.includeAll)).length
+    );
   }
 
-  async searchPublicReady(query: string, page: { page: number; pageSize: number }): Promise<PagedItems<Box>> {
+  searchPublicReady(
+    query: string,
+    page: { page: number; pageSize: number }
+  ): Promise<PagedItems<Box>> {
     const matched = this.state.boxes
       .filter((box) => box.visibility === 'public' && box.status === 'ready')
       .filter((box) => contains(box.name, query) || contains(tagsText(box.tags), query))
       .sort(byCreatedAtDesc);
-    return paginate(matched, page);
+    return Promise.resolve(paginate(matched, page));
   }
 }
 
 class FakeRenderCacheRepository implements RenderCacheRepository {
   constructor(private readonly state: FakeState) {}
 
-  async findWebByCard(cardId: string): Promise<CardRenderCache | null> {
+  findWebByCard(cardId: string): Promise<CardRenderCache | null> {
     const matched = this.state.renderCaches
       .filter((cache) => cache.cardId === cardId && cache.renderProfile === 'community-web')
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
-    return matched[0] ?? null;
+    return Promise.resolve(matched[0] ?? null);
   }
 
-  async findCoverByCard(cardId: string): Promise<CardRenderCache | null> {
+  findCoverByCard(cardId: string): Promise<CardRenderCache | null> {
     const matched = this.state.renderCaches
       .filter((cache) => cache.cardId === cardId && cache.renderProfile === 'community-cover')
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
-    return matched[0] ?? null;
+    return Promise.resolve(matched[0] ?? null);
   }
 
-  async listByCard(cardId: string): Promise<CardRenderCache[]> {
-    return this.state.renderCaches.filter((cache) => cache.cardId === cardId);
+  listByCard(cardId: string): Promise<CardRenderCache[]> {
+    return Promise.resolve(this.state.renderCaches.filter((cache) => cache.cardId === cardId));
   }
 }
 
 class FakeIdempotencyRepository implements IdempotencyRepository {
   constructor(private readonly state: FakeState) {}
 
-  async find(
+  find(
     accountId: string,
     endpoint: string,
     key: string,
-    now: Date,
+    now: Date
   ): Promise<IdempotencyRecord | null> {
     const row = this.state.idempotency.find(
       (record) =>
         record.accountId === accountId &&
         record.endpoint === endpoint &&
-        record.idempotencyKey === key,
+        record.idempotencyKey === key
     );
     if (row === undefined) {
-      return null;
+      return Promise.resolve(null);
     }
     if (row.expiresAt.getTime() <= now.getTime()) {
       this.state.idempotency = this.state.idempotency.filter((record) => record !== row);
-      return null;
+      return Promise.resolve(null);
     }
-    return row;
+    return Promise.resolve(row);
   }
 
-  async claim(data: NewIdempotencyRecord): Promise<boolean> {
+  claim(data: NewIdempotencyRecord): Promise<boolean> {
     const exists = this.state.idempotency.some(
       (record) =>
         record.accountId === data.accountId &&
         record.endpoint === data.endpoint &&
-        record.idempotencyKey === data.idempotencyKey,
+        record.idempotencyKey === data.idempotencyKey
     );
     if (exists) {
-      return false;
+      return Promise.resolve(false);
     }
     this.state.idempotency.push({
-      id: `idem-${this.state.idempotency.length + 1}`,
+      id: data.id ?? randomUUID(),
       accountId: data.accountId,
       endpoint: data.endpoint,
       idempotencyKey: data.idempotencyKey,
@@ -443,36 +480,38 @@ class FakeIdempotencyRepository implements IdempotencyRepository {
       createdAt: new Date(),
       expiresAt: data.expiresAt,
     });
-    return true;
+    return Promise.resolve(true);
   }
 
-  async fulfill(
+  fulfill(
     accountId: string,
     endpoint: string,
     key: string,
-    result: { statusCode: number; responseBody: unknown },
+    result: { statusCode: number; responseBody: unknown }
   ): Promise<void> {
     const row = this.state.idempotency.find(
       (record) =>
         record.accountId === accountId &&
         record.endpoint === endpoint &&
-        record.idempotencyKey === key,
+        record.idempotencyKey === key
     );
     if (row !== undefined) {
       row.statusCode = result.statusCode;
       row.responseBody = result.responseBody;
     }
+    return Promise.resolve();
   }
 
-  async release(accountId: string, endpoint: string, key: string): Promise<void> {
+  release(accountId: string, endpoint: string, key: string): Promise<void> {
     this.state.idempotency = this.state.idempotency.filter(
       (record) =>
         !(
           record.accountId === accountId &&
           record.endpoint === endpoint &&
           record.idempotencyKey === key
-        ),
+        )
     );
+    return Promise.resolve();
   }
 }
 
@@ -511,9 +550,7 @@ export function fixtureUser(overrides: Partial<User> & Pick<User, 'username' | '
   return { ...defaults, ...overrides };
 }
 
-export function fixtureCard(
-  overrides: Partial<Card> & Pick<Card, 'id' | 'userId' | 'name'>,
-): Card {
+export function fixtureCard(overrides: Partial<Card> & Pick<Card, 'id' | 'userId' | 'name'>): Card {
   const now = new Date(BASE_TIME);
   const defaults = {
     cardFileId: 'cardFile01',
@@ -567,7 +604,7 @@ export function fixtureBox(overrides: Partial<Box> & Pick<Box, 'id' | 'userId' |
 }
 
 export function fixtureRoom(
-  overrides: Partial<Room> & Pick<Room, 'id' | 'userId' | 'name' | 'slug'>,
+  overrides: Partial<Room> & Pick<Room, 'id' | 'userId' | 'name' | 'slug'>
 ): Room {
   const now = new Date(BASE_TIME);
   const defaults = {
@@ -581,7 +618,7 @@ export function fixtureRoom(
 }
 
 export function fixtureRenderCache(
-  overrides: Partial<CardRenderCache> & Pick<CardRenderCache, 'id' | 'cardId' | 'renderProfile'>,
+  overrides: Partial<CardRenderCache> & Pick<CardRenderCache, 'id' | 'cardId' | 'renderProfile'>
 ): CardRenderCache {
   const now = new Date(BASE_TIME);
   const defaults = {
@@ -669,7 +706,7 @@ export interface RegisteredAccount {
 /** 经真实 API 注册账号（口令哈希走 scrypt 真链路）。 */
 export async function registerAccount(
   app: FastifyInstance,
-  input?: Partial<{ username: string; email: string; password: string; displayName: string }>,
+  input?: Partial<{ username: string; email: string; password: string; displayName: string }>
 ): Promise<RegisteredAccount> {
   const username = input?.username ?? `alice-${Math.random().toString(36).slice(2, 8)}`;
   const email = input?.email ?? `${username}@example.test`;
@@ -687,9 +724,9 @@ export async function registerAccount(
   if (response.statusCode !== 201) {
     throw new Error(`注册夹具失败：${response.statusCode} ${response.body}`);
   }
-  const body = response.json() as {
+  const body = response.json<{
     data: { user: { id: string; username: string }; accessToken: string; refreshToken: string };
-  };
+  }>();
   return {
     userId: body.data.user.id,
     username: body.data.user.username,

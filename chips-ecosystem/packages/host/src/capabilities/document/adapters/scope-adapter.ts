@@ -21,6 +21,19 @@
  *   （挂载持久于进程、`close_session` 不自动脱绑，#213 §2.1(d)/§2.1(g)）；
  *   注销入口全仓唯一即本成员（禁第二注销形）。调用位已在册（β）：`session-store.ts` 的
  *   `releaseSessionsOf` 经 `releaseScope` 依赖位、`service.ts` 的 `rollbackFreshRecord` 经端口本成员。
+ * - **目标作用域注册生命周期（W5 T-ws，工单036 残段收尾波）**：`ensureTargetScope` /
+ *   `releaseTargetScope` 为「非打开文档的作用域注册」正式臂——export 目标/暂存物与
+ *   create 落点在受控提交前必须经 `ensureTargetScope` 在册挂载（storage 适配器
+ *   `resolveTarget` 对未挂载目标 fail-closed）。三态语义与归一前置判据见
+ *   `doEnsureTargetScope` 头注；新注册的活绑定落 `DOCUMENT_TARGET_SCOPE_BINDING_ID`
+ *   哨兵（`scope-derivation.ts` 单源，与真实文档标识结构性不相交），create 落地后文档记录
+ *   经 `registerScope` 幂等臂的**接管分支**以真实 documentId 接管同一活绑定（INV-1 同会话
+ *   不分叉）；`releaseTargetScope` 仅释哨兵绑定（哨兵归属闸），两拍收口全量收敛到
+ *   `doUnregisterScope` 同一通道（INV-6 零第二注销实现）。挂载机械单源 =
+ *   `mountLedgerEntry`（registerScope 与 ensureTargetScope 共用，open → grant → mount
+ *   → 回执核验 → 转正，失败收口链逐字保留）。保留区判定不落本适配器：平台暂存物合法
+ *   落在保留前缀下，用户落点的 `WORKSPACE_RESERVED_PATH` 闸在能力服务层经
+ *   `scope-reserved-paths.ts`（scope 域单源）执行。
  * - **幂等臂＝窄形（M0 核证在册，`/tmp/w217_state.md`；点位三随波 B 已落位，本注记按实读翻正）**：
  *   `RESOURCE_ALREADY_EXISTS` 是幂等信号不是错误（RFC `:107`、《04.11》:207-208）；但
  *   未绑定会话对 Document scope 读臂恒拒（`permission.rs` document() 臂 + 绑定层空权限集，
@@ -77,10 +90,16 @@ import {
 import { asDocumentCapabilityError, DocumentCapabilityError } from '../errors.js';
 import {
   DOCUMENT_SCOPE_OWNER,
+  DOCUMENT_TARGET_SCOPE_BINDING_ID,
   canonicalizeDocumentPath,
   deriveDocumentScopeFromCanonical,
 } from '../scope-derivation.js';
-import type { IDocumentScopePort, IDocumentScopeRegistration, IResolvedDocumentSource } from '../ports.js';
+import type {
+  IDocumentScopePort,
+  IDocumentScopeRegistration,
+  IDocumentTargetScopeAssurance,
+  IResolvedDocumentSource,
+} from '../ports.js';
 import type { INativeResourceModule } from './native-resource-module.js';
 import { DocumentScopeLedger, type IScopeLedgerEntry } from './scope-ledger.js';
 
@@ -326,27 +345,13 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
       });
   }
 
-  async function doRegisterScope(input: {
-    readonly documentId: string;
-    readonly managedUri: string;
-    readonly kind: DocumentKind;
-  }): Promise<IDocumentScopeRegistration> {
-    const entry = ledger.lookup(input.managedUri);
-    if (entry === undefined) {
-      throw new DocumentCapabilityError('RESOURCE_INVALID_URI', {
-        message: '作用域注册缺少归一前置（managedUri 未经 normalizeSource 归一）',
-      });
-    }
-    if (entry.mounted !== null) {
-      // 幂等复用臂（窄形）：本适配器活绑定在位 → 同 owner（构造恒等）核对账本三一致，
-      // 回执既有活绑定的同一原生会话（INV-1：记录面数值会话与在册账同源，不分叉）。
-      if (entry.mounted.documentId === input.documentId && entry.kind === input.kind) {
-        return { nativeSession: entry.mounted.nativeSession };
-      }
-      throw new DocumentCapabilityError('RESOURCE_ALREADY_EXISTS', {
-        message: '同一受管引用已绑定不同文档标识或种类（真冲突，禁抢占）',
-      });
-    }
+  /**
+   * 挂载机械单源（open → grant → mount → 回执核验 → 在册账转正）：registerScope 与
+   * ensureTargetScope（W5 T-ws 目标注册臂）共用的唯一挂载通道；grant 拍、失败收口链
+   * （关会话 + 销账 + 登记码透传）与 ALREADY_EXISTS 真冲突判定（INV-5 禁抢占）逐字保留，
+   * 禁任何调用方绕开本通道自拼挂载序列。
+   */
+  async function mountLedgerEntry(entry: IScopeLedgerEntry, documentId: string): Promise<number> {
     const nativeSession = native.resourceOpenSession(DOCUMENT_SESSION_KIND, DOCUMENT_SCOPE_OWNER);
     // grant 拍（RFC 裁定J §七时序行）：open 成功返回后紧邻同拍注入写权限、先于挂载二态分叉，
     // 「活会话无权限」窗口收敛为零拍；幂等静默形（§三.1）令重放安全，不做条件 grant 分叉（T8）。
@@ -394,8 +399,44 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
         message: '挂载返回作用域与派生值不一致（构造性漂移，fail-closed）',
       });
     }
-    entry.mounted = { nativeSession, documentId: input.documentId };
-    return { nativeSession };
+    entry.mounted = { nativeSession, documentId };
+    return nativeSession;
+  }
+
+  async function doRegisterScope(input: {
+    readonly documentId: string;
+    readonly managedUri: string;
+    readonly kind: DocumentKind;
+  }): Promise<IDocumentScopeRegistration> {
+    const entry = ledger.lookup(input.managedUri);
+    if (entry === undefined) {
+      throw new DocumentCapabilityError('RESOURCE_INVALID_URI', {
+        message: '作用域注册缺少归一前置（managedUri 未经 normalizeSource 归一）',
+      });
+    }
+    if (entry.mounted !== null) {
+      // 幂等复用臂（窄形）：本适配器活绑定在位 → 同 owner（构造恒等）核对账本三一致，
+      // 回执既有活绑定的同一原生会话（INV-1：记录面数值会话与在册账同源，不分叉）。
+      if (entry.kind === input.kind) {
+        if (entry.mounted.documentId === input.documentId) {
+          return { nativeSession: entry.mounted.nativeSession };
+        }
+        if (entry.mounted.documentId === DOCUMENT_TARGET_SCOPE_BINDING_ID) {
+          // 目标注册接管臂（W5 T-ws）：create 落地后文档记录以真实 documentId 接管
+          // ensureTargetScope 建立的哨兵绑定——同一活绑定、同一原生会话（INV-1 不分叉），
+          // 在册账 documentId 位翻正为真实标识；此后释放归文档记录生命周期
+          // （session-store releaseSessionsOf / rollbackFreshRecord 既有接线），目标释放臂
+          // 哨兵归属闸自此拒绝代释。哨兵与真实文档标识结构性不相交
+          // （scope-derivation.ts 头注：base62 无点号），判别非词法猜测。
+          entry.mounted = { nativeSession: entry.mounted.nativeSession, documentId: input.documentId };
+          return { nativeSession: entry.mounted.nativeSession };
+        }
+      }
+      throw new DocumentCapabilityError('RESOURCE_ALREADY_EXISTS', {
+        message: '同一受管引用已绑定不同文档标识或种类（真冲突，禁抢占）',
+      });
+    }
+    return { nativeSession: await mountLedgerEntry(entry, input.documentId) };
   }
 
   function closeSessionQuietly(nativeSession: number): void {
@@ -448,6 +489,77 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
     }
   }
 
+  /**
+   * 目标作用域注册臂本体（W5 T-ws，工单036 残段收尾波）：非打开文档的作用域注册——
+   * export 目标/暂存物、create 落点在受控提交前必须经本臂在册并挂载
+   * （storage-adapter `resolveTarget` 对未挂载目标 fail-closed）。
+   *
+   * @remarks
+   * - **归一前置不放宽**：未在册一律 `RESOURCE_INVALID_URI`（禁跳册直挂）——本域唯一
+   *   归一入口是 `normalizeSource`（落点存在性判据由其承载：落点不存在即
+   *   `RESOURCE_NOT_FOUND`，本臂不触文件系统创建面、不自建归一通道）。
+   * - **三态**：①未注册（在册未挂载）→ 经 {@link mountLedgerEntry} 注册，活绑定落
+   *   `DOCUMENT_TARGET_SCOPE_BINDING_ID` 哨兵，`existedBefore: false`；②已注册（哨兵或
+   *   文档记录活绑定在位）→ 反向直读核验（点位三）后复用同一会话，`existedBefore: true`；
+   *   ③种类与在册账不符 → `RESOURCE_ALREADY_EXISTS`（真冲突，INV-5 禁抢占）。
+   * - **不做保留区判定**：平台暂存物（`.chips-export-<随机>` 等）合法地落在保留前缀下
+   *   （13.04 §4.2 规则 8、13.06 §6.3.3），本臂判保留区即自锁导出链；用户落点的
+   *   `WORKSPACE_RESERVED_PATH` 闸在能力服务层经 `isReservedPath`（scope 域单源）执行。
+   * - `localPath` 经点位三正向口现取（不入返回面缓存，与端口 `localPathOf` 同源同判据）。
+   */
+  async function doEnsureTargetScope(managedUri: string, kind: DocumentKind): Promise<IDocumentTargetScopeAssurance> {
+    const entry = ledger.lookup(managedUri);
+    if (entry === undefined) {
+      throw new DocumentCapabilityError('RESOURCE_INVALID_URI', {
+        message: '目标作用域注册缺少归一前置（managedUri 未经 normalizeSource 归一，禁跳册直挂）',
+      });
+    }
+    if (entry.kind !== kind) {
+      throw new DocumentCapabilityError('RESOURCE_ALREADY_EXISTS', {
+        message: '目标受管引用已按不同种类在册（种类冲突，禁抢占）',
+      });
+    }
+    if (entry.mounted !== null) {
+      await assertLiveMountResolvable(entry);
+      const localPath = await doLocalPathOf(managedUri, entry.mounted.nativeSession);
+      return { nativeSession: entry.mounted.nativeSession, localPath, form: entry.form, existedBefore: true };
+    }
+    const nativeSession = await mountLedgerEntry(entry, DOCUMENT_TARGET_SCOPE_BINDING_ID);
+    const localPath = await doLocalPathOf(managedUri, nativeSession);
+    return { nativeSession, localPath, form: entry.form, existedBefore: false };
+  }
+
+  /**
+   * 目标作用域释放臂本体（W5 T-ws）：export 用完即释、create 失败回滚的正式出口。
+   *
+   * @remarks
+   * - **哨兵归属闸**：仅哨兵绑定可经本臂释放；已由文档记录接管（真实 `documentId` 在位）
+   *   的活绑定归文档记录生命周期所有（06-资源协议规范 §3.2 注销时机表），如实
+   *   `RESOURCE_PERMISSION_DENIED` 拒绝——账目与会话保留，禁代释、禁掩盖。
+   * - 未在册 / 仅归一未挂载 = 释放已达（幂等静默收口，同 unregisterScope 的 NOT_FOUND
+   *   已达口径）；挂载在册的释放全量收敛到 {@link doUnregisterScope} 同一通道——两拍次序
+   *   （INV-2）与第 6 阶段判定式（NOT_FOUND 已达 / PERMISSION_DENIED 疑似孤儿不掩盖）
+   *   零第二实现（INV-6 注销入口唯一）。
+   */
+  function doReleaseTargetScope(managedUri: string): Promise<void> {
+    const entry = ledger.lookup(managedUri);
+    if (entry === undefined) {
+      return Promise.resolve();
+    }
+    if (entry.mounted === null) {
+      forgetUnmounted(entry);
+      return Promise.resolve();
+    }
+    if (entry.mounted.documentId !== DOCUMENT_TARGET_SCOPE_BINDING_ID) {
+      return Promise.reject(
+        new DocumentCapabilityError('RESOURCE_PERMISSION_DENIED', {
+          message: '目标作用域已由文档记录接管（禁经目标释放臂注销他属活绑定）',
+        }),
+      );
+    }
+    return doUnregisterScope({ documentId: entry.mounted.documentId, managedUri });
+  }
+
   return {
     normalizeSource,
     registerScope(input: {
@@ -459,6 +571,14 @@ export function createDocumentScopeAdapter(deps: IDocumentScopeAdapterDeps): IDo
     },
     unregisterScope(input: { readonly documentId: string; readonly managedUri: string }): Promise<void> {
       return ledger.enqueue(input.managedUri, () => doUnregisterScope(input));
+    },
+    ensureTargetScope(managedUri: string, kind: DocumentKind): Promise<IDocumentTargetScopeAssurance> {
+      // 与挂载/注销/换算同键串行：目标注册不得越过在途注销，反之亦然（账本队列互斥）。
+      return ledger.enqueue(managedUri, () => doEnsureTargetScope(managedUri, kind));
+    },
+    releaseTargetScope(managedUri: string): Promise<void> {
+      // 与挂载/注销/提交同键串行：释放不得与在途挂载/提交交错（两拍时序的队列面延伸）。
+      return ledger.enqueue(managedUri, () => doReleaseTargetScope(managedUri));
     },
     localPathOf(managedUri: string, nativeSession: number): Promise<string> {
       // 与挂载/注销同键串行：换算不得越过在途挂载（未登记的作用域在核心侧必判未命中）。

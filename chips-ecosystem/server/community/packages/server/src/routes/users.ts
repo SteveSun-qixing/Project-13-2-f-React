@@ -25,7 +25,7 @@ export interface UsersRouteDeps {
   repositories: Repositories;
 }
 
-export async function userRoutes(fastify: FastifyInstance, deps: UsersRouteDeps): Promise<void> {
+export function userRoutes(fastify: FastifyInstance, deps: UsersRouteDeps): void {
   const { schemas, userService, cardService, boxService, roomService, repositories } = deps;
 
   fastify.get(
@@ -64,6 +64,41 @@ export async function userRoutes(fastify: FastifyInstance, deps: UsersRouteDeps)
       // 除当前会话外的全部 refresh 会话被吊销（契约 §4.3）。
       await fastify.authService.revokeOtherSessions(user.id, request.user?.jti ?? null);
       return reply.status(204).send();
+    }
+  );
+
+  fastify.get(
+    '/api/v1/users/me/cards',
+    { preHandler: [fastify.authenticate], config: { noStore: true } },
+    async (request) => {
+      // 本人列表（契约 §4.1/§4.2，认证必须）：额外包含私有与未就绪内容。
+      const pagination = parsePagination(request.query);
+      const result = await repositories.cards.listByUser(
+        request.user?.userId ?? '',
+        { includeAll: true },
+        pagination
+      );
+      return {
+        data: result.items.map((card) => cardService.toSummary(card)),
+        pagination: buildPagination(pagination, result.total),
+      };
+    }
+  );
+
+  fastify.get(
+    '/api/v1/users/me/boxes',
+    { preHandler: [fastify.authenticate], config: { noStore: true } },
+    async (request) => {
+      const pagination = parsePagination(request.query);
+      const result = await repositories.boxes.listByUser(
+        request.user?.userId ?? '',
+        { includeAll: true },
+        pagination
+      );
+      return {
+        data: result.items.map((box) => boxService.toSummary(box)),
+        pagination: buildPagination(pagination, result.total),
+      };
     }
   );
 

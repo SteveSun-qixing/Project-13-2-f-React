@@ -51,6 +51,28 @@ export interface IDocumentScopeRegistration {
   readonly nativeSession: number;
 }
 
+/**
+ * 目标作用域保障回执（W5 T-ws：非打开文档的作用域注册臂交付形状）。
+ *
+ * @remarks `nativeSession` 与 {@link IDocumentScopeRegistration.nativeSession} 同权威——
+ * `resourceOpenSession` 的真实返回句柄（INV-1），复用臂交付既有活绑定的同一句柄；
+ * `localPath` 经点位三正向口向资源管理器现取（本端口 {@link IDocumentScopePort.localPathOf}
+ * 同源，不取自 TS 账本缓存值）；`existedBefore` = 本臂调用前该受管引用的活绑定是否已在位
+ * （已注册→复用 ⇒ `true`；未注册→新注册 ⇒ `false`）——export 的 overwrite 判定与
+ * create 的落点判定据此区分「此前已注册的目标」与「本次新建注册的目标」，落点的磁盘
+ * 存在性由归一前置（normalizeSource 存在性判据）保证，不因本臂放宽。
+ */
+export interface IDocumentTargetScopeAssurance {
+  /** 活绑定的原生会话句柄（INV-1 真值；复用臂与首注册臂同源）。 */
+  readonly nativeSession: number;
+  /** 点位三正向取回的本地可读位置（目录态包根或归档态归档文件）。 */
+  readonly localPath: string;
+  /** 目标形态：目录态工作副本或归档态单文件。 */
+  readonly form: DocumentForm;
+  /** 本臂调用前该受管引用的活绑定是否已在位。 */
+  readonly existedBefore: boolean;
+}
+
 /** 作用域归一结果：受管引用与本地可读位置。 */
 export interface IResolvedDocumentSource {
   /** 规范受管引用（`chips-resource://`；输出与会话键均用它）。 */
@@ -116,6 +138,40 @@ export interface IDocumentScopePort {
    *   禁止转而 close 掩盖（掩盖即不可恢复）；注销入口全仓唯一（INV-6，禁第二注销形）。
    */
   unregisterScope(input: { readonly documentId: string; readonly managedUri: string }): Promise<void>;
+  /**
+   * 非打开文档的目标作用域注册臂（W5 T-ws，工单036 残段收尾波）：为 export 目标/暂存物与
+   * create 落点提供正式的账本注册生命周期——账本未注册→注册（幂等），已注册→复用。
+   *
+   * @remarks
+   * - **归一前置不放宽**：`managedUri` 必须是 {@link normalizeSource} 的产物形
+   *   （`chips-resource://<scope>/<basename>`）；未在册一律 `RESOURCE_INVALID_URI`
+   *   （禁跳册直挂——本域唯一归一入口是 normalizeSource，落点存在性判据由其承载，
+   *   本臂不自建归一通道、不触文件系统创建面）。
+   * - **注册身份**：新注册的活绑定落 `DOCUMENT_TARGET_SCOPE_BINDING_ID` 哨兵（尚无文档
+   *   记录可归属）；create 落地后文档记录以真实 `documentId` 调 {@link registerScope}
+   *   即接管同一活绑定（哨兵位翻正，INV-1 同会话不分叉）。
+   * - **不做保留区判定**：平台暂存物（`.chips-export-<随机>` 等）合法地落在保留前缀下
+   *   （13.04 §4.2 规则 8、13.06 §6.3.3），本臂若判保留区即自锁导出链；用户落点的
+   *   `WORKSPACE_RESERVED_PATH` 闸在能力服务层经 `isReservedPath` 执行（scope 域单源）。
+   * - **种类一致性**：`kind` 与在册账种类不符即 `RESOURCE_ALREADY_EXISTS`（真冲突，
+   *   禁抢占，INV-5）。
+   */
+  ensureTargetScope(managedUri: string, kind: DocumentKind): Promise<IDocumentTargetScopeAssurance>;
+  /**
+   * 目标作用域释放臂（W5 T-ws）：export 用完即释、create 失败回滚的正式出口；内部严格
+   * 走 INV-2 两拍（① `resourceUnregisterScope` → ② `resourceCloseSession`）并经
+   * {@link unregisterScope} 的同一注销通道（INV-6 注销入口唯一，禁第二注销形）。
+   *
+   * @remarks
+   * - **哨兵归属闸**：仅 `DOCUMENT_TARGET_SCOPE_BINDING_ID` 哨兵绑定的作用域可经本臂释放；
+   *   已被文档记录接管的活绑定（真实 `documentId` 在位）一律 `RESOURCE_PERMISSION_DENIED`
+   *   如实拒绝——文档作用域的注销时机归文档记录生命周期（06-资源协议规范 §3.2 注销时机表），
+   *   目标释放臂不得代释。
+   * - 未在册 / 仅归一未挂载 = 释放已达（幂等静默收口，同 unregisterScope 的 NOT_FOUND
+   *   已达口径）；挂载在途的注销失败如实上浮（第 6 阶段判定式，PERMISSION_DENIED 疑似
+   *   孤儿告警不掩盖）。
+   */
+  releaseTargetScope(managedUri: string): Promise<void>;
   /**
    * 记录存续期的本地可读路径单源取回（点位三正向消费臂，`04.11` §11.3 行 19）。
    *

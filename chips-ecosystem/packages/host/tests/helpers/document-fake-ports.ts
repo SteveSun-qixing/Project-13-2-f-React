@@ -36,6 +36,7 @@ import type {
   IDocumentSerializedMember,
   IDocumentServiceDependencies,
   IDocumentStoragePort,
+  IDocumentTargetScopeAssurance,
   IPackageMemberBytes,
   IResolvedDocumentSource,
 } from '../../src/capabilities/document/ports.js';
@@ -154,6 +155,9 @@ export interface IFailurePanel {
   unregisterScope?: Error;
   /** 点位三正向取回失败注入（波 B2 锁测：证服务侧确实现取路径，未调用即不红）。 */
   localPathOf?: Error;
+  /** 目标作用域注册/释放臂失败注入（W5 T-ws）。 */
+  ensureTargetScope?: Error;
+  releaseTargetScope?: Error;
   open?: Error;
   fingerprint?: Error;
   serialize?: Error;
@@ -206,6 +210,10 @@ export interface IDocumentTestHarness {
   readonly logs: readonly IHarnessLog[];
   readonly scopeRegistrations: readonly { documentId: string; managedUri: string; kind: DocumentKind }[];
   readonly scopeUnregistrations: readonly { documentId: string; managedUri: string }[];
+  /** 目标作用域注册臂调用留痕（W5 T-ws）：`existedBefore` 如实反映复用/新注册分支。 */
+  readonly targetAssurances: readonly { managedUri: string; kind: DocumentKind; existedBefore: boolean }[];
+  /** 目标作用域释放臂调用留痕（W5 T-ws）：实际销账的受管引用逐次入账。 */
+  readonly targetReleases: readonly string[];
   /** 点位三正向取回（`localPathOf`）的调用留痕：`{managedUri, nativeSession}` 逐次入参。 */
   readonly convertedPaths: readonly { managedUri: string; nativeSession: number }[];
   /** 作用域根查询覆写表（哨兵值即证明调用侧不自算基址）。 */
@@ -284,6 +292,10 @@ export function createHarness(): IDocumentTestHarness {
   const logs: IHarnessLog[] = [];
   const scopeRegistrations: { documentId: string; managedUri: string; kind: DocumentKind }[] = [];
   const scopeUnregistrations: { documentId: string; managedUri: string }[] = [];
+  const targetAssurances: { managedUri: string; kind: DocumentKind; existedBefore: boolean }[] = [];
+  const targetReleases: string[] = [];
+  /** 目标作用域活绑定表（W5 T-ws 替身面：managedUri → 哨兵注册会话；接管即摘除）。 */
+  const targetBindings = new Map<string, number>();
   /** 点位三正向取回的调用留痕（锁测据以判定服务是否现取路径，波 B2）。 */
   const convertedPaths: { managedUri: string; nativeSession: number }[] = [];
   /** 作用域根查询的返回值覆写（「服务侧无双源」锁测用哨兵，波 B2）。 */
@@ -556,6 +568,8 @@ export function createHarness(): IDocumentTestHarness {
           throw failures.registerScope;
         }
         scopeRegistrations.push(input);
+        // 目标哨兵绑定接管（W5 T-ws 接管臂镜像）：文档记录注册即摘除目标绑定标记。
+        targetBindings.delete(input.managedUri);
         // 替身自持的登记凭号（原生 `resourceOpenSession` 回执面不外接到替身）：记录面
         // `nativeSession` 只承接本回执，服务侧不再自增（INV-1，工单036 波 A2b-β）。
         nativeSessionCounter += 1;
@@ -569,6 +583,55 @@ export function createHarness(): IDocumentTestHarness {
           throw failures.unregisterScope;
         }
         scopeUnregistrations.push(input);
+        targetBindings.delete(input.managedUri);
+      });
+    },
+
+    // 目标作用域注册臂替身（W5 T-ws）：与正式适配器同判据——未归一 INVALID_URI、
+    // 种类冲突 ALREADY_EXISTS、复用回执同会话且 existedBefore=true、新注册落哨兵绑定。
+    ensureTargetScope(managedUri: string, kind: DocumentKind): Promise<IDocumentTargetScopeAssurance> {
+      return toPortCall(() => {
+        if (failures.ensureTargetScope !== undefined) {
+          throw failures.ensureTargetScope;
+        }
+        const source = sources.get(managedUri);
+        if (source === undefined) {
+          throw portFailure('RESOURCE_INVALID_URI', '目标作用域注册缺少归一前置');
+        }
+        if (source.kind !== kind) {
+          throw portFailure('RESOURCE_ALREADY_EXISTS', '目标受管引用已按不同种类在册');
+        }
+        const bound = targetBindings.get(managedUri);
+        if (bound !== undefined) {
+          targetAssurances.push({ managedUri, kind, existedBefore: true });
+          return {
+            nativeSession: bound,
+            localPath: source.resolved.localPath,
+            form: source.resolved.form,
+            existedBefore: true,
+          };
+        }
+        nativeSessionCounter += 1;
+        targetBindings.set(managedUri, nativeSessionCounter);
+        targetAssurances.push({ managedUri, kind, existedBefore: false });
+        return {
+          nativeSession: nativeSessionCounter,
+          localPath: source.resolved.localPath,
+          form: source.resolved.form,
+          existedBefore: false,
+        };
+      });
+    },
+
+    // 目标作用域释放臂替身（W5 T-ws）：哨兵绑定在册即销账留痕；不在册 = 释放已达（幂等静默）。
+    releaseTargetScope(managedUri: string): Promise<void> {
+      return toPortCall(() => {
+        if (failures.releaseTargetScope !== undefined) {
+          throw failures.releaseTargetScope;
+        }
+        if (targetBindings.delete(managedUri)) {
+          targetReleases.push(managedUri);
+        }
       });
     },
 
@@ -682,6 +745,8 @@ export function createHarness(): IDocumentTestHarness {
     permissionQueries,
     activeQueries,
     readPartCalls,
+    targetAssurances,
+    targetReleases,
 
     addCard(managedUri, form) {
       return registerSource(

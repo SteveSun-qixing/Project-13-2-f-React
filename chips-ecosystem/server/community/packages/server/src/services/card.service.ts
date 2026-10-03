@@ -162,11 +162,16 @@ export class CardService {
   }
 
   /**
-   * 封面入口行为（契约 §6.4）：ready 时 302；处理中 202 临时占位；失败回退默认封面。
+   * 封面入口行为（契约 §6.4）：封面缓存就绪时 302（公开内容到封面缓存地址，私有内容到
+   * 受控代理路径）；封面渲染失败或卡片渲染状态为 error 时回退默认封面；其余（源就绪
+   * 而封面未生成等）视为处理中，返回 202 临时占位。
    */
-  resolveCover(card: Card, coverCache: CardRenderCache | null): CoverResolution {
-    const viewState = this.deriveViewState(card, coverCache);
-    if (viewState === 'ready' && coverCache !== null) {
+  resolveCover(
+    card: Card,
+    coverCache: CardRenderCache | null,
+    webCache: CardRenderCache | null
+  ): CoverResolution {
+    if (coverCache !== null && coverCache.state === 'ready') {
       const location = this.cacheEntryTarget(
         card,
         coverCache,
@@ -178,7 +183,7 @@ export class CardService {
       }
       return { kind: 'redirect', location: this.config.defaultCoverUrl };
     }
-    if (viewState === 'error') {
+    if (coverCache?.state === 'error' || this.deriveViewState(card, webCache) === 'error') {
       return { kind: 'redirect', location: this.config.defaultCoverUrl };
     }
     return { kind: 'processing', retryAfterSeconds: this.config.renderRetryAfterSeconds };

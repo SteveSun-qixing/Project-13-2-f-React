@@ -22,7 +22,7 @@ export interface AuthRouteDeps {
   userService: UserService;
 }
 
-export async function authRoutes(fastify: FastifyInstance, deps: AuthRouteDeps): Promise<void> {
+export function authRoutes(fastify: FastifyInstance, deps: AuthRouteDeps): void {
   const { config, schemas, authService, userService } = deps;
   const cookieBasePath = '/api/v1/auth';
 

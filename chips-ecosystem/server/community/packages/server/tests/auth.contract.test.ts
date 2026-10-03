@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { authHeader, buildTestHarness, registerAccount, type RegisteredAccount, type TestHarness } from './helpers/harness.js';
+import {
+  authHeader,
+  buildTestHarness,
+  registerAccount,
+  type RegisteredAccount,
+  type TestHarness,
+} from './helpers/harness.js';
 
 type InjectResponse = Awaited<ReturnType<FastifyInstance['inject']>>;
 type InjectCookie = InjectResponse['cookies'][number];
@@ -20,6 +26,7 @@ interface SessionBody {
       avatarUrl: string | null;
       role: string;
       createdAt: string;
+      email?: string;
     };
     accessToken: string;
     refreshToken: string;
@@ -48,10 +55,15 @@ describe('认证与令牌契约', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/auth/register',
-        payload: { username: 'alice', email: 'alice@example.test', password: 'password-123', displayName: 'Alice' },
+        payload: {
+          username: 'alice',
+          email: 'alice@example.test',
+          password: 'password-123',
+          displayName: 'Alice',
+        },
       });
       expect(response.statusCode).toBe(201);
-      const body = response.json() as SessionBody;
+      const body = response.json<SessionBody>();
       expect(Object.keys(body.data).sort()).toEqual(['accessToken', 'refreshToken', 'user']);
       expect(Object.keys(body.data.user).sort()).toEqual([
         'avatarUrl',
@@ -67,7 +79,9 @@ describe('认证与令牌契约', () => {
       expect(body.data.user.role).toBe('user');
       expect(body.data.user.email).toBeUndefined();
       // UUID v4 实体 ID（契约 §2.2）
-      expect(body.data.user.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(body.data.user.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      );
     });
 
     it('displayName 缺省取 username；浏览器写入 HttpOnly Cookie（Path=/api/v1/auth、SameSite=Strict）', async () => {
@@ -77,14 +91,20 @@ describe('认证与令牌契约', () => {
         payload: { username: 'bob', email: 'bob@example.test', password: 'password-123' },
       });
       expect(response.statusCode).toBe(201);
-      const body = response.json() as SessionBody;
+      const body = response.json<SessionBody>();
       expect(body.data.user.displayName).toBe('bob');
       const cookie = findCookie(response.cookies, 'chips_refresh_token');
       expect(cookie).toBeDefined();
       expect(cookie?.httpOnly).toBe(true);
       expect(cookie?.path).toBe('/api/v1/auth');
       expect(cookie?.sameSite).toBe('Strict');
-      expect(cookie?.secure).toBe(false); // NODE_ENV=test 非 production
+      // Secure 仅在 HTTPS（production）下携带：set-cookie 原始头不含 Secure 属性
+      // （set-cookie-parser 只在属性存在时产出 secure 字段，无法断言 false）。
+      const setCookieHeader = response.headers['set-cookie'];
+      const rawCookie = Array.isArray(setCookieHeader)
+        ? setCookieHeader.join('\n')
+        : String(setCookieHeader ?? '');
+      expect(rawCookie).not.toContain('Secure');
     });
 
     it('username 含大写或非法字符 → 400 COMMUNITY_VALIDATION_ERROR', async () => {
@@ -94,7 +114,9 @@ describe('认证与令牌契约', () => {
         payload: { username: 'Alice!', email: 'a@example.test', password: 'password-123' },
       });
       expect(response.statusCode).toBe(400);
-      expect((response.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_VALIDATION_ERROR');
+      expect(response.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_VALIDATION_ERROR'
+      );
     });
 
     it('口令短于策略下限 → 400', async () => {
@@ -114,7 +136,9 @@ describe('认证与令牌契约', () => {
         payload: { username: 'dupuser', email: 'other@example.test', password: 'password-123' },
       });
       expect(sameName.statusCode).toBe(409);
-      expect((sameName.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_AUTH_USER_EXISTS');
+      expect(sameName.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_AUTH_USER_EXISTS'
+      );
       const sameEmail = await app.inject({
         method: 'POST',
         url: '/api/v1/auth/register',
@@ -139,7 +163,7 @@ describe('认证与令牌契约', () => {
           payload: { identifier, password: 'correct-horse-battery' },
         });
         expect(response.statusCode).toBe(200);
-        const body = response.json() as SessionBody;
+        const body = response.json<SessionBody>();
         expect(body.data.user.id).toBe(account.userId);
         expect(body.data.user.role).toBe('user');
       }
@@ -152,7 +176,9 @@ describe('认证与令牌契约', () => {
         payload: { identifier: 'carol', password: 'wrong-password' },
       });
       expect(response.statusCode).toBe(401);
-      expect((response.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_AUTH_INVALID_CREDENTIALS');
+      expect(response.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_AUTH_INVALID_CREDENTIALS'
+      );
     });
 
     it('连续失败达到阈值 → 403 COMMUNITY_AUTH_ACCOUNT_LOCKED（retryable）', async () => {
@@ -172,7 +198,7 @@ describe('认证与令牌契约', () => {
         payload: { identifier: name, password: 'password-123' },
       });
       expect(locked.statusCode).toBe(403);
-      const body = locked.json() as { error: { code: string; retryable: boolean } };
+      const body = locked.json<{ error: { code: string; retryable: boolean } }>();
       expect(body.error.code).toBe('COMMUNITY_AUTH_ACCOUNT_LOCKED');
       expect(body.error.retryable).toBe(true);
     });
@@ -187,7 +213,7 @@ describe('认证与令牌契约', () => {
         payload: { refreshToken: account.refreshToken },
       });
       expect(first.statusCode).toBe(200);
-      const body = first.json() as { data: { accessToken: string; refreshToken: string } };
+      const body = first.json<{ data: { accessToken: string; refreshToken: string } }>();
       expect(typeof body.data.accessToken).toBe('string');
       expect(typeof body.data.refreshToken).toBe('string');
 
@@ -228,7 +254,9 @@ describe('认证与令牌契约', () => {
         payload: { refreshToken: 123 },
       });
       expect(response.statusCode).toBe(400);
-      expect((response.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_VALIDATION_ERROR');
+      expect(response.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_VALIDATION_ERROR'
+      );
     });
   });
 
@@ -269,7 +297,7 @@ describe('认证与令牌契约', () => {
         url: '/api/v1/auth/login',
         payload: { identifier: 'pwchange', password: 'correct-horse-battery' },
       });
-      const secondBody = second.json() as SessionBody;
+      const secondBody = second.json<SessionBody>();
 
       const change = await app.inject({
         method: 'PUT',
@@ -321,7 +349,9 @@ describe('认证与令牌契约', () => {
         payload: { identifier: 'disabled-a', password: 'correct-horse-battery' },
       });
       expect(login.statusCode).toBe(403);
-      expect((login.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_USER_ACCOUNT_DISABLED');
+      expect(login.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_USER_ACCOUNT_DISABLED'
+      );
 
       const me = await app.inject({
         method: 'GET',
@@ -329,7 +359,9 @@ describe('认证与令牌契约', () => {
         headers: authHeader(account.accessToken),
       });
       expect(me.statusCode).toBe(403);
-      expect((me.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_USER_ACCOUNT_DISABLED');
+      expect(me.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_USER_ACCOUNT_DISABLED'
+      );
 
       // 刷新：一律 204（不区分用户不可用，契约 §3.3）
       const refresh = await app.inject({
@@ -345,7 +377,9 @@ describe('认证与令牌契约', () => {
     it('缺 token → TOKEN_MISSING；篡改 → TOKEN_INVALID；过期 → TOKEN_EXPIRED', async () => {
       const missing = await app.inject({ method: 'GET', url: '/api/v1/users/me' });
       expect(missing.statusCode).toBe(401);
-      expect((missing.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_AUTH_TOKEN_MISSING');
+      expect(missing.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_AUTH_TOKEN_MISSING'
+      );
 
       const invalid = await app.inject({
         method: 'GET',
@@ -353,7 +387,9 @@ describe('认证与令牌契约', () => {
         headers: authHeader('not-a-jwt'),
       });
       expect(invalid.statusCode).toBe(401);
-      expect((invalid.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_AUTH_TOKEN_INVALID');
+      expect(invalid.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_AUTH_TOKEN_INVALID'
+      );
 
       // 篡改 refresh token 打访问接口同样按非法处理
       const account = await registerAccount(app, { username: 'tokentype' });
@@ -363,7 +399,9 @@ describe('认证与令牌契约', () => {
         headers: authHeader(account.refreshToken),
       });
       expect(wrongType.statusCode).toBe(401);
-      expect((wrongType.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_AUTH_TOKEN_INVALID');
+      expect(wrongType.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_AUTH_TOKEN_INVALID'
+      );
 
       const expiredApp = await buildTestHarness({ config: { accessExpiresIn: '1s' } });
       const expAccount = await registerAccount(expiredApp.app, { username: 'expired-a' });
@@ -374,7 +412,9 @@ describe('认证与令牌契约', () => {
         headers: authHeader(expAccount.accessToken),
       });
       expect(expired.statusCode).toBe(401);
-      expect((expired.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_AUTH_TOKEN_EXPIRED');
+      expect(expired.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_AUTH_TOKEN_EXPIRED'
+      );
       await expiredApp.app.close();
     });
   });

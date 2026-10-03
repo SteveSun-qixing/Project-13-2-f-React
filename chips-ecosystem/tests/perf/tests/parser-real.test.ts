@@ -248,7 +248,7 @@ describe('解析域真测计时协议（假解析面 + 受控时钟）', () => {
     // 夹具真实落盘（>1 MB 运行时生成，不入库）。
     const paths = await writePerfParseFixtures(fixtureDir);
     expect(paths.cardBytes).toBeGreaterThan(10 * 1024 * 1024);
-  });
+  }, 30_000);
 
   it('箱子场景：条目索引段与箱全量解析全链各自成样；登记面恰等、卡片口径臂不回填', async () => {
     // W3 登记口径翻正：卡片口径伴生臂 parse_10mb_ms 已自 parse-box-10k 场景登记移除，

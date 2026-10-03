@@ -32,7 +32,11 @@ import { NATIVE_RESOURCE_SURFACE_EXPORTS } from '../src/capabilities/document/ad
 import { createDocumentScopeAdapter } from '../src/capabilities/document/adapters/scope-adapter.js';
 import { DocumentScopeLedger } from '../src/capabilities/document/adapters/scope-ledger.js';
 import type { INativeResourceModule } from '../src/capabilities/document/adapters/native-resource-module.js';
-import { DOCUMENT_SCOPE_OWNER, deriveDocumentScope } from '../src/capabilities/document/scope-derivation.js';
+import {
+  DOCUMENT_SCOPE_OWNER,
+  DOCUMENT_TARGET_SCOPE_BINDING_ID,
+  deriveDocumentScope,
+} from '../src/capabilities/document/scope-derivation.js';
 import { DocumentCapabilityError } from '../src/capabilities/document/errors.js';
 import type { DiagnosticsSink } from '../src/shared/diagnostics.js';
 
@@ -622,18 +626,21 @@ describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 �
     expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
   });
 
-  it('注销入口唯一性存在性锁：镜像清单单一注销名 + 适配器出口面恰五成员且仅 unregisterScope 触注销', async () => {
+  it('注销入口唯一性存在性锁：镜像清单单一注销名 + 适配器出口面恰七成员且注销仅两臂触达（W5 T-ws 随动翻正：目标生命周期两成员入列，强度不降）', async () => {
     // 镜像清单：`Unregister` 形注销名恰一（禁第二注销形，INV-6 消费侧证据）。
     expect(NATIVE_RESOURCE_SURFACE_EXPORTS.filter((name) => name.includes('Unregister'))).toEqual([
       'resourceUnregisterScope',
     ]);
     const fake = createFakeNative();
     const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
-    // 适配器出口面恰五成员（grant 消费拍不增出口：授权注入收敛于 registerScope 流程内部）。
+    // 适配器出口面恰七成员（W5 T-ws 增 ensureTargetScope / releaseTargetScope 两臂；
+    // grant 消费拍仍不增出口：授权注入收敛于挂载机械单源 mountLedgerEntry 流程内部）。
     expect(Object.keys(adapter).sort()).toEqual([
+      'ensureTargetScope',
       'localPathOf',
       'normalizeSource',
       'registerScope',
+      'releaseTargetScope',
       'scopeRootOf',
       'unregisterScope',
     ]);
@@ -642,7 +649,8 @@ describe('scope-adapter · grant 消费拍与生命周期不变量（工单053 �
     await adapter.normalizeSource(managedUri, makeContext());
     await adapter.localPathOf(managedUri, 4100);
     expect(adapter.scopeRootOf(managedUri)).not.toBeNull();
-    // 以上四路触达零注销调用；仅 unregisterScope 一路触注销（注销入口唯一行为证据）。
+    // 以上四路触达零注销调用；仅 unregisterScope / releaseTargetScope 两路触注销
+    // （注销入口唯一行为证据——releaseTargetScope 内部收敛到同一注销通道，INV-6）。
     expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(0);
     await adapter.unregisterScope({ documentId: 'doc-grant', managedUri });
     expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(1);
@@ -953,5 +961,200 @@ describe('scope-adapter · 点位三消费臂（工单036 波 B2：正向取回 
     const again = await adapter.normalizeSource(first.managedUri, makeContext());
     expect(again).toEqual(first);
     expect(fake.calls).toHaveLength(0);
+  });
+});
+
+describe('scope-adapter · 目标作用域注册生命周期（W5 T-ws：ensureTargetScope 三态 / releaseTargetScope 两拍 / 哨兵接管）', () => {
+  /** 归一目标落点并回受管引用（替身首会话回执恒 4100）。 */
+  async function normalizedTarget(
+    adapter: ReturnType<typeof createDocumentScopeAdapter>,
+    target: string,
+    kind: 'card' | 'box',
+  ): Promise<{ readonly managedUri: string; readonly scope: string }> {
+    const scope = deriveDocumentScope(target, kind);
+    const managedUri = `chips-resource://${scope}/${basename(target)}`;
+    await adapter.normalizeSource(target, makeContext());
+    return { managedUri, scope };
+  }
+
+  it('未注册→注册：open → grant → mount（目录态 writable=true）→ 点位三正向取回，回执 existedBefore=false', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const target = makeFixture('target-fresh.card', true);
+    const { managedUri, scope } = await normalizedTarget(adapter, target, 'card');
+    fake.calls.length = 0;
+    const assurance = await adapter.ensureTargetScope(managedUri, 'card');
+    // 挂载机械单源（mountLedgerEntry）：与 registerScope 同一 open → grant → mount 序列，
+    // OWNER 哨兵与 writable=true 逐字；localPath 经点位三正向口现取（非 TS 账本缓存值）。
+    expect(fake.calls.map((call) => call.name)).toEqual([
+      'resourceOpenSession',
+      'resourceGrantSession',
+      'resourceMountDirectory',
+      'resourceLocalPathOf',
+    ]);
+    expect(callAt(fake, 0).args).toEqual(['document', DOCUMENT_SCOPE_OWNER]);
+    expect(callAt(fake, 1).args).toEqual([4100, ['resources:write']]);
+    expect(callAt(fake, 2).args).toEqual([4100, scope, target, DOCUMENT_SCOPE_OWNER, true]);
+    expect(callAt(fake, 3).args).toEqual([`chips-resource://${scope}/`, 4100]);
+    expect(assurance).toEqual({ nativeSession: 4100, localPath: target, form: 'directory', existedBefore: false });
+  });
+
+  it('已注册→复用：同 managedUri 重复 ensure 零挂载调用，回执同一会话且 existedBefore=true', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const target = makeFixture('target-reuse.box', false);
+    const { managedUri, scope } = await normalizedTarget(adapter, target, 'box');
+    const first = await adapter.ensureTargetScope(managedUri, 'box');
+    expect(first.existedBefore).toBe(false);
+    fake.calls.length = 0;
+    const second = await adapter.ensureTargetScope(managedUri, 'box');
+    // 复用臂：反向直读核验（点位三）+ 正向现取路径，零 open/grant/mount（INV-1 同会话不分叉）。
+    expect(fake.calls.map((call) => call.name)).toEqual(['resourceManagedUriOfPath', 'resourceLocalPathOf']);
+    expect(callAt(fake, 0).args).toEqual([target, 4100]);
+    expect(callAt(fake, 1).args).toEqual([`chips-resource://${scope}/`, 4100]);
+    expect(second).toEqual({ nativeSession: 4100, localPath: target, form: 'archive', existedBefore: true });
+    expect(second.nativeSession).toBe(first.nativeSession);
+  });
+
+  it('已注册→复用（归档态挂载形）：mountArchive 只读形与目录态同一挂载机械', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const target = makeFixture('target-arch.box', false);
+    const { managedUri, scope } = await normalizedTarget(adapter, target, 'box');
+    fake.calls.length = 0;
+    await adapter.ensureTargetScope(managedUri, 'box');
+    expect(fake.calls.map((call) => call.name)).toEqual([
+      'resourceOpenSession',
+      'resourceGrantSession',
+      'resourceMountArchive',
+      'resourceLocalPathOf',
+    ]);
+    expect(callAt(fake, 2).args).toEqual([4100, scope, target, DOCUMENT_SCOPE_OWNER]);
+  });
+
+  it('未归一前置 fail-closed：未在册受管引用 RESOURCE_INVALID_URI，零原生调用（禁跳册直挂）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    fake.calls.length = 0;
+    const error = await expectRejection(() =>
+      adapter.ensureTargetScope('chips-resource://card-5555555555555555555555555555555555555555/ghost.card', 'card'),
+    );
+    expect(error.code).toBe('RESOURCE_INVALID_URI');
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('种类冲突 fail-closed：kind 与在册账不符 RESOURCE_ALREADY_EXISTS，零原生调用（INV-5 禁抢占）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const cardTarget = makeFixture('target-kind.card', true);
+    const { managedUri } = await normalizedTarget(adapter, cardTarget, 'card');
+    fake.calls.length = 0;
+    const error = await expectRejection(() => adapter.ensureTargetScope(managedUri, 'box'));
+    expect(error.code).toBe('RESOURCE_ALREADY_EXISTS');
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('releaseTargetScope 两拍次序锁：① unregister(scope, session) → ② closeSession(session)，随后销账；重复释放已达零调用', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const target = makeFixture('target-release.card', true);
+    const { managedUri, scope } = await normalizedTarget(adapter, target, 'card');
+    await adapter.ensureTargetScope(managedUri, 'card');
+    fake.calls.length = 0;
+    await adapter.releaseTargetScope(managedUri);
+    // 两拍次序（INV-2）逐字：次序、实参、计数三重等值；两拍之间零插入。
+    expect(fake.calls.map((call) => call.name)).toEqual(['resourceUnregisterScope', 'resourceCloseSession']);
+    expect(callAt(fake, 0).args).toEqual([scope, 4100]);
+    expect(callAt(fake, 1).args).toEqual([4100]);
+    // 销账后重复释放 = 已达口径：零原生调用（禁第二注销通道，INV-6）。
+    fake.calls.length = 0;
+    await adapter.releaseTargetScope(managedUri);
+    expect(fake.calls).toHaveLength(0);
+    // 释放后可重新注册（export 重复另存场景）：销账即账目移除，重归一（唯一归一入口）后
+    // 完整挂载流程再现，会话凭号前进。
+    await adapter.normalizeSource(target, makeContext());
+    const reassurance = await adapter.ensureTargetScope(managedUri, 'card');
+    expect(reassurance.existedBefore).toBe(false);
+    expect(reassurance.nativeSession).toBe(4101);
+  });
+
+  it('releaseTargetScope 归属闸：已接管绑定（真实 documentId）拒释 PERMISSION_DENIED，零原生调用且账目保留', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const target = makeFixture('target-guard.card', true);
+    const { managedUri } = await normalizedTarget(adapter, target, 'card');
+    await adapter.ensureTargetScope(managedUri, 'card');
+    await adapter.registerScope({ documentId: 'doc-owner', managedUri, kind: 'card' });
+    fake.calls.length = 0;
+    const error = await expectRejection(() => adapter.releaseTargetScope(managedUri));
+    expect(error.code).toBe('RESOURCE_PERMISSION_DENIED');
+    expect(fake.calls).toHaveLength(0);
+    // 账目保留：文档记录自身的注销通道（INV-2 两拍）仍然可达且作用于同一会话。
+    await adapter.unregisterScope({ documentId: 'doc-owner', managedUri });
+    expect(fake.calls.map((call) => call.name)).toEqual(['resourceUnregisterScope', 'resourceCloseSession']);
+    expect(callAt(fake, 0).args).toEqual([deriveDocumentScope(target, 'card'), 4100]);
+  });
+
+  it('releaseTargetScope 未挂载/未在册 = 释放已达：仅归一在册即静默销账，未在册零调用不抛', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const target = makeFixture('target-unmounted.card', true);
+    const { managedUri } = await normalizedTarget(adapter, target, 'card');
+    fake.calls.length = 0;
+    await adapter.releaseTargetScope(managedUri);
+    expect(fake.calls).toHaveLength(0);
+    // 销账后再注册走完整挂载（销账真实发生，非静默跳过；重归一为唯一入口）。
+    await adapter.normalizeSource(target, makeContext());
+    const assurance = await adapter.ensureTargetScope(managedUri, 'card');
+    expect(assurance.existedBefore).toBe(false);
+    expect(fake.calls.filter((call) => call.name === 'resourceMountDirectory')).toHaveLength(1);
+    fake.calls.length = 0;
+    await adapter.releaseTargetScope('chips-resource://card-6666666666666666666666666666666666666666/none.card');
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('哨兵接管臂（create 落地交文档记录）：registerScope 以真实 documentId 接管哨兵绑定，同会话零新挂载；接管后释放臂拒释', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const target = makeFixture('target-adopt.card', true);
+    const { managedUri } = await normalizedTarget(adapter, target, 'card');
+    const assurance = await adapter.ensureTargetScope(managedUri, 'card');
+    expect(assurance.nativeSession).toBe(4100);
+    fake.calls.length = 0;
+    // 接管：同一活绑定、同一原生会话（INV-1 不分叉），零 open/grant/mount 重放。
+    const registration = await adapter.registerScope({ documentId: 'doc-create', managedUri, kind: 'card' });
+    expect(registration.nativeSession).toBe(4100);
+    expect(fake.calls).toHaveLength(0);
+    // 接管后哨兵归属闸翻正：目标释放臂拒释（归属已移交文档记录生命周期）。
+    const releaseError = await expectRejection(() => adapter.releaseTargetScope(managedUri));
+    expect(releaseError.code).toBe('RESOURCE_PERMISSION_DENIED');
+    // 哨兵常量与真实文档标识结构性不相交（base62 无点号），判别非词法猜测。
+    expect(DOCUMENT_TARGET_SCOPE_BINDING_ID).not.toMatch(/^[0-9A-Za-z]+$/u);
+    expect(DOCUMENT_TARGET_SCOPE_BINDING_ID).toContain('.');
+  });
+
+  it('目标注册臂同键串行：ensure 与 release 并发投递经账本队列依序执行（注册不得越过在途注销）', async () => {
+    const fake = createFakeNative();
+    const adapter = createDocumentScopeAdapter({ native: fake.module, ledger: new DocumentScopeLedger() });
+    const target = makeFixture('target-serial.card', true);
+    const { managedUri } = await normalizedTarget(adapter, target, 'card');
+    await Promise.all([
+      adapter.ensureTargetScope(managedUri, 'card'),
+      adapter.ensureTargetScope(managedUri, 'card'),
+      adapter.releaseTargetScope(managedUri),
+    ]);
+    // 串行化结果：并发批内挂载恰一次（首注册 + 复用臂零挂载）、两拍注销恰一次。
+    expect(fake.calls.filter((call) => call.name === 'resourceMountDirectory')).toHaveLength(1);
+    expect(fake.calls.filter((call) => call.name === 'resourceUnregisterScope')).toHaveLength(1);
+    // 释放销账后重归一并再注册：完整挂载流程再现，注销严格先于第二次挂载（队列序）。
+    await adapter.normalizeSource(target, makeContext());
+    await adapter.ensureTargetScope(managedUri, 'card');
+    expect(fake.calls.filter((call) => call.name === 'resourceMountDirectory')).toHaveLength(2);
+    const mountIndexes = fake.calls
+      .map((call, index) => (call.name === 'resourceMountDirectory' ? index : -1))
+      .filter((index) => index >= 0);
+    const unregister = fake.calls.findIndex((call) => call.name === 'resourceUnregisterScope');
+    expect(unregister).toBeGreaterThan(mountIndexes[0] ?? -1);
+    expect(mountIndexes[1]).toBeGreaterThan(unregister);
   });
 });

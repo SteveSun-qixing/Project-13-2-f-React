@@ -52,7 +52,7 @@ function flattenZod(error: ZodError): Record<string, unknown> {
   return { fieldErrors };
 }
 
-export async function errorHandlerPlugin(fastify: FastifyInstance): Promise<void> {
+export function errorHandlerPlugin(fastify: FastifyInstance): void {
   fastify.setErrorHandler((error, request, reply) => {
     const traceId = request.id;
 
@@ -76,10 +76,13 @@ export async function errorHandlerPlugin(fastify: FastifyInstance): Promise<void
     }
 
     // Fastify 内建传输层错误归一（JSON 解析、媒体类型、体积上限）。
+    // 默认 JSON 解析器对非法 JSON 抛出的是 secure-json-parse 的 SyntaxError
+    // （仅置 statusCode=400，无 FST_ERR_CTP_INVALID_JSON 错误码）。
     const fastifyCode = (error as { code?: string }).code;
     if (
       fastifyCode === 'FST_ERR_CTP_EMPTY_JSON_BODY' ||
-      fastifyCode === 'FST_ERR_CTP_INVALID_JSON'
+      fastifyCode === 'FST_ERR_CTP_INVALID_JSON' ||
+      (error instanceof SyntaxError && error.statusCode === 400)
     ) {
       return reply
         .status(400)

@@ -218,12 +218,12 @@ describe('docx 网关：真实字节解析', () => {
 describe('word 保存链：file 域能力调用形', () => {
   it('importWordDocumentFromPath 经 file:read 真调导入：文档/编辑基线/路径齐备', async () => {
     const calls: Array<{ capability: string; payload: unknown }> = []
-    const invoker = async (capability: string, payload: unknown): Promise<unknown> => {
+    const invoker = (capability: string, payload: unknown): Promise<unknown> => {
       calls.push({ capability, payload })
       if (capability === 'file:read') {
-        return { content: fixture().toString('base64'), encoding: 'base64' }
+        return Promise.resolve({ content: fixture().toString('base64'), encoding: 'base64' })
       }
-      throw new Error(`意外能力调用 ${capability}`)
+      return Promise.reject(new Error(`意外能力调用 ${capability}`))
     }
     const result = await importWordDocumentFromPath(invoker, '~/文档/示例.docx')
     expect(result.status).toBe('imported')
@@ -262,9 +262,9 @@ describe('word 保存链：file 域能力调用形', () => {
   it('persistWordDocument 经 file:write 真调落盘：base64 载荷解码恰等为文档字节', async () => {
     const doc = await readWordDocument(fixture())
     const calls: Array<{ capability: string; payload: unknown }> = []
-    const invoker = async (capability: string, payload: unknown): Promise<unknown> => {
+    const invoker = (capability: string, payload: unknown): Promise<unknown> => {
       calls.push({ capability, payload })
-      return {}
+      return Promise.resolve({})
     }
     const result = await persistWordDocument(invoker, '~/文档/示例.docx', doc)
     expect(result.status).toBe('written')

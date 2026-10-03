@@ -20,11 +20,13 @@ export interface AuthenticatePluginDeps {
 async function resolveUser(
   fastify: FastifyInstance,
   request: FastifyRequest
-): Promise<{ payload: AuthTokenPayload; active: boolean }> {
+): Promise<{ payload: AuthTokenPayload; role: 'user' | 'admin'; active: boolean }> {
   const payload = fastify.authService.verifyAccessToken(request.headers.authorization);
+  let role: 'user' | 'admin';
   let active: boolean;
   try {
     const user = await fastify.userService.getById(payload.userId);
+    role = user.role;
     active = user.isActive;
   } catch (error) {
     // 令牌签名有效但账号已不存在：按令牌非法处理（不泄露账号状态差异）。
@@ -33,14 +35,19 @@ async function resolveUser(
     }
     throw error;
   }
-  return { payload, active };
+  return { payload, role, active };
 }
 
-function requireActive(resolved: { payload: AuthTokenPayload; active: boolean }): RequestUser {
+function requireActive(resolved: {
+  payload: AuthTokenPayload;
+  role: 'user' | 'admin';
+  active: boolean;
+}): RequestUser {
   if (!resolved.active) {
     throw AppError.forbidden('COMMUNITY_USER_ACCOUNT_DISABLED', '账号已被停用');
   }
-  return resolved.payload;
+  // 授权角色取数据库当前值（令牌 claim 仅为签发时快照）：角色变更即时生效。
+  return { ...resolved.payload, role: resolved.role };
 }
 
 declare module 'fastify' {
@@ -53,10 +60,7 @@ declare module 'fastify' {
   }
 }
 
-export async function authenticatePlugin(
-  fastify: FastifyInstance,
-  deps: AuthenticatePluginDeps
-): Promise<void> {
+export function authenticatePlugin(fastify: FastifyInstance, deps: AuthenticatePluginDeps): void {
   fastify.decorate('authService', deps.authService);
   fastify.decorate('userService', deps.userService);
 

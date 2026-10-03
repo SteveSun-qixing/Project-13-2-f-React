@@ -19,10 +19,7 @@ export interface IdempotencyPluginDeps {
   config: Pick<AppConfig, 'idempotencyRecordTtlMinutes'>;
 }
 
-export async function idempotencyPlugin(
-  fastify: FastifyInstance,
-  deps: IdempotencyPluginDeps
-): Promise<void> {
+export function idempotencyPlugin(fastify: FastifyInstance, deps: IdempotencyPluginDeps): void {
   fastify.addHook('onSend', async (request: FastifyRequest, reply: FastifyReply, payload) => {
     const claim: IdempotencyClaim | undefined = request.idempotencyClaim;
     if (claim === undefined) {

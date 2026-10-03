@@ -28,7 +28,6 @@ import {
 describe('限流契约（账号与来源 IP 双维度）', () => {
   let harness: TestHarness;
   let app: FastifyInstance;
-  let account: RegisteredAccount;
 
   beforeAll(async () => {
     harness = await buildTestHarness({
@@ -39,9 +38,9 @@ describe('限流契约（账号与来源 IP 双维度）', () => {
       },
     });
     app = harness.app;
-    account = await registerAccount(app, { username: 'ratelimit-user' });
-    // 浏览档位测试路由（browse 档）
-    app.get('/api/v1/__browse', async () => ({ data: { ok: true } }));
+    // 夹具路由必须在首个 inject（ready）之前注册；此后不可再 addRoute。
+    app.get('/api/v1/__browse', () => ({ data: { ok: true } }));
+    await registerAccount(app, { username: 'ratelimit-user' });
   });
 
   afterAll(async () => {
@@ -55,7 +54,7 @@ describe('限流契约（账号与来源 IP 双维度）', () => {
     }
     const limited = await app.inject({ method: 'GET', url: '/api/v1/__browse' });
     expect(limited.statusCode).toBe(429);
-    const body = limited.json() as { error: { code: string; retryable: boolean } };
+    const body = limited.json<{ error: { code: string; retryable: boolean } }>();
     expect(body.error.code).toBe('COMMUNITY_RATE_LIMITED');
     expect(body.error.retryable).toBe(true);
     expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
@@ -74,14 +73,16 @@ describe('限流契约（账号与来源 IP 双维度）', () => {
       });
       if (response.statusCode === 429) {
         sawLimit = true;
-        expect((response.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_RATE_LIMITED');
+        expect(response.json<{ error: { code: string } }>().error.code).toBe(
+          'COMMUNITY_RATE_LIMITED'
+        );
         break;
       }
     }
     expect(sawLimit).toBe(true);
   });
 
-  it('进程内存储：窗口过期后计数重置', async () => {
+  it('进程内存储：窗口过期后计数重置', () => {
     const store = new InMemoryRateLimitStore();
     const now = Date.now();
     store.hit('k', 1, now);
@@ -101,19 +102,30 @@ describe('幂等中间件契约（同键同体重放首响，同键异体 409）
   beforeAll(async () => {
     harness = await buildTestHarness();
     app = harness.app;
-    account = await registerAccount(app, { username: 'idem-user' });
-    // 夹具路由：声明幂等端点（正式端点由内容写域臂/传输臂按契约 §6.2 挂接）
+    // 夹具路由：声明幂等端点（正式端点由内容写域臂/传输臂按契约 §6.2 挂接）。
+    // 夹具路由必须在首个 inject（ready）之前注册；此后不可再 addRoute。
     app.post(
       '/api/v1/__idempotent',
       {
         preHandler: [app.authenticate, app.idempotencyGuard],
         config: { idempotency: 'POST /api/v1/__idempotent' },
       },
-      async (request) => {
+      (request) => {
         const body = request.body as { value: number };
         return { data: { value: body.value, echo: 'first-result' } };
-      },
+      }
     );
+    app.post(
+      '/api/v1/__idem-boom',
+      {
+        preHandler: [app.authenticate, app.idempotencyGuard],
+        config: { idempotency: 'POST /api/v1/__idem-boom' },
+      },
+      () => {
+        throw new Error('失败');
+      }
+    );
+    account = await registerAccount(app, { username: 'idem-user' });
   });
 
   afterAll(async () => {
@@ -128,7 +140,9 @@ describe('幂等中间件契约（同键同体重放首响，同键异体 409）
       payload: { value: 1 },
     });
     expect(response.statusCode).toBe(400);
-    expect((response.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_VALIDATION_ERROR');
+    expect(response.json<{ error: { code: string } }>().error.code).toBe(
+      'COMMUNITY_VALIDATION_ERROR'
+    );
   });
 
   it('同键同体：重放首次结果（状态码与响应体一致）', async () => {
@@ -167,7 +181,9 @@ describe('幂等中间件契约（同键同体重放首响，同键异体 409）
       payload: { value: 2 },
     });
     expect(conflict.statusCode).toBe(409);
-    expect((conflict.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_IDEMPOTENCY_CONFLICT');
+    expect(conflict.json<{ error: { code: string } }>().error.code).toBe(
+      'COMMUNITY_IDEMPOTENCY_CONFLICT'
+    );
   });
 
   it('不同账号同键互不影响（账号维度隔离）', async () => {
@@ -191,16 +207,6 @@ describe('幂等中间件契约（同键同体重放首响，同键异体 409）
   });
 
   it('5xx 不缓存为重放结果并释放占用', async () => {
-    app.post(
-      '/api/v1/__idem-boom',
-      {
-        preHandler: [app.authenticate, app.idempotencyGuard],
-        config: { idempotency: 'POST /api/v1/__idem-boom' },
-      },
-      async () => {
-        throw new Error('失败');
-      },
-    );
     const key = 'idem-key-boom';
     const first = await app.inject({
       method: 'POST',

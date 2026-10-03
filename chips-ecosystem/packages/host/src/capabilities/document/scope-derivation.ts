@@ -40,6 +40,21 @@ import { DocumentCapabilityError } from './errors.js';
  */
 export const DOCUMENT_SCOPE_OWNER = 'chips.official.document-service';
 
+/**
+ * 目标作用域注册的在册绑定标识哨兵（W5 T-ws 工作区作用域臂）。
+ *
+ * @remarks
+ * - 非打开文档的目标作用域（export 目标/暂存物、create 落点）经
+ *   {@link ./adapters/scope-adapter.js} `ensureTargetScope` 注册时，在册账活绑定的
+ *   `documentId` 位落本哨兵——此刻尚无文档记录可归属；create 落地后由文档记录以真实
+ *   `documentId` 经 `registerScope` 幂等臂**接管**（哨兵位翻正为真实标识，同一活绑定、
+ *   同一原生会话，INV-1 不分叉）。
+ * - 结构判别权威：真实 `card_id`/`box_id` 为 62 字符 base62（字母与数字，05-ID生成规范
+ *   §三/§四），不含点号；本哨兵含点号，与一切真实文档标识**结构性不相交**——接管臂与
+ *   释放臂据此判别绑定归属，禁以词法猜测替代。
+ */
+export const DOCUMENT_TARGET_SCOPE_BINDING_ID = 'chips.official.document-target';
+
 /** 派生 scope 的 hex 截断长度（160 bit，OQ-1 裁定：sha256 全 64 hex 取前 40）。 */
 export const DOCUMENT_SCOPE_HEX_LENGTH = 40;
 

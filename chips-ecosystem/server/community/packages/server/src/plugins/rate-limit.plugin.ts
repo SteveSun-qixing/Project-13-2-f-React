@@ -87,10 +87,7 @@ function tierLimit(config: RateLimitPluginDeps['config'], tier: RateLimitTier | 
   }
 }
 
-export async function rateLimitPlugin(
-  fastify: FastifyInstance,
-  deps: RateLimitPluginDeps
-): Promise<void> {
+export function rateLimitPlugin(fastify: FastifyInstance, deps: RateLimitPluginDeps): void {
   const { config, store } = deps;
 
   fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {

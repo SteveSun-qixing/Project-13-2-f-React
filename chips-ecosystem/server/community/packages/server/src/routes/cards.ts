@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { AppError } from '../errors/AppError.js';
+import type { Card } from '../db/schema/index.js';
 import type { Repositories } from '../repositories/types.js';
 import type { CardService } from '../services/card.service.js';
 import type { UserService } from '../services/user.service.js';
@@ -16,7 +17,7 @@ export interface CardsRouteDeps {
   userService: UserService;
 }
 
-export async function cardRoutes(fastify: FastifyInstance, deps: CardsRouteDeps): Promise<void> {
+export function cardRoutes(fastify: FastifyInstance, deps: CardsRouteDeps): void {
   const { repositories, cardService, userService } = deps;
 
   fastify.get(
@@ -86,7 +87,7 @@ export async function cardRoutes(fastify: FastifyInstance, deps: CardsRouteDeps)
       const webCache = await repositories.renderCaches.findWebByCard(card.id);
       const resolution = cardService.resolveView(card, webCache);
       if (resolution.kind === 'redirect') {
-        return reply.redirect(302, resolution.location);
+        return reply.redirect(resolution.location, 302);
       }
       if (resolution.kind === 'renderError') {
         throw AppError.conflict('COMMUNITY_CARD_RENDER_ERROR', '查看缓存生成失败');
@@ -110,10 +111,13 @@ export async function cardRoutes(fastify: FastifyInstance, deps: CardsRouteDeps)
       const { cardId } = request.params as { cardId: string };
       const card = await requireCard(cardId);
       cardService.assertReadable(card, request.user ?? null);
-      const coverCache = await repositories.renderCaches.findCoverByCard(card.id);
-      const resolution = cardService.resolveCover(card, coverCache);
+      const [coverCache, webCache] = await Promise.all([
+        repositories.renderCaches.findCoverByCard(card.id),
+        repositories.renderCaches.findWebByCard(card.id),
+      ]);
+      const resolution = cardService.resolveCover(card, coverCache, webCache);
       if (resolution.kind === 'redirect') {
-        return reply.redirect(302, resolution.location);
+        return reply.redirect(resolution.location, 302);
       }
       // 处理中返回带 Retry-After 的临时占位页（契约 §6.4；失败已回退默认封面）。
       return reply
@@ -126,7 +130,7 @@ export async function cardRoutes(fastify: FastifyInstance, deps: CardsRouteDeps)
     }
   );
 
-  async function requireCard(cardId: string) {
+  async function requireCard(cardId: string): Promise<Card> {
     const card = await repositories.cards.findById(cardId);
     if (card === null) {
       throw AppError.notFound('COMMUNITY_CARD_NOT_FOUND', '卡片不存在或不可见');

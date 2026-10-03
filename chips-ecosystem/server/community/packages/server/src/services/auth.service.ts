@@ -43,16 +43,20 @@ export class AuthService {
     this.now = deps.now;
   }
 
-  /** 签发访问令牌并建立刷新会话（注册 / 登录 / 轮换共用）。 */
+  /**
+   * 签发访问令牌并建立刷新会话（注册 / 登录 / 轮换共用）。
+   * 令牌对共享同一 `jti`（登录会话标识，即 refresh_sessions 主键）：受保护请求据此
+   * 标识所属会话（如改密后「除当前会话外」的吊销口径，契约 §4.3）。
+   */
   async issueSession(user: Pick<User, 'id' | 'role'>): Promise<ICommunityTokenPair> {
     const now = this.now();
-    const refreshJti = newEntityId();
+    const sessionJti = newEntityId();
     const accessToken = this.signer.sign(
-      { userId: user.id, role: user.role, jti: newEntityId(), typ: 'access' },
+      { userId: user.id, role: user.role, jti: sessionJti, typ: 'access' },
       this.config.accessExpiresIn
     );
     const refreshToken = this.signer.sign(
-      { userId: user.id, role: user.role, jti: refreshJti, typ: 'refresh' },
+      { userId: user.id, role: user.role, jti: sessionJti, typ: 'refresh' },
       this.config.refreshExpiresIn
     );
     const refreshTtl = parseExpiresInToSeconds(
@@ -60,7 +64,7 @@ export class AuthService {
       REFRESH_FALLBACK_SECONDS
     );
     await this.repositories.refreshSessions.create({
-      jti: refreshJti,
+      jti: sessionJti,
       userId: user.id,
       expiresAt: new Date(now.getTime() + refreshTtl * 1000),
     });
@@ -134,8 +138,9 @@ export class AuthService {
     try {
       payload = this.signer.verify(token);
     } catch (error) {
-      const name = (error as { name?: string }).name;
-      if (name === 'TokenExpiredError') {
+      // 签名器为 @fastify/jwt（fast-jwt 内核）：过期错误码 FAST_JWT_EXPIRED。
+      const errorCode = (error as { code?: string }).code;
+      if (errorCode === 'FAST_JWT_EXPIRED') {
         throw AppError.unauthorized('COMMUNITY_AUTH_TOKEN_EXPIRED', '访问令牌已过期');
       }
       throw AppError.unauthorized('COMMUNITY_AUTH_TOKEN_INVALID', '访问令牌非法');

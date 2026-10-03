@@ -121,10 +121,11 @@ export async function buildApp(deps: ServerDeps): Promise<FastifyInstance> {
   }
 
   // ─── 中间件与业务装配 ───────────────────────────────────────────
+  // 插件装配辅助函数为同步注册（addHook/decorate/路由注册均为同步 API）。
 
-  await errorHandlerPlugin(fastify);
-  await requestIdPlugin(fastify);
-  await conditionalGetPlugin(fastify);
+  errorHandlerPlugin(fastify);
+  requestIdPlugin(fastify);
+  conditionalGetPlugin(fastify);
 
   const tokenSigner: TokenSigner = {
     sign: (payload: AuthTokenPayload, expiresIn: string) =>
@@ -143,28 +144,28 @@ export async function buildApp(deps: ServerDeps): Promise<FastifyInstance> {
   const boxService = new BoxService({ userService });
   const roomService = new RoomService({ repositories });
 
-  await authenticatePlugin(fastify, { authService, userService });
-  await rateLimitPlugin(fastify, {
+  authenticatePlugin(fastify, { authService, userService });
+  rateLimitPlugin(fastify, {
     config,
     store: deps.rateLimitStore ?? new InMemoryRateLimitStore(),
   });
-  await idempotencyPlugin(fastify, { config });
+  idempotencyPlugin(fastify, { config });
   fastify.decorate('repositories', repositories);
 
   // ─── 路由 ───────────────────────────────────────────────────────
 
-  await healthRoute(fastify, {
+  healthRoute(fastify, {
     registry: deps.healthRegistry,
     version: deps.version,
     apiVersion: 'v1',
   });
-  await authRoutes(fastify, {
+  authRoutes(fastify, {
     config,
     schemas: buildAuthSchemas(config.passwordMinLength),
     authService,
     userService,
   });
-  await userRoutes(fastify, {
+  userRoutes(fastify, {
     schemas: buildAuthSchemas(config.passwordMinLength),
     userService,
     cardService,
@@ -172,10 +173,10 @@ export async function buildApp(deps: ServerDeps): Promise<FastifyInstance> {
     roomService,
     repositories,
   });
-  await cardRoutes(fastify, { repositories, cardService, userService });
-  await boxRoutes(fastify, { repositories, boxService, userService });
-  await roomRoutes(fastify, { repositories, roomService, cardService, boxService });
-  await discoverRoutes(fastify, { repositories, cardService, boxService, userService });
+  cardRoutes(fastify, { repositories, cardService, userService });
+  boxRoutes(fastify, { repositories, boxService, userService });
+  roomRoutes(fastify, { repositories, roomService, cardService, boxService });
+  discoverRoutes(fastify, { repositories, cardService, boxService, userService });
 
   return fastify;
 }

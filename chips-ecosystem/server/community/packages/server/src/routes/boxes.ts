@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { AppError } from '../errors/AppError.js';
+import type { Box } from '../db/schema/index.js';
+import type { ICommunityBoxDetail } from '../dto/community.js';
 import type { Repositories } from '../repositories/types.js';
 import type { BoxService } from '../services/box.service.js';
 import type { UserService } from '../services/user.service.js';
@@ -16,7 +18,7 @@ export interface BoxesRouteDeps {
   userService: UserService;
 }
 
-export async function boxRoutes(fastify: FastifyInstance, deps: BoxesRouteDeps): Promise<void> {
+export function boxRoutes(fastify: FastifyInstance, deps: BoxesRouteDeps): void {
   const { repositories, boxService, userService } = deps;
 
   fastify.get(
@@ -47,7 +49,7 @@ export async function boxRoutes(fastify: FastifyInstance, deps: BoxesRouteDeps):
     }
   );
 
-  async function requireBox(boxId: string) {
+  async function requireBox(boxId: string): Promise<Box> {
     const box = await repositories.boxes.findById(boxId);
     if (box === null) {
       throw AppError.notFound('COMMUNITY_BOX_NOT_FOUND', '箱子不存在或不可见');
@@ -55,7 +57,7 @@ export async function boxRoutes(fastify: FastifyInstance, deps: BoxesRouteDeps):
     return box;
   }
 
-  async function assembleDetail(box: Awaited<ReturnType<typeof requireBox>>) {
+  async function assembleDetail(box: Box): Promise<ICommunityBoxDetail> {
     const author = await userService.getById(box.userId);
     // 条目匹配：按快照 document_id（即卡片 cardFileId）批量取公开就绪卡片。
     const documentIds = [

@@ -21,9 +21,9 @@ export interface AuthSchemas {
   }>;
   login: z.ZodObject<{ identifier: z.ZodString; password: z.ZodString }>;
   refresh: z.ZodOptional<z.ZodObject<{ refreshToken: z.ZodOptional<z.ZodString> }>>;
-  updateProfile: z.ZodObject<{
-    displayName: z.ZodOptional<z.ZodString>;
-    bio: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+  updateProfile: z.ZodType<{
+    displayName?: string | undefined;
+    bio?: string | null | undefined;
   }>;
   changePassword: z.ZodObject<{ currentPassword: z.ZodString; newPassword: z.ZodString }>;
 }
@@ -49,11 +49,16 @@ export function buildAuthSchemas(minPasswordLength: number): AuthSchemas {
         refreshToken: z.string().min(1, 'refreshToken 不能为空').optional(),
       })
       .optional(),
-    // 契约 §4.3：PATCH /users/me 只允许修改 displayName 与 bio。
-    updateProfile: z.object({
-      displayName: z.string().min(1, '昵称不能为空').max(100, '昵称过长').optional(),
-      bio: z.string().max(200, '简介过长').nullable().optional(),
-    }),
+    // 契约 §4.3：PATCH /users/me 只允许修改 displayName 与 bio；至少提供一个字段。
+    updateProfile: z
+      .object({
+        displayName: z.string().min(1, '昵称不能为空').max(100, '昵称过长').optional(),
+        bio: z.string().max(200, '简介过长').nullable().optional(),
+      })
+      .refine(
+        (body) => body.displayName !== undefined || body.bio !== undefined,
+        '至少提供一个要修改的字段'
+      ),
     // 契约 §4.3：PUT /users/me/password。
     changePassword: z.object({
       currentPassword: z.string().min(1, '请输入当前口令').max(128, '口令过长'),

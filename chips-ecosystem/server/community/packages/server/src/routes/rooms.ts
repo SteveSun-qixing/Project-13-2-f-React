@@ -20,7 +20,7 @@ export interface RoomsRouteDeps {
   boxService: BoxService;
 }
 
-export async function roomRoutes(fastify: FastifyInstance, deps: RoomsRouteDeps): Promise<void> {
+export function roomRoutes(fastify: FastifyInstance, deps: RoomsRouteDeps): void {
   const { repositories, roomService, cardService, boxService } = deps;
 
   fastify.get(

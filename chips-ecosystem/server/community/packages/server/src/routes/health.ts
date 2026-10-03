@@ -39,7 +39,7 @@ export interface HealthRouteDeps {
   apiVersion: 'v1';
 }
 
-export async function healthRoute(fastify: FastifyInstance, deps: HealthRouteDeps): Promise<void> {
+export function healthRoute(fastify: FastifyInstance, deps: HealthRouteDeps): void {
   fastify.get('/api/v1/health', async (_request, reply) => {
     const { healthy, unavailable } = await deps.registry.check();
     const body = {

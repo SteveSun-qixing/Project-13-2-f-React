@@ -6,7 +6,6 @@ import {
   fixtureBox,
   fixtureCard,
   fixtureRoom,
-  fixtureUser,
   registerAccount,
   type TestHarness,
 } from './helpers/harness.js';
@@ -40,7 +39,7 @@ describe('账号域契约', () => {
         headers: authHeader(alice.accessToken),
       });
       expect(response.statusCode).toBe(200);
-      const body = response.json() as { data: Record<string, unknown> };
+      const body = response.json<{ data: Record<string, unknown> }>();
       expect(Object.keys(body.data).sort()).toEqual([
         'avatarUrl',
         'bio',
@@ -71,7 +70,7 @@ describe('账号域契约', () => {
         payload: { displayName: '爱丽丝', bio: '卡片作者' },
       });
       expect(response.statusCode).toBe(200);
-      const body = response.json() as { data: { displayName: string; bio: string } };
+      const body = response.json<{ data: { displayName: string; bio: string } }>();
       expect(body.data.displayName).toBe('爱丽丝');
       expect(body.data.bio).toBe('卡片作者');
     });
@@ -84,7 +83,7 @@ describe('账号域契约', () => {
         payload: { bio: null },
       });
       expect(response.statusCode).toBe(200);
-      expect((response.json() as { data: { bio: string | null } }).data.bio).toBeNull();
+      expect(response.json<{ data: { bio: string | null } }>().data.bio).toBeNull();
     });
 
     it('空请求体 → 400（至少一个字段）', async () => {
@@ -102,7 +101,7 @@ describe('账号域契约', () => {
     it('公开资料不含 email 与 role（契约 §10.2）', async () => {
       const response = await app.inject({ method: 'GET', url: '/api/v1/users/alice' });
       expect(response.statusCode).toBe(200);
-      const body = response.json() as { data: Record<string, unknown> };
+      const body = response.json<{ data: Record<string, unknown> }>();
       expect(Object.keys(body.data).sort()).toEqual([
         'avatarUrl',
         'bio',
@@ -118,7 +117,9 @@ describe('账号域契约', () => {
     it('不存在 → 404 COMMUNITY_USER_NOT_FOUND', async () => {
       const response = await app.inject({ method: 'GET', url: '/api/v1/users/ghost' });
       expect(response.statusCode).toBe(404);
-      expect((response.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_USER_NOT_FOUND');
+      expect(response.json<{ error: { code: string } }>().error.code).toBe(
+        'COMMUNITY_USER_NOT_FOUND'
+      );
     });
   });
 
@@ -156,7 +157,7 @@ describe('账号域契约', () => {
           status: 'ready',
           visibility: 'private',
           createdAt: new Date(Date.parse('2026-09-12T00:00:00.000Z')),
-        }),
+        })
       );
       harness.state.boxes.push(
         fixtureBox({
@@ -174,7 +175,7 @@ describe('账号域契约', () => {
           status: 'ready',
           visibility: 'private',
           createdAt: new Date(Date.parse('2026-09-14T00:00:00.000Z')),
-        }),
+        })
       );
     });
 
@@ -185,7 +186,7 @@ describe('账号域契约', () => {
         headers: authHeader(owner.accessToken),
       });
       expect(mine.statusCode).toBe(200);
-      const body = mine.json() as { data: Array<{ id: string }>; pagination: unknown };
+      const body = mine.json<{ data: Array<{ id: string }>; pagination: unknown }>();
       expect(body.data.map((item) => item.id)).toEqual([
         'card-private-ready',
         'card-public-pending',
@@ -198,7 +199,7 @@ describe('账号域契约', () => {
     it('/users/:username/cards：访客只看公开就绪；owner 看全量；admin 看全量', async () => {
       const anon = await app.inject({ method: 'GET', url: '/api/v1/users/owner-a/cards' });
       expect(anon.statusCode).toBe(200);
-      expect((anon.json() as { data: Array<{ id: string }> }).data.map((item) => item.id)).toEqual([
+      expect(anon.json<{ data: Array<{ id: string }> }>().data.map((item) => item.id)).toEqual([
         'card-public-ready',
       ]);
 
@@ -207,7 +208,7 @@ describe('账号域契约', () => {
         url: '/api/v1/users/owner-a/cards',
         headers: authHeader(owner.accessToken),
       });
-      expect((self.json() as { data: Array<{ id: string }> }).data).toHaveLength(3);
+      expect(self.json<{ data: Array<{ id: string }> }>().data).toHaveLength(3);
 
       const adminUser = await registerAccount(app, { username: 'admin-a' });
       const row = harness.state.users.find((user) => user.id === adminUser.userId);
@@ -217,12 +218,12 @@ describe('账号域契约', () => {
         url: '/api/v1/users/owner-a/cards',
         headers: authHeader(adminUser.accessToken),
       });
-      expect((adminView.json() as { data: Array<{ id: string }> }).data).toHaveLength(3);
+      expect(adminView.json<{ data: Array<{ id: string }> }>().data).toHaveLength(3);
     });
 
     it('/users/:username/boxes 同口径', async () => {
       const anon = await app.inject({ method: 'GET', url: '/api/v1/users/owner-a/boxes' });
-      expect((anon.json() as { data: Array<{ id: string }> }).data.map((item) => item.id)).toEqual([
+      expect(anon.json<{ data: Array<{ id: string }> }>().data.map((item) => item.id)).toEqual([
         'box-public-ready',
       ]);
       const self = await app.inject({
@@ -230,7 +231,7 @@ describe('账号域契约', () => {
         url: '/api/v1/users/owner-a/boxes',
         headers: authHeader(owner.accessToken),
       });
-      expect((self.json() as { data: Array<{ id: string }> }).data).toHaveLength(2);
+      expect(self.json<{ data: Array<{ id: string }> }>().data).toHaveLength(2);
     });
   });
 
@@ -238,25 +239,43 @@ describe('账号域契约', () => {
     it('返回 user + 可见房间 + 根目录公开就绪卡片/箱子（ICommunitySpace）', async () => {
       const owner = harness.state.users.find((user) => user.username === 'owner-a');
       harness.state.rooms.push(
-        fixtureRoom({ id: 'room-public', userId: owner!.id, name: '公开房间', slug: 'public-room' }),
+        fixtureRoom({
+          id: 'room-public',
+          userId: owner!.id,
+          name: '公开房间',
+          slug: 'public-room',
+        }),
         fixtureRoom({
           id: 'room-private',
           userId: owner!.id,
           name: '私密房间',
           slug: 'private-room',
           visibility: 'private',
-        }),
+        })
+      );
+      // 房间计数语义（契约 §4.4：cardCount/boxCount 为请求者可见数量）：
+      // room-public 内含 1 张公开就绪卡片（不影响上方根目录列表断言——其已完成运行）。
+      harness.state.cards.push(
+        fixtureCard({
+          id: 'card-space-room',
+          userId: owner!.id,
+          name: '房内卡片',
+          cardFileId: 'spaceCard01',
+          roomId: 'room-public',
+          status: 'ready',
+          visibility: 'public',
+        })
       );
       const anon = await app.inject({ method: 'GET', url: '/api/v1/users/owner-a/space' });
       expect(anon.statusCode).toBe(200);
-      const body = anon.json() as {
+      const body = anon.json<{
         data: {
           user: { username: string };
           rooms: Array<{ id: string; cardCount: number; boxCount: number }>;
           cards: Array<{ id: string }>;
           boxes: Array<{ id: string }>;
         };
-      };
+      }>();
       expect(Object.keys(body.data).sort()).toEqual(['boxes', 'cards', 'rooms', 'user']);
       expect(body.data.user.username).toBe('owner-a');
       // 访客视角：仅公开房间；计数只含公开就绪内容

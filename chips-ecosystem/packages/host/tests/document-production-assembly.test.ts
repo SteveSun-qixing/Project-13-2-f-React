@@ -51,6 +51,7 @@ import type {
   IDocumentCommitRequest,
   IDocumentScopePort,
   IDocumentScopeRegistration,
+  IDocumentTargetScopeAssurance,
   IDocumentStoragePort,
   IResolvedDocumentSource,
 } from '../src/capabilities/document/ports.js';
@@ -220,6 +221,18 @@ function makeResourcePorts(): IDocumentResourcePorts & {
     },
     scopeRootOf(managedUri: string): string | null {
       return managedUri === CARD_URI ? 'chips-resource://default/' : null;
+    },
+    // 目标注册/释放臂替身（W5 T-ws 形状承接口：本替身只保通道形状，行为面见
+    // `document-scope-adapter.test.ts` 目标生命周期锁族）。
+    ensureTargetScope(): Promise<IDocumentTargetScopeAssurance> {
+      return Promise.reject(
+        Object.assign(new Error('目标注册臂未用出'), { code: 'RESOURCE_INVALID_URI', retryable: false }),
+      );
+    },
+    releaseTargetScope(): Promise<void> {
+      return Promise.reject(
+        Object.assign(new Error('目标释放臂未用出'), { code: 'RESOURCE_PERMISSION_DENIED', retryable: false }),
+      );
     },
   };
   const storage: IDocumentStoragePort = {

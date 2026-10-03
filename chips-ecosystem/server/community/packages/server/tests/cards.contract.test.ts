@@ -29,7 +29,7 @@ describe('卡片内容只读域契约', () => {
     author = await registerAccount(app, { username: 'author' });
     viewer = await registerAccount(app, { username: 'viewer' });
     harness.state.users.push(
-      fixtureUser({ id: 'author-row', username: 'legacy-author', email: 'legacy@example.test' }),
+      fixtureUser({ id: 'author-row', username: 'legacy-author', email: 'legacy@example.test' })
     );
     harness.state.cards.push(
       fixtureCard({
@@ -64,7 +64,7 @@ describe('卡片内容只读域契约', () => {
         status: 'ready',
         visibility: 'public',
         createdAt: new Date(AUTHOR_TIME + 3000),
-      }),
+      })
     );
     // 渲染缓存记录：查看就绪（公开内容入口为公开缓存地址）
     harness.state.renderCaches.push(
@@ -84,6 +84,7 @@ describe('卡片内容只读域契约', () => {
         cardId: 'card-11111111-1111-4111-8111-111111111111',
         renderProfile: 'community-cover',
         state: 'ready',
+        coverEntryUrl: 'https://cdn.example.test/cards/card-1/cover/index.html',
         updatedAt: new Date(AUTHOR_TIME + 5000),
       }),
       fixtureRenderCache({
@@ -95,7 +96,7 @@ describe('卡片内容只读域契约', () => {
         errorCode: 'COMMUNITY_CARD_RENDER_ERROR',
         errorMessage: '渲染引擎超时',
         updatedAt: new Date(AUTHOR_TIME + 6000),
-      }),
+      })
     );
   });
 
@@ -110,7 +111,7 @@ describe('卡片内容只读域契约', () => {
         url: '/api/v1/cards/card-11111111-1111-4111-8111-111111111111',
       });
       expect(response.statusCode).toBe(200);
-      const body = response.json() as { data: Record<string, unknown> };
+      const body = response.json<{ data: Record<string, unknown> }>();
       expect(Object.keys(body.data).sort()).toEqual([
         'cardFileId',
         'chipStandardsVersion',
@@ -142,13 +143,13 @@ describe('卡片内容只读域契约', () => {
       expect(body.data['status']).toBe('ready');
       expect(body.data['visibility']).toBe('public');
       expect(body.data['coverUrl']).toBe(
-        '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/cover',
+        '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/cover'
       );
       expect(body.data['viewUrl']).toBe(
-        '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/view',
+        '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/view'
       );
       expect(body.data['renderStatusUrl']).toBe(
-        '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/render-status',
+        '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/render-status'
       );
       const user = body.data['user'] as Record<string, unknown>;
       expect(Object.keys(user).sort()).toEqual([
@@ -171,14 +172,16 @@ describe('卡片内容只读域契约', () => {
           cardFileId: 'cardAPend',
           status: 'pending',
           coverRatio: '',
-        }),
+        })
       );
       const response = await app.inject({
         method: 'GET',
         url: '/api/v1/cards/card-44444444-4444-4444-8444-444444444444',
       });
       expect(response.statusCode).toBe(200);
-      const body = response.json() as { data: { coverRatio: string; coverUrl: string | null; viewUrl: string | null } };
+      const body = response.json<{
+        data: { coverRatio: string; coverUrl: string | null; viewUrl: string | null };
+      }>();
       expect(body.data.coverRatio).toBe('3:4');
       expect(body.data.coverUrl).toBeNull();
       expect(body.data.viewUrl).toBeNull();
@@ -188,10 +191,18 @@ describe('卡片内容只读域契约', () => {
       const url = '/api/v1/cards/card-22222222-2222-4222-8222-222222222222';
       const anon = await app.inject({ method: 'GET', url });
       expect(anon.statusCode).toBe(404);
-      expect((anon.json() as { error: { code: string } }).error.code).toBe('COMMUNITY_CARD_NOT_FOUND');
-      const other = await app.inject({ method: 'GET', url, headers: authHeader(viewer.accessToken) });
+      expect(anon.json<{ error: { code: string } }>().error.code).toBe('COMMUNITY_CARD_NOT_FOUND');
+      const other = await app.inject({
+        method: 'GET',
+        url,
+        headers: authHeader(viewer.accessToken),
+      });
       expect(other.statusCode).toBe(404);
-      const self = await app.inject({ method: 'GET', url, headers: authHeader(author.accessToken) });
+      const self = await app.inject({
+        method: 'GET',
+        url,
+        headers: authHeader(author.accessToken),
+      });
       expect(self.statusCode).toBe(200);
     });
 
@@ -201,7 +212,11 @@ describe('卡片内容只读域契约', () => {
       expect(first.statusCode).toBe(200);
       const etag = first.headers.etag;
       expect(typeof etag).toBe('string');
-      const second = await app.inject({ method: 'GET', url, headers: { 'if-none-match': String(etag) } });
+      const second = await app.inject({
+        method: 'GET',
+        url,
+        headers: { 'if-none-match': String(etag) },
+      });
       expect(second.statusCode).toBe(304);
       expect(second.body).toBe('');
     });
@@ -214,7 +229,7 @@ describe('卡片内容只读域契约', () => {
         url: '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/open-view',
       });
       expect(response.statusCode).toBe(200);
-      const body = response.json() as { data: Record<string, unknown> };
+      const body = response.json<{ data: Record<string, unknown> }>();
       expect(Object.keys(body.data).sort()).toEqual([
         'cardFileId',
         'chipStandardsVersion',
@@ -245,7 +260,7 @@ describe('卡片内容只读域契约', () => {
         url: '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/status',
       });
       expect(ready.statusCode).toBe(200);
-      const readyBody = ready.json() as { data: Record<string, unknown> };
+      const readyBody = ready.json<{ data: Record<string, unknown> }>();
       expect(Object.keys(readyBody.data).sort()).toEqual([
         'cardId',
         'hasRenderArtifacts',
@@ -261,7 +276,7 @@ describe('卡片内容只读域契约', () => {
         method: 'GET',
         url: '/api/v1/cards/card-44444444-4444-4444-8444-444444444444/status',
       });
-      const pendingBody = pending.json() as { data: Record<string, unknown> };
+      const pendingBody = pending.json<{ data: Record<string, unknown> }>();
       expect(pendingBody.data['viewState']).toBe('pending');
       expect(pendingBody.data['hasRenderArtifacts']).toBe(false);
     });
@@ -275,7 +290,7 @@ describe('卡片内容只读域契约', () => {
       });
       expect(ready.statusCode).toBe(200);
       expect(ready.headers['cache-control']).toBe('no-store');
-      const readyBody = ready.json() as { data: Record<string, unknown> };
+      const readyBody = ready.json<{ data: Record<string, unknown> }>();
       expect(Object.keys(readyBody.data).sort()).toEqual([
         'attemptCount',
         'cardId',
@@ -292,9 +307,13 @@ describe('卡片内容只读域契约', () => {
         method: 'GET',
         url: '/api/v1/cards/card-33333333-3333-4333-8333-333333333333/render-status',
       });
-      const failedBody = failed.json() as {
-        data: { viewState: string; attemptCount: number; error: { code: string; message: string } | null };
-      };
+      const failedBody = failed.json<{
+        data: {
+          viewState: string;
+          attemptCount: number;
+          error: { code: string; message: string } | null;
+        };
+      }>();
       expect(failedBody.data.viewState).toBe('error');
       expect(failedBody.data.attemptCount).toBe(3);
       expect(failedBody.data.error?.code).toBe('COMMUNITY_CARD_RENDER_ERROR');
@@ -306,7 +325,9 @@ describe('卡片内容只读域契约', () => {
         method: 'GET',
         url: '/api/v1/cards/card-44444444-4444-4444-8444-444444444444/render-status',
       });
-      const body = response.json() as { data: { viewState: string; attemptCount: number; viewUrl: string | null } };
+      const body = response.json<{
+        data: { viewState: string; attemptCount: number; viewUrl: string | null };
+      }>();
       expect(body.data.viewState).toBe('pending');
       expect(body.data.attemptCount).toBe(0);
       expect(body.data.viewUrl).toBeNull();
@@ -320,7 +341,9 @@ describe('卡片内容只读域契约', () => {
         url: '/api/v1/cards/card-11111111-1111-4111-8111-111111111111/view',
       });
       expect(response.statusCode).toBe(302);
-      expect(response.headers.location).toBe('https://cdn.example.test/cards/card-1/view/index.html');
+      expect(response.headers.location).toBe(
+        'https://cdn.example.test/cards/card-1/view/index.html'
+      );
       expect(response.headers['cache-control']).toBe('no-store');
     });
 
@@ -337,8 +360,8 @@ describe('卡片内容只读域契约', () => {
         url: '/api/v1/cards/card-33333333-3333-4333-8333-333333333333/view',
       });
       expect(failed.statusCode).toBe(409);
-      expect((failed.json() as { error: { code: string; retryable: boolean } }).error.code).toBe(
-        'COMMUNITY_CARD_RENDER_ERROR',
+      expect(failed.json<{ error: { code: string; retryable: boolean } }>().error.code).toBe(
+        'COMMUNITY_CARD_RENDER_ERROR'
       );
     });
 
@@ -351,7 +374,7 @@ describe('卡片内容只读域契约', () => {
           state: 'ready',
           cacheVersion: 'cv-priv',
           updatedAt: new Date(AUTHOR_TIME + 7000),
-        }),
+        })
       );
       const self = await app.inject({
         method: 'GET',
@@ -360,7 +383,7 @@ describe('卡片内容只读域契约', () => {
       });
       expect(self.statusCode).toBe(302);
       expect(self.headers.location).toBe(
-        '/api/v1/cards/card-22222222-2222-4222-8222-222222222222/render-cache/cv-priv/index.html',
+        '/api/v1/cards/card-22222222-2222-4222-8222-222222222222/render-cache/cv-priv/index.html'
       );
       const other = await app.inject({
         method: 'GET',

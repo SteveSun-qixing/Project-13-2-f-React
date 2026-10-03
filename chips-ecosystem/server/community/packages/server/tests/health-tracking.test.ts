@@ -22,7 +22,7 @@ describe('GET /api/v1/health', () => {
   it('健康时返回 200 与固定四字段（不使用统一信封）', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/v1/health' });
     expect(response.statusCode).toBe(200);
-    const body = response.json() as Record<string, unknown>;
+    const body = response.json<Record<string, unknown>>();
     expect(body['status']).toBe('ok');
     expect(typeof body['timestamp']).toBe('string');
     expect(new Date(body['timestamp'] as string).toISOString()).toBe(body['timestamp']);
@@ -34,12 +34,12 @@ describe('GET /api/v1/health', () => {
 
   it('数据库组件不可用时返回 503 与 degraded，并列出不可用组件', async () => {
     const degraded = await buildTestHarness();
-    degraded.serverDeps.healthRegistry.register('database', async () => {
-      throw new Error('连接失败');
-    });
+    degraded.serverDeps.healthRegistry.register('database', () =>
+      Promise.reject(new Error('连接失败'))
+    );
     const response = await degraded.app.inject({ method: 'GET', url: '/api/v1/health' });
     expect(response.statusCode).toBe(503);
-    const body = response.json() as { status: string; details: { unavailableComponents: string[] } };
+    const body = response.json<{ status: string; details: { unavailableComponents: string[] } }>();
     expect(body.status).toBe('degraded');
     expect(body.details.unavailableComponents).toEqual(['database']);
     await degraded.app.close();
@@ -86,7 +86,9 @@ describe('统一错误信封（契约 §7.2）', () => {
     const harness = await buildTestHarness();
     const response = await harness.app.inject({ method: 'GET', url: '/api/v1/nope' });
     expect(response.statusCode).toBe(404);
-    const body = response.json() as { error: { code: string; message: string; details: { traceId: string }; retryable: boolean } };
+    const body = response.json<{
+      error: { code: string; message: string; details: { traceId: string }; retryable: boolean };
+    }>();
     expect(body.error.code).toBe('COMMUNITY_VALIDATION_ERROR');
     expect(body.error.message).toBe('请求的资源不存在');
     expect(typeof body.error.details.traceId).toBe('string');
@@ -96,12 +98,12 @@ describe('统一错误信封（契约 §7.2）', () => {
 
   it('未归一异常归一为 500 COMMUNITY_INTERNAL_ERROR 且不回显堆栈', async () => {
     const harness = await buildTestHarness();
-    harness.app.post('/api/v1/__boom', async () => {
+    harness.app.post('/api/v1/__boom', () => {
       throw new Error('内部堆栈细节');
     });
     const response = await harness.app.inject({ method: 'POST', url: '/api/v1/__boom' });
     expect(response.statusCode).toBe(500);
-    const body = response.json() as { error: { code: string; message: string; retryable: boolean } };
+    const body = response.json<{ error: { code: string; message: string; retryable: boolean } }>();
     expect(body.error.code).toBe('COMMUNITY_INTERNAL_ERROR');
     expect(body.error.message).not.toContain('内部堆栈细节');
     expect(body.error.retryable).toBe(true);
@@ -117,7 +119,7 @@ describe('统一错误信封（契约 §7.2）', () => {
       headers: { 'content-type': 'application/json' },
     });
     expect(response.statusCode).toBe(400);
-    const body = response.json() as { error: { code: string } };
+    const body = response.json<{ error: { code: string } }>();
     expect(body.error.code).toBe('COMMUNITY_VALIDATION_ERROR');
     await harness.app.close();
   });
