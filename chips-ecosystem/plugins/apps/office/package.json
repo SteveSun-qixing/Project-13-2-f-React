@@ -14,6 +14,7 @@
     "package": "pnpm exec chips plugin pack --out dist/"
   },
   "dependencies": {
+    "@milkdown/kit": "7.22.2",
     "jszip": "3.10.1",
     "pdfjs-dist": "6.3.289",
     "zod": "4.5.4"

@@ -1,10 +1,11 @@
 import React from 'react';
 import { BoxEmptyState, Button, ChipsProvider, CommandProvider, PanelHeader, Tabs, theme } from '@chips/ui';
 import { COMMAND_PHASE_LABELS, useAppCommands } from '../commands/useAppCommands';
+import { WordEditorPanel } from './WordEditorPanel';
 
 const APP_ID = 'chips.official.office';
 
-/** 三域迁移状态（与《W5迁移-office-三域臂-开发日志-2026-10-01.md》一致）。 */
+/** 三域 + word 域迁移状态（与《W5迁移-office-三域臂/word域臂-开发日志-2026-10-01.md》一致）。 */
 const DOMAINS: ReadonlyArray<{
   readonly key: string;
   readonly label: string;
@@ -35,17 +36,18 @@ const DOMAINS: ReadonlyArray<{
   {
     key: 'word',
     label: 'Word',
-    status: '候选型裁定',
+    status: '领域逻辑与编辑面已迁移',
     description:
-      'word 编辑逻辑（tiptap + 引擎移植）挂起于「richtext 编辑引擎选型（tiptap 续留 vs 自研）」在册候裁项，与富文本编辑器编辑臂同源；用户裁定前不引入相关依赖。',
+      '文档模型/段落样式映射/docx 字节级读写网关已就位（最小合法 docx 夹具全链测试通过）；编辑面为统一编辑引擎 Milkdown（Markdown 唯一编辑表示），保存经 file:write 正式能力链落盘。',
   },
 ];
 
-/** 单个域面板：迁移状态与候前置件的如实降级登记。 */
-const DomainPanel: React.FC<{ readonly status: string; readonly description: string }> = ({
-  status,
-  description,
-}) => {
+/** 单个域面板：迁移状态与候前置件的如实降级登记；word 域挂载真编辑面。 */
+const DomainPanel: React.FC<{
+  readonly domainKey: string;
+  readonly status: string;
+  readonly description: string;
+}> = ({ domainKey, status, description }) => {
   const { token } = theme.useToken();
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: token.marginSM }}>
@@ -53,11 +55,15 @@ const DomainPanel: React.FC<{ readonly status: string; readonly description: str
         迁移状态：{status}
       </p>
       <p style={{ margin: 0 }}>{description}</p>
-      <BoxEmptyState
-        title="域界面待端到端臂装配"
-        description="文档打开与编辑界面将随宿主会话链与渲染帧通道收口后接入。"
-        compact
-      />
+      {domainKey === 'word' ? (
+        <WordEditorPanel />
+      ) : (
+        <BoxEmptyState
+          title="域界面待端到端臂装配"
+          description="文档打开与编辑界面将随宿主会话链与渲染帧通道收口后接入。"
+          compact
+        />
+      )}
     </section>
   );
 };
@@ -83,7 +89,9 @@ const AppContent: React.FC = () => {
         items={DOMAINS.map((domain) => ({
           key: domain.key,
           label: domain.label,
-          children: <DomainPanel status={domain.status} description={domain.description} />,
+          children: (
+            <DomainPanel domainKey={domain.key} status={domain.status} description={domain.description} />
+          ),
         }))}
       />
     </section>

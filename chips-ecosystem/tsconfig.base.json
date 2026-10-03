@@ -44,6 +44,10 @@
         "./plugins/basecards/music/src/index",
         "./plugins/basecards/music/dist/index"
       ],
+      "@chips/plugin-richtext": [
+        "./plugins/basecards/richtext/src/index",
+        "./plugins/basecards/richtext/dist/index"
+      ],
       "@chips/contract-gen": ["./tools/contract-gen/dist/index", "./tools/contract-gen/src/index"],
       "@chips/testing/vitest": ["./tools/testing/src/vitest"],
       "@chips/testing/thresholds": ["./tools/testing/src/thresholds"],

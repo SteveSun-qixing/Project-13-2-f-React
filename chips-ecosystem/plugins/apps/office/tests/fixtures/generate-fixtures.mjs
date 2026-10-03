@@ -3,7 +3,8 @@
 /// 产出三份「最小合法」真实字节样本（不 mock 任何解析器，域测试直接消费字节）：
 /// - minimal.xlsx：OOXML SpreadsheetML 双工作簿（共享字符串、内联字符串、数字、公式）；
 /// - minimal.pptx：OOXML PresentationML 单页演示（master/layout/theme 全链最小集）；
-/// - minimal.pdf：手写 PDF 1.4 双页文本文档（xref 表完整）。
+/// - minimal.pdf：手写 PDF 1.4 双页文本文档（xref 表完整）；
+/// - minimal.docx：OOXML WordprocessingML 最小正文（标题/列表/字符标记/超链接/引用/代码/表格）。
 ///
 /// zip 项固定时间戳，保证可复现生成（同脚本重跑字节一致）。
 import { writeFileSync } from 'node:fs'
@@ -323,6 +324,214 @@ function buildMinimalPdf() {
   return Buffer.from(pdf, 'latin1')
 }
 
+// ── minimal.docx（OOXML WordprocessingML：标题/多级列表/字符标记/超链接/引用/代码/表格） ──
+
+// 文档 XML 全部逐字静态书写（与 xlsx/pptx 段同口径：不套生成函数，样本即规范）。
+const docxContentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>
+`
+
+const docxRootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+`
+
+const docxDocumentRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://www.chips.example/" TargetMode="External"/>
+</Relationships>
+`
+
+// 正文：标题两枚 → 混排字符标记段（含超链接与转义文本）→ 空段 → 引用 → 代码两行
+// → 项目符号两级列表 → 编号列表 → 表格（表头行 + 左/右列对齐）。
+const docxDocumentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
+      <w:r><w:t>薯片办公文档</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+      <w:r><w:t>概览</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading2"/></w:pPr>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>能力</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>普通</w:t></w:r>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>加粗</w:t></w:r>
+      <w:r><w:rPr><w:i/></w:rPr><w:t>斜体</w:t></w:r>
+      <w:r><w:rPr><w:strike/></w:rPr><w:t>删除</w:t></w:r>
+      <w:r><w:rPr><w:b/><w:i/></w:rPr><w:t>粗斜</w:t></w:r>
+      <w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/></w:rPr><w:t>code_snippet()</w:t></w:r>
+      <w:hyperlink r:id="rId1"><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t>官网</w:t></w:r></w:hyperlink>
+      <w:r><w:t>字面 * 星号与 \\# 井号。</w:t></w:r>
+    </w:p>
+    <w:p/>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Quote"/></w:pPr>
+      <w:r><w:t>引用第一行</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Quote"/></w:pPr>
+      <w:r><w:t>引用第二行</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="HTMLPreformatted"/></w:pPr>
+      <w:r><w:t>const answer = 42;</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="HTMLPreformatted"/></w:pPr>
+      <w:r><w:t>return answer;</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
+      <w:r><w:t>要点甲</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr>
+      <w:r><w:t>子要点</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
+      <w:r><w:t>要点乙</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr>
+      <w:r><w:t>第一步</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr>
+      <w:r><w:t>第二步</w:t></w:r>
+    </w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="0" w:type="auto"/>
+        <w:tblBorders>
+          <w:top w:val="single" w:sz="4" w:color="auto"/>
+          <w:left w:val="single" w:sz="4" w:color="auto"/>
+          <w:bottom w:val="single" w:sz="4" w:color="auto"/>
+          <w:right w:val="single" w:sz="4" w:color="auto"/>
+          <w:insideH w:val="single" w:sz="4" w:color="auto"/>
+          <w:insideV w:val="single" w:sz="4" w:color="auto"/>
+        </w:tblBorders>
+      </w:tblPr>
+      <w:tblGrid><w:gridCol w:w="4680"/><w:gridCol w:w="4680"/></w:tblGrid>
+      <w:tr>
+        <w:trPr><w:tblHeader/></w:trPr>
+        <w:tc><w:tcPr><w:tcW w:w="4680" w:type="dxa"/></w:tcPr>
+          <w:p><w:pPr><w:jc w:val="left"/></w:pPr><w:r><w:t>名称</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:tcPr><w:tcW w:w="4680" w:type="dxa"/></w:tcPr>
+          <w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:t>数值</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:tcPr><w:tcW w:w="4680" w:type="dxa"/></w:tcPr>
+          <w:p><w:r><w:t>深度</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:tcPr><w:tcW w:w="4680" w:type="dxa"/></w:tcPr>
+          <w:p><w:r><w:t>13</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="1440" w:right="1800" w:bottom="1440" w:left="1800" w:header="851" w:footer="992" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>
+`
+
+const docxNumberingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="1">
+    <w:multiLevelType w:val="hybridMultilevel"/>
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/></w:lvl>
+    <w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="o"/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="2">
+    <w:multiLevelType w:val="hybridMultilevel"/>
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+    <w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%2."/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>
+  <w:num w:numId="2"><w:abstractNumId w:val="2"/></w:num>
+</w:numbering>
+`
+
+const docxStylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="宋体" w:hAnsi="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault>
+    <w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Title">
+    <w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:jc w:val="center"/></w:pPr>
+    <w:rPr><w:b/><w:sz w:val="56"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="0"/></w:pPr>
+    <w:rPr><w:b/><w:sz w:val="32"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="1"/></w:pPr>
+    <w:rPr><w:b/><w:sz w:val="26"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3">
+    <w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="2"/></w:pPr>
+    <w:rPr><w:b/><w:sz w:val="24"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading4">
+    <w:name w:val="heading 4"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="3"/></w:pPr>
+    <w:rPr><w:b/><w:i/><w:sz w:val="22"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading5">
+    <w:name w:val="heading 5"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="4"/></w:pPr>
+    <w:rPr><w:b/><w:sz w:val="22"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading6">
+    <w:name w:val="heading 6"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="5"/></w:pPr>
+    <w:rPr><w:b/><w:i/><w:sz w:val="22"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Quote">
+    <w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    <w:pPr><w:ind w:left="720"/></w:pPr>
+    <w:rPr><w:i/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="ListParagraph">
+    <w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:ind w:left="720"/></w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="HTMLPreformatted">
+    <w:name w:val="HTML Preformatted"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>
+    <w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="20"/></w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="Hyperlink">
+    <w:name w:val="Hyperlink"/>
+    <w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr>
+  </w:style>
+</w:styles>
+`
+
 // ── 生成 ─────────────────────────────────────────────────────────────────────
 
 await writeZip('minimal.xlsx', [
@@ -352,3 +561,12 @@ await writeZip('minimal.pptx', [
 
 writeFileSync(join(here, 'minimal.pdf'), buildMinimalPdf())
 console.log('written minimal.pdf', buildMinimalPdf().length, 'bytes')
+
+await writeZip('minimal.docx', [
+  ['[Content_Types].xml', docxContentTypes],
+  ['_rels/.rels', docxRootRels],
+  ['word/document.xml', docxDocumentXml],
+  ['word/_rels/document.xml.rels', docxDocumentRels],
+  ['word/numbering.xml', docxNumberingXml],
+  ['word/styles.xml', docxStylesXml],
+])

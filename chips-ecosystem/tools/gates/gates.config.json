@@ -101,7 +101,7 @@
       {
         "id": "plugins-apps",
         "match": "plugins/apps/*",
-        "allowedInternal": ["@chips/ui", "@chips/sdk", "@chips/plugin-book", "@chips/plugin-music"],
+        "allowedInternal": ["@chips/ui", "@chips/sdk", "@chips/plugin-book", "@chips/plugin-music", "@chips/plugin-richtext"],
         "forbiddenModules": ["electron", "chips-native", "chips-native.node"],
         "forbidNodeBuiltins": true
       },
@@ -124,6 +124,11 @@
         "match": "tools/*",
         "allowedInternal": ["@chips/sdk", "@chips/bridge"],
         "forbiddenModules": ["electron"]
+      },
+      {
+        "id": "server",
+        "match": "server/*/packages/*",
+        "allowedInternal": []
       },
       {
         "id": "tests",

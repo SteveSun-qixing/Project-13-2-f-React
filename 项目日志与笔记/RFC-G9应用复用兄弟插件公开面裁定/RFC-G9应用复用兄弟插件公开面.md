@@ -56,3 +56,15 @@ const projectRoot = new URL('.', import.meta.url).pathname;
 - `pnpm gates:test` 门禁自测 75/75 全绿（walk 规则分类用例覆盖 glob 截获顺序语义）；
 - `pnpm -r --if-present --no-bail run lint` 全工作区 73 包 EXIT=0；
 - 依据命令：`node -e "…matchGlob('plugins/apps/*','plugins/apps/book-reader')"`（截获验证）；`grep -A3 plugins-apps tools/gates/gates.config.json`。
+
+---
+
+## 五、增名登记（§二.3 程序执行记录）
+
+### 5.1 `@chips/plugin-richtext`（2026-10-01，W5 富文本编辑器编辑臂）
+
+- **提出方**：W5 应用迁移——富文本编辑器（`chips.official.rich-text-editor`）编辑臂。
+- **复用面**：`plugins/basecards/richtext` 公开导出 `renderEditor`（08-基础卡片插件接口 §2.4.2 编辑态唯一装配点，内部唯一持有 Milkdown 引擎装配 `src/milkdown/engine.ts`）与 `validateConfig`（§2.4.3 主进程纯函数）。消费依据：《08-官方应用功能总览》§十二——富文本编辑器应用「不重写富文本编辑运行时，直接调用富文本基础卡片的正式编辑器能力并包装为独立应用」；W5 派单行表 #7 编辑臂「复用 basecards/richtext 公开导出，禁复制装配逻辑」。
+- **消费形制**：与 book-reader/music-player 判例同构——workspace 依赖 `@chips/plugin-richtext: workspace:*`（dependencies，运行时复用归位），vite/vitest 构建期 alias 到 `plugins/basecards/richtext/src/index.ts` 内联；引擎装配逻辑零复制（装配点唯一性保持，§2.14 解析归一随行生效）。
+- **同步面**：`tools/gates/gates.config.json` `plugins-apps.allowedInternal` 增名（先登记本节、后同步配置，§二.3 顺序遵行）；`tsconfig.base.json` `paths` 增 `@chips/plugin-richtext` 精确条目（工单003 解析锚定机制，紧邻 book/music 判例位）。
+- **边界不变**：仍只放行公开导出消费；系统能力调用一律经 Bridge 正式面；basecards/layouts/services 互不复用规则不受影响。

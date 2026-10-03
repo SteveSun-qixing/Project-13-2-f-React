@@ -9,6 +9,9 @@ runtime:
     - host
   background: false
 permissions:
+  - resources:read
+  - resources:write
+  - filesystem:write:${userHome}
   - command:write
   - command:execute
 ui:
@@ -41,6 +44,64 @@ cli:
           mapsTo: path
           path:
             kind: file
+            role: input
+            exists: true
+    - commandPath:
+        - rich-text-editor
+        - save-document
+      commandId: rich-text-editor:save-document
+      title: 保存当前文档
+      description: 完成待提交回流并把当前文档落盘（document:save）
+      examples:
+        - chips rich-text-editor save-document
+      target:
+        type: app
+        pluginId: chips.official.rich-text-editor
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+    - commandPath:
+        - rich-text-editor
+        - export-document
+      commandId: rich-text-editor:export-document
+      title: 导出当前文档
+      description: 把当前文档导出为归档形态（document:export；宿主实现在途）
+      examples:
+        - chips rich-text-editor export-document
+      target:
+        type: app
+        pluginId: chips.official.rich-text-editor
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+    - commandPath:
+        - rich-text-editor
+        - new-card
+      commandId: rich-text-editor:new-card
+      title: 新建富文本卡片
+      description: 在指定落点新建富文本卡片（document:create；宿主实现在途）
+      examples:
+        - chips rich-text-editor new-card --name 未命名卡片 --parent ~/文档
+      target:
+        type: app
+        pluginId: chips.official.rich-text-editor
+        surface:
+          open: true
+          focus: true
+          reuse: preferred
+      arguments:
+        - name: name
+          position: 0
+          type: string
+          mapsTo: name
+        - name: parent
+          position: 1
+          type: path
+          mapsTo: parent
+          path:
+            kind: directory
             role: input
             exists: true
     - commandPath:
