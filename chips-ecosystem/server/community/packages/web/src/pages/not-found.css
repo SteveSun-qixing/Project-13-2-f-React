@@ -1,0 +1,36 @@
+/* 404 页样式（自持最小样式，token 见 styles/global.css）。 */
+
+.ccw-not-found {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--ccw-space-9);
+  padding-bottom: var(--ccw-space-10);
+}
+
+.ccw-not-found__card {
+  text-align: center;
+  max-width: 440px;
+  width: 100%;
+}
+
+.ccw-not-found__code {
+  margin: 0;
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--ccw-color-brand-strong);
+  line-height: 1;
+}
+
+.ccw-not-found__card h1 {
+  margin: var(--ccw-space-3) 0;
+  font-size: var(--ccw-font-size-title);
+}
+
+.ccw-not-found__card p {
+  margin: 0 0 var(--ccw-space-5);
+}
+
+.ccw-not-found__actions {
+  display: flex;
+  justify-content: center;
+}

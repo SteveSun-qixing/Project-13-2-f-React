@@ -1,0 +1,35 @@
+/* 社区简介页样式（自持最小样式，token 见 styles/global.css）。 */
+
+.ccw-about__hero {
+  margin-bottom: var(--ccw-space-6);
+}
+
+.ccw-about__hero h1 {
+  margin: var(--ccw-space-2) 0;
+  font-size: var(--ccw-font-size-display);
+}
+
+.ccw-about__hero p {
+  margin: 0 0 var(--ccw-space-4);
+}
+
+.ccw-about__hero-actions {
+  display: flex;
+  gap: var(--ccw-space-3);
+}
+
+.ccw-about__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--ccw-space-5);
+}
+
+.ccw-about-card h2 {
+  margin: 0 0 var(--ccw-space-2);
+  font-size: var(--ccw-font-size-title);
+}
+
+.ccw-about-card p {
+  margin: 0;
+  color: var(--ccw-color-text-muted);
+}

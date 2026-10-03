@@ -97,6 +97,7 @@ pub mod directory;
 pub mod error;
 pub mod handle;
 pub mod http;
+pub mod id_gen;
 pub mod journal;
 pub mod manager;
 pub mod memory;
@@ -125,6 +126,9 @@ pub use http::{
     HttpStream, HttpTarget, TargetRejection, IF_MODIFIED_SINCE, IF_NONE_MATCH, PLATFORM_USER_AGENT,
 };
 pub use http::{HttpProvider, HTTP_PROVIDER_ID};
+pub use id_gen::{
+    generate_member_id, generate_member_id_with, IdRandomSource, OsRandomSource, MEMBER_ID_LENGTH,
+};
 pub use journal::{
     is_in_flight, journal_file_token, next_intent_token, read_commit_record, recover_package_slot,
     recover_root, temp_file_token, CommitRecord, JournalRecoveryReport, JournalTicket,

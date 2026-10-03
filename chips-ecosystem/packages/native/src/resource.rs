@@ -1326,6 +1326,41 @@ pub(crate) fn js_resource_rebuild_archive(mut cx: FunctionContext) -> JsResult<J
     )
 }
 
+// ---------------------------------------------------------------------------
+// 文档成员 ID 生成面（T-id：《05-ID生成规范》§二/§三/§四受控写口）
+// ---------------------------------------------------------------------------
+
+/// `generateDocumentId(exclude)`：生成 10 字符 Base62 文档成员 ID（`card_id` /
+/// `box_id` 共用文法与算法，《05-ID生成规范》§二/§三；生成方 = 文档服务 Rust
+/// 核心受控写口，§四）。backing = `chips_resource::generate_member_id`（OS 熵源
+/// CSPRNG + 拒绝采样均匀映射 + 排除集大小写不敏感等价查重、命中重生成）。
+/// 纯内存生成同步形合法（§8.3 线程规则，`resourceGrantSession` 纯内存先例同
+/// 判；OS 随机接口为非阻塞系统调用）。`exclude` 逐元素 string 闸，非 string →
+/// `NATIVE_TYPE_UNSUPPORTED`（指针 `/exclude/<i>`）；backing 失败（OS 熵源
+/// 不可用，`RESOURCE_INTERNAL` 兜底码）经 `ChipsError` 原样透传（§8.5）。
+pub(crate) fn js_generate_document_id(mut cx: FunctionContext) -> JsResult<JsString> {
+    let array = cx.argument::<JsArray>(0)?;
+    let mut exclude = Vec::new();
+    for (index, item) in array.to_vec(&mut cx)?.into_iter().enumerate() {
+        match item.downcast::<JsString, _>(&mut cx) {
+            Ok(string) => exclude.push(string.value(&mut cx)),
+            Err(_) => {
+                return throw_chips_error(
+                    &mut cx,
+                    type_unsupported(
+                        &format!("/exclude/{index}"),
+                        "排除集必须逐元素为字符串",
+                    ),
+                )
+            }
+        }
+    }
+    match chips_resource::generate_member_id(&exclude) {
+        Ok(id) => Ok(cx.string(id)),
+        Err(error) => throw_chips_error(&mut cx, error.to_chips_error()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1943,8 +1978,8 @@ mod tests {
         // 返回 Promise 形状），与 RFC §4.2/§5.1 逐字表行一字不差。
         let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
         let exports = surface["exports"].as_array().expect("exports 数组");
-        assert_eq!(exports.len(), 59, "工单036 波 C3 在册全表 59 项");
-        assert_eq!(crate::abi::EXPORT_NAMES.len(), 59, "注册表同为 59 项");
+        assert_eq!(exports.len(), 60, "T-id 波域尾追加后在册全表 60 项（59→60）");
+        assert_eq!(crate::abi::EXPORT_NAMES.len(), 60, "注册表同为 60 项");
         let expected: [(&str, &str, &str); 3] = [
             (
                 "resourceMountDirectory",
@@ -2636,8 +2671,13 @@ mod tests {
         );
         assert_eq!(
             names[anchor + 6],
+            "generateDocumentId",
+            "T-id 文档成员 ID 生成名同序紧随 rebuild 导出（域尾追加）"
+        );
+        assert_eq!(
+            names[anchor + 7],
             "auditBindDecisionSink",
-            "资源域六名之后即 audit 域收尾项"
+            "生成名之后即 audit 域收尾项"
         );
     }
 
@@ -3313,5 +3353,98 @@ mod tests {
                 && DECLARATIONS.contains("export function resourceRebuildArchive("),
             "d.ts 必须声明 C3 两导出"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // 文档成员 ID 生成面锁测（T-id：《05-ID生成规范》§二/§三/§四受控写口）
+    // -----------------------------------------------------------------------
+
+    /// 绑定层链路完整复刻的生成臂（`js_generate_document_id` 工作体同形：
+    /// 排除集透传 backing，契约码经 `ChipsError` 归一，§8.5）。
+    fn generate_document_id_via_binding(exclude: &[String]) -> Result<String, ChipsError> {
+        chips_resource::generate_member_id(exclude).map_err(|error| error.to_chips_error())
+    }
+
+    #[test]
+    fn test_generate_document_id_surface_entry_and_declaration_locked() {
+        // 形状锁：生成导出在清单中的 kind/signature 逐字锁定、位次域尾追加
+        // （C2a 判例：紧随 `resourceRebuildArchive`、先于 audit 域收尾项）；
+        // abiVersion 维持 1（只增不改，§6.3「新增不递增」判例）、blocked 空在册；
+        // d.ts 声明参数逐位与返回形状锁定。
+        let surface: Value = serde_json::from_str(SURFACE_JSON).expect("清单必须合法");
+        assert_eq!(
+            surface["abiVersion"], 1,
+            "CORE_ABI_VERSION 维持 1 不随动（只增不改，§6.3）"
+        );
+        assert!(
+            surface["blocked"].as_array().expect("blocked 段").is_empty(),
+            "blocked 段当前为空在册"
+        );
+        let exports = surface["exports"].as_array().expect("exports 数组");
+        assert_eq!(exports.len(), 60, "T-id 波在册全表 60 项（59→60 域尾追加）");
+        assert_eq!(crate::abi::EXPORT_NAMES.len(), 60, "注册表同为 60 项");
+        let entry = exports
+            .iter()
+            .find(|entry| entry["name"] == "generateDocumentId")
+            .expect("清单必须收录 generateDocumentId");
+        assert_eq!(entry["kind"], "sync", "生成导出 kind 锁定（纯内存同步形）");
+        assert_eq!(
+            entry["signature"],
+            "(exclude: readonly string[]) => string",
+            "生成导出签名逐字锁定"
+        );
+        let names: Vec<&str> = exports
+            .iter()
+            .map(|entry| entry["name"].as_str().expect("name 字符串"))
+            .collect();
+        assert_eq!(names, crate::abi::EXPORT_NAMES, "清单与注册表逐项同序");
+        let anchor = names
+            .iter()
+            .position(|name| *name == "resourceRebuildArchive")
+            .expect("C3 换代导出必须在册");
+        assert_eq!(
+            &names[anchor + 1..anchor + 3],
+            &["generateDocumentId", "auditBindDecisionSink"],
+            "生成名紧随 rebuild 导出、先于 audit 收尾项"
+        );
+        let marker = "export function generateDocumentId(";
+        let start = DECLARATIONS
+            .find(marker)
+            .expect("d.ts 必须声明 generateDocumentId");
+        let end = DECLARATIONS[start..]
+            .find(';')
+            .map(|offset| start + offset)
+            .expect("声明必须以分号收口");
+        let declaration = &DECLARATIONS[start..=end];
+        for fragment in ["exclude: readonly string[]", "): string;"] {
+            assert!(declaration.contains(fragment), "声明逐位锁定：{fragment}");
+        }
+    }
+
+    #[test]
+    fn test_generate_document_id_via_binding_chain() {
+        // 链路锁：绑定臂产物逐一过权威校验器（chips-parser `is_base62_id`
+        // 单源，§7.1 无第二套校验器）；滚动排除集（每轮把已产 ID 灌回）下
+        // 产物永不命中——精确与大小写不敏感等价双口径（《05-ID生成规范》
+        // §三.2.3 / §六.1 受控写口作用域查重）；空排除集合法（新文档首生成）。
+        let id = generate_document_id_via_binding(&[]).expect("空排除集生成必须成功");
+        assert!(chips_parser::schema::is_base62_id(&id), "产物必须过权威文法：{id}");
+        let mut ledger: Vec<String> = vec![id];
+        for _ in 0..256 {
+            let generated = generate_document_id_via_binding(&ledger).expect("生成必须成功");
+            assert!(
+                chips_parser::schema::is_base62_id(&generated),
+                "产物必须过权威 Base62 文法：{generated}"
+            );
+            assert_eq!(generated.len(), 10, "长度恒 10 字符：{generated}");
+            let folded = generated.to_ascii_lowercase();
+            assert!(
+                !ledger
+                    .iter()
+                    .any(|known| known.to_ascii_lowercase() == folded),
+                "产物不得命中排除集（大小写不敏感等价口径）：{generated}"
+            );
+            ledger.push(generated);
+        }
     }
 }

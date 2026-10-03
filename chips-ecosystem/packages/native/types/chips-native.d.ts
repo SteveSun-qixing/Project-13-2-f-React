@@ -751,6 +751,19 @@ export function resourceRebuildArchive(
 ): Promise<IResourceArchiveRebuildReceipt>;
 
 /**
+ * 生成 10 字符 Base62 文档成员 ID（`card_id` / `box_id` 共用文法与算法，
+ * 《05-ID生成规范》§二/§三/§四；生成方 = 文档服务 Rust 核心受控写口）：
+ * OS 熵源 CSPRNG + 拒绝采样均匀映射（仅接受 `b < 248` 取 `b % 62`），不含
+ * 时间戳、机器标识等任何可推导成分；生成后在 `exclude` 排除集（目标作用域
+ * 已知标识集合）内按大小写不敏感等价口径查重、命中即丢弃重生成。主进程
+ * 内部使用；纯内存生成同步形（`resourceGrantSession` 先例同判）。
+ * `exclude` 逐元素必须为字符串，否则以 `NATIVE_TYPE_UNSUPPORTED` 拒绝
+ * （指针 `/exclude/<i>`）；backing 失败（OS 熵源不可用）以 `RESOURCE_INTERNAL`
+ * 兜底码原样透传。
+ */
+export function generateDocumentId(exclude: readonly string[]): string;
+
+/**
  * 权限判定出站素材（Rust `PermissionDecision` 的 JSON 投影；键表见
  * RFC-权限审计跨层采集sink裁定 §八条 3——《08-权限系统设计》§8.2
  * camelCase 词表直译 + 域判别 `domain` + 附加素材 `required`/`missing`）。

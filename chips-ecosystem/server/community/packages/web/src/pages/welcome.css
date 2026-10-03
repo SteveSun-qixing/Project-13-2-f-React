@@ -1,0 +1,59 @@
+/* 欢迎页样式（自持最小样式，token 见 styles/global.css）。 */
+
+.ccw-welcome__hero {
+  text-align: center;
+  padding: var(--ccw-space-10) var(--ccw-space-5) var(--ccw-space-8);
+}
+
+.ccw-welcome__hero h1 {
+  margin: var(--ccw-space-3) 0;
+  font-size: var(--ccw-font-size-display);
+  line-height: 1.25;
+}
+
+.ccw-welcome__subtitle {
+  margin: 0 auto var(--ccw-space-6);
+  max-width: 560px;
+  color: var(--ccw-color-text-muted);
+}
+
+.ccw-welcome__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ccw-space-4);
+  flex-wrap: wrap;
+}
+
+.ccw-welcome__features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--ccw-space-5);
+  padding-bottom: var(--ccw-space-10);
+}
+
+.ccw-welcome-feature {
+  border: 1px solid var(--ccw-color-border);
+  border-radius: var(--ccw-radius-medium);
+  background-color: var(--ccw-color-surface);
+  padding: var(--ccw-space-6);
+}
+
+.ccw-welcome-feature__mark {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--ccw-color-brand), var(--ccw-color-brand-strong));
+  margin-bottom: var(--ccw-space-3);
+}
+
+.ccw-welcome-feature h2 {
+  margin: 0 0 var(--ccw-space-2);
+  font-size: var(--ccw-font-size-title);
+}
+
+.ccw-welcome-feature p {
+  margin: 0;
+  color: var(--ccw-color-text-muted);
+}

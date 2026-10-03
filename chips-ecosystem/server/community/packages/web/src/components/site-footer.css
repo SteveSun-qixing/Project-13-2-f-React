@@ -1,0 +1,38 @@
+/* 站点页脚样式（自持最小样式，token 见 styles/global.css）。 */
+
+.ccw-footer {
+  border-top: 1px solid var(--ccw-color-border);
+  background-color: var(--ccw-color-surface);
+  margin-top: auto;
+}
+
+.ccw-footer__inner {
+  max-width: var(--ccw-content-width);
+  margin: 0 auto;
+  padding: var(--ccw-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ccw-space-4);
+  flex-wrap: wrap;
+}
+
+.ccw-footer__brand {
+  font-weight: 700;
+  color: var(--ccw-color-text);
+}
+
+.ccw-footer__links {
+  display: flex;
+  align-items: center;
+  gap: var(--ccw-space-4);
+}
+
+.ccw-footer__links a {
+  text-decoration: none;
+  color: var(--ccw-color-text-muted);
+}
+
+.ccw-footer__links a:hover {
+  color: var(--ccw-color-text);
+}

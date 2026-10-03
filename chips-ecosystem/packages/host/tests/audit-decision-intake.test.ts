@@ -181,13 +181,15 @@ describe('三方文本锁：decision-intake 镜像 ↔ chips-native.d.ts ↔ 导
     // 第 57/58 项为 C3 两名、第 59 项 audit 域末位；任一插位漂移即翻红）。
     expect(manifest.exports[56]?.name).toBe('resourceCommitChangeset');
     expect(manifest.exports[57]?.name).toBe('resourceRebuildArchive');
-    expect(manifest.exports[58]?.name).toBe('auditBindDecisionSink');
+    // T-id 域尾追加 generateDocumentId（第 60 项），auditBindDecisionSink 顺位 58→59。
+    expect(manifest.exports[58]?.name).toBe('generateDocumentId');
+    expect(manifest.exports[59]?.name).toBe('auditBindDecisionSink');
     expect(entry?.kind).toBe('sync');
     expect(entry?.signature).toBe('(sink: (frame: INativeAuditDecisionFrame) => void) => void');
     // 空白全剥净形锁：d.ts 声明逐 token 与在册签名同形（版式由包内 prettier 定形，锁判不含空白）。
     const normalized = declaration.replace(/\s+/g, '');
     expect(normalized).toContain('functionauditBindDecisionSink(sink:(frame:INativeAuditDecisionFrame)=>void):void;');
-    expect(manifest.exports.length).toBe(59);
+    expect(manifest.exports.length).toBe(60);
   });
 });
 

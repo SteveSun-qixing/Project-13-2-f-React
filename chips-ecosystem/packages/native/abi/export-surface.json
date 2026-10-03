@@ -292,6 +292,11 @@
       "signature": "(sessionId: number, scope: string, members: readonly { path: string; bytes: Uint8Array }[], removals: readonly string[], savedAtUnixMs: number) => Promise<IResourceArchiveRebuildReceipt>"
     },
     {
+      "name": "generateDocumentId",
+      "kind": "sync",
+      "signature": "(exclude: readonly string[]) => string"
+    },
+    {
       "name": "auditBindDecisionSink",
       "kind": "sync",
       "signature": "(sink: (frame: INativeAuditDecisionFrame) => void) => void"

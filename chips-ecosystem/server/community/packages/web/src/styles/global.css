@@ -1,0 +1,227 @@
+/*
+ * 社区 Web 前台全局样式与设计 token（自持最小样式：server 产品不依赖 @chips/ui 与 antd，
+ * 亦不引入主题 / 多语言运行时（ADR-006）；文案简体中文直写）。
+ */
+
+:root {
+  --ccw-color-bg: #f7f6f2;
+  --ccw-color-surface: #ffffff;
+  --ccw-color-text: #26231c;
+  --ccw-color-text-muted: #6f6a5e;
+  --ccw-color-border: #e4e0d6;
+  --ccw-color-brand: #f5b400;
+  --ccw-color-brand-strong: #b3860a;
+  --ccw-color-brand-soft: #fdf3d7;
+  --ccw-color-danger: #b3261e;
+  --ccw-color-danger-soft: #fbeae9;
+  --ccw-radius-medium: 12px;
+  --ccw-radius-small: 8px;
+  --ccw-shadow-panel: 0 1px 2px rgba(38, 35, 28, 0.06), 0 8px 24px rgba(38, 35, 28, 0.06);
+  --ccw-font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ccw-font-size-display: 32px;
+  --ccw-font-size-title: 20px;
+  --ccw-font-size-body: 15px;
+  --ccw-content-width: 1080px;
+  --ccw-space-1: 4px;
+  --ccw-space-2: 8px;
+  --ccw-space-3: 12px;
+  --ccw-space-4: 16px;
+  --ccw-space-5: 24px;
+  --ccw-space-6: 32px;
+  --ccw-space-8: 48px;
+  --ccw-space-9: 64px;
+  --ccw-space-10: 80px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--ccw-font-family);
+  font-size: var(--ccw-font-size-body);
+  line-height: 1.6;
+  color: var(--ccw-color-text);
+  background-color: var(--ccw-color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.ccw-app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ccw-app-main {
+  flex: 1;
+}
+
+/* 页面容器与面板 */
+
+.ccw-page {
+  max-width: var(--ccw-content-width);
+  margin: 0 auto;
+  padding: var(--ccw-space-6) var(--ccw-space-5);
+  width: 100%;
+}
+
+.ccw-panel {
+  border: 1px solid var(--ccw-color-border);
+  border-radius: var(--ccw-radius-medium);
+  background-color: var(--ccw-color-surface);
+  box-shadow: var(--ccw-shadow-panel);
+  padding: var(--ccw-space-6);
+}
+
+.ccw-eyebrow {
+  margin: 0;
+  color: var(--ccw-color-brand-strong);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+}
+
+.ccw-muted {
+  color: var(--ccw-color-text-muted);
+}
+
+/* 按钮（自持按钮体系：主要 / 次要 / 危险 / 文本） */
+
+.ccw-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ccw-space-2);
+  padding: var(--ccw-space-2) var(--ccw-space-4);
+  border-radius: var(--ccw-radius-small);
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.ccw-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ccw-button:focus-visible {
+  outline: 2px solid var(--ccw-color-brand-strong);
+  outline-offset: 2px;
+}
+
+.ccw-button--primary {
+  background-color: var(--ccw-color-brand);
+  border-color: var(--ccw-color-brand);
+  color: var(--ccw-color-text);
+}
+
+.ccw-button--primary:hover:not(:disabled) {
+  background-color: var(--ccw-color-brand-soft);
+  border-color: var(--ccw-color-brand-strong);
+}
+
+.ccw-button--secondary {
+  background-color: var(--ccw-color-surface);
+  border-color: var(--ccw-color-border);
+  color: var(--ccw-color-text);
+}
+
+.ccw-button--secondary:hover:not(:disabled) {
+  border-color: var(--ccw-color-brand-strong);
+  background-color: var(--ccw-color-brand-soft);
+}
+
+.ccw-button--danger {
+  background-color: var(--ccw-color-danger-soft);
+  border-color: var(--ccw-color-danger);
+  color: var(--ccw-color-danger);
+}
+
+.ccw-button--danger:hover:not(:disabled) {
+  background-color: var(--ccw-color-danger);
+  color: var(--ccw-color-surface);
+}
+
+.ccw-button--text {
+  background: none;
+  border-color: transparent;
+  color: var(--ccw-color-text-muted);
+}
+
+.ccw-button--text:hover:not(:disabled) {
+  color: var(--ccw-color-text);
+  background-color: var(--ccw-color-brand-soft);
+}
+
+.ccw-button--large {
+  padding: var(--ccw-space-3) var(--ccw-space-6);
+  font-size: var(--ccw-font-size-body);
+}
+
+.ccw-button--block {
+  width: 100%;
+}
+
+/* 提示与表单 */
+
+.ccw-alert {
+  margin: 0 0 var(--ccw-space-4);
+  padding: var(--ccw-space-3) var(--ccw-space-4);
+  border-radius: var(--ccw-radius-small);
+}
+
+.ccw-alert--error {
+  background-color: var(--ccw-color-danger-soft);
+  border: 1px solid var(--ccw-color-danger);
+  color: var(--ccw-color-danger);
+}
+
+.ccw-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ccw-space-1);
+}
+
+.ccw-form-field__label {
+  font-weight: 600;
+}
+
+.ccw-form-field__input {
+  width: 100%;
+  padding: var(--ccw-space-2) var(--ccw-space-3);
+  border: 1px solid var(--ccw-color-border);
+  border-radius: var(--ccw-radius-small);
+  font: inherit;
+  color: var(--ccw-color-text);
+  background-color: var(--ccw-color-surface);
+}
+
+.ccw-form-field__input:focus {
+  outline: 2px solid var(--ccw-color-brand-strong);
+  outline-offset: 1px;
+  border-color: var(--ccw-color-brand-strong);
+}
+
+.ccw-form-field__input:disabled {
+  background-color: var(--ccw-color-bg);
+}
+
+/* 加载态 */
+
+.ccw-page-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ccw-space-10);
+  color: var(--ccw-color-text-muted);
+}

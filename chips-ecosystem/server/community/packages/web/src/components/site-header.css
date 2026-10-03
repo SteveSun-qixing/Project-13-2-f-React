@@ -1,0 +1,86 @@
+/* 站点页头样式（自持最小样式，token 见 styles/global.css）。 */
+
+.ccw-header {
+  border-bottom: 1px solid var(--ccw-color-border);
+  background-color: var(--ccw-color-surface);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.ccw-header__inner {
+  max-width: var(--ccw-content-width);
+  margin: 0 auto;
+  padding: var(--ccw-space-3) var(--ccw-space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--ccw-space-6);
+}
+
+.ccw-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ccw-space-2);
+  text-decoration: none;
+  color: var(--ccw-color-text);
+  font-weight: 700;
+}
+
+.ccw-header__brand-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--ccw-color-brand), var(--ccw-color-brand-strong));
+}
+
+.ccw-header__brand-name {
+  font-size: var(--ccw-font-size-body);
+}
+
+.ccw-header__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--ccw-space-4);
+  flex: 1;
+}
+
+.ccw-header__nav a {
+  text-decoration: none;
+  color: var(--ccw-color-text-muted);
+  padding: var(--ccw-space-1) var(--ccw-space-2);
+  border-radius: var(--ccw-radius-small);
+}
+
+.ccw-header__nav a:hover {
+  color: var(--ccw-color-text);
+  background-color: var(--ccw-color-brand-soft);
+}
+
+.ccw-header__nav a[aria-current='page'] {
+  color: var(--ccw-color-text);
+  font-weight: 600;
+}
+
+.ccw-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ccw-space-3);
+}
+
+.ccw-header__username {
+  text-decoration: none;
+  color: var(--ccw-color-text);
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .ccw-header__inner {
+    flex-wrap: wrap;
+    gap: var(--ccw-space-3);
+  }
+
+  .ccw-header__nav {
+    order: 3;
+    width: 100%;
+  }
+}

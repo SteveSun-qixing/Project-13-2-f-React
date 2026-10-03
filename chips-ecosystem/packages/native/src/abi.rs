@@ -84,6 +84,7 @@ export_table! {
     "resourceGrantSession" => crate::resource::js_resource_grant_session,
     "resourceCommitChangeset" => crate::resource::js_resource_commit_changeset,
     "resourceRebuildArchive" => crate::resource::js_resource_rebuild_archive,
+    "generateDocumentId" => crate::resource::js_generate_document_id,
     "auditBindDecisionSink" => crate::audit::js_audit_bind_decision_sink,
 }
 

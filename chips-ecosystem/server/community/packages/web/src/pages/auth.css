@@ -1,0 +1,40 @@
+/* 登录 / 注册共用表单样式（自持最小样式，token 见 styles/global.css）。 */
+
+.ccw-auth {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--ccw-space-8);
+  padding-bottom: var(--ccw-space-10);
+}
+
+.ccw-auth__card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.ccw-auth__head h1 {
+  margin: var(--ccw-space-2) 0;
+  font-size: var(--ccw-font-size-display);
+}
+
+.ccw-auth__head p {
+  margin: 0 0 var(--ccw-space-4);
+}
+
+.ccw-auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ccw-space-4);
+  margin-bottom: var(--ccw-space-4);
+}
+
+.ccw-auth__footer {
+  margin: 0;
+  color: var(--ccw-color-text-muted);
+  text-align: center;
+}
+
+.ccw-auth__footer a {
+  color: var(--ccw-color-brand-strong);
+  font-weight: 600;
+}
