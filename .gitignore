@@ -63,3 +63,7 @@ target/
 # preflight NEVER-INGEST-IGNORE 断言④的核对对象）
 cordis-main/
 deepseek-harness-master/
+
+# AOCI agent host integration (machine-bound; do not commit)
+opencode.json
+opencode.json.backup.*

@@ -1,6 +1,0 @@
-{
-  "requiredComponents": [
-    "button"
-  ]
-}
-

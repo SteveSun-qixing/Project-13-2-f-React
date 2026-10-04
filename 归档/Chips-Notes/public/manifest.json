@@ -1,9 +1,0 @@
-{
-  "name": "薯片笔记",
-  "short_name": "薯片笔记",
-  "description": "基于薯片生态的本地 Markdown 笔记应用",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#4a90e2"
-}

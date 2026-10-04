@@ -1,0 +1,94 @@
+.DS_Store
+**/.DS_Store
+.AppleDouble
+**/.AppleDouble
+.LSOverride
+Icon?
+!**/icons/
+!**/icons/**
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+*.log
+**/*.log
+# 台账操作留痕是审计资产，随台账工具与 DB 入库（非运行日志）
+!重构大计划/台账操作.log
+*.tsbuildinfo
+**/*.tsbuildinfo
+.cache/
+**/.cache/
+.vite/
+**/.vite/
+**/coverage/
+# 在用源码与门禁测试输入不是覆盖率产物（工单 018）
+# git 不进入被排除的目录，因此逐级取反：目录本身 + 目录内条目。
+!chips-ecosystem/tools/testing/src/coverage
+!chips-ecosystem/tools/testing/src/coverage/**
+!chips-ecosystem/tools/gates/tests/fixtures
+!chips-ecosystem/tools/gates/tests/fixtures/**
+# entries-* 夹具的 dist/index.js 是 check-entries 门禁的在用测试输入
+!chips-ecosystem/tools/gates/tests/fixtures/**/dist
+!chips-ecosystem/tools/gates/tests/fixtures/**/dist/**
+.playwright-cli/
+# 仅根目录的 playwright 产物目录不入库；源码目录 src/output 不受影响（工单 018）
+/output/
+.chips-host-dev/
+**/node_modules/
+**/dist/
+Chips-Scaffold/chips-scaffold-basecard/tests/.tmp-basecard-tests/
+Chips-Scaffold/chips-scaffold-basecard/tests/.tmp-e2e/
+.idea/
+.vscode/
+.specstory/
+release-artifacts/
+打包/
+.codex-runtime-logs/
+.omo/
+
+# cargo 构建产物目录
+target/
+**/target/
+
+# SQLite WAL/SHM 临时文件不入库
+*.db-shm
+*.db-wal
+
+# 永不入库红线目录显式条目（W3-P1-3 勘查稿 #137 §3.3④ / 第七节裁定④，锚定目录写法；
+# preflight NEVER-INGEST-IGNORE 断言④的核对对象）
+cordis-main/
+deepseek-harness-master/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+node_modules/
+bower_components/
+jspm_packages/
+__pycache__/
+site-packages/
+venv/
+coverage/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）
